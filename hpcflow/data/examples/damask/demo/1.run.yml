@@ -1,4 +1,0 @@
-profile: damask_run
-
-options:
-  pe: smp.pe 4
