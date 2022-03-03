@@ -1,0 +1,177 @@
+name: CI-full
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  bump-version:
+    if: | # only release from develop (as pre-release) or main (as stable)
+      github.ref == 'refs/heads/develop' ||
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 # get all history and tags
+
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Get git-chglog executable
+        run: |
+          wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.0/git-chglog_0.15.0_linux_amd64.tar.gz
+          tar --extract --file git-chglog_0.15.0_linux_amd64.tar.gz git-chglog
+
+      - name: Install commitizen
+        run: pip install commitizen
+
+      - name: Get current tag
+        run: |
+          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
+
+      - name: Commitizen bump # Bump version strings and add a new tag; commit
+        run: cz bump
+
+      - name: Get new tag
+        id: get_new_tag
+        run: |
+          NEW_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "new_tag=$NEW_TAG" >> $GITHUB_ENV
+          echo "::set-output name=new_tag_name::$NEW_TAG"
+
+      - name: Generate CHANGELOG
+        run: |
+          ./git-chglog --output CHANGELOG.md
+          git add CHANGELOG.md
+          git tag -d ${{ env.new_tag }}
+          git commit --amend --no-edit
+          git tag ${{ env.new_tag }}
+
+      - name: Push changes
+        run: git push && git push origin ${{ env.new_tag }}
+
+      - name: Generate incremental CHANGELOG for GitHub release body
+        run: |
+          ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.new_tag }}
+          cat CHANGELOG_increment.md
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: CHANGELOG_increment
+          path: CHANGELOG_increment.md
+
+  build-executables:
+    needs: bump-version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019, ubuntu-18.04, macos-10.15]
+        include:
+          - os: windows-2019
+            executable_ext: .exe
+            executable_os: win
+          - os: ubuntu-18.04
+            executable_ext: ""
+            executable_os: linux
+          - os: macos-10.15
+            executable_ext: ""
+            executable_os: macos
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install poetry
+        run: python -m pip install poetry==1.1.11
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build with pyinstaller for ${{matrix.executable_os}}
+        run: poetry run pyinstaller git_branching_test/cli.py --name=git_branching_test-${{ needs.bump-version.outputs.new_tag_name }} --onefile
+
+      - name: Rename executable for ${{matrix.executable_os}}
+        run: mv dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+
+      - name: Basic executable test
+        run: dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+
+  release-github-PyPI:
+    needs: [bump-version, build-executables]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install poetry
+        run: python -m pip install poetry==1.1.11
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build (for PyPI)
+        run: |
+          poetry build
+
+      - run: mkdir release-artifacts
+
+      - uses: actions/download-artifact@v2
+        id: download_executables
+        with:
+          path: release-artifacts
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
+          tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
+          files: release-artifacts/git_branching_test-*/*
+          prerelease: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Publish (to test PyPI)
+        run: |
+          poetry config repositories.test-pypi https://test.pypi.org/legacy/
+          poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
+          poetry publish --repository test-pypi

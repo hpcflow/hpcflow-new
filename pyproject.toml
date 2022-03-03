@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "hpcflow"
+version = "0.2.0"
+description = "Computational workflow management"
+authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
+license = "MIT"
+readme = "README.md"
+include = [
+    "hpcflow/data/workflow_spec_schema.yaml",
+    "hpcflow/data/task_schema_spec_schema.yaml",
+    "hpcflow/data/environments_spec_schema.yaml"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.7,<3.11"
+zarr = "^2.10.3"
+"ruamel.yaml" = "^0.17.20"
+valida = {path = "../valida", develop = true}
+
+[tool.poetry.dev-dependencies]
+pylint = "^2.12.2"
+ipykernel = "^6.6.1"
+pytest = "^6.2.5"
+commitizen = "^2.20.3"
+pre-commit = "^2.16.0"
+black = "^21.12b0"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.2.0"
+tag_format = "v$version"
+version_files = [ 
+    "pyproject.toml:version",
+    "hpcflow/__init__.py"
+]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
