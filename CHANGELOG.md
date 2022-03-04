@@ -1,3 +1,6 @@
+<a name="v0.4.0"></a>
+## [v0.4.0](https://github.com/hpcflow/git-branching-test/compare/v0.4.0a0...v0.4.0) - 2022.03.04
+
 
 <a name="v0.4.0a0"></a>
 ## [v0.4.0a0](https://github.com/hpcflow/git-branching-test/compare/v0.3.0...v0.4.0a0) - 2022.03.04
@@ -116,4 +119,3 @@
 
 <a name="v0.1.1"></a>
 ## v0.1.1 - 2019.06.14
-
