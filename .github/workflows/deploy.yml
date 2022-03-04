@@ -1,11 +1,12 @@
 name: deploy
+
 on:
+  workflow_dispatch: # manual
   workflow_run:
     workflows: [test]
     types: [completed]
-  workflow_dispatch:
-  push:
     branches: [main, develop]
+
 jobs:
   bump-version:
     if:
