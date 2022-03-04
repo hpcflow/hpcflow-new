@@ -1,7 +1,7 @@
 name: deploy
 on:
   workflow_run:
-    workflows: [Test]
+    workflows: [test]
     types: [completed]
   workflow_dispatch:
   push:
