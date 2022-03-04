@@ -1,4 +1,2 @@
-__version__ = "0.11.0"
-
-
+from hpcflow._version import __version__
 from hpcflow.hpcflow import HPCFlow

@@ -2,7 +2,7 @@ style: github
 template: CHANGELOG.tpl.md
 info:
   title: CHANGELOG
-  repository_url: https://github.com/hpcflow/git-branching-test
+  repository_url: https://github.com/hpcflow/hpcflow-new
 options:
   commits:
     filters:

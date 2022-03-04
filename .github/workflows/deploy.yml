@@ -13,7 +13,6 @@ jobs:
       | # only deploy if tests succeeded and only from develop (as pre-release) or main (as stable):
       github.event.workflow_run.conclusion == 'success'
       && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
-      && github.actor != 'hpcflow-actions'
     runs-on: ubuntu-latest
     outputs:
       new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
