@@ -1,4 +1,14 @@
 
+<a name="v0.3.0"></a>
+## [v0.3.0](https://github.com/hpcflow/git-branching-test/compare/v0.3.0a0...v0.3.0) - 2022.03.04
+
+### 👷 Build changes
+
+* update GH workflow
+* use correct branch in deploy workflow
+* add pyinstaller
+
+
 <a name="v0.3.0a0"></a>
 ## [v0.3.0a0](https://github.com/hpcflow/git-branching-test/compare/v0.2.0...v0.3.0a0) - 2022.03.04
 
