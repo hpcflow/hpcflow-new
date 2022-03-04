@@ -3,6 +3,7 @@ name: test
 on:
   workflow_dispatch: # manual
   push: # on any branch
+    paths-ignore: [CHANGELOG.md] # ignore push from bump-version in deploy workflow
 
 jobs:
   test:
