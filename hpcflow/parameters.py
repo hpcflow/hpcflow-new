@@ -109,8 +109,7 @@ class SchemaInput(SchemaParameter):
     def from_spec(cls, spec, parameters):
         if "default_value" in spec:
             spec["default_value"] = InputValue(
-                parameter=parameters[spec["parameter"]],
-                value=spec["default_value"],
+                parameter=parameters[spec["parameter"]], value=spec["default_value"]
             )
         return super().from_spec(spec, parameters)
 

@@ -55,6 +55,5 @@ def test_raise_on_invalid_method_non_alpha_numeric(dummy_schema_args):
 
 def test_method_lowercasing(dummy_schema_args):
     assert TaskSchema(method="MyMethod", **dummy_schema_args) == TaskSchema(
-        method="mymethod",
-        **dummy_schema_args,
+        method="mymethod", **dummy_schema_args
     )

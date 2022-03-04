@@ -135,10 +135,7 @@ class Action:
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
         commands = []  # TODO: indices of commands in which this parameter appears
-        out = {
-            "input_file_writers": writer_files,
-            "commands": commands,
-        }
+        out = {"input_file_writers": writer_files, "commands": commands}
         return out
 
     def get_resolved_action_env(
