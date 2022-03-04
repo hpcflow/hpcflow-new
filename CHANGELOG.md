@@ -1,3 +1,23 @@
+
+<a name="v0.5.0"></a>
+## [v0.5.0](https://github.com/hpcflow/git-branching-test/compare/v0.4.0...v0.5.0) - 2022.03.04
+
+### ✨ Features
+
+* new feat
+* 123
+* blah
+* test deploy main
+
+### 👷 Build changes
+
+* git user
+* git user
+* update action git user
+* use secret in bump-version
+* add pre-commit hooks
+
+
 <a name="v0.4.0"></a>
 ## [v0.4.0](https://github.com/hpcflow/git-branching-test/compare/v0.4.0a0...v0.4.0) - 2022.03.04
 
@@ -119,3 +139,4 @@
 
 <a name="v0.1.1"></a>
 ## v0.1.1 - 2019.06.14
+
