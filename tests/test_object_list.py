@@ -18,10 +18,7 @@ def simple_object_list():
     obj_list = DotAccessObjectList(
         *my_objs, access_attribute="name", descriptor="my_object"
     )
-    out = {
-        "objects": my_objs,
-        "object_list": obj_list,
-    }
+    out = {"objects": my_objs, "object_list": obj_list}
     return out
 
 

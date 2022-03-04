@@ -5,8 +5,6 @@ from valida.datapath import ListValue, MapValue
 
 # TODO: write this schema in yaml
 
-_RULES = [
-
-]
+_RULES = []
 
 SPEC_SCHEMA = Schema(_RULES)

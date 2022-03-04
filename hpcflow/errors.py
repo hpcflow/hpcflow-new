@@ -36,11 +36,14 @@ class TaskSchemaSpecValidationError(Exception):
 class WorkflowSpecValidationError(Exception):
     pass
 
+
 class InputSourceValidationError(Exception):
     pass
 
+
 class EnvironmentSpecValidationError(Exception):
     pass
+
 
 class DuplicateExecutableError(ValueError):
     pass
@@ -49,8 +52,10 @@ class DuplicateExecutableError(ValueError):
 class MissingActionsError(ValueError):
     pass
 
+
 class MissingCompatibleActionEnvironment(Exception):
     pass
+
 
 class MissingActionEnvironment(Exception):
     pass
