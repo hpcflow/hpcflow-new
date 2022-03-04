@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    if: ${{ github.event.actor != hpcflow-actions }} # ignore bump-version commit from deploy workflow?
+    if: ${{ github.event.actor != "hpcflow-actions" }} # ignore bump-version commit from deploy workflow?
     strategy:
       fail-fast: false
       matrix:
