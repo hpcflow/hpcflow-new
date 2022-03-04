@@ -3,11 +3,10 @@ name: test
 on:
   workflow_dispatch: # manual
   push: # on any branch
-    paths-ignore: [CHANGELOG.md] # ignore push from bump-version in deploy workflow
+    paths-ignore: [CHANGELOG.md, pyproject.toml, hpcflow/_version.py] # ignore push from bump-version in deploy workflow
 
 jobs:
   test:
-    if: github.actor != 'hpcflow-actions' # ignore bump-version commit from deploy workflow?
     strategy:
       fail-fast: false
       matrix:
