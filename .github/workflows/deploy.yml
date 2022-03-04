@@ -1,13 +1,17 @@
-name: CI-full
+name: deploy
+
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
+  workflow_dispatch: # manual
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main, develop]
+
 jobs:
   bump-version:
-    if: | # only release from develop (as pre-release) or main (as stable)
-      github.ref == 'refs/heads/develop' ||
-      github.ref == 'refs/heads/main'
+    if:
+      | # only deploy if tests succeeded and only from develop (as pre-release) or main (as stable):
+      ${{ github.event.workflow_run.conclusion == 'success' }} && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     outputs:
       new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
@@ -37,7 +41,12 @@ jobs:
           CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
 
+      - name: Commitizen bump (pre-release) # Bump version strings (pre-release) and add a new tag; commit
+        if: github.ref == 'refs/heads/develop'
+        run: cz bump --prerelease alpha
+
       - name: Commitizen bump # Bump version strings and add a new tag; commit
+        if: github.ref == 'refs/heads/main'
         run: cz bump
 
       - name: Get new tag
@@ -111,18 +120,18 @@ jobs:
         run: poetry install
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller git_branching_test/cli.py --name=git_branching_test-${{ needs.bump-version.outputs.new_tag_name }} --onefile
+        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }} --onefile
 
       - name: Rename executable for ${{matrix.executable_os}}
-        run: mv dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+        run: mv dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Basic executable test
-        run: dist/git_branching_test-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
 
   release-github-PyPI:
     needs: [bump-version, build-executables]
@@ -167,7 +176,7 @@ jobs:
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
-          files: release-artifacts/git_branching_test-*/*
+          files: release-artifacts/hpcflow-*/*
           prerelease: ${{ github.ref == 'refs/heads/develop' }}
 
       - name: Publish (to test PyPI)
