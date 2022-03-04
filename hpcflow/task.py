@@ -319,15 +319,10 @@ class TaskTemplate:
         return [i for i in self.inputs if not i.is_sub_value]
 
     def add_group(
-        self,
-        name: str,
-        where: ElementFilter,
-        group_by_distinct: ParameterPath,
+        self, name: str, where: ElementFilter, group_by_distinct: ParameterPath
     ):
         group = ElementGroup(
-            name=name,
-            where=where,
-            group_by_distinct=group_by_distinct,
+            name=name, where=where, group_by_distinct=group_by_distinct
         )
         self.groups.add_object(group)
 

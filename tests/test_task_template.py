@@ -26,8 +26,7 @@ def test_raise_on_unexpected_inputs():
     unknown_input = Parameter("unknown_input")
 
     generate_RVE_schema = TaskSchema(
-        objective=TaskObjective("generate_volume_element"),
-        inputs=[grid_size],
+        objective=TaskObjective("generate_volume_element"), inputs=[grid_size]
     )
 
     with pytest.raises(TaskTemplateUnexpectedInput):
@@ -45,8 +44,7 @@ def test_raise_on_multiple_input_values():
     grid_size = Parameter("grid_size")
 
     generate_RVE_schema = TaskSchema(
-        objective=TaskObjective("generate_volume_element"),
-        inputs=[grid_size],
+        objective=TaskObjective("generate_volume_element"), inputs=[grid_size]
     )
 
     with pytest.raises(TaskTemplateMultipleInputValues):
@@ -110,19 +108,13 @@ def test_expected_unique_name_single_schema():
 
 
 def test_expected_unique_name_single_schema_with_method():
-    schema = TaskSchema(
-        objective=TaskObjective("simulate"),
-        method="method1",
-    )
+    schema = TaskSchema(objective=TaskObjective("simulate"), method="method1")
     task = TaskTemplate(schema)
     assert task.unique_name == "simulate_method1"
 
 
 def test_expected_unique_name_single_schema_with_implementation():
-    schema = TaskSchema(
-        objective=TaskObjective("simulate"),
-        implementation="i1",
-    )
+    schema = TaskSchema(objective=TaskObjective("simulate"), implementation="i1")
     task = TaskTemplate(schema)
     assert task.unique_name == "simulate_i1"
 

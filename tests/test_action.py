@@ -11,15 +11,17 @@ from hpcflow.parameters import Parameter
 def dummy_commands_kwargs():
     return {"commands": [Command("ls")]}
 
+
 @pytest.fixture
 def dummy_commands_spec():
-    return {"commands": [{'command': "ls"}]}
+    return {"commands": [{"command": "ls"}]}
 
 
 @pytest.fixture
 def dummy_action_kwargs_no_env(dummy_commands_kwargs):
     act_kwargs = {**dummy_commands_kwargs}
     return act_kwargs
+
 
 @pytest.fixture
 def dummy_action_spec_no_env(dummy_commands_spec):
@@ -45,9 +47,11 @@ def test_raise_on_no_envs(dummy_action_kwargs_no_env):
     with pytest.raises(TypeError):
         Action(**dummy_action_kwargs_no_env)
 
+
 def test_spec_raise_on_no_envs(dummy_action_spec_no_env):
     with pytest.raises(MissingActionEnvironment):
         Action.from_spec(dummy_action_spec_no_env)
+
 
 def test_1(dummy_action_kwargs_pre_proc):
     act = Action(**dummy_action_kwargs_pre_proc)

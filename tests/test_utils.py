@@ -109,7 +109,7 @@ def test_expected_return_group_by_dict_key_values_multi_key_items_multi_key_pass
     item_2 = {"a": 9, "b": 1}
     item_3 = {"a": 9, "b": 1}
     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-        [item_1, item_2, item_3],
+        [item_1, item_2, item_3]
     ]
 
 

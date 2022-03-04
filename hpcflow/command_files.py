@@ -102,10 +102,7 @@ class _FileContentsSpecifier:
     """Class to represent the contents of a file, either via a file-system path or directly."""
 
     def __init__(
-        self,
-        path: Union[Path, str] = None,
-        contents: str = None,
-        extension: str = "",
+        self, path: Union[Path, str] = None, contents: str = None, extension: str = ""
     ):
         self.path = Path(path) if path is not None else path
         self._contents = contents

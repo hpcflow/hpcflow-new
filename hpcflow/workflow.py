@@ -148,9 +148,7 @@ class WorkflowTemplate:
                 nesting_order=-1,
             ),
             ValueSequence(
-                path=["resources"],
-                values=[task_template.resources],
-                nesting_order=-1,
+                path=["resources"], values=[task_template.resources], nesting_order=-1
             ),
         ]  # treat sub-parameter input values as single-item sequences
         for i in task_template.get_sub_parameter_input_values():
@@ -214,10 +212,7 @@ class WorkflowTemplate:
                     ],
                     "outputs": [
                         {
-                            "path": (
-                                "outputs",
-                                k,
-                            ),
+                            "path": ("outputs", k),
                             "parameter_mapping_index": v,
                             "data_index": i_idx,
                         }
@@ -318,11 +313,7 @@ class WorkflowTemplate:
 
             if is_parent:
                 # replace current value:
-                final_data_path = (
-                    param_data_idx,
-                    "data",
-                    *rel_path_parts,
-                )
+                final_data_path = (param_data_idx, "data", *rel_path_parts)
                 try:
                     current_value = get_in_container(
                         self.parameter_data, final_data_path

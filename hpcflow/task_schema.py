@@ -41,7 +41,7 @@ class TaskSchema:
     )
     outputs: Optional[List[Union[Parameter, SchemaOutput]]] = field(
         default_factory=lambda: []
-    )    
+    )
 
     def __post_init__(self):
 
@@ -102,10 +102,7 @@ class TaskSchema:
 
     def get_parameter_dependence(self, parameter: SchemaParameter):
         """Find if/where a given parameter is used by the schema's actions."""
-        out = {
-            "input_file_writers": [],
-            "commands": [],
-        }
+        out = {"input_file_writers": [], "commands": []}
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
             for key in out:

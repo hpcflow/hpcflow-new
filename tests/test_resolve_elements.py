@@ -15,9 +15,7 @@ def test_expected_return_resolve_elements():
     volume_element_response = Parameter("volume_element_response")
 
     generate_RVE_schema = TaskSchema(
-        objective=generate_RVE,
-        inputs=[grid_size, size],
-        outputs=[volume_element],
+        objective=generate_RVE, inputs=[grid_size, size], outputs=[volume_element]
     )
     simulate_schema = TaskSchema(
         objective=simulate,
@@ -33,6 +31,5 @@ def test_expected_return_resolve_elements():
         ],
     )
     task_2 = TaskTemplate(
-        schema=simulate_schema,
-        input_values=[InputValue(load_case, value=10)],
+        schema=simulate_schema, input_values=[InputValue(load_case, value=10)]
     )

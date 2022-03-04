@@ -38,10 +38,7 @@ def make_workflow():
                 schema=TaskSchema(parameters=("A", "B")),
                 parameter_values={"A": 1, "B": 2},
             ),
-            Task(
-                schema=TaskSchema(parameters=("D")),
-                parameter_values={"D": 4},
-            ),
+            Task(schema=TaskSchema(parameters=("D")), parameter_values={"D": 4}),
         ]
     )
 
