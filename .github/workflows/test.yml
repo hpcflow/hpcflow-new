@@ -6,6 +6,12 @@ on:
     paths-ignore: [CHANGELOG.md, pyproject.toml, hpcflow/_version.py] # ignore push from bump-version in deploy workflow
 
 jobs:
+  printInfo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print GitHub event action
+        run: |
+          echo "${{ github.event.action }}"
   test:
     strategy:
       fail-fast: false
