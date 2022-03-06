@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install pre-commit
           pre-commit install 
-          python -c "from subprocess import run; run('pre-commit run --all-files', shell=True);"
+          pre-commit run --all-files || pre-commit run --all-files
           git diff --quiet; if [ $? -eq 1 ]; then git commit -am "[skip ci] pre-commit fixes"; fi;
 
   test:
