@@ -3,6 +3,7 @@ repos:
     rev: v3.2.0
     hooks:
       - id: end-of-file-fixer
+        exclude: CHANGELOG.tpl.md
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
