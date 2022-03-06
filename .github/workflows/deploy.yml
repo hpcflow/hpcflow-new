@@ -94,7 +94,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          ref: refs/heads/${{ github.event.workflow_run.head_branch }} # otherwise we get the ref when the workflow started (missing above commit)
 
       - uses: actions/setup-python@v2
         with:
@@ -135,7 +135,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          ref: refs/heads/${{ github.event.workflow_run.head_branch }} # otherwise we get the ref when the workflow started (missing above commit)
 
       - uses: actions/setup-python@v2
         with:
@@ -173,7 +173,7 @@ jobs:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
           files: release-artifacts/hpcflow-*/*
-          prerelease: ${{ github.ref == 'refs/heads/develop' }}
+          prerelease: ${{ github.event.workflow_run.head_branch == 'develop' }}
 
       - name: Publish (to test PyPI)
         run: |
