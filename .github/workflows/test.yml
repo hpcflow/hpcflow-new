@@ -16,8 +16,9 @@ jobs:
     steps:
       - name: Print github.event_name
         run: |
-          echo ${{ github.event_name }}
-          echo ${{ github.ref }}
+          echo "github.event_name:" ${{ github.event_name }}
+          echo "github.ref:" ${{ github.ref }}
+          echo "github.event.head_commit.message:" ${{ github.event.head_commit.message }}
   test:
     strategy:
       fail-fast: false
