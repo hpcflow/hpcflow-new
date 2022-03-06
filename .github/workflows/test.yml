@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Print GitHub event action
         run: |
-          echo "${{ github.event }}"
+          echo "${{ github.event_name }}"
   test:
     strategy:
       fail-fast: false
