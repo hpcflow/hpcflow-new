@@ -11,7 +11,7 @@ jobs:
   bump-version:
     if:
       | # only deploy if tests succeeded and only from develop (as pre-release) or main (as stable):
-      if github.event_name == workflow_run && (
+      github.event_name == workflow_run && (
         github.event.workflow_run.conclusion == 'success'
         && (github.event.workflow_run.head_branch == 'develop' || github.event.workflow_run.head_branch == 'main')
       )
