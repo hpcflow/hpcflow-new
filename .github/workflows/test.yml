@@ -9,6 +9,7 @@ on:
         hpcflow/_version.py,
         .github/workflows/*,
       ] # ignore push from bump-version in deploy workflow
+    tags-ignore: ["*.*"]
 
 jobs:
   printInfo:
