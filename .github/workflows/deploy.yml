@@ -26,6 +26,7 @@ jobs:
       - run: |
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
+          echo ${{ github.ref }}
 
       - uses: actions/setup-python@v2
         with:
