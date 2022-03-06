@@ -31,7 +31,7 @@ jobs:
           if git diff --quiet; then
             echo "No pre-commit changes"
           else
-            git commit -am "[skip ci] pre-commit fixes"
+            git commit -am "[skip ci] pre commit fixes"
             git push
           fi
 
