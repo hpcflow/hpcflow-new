@@ -21,12 +21,12 @@ jobs:
           python-version: 3.9
 
       - name: pre-commit
-        run: |
+        run: | # avoid exit code 1 from pre-commit run command:
           pip install pre-commit
           pre-commit install 
           pre-commit run --all-files || pre-commit run --all-files
 
-      - name: pre-commit push changes
+      - name: pre commit push changes
         run: |
           if git diff --quiet; then
             echo "No pre commit changes"
