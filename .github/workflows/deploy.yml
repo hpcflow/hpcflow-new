@@ -28,7 +28,7 @@ jobs:
           git config user.email hpcflow-actions@users.noreply.github.com
           echo ${{ github.event.workflow_run.head_branch }}
           echo ${{ github.ref }}
-          echo `git branch`
+          git branch
 
       # - uses: actions/setup-python@v2
       #   with:
