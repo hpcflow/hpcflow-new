@@ -1,4 +1,12 @@
 
+<a name="v0.22.0a18"></a>
+## [v0.22.0a18](https://github.com/hpcflow/hpcflow-new/compare/v0.22.0a17...v0.22.0a18) - 2022.03.06
+
+### ✨ Features
+
+* 47
+
+
 <a name="v0.22.0a17"></a>
 ## [v0.22.0a17](https://github.com/hpcflow/hpcflow-new/compare/v0.22.0a16...v0.22.0a17) - 2022.03.06
 
