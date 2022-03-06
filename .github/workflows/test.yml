@@ -3,9 +3,20 @@ name: test
 on:
   workflow_dispatch: # manual
   push: # on any branch
-    paths-ignore: [CHANGELOG.md, pyproject.toml, hpcflow/_version.py] # ignore push from bump-version in deploy workflow
+    paths-ignore: [
+        CHANGELOG.md,
+        pyproject.toml,
+        hpcflow/_version.py,
+        .github/workflows/*,
+      ] # ignore push from bump-version in deploy workflow
 
 jobs:
+  printInfo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print GitHub event action
+        run: |
+          echo "${{ github.event_name }}"
   test:
     strategy:
       fail-fast: false
