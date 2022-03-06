@@ -24,12 +24,12 @@ jobs:
         run: |
           pip install pre-commit
           pre-commit install 
-          pre-commit run --all-files || pre-commit run --all-files
+          pre-commit run --all-files
 
       - name: pre-commit push changes
         run: |
           if git diff --quiet; then
-            echo "No pre-commit changes"
+            echo "No pre commit changes"
           else
             git commit -am "[skip ci] pre commit fixes"
             git push
