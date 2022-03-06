@@ -28,8 +28,9 @@ jobs:
 
       - name: pre-commit push changes
         run: |
-          git diff --quiet
-          if [ $? -eq 1 ]; then
+          if git diff --quiet; then
+            echo "No pre-commit changes"
+          else
             git commit -am "[skip ci] pre-commit fixes"
           fi
 
