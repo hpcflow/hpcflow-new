@@ -28,7 +28,10 @@ jobs:
 
       - name: pre-commit push changes
         run: |
-          git diff --quiet; if [ $? -eq 1 ]; then git commit -am "[skip ci] pre-commit fixes"; fi;
+          git diff --quiet
+          if [ $? -eq 1 ]; then
+            git commit -am "[skip ci] pre-commit fixes"
+          fi
 
   test:
     strategy:
