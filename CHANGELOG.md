@@ -1,4 +1,12 @@
 
+<a name="v0.16.0"></a>
+## [v0.16.0](https://github.com/hpcflow/hpcflow-new/compare/v0.15.0...v0.16.0) - 2022.03.06
+
+### ✨ Features
+
+* 3
+
+
 <a name="v0.15.0"></a>
 ## [v0.15.0](https://github.com/hpcflow/hpcflow-new/compare/v0.14.0...v0.15.0) - 2022.03.06
 
