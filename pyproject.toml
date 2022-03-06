@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "hpcflow"
-version = "0.23.0a4"
+version = "0.23.0a5"
 description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
 license = "MIT"
@@ -33,7 +33,7 @@ hpcflow = 'hpcflow.cli:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.23.0a4"
+version = "0.23.0a5"
 tag_format = "v$version"
 version_files = [ 
     "pyproject.toml:version",
