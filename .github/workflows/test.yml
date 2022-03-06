@@ -14,42 +14,43 @@ jobs:
   printInfo:
     runs-on: ubuntu-latest
     steps:
-      - name: Print GitHub event action
+      - name: Print github.event_name
         run: |
-          echo "${{ github.event_name }}"
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10"]
-        os: [ubuntu-18.04]
+          echo ${{ github.event_name }}
+          echo ${{ github.ref }}
+  # test:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       python-version: ["3.10"]
+  #       os: [ubuntu-18.04]
 
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: ${{ matrix.python-version }}
 
-      - name: Install poetry
-        run: |
-          python -m pip install poetry
+  #     - name: Install poetry
+  #       run: |
+  #         python -m pip install poetry
 
-      - name: Configure poetry
-        run: |
-          poetry config virtualenvs.in-project true
+  #     - name: Configure poetry
+  #       run: |
+  #         poetry config virtualenvs.in-project true
 
-      - name: Cache the virtualenv
-        uses: actions/cache@v2
-        with:
-          path: ./.venv
-          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}
+  #     - name: Cache the virtualenv
+  #       uses: actions/cache@v2
+  #       with:
+  #         path: ./.venv
+  #         key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install dependencies
-        run: |
-          poetry install
+  #     - name: Install dependencies
+  #       run: |
+  #         poetry install
 
-      - name: Run tests
-        run: | # disable failing tests while we set up CI
-          poetry run python -m pytest --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
+  #     - name: Run tests
+  #       run: | # disable failing tests while we set up CI
+  #         poetry run python -m pytest --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
