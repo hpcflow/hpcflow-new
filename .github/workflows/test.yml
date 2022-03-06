@@ -24,7 +24,7 @@ jobs:
         run: |
           pip install pre-commit
           pre-commit install 
-          pre-commit run --all-files; echo "hi!"
+          (pre-commit run --all-files) || true
           git diff --quiet; if [ $? -eq 1 ]; then git commit -am "[skip ci] pre-commit fixes"; fi;
 
   test:
