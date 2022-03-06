@@ -3,22 +3,8 @@ name: test
 on:
   workflow_dispatch: # manual
   push: # on any branch
-    paths-ignore: [
-        CHANGELOG.md,
-        pyproject.toml,
-        hpcflow/_version.py,
-        .github/workflows/*,
-      ] # ignore push from bump-version in deploy workflow
 
 jobs:
-  printInfo:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print github.event_name
-        run: |
-          echo "github.event_name: ${{ github.event_name }}"
-          echo "github.ref: ${{ github.ref }}"
-          echo "github.event.head_commit.message: ${{ github.event.head_commit.message }}"
   test:
     strategy:
       fail-fast: false
@@ -34,12 +20,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install poetry
+      - name: Install and configure poetry
         run: |
           python -m pip install poetry
-
-      - name: Configure poetry
-        run: |
           poetry config virtualenvs.in-project true
 
       - name: Cache the virtualenv

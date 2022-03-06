@@ -8,12 +8,6 @@ on:
 
 jobs:
   bump-version:
-    if:
-      | # only deploy if tests succeeded and only from develop (as pre-release) or main (as stable):
-      github.event_name == 'workflow_run' && (
-        github.event.workflow_run.conclusion == 'success'
-        && (github.event.workflow_run.head_branch == 'develop' || github.event.workflow_run.head_branch == 'main')
-      )
     runs-on: ubuntu-latest
     outputs:
       new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
@@ -27,9 +21,6 @@ jobs:
       - run: |
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
-          echo ${{ github.event.workflow_run.head_branch }}
-          echo ${{ github.ref }}
-          git branch
 
       - uses: actions/setup-python@v2
         with:
@@ -63,16 +54,14 @@ jobs:
           echo "new_tag=$NEW_TAG" >> $GITHUB_ENV
           echo "::set-output name=new_tag_name::$NEW_TAG"
 
-      - name: Generate CHANGELOG
+      - name: Generate CHANGELOG and push
         run: |
           ./git-chglog --output CHANGELOG.md
           git add CHANGELOG.md
           git tag -d ${{ env.new_tag }}
           git commit --amend --no-edit
           git tag ${{ env.new_tag }}
-
-      - name: Push changes
-        run: git push && git push origin ${{ env.new_tag }}
+          git push && git push origin ${{ env.new_tag }}
 
       - name: Generate incremental CHANGELOG for GitHub release body
         run: |
