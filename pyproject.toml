@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "hpcflow"
-version = "0.22.0a0"
+version = "0.22.0a1"
 description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
 license = "MIT"
@@ -33,12 +33,13 @@ hpcflow = 'hpcflow.cli:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.22.0a0"
+version = "0.22.0a1"
 tag_format = "v$version"
 version_files = [ 
     "pyproject.toml:version",
     "hpcflow/_version.py"
 ]
+bump_message = "bump: $current_version → $new_version [skip-ci]"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

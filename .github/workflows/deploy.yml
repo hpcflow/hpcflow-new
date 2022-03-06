@@ -69,7 +69,7 @@ jobs:
           git add CHANGELOG.md
           git tag -d ${{ env.new_tag }}
           git commit --amend --no-edit
-          git tag ${{ env.new_tag }} -m "chore: add tag [skip ci]"
+          git tag ${{ env.new_tag }}
 
       - name: Push changes
         run: git push && git push origin ${{ env.new_tag }}
