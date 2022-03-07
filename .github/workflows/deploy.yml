@@ -95,7 +95,7 @@ jobs:
           git checkout develop
           git pull
           git merge main
-          git checkout --theirs .\pyproject.toml .\CHANGELOG.md .\hpcflow\_version.py
+          git checkout --theirs .\pyproject.toml .\hpcflow\_version.py
           git commit -am "merge main into develop [skip ci]"
           git push
 
