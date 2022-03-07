@@ -1,4 +1,12 @@
 
+<a name="v0.23.0a28"></a>
+## [v0.23.0a28](https://github.com/hpcflow/hpcflow-new/compare/v0.23.0a27...v0.23.0a28) - 2022.03.07
+
+### 👷 Build changes
+
+* GH wk
+
+
 <a name="v0.23.0a27"></a>
 ## [v0.23.0a27](https://github.com/hpcflow/hpcflow-new/compare/v0.23.0a26...v0.23.0a27) - 2022.03.07
 
