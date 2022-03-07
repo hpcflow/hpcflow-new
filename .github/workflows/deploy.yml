@@ -34,6 +34,13 @@ jobs:
       - name: Install commitizen
         run: pip install commitizen
 
+      - name: Manipulate tags (stable release)
+        if: github.event.workflow_run.head_branch == 'main'
+        run: | # delete all pre-release tags
+          git tag -l
+          git tag -l | awk '/^(v[0-9]+\.[0-9]+\.[0-9]+(a|b|rc).*)$/ {print $1}' | xargs git tag -d
+          git tag -l
+
       - name: Get current tag
         run: |
           CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
