@@ -1,4 +1,12 @@
 
+<a name="v0.51.0"></a>
+## [v0.51.0](https://github.com/hpcflow/hpcflow-new/compare/v0.50.0...v0.51.0) - 2022.03.07
+
+### ✨ Features
+
+* masds
+
+
 <a name="v0.50.0"></a>
 ## [v0.50.0](https://github.com/hpcflow/hpcflow-new/compare/v0.49.0...v0.50.0) - 2022.03.07
 
