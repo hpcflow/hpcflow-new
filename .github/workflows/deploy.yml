@@ -93,14 +93,16 @@ jobs:
         run: |
           git branch --list
           exists_in_local=$(git branch --list develop)
-          echo "$exists_in_local"
-          if [[ -n $exists_in_local ]]; then
+          exists_in_remote=$(git ls-remote --heads origin develop)
+          echo "exists_in_local: $exists_in_local"
+          echo "exists_in_remote: $exists_in_remote"
+          if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
             git checkout develop
             git pull
             git merge main
             git commit --amend -m "merge main into develop [skip ci]"
-            git push                      
+            git push -u origin develop
           else
             echo "No develop branch to merge into."
           fi
