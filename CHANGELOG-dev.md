@@ -1,4 +1,97 @@
 
+<a name="v0.54.0a0"></a>
+## [v0.54.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.53.0...v0.54.0a0) - 2022.03.07
+
+### ✨ Features
+
+* great
+
+### 👷 Build changes
+
+* yes [skip ci]
+* add it [skip ci]
+
+
+<a name="v0.53.0"></a>
+## [v0.53.0](https://github.com/hpcflow/hpcflow-new/compare/v0.52.0...v0.53.0) - 2022.03.07
+
+### ✨ Features
+
+* 1
+
+### 👷 Build changes
+
+* [skip ci]
+* [skip ci]
+* [skip ci]
+
+
+<a name="v0.52.0"></a>
+## [v0.52.0](https://github.com/hpcflow/hpcflow-new/compare/v0.51.0...v0.52.0) - 2022.03.07
+
+### ✨ Features
+
+* 321
+* 123
+
+
+<a name="v0.51.0"></a>
+## [v0.51.0](https://github.com/hpcflow/hpcflow-new/compare/v0.50.0...v0.51.0) - 2022.03.07
+
+### ✨ Features
+
+* masds
+
+
+<a name="v0.50.0"></a>
+## [v0.50.0](https://github.com/hpcflow/hpcflow-new/compare/v0.49.0...v0.50.0) - 2022.03.07
+
+### ✨ Features
+
+* 123
+
+### 👷 Build changes
+
+* [skip ci]
+* [skip ci]
+
+
+<a name="v0.49.0"></a>
+## [v0.49.0](https://github.com/hpcflow/hpcflow-new/compare/v0.48.0...v0.49.0) - 2022.03.07
+
+### ✨ Features
+
+* 123
+
+
+<a name="v0.48.0"></a>
+## [v0.48.0](https://github.com/hpcflow/hpcflow-new/compare/v0.47.0...v0.48.0) - 2022.03.07
+
+### ✨ Features
+
+* 1
+
+
+<a name="v0.47.0"></a>
+## [v0.47.0](https://github.com/hpcflow/hpcflow-new/compare/v0.47.0a0...v0.47.0) - 2022.03.07
+
+
+<a name="v0.47.0a0"></a>
+## [v0.47.0a0](https://github.com/hpcflow/hpcflow-new/compare/0.47.0...v0.47.0a0) - 2022.03.07
+
+
+<a name="0.47.0"></a>
+## [0.47.0](https://github.com/hpcflow/hpcflow-new/compare/v0.46.0...0.47.0) - 2022.03.07
+
+### ✨ Features
+
+* my feat 3
+
+
+<a name="v0.46.0"></a>
+## [v0.46.0](https://github.com/hpcflow/hpcflow-new/compare/v0.46.0a0...v0.46.0) - 2022.03.07
+
+
 <a name="v0.46.0a0"></a>
 ## [v0.46.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.45.0...v0.46.0a0) - 2022.03.07
 
