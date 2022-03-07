@@ -34,7 +34,7 @@ jobs:
       - name: Install commitizen
         run: pip install commitizen
 
-      - name: Manipulate tags (stable release)
+      - name: Manipulate tags (stable release) # TODO: maybe first change develop branch to match new main version?
         if: github.event.workflow_run.head_branch == 'main'
         run:
           | # delete all pre-release tags, set current version to the latest stable release,
@@ -114,17 +114,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, ubuntu-18.04, macos-10.15]
+        #os: [windows-2019, ubuntu-18.04, macos-10.15]
+        os: [ubuntu-18.04]
         include:
-          - os: windows-2019
-            executable_ext: .exe
-            executable_os: win
+          # - os: windows-2019
+          #   executable_ext: .exe
+          #   executable_os: win
           - os: ubuntu-18.04
             executable_ext: ""
             executable_os: linux
-          - os: macos-10.15
-            executable_ext: ""
-            executable_os: macos
+          # - os: macos-10.15
+          #   executable_ext: ""
+          #   executable_os: macos
 
     runs-on: ${{ matrix.os }}
     steps:

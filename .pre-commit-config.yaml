@@ -3,13 +3,22 @@ repos:
     rev: v3.2.0
     hooks:
       - id: end-of-file-fixer
-        exclude: CHANGELOG.tpl.md
+        exclude: |
+          (?x)^(
+            CHANGELOG.tpl.md|
+            CHANGELOG.md|
+            CHANGELOG-dev.md
+          )$
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: no-commit-to-branch
         args: [--branch=main]
-        exclude: CHANGELOG.md # need to allow CHANGELOG to be updated by GitHub Actions
+        exclude: |
+          (?x)^(
+            CHANGELOG.md|
+            CHANGELOG-dev.md
+          )$
         always_run: false # required to respect exclude
   - repo: https://github.com/psf/black
     rev: 19.3b0

@@ -1,4 +1,36 @@
 
+<a name="v0.26.0a3"></a>
+## [v0.26.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.26.0a2...v0.26.0a3) - 2022.03.07
+
+### ✨ Features
+
+* 11
+
+### 👷 Build changes
+
+* GH wk [skip ci]
+
+
+<a name="v0.26.0a2"></a>
+## [v0.26.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.26.0a1...v0.26.0a2) - 2022.03.07
+
+### ✨ Features
+
+* 10
+
+
+<a name="v0.26.0a1"></a>
+## [v0.26.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.26.0...v0.26.0a1) - 2022.03.07
+
+### 👷 Build changes
+
+* GH wk [skip ci]
+
+
+<a name="v0.26.0"></a>
+## [v0.26.0](https://github.com/hpcflow/hpcflow-new/compare/v0.26.0a0...v0.26.0) - 2022.03.07
+
+
 <a name="v0.26.0a0"></a>
 ## [v0.26.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.25.0a1...v0.26.0a0) - 2022.03.07
 
