@@ -95,7 +95,7 @@ jobs:
           git checkout develop
           git pull
           git merge main
-          git commit -am "merge main into develop [skip ci]"
+          git commit --amend -m "merge main into develop [skip ci]"
           git push
 
       - name: Generate incremental CHANGELOG for GitHub release body
