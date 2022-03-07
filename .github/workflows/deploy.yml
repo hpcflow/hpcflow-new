@@ -92,14 +92,14 @@ jobs:
         if: github.event.workflow_run.head_branch == 'main'
         run: |
           if [[ -z $(git branch --list develop) ]]; then
+            echo "No develop branch to merge into."
+          else
             export SKIP=end-of-file-fixer
             git checkout develop
             git pull
             git merge main
             git commit --amend -m "merge main into develop [skip ci]"
             git push
-          else
-            echo "No develop branch to merge into."
           fi
 
       - name: Generate incremental CHANGELOG for GitHub release body
