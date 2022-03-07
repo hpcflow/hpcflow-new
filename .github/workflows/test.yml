@@ -6,7 +6,7 @@ on:
     branches-ignore: [main, develop]
   pull_request:
     types: [opened, edited]
-    branches: [main, develop]
+    branches: [main, develop, synchronize]
 
 jobs:
   pre-commit:
