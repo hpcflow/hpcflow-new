@@ -88,15 +88,19 @@ jobs:
           git tag ${{ env.new_tag }}
           git push && git push origin ${{ env.new_tag }}
 
-      - name: Merge to develop (stable release)
+      - name: Merge to develop branch if exists (stable release)
         if: github.event.workflow_run.head_branch == 'main'
         run: |
-          export SKIP=end-of-file-fixer
-          git checkout develop
-          git pull
-          git merge main
-          git commit --amend -m "merge main into develop [skip ci]"
-          git push
+          if git rev-parse --quiet --verify develop; then
+            echo "No develop branch to merge into."
+          else
+            export SKIP=end-of-file-fixer
+            git checkout develop
+            git pull
+            git merge main
+            git commit --amend -m "merge main into develop [skip ci]"
+            git push
+          fi
 
       - name: Generate incremental CHANGELOG for GitHub release body
         run: |
