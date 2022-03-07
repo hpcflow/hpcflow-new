@@ -2,7 +2,11 @@ name: test
 
 on:
   workflow_dispatch: # manual
-  push: # on any branch
+  push:
+    branches-ignore: [main, develop]
+  pull_request:
+    types: [opened]
+    branches: [main, develop]
 
 jobs:
   pre-commit:
