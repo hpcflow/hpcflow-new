@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0 # get all history and tags
           # ref: refs/heads/${{ github.event.workflow_run.head_branch }} # use same branch as the triggering event?
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.ref }}
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }} # PAT of user who has permission to bypass branch protection
 
       - run: |
