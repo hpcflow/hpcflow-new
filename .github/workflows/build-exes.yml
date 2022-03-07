@@ -48,7 +48,7 @@ jobs:
 
       - name: Get exectuable version name
         run: |
-          vers=$(git describe)
+          vers=$(git describe --tags)
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 
