@@ -38,6 +38,9 @@ jobs:
         if: github.event.workflow_run.head_branch == 'main'
         run:
           | # delete all pre-release tags, set current version to the latest stable release,
+          CUR_PRE_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "CUR_PRE_TAG is: $CUR_PRE_TAG"
+          echo "cur_pre_tag=$CUR_PRE_TAG" >> $GITHUB_ENV          
           git tag -l
           git tag -l | awk '/^(v[0-9]+\.[0-9]+\.[0-9]+(a|b|rc).*)$/ {print $1}' | xargs git tag -d
           git tag -l
@@ -52,10 +55,10 @@ jobs:
         if: github.event.workflow_run.head_branch == 'develop'
         run: cz bump --prerelease alpha
 
-      - name: Commitizen bump # First "bump" to latest stable release, then bump to new stable release, add a new tag and commit
+      - name: Commitizen bump # First update version number to latest stable release, then bump to new stable release, add a new tag and commit
         if: github.event.workflow_run.head_branch == 'main'
         run: |
-          cz bump --increment ${{ env.cur_tag }}
+          python update_main_version.py ${{ env.cur_pre_tag }} ${{ env.cur_tag }}
           cz bump
 
       - name: Get new tag
