@@ -5,7 +5,7 @@ on:
   push:
     branches-ignore: [main, develop]
   pull_request:
-    types: [opened]
+    types: [opened, edited]
     branches: [main, develop]
 
 jobs:
