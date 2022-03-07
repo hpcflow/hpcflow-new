@@ -91,15 +91,15 @@ jobs:
       - name: Merge to develop branch if exists (stable release)
         if: github.event.workflow_run.head_branch == 'main'
         run: |
-          if git rev-parse --quiet --verify develop; then
-            echo "No develop branch to merge into."
-          else
+          if git rev-parse --quiet --verify develop > /dev/null; then
             export SKIP=end-of-file-fixer
             git checkout develop
             git pull
             git merge main
             git commit --amend -m "merge main into develop [skip ci]"
             git push
+          else
+            echo "No develop branch to merge into."
           fi
 
       - name: Generate incremental CHANGELOG for GitHub release body
