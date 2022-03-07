@@ -103,7 +103,7 @@ jobs:
 
       - name: Generate incremental CHANGELOG for GitHub release body
         run: |
-          ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.new_tag }}
+          ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.cur_tag }}..
           cat CHANGELOG_increment.md
 
       - uses: actions/upload-artifact@v2
