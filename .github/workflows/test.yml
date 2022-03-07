@@ -5,8 +5,8 @@ on:
   push:
     branches-ignore: [main, develop]
   pull_request:
-    types: [opened, edited]
-    branches: [main, develop, synchronize]
+    types: [opened, edited, synchronize]
+    branches: [main, develop]
 
 jobs:
   pre-commit:
