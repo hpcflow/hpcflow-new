@@ -40,10 +40,8 @@ jobs:
           | # delete all pre-release tags, set current version to the latest stable release,
           CUR_PRE_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "CUR_PRE_TAG is: $CUR_PRE_TAG"
-          echo "cur_pre_tag=$CUR_PRE_TAG" >> $GITHUB_ENV          
-          git tag -l
+          echo "cur_pre_tag=$CUR_PRE_TAG" >> $GITHUB_ENV
           git tag -l | awk '/^(v[0-9]+\.[0-9]+\.[0-9]+(a|b|rc).*)$/ {print $1}' | xargs git tag -d
-          git tag -l
 
       - name: Get current tag
         run: |
@@ -91,17 +89,13 @@ jobs:
       - name: Merge to develop branch if exists (stable release)
         if: github.event.workflow_run.head_branch == 'main'
         run: |
-          git branch --list
-          exists_in_local=$(git branch --list develop)
           exists_in_remote=$(git ls-remote --heads origin develop)
-          echo "exists_in_local: $exists_in_local"
           echo "exists_in_remote: $exists_in_remote"
           if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
             git checkout develop
             git pull
-            git merge main
-            git commit --amend -m "merge main into develop [skip ci]"
+            git rebase main
             git push -u origin develop
           else
             echo "No develop branch to merge into."
