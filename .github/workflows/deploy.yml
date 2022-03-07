@@ -34,7 +34,7 @@ jobs:
       - name: Install commitizen
         run: pip install commitizen
 
-      - name: Manipulate tags (stable release)
+      - name: Manipulate tags (stable release) # TODO: maybe first change develop branch to match new main version?
         if: github.event.workflow_run.head_branch == 'main'
         run:
           | # delete all pre-release tags, set current version to the latest stable release,
