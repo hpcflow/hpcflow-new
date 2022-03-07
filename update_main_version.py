@@ -6,7 +6,7 @@ def main(cur_vers, new_vers):
     update_version_in_files(
         current_version=cur_vers.lstrip("v"),
         new_version=new_vers.lstrip("v"),
-        files=["pyproject.toml"],
+        files=["pyproject.toml", "hpcflow/_version.py"],
     )
 
 
