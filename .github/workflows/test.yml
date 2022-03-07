@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }} # PAT of user (hpcflow-actions) who has permission to bypass branch protection
+          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }} # PAT of user (hpcflow-actions) who has permission to bypass branch protection
 
       - run: |
           git config user.name hpcflow-actions
