@@ -7,7 +7,7 @@ on:
 
 jobs:
   bump-version:
-    if: github.event.pull_request.merged && ! contains(github.event.pull_request.title, "[skip deploy]")
+    if: github.event.pull_request.merged && ! contains(github.event.pull_request.title, '[skip deploy]')
     runs-on: ubuntu-latest
     outputs:
       new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
@@ -197,7 +197,6 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install
-          ls -la
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS --onefile
