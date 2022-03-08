@@ -182,6 +182,8 @@ jobs:
       image: aplowman/centos7-poetry
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
 
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
