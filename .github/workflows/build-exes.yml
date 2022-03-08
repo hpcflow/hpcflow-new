@@ -88,6 +88,12 @@ jobs:
         run: |
           poetry install
 
+      - name: Get exectuable version name
+        run: |
+          vers=$(git describe --tags)
+          echo "vers is: $vers"
+          echo "vers=$vers" >> $GITHUB_ENV
+
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-CentOS --onefile
 
