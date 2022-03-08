@@ -1,4 +1,29 @@
 
+<a name="v0.57.0"></a>
+## [v0.57.0](https://github.com/hpcflow/hpcflow-new/compare/v0.56.0...v0.57.0) - 2022.03.08
+
+### ✨ Features
+
+* 1234
+* 1234
+* 123
+
+### 👷 Build changes
+
+* GH wk [skip ci]
+* GH wk [skip ci]
+* Merge branch 'aplowman/develop' of https://github.com/hpcflow/hpcflow-new into aplowman/develop
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+* GH wk [skip ci]
+
+
 <a name="v0.56.0"></a>
 ## [v0.56.0](https://github.com/hpcflow/hpcflow-new/compare/v0.55.0...v0.56.0) - 2022.03.07
 
