@@ -78,11 +78,11 @@ jobs:
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
 
-      - name: Cache the virtualenv
-        uses: actions/cache@v2
-        with:
-          path: ./.venv
-          key: venv-CentOS-${{ hashFiles('**/poetry.lock') }}
+      # - name: Cache the virtualenv
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: ./.venv
+      #     key: venv-CentOS-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -90,6 +90,7 @@ jobs:
 
       - name: Get exectuable version name
         run: |
+          ls -la
           vers=$(git describe --tags)
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
