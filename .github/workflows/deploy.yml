@@ -211,7 +211,7 @@ jobs:
         run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS --version
 
   release-github-PyPI:
-    needs: [bump-version, build-executables]
+    needs: [bump-version, build-executables, build-executables-CentOS]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
