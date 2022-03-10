@@ -303,9 +303,21 @@ jobs:
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
 
+      - name: Update latest binary link (stable)
+        if: github.event.pull_request.base.ref == 'main'
+        run: |
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > latest_binaries_stable.yml
+
+      - name: Update latest binary link (pre-release)
+        if: github.event.pull_request.base.ref == 'develop'
+        run: |
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > latest_binaries_pre_release.yml
+
       - name: Update binary links
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/binaries.yml)" > _data/binaries.yml
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/all_binaries.yml)" > _data/all_binaries.yml
+
+      - name: Push changes
           git add .
           git commit -m "update binary download links"
           git push
