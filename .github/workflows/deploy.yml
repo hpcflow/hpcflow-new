@@ -265,7 +265,7 @@ jobs:
       - name: Release info
         run: |
           echo "New release posted at ${{ steps.release.outputs.url }}"
-          echo ${{ fromJSON(steps.<step-id>.outputs.assets) }}
+          echo ${{ fromJSON(steps.release.outputs.assets) }}
 
       - name: Publish (to test PyPI)
         run: |
