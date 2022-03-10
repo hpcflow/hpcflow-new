@@ -272,10 +272,7 @@ jobs:
           echo "steps.release.outputs.upload_url: ${{ steps.release.outputs.upload_url }}"
           tree release-artifacts/          
           echo "::set-output name=binary_download_links::string1,string2"
-          python -c "\
-            from pathlib import Path;
-            for i in Path('release-artifacts').glob('*/*'): print(str(i));
-          "
+          python -c "from pathlib import Path; for i in Path('release-artifacts').glob('*/*'): print(str(i));"
           echo "https://github.com/hpcflow/hpcflow-new/releases/${{ needs.bump-version.outputs.new_tag_name }}/download/release-artifacts/hpcflow-*/*"
 
       - name: Publish (to test PyPI)
