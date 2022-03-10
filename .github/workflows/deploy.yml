@@ -318,6 +318,7 @@ jobs:
           echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/all_binaries.yml)" > _data/all_binaries.yml
 
       - name: Push changes
+        run: |
           git add .
           git commit -m "update binary download links"
           git push
