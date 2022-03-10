@@ -271,18 +271,16 @@ jobs:
           echo "steps.release.outputs.id: ${{ steps.release.outputs.id }}"
           echo "steps.release.outputs.upload_url: ${{ steps.release.outputs.upload_url }}"
           tree release-artifacts/
-          python -c "
+          binaryYaml=$(python3 -c "
           from pathlib import Path;
           import os
-          out = []
+          out_yaml = ''
           for i in Path('release-artifacts').glob('*/hpcflow*'):
-            print(str(i))
-            out_i = 'https://github.com/hpcflow/hpcflow-new/releases/${{ needs.bump-version.outputs.new_tag_name }}'
-            out_i += f'/download/release-artifacts/str({i.name})'
-            out.append(out_i)            
-          os.environ['HPCFLOW_BINARY_LINKS'] = ','.join(out)
-          "
-          echo "::set-output name=binary_download_links::$HPCFLOW_BINARY_LINKS"
+            out_yaml += '${{ needs.bump-version.outputs.new_tag_name }}: https://github.com/hpcflow/hpcflow-new/releases/${{ needs.bump-version.outputs.new_tag_name }}'
+            out_yaml += f'/download/release-artifacts/{str(i.name)}\\n'
+          print(out_yaml)
+          ")
+          echo "::set-output name=binary_download_links::$binaryYaml"
 
       - name: Publish (to test PyPI)
         run: |
