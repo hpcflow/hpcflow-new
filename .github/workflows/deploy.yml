@@ -123,18 +123,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #os: [windows-2019, ubuntu-18.04, macos-10.15]
-        os: [ubuntu-18.04]
+        os: [windows-2019, macos-10.15]
         include:
-          # - os: windows-2019
-          #   executable_ext: .exe
-          #   executable_os: win
-          - os: ubuntu-18.04
+          - os: windows-2019
+            executable_ext: .exe
+            executable_os: win
+          - os: macos-10.15
             executable_ext: ""
-            executable_os: linux
-          # - os: macos-10.15
-          #   executable_ext: ""
-          #   executable_os: macos
+            executable_os: macOS
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -175,7 +171,7 @@ jobs:
       - name: Basic executable test
         run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
 
-  build-executables-CentOS:
+  build-executables-linux:
     runs-on: ubuntu-latest
     needs: bump-version
     container:
@@ -199,18 +195,18 @@ jobs:
           poetry install
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS --onefile
+        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS
-          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-CentOS --version
+        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version
 
   release-github-PyPI:
-    needs: [bump-version, build-executables, build-executables-CentOS]
+    needs: [bump-version, build-executables, build-executables-linux]
     runs-on: ubuntu-latest
     outputs:
       binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
