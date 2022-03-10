@@ -8,18 +8,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #os: [windows-2019, ubuntu-18.04, macos-10.15]
-        os: [ubuntu-18.04]
+        os: [windows-2019, macos-10.15]
         include:
-          # - os: windows-2019
-          #   executable_ext: .exe
-          #   executable_os: win
-          - os: ubuntu-18.04
+          - os: windows-2019
+            executable_ext: .exe
+            executable_os: win
+          - os: macos-10.15
             executable_ext: ""
-            executable_os: linux
-          # - os: macos-10.15
-          #   executable_ext: ""
-          #   executable_os: macos
+            executable_os: macOS
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -66,7 +62,7 @@ jobs:
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
 
-  build-executables-CentOS:
+  build-executables-linux:
     runs-on: ubuntu-latest
     container:
       image: aplowman/centos7-poetry
@@ -96,12 +92,12 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-CentOS --onefile
+        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-linux --onefile
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}-CentOS
-          path: dist/hpcflow-${{ env.vers }}-CentOS
+          name: hpcflow-${{ env.vers }}-linux
+          path: dist/hpcflow-${{ env.vers }}-linux
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ env.vers }}-CentOS --version
+        run: dist/hpcflow-${{ env.vers }}-linux --version
