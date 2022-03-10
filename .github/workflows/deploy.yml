@@ -266,6 +266,8 @@ jobs:
         run: |
           echo "New release posted at ${{ steps.release.outputs.url }}"
           echo "New asset 0 browser_download_url: ${{ steps.release.outputs.assets[0].browser_download_url }}"
+          echo "New asset 1 browser_download_url: ${{ steps.release.outputs.assets[1].browser_download_url }}"
+          echo "New asset 1 browser_download_url: ${{ steps.release.outputs.assets[1].name }}"
 
       - name: Publish (to test PyPI)
         run: |
