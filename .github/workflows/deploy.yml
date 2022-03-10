@@ -254,12 +254,17 @@ jobs:
           path: release-artifacts
 
       - name: Release
+        id: release
         uses: softprops/action-gh-release@v1
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
           files: release-artifacts/hpcflow-*/*
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
+
+      - name: Release info
+        run: |
+          ${{ steps.release.outputs.assets }}
 
       - name: Publish (to test PyPI)
         run: |
