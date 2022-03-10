@@ -306,12 +306,12 @@ jobs:
       - name: Update latest binary link (stable)
         if: github.event.pull_request.base.ref == 'main'
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > latest_binaries_stable.yml
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > _data/latest_binaries_stable.yml
 
       - name: Update latest binary link (pre-release)
         if: github.event.pull_request.base.ref == 'develop'
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > latest_binaries_pre_release.yml
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > _data/latest_binaries_pre_release.yml
 
       - name: Update binary links
         run: |
