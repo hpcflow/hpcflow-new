@@ -305,7 +305,7 @@ jobs:
 
       - name: Update binary links
         run: |
-          echo "${{ needs.release-github-PyPI.outputs.binary_download_links }}" >> _data/binaries.yml
+          sed -i -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}" _data/binaries.yml
           git add .
           git commit -m "update binary download links"
           git push
