@@ -264,7 +264,7 @@ jobs:
 
       - name: Release info
         run: |
-          ${{ steps.release.outputs.assets }}
+          echo ${{ fromJSON(steps.release.outputs.assets) }}
 
       - name: Publish (to test PyPI)
         run: |
