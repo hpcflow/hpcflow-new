@@ -212,6 +212,8 @@ jobs:
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-CentOS]
     runs-on: ubuntu-latest
+    outputs:
+      binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -263,13 +265,32 @@ jobs:
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
 
       - name: Release info
+        id: get_binary_download_links
         run: |
           echo "steps.release.outputs.url: ${{ steps.release.outputs.url }}"
           echo "steps.release.outputs.id: ${{ steps.release.outputs.id }}"
           echo "steps.release.outputs.upload_url: ${{ steps.release.outputs.upload_url }}"
+          tree release-artifacts/          
+          echo "::set-output name=binary_download_links::string1,string2"
+          python -c "\
+            from pathlib import Path;
+            for i in Path('release-artifacts').glob('*/*'):: print(str(i));
+          "
+          echo "https://github.com/hpcflow/hpcflow-new/releases/${{ needs.bump-version.outputs.new_tag_name }}/download/release-artifacts/hpcflow-*/*"
 
       - name: Publish (to test PyPI)
         run: |
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
           poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
           poetry publish --repository test-pypi
+
+  update-binary-links:
+    needs: [release-github-PyPI]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repo: hpcflow/hpcflow.github.io
+      - name: Update binary links
+        run: |
+          echo "${{ needs.release-github-PyPI.outputs.binary_download_links }}"
