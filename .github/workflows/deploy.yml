@@ -298,4 +298,6 @@ jobs:
           repository: hpcflow/hpcflow.github.io
       - name: Update binary links
         run: |
-          echo "${{ needs.release-github-PyPI.outputs.binary_download_links }}"
+          echo "${{ needs.release-github-PyPI.outputs.binary_download_links }}" >> _data/binaries.yml
+          git add .
+          git commit -m "update binary download links"
