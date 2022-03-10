@@ -274,8 +274,8 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path;
           for i in Path('release-artifacts').glob('*/hpcflow*'):
-            out_yaml = str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/${{ needs.bump-version.outputs.new_tag_name }}'
-            out_yaml += f'/download/release-artifacts/{str(i.name)}\\n'
+            out_yaml = str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
+            out_yaml += f'/{str(i.name)}'
             print(out_yaml)
           ")
           binaryYaml="${binaryYaml//'%'/'%25'}"
