@@ -264,7 +264,7 @@ jobs:
 
       - name: Release info
         run: |
-          echo ${{ fromJSON(steps.<step-id>.outputs.assets)[0].browser_download_url }}
+          echo ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
 
       - name: Publish (to test PyPI)
         run: |
