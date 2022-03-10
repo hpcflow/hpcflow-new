@@ -264,7 +264,8 @@ jobs:
 
       - name: Release info
         run: |
-          echo "New release posted at ${{ steps.release.outputs.url}}"
+          echo "New release posted at ${{ steps.release.outputs.url }}"
+          echo "New assets posted at ${{ steps.release.outputs.assets }}"
 
       - name: Publish (to test PyPI)
         run: |
