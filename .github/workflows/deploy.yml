@@ -212,6 +212,8 @@ jobs:
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-CentOS]
     runs-on: ubuntu-latest
+    outputs:
+      binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -254,6 +256,7 @@ jobs:
           path: release-artifacts
 
       - name: Release
+        id: release
         uses: softprops/action-gh-release@v1
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
@@ -261,8 +264,48 @@ jobs:
           files: release-artifacts/hpcflow-*/*
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
 
+      - name: Release info
+        id: get_binary_download_links
+        run: |
+          echo "steps.release.outputs.url: ${{ steps.release.outputs.url }}"
+          echo "steps.release.outputs.id: ${{ steps.release.outputs.id }}"
+          echo "steps.release.outputs.upload_url: ${{ steps.release.outputs.upload_url }}"
+          tree release-artifacts/
+          binaryYaml=$(python3 -c "
+          from pathlib import Path
+          out_yaml = '${{ needs.bump-version.outputs.new_tag_name }}:\n'
+          for i in Path('release-artifacts').glob('*/hpcflow*'):            
+            out_yaml += '  ' + str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
+            out_yaml += f'/{str(i.name)}\n'
+          print(out_yaml)
+          ")
+          binaryYaml="${binaryYaml//'%'/'%25'}"
+          binaryYaml="${binaryYaml//$'\n'/'%0A'}"
+          binaryYaml="${binaryYaml//$'\r'/'%0D'}"
+          echo "::set-output name=binary_download_links::$binaryYaml"
+
       - name: Publish (to test PyPI)
         run: |
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
           poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
           poetry publish --repository test-pypi
+
+  update-binary-links:
+    needs: [release-github-PyPI]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: hpcflow/hpcflow.github.io
+          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }} # hpcflow-actions user with push permission
+
+      - run: |
+          git config user.name hpcflow-actions
+          git config user.email hpcflow-actions@users.noreply.github.com
+
+      - name: Update binary links
+        run: |
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}$(cat _data/binaries.yml)" > _data/binaries.yml
+          git add .
+          git commit -m "update binary download links"
+          git push
