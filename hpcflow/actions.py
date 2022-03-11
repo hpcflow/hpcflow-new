@@ -249,6 +249,8 @@ class CommandsAction(ResolvedAction):
 
 @dataclass
 class InputFileGeneratorAction(ResolvedAction):
+    """Docstring."""
+
     input_file_generator: InputFileGenerator
 
     def __post_init__(self):
