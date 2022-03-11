@@ -72,7 +72,7 @@ class ActionCondition:
 
 
 class Action:
-    """Class to represent an executable unit within a task."""
+    """"""
 
     def __init__(
         self,
@@ -249,8 +249,6 @@ class CommandsAction(ResolvedAction):
 
 @dataclass
 class InputFileGeneratorAction(ResolvedAction):
-    """Docstring."""
-
     input_file_generator: InputFileGenerator
 
     def __post_init__(self):
