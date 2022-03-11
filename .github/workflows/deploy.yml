@@ -324,8 +324,8 @@ jobs:
           poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
           poetry publish --repository test-pypi
 
-  update-binary-links:
-    needs: [release-github-PyPI]
+  update-website:
+    needs: [release-github-PyPI, build-documentation]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -350,6 +350,23 @@ jobs:
       - name: Update binary links
         run: |
           echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/all_binaries.yml)" > _data/all_binaries.yml
+
+      - name: Download documentation artifact (stable)
+        if: github.event.pull_request.base.ref == 'main'
+        uses: actions/download-artifact@v2
+        with:
+          name: docs_html
+          path: docs/stable
+
+      - name: Download documentation artifact (pre-release)
+        if: github.event.pull_request.base.ref == 'develop'
+        uses: actions/download-artifact@v2
+        with:
+          name: docs_html
+          path: docs/dev
+
+      - run: |
+          tree
 
       - name: Push changes
         run: |
