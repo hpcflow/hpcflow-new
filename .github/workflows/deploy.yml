@@ -380,7 +380,7 @@ jobs:
 
       - name: Update doc version switcher
         run: |
-          python update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
+          python docs/update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
 
       - name: Push changes
         run: |
