@@ -1,4 +1,12 @@
 
+<a name="v0.62.0"></a>
+## [v0.62.0](https://github.com/hpcflow/hpcflow-new/compare/v0.61.0...v0.62.0) - 2022.03.11
+
+### 👷 Build changes
+
+* Merge branch 'develop'
+
+
 <a name="v0.61.0"></a>
 ## [v0.61.0](https://github.com/hpcflow/hpcflow-new/compare/v0.60.0...v0.61.0) - 2022.03.11
 
