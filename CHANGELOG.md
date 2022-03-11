@@ -1,4 +1,17 @@
 
+<a name="v0.64.0"></a>
+## [v0.64.0](https://github.com/hpcflow/hpcflow-new/compare/v0.63.0...v0.64.0) - 2022.03.11
+
+### ✨ Features
+
+* myfeat
+* 10
+
+### 👷 Build changes
+
+* fix deps
+
+
 <a name="v0.63.0"></a>
 ## [v0.63.0](https://github.com/hpcflow/hpcflow-new/compare/v0.62.0...v0.63.0) - 2022.03.11
 
