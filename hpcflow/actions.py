@@ -72,7 +72,7 @@ class ActionCondition:
 
 
 class Action:
-    """"""
+    """Class to represent an executable unit within a task."""
 
     def __init__(
         self,
