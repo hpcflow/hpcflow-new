@@ -118,6 +118,44 @@ jobs:
           name: CHANGELOG_increment
           path: CHANGELOG_increment.md
 
+  build-documentation:
+    needs: bump-version
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build documentation with Sphinx
+        run: |
+          cd docs
+          make html
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs_html
+          path: docs/build/html
+
   build-executables:
     needs: bump-version
     strategy:
