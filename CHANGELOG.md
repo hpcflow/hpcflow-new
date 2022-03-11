@@ -1,4 +1,19 @@
 
+<a name="v0.61.0"></a>
+## [v0.61.0](https://github.com/hpcflow/hpcflow-new/compare/v0.60.0...v0.61.0) - 2022.03.11
+
+### ✨ Features
+
+* num 4
+* 123
+* 123
+* 123
+
+### 👷 Build changes
+
+* add sphinx
+
+
 <a name="v0.60.0"></a>
 ## [v0.60.0](https://github.com/hpcflow/hpcflow-new/compare/v0.59.0...v0.60.0) - 2022.03.10
 
