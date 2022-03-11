@@ -69,8 +69,6 @@ class FileNameExt:
 
 @dataclass
 class InputFileGenerator:
-    """Here is some stuff."""
-
     input_file: FileSpec
     inputs: List[Parameter]
     environment: Environment = None
