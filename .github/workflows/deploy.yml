@@ -325,9 +325,13 @@ jobs:
           poetry publish --repository test-pypi
 
   update-website:
-    needs: [release-github-PyPI, build-documentation]
+    needs: [bump-version, release-github-PyPI, build-documentation]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
       - uses: actions/checkout@v2
         with:
           repository: hpcflow/hpcflow.github.io
@@ -351,6 +355,12 @@ jobs:
         run: |
           echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/all_binaries.yml)" > _data/all_binaries.yml
 
+      - name: Download documentation artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: docs_html
+          path: docs/${{ needs.bump-version.outputs.new_tag_name }}
+
       - name: Download documentation artifact (stable)
         if: github.event.pull_request.base.ref == 'main'
         uses: actions/download-artifact@v2
@@ -368,8 +378,12 @@ jobs:
       - run: |
           tree
 
+      - name: Update doc version switcher
+        run: |
+          python docs/update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
+
       - name: Push changes
         run: |
           git add .
-          git commit -m "update binary download links"
+          git commit -m "update content"
           git push
