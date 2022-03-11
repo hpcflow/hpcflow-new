@@ -375,12 +375,12 @@ jobs:
           name: docs_html
           path: docs/dev
 
-      - name: Update doc version switcher
-        run: |
-          python update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
-
       - run: |
           tree
+
+      - name: Update doc version switcher
+        run: |
+          python docs/update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
 
       - name: Push changes
         run: |
