@@ -29,6 +29,8 @@ commitizen = "^2.20.3"
 pre-commit = "^2.16.0"
 black = "^21.12b0"
 pyinstaller = "^4.9"
+Sphinx = "^4.4.0"
+pydata-sphinx-theme = "^0.8.0"
 
 [tool.poetry.scripts]
 hpcflow = 'hpcflow.cli:cli'
