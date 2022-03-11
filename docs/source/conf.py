@@ -50,6 +50,29 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = "pydata_sphinx_theme"
+html_theme_options = {
+    "logo_link": "https://hpcflow.github.io",
+    "github_url": "https://github.com/hpcflow/hpcflow-new",
+    "external_links": [
+        {"name": "Install", "url": "https://hpcflow.github.io/install"},
+        {"name": "Documentation", "url": "https://hpcflow.github.io/docs/stable"},
+        {"name": "Contribute", "url": "https://hpcflow.github.io/contribute"},
+    ],
+    "switcher": {
+        "json_url": "https://hpcflow.github.io/docs/switcher.json",
+        "url_template": "https://hpcflow.github.io/docs/{version}/",
+        "version_match": __version__,
+    },
+    "navbar_end": ["version-switcher"],
+    "use_edit_page_button": True,
+}
+
+html_context = {
+    "github_user": "hpcflow",
+    "github_repo": "hpcflow-new",
+    "github_version": "develop",
+    "doc_path": "docs",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
