@@ -1,5 +1,5 @@
 name: test
-
+concurrency: ci-${{ github.ref }}
 on:
   workflow_dispatch: # manual
   push:
