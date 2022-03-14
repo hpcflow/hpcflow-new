@@ -1,4 +1,18 @@
 
+<a name="v0.67.0"></a>
+## [v0.67.0](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0...v0.67.0) - 2022.03.14
+
+### ✨ Features
+
+* 40
+* 39
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+
+
 <a name="v0.66.0"></a>
 ## [v0.66.0](https://github.com/hpcflow/hpcflow-new/compare/v0.65.0...v0.66.0) - 2022.03.14
 
