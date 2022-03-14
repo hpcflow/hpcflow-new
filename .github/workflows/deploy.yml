@@ -289,6 +289,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
+          fetch-depth: 0 # get all history and tags
           ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }} # PAT of user who has permission to bypass branch protection
 
@@ -302,7 +303,7 @@ jobs:
 
       - name: Write binary links YAML file and push
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > docs/source/released_binaries.yml
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}" > docs/source/released_binaries.yml
           git add .
           git commit -m "build: update binary download links file [skip ci]"
           git push
