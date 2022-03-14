@@ -1,4 +1,25 @@
 
+<a name="v0.73.0a0"></a>
+## [v0.73.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.72.0...v0.73.0a0) - 2022.03.14
+
+### ✨ Features
+
+* update README
+* update README
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.72.0"></a>
+## [v0.72.0](https://github.com/hpcflow/hpcflow-new/compare/v0.72.0a0...v0.72.0) - 2022.03.14
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.72.0a0"></a>
 ## [v0.72.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.71.0...v0.72.0a0) - 2022.03.14
 
