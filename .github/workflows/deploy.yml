@@ -325,6 +325,7 @@ jobs:
       - name: Build documentation with Sphinx
         run: |
           cd docs
+          poetry run make clean
           poetry run make html
 
       - name: Upload documentation artifact
