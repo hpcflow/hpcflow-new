@@ -1,5 +1,5 @@
 name: test
-concurrency: ci-${{ github.ref }}
+concurrency: ci-${{ github.head_ref || github.ref }} # e.g. don't run simultaneously on the same branch (since we may commit to that branch)
 on:
   workflow_dispatch: # manual
   push:
