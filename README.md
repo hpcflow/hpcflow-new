@@ -1,5 +1,7 @@
-# hpcflow
+![docs/source/_static/images/logo.svg](docs/source/_static/images/logo.svg)
 
-It's really great!!
-dhellloooo sd
-test no deploy
+<hr/>
+
+**hpcFlow manages your scientific computational workflows**
+
+Documentation: hpcflow.github.io/docs
