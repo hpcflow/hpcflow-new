@@ -86,7 +86,7 @@ jobs:
           git tag ${{ env.new_tag }}
           git push && git push origin ${{ env.new_tag }}
 
-      - name: Merge to develop branch if exists (stable release)
+      - name: Rebase into develop branch if exists (stable release)
         if: github.event.pull_request.base.ref == 'main'
         run: |
           exists_in_remote=$(git ls-remote --heads origin develop)
@@ -306,6 +306,21 @@ jobs:
           git add .
           git commit -m "build: update binary download links file [skip ci]"
           git push
+
+      - name: Rebase into develop branch if exists (stable release)
+        if: github.event.pull_request.base.ref == 'main'
+        run: |
+          exists_in_remote=$(git ls-remote --heads origin develop)
+          echo "exists_in_remote: $exists_in_remote"
+          if [[ -n $exists_in_remote ]]; then
+            export SKIP=end-of-file-fixer
+            git checkout develop
+            git pull
+            git rebase main
+            git push -u origin develop
+          else
+            echo "No develop branch to merge into."
+          fi
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
