@@ -26,9 +26,9 @@
      inkscape:pagecheckerboard="0"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="1.3273709"
-     inkscape:cx="159.71421"
-     inkscape:cy="64.789726"
+     inkscape:zoom="1.8771859"
+     inkscape:cx="180.32311"
+     inkscape:cy="86.29939"
      inkscape:window-width="1920"
      inkscape:window-height="1137"
      inkscape:window-x="-8"
@@ -58,7 +58,7 @@
        transform="translate(-75.547478,41.156462)">
       <g
          id="g13693"
-         inkscape:export-filename="C:\Users\adamj\Dropbox (The University of Manchester)\code_db\python_dev\hpcflow-new\g13693.png"
+         inkscape:export-filename="C:\Users\adamj\Dropbox (The University of Manchester)\code_db\python_dev\hpcflow-new\docs\source\_static\images\logo.png"
          inkscape:export-xdpi="90"
          inkscape:export-ydpi="90"
          transform="matrix(0.36828304,0,0,0.36828304,6.2128048,349.09338)"
@@ -202,7 +202,10 @@
          width="79.212074"
          height="26.888502"
          x="-29.555416"
-         y="539.07782" />
+         y="539.07782"
+         inkscape:export-filename="C:\Users\adamj\Dropbox (The University of Manchester)\code_db\python_dev\hpcflow-new\docs\source\_static\images\logo.png"
+         inkscape:export-xdpi="90"
+         inkscape:export-ydpi="90" />
     </g>
   </g>
 </svg>
