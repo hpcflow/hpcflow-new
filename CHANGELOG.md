@@ -1,4 +1,19 @@
 
+<a name="v0.70.0"></a>
+## [v0.70.0](https://github.com/hpcflow/hpcflow-new/compare/v0.69.0...v0.70.0) - 2022.03.14
+
+### ✨ Features
+
+* 123 innit
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* remove newline released bins [skip ci]
+* fix merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.69.0"></a>
 ## [v0.69.0](https://github.com/hpcflow/hpcflow-new/compare/v0.68.0...v0.69.0) - 2022.03.14
 
