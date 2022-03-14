@@ -61,16 +61,13 @@ html_theme = "pydata_sphinx_theme"
 html_theme_options = {
     "logo_link": "https://hpcflow.github.io",
     "github_url": "https://github.com/hpcflow/hpcflow-new",
-    "external_links": [
-        {"name": "Install", "url": "https://hpcflow.github.io/install"},
-        {"name": "Contribute", "url": "https://hpcflow.github.io/contribute"},
-    ],
+    "external_links": [],
     "switcher": {
         "json_url": "https://hpcflow.github.io/docs/switcher.json",
         "url_template": "https://hpcflow.github.io/docs/v{version}/",
         "version_match": __version__,
     },
-    "navbar_end": ["version-switcher"],
+    "navbar_end": ["version-switcher", "navbar-icon-links.html"],
     "use_edit_page_button": True,
 }
 
@@ -78,7 +75,7 @@ html_context = {
     "github_user": "hpcflow",
     "github_repo": "hpcflow-new",
     "github_version": "develop",
-    "doc_path": "docs",
+    "doc_path": "docs/source",
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
