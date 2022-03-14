@@ -1,5 +1,5 @@
-name: deploy
-concurrency: deploy
+name: release
+concurrency: release
 on:
   pull_request_target:
     branches: [main, develop]
@@ -8,10 +8,10 @@ on:
 jobs:
   bump-version:
     if:
-      | # skip if: PR is closed without merging; '[skip deploy]' is in the PR title; or if merging any branch other than develop into main
+      | # skip if: PR is closed without merging; '[skip release]' is in the PR title; or if merging any branch other than develop into main
       ( 
         github.event.pull_request.merged 
-        && ! contains(github.event.pull_request.title, '[skip deploy]') 
+        && ! contains(github.event.pull_request.title, '[skip release]') 
         && (
           github.event.pull_request.base.ref == 'develop' || (
             github.event.pull_request.base.ref == 'main'
