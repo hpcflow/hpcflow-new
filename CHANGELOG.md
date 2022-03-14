@@ -1,4 +1,43 @@
 
+<a name="v0.66.0"></a>
+## [v0.66.0](https://github.com/hpcflow/hpcflow-new/compare/v0.65.0...v0.66.0) - 2022.03.14
+
+### ✨ Features
+
+* 39
+* 38
+* 123 yep
+* 123 innit
+* 37
+* 36
+* 35
+* 34
+* 33
+* 32
+* 31
+* 30
+* myfeat4
+* myfeat3
+* myfeat2
+* myfeat
+* yep
+* 123
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* merge
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update deps
+
+
 <a name="v0.65.0"></a>
 ## [v0.65.0](https://github.com/hpcflow/hpcflow-new/compare/v0.64.0...v0.65.0) - 2022.03.11
 
