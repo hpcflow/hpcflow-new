@@ -244,7 +244,7 @@ class CommandsAction(ResolvedAction):
     """Represents an action without any associated input file generators and output
     parsers."""
 
-    commands:List[Command]
+    commands: List[Command]
 
 
 @dataclass
