@@ -4,11 +4,14 @@
 
 ### ✨ Features
 
+* coolio
 * update README
 * update README
 
 ### 👷 Build changes
 
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
 * update binary download links file [skip ci]
 
 
