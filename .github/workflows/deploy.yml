@@ -303,7 +303,7 @@ jobs:
 
       - name: Write binary links YAML file and push
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > docs/source/released_binaries.yml
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}" > docs/source/released_binaries.yml
           git add .
           git commit -m "build: update binary download links file [skip ci]"
           git push
