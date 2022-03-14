@@ -89,7 +89,7 @@ jobs:
       - name: Rebase into develop branch if exists (stable release)
         if: github.event.pull_request.base.ref == 'main'
         run: |
-          exists_in_remote=$(git ls-remote --heads origin develop)
+          exists_in_remote=$(git ls-remote --heads origin refs/heads/develop)
           echo "exists_in_remote: $exists_in_remote"
           if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
@@ -310,7 +310,7 @@ jobs:
       - name: Rebase into develop branch if exists (stable release)
         if: github.event.pull_request.base.ref == 'main'
         run: |
-          exists_in_remote=$(git ls-remote --heads origin develop)
+          exists_in_remote=$(git ls-remote --heads origin refs/heads/develop)
           echo "exists_in_remote: $exists_in_remote"
           if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
