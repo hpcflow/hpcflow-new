@@ -77,6 +77,7 @@ html_context = {
     "github_version": "develop",
     "doc_path": "docs/source",
 }
+html_logo = "_static/images/logo.svg"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
