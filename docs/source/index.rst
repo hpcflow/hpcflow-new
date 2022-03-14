@@ -10,6 +10,7 @@ Welcome to hpcflow's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   Install <install/index>
    User Guide <user/index>
    API reference <reference/index>
    Contribute <contribute/index>
