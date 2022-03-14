@@ -1,4 +1,133 @@
 
+<a name="v0.66.0a9"></a>
+## [v0.66.0a9](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a8...v0.66.0a9) - 2022.03.14
+
+### ✨ Features
+
+* 39
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a8"></a>
+## [v0.66.0a8](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a7...v0.66.0a8) - 2022.03.14
+
+### ✨ Features
+
+* 38
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a7"></a>
+## [v0.66.0a7](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a6...v0.66.0a7) - 2022.03.14
+
+### ✨ Features
+
+* 123 yep
+* 123 innit
+
+### 👷 Build changes
+
+* merge
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a6"></a>
+## [v0.66.0a6](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a5...v0.66.0a6) - 2022.03.14
+
+### ✨ Features
+
+* 37
+* 36
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a5"></a>
+## [v0.66.0a5](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a4...v0.66.0a5) - 2022.03.14
+
+### ✨ Features
+
+* 35
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a4"></a>
+## [v0.66.0a4](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a3...v0.66.0a4) - 2022.03.14
+
+### ✨ Features
+
+* 34
+* 33
+* 32
+* 31
+* 30
+* myfeat4
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a3"></a>
+## [v0.66.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a2...v0.66.0a3) - 2022.03.14
+
+### ✨ Features
+
+* myfeat3
+* myfeat2
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a2"></a>
+## [v0.66.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a1...v0.66.0a2) - 2022.03.14
+
+### ✨ Features
+
+* myfeat
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.66.0a1"></a>
+## [v0.66.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.66.0a0...v0.66.0a1) - 2022.03.13
+
+### ✨ Features
+
+* yep
+
+
+<a name="v0.66.0a0"></a>
+## [v0.66.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.65.0...v0.66.0a0) - 2022.03.13
+
+### ✨ Features
+
+* 123
+
+### 👷 Build changes
+
+* update deps
+
+
+<a name="v0.65.0"></a>
+## [v0.65.0](https://github.com/hpcflow/hpcflow-new/compare/v0.65.0a1...v0.65.0) - 2022.03.11
+
+
 <a name="v0.65.0a1"></a>
 ## [v0.65.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.65.0a0...v0.65.0a1) - 2022.03.11
 

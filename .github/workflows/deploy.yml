@@ -1,5 +1,5 @@
 name: deploy
-
+concurrency: deploy
 on:
   pull_request_target:
     branches: [main, develop]
@@ -117,44 +117,6 @@ jobs:
         with:
           name: CHANGELOG_increment
           path: CHANGELOG_increment.md
-
-  build-documentation:
-    needs: bump-version
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
-
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-
-      - name: Cache the virtualenv
-        uses: actions/cache@v2
-        with:
-          path: ./.venv
-          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install poetry
-        run: curl -sSL https://install.python-poetry.org | python3 -
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Install dependencies
-        run: poetry install
-
-      - name: Build documentation with Sphinx
-        run: |
-          cd docs
-          poetry run make html
-
-      - name: Upload documentation artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: docs_html
-          path: docs/build/html
 
   build-executables:
     needs: bump-version
@@ -301,18 +263,15 @@ jobs:
       - name: Release info
         id: get_binary_download_links
         run: |
-          echo "steps.release.outputs.url: ${{ steps.release.outputs.url }}"
-          echo "steps.release.outputs.id: ${{ steps.release.outputs.id }}"
-          echo "steps.release.outputs.upload_url: ${{ steps.release.outputs.upload_url }}"
-          tree release-artifacts/
           binaryYaml=$(python3 -c "
           from pathlib import Path
-          out_yaml = '${{ needs.bump-version.outputs.new_tag_name }}:\n'
+          out_yaml = ''
           for i in Path('release-artifacts').glob('*/hpcflow*'):            
-            out_yaml += '  ' + str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
+            out_yaml += str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
             out_yaml += f'/{str(i.name)}\n'
           print(out_yaml)
           ")
+          # escape new lines:
           binaryYaml="${binaryYaml//'%'/'%25'}"
           binaryYaml="${binaryYaml//$'\n'/'%0A'}"
           binaryYaml="${binaryYaml//$'\r'/'%0D'}"
@@ -323,6 +282,57 @@ jobs:
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
           poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
           poetry publish --repository test-pypi
+
+  build-documentation:
+    needs: release-github-PyPI
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }} # PAT of user who has permission to bypass branch protection
+
+      - run: |
+          git config user.name hpcflow-actions
+          git config user.email hpcflow-actions@users.noreply.github.com
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Write binary links YAML file and push
+        run: |
+          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > docs/source/released_binaries.yml
+          git add .
+          git commit -m "build: update binary download links file [skip ci]"
+          git push
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build documentation with Sphinx
+        run: |
+          cd docs
+          poetry run make clean
+          poetry run make html
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs_html
+          path: docs/build/html
 
   update-website:
     needs: [bump-version, release-github-PyPI, build-documentation]
@@ -341,46 +351,28 @@ jobs:
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
 
-      - name: Update latest binary link (stable)
-        if: github.event.pull_request.base.ref == 'main'
-        run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > _data/latest_binaries_stable.yml
-
-      - name: Update latest binary link (pre-release)
-        if: github.event.pull_request.base.ref == 'develop'
-        run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n" > _data/latest_binaries_pre_release.yml
-
-      - name: Update binary links
-        run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}\n$(cat _data/all_binaries.yml)" > _data/all_binaries.yml
-
       - name: Download documentation artifact
         uses: actions/download-artifact@v2
         with:
           name: docs_html
           path: docs/${{ needs.bump-version.outputs.new_tag_name }}
 
-      - name: Download documentation artifact (stable)
+      - name: Update stable docs symlink
         if: github.event.pull_request.base.ref == 'main'
-        uses: actions/download-artifact@v2
-        with:
-          name: docs_html
-          path: docs/stable
+        run: |
+          ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/stable
 
-      - name: Download documentation artifact (pre-release)
+      - name: Update pre-release docs symlink
         if: github.event.pull_request.base.ref == 'develop'
-        uses: actions/download-artifact@v2
-        with:
-          name: docs_html
-          path: docs/dev
+        run: |
+          ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/dev
 
       - run: |
           tree
 
       - name: Update doc version switcher
         run: |
-          python docs/update_version_switcher.py 'docs/switcher.json' ${{ github.event.pull_request.base.ref }} ${{ needs.bump-version.outputs.new_tag_name }}
+          python docs/make_vers_switcher.py
 
       - name: Push changes
         run: |
