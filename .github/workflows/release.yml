@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_BUMP
+          python-version: ${{ env.PYTHON_VERSION_BUMP }}
 
       - name: Get git-chglog executable
         run: |
@@ -165,7 +165,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_BUILD_EXES
+          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
@@ -242,7 +242,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_RELEASE
+          python-version: ${{ env.PYTHON_VERSION_RELEASE }}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
@@ -324,7 +324,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_BUILD_DOCS
+          python-version: ${{ env.PYTHON_VERSION_BUILD_DOCS }}
 
       - name: Write binary links YAML file and push
         run: |
@@ -381,7 +381,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_UPDATE_WEB
+          python-version: ${{ env.PYTHON_VERSION_UPDATE_WEB }}
 
       - uses: actions/checkout@v2
         with:

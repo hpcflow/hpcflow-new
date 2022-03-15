@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: $PYTHON_VERSION_PRE_COMMIT
+          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
 
       - name: pre-commit
         # avoid exit code 1 (which halts GH actions) from pre-commit run command by
