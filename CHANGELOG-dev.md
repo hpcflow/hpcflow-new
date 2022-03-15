@@ -1,4 +1,41 @@
 
+<a name="v0.75.0a0"></a>
+## [v0.75.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.74.0...v0.75.0a0) - 2022.03.15
+
+### ✨ Features
+
+* feta
+* use templates
+* 123
+* test var in if
+
+### 👷 Build changes
+
+* update wk
+* update thing
+* teste
+* test
+* change it
+* fix again
+* 123
+* fix test wkflow
+* test anchors
+* synch test workflow
+* add README to .github
+* fix envs again
+* synch fixed GH workflows
+* update GH action workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.74.0"></a>
+## [v0.74.0](https://github.com/hpcflow/hpcflow-new/compare/v0.74.0a1...v0.74.0) - 2022.03.15
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.74.0a1"></a>
 ## [v0.74.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.74.0a0...v0.74.0a1) - 2022.03.15
 
