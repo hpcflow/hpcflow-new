@@ -7,7 +7,7 @@ env:
   RELEASE_BRANCH: main
   PRE_RELEASE_BRANCH: develop
   PYTHON_VERSION_PRE_COMMIT: 3.9
-  PYTEST_ARGS: --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
+  PYTEST_ARGS: --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action" # disable failing tests while we set up CI
   BOT_ACCOUNT_NAME: hpcflow-actions
   BOT_ACCOUNT_EMAIL: hpcflow-actions@users.noreply.github.com
 
@@ -94,6 +94,5 @@ jobs:
           poetry install
 
       - name: Run tests
-        run: | # disable failing tests while we set up CI
-          echo "running: poetry run python -m pytest ${{ env.PYTEST_ARGS }}"
+        run: |
           poetry run python -m pytest ${{ env.PYTEST_ARGS }}
