@@ -95,5 +95,5 @@ jobs:
 
       - name: Run tests
         run: | # disable failing tests while we set up CI
-          echo "running: poetry run python -m pytest $(PYTEST_ARGS)"
-          poetry run python -m pytest $PYTEST_ARGS
+          echo "running: poetry run python -m pytest ${{ env.PYTEST_ARGS }}"
+          poetry run python -m pytest ${{ env.PYTEST_ARGS }}
