@@ -20,7 +20,7 @@ jobs:
             executable_ext: ""
             executable_os: macOS
 
-    runs-on: ${{ matrix.os }}
+    runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -28,13 +28,13 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_BUILD_EXES }}{% endraw %}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
         run: python -m pip install poetry==1.1.11
@@ -51,19 +51,19 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }} --onefile
+      - name: Build with pyinstaller for {% raw %}${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }} --onefile{% endraw %}
 
-      - name: Rename executable for ${{matrix.executable_os}}
-        run: mv dist/hpcflow-${{ env.vers }}${{ matrix.executable_ext }} dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+      - name: Rename executable for {% raw %}${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}mv dist/hpcflow-${{ env.vers }}${{ matrix.executable_ext }} dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          name: {% raw %}hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          path: {% raw %}dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+        run: {% raw %}dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version{% endraw %}
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-CentOS-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -94,13 +94,13 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-linux --onefile
+      - name: {% raw %}Build with pyinstaller for ${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-linux --onefile{% endraw %}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}-linux
-          path: dist/hpcflow-${{ env.vers }}-linux
+          name: {% raw %}hpcflow-${{ env.vers }}-linux{% endraw %}
+          path: {% raw %}dist/hpcflow-${{ env.vers }}-linux{% endraw %}
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ env.vers }}-linux --version
+        run: {% raw %}dist/hpcflow-${{ env.vers }}-linux --version{% endraw %}
