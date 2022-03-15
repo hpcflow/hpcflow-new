@@ -180,7 +180,9 @@ jobs:
         run: poetry config virtualenvs.in-project true
 
       - name: Install dependencies
-        run: poetry install
+        run: |
+          poetry install --no-dev
+          poetry run pip install pyinstaller
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }} --onefile
@@ -217,9 +219,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          poetry install --no-dev
+          poetry run pip install pyinstaller
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
+      - name: Build with pyinstaller for CentOS
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile
 
       - uses: actions/upload-artifact@v2
