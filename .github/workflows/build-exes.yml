@@ -28,7 +28,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${PYTHON_VERSION_BUILD_EXES}
+          python-version: $PYTHON_VERSION_BUILD_EXES
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
