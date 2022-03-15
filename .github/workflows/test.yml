@@ -4,15 +4,19 @@ concurrency:
   ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
 
 env:
+  RELEASE_BRANCH: main
+  PRE_RELEASE_BRANCH: develop
   PYTHON_VERSION_PRE_COMMIT: 3.9
+  PYTEST_ARGS: --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
 
 on:
   workflow_dispatch: # manual
   push:
-    branches-ignore: [main, develop]
+    branches-ignore:
+      ["${{ env.RELEASE_BRANCH }}", "${{ env.PRE_RELEASE_BRANCH }}"]
   pull_request:
     types: [opened, edited, synchronize]
-    branches: [main, develop]
+    branches: ["${{ env.RELEASE_BRANCH }}", "${{ env.PRE_RELEASE_BRANCH }}"]
 
 jobs:
   pre-commit:
@@ -88,4 +92,4 @@ jobs:
 
       - name: Run tests
         run: | # disable failing tests while we set up CI
-          poetry run python -m pytest --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
+          poetry run python -m pytest $PYTEST_ARGS
