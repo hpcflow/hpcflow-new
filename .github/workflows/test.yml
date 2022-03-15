@@ -4,15 +4,20 @@ concurrency:
   ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
 
 env:
+  RELEASE_BRANCH: main
+  PRE_RELEASE_BRANCH: develop
   PYTHON_VERSION_PRE_COMMIT: 3.9
+  PYTEST_ARGS: --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action" # disable failing tests while we set up CI
+  BOT_ACCOUNT_NAME: hpcflow-actions
+  BOT_ACCOUNT_EMAIL: hpcflow-actions@users.noreply.github.com
 
 on:
-  workflow_dispatch: # manual
+  workflow_dispatch: # manual invocation
   push:
-    branches-ignore: [main, develop]
+    branches-ignore: [main, develop] # have to manually change these
   pull_request:
     types: [opened, edited, synchronize]
-    branches: [main, develop]
+    branches: [main, develop] # have to manually change these
 
 jobs:
   pre-commit:
@@ -28,8 +33,10 @@ jobs:
           ref: ${{ github.head_ref || github.ref }}
 
       - run: |
-          git config user.name hpcflow-actions
-          git config user.email hpcflow-actions@users.noreply.github.com
+          git config user.name $BOT_ACCOUNT_NAME
+          git config user.email $BOT_ACCOUNT_EMAIL
+          echo "git config user.name: $(git config user.name)"
+          echo "git config user.email: $(git config user.email)"
 
       - uses: actions/setup-python@v2
         with:
@@ -87,5 +94,5 @@ jobs:
           poetry install
 
       - name: Run tests
-        run: | # disable failing tests while we set up CI
-          poetry run python -m pytest --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
+        run: |
+          poetry run python -m pytest ${{ env.PYTEST_ARGS }}
