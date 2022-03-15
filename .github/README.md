@@ -1,10 +1,8 @@
-These GitHub actions workflows are synchronised with those in https://github.com/hpcflow-new/python-release-workflow.
+These GitHub actions workflows are generated from Jinja templates from https://github.com/hpcflow-new/python-release-workflow.
 
-The following modifications are made:
-
-In `test.yml`, we set these environment variables:
+The `generate_workflows.py` file is invoked like this to generate all of the workflow YAML file:
 
 ```yaml
-env:
-  PYTEST_ARGS: --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action" # disable failing tests while we set up CI
+cd .github/workflows
+python generate_workflows.py . vars.jsonc
 ```
