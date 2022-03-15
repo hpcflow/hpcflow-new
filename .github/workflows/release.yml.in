@@ -10,7 +10,7 @@ env:
 
 on:
   pull_request_target:
-    branches: [main, develop]
+    branches: [{{ release_branch }}, {{ pre_release_branch }}]
     types: [closed]
 
 jobs:
@@ -21,29 +21,29 @@ jobs:
         github.event.pull_request.merged
         && ! contains(github.event.pull_request.title, '[skip release]')
         && (
-          github.event.pull_request.base.ref == 'develop' || (
-            github.event.pull_request.base.ref == 'main'
-            && github.event.pull_request.head.ref == 'develop'
+          github.event.pull_request.base.ref == '{{ pre_release_branch }}' || (
+            github.event.pull_request.base.ref == '{{ release_branch }}'
+            && github.event.pull_request.head.ref == '{{ pre_release_branch }}'
           )
         )
       )
     runs-on: ubuntu-latest
     outputs:
-      new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
+      new_tag_name: {% raw %}${{ steps.get_new_tag.outputs.new_tag_name }}{% endraw %}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0 # get all history and tags
-          ref: ${{ github.event.pull_request.base.ref }}
-          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }}
+          ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %}
+          token: {{ '${{' }} secrets.{{ token_name }} {{ '}}' }}
 
       - run: |
-          git config user.name hpcflow-actions
-          git config user.email hpcflow-actions@users.noreply.github.com
+          git config user.name {{ bot_account_name }}
+          git config user.email {{ bot_account_email }}
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_BUMP }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_BUMP }}{% endraw %}
 
       - name: Get git-chglog executable
         run: |
@@ -54,7 +54,7 @@ jobs:
         run: pip install commitizen
 
       - name: Manipulate tags (stable release)
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run:
           | # delete all pre-release tags, set current version to the latest stable release,
           CUR_PRE_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
@@ -69,19 +69,19 @@ jobs:
           echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
 
       - name: Commitizen bump (pre-release) # Bump version strings (pre-release) and add a new tag; commit
-        if: github.event.pull_request.base.ref == 'develop'
+        if: github.event.pull_request.base.ref == '{{ pre_release_branch }}'
         run: cz bump --prerelease alpha
 
       - name: Commitizen bump # First update version number to latest stable release, then bump to new stable release, add a new tag and commit
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
           python3 -c "
           from commitizen.bump import update_version_in_files
-          update_version_in_files(
+          update_version_in_files({% raw %}
               current_version='${{ env.cur_pre_tag }}'.lstrip('v'),
               new_version='${{ env.cur_tag }}'.lstrip('v'),
               files=['pyproject.toml', 'hpcflow/_version.py'],
-          )"
+          )"{% endraw %}
           cz bump
 
       - name: Get new tag
@@ -93,49 +93,49 @@ jobs:
           echo "::set-output name=new_tag_name::$NEW_TAG"
 
       - name: Generate CHANGELOG (stable release)
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
           ./git-chglog --output CHANGELOG.md
           git add CHANGELOG.md
 
       - name: Generate CHANGELOG-dev (pre-release)
-        if: github.event.pull_request.base.ref == 'develop'
+        if: github.event.pull_request.base.ref == '{{ pre_release_branch }}'
         run: |
           ./git-chglog --output CHANGELOG-dev.md
           git add CHANGELOG-dev.md
-
+{% raw %}
       - name: Push new CHANGELOG
         run: |
           git tag -d ${{ env.new_tag }}
           git commit --amend --no-edit
           git tag ${{ env.new_tag }}
           git push && git push origin ${{ env.new_tag }}
-
+{% endraw %}
       - name: Rebase into develop branch if exists (stable release)
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
-          exists_in_remote=$(git ls-remote --heads origin refs/heads/develop)
+          exists_in_remote=$(git ls-remote --heads origin refs/heads/{{ pre_release_branch }})
           echo "exists_in_remote: $exists_in_remote"
           if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
-            git checkout develop
+            git checkout {{ pre_release_branch }}
             git pull
-            git rebase main
-            git push -u origin develop
+            git rebase {{ release_branch }}
+            git push -u origin {{ pre_release_branch }}
           else
-            echo "No develop branch to merge into."
+            echo "No {{ pre_release_branch }} branch to merge into."
           fi
 
       - name: Generate incremental CHANGELOG for GitHub release body (stable release)
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
-          ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.cur_tag }}..
+          {% raw %}./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.cur_tag }}..{% endraw %}
           cat CHANGELOG_increment.md
 
       - name: Generate incremental CHANGELOG for GitHub release body (pre-release)
-        if: github.event.pull_request.base.ref == 'develop'
+        if: github.event.pull_request.base.ref == '{{ pre_release_branch }}'
         run: |
-          ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.new_tag }}
+          {% raw %}./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.new_tag }}{% endraw %}
           cat CHANGELOG_increment.md
 
       - uses: actions/upload-artifact@v2
@@ -157,21 +157,21 @@ jobs:
             executable_ext: ""
             executable_os: macOS
 
-    runs-on: ${{ matrix.os }}
+    runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_BUILD_EXES }}{% endraw %}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
         run: python -m pip install poetry==1.1.11
@@ -182,19 +182,19 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }} --onefile
+      - name: Build with pyinstaller for {% raw %}${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }} --onefile{% endraw %}
 
-      - name: Rename executable for ${{matrix.executable_os}}
-        run: mv dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+      - name: Rename executable for {% raw %}${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}mv dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          name: {% raw %}hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          path: {% raw %}dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+        run: {% raw %}dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version{% endraw %}
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -204,7 +204,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
@@ -213,42 +213,42 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-CentOS-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
           poetry install
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile
+      - name: {% raw %}Build with pyinstaller for ${{matrix.executable_os}}{% endraw %}
+        run: {% raw %}poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile{% endraw %}
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
-          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+          name: {% raw %}hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux{% endraw %}
+          path: {% raw %}dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux{% endraw %}
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version
+        run: {% raw %}dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version{% endraw %}
 
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-linux]
     runs-on: ubuntu-latest
     outputs:
-      binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
+      binary_download_links: {% raw %}${{ steps.get_binary_download_links.outputs.binary_download_links }}{% endraw %}
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+          ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_RELEASE }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_RELEASE }}{% endraw %}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
         run: python -m pip install poetry==1.1.11
@@ -260,7 +260,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: poetry install
@@ -281,10 +281,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
-          tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
+          tag_name: {% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
           files: release-artifacts/hpcflow-*/*
-          prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
-
+          prerelease: {{ '${{' }} github.event.pull_request.base.ref == '{{ pre_release_branch }}' {{ '}}' }}
+{% raw %}
       - name: Release info
         id: get_binary_download_links
         run: |
@@ -301,11 +301,11 @@ jobs:
           binaryYaml="${binaryYaml//$'\n'/'%0A'}"
           binaryYaml="${binaryYaml//$'\r'/'%0D'}"
           echo "::set-output name=binary_download_links::$binaryYaml"
-
+{% endraw %}
       - name: Publish (to test PyPI)
         run: |
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
-          poetry config pypi-token.test-pypi ${{ secrets.TEST_PYPI }}
+          poetry config pypi-token.test-pypi {% raw %}${{ secrets.TEST_PYPI }}{% endraw %}
           poetry publish --repository test-pypi
 
   build-documentation:
@@ -315,44 +315,44 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0 # get all history and tags
-          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
-          token: ${{ format('secrets.{}', env.TOKEN_NAME) }}
+          ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
+          token: {% raw %}${{ format('secrets.{}', env.TOKEN_NAME) }}{% endraw %}
 
       - run: |
-          git config user.name hpcflow-actions
-          git config user.email hpcflow-actions@users.noreply.github.com
+          git config user.name {{ bot_account_name }}
+          git config user.email {{ bot_account_email }}
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_BUILD_DOCS }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_BUILD_DOCS }}{% endraw %}
 
       - name: Write binary links YAML file and push
         run: |
-          echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}" > docs/source/released_binaries.yml
+          {% raw %}echo -e "${{ needs.release-github-PyPI.outputs.binary_download_links }}" > docs/source/released_binaries.yml{% endraw %}
           git add .
           git commit -m "build: update binary download links file [skip ci]"
           git push
 
       - name: Rebase into develop branch if exists (stable release)
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
-          exists_in_remote=$(git ls-remote --heads origin refs/heads/develop)
+          exists_in_remote=$(git ls-remote --heads origin refs/heads/{{ pre_release_branch }})
           echo "exists_in_remote: $exists_in_remote"
           if [[ -n $exists_in_remote ]]; then
             export SKIP=end-of-file-fixer
-            git checkout develop
+            git checkout {{ pre_release_branch }}
             git pull
-            git rebase main
-            git push -u origin develop
+            git rebase {{ release_branch }}
+            git push -u origin {{ pre_release_branch }}
           else
-            echo "No develop branch to merge into."
+            echo "No {{ pre_release_branch }} branch to merge into."
           fi
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
@@ -381,32 +381,32 @@ jobs:
     steps:
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_UPDATE_WEB }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_UPDATE_WEB }}{% endraw %}
 
       - uses: actions/checkout@v2
         with:
           repository: hpcflow/hpcflow.github.io
-          token: ${{ format('secrets.{}', env.TOKEN_NAME) }}
+          token: {% raw %}${{ format('secrets.{}', env.TOKEN_NAME) }}{% endraw %}
 
       - run: |
-          git config user.name hpcflow-actions
-          git config user.email hpcflow-actions@users.noreply.github.com
+          git config user.name {{ bot_account_name }}
+          git config user.email {{ bot_account_email }}
 
       - name: Download documentation artifact
         uses: actions/download-artifact@v2
         with:
           name: docs_html
-          path: docs/${{ needs.bump-version.outputs.new_tag_name }}
+          path: {% raw %}docs/${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
 
       - name: Update stable docs symlink
-        if: github.event.pull_request.base.ref == 'main'
+        if: github.event.pull_request.base.ref == '{{ release_branch }}'
         run: |
-          ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/stable
+          {% raw %}ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/stable{% endraw %}
 
       - name: Update pre-release docs symlink
-        if: github.event.pull_request.base.ref == 'develop'
+        if: github.event.pull_request.base.ref == '{{ pre_release_branch }}'
         run: |
-          ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/dev
+          {% raw %}ln -sfn ${{ needs.bump-version.outputs.new_tag_name }} docs/dev{% endraw %}
 
       - run: |
           tree
