@@ -2,4 +2,4 @@
 
 **hpcFlow manages your scientific workflows**
 
-Documentation here: [https://hpcflow.github.io/docs](https://hpcflow.github.io/docs)
+Documentation: [https://hpcflow.github.io/docs](https://hpcflow.github.io/docs)

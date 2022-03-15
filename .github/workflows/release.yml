@@ -67,7 +67,13 @@ jobs:
       - name: Commitizen bump # First update version number to latest stable release, then bump to new stable release, add a new tag and commit
         if: github.event.pull_request.base.ref == 'main'
         run: |
-          python update_main_version.py ${{ env.cur_pre_tag }} ${{ env.cur_tag }}
+          python3 -c "
+          from commitizen.bump import update_version_in_files
+          update_version_in_files(
+              current_version=${{ env.cur_pre_tag }}.lstrip('v'),
+              new_version=${{ env.cur_tag }}.lstrip('v'),
+              files=['pyproject.toml', 'hpcflow/_version.py'],
+          )"
           cz bump
 
       - name: Get new tag
