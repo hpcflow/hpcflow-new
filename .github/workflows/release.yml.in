@@ -304,9 +304,9 @@ jobs:
 {% endraw %}
       - name: Publish (to test PyPI)
         run: |
-          poetry config repositories.test-pypi https://test.pypi.org/legacy/
-          poetry config pypi-token.test-pypi {% raw %}${{ secrets.TEST_PYPI }}{% endraw %}
-          poetry publish --repository test-pypi
+          poetry config repositories.pypi {{ PYPI_URL }} 
+          poetry config pypi-token.pypi {{ '${{' }} secrets.{{ PYPI_token_name }} {{ '}}' }}
+          poetry publish --repository pypi
 
   build-documentation:
     needs: release-github-PyPI
@@ -316,7 +316,7 @@ jobs:
         with:
           fetch-depth: 0 # get all history and tags
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
-          token: {% raw %}${{ format('secrets.{}', env.TOKEN_NAME) }}{% endraw %}
+          token: {{ '${{' }} secrets.{{ token_name }} {{ '}}' }}
 
       - run: |
           git config user.name {{ bot_account_name }}
@@ -386,7 +386,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: hpcflow/hpcflow.github.io
-          token: {% raw %}${{ format('secrets.{}', env.TOKEN_NAME) }}{% endraw %}
+          token: {{ '${{' }} secrets.{{ token_name }} {{ '}}' }}
 
       - run: |
           git config user.name {{ bot_account_name }}

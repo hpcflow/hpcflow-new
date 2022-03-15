@@ -18,7 +18,9 @@ def main(template_dir, vars_json_path):
 
     with vars_json_path.open("r") as fh:
         jsonc_str = fh.read()
-        json_str = re.sub("//.*", "", jsonc_str, flags=re.MULTILINE)
+        json_str = re.sub(
+            r'\/\/(?=([^"]*"[^"]*")*[^"]*$).*', "", jsonc_str, flags=re.MULTILINE
+        )
         vars = json.loads(json_str)
 
     for file_path in template_files:
