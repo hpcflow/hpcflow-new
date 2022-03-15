@@ -1,5 +1,11 @@
 name: test
-concurrency: ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }} # e.g. don't run simultaneously on the same branch (since we may commit to that branch)
+concurrency:
+  | # e.g. don't run simultaneously on the same branch (since we may commit to that branch)
+  ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
+
+env:
+  PYTHON_VERSION_PRE_COMMIT: 3.9
+
 on:
   workflow_dispatch: # manual
   push:
@@ -14,8 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }} # PAT of user (hpcflow-actions) who has permission to bypass branch protection || or standard GITHUB_TOKEN if running on an external fork (won't be able to commit fixes)
-          ref: ${{ github.head_ref || github.ref }} # checkout PR source branch (head_ref) if event is pull_request
+          # PAT of user (hpcflow-actions) who has permission to bypass branch
+          # protection || or standard GITHUB_TOKEN if running on an external fork (won't
+          # be able to commit fixes):
+          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }}
+          # checkout PR source branch (head_ref) if event is pull_request:
+          ref: ${{ github.head_ref || github.ref }}
 
       - run: |
           git config user.name hpcflow-actions
@@ -23,11 +33,12 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
 
       - name: pre-commit
-        run:
-          | # avoid exit code 1 (which halts GH actions) from pre-commit run command by running twice:
+        # avoid exit code 1 (which halts GH actions) from pre-commit run command by
+        # running twice:
+        run: |
           pip install pre-commit
           pre-commit install 
           export SKIP=no-commit-to-branch

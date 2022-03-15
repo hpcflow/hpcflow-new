@@ -1,5 +1,13 @@
 name: release
 concurrency: release
+
+env:
+  PYTHON_VERSION_BUMP: 3.9
+  PYTHON_VERSION_BUILD_EXES: 3.9
+  PYTHON_VERSION_RELEASE: 3.9
+  PYTHON_VERSION_BUILD_DOCS: 3.9
+  PYTHON_VERSION_UPDATE_WEB: 3.9
+
 on:
   pull_request_target:
     branches: [main, develop]
@@ -35,7 +43,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_BUMP }}
 
       - name: Get git-chglog executable
         run: |
@@ -157,7 +165,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
@@ -234,7 +242,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_RELEASE }}
 
       - name: Cache the virtualenv
         uses: actions/cache@v2
@@ -316,7 +324,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_BUILD_DOCS }}
 
       - name: Write binary links YAML file and push
         run: |
@@ -373,7 +381,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: ${{ env.PYTHON_VERSION_UPDATE_WEB }}
 
       - uses: actions/checkout@v2
         with:
