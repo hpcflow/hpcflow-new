@@ -6,7 +6,7 @@ env:
   PYTHON_VERSION_BUILD_EXES: 3.9
   PYTHON_VERSION_RELEASE: 3.9
   PYTHON_VERSION_BUILD_DOCS: 3.9
-  PYTHON_VERSION_UPDATE_WEB: 3.9    
+  PYTHON_VERSION_UPDATE_WEB: 3.9
 
 on:
   pull_request_target:
@@ -17,9 +17,9 @@ jobs:
   bump-version:
     if:
       | # skip if: PR is closed without merging; '[skip release]' is in the PR title; or if merging any branch other than pre_release_branch into release_branch
-      ( 
-        github.event.pull_request.merged 
-        && ! contains(github.event.pull_request.title, '[skip release]') 
+      (
+        github.event.pull_request.merged
+        && ! contains(github.event.pull_request.title, '[skip release]')
         && (
           github.event.pull_request.base.ref == '{{ pre_release_branch }}' || (
             github.event.pull_request.base.ref == '{{ release_branch }}'
@@ -291,7 +291,7 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path
           out_yaml = ''
-          for i in Path('release-artifacts').glob('*/hpcflow*'):            
+          for i in Path('release-artifacts').glob('*/hpcflow*'):
             out_yaml += str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
             out_yaml += f'/{str(i.name)}\n'
           print(out_yaml)
