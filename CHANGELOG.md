@@ -1,4 +1,20 @@
 
+<a name="v0.74.0"></a>
+## [v0.74.0](https://github.com/hpcflow/hpcflow-new/compare/v0.73.0...v0.74.0) - 2022.03.15
+
+### ✨ Features
+
+* 22
+* myfeat
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.73.0"></a>
 ## [v0.73.0](https://github.com/hpcflow/hpcflow-new/compare/v0.72.0...v0.73.0) - 2022.03.14
 
