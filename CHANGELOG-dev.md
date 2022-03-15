@@ -1,4 +1,25 @@
 
+<a name="v0.78.0a0"></a>
+## [v0.78.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.77.0...v0.78.0a0) - 2022.03.15
+
+### ✨ Features
+
+* test
+
+### 👷 Build changes
+
+* remove pyinstaller dep
+* update binary download links file [skip ci]
+
+
+<a name="v0.77.0"></a>
+## [v0.77.0](https://github.com/hpcflow/hpcflow-new/compare/v0.77.0a0...v0.77.0) - 2022.03.15
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.77.0a0"></a>
 ## [v0.77.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.76.0...v0.77.0a0) - 2022.03.15
 
