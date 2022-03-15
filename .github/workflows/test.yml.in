@@ -1,7 +1,7 @@
 name: test
 concurrency:
   | # e.g. don't run simultaneously on the same branch (since we may commit to that branch)
-  ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
+  {% raw %}ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}{% endraw %}
 
 env:
   RELEASE_BRANCH: main
@@ -27,9 +27,9 @@ jobs:
           # PAT of user (hpcflow-actions) who has permission to bypass branch
           # protection || or standard GITHUB_TOKEN if running on an external fork (won't
           # be able to commit fixes):
-          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }}
+          token: {% raw %}${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }}{% endraw %}
           # checkout PR source branch (head_ref) if event is pull_request:
-          ref: ${{ github.head_ref || github.ref }}
+          ref: {% raw %}${{ github.head_ref || github.ref }}{% endraw %}
 
       - run: |
           git config user.name $BOT_ACCOUNT_NAME
@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_PRE_COMMIT }}{% endraw %}
 
       - name: pre-commit
         # avoid exit code 1 (which halts GH actions) from pre-commit run command by
@@ -67,15 +67,15 @@ jobs:
         python-version: ["3.10"]
         os: [ubuntu-18.04]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.ref }}
+          ref: {% raw %}${{ github.ref }}{% endraw %}
 
       - uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: {% raw %}${{ matrix.python-version }}{% endraw %}
 
       - name: Install and configure poetry
         run: |
@@ -86,7 +86,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}
+          key: {% raw %}${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -94,4 +94,4 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose --exitfirst -k "not task_schema and not task_template and not resolve_elements and not input_value and not action"
+          poetry run python -m pytest {{ pytest_args }}
