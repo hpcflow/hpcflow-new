@@ -14,9 +14,11 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
-import json
-from ruamel.yaml import YAML
 from pathlib import Path
+from textwrap import indent
+
+from ruamel.yaml import YAML
+
 from hpcflow._version import __version__
 
 # -- Project information -----------------------------------------------------
@@ -96,11 +98,6 @@ with Path("released_binaries.yml") as fh:
     bins_dat = yaml.load(fh)
 
 # Generate install/index.rst file programmatically, including binary download links:
-
-
-from textwrap import indent
-
-from ruamel.yaml import YAML
 
 EXE_PLAT_LOOKUP = {"win.exe": "Windows", "macOS": "macOS", "linux": "Linux"}
 
