@@ -87,7 +87,7 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
           path: build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
       - uses: actions/upload-artifact@v2
