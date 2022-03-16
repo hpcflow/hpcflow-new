@@ -72,6 +72,14 @@ jobs:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
+      - name: Rename spec file for ${{matrix.executable_os}}
+        run: mv dist/hpcflow-${{ env.vers }}.spec dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+          path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
 
