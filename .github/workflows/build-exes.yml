@@ -79,8 +79,8 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}${{ matrix.executable_os }}.spec
-          path: hpcflow-${{ env.vers }}${{ matrix.executable_os }}.spec
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+          path: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
 
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
