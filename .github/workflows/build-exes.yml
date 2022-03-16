@@ -59,7 +59,7 @@ jobs:
         run: |
           $vers = git describe --tags
           echo "vers is: $vers"
-          echo "vers=$vers" >> $GITHUB_ENV
+          echo "vers=$vers" >> $env:GITHUB_ENV
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }} --onefile
@@ -73,12 +73,12 @@ jobs:
           path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Rename spec file for ${{matrix.executable_os}}
-        run: mv dist/hpcflow-${{ env.vers }}.spec dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+        run: mv dist/hpcflow.spec dist/hpcflow-${{ matrix.executable_os }}.spec
 
       - uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
-          path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+          name: hpcflow${{ matrix.executable_os }}.spec
+          path: dist/hpcflow${{ matrix.executable_os }}.spec
 
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
