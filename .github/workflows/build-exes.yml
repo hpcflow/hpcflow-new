@@ -64,6 +64,8 @@ jobs:
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }} --onefile
 
+      - run: tree .
+
       - name: Rename executable for ${{matrix.executable_os}}
         run: mv dist/hpcflow-${{ env.vers }}${{ matrix.executable_ext }} dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
