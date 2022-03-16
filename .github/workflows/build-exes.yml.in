@@ -48,7 +48,7 @@ jobs:
           poetry run pip install pyinstaller
 
       - name: Get exectuable version name (non Windows)
-        if: ! contains(matrix.os, 'windows')
+        if: "!contains(matrix.os, 'windows')"
         run: |
           vers=$(git describe --tags)
           echo "vers is: $vers"
