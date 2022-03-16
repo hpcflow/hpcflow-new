@@ -47,9 +47,17 @@ jobs:
           poetry install --no-dev
           poetry run pip install pyinstaller
 
-      - name: Get exectuable version name
+      - name: Get exectuable version name (non Windows)
+        if: ! contains(matrix.os, 'windows')
         run: |
           vers=$(git describe --tags)
+          echo "vers is: $vers"
+          echo "vers=$vers" >> $GITHUB_ENV
+
+      - name: Get exectuable version name (Windows)
+        if: contains(matrix.os, 'windows')
+        run: |
+          $vers = git describe --tags
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 

@@ -16,9 +16,10 @@ on:
 jobs:
   bump-version:
     if:
-      | # skip if: PR is closed without merging; '[skip release]' is in the PR title; or if merging any branch other than pre_release_branch into release_branch
+      | # skip if: trying to re-run; PR is closed without merging; '[skip release]' is in the PR title; or if merging any branch other than pre_release_branch into release_branch
       (
-        github.event.pull_request.merged
+        github.run_attempt == '1' 
+        && github.event.pull_request.merged
         && ! contains(github.event.pull_request.title, '[skip release]')
         && (
           github.event.pull_request.base.ref == '{{ pre_release_branch }}' || (
