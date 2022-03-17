@@ -320,7 +320,9 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path
           out_yaml = ''
-          for i in Path('release-artifacts').glob('*/{{ executable_name }}*'):
+          for i in Path('.').glob('**/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-*'):
+            if not any(i.name.endswith(j) for j in ['win.exe', 'macOS', 'linux']):
+              continue
             out_yaml += str(i.name) + ': https://github.com/{{ org }}/{{ repo }}/releases/download/{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}'
             out_yaml += f'/{str(i.name)}\n'
           print(out_yaml)
