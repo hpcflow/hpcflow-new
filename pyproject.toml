@@ -1,6 +1,6 @@
 
 [tool.poetry]
-name = "hpcflow"
+name = "hpcflow-new"
 version = "0.73.0"
 
 
