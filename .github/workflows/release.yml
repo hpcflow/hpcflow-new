@@ -298,7 +298,7 @@ jobs:
         id: download_executables
         with:
           path: release-artifacts
-      
+
       - name: Display structure of downloaded files
         run: ls -R
 
@@ -320,11 +320,10 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path
           out_yaml = ''
-          for i in Path('.').glob('**/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-*'):
-            if not any(i.name.endswith(j) for j in ['win.exe', 'macOS', 'linux']):
-              continue
-            out_yaml += str(i.name) + ': https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}'
-            out_yaml += f'/{str(i.name)}\n'
+          for i in ['win.exe', 'macOS', 'linux']:
+            exe_name = 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-' + i
+            url = 'https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}/' + exe_name
+            out_yaml += exe_name + ': ' + url + '\n'
           print(out_yaml)
           ")
           # escape new lines:
