@@ -183,7 +183,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-dev --extras "pyinstaller"
 
-      - name: Build with pyinstaller for ${{matrix.executable_os}}
+      - name: Build with pyinstaller for ${{ matrix.executable_os }}
         run: poetry run pyinstaller --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} --onefile hpcflow/cli.py
 
       - name: Upload executable artifact
