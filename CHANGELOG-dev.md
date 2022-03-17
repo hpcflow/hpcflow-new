@@ -1,4 +1,76 @@
 
+<a name="v0.79.0a3"></a>
+## [v0.79.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.79.0a2...v0.79.0a3) - 2022.03.17
+
+### ✨ Features
+
+* 123
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.79.0a2"></a>
+## [v0.79.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.79.0a1...v0.79.0a2) - 2022.03.17
+
+### ✨ Features
+
+* my
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.79.0a1"></a>
+## [v0.79.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.79.0a0...v0.79.0a1) - 2022.03.17
+
+### ✨ Features
+
+* test
+
+
+<a name="v0.79.0a0"></a>
+## [v0.79.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.78.0...v0.79.0a0) - 2022.03.17
+
+### ✨ Features
+
+* update workflows
+
+### 👷 Build changes
+
+* update wks
+* update release
+* add pyinstaller scripts
+* update wk
+* update deps
+* update deps
+* fix
+* try fix
+* try fix
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* test upload pyinstaller spec file
+* fix workflow template
+* try fix again
+* try fix
+* update workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.78.0"></a>
+## [v0.78.0](https://github.com/hpcflow/hpcflow-new/compare/v0.78.0a0...v0.78.0) - 2022.03.15
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.78.0a0"></a>
 ## [v0.78.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.77.0...v0.78.0a0) - 2022.03.15
 

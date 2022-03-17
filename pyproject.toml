@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "hpcflow"
-version = "0.78.0"
+version = "0.79.0a3"
 
 
 description = "Computational workflow management"
@@ -20,6 +20,7 @@ zarr = "^2.10.3"
 "ruamel.yaml" = "^0.17.20"
 click = "^8.0.4"
 valida = "^0.2.0"
+pyinstaller = { version = "^4.10", optional = true}
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.12.2"
@@ -33,12 +34,15 @@ pydata-sphinx-theme = "^0.8.0"
 sphinx-jinja = "^2.0.1"
 sphinx-copybutton = "^0.5.0"
 
+[tool.poetry.extras]
+pyinstaller = ["pyinstaller"]
+
 [tool.poetry.scripts]
 hpcflow = 'hpcflow.cli:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.78.0"
+version = "0.79.0a3"
 tag_format = "v$version"
 version_files = [ 
     "pyproject.toml:version",
