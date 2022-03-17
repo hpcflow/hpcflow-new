@@ -298,6 +298,9 @@ jobs:
         id: download_executables
         with:
           path: release-artifacts
+      
+      - name: Display structure of downloaded files
+        run: ls -R
 
       - name: Release
         id: release
@@ -305,7 +308,10 @@ jobs:
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
-          files: release-artifacts/hpcflow-*/*
+          files: |
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-win.exe
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-macOS
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
 
       - name: Release info
