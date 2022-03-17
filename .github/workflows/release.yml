@@ -18,7 +18,7 @@ jobs:
     if:
       | # skip if: trying to re-run; PR is closed without merging; '[skip release]' is in the PR title; or if merging any branch other than pre_release_branch into release_branch
       (
-        github.run_attempt == '1' 
+        github.run_attempt == '1'
         && github.event.pull_request.merged
         && ! contains(github.event.pull_request.title, '[skip release]')
         && (
@@ -332,9 +332,9 @@ jobs:
           binaryYaml="${binaryYaml//$'\r'/'%0D'}"
           echo "::set-output name=binary_download_links::$binaryYaml"
 
-      - name: Publish (to test PyPI)
+      - name: Publish (to https://upload.pypi.org/legacy/)
         run: |
-          poetry config repositories.pypi https://upload.pypi.org/legacy/ 
+          poetry config repositories.pypi https://upload.pypi.org/legacy/
           poetry config pypi-token.pypi ${{ secrets.PYPI }}
           poetry publish --repository pypi
 
