@@ -298,6 +298,9 @@ jobs:
         id: download_executables
         with:
           path: release-artifacts
+      
+      - name: Display structure of downloaded files
+        run: ls -R
 
       - name: Release
         id: release
@@ -305,7 +308,10 @@ jobs:
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: {% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
-          files: release-artifacts/{{ executable_name }}-*/*
+          files: |
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-win.exe
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-macOS
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
           prerelease: {{ '${{' }} github.event.pull_request.base.ref == '{{ pre_release_branch }}' {{ '}}' }}
 
       - name: Release info
