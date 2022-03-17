@@ -1,4 +1,16 @@
 
+<a name="v0.80.0a2"></a>
+## [v0.80.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0a1...v0.80.0a2) - 2022.03.17
+
+### ✨ Features
+
+* update pypi
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.80.0a1"></a>
 ## [v0.80.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0a0...v0.80.0a1) - 2022.03.17
 
