@@ -62,9 +62,6 @@ jobs:
       - name: Build with pyinstaller for ${{matrix.executable_os}}
         run: poetry run pyinstaller --name=hpcflow-${{ env.vers }}-${{ matrix.executable_os }} --onefile hpcflow/cli.py
 
-      - if: contains(matrix.os, 'windows')
-        run: tree /F /A
-
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
         with:
@@ -117,10 +114,23 @@ jobs:
       - name: Build with pyinstaller for CentOS
         run: poetry run pyinstaller --name=hpcflow-${{ env.vers }}-linux --onefile hpcflow/cli.py
 
-      - uses: actions/upload-artifact@v2
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ env.vers }}-linux
           path: dist/hpcflow-${{ env.vers }}-linux
+
+      - name: Upload spec file
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ env.vers }}-linux.spec
+          path: hpcflow-${{ env.vers }}-linux.spec
+
+      - name: Upload build directory
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ env.vers }}-linux-build
+          path: build/hpcflow-${{ env.vers }}-linux
 
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-linux --version
