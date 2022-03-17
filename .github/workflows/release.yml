@@ -181,20 +181,28 @@ jobs:
         run: poetry config virtualenvs.in-project true
 
       - name: Install dependencies
-        run: |
-          poetry install --no-dev
-          poetry run pip install pyinstaller
+        run: poetry install --no-dev --extras "pyinstaller"
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }} --onefile
+        run: poetry run pyinstaller --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} --onefile hpcflow/cli.py
 
-      - name: Rename executable for ${{matrix.executable_os}}
-        run: mv dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}${{ matrix.executable_ext }} dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-
-      - uses: actions/upload-artifact@v2
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+
+      - name: Upload spec file
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
+          path: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
+
+      - name: Upload build directory
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-build
+          path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}
 
       - name: Basic executable test
         run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
@@ -219,17 +227,28 @@ jobs:
           key: venv-CentOS-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        run: |
-          poetry install --no-dev
-          poetry run pip install pyinstaller
+        run: poetry install --no-dev --extras "pyinstaller"
 
       - name: Build with pyinstaller for CentOS
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile
+        run: poetry run pyinstaller --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile hpcflow/cli.py
 
-      - uses: actions/upload-artifact@v2
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
           path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+
+      - name: Upload spec file
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
+          path: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
+
+      - name: Upload build directory
+        uses: actions/upload-artifact@v2
+        with:
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-build
+          path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Basic executable test
         run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version
