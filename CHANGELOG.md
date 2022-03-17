@@ -1,4 +1,42 @@
 
+<a name="v0.79.0"></a>
+## [v0.79.0](https://github.com/hpcflow/hpcflow-new/compare/v0.78.0...v0.79.0) - 2022.03.17
+
+### ✨ Features
+
+* 123
+* my
+* test
+* update workflows
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update wks
+* update release
+* add pyinstaller scripts
+* update wk
+* update deps
+* update deps
+* fix
+* try fix
+* try fix
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* test upload pyinstaller spec file
+* fix workflow template
+* try fix again
+* try fix
+* update workflows
+* update binary download links file [skip ci]
+
+
 <a name="v0.78.0"></a>
 ## [v0.78.0](https://github.com/hpcflow/hpcflow-new/compare/v0.77.0...v0.78.0) - 2022.03.15
 
