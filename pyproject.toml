@@ -8,6 +8,9 @@ description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
 license = "MIT"
 readme = "README.md"
+packages = [
+    { include = "hpcflow" }
+]
 include = [
     "hpcflow/data/workflow_spec_schema.yaml",
     "hpcflow/data/task_schema_spec_schema.yaml",
