@@ -1,8 +1,7 @@
 
 [tool.poetry]
-name = "hpcflow"
+name = "hpcflow-new"
 version = "0.79.0"
-
 
 description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
