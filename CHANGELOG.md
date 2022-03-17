@@ -1,4 +1,131 @@
 
+<a name="v0.79.0"></a>
+## [v0.79.0](https://github.com/hpcflow/hpcflow-new/compare/v0.78.0...v0.79.0) - 2022.03.17
+
+### ✨ Features
+
+* 123
+* my
+* test
+* update workflows
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* update wks
+* update release
+* add pyinstaller scripts
+* update wk
+* update deps
+* update deps
+* fix
+* try fix
+* try fix
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* try fix again
+* test upload pyinstaller spec file
+* fix workflow template
+* try fix again
+* try fix
+* update workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.78.0"></a>
+## [v0.78.0](https://github.com/hpcflow/hpcflow-new/compare/v0.77.0...v0.78.0) - 2022.03.15
+
+### ✨ Features
+
+* test
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* remove pyinstaller dep
+* update binary download links file [skip ci]
+
+
+<a name="v0.77.0"></a>
+## [v0.77.0](https://github.com/hpcflow/hpcflow-new/compare/v0.76.0...v0.77.0) - 2022.03.15
+
+### ✨ Features
+
+* test 2 [skip ci]
+* test [skip ci]
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+
+
+<a name="v0.76.0"></a>
+## [v0.76.0](https://github.com/hpcflow/hpcflow-new/compare/v0.75.0...v0.76.0) - 2022.03.15
+
+### ✨ Features
+
+* move README
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update
+* update binary download links file [skip ci]
+
+
+<a name="v0.75.0"></a>
+## [v0.75.0](https://github.com/hpcflow/hpcflow-new/compare/v0.74.0...v0.75.0) - 2022.03.15
+
+### ✨ Features
+
+* yes
+* feta
+* use templates
+* 123
+* test var in if
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update wk
+* update thing
+* teste
+* test
+* change it
+* fix again
+* 123
+* fix test wkflow
+* test anchors
+* synch test workflow
+* add README to .github
+* fix envs again
+* synch fixed GH workflows
+* update GH action workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.74.0"></a>
+## [v0.74.0](https://github.com/hpcflow/hpcflow-new/compare/v0.73.0...v0.74.0) - 2022.03.15
+
+### ✨ Features
+
+* 22
+* myfeat
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.73.0"></a>
 ## [v0.73.0](https://github.com/hpcflow/hpcflow-new/compare/v0.72.0...v0.73.0) - 2022.03.14
 
