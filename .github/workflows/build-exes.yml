@@ -62,38 +62,28 @@ jobs:
           echo "vers=$vers" >> $env:GITHUB_ENV
 
       - name: Build with pyinstaller for ${{matrix.executable_os}}
-        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }} --onefile
+        run: poetry run pyinstaller hpcflow/cli.py --name=hpcflow-${{ env.vers }}-${{ matrix.executable_os }} --onefile
 
-      # - run: tree /F /A
+      - if: contains(matrix.os, 'windows')
+        run: tree /F /A
 
-      - name: Rename executable for ${{matrix.executable_os}}
-        run: mv dist/hpcflow-${{ env.vers }}${{ matrix.executable_ext }} dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-
-      - uses: actions/upload-artifact@v2
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
-      - name: Rename spec file for ${{matrix.executable_os}}
-        run: mv hpcflow-${{ env.vers }}.spec hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
-
-      - uses: actions/upload-artifact@v2
+      - name: Upload spec file
+        uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
           path: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
 
-      - name: Rename build dir for ${{matrix.executable_os}}
-        run: mv build/hpcflow-${{ env.vers }} build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
-
-      - uses: actions/upload-artifact@v2
+      - name: Upload build directory
+        uses: actions/upload-artifact@v2
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
           path: build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
-
-      - uses: actions/upload-artifact@v2
-        with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
-          path: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
 
       - name: Basic executable test
         run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
