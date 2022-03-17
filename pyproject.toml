@@ -20,6 +20,7 @@ zarr = "^2.10.3"
 "ruamel.yaml" = "^0.17.20"
 click = "^8.0.4"
 valida = "^0.2.0"
+pyinstaller = { version = "^4.10", optional = true}
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.12.2"
@@ -32,6 +33,9 @@ Sphinx = "^4.4.0"
 pydata-sphinx-theme = "^0.8.0"
 sphinx-jinja = "^2.0.1"
 sphinx-copybutton = "^0.5.0"
+
+[tool.poetry.extras]
+pyinstaller = ["pyinstaller"]
 
 [tool.poetry.scripts]
 hpcflow = 'hpcflow.cli:cli'
