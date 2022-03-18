@@ -1,4 +1,42 @@
 
+<a name="v0.80.0"></a>
+## [v0.80.0](https://github.com/hpcflow/hpcflow-new/compare/v0.79.0...v0.80.0) - 2022.03.18
+
+### ✨ Features
+
+* test
+* update pypi
+* again
+* update package upload
+* update name temp
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update workflows
+* asda232sds
+* asda232
+* asd
+* asdasdsds222d
+* asdasdsds222d
+* asdasdsdsd
+* asdasd
+* kskad
+* ksk
+* adjasdnasdnasdasd
+* adjasdnasdn
+* adsasd
+* asdasdjj
+* asdas
+* test
+* merge
+* update release
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.79.0"></a>
 ## [v0.79.0](https://github.com/hpcflow/hpcflow-new/compare/v0.78.0...v0.79.0) - 2022.03.17
 
