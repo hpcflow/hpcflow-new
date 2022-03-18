@@ -1,4 +1,54 @@
 
+<a name="v0.80.1a0"></a>
+## [v0.80.1a0](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0...v0.80.1a0) - 2022.03.18
+
+### 🐛 Bug Fixes
+
+* CLI vers option program name
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.80.0"></a>
+## [v0.80.0](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0a3...v0.80.0) - 2022.03.18
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.80.0a3"></a>
+## [v0.80.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0a2...v0.80.0a3) - 2022.03.18
+
+### ✨ Features
+
+* test
+
+### 👷 Build changes
+
+* update workflows
+* asda232sds
+* asda232
+* asd
+* asdasdsds222d
+* asdasdsds222d
+* asdasdsdsd
+* asdasd
+* kskad
+* ksk
+* adjasdnasdnasdasd
+* adjasdnasdn
+* adsasd
+* asdasdjj
+* asdas
+* test
+* merge
+* update release
+* update binary download links file [skip ci]
+
+
 <a name="v0.80.0a2"></a>
 ## [v0.80.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0a1...v0.80.0a2) - 2022.03.17
 
