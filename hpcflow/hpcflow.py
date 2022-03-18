@@ -18,9 +18,9 @@ class HPCFlow:
 
     def make_CLI(self):
         new_CLI = click.Group(name=self.name)
-        new_CLI = click.version_option(package_name=self.name, version=self.version)(
-            new_CLI
-        )
+        new_CLI = click.version_option(
+            package_name=self.name, prog_name=self.name, version=self.version
+        )(new_CLI)
         # add hpcflow CLI as a sub command:
         new_CLI.add_command(cli)
         for name, command in cli.commands.items():
