@@ -1,3 +1,3 @@
-hpcflow-v0.80.1a0-win.exe: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1a0/hpcflow-v0.80.1a0-win.exe
-hpcflow-v0.80.1a0-macOS: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1a0/hpcflow-v0.80.1a0-macOS
-hpcflow-v0.80.1a0-linux: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1a0/hpcflow-v0.80.1a0-linux
+hpcflow-v0.80.1-win.exe: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1/hpcflow-v0.80.1-win.exe
+hpcflow-v0.80.1-macOS: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1/hpcflow-v0.80.1-macOS
+hpcflow-v0.80.1-linux: https://github.com/hpcflow/hpcflow-new/releases/download/v0.80.1/hpcflow-v0.80.1-linux
