@@ -204,8 +204,29 @@ jobs:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-build
           path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}
 
-      - name: Basic executable test
-        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+      - name: Basic executable test (windows)
+        if: contains(matrix.os, 'windows')
+        run: |
+          $tag = "${{ needs.bump-version.outputs.new_tag_name }}"
+          $tagNoV = $tag.trim('v')
+          $hpcflow_vers = dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
+          echo $hpcflow_vers
+          echo "$hpcflow_vers_expected"
+          if ($hpcflow_vers -ne $hpcflow_vers_expected) {
+            exit 1
+          }
+
+      - name: Basic executable test (non-windows)
+        if: "!contains(matrix.os, 'windows')"
+        run: |
+          tag=${{ needs.bump-version.outputs.new_tag_name }}
+          tagNoV=${tag:1}
+          hpcflow_vers=$(dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
+          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          echo $hpcflow_vers
+          echo $hpcflow_vers_expected
+          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -251,7 +272,14 @@ jobs:
           path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version
+        run: |
+          tag=${{ needs.bump-version.outputs.new_tag_name }}
+          tagNoV=${tag:1}
+          hpcflow_vers=$(dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version)
+          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          echo $hpcflow_vers
+          echo $hpcflow_vers_expected
+          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
 
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-linux]
