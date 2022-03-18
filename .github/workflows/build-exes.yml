@@ -48,6 +48,9 @@ jobs:
       - name: Get exectuable version name (non Windows)
         if: "!contains(matrix.os, 'windows')"
         run: |
+          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "CUR_TAG is: $CUR_TAG"
+          echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
           vers=$(git describe --tags)
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
@@ -55,6 +58,9 @@ jobs:
       - name: Get exectuable version name (Windows)
         if: contains(matrix.os, 'windows')
         run: |
+          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "CUR_TAG is: $CUR_TAG"
+          echo "cur_tag=$CUR_TAG" >> $env:GITHUB_ENV
           $vers = git describe --tags
           echo "vers is: $vers"
           echo "vers=$vers" >> $env:GITHUB_ENV
@@ -81,7 +87,18 @@ jobs:
           path: build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+        if: contains(matrix.os, 'windows')
+        run: |
+          $vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+          echo $vers
+          $vers -eq "hpcflow, version ${{ env.cur_tag }}"
+
+      - name: Basic executable test
+        if: "!contains(matrix.os, 'windows')"
+        run: |
+          vers=$(dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
+          echo $vers
+          [ $vers = "hpcflow, version ${{ env.cur_tag }}" ]
 
   build-executables-linux:
     runs-on: ubuntu-latest
