@@ -123,7 +123,9 @@ jobs:
 
       - name: Get exectuable version name
         run: |
-          ls -la
+          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "CUR_TAG is: $CUR_TAG"
+          echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
           vers=$(git describe --tags)
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
@@ -150,4 +152,7 @@ jobs:
           path: build/hpcflow-${{ env.vers }}-linux
 
       - name: Basic executable test
-        run: dist/hpcflow-${{ env.vers }}-linux --version
+        run: |
+          vers=$(dist/hpcflow-${{ env.vers }}-linux --version)
+          echo $vers
+          [ $vers = "hpcflow, version ${{ env.cur_tag }}" ]
