@@ -19,7 +19,7 @@ from textwrap import indent
 
 from ruamel.yaml import YAML
 
-from hpcflow._version import __version__
+from hpcflow import __version__
 
 # -- Project information -----------------------------------------------------
 

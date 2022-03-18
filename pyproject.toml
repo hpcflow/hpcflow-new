@@ -1,13 +1,15 @@
 
 [tool.poetry]
-name = "hpcflow"
-version = "0.79.0"
-
+name = "hpcflow-new"
+version = "0.80.0a3"
 
 description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
 license = "MIT"
 readme = "README.md"
+packages = [
+    { include = "hpcflow" }
+]
 include = [
     "hpcflow/data/workflow_spec_schema.yaml",
     "hpcflow/data/task_schema_spec_schema.yaml",
@@ -42,7 +44,7 @@ hpcflow = 'hpcflow.cli:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.79.0"
+version = "0.80.0a3"
 tag_format = "v$version"
 version_files = [ 
     "pyproject.toml:version",
