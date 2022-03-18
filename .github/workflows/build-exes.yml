@@ -167,4 +167,4 @@ jobs:
           hpcflow_vers_expected="hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
-          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
+          [ "$hpcflow_vers" = "$hpcflow_vers_expected"abc ]
