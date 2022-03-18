@@ -94,8 +94,8 @@ jobs:
           $hpcflow_vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
           $hpcflow_vers_expected = "hpcflow, version $tagNoV"
           echo $hpcflow_vers
-          echo $hpcflow_vers_expected
-          $vers -eq $hpcflow_vers_expected
+          echo "$hpcflow_vers_expected"
+          $vers.trim() -eq $hpcflow_vers_expected.trim()
 
       - name: Basic executable test (non-windows)
         if: "!contains(matrix.os, 'windows')"
