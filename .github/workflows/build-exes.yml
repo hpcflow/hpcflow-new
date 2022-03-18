@@ -58,7 +58,7 @@ jobs:
       - name: Get exectuable version name (Windows)
         if: contains(matrix.os, 'windows')
         run: |
-          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          $CUR_TAG = $(git describe --tags $(git rev-list --tags --max-count=1))
           echo "CUR_TAG is: $CUR_TAG"
           echo "cur_tag=$CUR_TAG" >> $env:GITHUB_ENV
           $vers = git describe --tags
