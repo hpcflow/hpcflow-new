@@ -89,16 +89,19 @@ jobs:
       - name: Basic executable test
         if: contains(matrix.os, 'windows')
         run: |
-          $vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
-          echo $vers
-          $vers -eq "hpcflow, version ${{ env.cur_tag }}"
+          $hpcflow_vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+          $hpcflow_vers_expected = "hpcflow, version ${{ env.cur_tag }}"
+          echo $hpcflow_vers
+          echo $hpcflow_vers_expected
+          $vers -eq $hpcflow_vers_expected
 
       - name: Basic executable test
         if: "!contains(matrix.os, 'windows')"
         run: |
-          vers=$(dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
-          echo $vers
-          [ $vers = "hpcflow, version ${{ env.cur_tag }}" ]
+          hpcflow_vers=$(dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
+          hpcflow_vers_expected="hpcflow, version ${{ env.cur_tag }}"
+          echo $hpcflow_vers
+          [ $vers = $hpcflow_vers_expected ]
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -153,6 +156,7 @@ jobs:
 
       - name: Basic executable test
         run: |
-          vers=$(dist/hpcflow-${{ env.vers }}-linux --version)
-          echo $vers
-          [ $vers = "hpcflow, version ${{ env.cur_tag }}" ]
+          hpcflow_vers=$(dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
+          hpcflow_vers_expected="hpcflow, version ${{ env.cur_tag }}"
+          echo $hpcflow_vers
+          [ $vers = $hpcflow_vers_expected ]
