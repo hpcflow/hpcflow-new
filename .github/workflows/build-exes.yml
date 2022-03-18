@@ -89,7 +89,7 @@ jobs:
       - name: Basic executable test (windows)
         if: contains(matrix.os, 'windows')
         run: |
-          $tag = ${{ env.cur_tag }}
+          $tag = "${{ env.cur_tag }}"
           $tagNoV = $tag.trim('v')
           $hpcflow_vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
           $hpcflow_vers_expected = "hpcflow, version $tagNoV"
