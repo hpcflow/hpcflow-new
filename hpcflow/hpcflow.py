@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import click
 
 from hpcflow.cli import cli
+from hpcflow.runtime import RunTimeInfo
 
 
 @dataclass
@@ -17,10 +18,19 @@ class HPCFlow:
         self.CLI = self.make_CLI()
 
     def make_CLI(self):
-        new_CLI = click.Group(name=self.name)
+        def new_CLI(ctx, debug):
+            ctx.obj = RunTimeInfo(name=self.name, debug=debug)
+            if debug:
+                click.echo("Debug mode is ON.")
+                click.echo(f"run_time_info is: {ctx.obj!r}.")
+
         new_CLI = click.version_option(
             package_name=self.name, prog_name=self.name, version=self.version
         )(new_CLI)
+        new_CLI = click.option("--debug/--no-debug", default=False)(new_CLI)
+        new_CLI = click.pass_context(new_CLI)
+        new_CLI = click.group(name=self.name)(new_CLI)
+
         # add hpcflow CLI as a sub command:
         new_CLI.add_command(cli)
         for name, command in cli.commands.items():
