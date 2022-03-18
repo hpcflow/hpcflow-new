@@ -1,6 +1,6 @@
 
 [tool.poetry]
-name = "hpcflow-new"
+name = "hpcflow-new2"
 version = "0.1.16"
 
 description = "Computational workflow management"
