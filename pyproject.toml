@@ -1,0 +1,57 @@
+
+[tool.poetry]
+name = "hpcflow-new"
+version = "0.81.0"
+
+description = "Computational workflow management"
+authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+    { include = "hpcflow" }
+]
+include = [
+    "hpcflow/data/workflow_spec_schema.yaml",
+    "hpcflow/data/task_schema_spec_schema.yaml",
+    "hpcflow/data/environments_spec_schema.yaml"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.7,<3.11"
+zarr = "^2.10.3"
+"ruamel.yaml" = "^0.17.20"
+click = "^8.0.4"
+valida = "^0.2.0"
+pyinstaller = { version = "^4.10", optional = true}
+
+[tool.poetry.dev-dependencies]
+pylint = "^2.12.2"
+ipykernel = "^6.6.1"
+pytest = "^6.2.5"
+commitizen = "^2.20.3"
+pre-commit = "^2.16.0"
+black = "^21.12b0"
+Sphinx = "^4.4.0"
+pydata-sphinx-theme = "^0.8.0"
+sphinx-jinja = "^2.0.1"
+sphinx-copybutton = "^0.5.0"
+
+[tool.poetry.extras]
+pyinstaller = ["pyinstaller"]
+
+[tool.poetry.scripts]
+hpcflow = 'hpcflow.cli:cli'
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.81.0"
+tag_format = "v$version"
+version_files = [ 
+    "pyproject.toml:version",
+    "hpcflow/_version.py"
+]
+bump_message = "bump: $current_version → $new_version [skip ci]"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -124,7 +124,14 @@ dmypy.json
 
 # VS Code
 /.vscode
-*.code-workspace
 
-failure_examples/
-/.idea
+# Poetry
+poetry.toml
+
+db_model.mwb
+db_model.mwb.bak
+features.md
+nesting.xlsx
+notes.md
+
+logo-dev.svg
