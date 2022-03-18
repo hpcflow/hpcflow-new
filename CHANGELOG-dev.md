@@ -1,4 +1,29 @@
 
+<a name="v0.81.0a0"></a>
+## [v0.81.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.80.1...v0.81.0a0) - 2022.03.18
+
+### ✨ Features
+
+* add runtime info and improve CLI
+
+### 🐛 Bug Fixes
+
+* README logo sr
+
+### 👷 Build changes
+
+* merge
+* update binary download links file [skip ci]
+
+
+<a name="v0.80.1"></a>
+## [v0.80.1](https://github.com/hpcflow/hpcflow-new/compare/v0.80.1a0...v0.80.1) - 2022.03.18
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.80.1a0"></a>
 ## [v0.80.1a0](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0...v0.80.1a0) - 2022.03.18
 
