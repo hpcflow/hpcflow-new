@@ -95,7 +95,9 @@ jobs:
           $hpcflow_vers_expected = "hpcflow, version $tagNoV hello"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
-          $hpcflow_vers -eq $hpcflow_vers_expected
+          if ($hpcflow_vers -ne $hpcflow_vers_expected) {
+            exit 1
+          }
 
       - name: Basic executable test (non-windows)
         if: "!contains(matrix.os, 'windows')"
