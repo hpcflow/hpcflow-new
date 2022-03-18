@@ -92,7 +92,7 @@ jobs:
           $tag = "${{ env.cur_tag }}"
           $tagNoV = $tag.trim('v')
           $hpcflow_vers = dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
-          $hpcflow_vers_expected = "hpcflow, version $tagNoV hello"
+          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
           if ($hpcflow_vers -ne $hpcflow_vers_expected) {
@@ -105,7 +105,7 @@ jobs:
           tag=${{ env.cur_tag }}
           tagNoV=${tag:1}
           hpcflow_vers=$(dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV hello"
+          hpcflow_vers_expected="hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
@@ -166,7 +166,7 @@ jobs:
           tag=${{ env.cur_tag }}
           tagNoV=${tag:1}
           hpcflow_vers=$(dist/hpcflow-${{ env.vers }}-linux --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV hello"
+          hpcflow_vers_expected="hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
