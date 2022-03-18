@@ -1,4 +1,17 @@
 
+<a name="v0.80.1"></a>
+## [v0.80.1](https://github.com/hpcflow/hpcflow-new/compare/v0.80.0...v0.80.1) - 2022.03.18
+
+### 🐛 Bug Fixes
+
+* CLI vers option program name
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+
+
 <a name="v0.80.0"></a>
 ## [v0.80.0](https://github.com/hpcflow/hpcflow-new/compare/v0.79.0...v0.80.0) - 2022.03.18
 
