@@ -65,9 +65,7 @@ class TaskTemplate:
     ):
         self._schemas = schemas if isinstance(schemas, list) else [schemas]
         self._repeats = repeats
-        self._resources = resources or {
-            "main": {}
-        }  # TODO: use action names from schemas
+        self._resources = resources or {"main": {}}  # TODO: use action names from schemas
         self._inputs = inputs or []
         self._input_files = input_files or []
         self._input_file_generator_sources = input_file_generator_sources or []
@@ -94,9 +92,7 @@ class TaskTemplate:
                 f"objective, but found multiple objectives: {list(names)!r}"
             )
 
-        input_types = [
-            i.parameter.typ for i in self.get_non_sub_parameter_input_values()
-        ]
+        input_types = [i.parameter.typ for i in self.get_non_sub_parameter_input_values()]
         dup_params = get_duplicate_items(input_types)
         if dup_params:
             raise TaskTemplateMultipleInputValues(
@@ -321,9 +317,7 @@ class TaskTemplate:
     def add_group(
         self, name: str, where: ElementFilter, group_by_distinct: ParameterPath
     ):
-        group = ElementGroup(
-            name=name, where=where, group_by_distinct=group_by_distinct
-        )
+        group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
 
     def get_input_multiplicities(self, missing_multiplicities=None):

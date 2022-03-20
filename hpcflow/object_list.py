@@ -53,9 +53,7 @@ class DotAccessObjectList:
 
     def add_object(self, obj, index=-1):
         if not hasattr(obj, self._access_attribute):
-            raise TypeError(
-                f"Object does not have attribute {self._access_attribute!r}."
-            )
+            raise TypeError(f"Object does not have attribute {self._access_attribute!r}.")
         if index < 0:
             index += len(self) + 1
         self._objects = self._objects[:index] + [obj] + self._objects[index:]

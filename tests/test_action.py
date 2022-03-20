@@ -35,8 +35,7 @@ def dummy_action_kwargs_pre_proc():
         "commands": [Command("ls")],
         "input_file_generators": [
             InputFileGenerator(
-                input_file=FileSpec("inp_file", name="file.inp"),
-                inputs=[Parameter("p1")],
+                input_file=FileSpec("inp_file", name="file.inp"), inputs=[Parameter("p1")]
             )
         ],
     }

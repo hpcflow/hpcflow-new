@@ -46,9 +46,7 @@ class WorkflowTemplate:
         task_sources = {}
         for task in self.tasks[:new_index]:
             provided = tuple(
-                i
-                for i in task.template.provides_parameters
-                if i.typ == schema_input.typ
+                i for i in task.template.provides_parameters if i.typ == schema_input.typ
             )
             if provided:
                 task_sources.update({(task.index, task.unique_name): provided})
