@@ -1,5 +1,5 @@
-hpcflow
-=======
+hpcflow-new
+===========
 
 .. toctree::
    :maxdepth: 4

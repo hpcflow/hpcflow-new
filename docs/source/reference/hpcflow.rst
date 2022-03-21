@@ -20,6 +20,22 @@ hpcflow.actions module
    :undoc-members:
    :show-inheritance:
 
+hpcflow.api module
+------------------
+
+.. automodule:: hpcflow.api
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+hpcflow.app\_log module
+-----------------------
+
+.. automodule:: hpcflow.app_log
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 hpcflow.cli module
 ------------------
 
@@ -120,6 +136,14 @@ hpcflow.parameters module
 -------------------------
 
 .. automodule:: hpcflow.parameters
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+hpcflow.runtime module
+----------------------
+
+.. automodule:: hpcflow.runtime
    :members:
    :undoc-members:
    :show-inheritance:
