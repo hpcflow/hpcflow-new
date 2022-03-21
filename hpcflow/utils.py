@@ -200,3 +200,11 @@ class classproperty(object):
 
     def __get__(self, obj, owner):
         return self.f(owner)
+
+
+class PrettyPrinter(object):
+    def __str__(self):
+        lines = [self.__class__.__name__ + ":"]
+        for key, val in vars(self).items():
+            lines += f"{key}: {val}".split("\n")
+        return "\n    ".join(lines)

@@ -34,15 +34,3 @@ repos:
     rev: dca6ff2699a06c0217ed6d5a278fa3146e4136ff
     hooks:
       - id: poetry-check
-
-ci:
-  autofix_commit_msg: |
-    [pre-commit.ci] [skip ci] auto fixes from pre-commit.com hooks
-
-    for more information, see https://pre-commit.ci
-  autofix_prs: true
-  autoupdate_branch: ""
-  autoupdate_commit_msg: "[pre-commit.ci] [skip ci] pre-commit autoupdate"
-  autoupdate_schedule: weekly
-  skip: []
-  submodules: false
