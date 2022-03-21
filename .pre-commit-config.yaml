@@ -34,9 +34,6 @@ repos:
     rev: dca6ff2699a06c0217ed6d5a278fa3146e4136ff
     hooks:
       - id: poetry-check
-      - id: poetry-lock
-      - id: poetry-export
-        args: ["-f", "requirements.txt", "-o", "requirements.txt"]
 
 ci:
   autofix_commit_msg: |
