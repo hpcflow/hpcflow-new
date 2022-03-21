@@ -30,6 +30,11 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: [] # optional: list of Conventional Commits types to allow
+  - repo: https://github.com/python-poetry/poetry
+    rev: dca6ff2699a06c0217ed6d5a278fa3146e4136ff
+    hooks:
+      - id: poetry-check
+
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] [skip ci] auto fixes from pre-commit.com hooks

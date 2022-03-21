@@ -22,8 +22,5 @@ def test_raise_on_duplicate_input_value_sequence_address_empty():
     with pytest.raises(InputValueDuplicateSequenceAddress):
         InputValue(
             parameter=p1,
-            sequences=[
-                ValueSequence(values=[1, 2, 3]),
-                ValueSequence(values=[4, 5, 6]),
-            ],
+            sequences=[ValueSequence(values=[1, 2, 3]), ValueSequence(values=[4, 5, 6])],
         )

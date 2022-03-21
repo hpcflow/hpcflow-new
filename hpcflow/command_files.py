@@ -92,8 +92,7 @@ class OutputFileParser:
     def from_spec(cls, param_typ, info, parameters, cmd_files):
         output = parameters[param_typ]
         output_files = [
-            [j for j in cmd_files if j.label == label][0]
-            for label in info["from_files"]
+            [j for j in cmd_files if j.label == label][0] for label in info["from_files"]
         ]
         return cls(output, output_files)
 

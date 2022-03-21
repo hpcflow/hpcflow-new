@@ -65,8 +65,7 @@ def test_expected_return_defined_and_undefined_input_types():
     generate_RVE_schema = TaskSchema(objective=generate_RVE, inputs=[grid_size, size])
 
     task = TaskTemplate(
-        schema=generate_RVE_schema,
-        input_values=[InputValue(grid_size, value=[8, 8, 8])],
+        schema=generate_RVE_schema, input_values=[InputValue(grid_size, value=[8, 8, 8])]
     )
 
     assert task.defined_input_types == {"grid_size"} and task.undefined_input_types == {
