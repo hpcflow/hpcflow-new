@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a1"></a>
+## [v0.2.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a0...v0.2.0a1) - 2022.03.21
+
+### ✨ Features
+
+* add logging
+
+### 👷 Build changes
+
+* poetry update again
+* pre-commits
+* add auto-gen requirements
+* add scripts for sphinx-apidoc
+* update poetry lock
+* slightly increase black line-length
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a0"></a>
 ## [v0.2.0a0](https://github.com/hpcflow/hpcflow-new/compare/v0.1.16...v0.2.0a0) - 2022.03.18
 
