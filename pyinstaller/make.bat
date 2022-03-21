@@ -2,5 +2,5 @@
 :: Make sure we ran `poetry install --extras=pyinstaller` (or `poetry install --no-dev --extras "pyinstaller"`)
 rmdir /s "build"
 rmdir /s "dist"
-del matflow.spec
+del hpcflow.spec
 poetry run pyinstaller --name=hpcflow --onefile ../hpcflow/cli.py 
