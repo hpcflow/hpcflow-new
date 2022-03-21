@@ -4,10 +4,12 @@ import sys
 from pathlib import Path
 import warnings
 
+from hpcflow.utils import PrettyPrinter
+
 logger = logging.getLogger(__name__)
 
 
-class RunTimeInfo:
+class RunTimeInfo(PrettyPrinter):
     """Get useful run-time information, including the executable name used to
     invoke the CLI, in the case a PyInstaller-built executable was used.
 
@@ -77,13 +79,7 @@ class RunTimeInfo:
             warnings.warn(msg)
 
     def __repr__(self):
-        out = (
-            f"{self.__class__.__name__}("
-            f"console_log_level={self.console_log_level!r}, "
-            f"file_log_level={self.file_log_level!r}, "
-            f"file_log_path={self.file_log_path!r}, "
-            f"is_frozen={self.is_frozen!r}, "
-        )
+        out = f"{self.__class__.__name__}(" f"is_frozen={self.is_frozen!r}, "
         if self.is_frozen:
             out += (
                 f"executable_name={self.executable_name!r}, "
