@@ -23,6 +23,8 @@ zarr = "^2.10.3"
 click = "^8.0.4"
 valida = "^0.2.0"
 pyinstaller = { version = "^4.10", optional = true}
+colorama = "^0.4.4"
+termcolor = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.12.2"
