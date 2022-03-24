@@ -1,0 +1,35 @@
+rules:
+  - path: []
+    condition:
+      value.allowed_keys:
+        - machine
+        - defaults
+        - configs
+
+  - path: [machine]
+    condition:
+      value.type.equal_to: str
+
+  - path: [defaults]
+    condition:
+      value.type.equal_to: dict
+
+  - path: [configs]
+    condition:
+      value.type.equal_to: dict
+
+  - path: [configs, { type: map_value }]
+    condition:
+      value.allowed_keys:
+        - invocation
+        - config
+
+  - path: [configs, { type: map_value }, invocation]
+    condition:
+      value.allowed_keys:
+        - environment_setup
+        - match
+
+  - path: [configs, { type: map_value }, invocation, match]
+    condition:
+      value.type.equal_to: dict

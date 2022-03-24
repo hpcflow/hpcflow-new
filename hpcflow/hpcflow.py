@@ -23,7 +23,7 @@ class HPCFlowApp:
         self.CLI = self.make_CLI()
         self.description = self.description or self.name
         self.log = AppLog(self.name, hpcflow_app_log=log)
-        self.run_time_info = RunTimeInfo(self.name)
+        self.run_time_info = RunTimeInfo(self.name, self.version)
 
     def make_CLI(self):
         def new_CLI(console_log_level, file_log_level, file_log_path=None):

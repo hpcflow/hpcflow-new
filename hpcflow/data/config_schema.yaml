@@ -1,0 +1,19 @@
+rules:
+  - path: []
+    condition:
+      value.allowed_keys:
+        - log_directory
+        - task_schema_sources
+        - environment_sources
+  - path: [log_directory]
+    condition:
+      value.type.equal_to: str
+  - path: [task_schema_sources]
+    condition:
+      value.type.equal_to: list
+  - path: [task_schema_sources, { type: list_value }]
+    condition:
+      value.type.equal_to: str
+  - path: [environment_sources, { type: list_value }]
+    condition:
+      value.type.equal_to: str

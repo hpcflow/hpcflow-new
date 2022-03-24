@@ -26,7 +26,7 @@ class RunTimeInfo(PrettyPrinter):
         be equal to the virtual environment directory.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, version):
 
         is_frozen = getattr(sys, "frozen", False)
         bundle_dir = (
@@ -34,6 +34,7 @@ class RunTimeInfo(PrettyPrinter):
         )
 
         self.name = name.split(".")[0]  # if name is given as __name__
+        self.version = version
         self.is_frozen = is_frozen
         self.working_dir = os.getcwd()
 
@@ -57,6 +58,11 @@ class RunTimeInfo(PrettyPrinter):
         self.sys_base_prefix = getattr(sys, "base_prefix", None)
         self.sys_real_prefix = getattr(sys, "real_prefix", None)
         self.conda_prefix = os.environ.get("CONDA_PREFIX")
+
+        try:
+            self.venv_path = self._set_venv_path()
+        except ValueError:
+            self.venv_path = None
 
         logger.info(
             f"is_frozen: {self.is_frozen!r}"
@@ -101,6 +107,19 @@ class RunTimeInfo(PrettyPrinter):
 
         out += f"working_dir={self.working_dir!r})"
         return out
+
+    def _set_venv_path(self):
+        out = []
+        if self.is_venv:
+            out.append(self.sys_prefix)
+        elif self.is_conda_venv:
+            out.append(self.conda_prefix)
+        if not out:
+            raise ValueError("Not running in a virtual environment!")
+        if len(out) == 1:
+            return out[0]
+        else:
+            return out
 
     def get_activate_env_command(self):
         pass

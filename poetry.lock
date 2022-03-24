@@ -432,11 +432,11 @@ testing = ["Django (<3.1)", "colorama", "docopt", "pytest (<7.0.0)"]
 
 [[package]]
 name = "jinja2"
-version = "3.0.3"
+version = "3.1.0"
 description = "A very fast and expressive template engine."
 category = "dev"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [package.dependencies]
 MarkupSafe = ">=2.0"
@@ -769,7 +769,7 @@ hook_testing = ["pytest (>=2.7.3)", "execnet (>=1.5.0)", "psutil"]
 
 [[package]]
 name = "pyinstaller-hooks-contrib"
-version = "2022.2"
+version = "2022.3"
 description = "Community maintained hooks for PyInstaller"
 category = "main"
 optional = true
@@ -1094,7 +1094,7 @@ test = ["pytest"]
 name = "termcolor"
 version = "1.1.0"
 description = "ANSII Color formatting for output in terminal."
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -1172,7 +1172,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
 name = "valida"
-version = "0.2.0"
+version = "0.2.1"
 description = "Comprehensive validation library for nested data structures."
 category = "main"
 optional = false
@@ -1251,7 +1251,7 @@ pyinstaller = ["pyinstaller"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<3.11"
-content-hash = "9ec68b89fdcde73d0b63f51f4eee56180ae118f4f8fcde1bbc279758f701420e"
+content-hash = "d9a58d2ae2f911ab7fa5dc162d4f84637c52855b1408989b9ecf5c09a3d1d3f8"
 
 [metadata.files]
 alabaster = [
@@ -1468,8 +1468,8 @@ jedi = [
     {file = "jedi-0.18.1.tar.gz", hash = "sha256:74137626a64a99c8eb6ae5832d99b3bdd7d29a3850fe2aa80a4126b2a7d949ab"},
 ]
 jinja2 = [
-    {file = "Jinja2-3.0.3-py3-none-any.whl", hash = "sha256:077ce6014f7b40d03b47d1f1ca4b0fc8328a692bd284016f806ed0eaca390ad8"},
-    {file = "Jinja2-3.0.3.tar.gz", hash = "sha256:611bb273cd68f3b993fabdc4064fc858c5b47a973cb5aa7999ec1ba405c87cd7"},
+    {file = "Jinja2-3.1.0-py3-none-any.whl", hash = "sha256:da424924c069a4013730d8dd010cbecac7e7bb752be388db3741688bffb48dc6"},
+    {file = "Jinja2-3.1.0.tar.gz", hash = "sha256:a2f09a92f358b96b5f6ca6ecb4502669c4acb55d8733bbb2b2c9c4af5564c605"},
 ]
 jupyter-client = [
     {file = "jupyter_client-7.1.2-py3-none-any.whl", hash = "sha256:d56f1c57bef42ff31e61b1185d3348a5b2bcde7c9a05523ae4dbe5ee0871797c"},
@@ -1754,8 +1754,8 @@ pyinstaller = [
     {file = "pyinstaller-4.10.tar.gz", hash = "sha256:7749c868d2e2dc84df7d6f65437226183c8a366f3a99bb2737785625c3a3cca1"},
 ]
 pyinstaller-hooks-contrib = [
-    {file = "pyinstaller-hooks-contrib-2022.2.tar.gz", hash = "sha256:ab1d14fe053016fff7b0c6aea51d980bac6d02114b04063b46ef7dac70c70e1e"},
-    {file = "pyinstaller_hooks_contrib-2022.2-py2.py3-none-any.whl", hash = "sha256:7605e440ccb55904cb2a87d72e83642ef176fb7030c77e52ac4d9679bb3d1537"},
+    {file = "pyinstaller-hooks-contrib-2022.3.tar.gz", hash = "sha256:9fa4ca03d058cba676c3cc16005076ce6a529f144c08b87c69998625fbd84e0a"},
+    {file = "pyinstaller_hooks_contrib-2022.3-py2.py3-none-any.whl", hash = "sha256:9765e68552803327d58f6c5eca970bb245b7cdf073e2f912a2a3cb50360bc2d8"},
 ]
 pylint = [
     {file = "pylint-2.12.2-py3-none-any.whl", hash = "sha256:daabda3f7ed9d1c60f52d563b1b854632fd90035bcf01443e234d3dc794e3b74"},
@@ -2063,8 +2063,8 @@ urllib3 = [
     {file = "urllib3-1.26.9.tar.gz", hash = "sha256:aabaf16477806a5e1dd19aa41f8c2b7950dd3c746362d7e3223dbe6de6ac448e"},
 ]
 valida = [
-    {file = "valida-0.2.0-py3-none-any.whl", hash = "sha256:758801edcce2e1b4d1787e44c92df48d46db53da177ef8a4540b2a016dda1dcf"},
-    {file = "valida-0.2.0.tar.gz", hash = "sha256:ceab488a40a204c570e884acc2877678007f82c618067ed43f3eb2b1f2a9261c"},
+    {file = "valida-0.2.1-py3-none-any.whl", hash = "sha256:528a9c58be67d431fde57ca448eb6decbb15a1befe7ca0f28ce250bd712c392d"},
+    {file = "valida-0.2.1.tar.gz", hash = "sha256:1ee9df426ab896fc42688f847a8b27ea5b351b9a7db736442104c8ff1a574778"},
 ]
 virtualenv = [
     {file = "virtualenv-20.13.4-py2.py3-none-any.whl", hash = "sha256:c3e01300fb8495bc00ed70741f5271fc95fed067eb7106297be73d30879af60c"},

@@ -5,6 +5,7 @@ import re
 import string
 from datetime import datetime, timezone
 from typing import Mapping
+import warnings
 
 from hpcflow.errors import InvalidIdentifier
 
@@ -208,3 +209,19 @@ class PrettyPrinter(object):
         for key, val in vars(self).items():
             lines += f"{key}: {val}".split("\n")
         return "\n    ".join(lines)
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        elif args or kwargs:
+            # if existing instance, make the point that new arguments don't do anything!
+            raise ValueError(
+                f"{cls.__name__!r} is a singleton class and cannot be instantiated with new "
+                f"arguments. The positional arguments {args!r} and keyword-arguments "
+                f"{kwargs!r} have been ignored."
+            )
+        return cls._instances[cls]

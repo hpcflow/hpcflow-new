@@ -14,29 +14,9 @@ from hpcflow.errors import (
 )
 from hpcflow.parameters import Parameter, SchemaInput, SchemaOutput
 from hpcflow.task_schema import TaskSchema
+from hpcflow.validation import get_schema
 from hpcflow.workflow import WorkflowTemplate
 from hpcflow.environment import Executable, ExecutableInstance, Environment
-
-
-def get_workflow_spec_schema():
-    with resources.open_text("hpcflow.data", "workflow_spec_schema.yaml") as fh:
-        schema_dat = fh.read()
-    schema = Schema.from_yaml(schema_dat)
-    return schema
-
-
-def get_task_schema_spec_schema():
-    with resources.open_text("hpcflow.data", "task_schema_spec_schema.yaml") as fh:
-        schema_dat = fh.read()
-    schema = Schema.from_yaml(schema_dat)
-    return schema
-
-
-def get_environment_spec_schema():
-    with resources.open_text("hpcflow.data", "environments_spec_schema.yaml") as fh:
-        schema_dat = fh.read()
-    schema = Schema.from_yaml(schema_dat)
-    return schema
 
 
 def get_task_schemas_and_parameters():
@@ -46,7 +26,7 @@ def get_task_schemas_and_parameters():
     yaml = YAML(typ="safe")
     task_schemas_dat = yaml.load(yaml_str)
 
-    task_schemas_spec_schema = get_task_schema_spec_schema()
+    task_schemas_spec_schema = get_schema("task_schema_spec_schema.yaml")
     validated = task_schemas_spec_schema.validate(task_schemas_dat)
     if not validated.is_valid:
         raise TaskSchemaSpecValidationError(validated.get_failures_string())
@@ -77,7 +57,7 @@ def get_environments():
     yaml = YAML(typ="safe")
     envs_dat = yaml.load(yaml_str)
 
-    env_spec_schema = get_environment_spec_schema()
+    env_spec_schema = get_schema("environments_spec_schema.yaml")
     validated = env_spec_schema.validate(envs_dat)
     if not validated.is_valid:
         raise EnvironmentSpecValidationError(validated.get_failures_string())
@@ -97,7 +77,8 @@ def parse_YAML_spec_str(yaml_str):
     """Generate a WorkflowTemplate from a YAML string."""
     yaml = YAML(typ="safe")
     workflow_dat = yaml.load(yaml_str)
-    validated = get_workflow_spec_schema().validate(workflow_dat)
+    schema = get_schema("workflow_spec_schema.yaml")
+    validated = schema.validate(workflow_dat)
 
     if not validated.is_valid:
         raise WorkflowSpecValidationError(validated.get_failures_string())
