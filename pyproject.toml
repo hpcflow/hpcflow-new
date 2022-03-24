@@ -42,7 +42,7 @@ sphinx-copybutton = "^0.5.0"
 pyinstaller = ["pyinstaller"]
 
 [tool.poetry.scripts]
-hpcflow = 'hpcflow.cli:cli'
+hpcflow = 'hpcflow.cli.__init__:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"
