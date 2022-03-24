@@ -1,4 +1,25 @@
 
+<a name="v0.2.0a3"></a>
+## [v0.2.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a2...v0.2.0a3) - 2022.03.24
+
+### ✨ Features
+
+* improve configuration feature
+* pass version to RunTimeInfo
+
+### 🐛 Bug Fixes
+
+* pyinstaller build scripts
+
+### 👷 Build changes
+
+* fix entrypoint
+* revert "bump: 0.2.0a2 → 0.2.0a3 [skip ci]"
+* update deps
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a2"></a>
 ## [v0.2.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a1...v0.2.0a2) - 2022.03.21
 
