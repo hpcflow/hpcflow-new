@@ -2,4 +2,4 @@
 rm -r build
 rm -r dist
 rm hpcflow.spec
-poetry run pyinstaller --name=hpcflow --onefile ../hpcflow/cli.py 
+poetry run pyinstaller --name=hpcflow --onefile ../hpcflow/cli/__init__.py 
