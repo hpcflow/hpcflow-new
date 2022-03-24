@@ -184,7 +184,7 @@ jobs:
         run: poetry install --no-dev --extras "pyinstaller"
 
       - name: Build with pyinstaller for {% raw %}${{ matrix.executable_os }}{% endraw %}
-        run: poetry run pyinstaller --name={{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %} --onefile {{ pyinstaller_package }}
+        run: poetry run pyinstaller --clean -y --name={{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %} --onefile {{ pyinstaller_package }}
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
@@ -251,7 +251,7 @@ jobs:
         run: poetry install --no-dev --extras "pyinstaller"
 
       - name: Build with pyinstaller for CentOS
-        run: poetry run pyinstaller --name={{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux --onefile {{ pyinstaller_package }}
+        run: poetry run pyinstaller --clean -y --name={{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux --onefile {{ pyinstaller_package }}
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2

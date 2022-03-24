@@ -66,7 +66,7 @@ jobs:
           echo "vers=$vers" >> $env:GITHUB_ENV
 
       - name: Build with pyinstaller for ${{ matrix.executable_os }}
-        run: poetry run pyinstaller --name=hpcflow-${{ env.vers }}-${{ matrix.executable_os }} --onefile hpcflow/cli/__init__.py
+        run: poetry run pyinstaller --clean -y --name=hpcflow-${{ env.vers }}-${{ matrix.executable_os }} --onefile hpcflow/cli/cli.py
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
@@ -141,7 +141,7 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for CentOS
-        run: poetry run pyinstaller --name=hpcflow-${{ env.vers }}-linux --onefile hpcflow/cli/__init__.py
+        run: poetry run pyinstaller --clean -y --name=hpcflow-${{ env.vers }}-linux --onefile hpcflow/cli/cli.py
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
