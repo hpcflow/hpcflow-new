@@ -3,4 +3,4 @@
 rmdir /s "build"
 rmdir /s "dist"
 del hpcflow.spec
-poetry run pyinstaller --name=hpcflow --onefile ../hpcflow/cli.py 
+poetry run pyinstaller --name=hpcflow --onefile ../hpcflow/cli/__init__.py 
