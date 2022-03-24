@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a2"></a>
+## [v0.2.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a1...v0.2.0a2) - 2022.03.21
+
+### ✨ Features
+
+* add --run-time-info option to CLI
+
+### 👷 Build changes
+
+* clean before pyinstaller run
+* merge
+* update binary download links file [skip ci]
+* remove unused ci pre-commit
+
+
 <a name="v0.2.0a1"></a>
 ## [v0.2.0a1](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a0...v0.2.0a1) - 2022.03.21
 
