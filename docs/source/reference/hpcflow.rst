@@ -7,6 +7,8 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
+   hpcflow.api
+   hpcflow.cli
    hpcflow.data
 
 Submodules
@@ -20,26 +22,10 @@ hpcflow.actions module
    :undoc-members:
    :show-inheritance:
 
-hpcflow.api module
-------------------
-
-.. automodule:: hpcflow.api
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 hpcflow.app\_log module
 -----------------------
 
 .. automodule:: hpcflow.app_log
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-hpcflow.cli module
-------------------
-
-.. automodule:: hpcflow.cli
    :members:
    :undoc-members:
    :show-inheritance:
@@ -200,6 +186,14 @@ hpcflow.utils module
 --------------------
 
 .. automodule:: hpcflow.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+hpcflow.validation module
+-------------------------
+
+.. automodule:: hpcflow.validation
    :members:
    :undoc-members:
    :show-inheritance:
