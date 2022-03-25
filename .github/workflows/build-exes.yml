@@ -141,7 +141,7 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for CentOS
-        run: poetry run pyinstaller --hidden-import=tkinter --clean -y --name=hpcflow-${{ env.vers }}-linux --onefile hpcflow/cli/cli.py
+        run: poetry run pyinstaller --hidden-import="tkinter._tkinter" --clean -y --name=hpcflow-${{ env.vers }}-linux --onefile hpcflow/cli/cli.py
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
