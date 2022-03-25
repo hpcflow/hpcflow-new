@@ -89,3 +89,28 @@ jobs:
       - name: Run tests
         run: |
           poetry run python -m pytest {{ pytest_args }}
+
+  test-CentOS:
+    runs-on: ubuntu-latest
+    container:
+      image: aplowman/centos7-poetry
+    steps:
+      - uses: actions/checkout@v2
+        with:          
+          ref: {% raw %}${{ github.ref }}{% endraw %}
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v2
+        with:
+          path: ./.venv
+          key: {% raw %}venv-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests
+        run: |
+          poetry run python -m pytest {{ pytest_args }}
