@@ -91,6 +91,7 @@ jobs:
           poetry run python -m pytest {{ pytest_args }}
 
   test-CentOS:
+    needs: pre-commit
     runs-on: ubuntu-latest
     container:
       image: aplowman/centos7-poetry
