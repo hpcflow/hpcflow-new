@@ -80,7 +80,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: {% raw %}${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: {% raw %}${{ runner.os }}-test-${{ matrix.python-version }}-venv-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -107,7 +107,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: {% raw %}venv-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: {% raw %}venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: poetry install

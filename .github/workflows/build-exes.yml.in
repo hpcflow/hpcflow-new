@@ -34,7 +34,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: {% raw %}venv-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: {% raw %}venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
         run: python -m pip install poetry==1.1.11
@@ -126,7 +126,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./.venv
-          key: {% raw %}venv-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: {% raw %}venv-build-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: poetry install --no-dev --extras "pyinstaller"
