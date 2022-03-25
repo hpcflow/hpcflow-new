@@ -9,10 +9,6 @@ from hpcflow.cli.config import config as config_group
 from hpcflow.config import ConfigLoader
 from hpcflow.errors import ConfigError
 
-from tkinter import _tkinter
-
-print(f"_tkinter: {_tkinter}")
-
 colorama_init(autoreset=True)
 
 
