@@ -90,7 +90,10 @@ class ConfigFileInvocationIncompatibleError(ConfigError):
 class ConfigValidationError(ConfigError):
     """Raised when the matching config data is invalid."""
 
-    pass
+    def __init__(self, message, meta_data=None):
+        self.meta_data = meta_data
+        self.message = message + f"config {self.meta_data}\n"
+        super().__init__(self.message)
 
 
 class ConfigChangeInvalidError(ConfigError):

@@ -188,7 +188,12 @@ class ConfigLoader(metaclass=Singleton):
         for cfg_schema in self._meta_data["config_schemas"]:
             cfg_validated = cfg_schema.validate(data)
             if not cfg_validated.is_valid:
-                raise ConfigValidationError(cfg_validated.get_failures_string())
+                raise ConfigValidationError(
+                    message=cfg_validated.get_failures_string(),
+                    meta_data=self.to_string(
+                        exclude=["config_file_contents", "config_schemas"], just_meta=True
+                    ),
+                )
 
     @staticmethod
     def _get_main_config_file(config_dir: Path) -> Tuple[Dict, Dict, Path, str]:
@@ -413,18 +418,23 @@ class ConfigLoader(metaclass=Singleton):
 
         return old_value, new_value
 
-    def to_string(self, exclude: Optional[List] = None):
+    def to_string(self, exclude: Optional[List] = None, just_meta=False):
         """Format the instance in a string, optionally exclude some keys.
 
         Parameters
         ----------
         exclude
             List of keys to exclude. Optional.
+        just_meta
+            If True, just return a str of the meta-data. This is useful to show during
+            initialisation, in the case where the configuration is otherwise invalid.
 
         """
         exclude = exclude or []
         lines = []
-        blocks = {"meta-data": self._meta_data, "configuration": self._configured_data}
+        blocks = {"meta-data": self._meta_data}
+        if not just_meta:
+            blocks.update({"configuration": self._configured_data})
         for title, dat in blocks.items():
             lines.append(f"{title}:")
             for key, val in dat.items():
