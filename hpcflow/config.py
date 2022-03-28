@@ -7,11 +7,13 @@ import socket
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 from pathlib import Path
+import fsspec
+from fsspec.registry import known_implementations as fsspec_protocols
 
 from ruamel.yaml import YAML
 from valida.schema import Schema
 
-from hpcflow import RUN_TIME_INFO
+from hpcflow import RUN_TIME_INFO, log
 from hpcflow.errors import (
     ConfigChangeInvalidJSONError,
     ConfigChangePopIndexError,
@@ -23,6 +25,8 @@ from hpcflow.errors import (
     ConfigValidationError,
     ConfigChangeInvalidError,
     ConfigChangeFileUpdateError,
+    MissingEnvironmentFileError,
+    MissingTaskSchemaFileError,
 )
 from hpcflow.utils import Singleton
 from hpcflow.validation import get_schema
@@ -86,7 +90,9 @@ class ConfigLoader(metaclass=Singleton):
             "default": {
                 "invocation": {"environment_setup": None, "match": {}},
                 "config": {
-                    "log_directory": "logs",
+                    "machine": socket.gethostname(),
+                    "telemetry": True,
+                    "log_file_path": "logs/app.log",
                     "environment_sources": [],
                     "task_schema_sources": [],
                 },
@@ -160,6 +166,16 @@ class ConfigLoader(metaclass=Singleton):
         self._configured_data = cfg_inv_data["config"]
         self._validate_configured_data(self._configured_data)
 
+        self._update_configured_data(
+            "log_file_path", self._configured_data["log_file_path"]
+        )
+        self._update_configured_data(
+            "task_schema_files", self._configured_data["task_schema_files"]
+        )
+        self._update_configured_data(
+            "environment_files", self._configured_data["environment_files"]
+        )
+
     def __dir__(self):
         return super().__dir__() + self._all_keys
 
@@ -184,7 +200,19 @@ class ConfigLoader(metaclass=Singleton):
     def _cfg_inv_key(self):
         return self._meta_data["config_invocation_key"]
 
+    def _resolve_path(self, path):
+        """Resolve a path found in the config file."""
+        if not any(str(path).startswith(i) for i in fsspec_protocols):
+            path = Path(path)
+            path = path.expanduser()
+            if not path.is_absolute():
+                path = self._meta_data["config_dir"].joinpath(path)
+
+        return path
+
     def _validate_configured_data(self, data):
+        """Validate configured data against the Valida schemas and resolve path-like
+        configuration items."""
         for cfg_schema in self._meta_data["config_schemas"]:
             cfg_validated = cfg_schema.validate(data)
             if not cfg_validated.is_valid:
@@ -299,6 +327,43 @@ class ConfigLoader(metaclass=Singleton):
         logger.info("Replacing original config file with temporary file.")
         os.replace(src=cfg_tmp_file, dst=cfg_file_path)
 
+    def check_data_files(self):
+        """Check task schema and environment files specified in the config file exist/are
+        reachable."""
+
+        for name in ("task_schema_files", "environment_files"):
+            print(f"\nChecking {name}:")
+            for i in self.get(name):
+                try:
+                    with fsspec.open(i, mode="rt") as fh:
+                        pass
+                    print(f"  Checked: {i}")
+                except Exception as err:
+                    if name == "task_schema_files":
+                        raise MissingTaskSchemaFileError(file_name=str(i), err=err)
+                    elif name == "environment_files":
+                        raise MissingEnvironmentFileError(file_name=str(i), err=err)
+
+    def _update_configured_data(self, name, value=None, is_unset=False):
+        """Update the in-memory record of configured items. This differs from the config
+        file in that file paths/directories are resolved in `_configured_data`."""
+
+        if is_unset:
+            del self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name]
+            del self._configured_data
+
+        else:
+            self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name] = value
+
+            if name == "log_file_path":
+                value = self._resolve_path(value)
+                log.update_handlers(log_file_path=value)
+
+            elif name in ("task_schema_files", "environment_files"):
+                value = [self._resolve_path(i) for i in value]
+
+            self._configured_data[name] = value
+
     def _modify_if_valid(self, name: str, new_value: Any = None, is_unset: bool = False):
         """Try to modify the configuration, both in-memory and in the YAML file.
 
@@ -332,26 +397,14 @@ class ConfigLoader(metaclass=Singleton):
             raise ConfigChangeValidationError(name, validation_err=err)
 
         # update object attributes:
-        if is_unset:
-            del self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name]
-            del self._configured_data[name]
-        else:
-            self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][
-                name
-            ] = new_value
-            self._configured_data[name] = new_value
-
+        self._update_configured_data(name, value=new_value, is_unset=is_unset)
         try:
             # update config file:
             self._update_config_file()
 
         except Exception as err:
             # reinstate old value:
-            self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][
-                name
-            ] = old_value
-            self._configured_data[name] = old_value
-
+            self._update_configured_data(name, value=old_value)
             raise ConfigChangeFileUpdateError(name, err=err)
 
         if is_unset:

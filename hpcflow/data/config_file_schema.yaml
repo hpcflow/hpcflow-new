@@ -2,17 +2,7 @@ rules:
   - path: []
     condition:
       value.allowed_keys:
-        - machine
-        - defaults
         - configs
-
-  - path: [machine]
-    condition:
-      value.type.equal_to: str
-
-  - path: [defaults]
-    condition:
-      value.type.equal_to: dict
 
   - path: [configs]
     condition:

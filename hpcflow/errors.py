@@ -162,3 +162,23 @@ class ConfigChangePopIndexError(ConfigError):
             f"{length!r} and so cannot be popped with index {index}."
         )
         super().__init__(self.message)
+
+
+class MissingTaskSchemaFileError(ConfigError):
+    """Raised when a task schema file specified in the config file does not exist."""
+
+    def __init__(self, file_name, err, message=None):
+        self.message = message or (
+            f"The task schema file {file_name!r} cannot be found. \n{err!s}"
+        )
+        super().__init__(self.message)
+
+
+class MissingEnvironmentFileError(ConfigError):
+    """Raised when an environment file specified in the config file does not exist."""
+
+    def __init__(self, file_name, err, message=None):
+        self.message = message or (
+            f"The environment file {file_name!r} cannot be found. \n{err!s}"
+        )
+        super().__init__(self.message)

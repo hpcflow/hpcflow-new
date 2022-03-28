@@ -2,18 +2,60 @@ rules:
   - path: []
     condition:
       value.allowed_keys:
-        - log_directory
-        - task_schema_sources
-        - environment_sources
-  - path: [log_directory]
+        - telemetry
+        - machine
+        - user.name
+        - user.orcid
+        - user.affiliation
+        - log_file_path
+        - log_file_level
+        - log_console_level
+        - task_schema_files
+        - environment_files
+
+  - path: []
+    condition:
+      value.required_keys:
+        - telemetry
+        - machine
+        - task_schema_files
+        - environment_files
+
+  - path: [telemetry]
+    condition:
+      value.type.equal_to: bool
+
+  - path: [machine]
     condition:
       value.type.equal_to: str
-  - path: [task_schema_sources]
+
+  - path: [user.name]
+    condition:
+      value.type.equal_to: str
+
+  - path: [user.orcid]
+    condition:
+      value.type.equal_to: str
+
+  - path: [user.affiliation]
+    condition:
+      value.type.equal_to: str
+
+  - path: [log_file_path]
+    condition:
+      value.type.equal_to: str
+  - path: [log_file_level]
+    condition:
+      value.allowed_keys: [notset, debug, info, warning, error, critical]
+  - path: [log_console_level]
+    condition:
+      value.allowed_keys: [notset, debug, info, warning, error, critical]
+  - path: [task_schema_files]
     condition:
       value.type.equal_to: list
-  - path: [task_schema_sources, { type: list_value }]
+  - path: [task_schema_files, { type: list_value }]
     condition:
       value.type.equal_to: str
-  - path: [environment_sources, { type: list_value }]
+  - path: [environment_files, { type: list_value }]
     condition:
       value.type.equal_to: str

@@ -31,23 +31,21 @@ def run_time_info_callback(ctx, param, value):
     callback=run_time_info_callback,
 )
 @click.option(
-    "--console-log-level",
+    "--log-console-level",
     type=click.Choice(LOG_LEVELS, case_sensitive=False),
-    default="WARNING",
     help="Set console log level",
 )
 @click.option(
-    "--file-log-level",
+    "--log-file-level",
     type=click.Choice(LOG_LEVELS, case_sensitive=False),
-    default="INFO",
     help="Set file log level",
 )
-@click.option("--file-log-path", help="Set file log path")
+@click.option("--log-file-path", help="Set the log file path")
 @click.option("--config-dir", help="Set the configuration directory.")
 @click.pass_context
-def cli(ctx, config_dir, console_log_level, file_log_level, file_log_path):
+def cli(ctx, config_dir, log_console_level, log_file_level, log_file_path):
     """Computational workflow management."""
-    log.update_handlers(console_log_level, file_log_level, file_log_path)
+    log.update_handlers(log_console_level, log_file_level, log_file_path, from_CLI=True)
     try:
         ConfigLoader(config_dir=config_dir)
     except ConfigError as err:

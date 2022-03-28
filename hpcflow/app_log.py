@@ -17,18 +17,25 @@ class AppLog:
         self.logger.setLevel(logging.DEBUG)
         self.hpcflow_app_log = hpcflow_app_log
 
-        self._add_file_logger(AppLog.DEFAULT_LOG_FILE_PATH, AppLog.DEFAULT_LOG_LEVEL_FILE)
-        self._add_console_logger(AppLog.DEFAULT_LOG_LEVEL_CONSOLE)
+        self.console_handler = self._add_console_logger(AppLog.DEFAULT_LOG_LEVEL_CONSOLE)
+        self.file_handler = None
+        self.set_from_CLI = {
+            "log_console_level": False,
+            "log_file_level": False,
+            "log_file_path": False,
+        }
 
-    def get_child_logger(self, name):
-        return self.logger.getChild(".".join(name.split(".")[1:]))
+    def add_file_logger(self, path, level=None, fmt=None):
+        self.file_handler = self._add_file_logger(Path(path), level, fmt)
 
-    def _add_file_logger(self, filename, level, fmt=None):
+    def _add_file_logger(self, path=None, level=None, fmt=None):
+        log_dir = Path(path.parents[0])
+        log_dir.mkdir(exist_ok=True)
         if not fmt:
             fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-        handler = logging.FileHandler(filename)
+        handler = logging.FileHandler(path)
         handler.setFormatter(logging.Formatter(fmt))
-        handler.setLevel(level)
+        handler.setLevel(level or AppLog.DEFAULT_LOG_LEVEL_FILE)
         self.logger.addHandler(handler)
 
     def _add_console_logger(self, level, fmt=None):
@@ -38,36 +45,97 @@ class AppLog:
         handler.setFormatter(logging.Formatter(fmt))
         handler.setLevel(level)
         self.logger.addHandler(handler)
+        return handler
+
+    def _update_set_from_CLI(
+        self,
+        log_console_level=None,
+        log_file_level=None,
+        log_file_path=None,
+        from_CLI=False,
+    ):
+        if log_console_level and self.set_from_CLI["log_console_level"]:
+            log_console_level = None
+            self.logger.info(
+                f"Disregarding change to console log level because this has been set by "
+                f"a CLI option."
+            )
+
+        if log_file_level and self.set_from_CLI["log_file_level"]:
+            log_file_level = None
+            self.logger.info(
+                f"Disregarding change to log file level because this has been set by a "
+                f"CLI option."
+            )
+
+        if log_file_path and self.set_from_CLI["log_file_path"]:
+            log_file_path = None
+            self.logger.info(
+                f"Disregarding change to log file path because this has been set by a CLI "
+                f"option."
+            )
+
+        self.set_from_CLI = {
+            "log_console_level": (log_console_level and from_CLI)
+            or self.set_from_CLI["log_console_level"],
+            "log_file_level": (log_file_level and from_CLI)
+            or self.set_from_CLI["log_file_level"],
+            "log_file_path": (log_file_path and from_CLI)
+            or self.set_from_CLI["log_file_path"],
+        }
+
+        return (log_console_level, log_file_level, log_file_path)
 
     def update_handlers(
-        self, console_log_level=None, file_log_level=None, file_log_path=None
+        self,
+        log_console_level=None,
+        log_file_level=None,
+        log_file_path=None,
+        from_CLI=False,
     ):
-        """Modify logging configuration if non-None arguments are passed."""
+        """Modify logging configuration if non-None arguments are passed.
 
-        stream_hdl = [
-            i for i in self.logger.handlers if type(i) is logging.StreamHandler
-        ][0]
-        file_hdl = [i for i in self.logger.handlers if type(i) is logging.FileHandler][0]
+        Parameters
+        ----------
+        from_CLI
+            If True, disallow future modifications of the specified parameters. This is to
+            allow the CLI passed parameters to override those specified in the config
+            file.
+        """
 
-        if console_log_level:
-            stream_hdl.setLevel(getattr(logging, console_log_level))
+        (log_console_level, log_file_level, log_file_path) = self._update_set_from_CLI(
+            log_console_level, log_file_level, log_file_path, from_CLI
+        )
 
-        if file_log_level:
-            file_hdl.setLevel(file_log_level)
+        if log_console_level:
+            self.console_handler.setLevel(getattr(logging, log_console_level))
 
-        if file_log_path:
-            file_log_path = Path(file_log_path).resolve()
-            self.logger.info(
-                f"Now using a new log file path (see you there!): "
-                f"{str(file_log_path)!r}"
-            )
-            self.logger.removeHandler(file_hdl)
-            self._add_file_logger(
-                file_log_path, file_log_level or AppLog.DEFAULT_LOG_LEVEL_FILE
-            )
+        if log_file_level or log_file_path:
+
+            new_file_path = log_file_path or AppLog.DEFAULT_LOG_FILE_PATH
+            new_file_level = log_file_level or AppLog.DEFAULT_LOG_LEVEL_FILE
+
+            cur_file_path = None
+            if self.file_handler:
+                cur_file_path = Path(self.file_handler.baseFilename)
+
+                if log_file_level:
+                    self.file_handler.setLevel(log_file_level)
+
+                if log_file_path:
+                    self.logger.info(f"Now using a new log file path: {log_file_path!r}")
+                    self.logger.removeHandler(self.file_handler)
+                    self.file_handler = None
+
+            if log_file_path:
+                self.add_file_logger(path=new_file_path, level=new_file_level)
+                if cur_file_path:
+                    self.logger.info(
+                        f"Log file path changed from the previous path: {cur_file_path!r}."
+                    )
 
         if self.hpcflow_app_log:
             # also update hpcflow logger:
             self.hpcflow_app_log.update_handlers(
-                console_log_level, file_log_level, file_log_path
+                log_console_level, log_file_level, log_file_path, from_CLI
             )
