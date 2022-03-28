@@ -2,16 +2,19 @@ import copy
 import json
 import logging
 import os
-from re import L
 import socket
 from typing import Any, Dict, List, Optional, Tuple, Union
+import uuid
 import warnings
 from pathlib import Path
 import fsspec
 from fsspec.registry import known_implementations as fsspec_protocols
+import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 from ruamel.yaml import YAML
 from valida.schema import Schema
+from platformdirs import user_data_dir
 
 from hpcflow import RUN_TIME_INFO, log
 from hpcflow.errors import (
@@ -83,9 +86,12 @@ class ConfigLoader(metaclass=Singleton):
 
     CONFIG_DIR_ENV_VAR = "HPCFLOW_CONFIG_DIR"
     CONFIG_DIR_DEFAULT = "~/.hpcflow"
+    SENTRY_DSN = (
+        "https://2463b288fd1a40f4bada9f5ff53f6811@o1180430.ingest.sentry.io/6293231"
+    )
+    SENTRY_TRACES_SAMPLE_RATE = 1.0
+    SENTRY_ENV = "main" if "a" in RUN_TIME_INFO.version else "develop"
     DEFAULT_CONFIG = {
-        "machine": socket.gethostname(),
-        "defaults": {},
         "configs": {
             "default": {
                 "invocation": {"environment_setup": None, "match": {}},
@@ -97,15 +103,18 @@ class ConfigLoader(metaclass=Singleton):
                     "task_schema_sources": [],
                 },
             }
-        },
+        }
     }
 
-    def __init__(self, config_schema: Schema = None, config_dir=None):
+    def __init__(self, config_schema: Schema = None, config_dir=None, uid=None):
         """
         Parameters
         ----------
         config_schema
             An addition configuration schema to combine with the built-in schema.
+        uid
+            User ID to set. Useful to set when hpcflow is invoking to a remote instance
+            of hpcflow.
 
         """
 
@@ -156,12 +165,16 @@ class ConfigLoader(metaclass=Singleton):
 
         self._cfg_file_dat_rt = cfg_file_dat_rt  # round-trippable data from YAML file
 
+        _uid = self._get_user_id()
+
         self._meta_data = {
             "config_dir": cfg_dir,
             "config_file_path": cfg_file_path,
             "config_file_contents": cfg_file_contents,
             "config_invocation_key": cfg_inv_key,
             "config_schemas": cfg_schemas,
+            "invoking_user_id": uid or _uid,
+            "host_user_id": _uid,
         }
         self._configured_data = cfg_inv_data["config"]
         self._validate_configured_data(self._configured_data)
@@ -175,6 +188,44 @@ class ConfigLoader(metaclass=Singleton):
         self._update_configured_data(
             "environment_files", self._configured_data["environment_files"]
         )
+
+        if cfg_inv_data["config"]["telemetry"]:
+            self._init_sentry(_uid)
+
+    def _init_sentry(self, uid):
+        sentry_logging = LoggingIntegration(
+            level=logging.INFO,  # Capture info and above as breadcrumbs
+            event_level=logging.ERROR,  # Send errors as events
+        )
+        sentry_sdk.init(
+            dsn=ConfigLoader.SENTRY_DSN,
+            # Set traces_sample_rate to 1.0 to capture 100%
+            # of transactions for performance monitoring.
+            # We recommend adjusting this value in production.
+            traces_sample_rate=ConfigLoader.SENTRY_TRACES_SAMPLE_RATE,
+            integrations=[sentry_logging],
+            environment=ConfigLoader.SENTRY_ENV,
+            server_name=self._configured_data["machine"],
+        )
+
+        sentry_sdk.set_user({"ip_address": "{{auto}}", "id": uid})
+
+    def _get_user_id(self):
+        """Retrieve (and set if non-existent) a unique user ID that is independent of the
+        config directory."""
+
+        uid_file_dir = Path(user_data_dir(appname=RUN_TIME_INFO.name))
+        uid_file_path = uid_file_dir.joinpath("user_id.txt")
+        if not uid_file_path.exists():
+            uid_file_dir.mkdir(exist_ok=True, parents=True)
+            uid = str(uuid.uuid4())
+            with uid_file_path.open("wt") as fh:
+                fh.write(uid)
+        else:
+            with uid_file_path.open("rt") as fh:
+                uid = fh.read().strip()
+
+        return uid
 
     def __dir__(self):
         return super().__dir__() + self._all_keys
