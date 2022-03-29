@@ -1,4 +1,45 @@
 
+<a name="v0.2.0a3"></a>
+## [v0.2.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a2...v0.2.0a3) - 2022.03.29
+
+### ✨ Features
+
+* add sentry tracing
+* improve configuration feature
+* pass version to RunTimeInfo
+
+### 🐛 Bug Fixes
+
+* better config
+* overriding log file from CLI
+* show config dir metadata on ConfigValidationError
+* workflow dep
+* pyinstaller build scripts
+
+### 👷 Build changes
+
+* CI issue https://github.com/psf/black/issues/2964
+* update GH workflow cache keys
+* remove debug print
+* test on docker image as well
+* try add tkinter import 2
+* try add hidden import again
+* try add hidden import
+* add hidden import for linux pyinstaller
+* update GH workflows
+* try pyinstaller fix
+* move tests to unit dir
+* revert "bump: 0.2.0a2 → 0.2.0a3 [skip ci]"
+* fix pyinstaller scripts
+* merge develop
+* fix pyinstaller entry in actions
+* fix entrypoint
+* revert "bump: 0.2.0a2 → 0.2.0a3 [skip ci]"
+* update deps
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a2"></a>
 ## [v0.2.0a2](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a1...v0.2.0a2) - 2022.03.21
 
