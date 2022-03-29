@@ -5,7 +5,7 @@ from typing import Optional
 import click
 
 from hpcflow import __version__, log
-from hpcflow.cli import cli
+from hpcflow.cli.cli import cli
 from hpcflow.app_log import AppLog
 from hpcflow.runtime import RunTimeInfo
 

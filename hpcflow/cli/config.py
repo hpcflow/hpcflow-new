@@ -33,6 +33,13 @@ def config_list():
     click.echo("\n".join(Config.get_configurable()))
 
 
+@config.command("check")
+def config_check():
+    """Check task schema files and environment that are specified in the config file exist
+    and are reachable."""
+    config_api.check()
+
+
 @config.command("get")
 @click.argument("name")
 @click.option(
@@ -56,7 +63,7 @@ def config_get(name):
     """Show the value of the specified configuration item."""
     val = Config.get(name)
     if isinstance(val, list):
-        val = "\n".join(val)
+        val = "\n".join(str(i) for i in val)
     click.echo(val)
 
 

@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 import warnings
 
+import sentry_sdk
+
 from hpcflow.utils import PrettyPrinter
 
 logger = logging.getLogger(__name__)
@@ -84,28 +86,42 @@ class RunTimeInfo(PrettyPrinter):
             )
             warnings.warn(msg)
 
-    def __repr__(self):
-        out = f"{self.__class__.__name__}(" f"is_frozen={self.is_frozen!r}, "
+        for k, v in self._get_members().items():
+            if k in ("is_frozen", "is_venv", "is_conda_venv", "executable_name"):
+                sentry_sdk.set_tag(f"rti.{k}", v)
+
+    def _get_members(self):
+        out = {"is_frozen": self.is_frozen}
         if self.is_frozen:
-            out += (
-                f"executable_name={self.executable_name!r}, "
-                f"resolved_executable_name={self.resolved_executable_name!r}, "
-                f"executable_path={self.executable_path!r}, "
-                f"resolved_executable_path={self.resolved_executable_path!r}, "
+            out.update(
+                {
+                    "executable_name": self.executable_name,
+                    "resolved_executable_name": self.resolved_executable_name,
+                    "executable_path": self.executable_path,
+                    "resolved_executable_path": self.resolved_executable_path,
+                }
             )
         else:
-            out += (
-                f"script_path={self.script_path!r}, "
-                f"python_executable_path={self.python_executable_path!r}, "
-                f"is_venv={self.is_venv!r}, "
-                f"is_conda_venv={self.is_conda_venv!r}, "
-                f"sys_prefix={self.sys_prefix!r}, "
-                f"sys_base_prefix={self.sys_base_prefix!r}, "
-                f"sys_real_prefix={self.sys_real_prefix!r}, "
-                f"conda_prefix={self.conda_prefix!r}, "
+            out.update(
+                {
+                    "script_path": self.script_path,
+                    "python_executable_path": self.python_executable_path,
+                    "is_venv": self.is_venv,
+                    "is_conda_venv": self.is_conda_venv,
+                    "sys_prefix": self.sys_prefix,
+                    "sys_base_prefix": self.sys_base_prefix,
+                    "sys_real_prefix": self.sys_real_prefix,
+                    "conda_prefix": self.conda_prefix,
+                    "venv_path": self.venv_path,
+                }
             )
+        out.update({"working_dir": self.working_dir})
+        return out
 
-        out += f"working_dir={self.working_dir!r})"
+    def __repr__(self):
+        out = f"{self.__class__.__name__}("
+        for k, v in self._get_members().items():
+            out += f"{k}={v!r}"
         return out
 
     def _set_venv_path(self):

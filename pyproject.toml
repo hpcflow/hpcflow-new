@@ -24,7 +24,10 @@ click = "^8.0.4"
 pyinstaller = { version = "^4.10", optional = true}
 colorama = "^0.4.4"
 termcolor = "^1.1.0"
-valida = "^0.2.1"
+fsspec = "^2022.2.0"
+sentry-sdk = "^1.5.8"
+platformdirs = "^2.5.1"
+valida = "^0.4.0"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.12.2"
@@ -42,7 +45,7 @@ sphinx-copybutton = "^0.5.0"
 pyinstaller = ["pyinstaller"]
 
 [tool.poetry.scripts]
-hpcflow = 'hpcflow.cli.__init__:cli'
+hpcflow = 'hpcflow.cli.cli:cli'
 
 [tool.commitizen]
 name = "cz_conventional_commits"

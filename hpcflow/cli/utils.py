@@ -26,7 +26,7 @@ def CLI_exception_wrapper_gen(*exception_cls):
             try:
                 with warning_formatter():
                     out = func(*args, **kwargs)
-                if out:
+                if out is not None:
                     click.echo(f"{colored('✔ Config file updated.', 'green')}")
                 return out
             except exception_cls as err:

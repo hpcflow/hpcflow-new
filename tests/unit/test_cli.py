@@ -3,7 +3,7 @@ import pytest
 from click.testing import CliRunner
 
 from hpcflow import __version__
-from hpcflow.cli import cli
+from hpcflow.cli.cli import cli
 
 
 def test_version():

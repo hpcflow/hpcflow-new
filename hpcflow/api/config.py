@@ -11,3 +11,7 @@ def show_config_file_contents():
 
 def show_config():
     print(Config.to_string(exclude=["config_file_contents"]))
+
+
+def check():
+    Config.check_data_files()

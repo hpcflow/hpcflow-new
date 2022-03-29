@@ -90,7 +90,10 @@ class ConfigFileInvocationIncompatibleError(ConfigError):
 class ConfigValidationError(ConfigError):
     """Raised when the matching config data is invalid."""
 
-    pass
+    def __init__(self, message, meta_data=None):
+        self.meta_data = meta_data
+        self.message = message + f"config {self.meta_data}\n"
+        super().__init__(self.message)
 
 
 class ConfigChangeInvalidError(ConfigError):
@@ -157,5 +160,25 @@ class ConfigChangePopIndexError(ConfigError):
         self.message = message or (
             f"The config file has not been modified. The config item {name!r} has length "
             f"{length!r} and so cannot be popped with index {index}."
+        )
+        super().__init__(self.message)
+
+
+class MissingTaskSchemaFileError(ConfigError):
+    """Raised when a task schema file specified in the config file does not exist."""
+
+    def __init__(self, file_name, err, message=None):
+        self.message = message or (
+            f"The task schema file {file_name!r} cannot be found. \n{err!s}"
+        )
+        super().__init__(self.message)
+
+
+class MissingEnvironmentFileError(ConfigError):
+    """Raised when an environment file specified in the config file does not exist."""
+
+    def __init__(self, file_name, err, message=None):
+        self.message = message or (
+            f"The environment file {file_name!r} cannot be found. \n{err!s}"
         )
         super().__init__(self.message)
