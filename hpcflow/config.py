@@ -79,6 +79,7 @@ class ConfigLoader(metaclass=Singleton):
     _configurable_keys : list
     _meta_data : dict
     _configured_data : dict
+    _with_config : dict
     _config_schemas : list of valida.schema.Schema
     _cfg_file_dat_rt : dict
 
@@ -106,7 +107,9 @@ class ConfigLoader(metaclass=Singleton):
         }
     }
 
-    def __init__(self, config_schema: Schema = None, config_dir=None, uid=None):
+    def __init__(
+        self, config_schema: Schema = None, config_dir=None, uid=None, **with_config
+    ):
         """
         Parameters
         ----------
@@ -115,6 +118,8 @@ class ConfigLoader(metaclass=Singleton):
         uid
             User ID to set. Useful to set when hpcflow is invoking to a remote instance
             of hpcflow.
+        with_config
+            Override config-file items with these items.
 
         """
 
@@ -165,19 +170,21 @@ class ConfigLoader(metaclass=Singleton):
 
         self._cfg_file_dat_rt = cfg_file_dat_rt  # round-trippable data from YAML file
 
-        _uid = self._get_user_id()
+        _uid, uid_file_path = self._get_user_id()
 
+        self._with_config = with_config  # overides values in _configured_data
         self._meta_data = {
-            "config_dir": cfg_dir,
+            "config_directory": cfg_dir,
+            "config_file_name": cfg_file_path.name,
             "config_file_path": cfg_file_path,
             "config_file_contents": cfg_file_contents,
             "config_invocation_key": cfg_inv_key,
             "config_schemas": cfg_schemas,
             "invoking_user_id": uid or _uid,
             "host_user_id": _uid,
+            "user_id_file_path": uid_file_path,
         }
         self._configured_data = cfg_inv_data["config"]
-        self._validate_configured_data(self._configured_data)
 
         self._update_configured_data(
             "log_file_path", self._configured_data["log_file_path"]
@@ -189,7 +196,9 @@ class ConfigLoader(metaclass=Singleton):
             "environment_files", self._configured_data["environment_files"]
         )
 
-        if cfg_inv_data["config"]["telemetry"]:
+        self._configured_data = self._validate_configured_data(self._configured_data)
+
+        if self.get("telemetry"):
             self._init_sentry(_uid)
 
     def _init_sentry(self, uid):
@@ -225,7 +234,7 @@ class ConfigLoader(metaclass=Singleton):
             with uid_file_path.open("rt") as fh:
                 uid = fh.read().strip()
 
-        return uid
+        return uid, uid_file_path
 
     def __dir__(self):
         return super().__dir__() + self._all_keys
@@ -236,8 +245,10 @@ class ConfigLoader(metaclass=Singleton):
     def __getattr__(self, name):
         if name in self._meta_data:
             return self._meta_data[name]
+        elif name in self._with_config:
+            return self._with_config[name]
         elif name in self._configurable_keys:
-            return self._configured_data.get(name)
+            return self._configured_data[name]
         else:
             raise ConfigUnknownItemError(
                 f"Specified name {name!r} is not a valid configuration item."
@@ -257,15 +268,16 @@ class ConfigLoader(metaclass=Singleton):
             path = Path(path)
             path = path.expanduser()
             if not path.is_absolute():
-                path = self._meta_data["config_dir"].joinpath(path)
+                path = self._meta_data["config_directory"].joinpath(path)
 
         return path
 
     def _validate_configured_data(self, data):
         """Validate configured data against the Valida schemas and resolve path-like
         configuration items."""
+        validated_data = data
         for cfg_schema in self._meta_data["config_schemas"]:
-            cfg_validated = cfg_schema.validate(data)
+            cfg_validated = cfg_schema.validate(validated_data)
             if not cfg_validated.is_valid:
                 raise ConfigValidationError(
                     message=cfg_validated.get_failures_string(),
@@ -273,6 +285,8 @@ class ConfigLoader(metaclass=Singleton):
                         exclude=["config_file_contents", "config_schemas"], just_meta=True
                     ),
                 )
+            validated_data = cfg_validated.cast_data
+        return validated_data
 
     @staticmethod
     def _get_main_config_file(config_dir: Path) -> Tuple[Dict, Dict, Path, str]:
@@ -400,8 +414,8 @@ class ConfigLoader(metaclass=Singleton):
         file in that file paths/directories are resolved in `_configured_data`."""
 
         if is_unset:
+            del self._configured_data[name]
             del self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name]
-            del self._configured_data
 
         else:
             self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name] = value
@@ -415,8 +429,12 @@ class ConfigLoader(metaclass=Singleton):
 
             self._configured_data[name] = value
 
+        self._configured_data = self._validate_configured_data(self._configured_data)
+
     def _modify_if_valid(self, name: str, new_value: Any = None, is_unset: bool = False):
-        """Try to modify the configuration, both in-memory and in the YAML file.
+        """Try to modify the configuration, both in-memory and in the YAML file. The
+        YAML file version will not be modified if that item was specified as a
+        `with_config` override.
 
         Parameters
         ----------
@@ -443,9 +461,16 @@ class ConfigLoader(metaclass=Singleton):
         else:
             dat_copy[name] = new_value
         try:
-            self._validate_configured_data(dat_copy)
+            validated_data = self._validate_configured_data(dat_copy)
         except ConfigValidationError as err:
             raise ConfigChangeValidationError(name, validation_err=err)
+
+        # new value may have been type-casted during validation:
+        new_value = validated_data[name]
+
+        if old_value == new_value:
+            warnings.warn(f"Config key {name!r} is already set to value {new_value!r}.")
+            return
 
         # update object attributes:
         self._update_configured_data(name, value=new_value, is_unset=is_unset)
@@ -468,13 +493,8 @@ class ConfigLoader(metaclass=Singleton):
             )
             return new_value
 
-    def _set_value(self, name, old_value, new_value):
+    def _set_value(self, name, new_value):
         """Set a configuration item from its `old_value` to its `new_value`."""
-
-        if old_value == new_value:
-            warnings.warn(f"Config key {name!r} is already set to value {new_value!r}.")
-            return
-
         return self._modify_if_valid(name, new_value=new_value)
 
     def _unset_value(self, name):
@@ -518,7 +538,13 @@ class ConfigLoader(metaclass=Singleton):
             except json.decoder.JSONDecodeError as err:
                 raise ConfigChangeInvalidJSONError(name=name, json_str=new_value, err=err)
 
-        old_value = copy.deepcopy(self.get(name))
+        file_data = False
+        if name in ("task_schema_files", "environment_files"):
+            # these are lists of Path objects; when modifying we need the string paths from
+            # the file for existing elements, rather than the resolved Path object (so
+            # that it can be dumped with a custom Representer).
+            file_data = True
+        old_value = copy.deepcopy(self.get(name, file_data=file_data))
 
         return old_value, new_value
 
@@ -551,21 +577,31 @@ class ConfigLoader(metaclass=Singleton):
         """Get a list of all configurable keys."""
         return self._configurable_keys
 
-    def get(self, name: str):
+    def get(self, name: str, file_data: bool = False):
         """Get a configuration item.
 
         Parameters
         ----------
         name
             The name of a configuration item (either a configurable key or a meta-data key)
+        file_data
+            If True, retrieve the value from the file data (`_cfg_file_dat_rt`) rather than
+            the meta data (`_meta_data`) or configured data (`_configured_data`).
 
         Returns
         -------
         The value of the specified configuration item.
 
         """
-
-        return getattr(self, name)
+        if file_data:
+            try:
+                return self._cfg_file_dat_rt["configs"][self._cfg_inv_key]["config"][name]
+            except KeyError:
+                raise ConfigUnknownItemError(
+                    f"Specified name {name!r} is not a valid configuration file item."
+                )
+        else:
+            return getattr(self, name)
 
     def set_value(self, name: str, value: Any, is_json: bool):
         """Set the value of a configuration item.
@@ -587,7 +623,7 @@ class ConfigLoader(metaclass=Singleton):
         """
 
         old_value, new_value = self._prepare_modify(name, value, is_json)
-        return self._set_value(name, old_value, new_value)
+        return self._set_value(name, new_value)
 
     def unset_value(self, name: str):
         """Unset (remove) the value of a configuration item.
@@ -630,7 +666,7 @@ class ConfigLoader(metaclass=Singleton):
             new_value = old_value + [new_value]
         except TypeError:
             raise ConfigChangeTypeInvalidError(name, typ=type(old_value))
-        return self._set_value(name, old_value, new_value)
+        return self._set_value(name, new_value)
 
     def prepend_value(self, name, value, is_json):
         """Prepend a new value to an existing configuration list item.
@@ -656,7 +692,7 @@ class ConfigLoader(metaclass=Singleton):
             new_value = [new_value] + old_value
         except TypeError:
             raise ConfigChangeTypeInvalidError(name, typ=type(old_value))
-        return self._set_value(name, old_value, new_value)
+        return self._set_value(name, new_value)
 
     def pop_value(self, name: str, index: int):
         """Pop (remove) an item from an existing configuration list item.
@@ -683,4 +719,4 @@ class ConfigLoader(metaclass=Singleton):
             raise ConfigChangeTypeInvalidError(name, typ=type(old_value))
         except IndexError:
             raise ConfigChangePopIndexError(name, length=len(old_value), index=index)
-        return self._set_value(name, old_value, new_value)
+        return self._set_value(name, new_value)

@@ -30,24 +30,19 @@ def run_time_info_callback(ctx, param, value):
     expose_value=False,
     callback=run_time_info_callback,
 )
-@click.option(
-    "--log-console-level",
-    type=click.Choice(LOG_LEVELS, case_sensitive=False),
-    help="Set console log level",
-)
-@click.option(
-    "--log-file-level",
-    type=click.Choice(LOG_LEVELS, case_sensitive=False),
-    help="Set file log level",
-)
-@click.option("--log-file-path", help="Set the log file path")
 @click.option("--config-dir", help="Set the configuration directory.")
+@click.option(
+    "--with-config",
+    help="Override a config item in the config file",
+    nargs=2,
+    multiple=True,
+)
 @click.pass_context
-def cli(ctx, config_dir, log_console_level, log_file_level, log_file_path):
+def cli(ctx, config_dir, with_config):
     """Computational workflow management."""
-    log.update_handlers(log_console_level, log_file_level, log_file_path, from_CLI=True)
+    with_config = {kv[0]: kv[1] for kv in with_config}
     try:
-        ConfigLoader(config_dir=config_dir)
+        ConfigLoader(config_dir=config_dir, **with_config)
     except ConfigError as err:
         click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
         ctx.exit(1)
