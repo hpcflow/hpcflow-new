@@ -5,10 +5,11 @@ env:
 
 on:
   workflow_dispatch:
-    logLevel:
-      description: "PyInstaller log level"
-      required: true
-      default: "INFO"
+    inputs:
+      logLevel:
+        description: "PyInstaller log level"
+        required: true
+        default: "INFO"
 
 jobs:
   build-executables:
