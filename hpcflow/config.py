@@ -100,8 +100,8 @@ class ConfigLoader(metaclass=Singleton):
                     "machine": socket.gethostname(),
                     "telemetry": True,
                     "log_file_path": "logs/app.log",
-                    "environment_sources": [],
-                    "task_schema_sources": [],
+                    "environment_files": [],
+                    "task_schema_files": [],
                 },
             }
         }
@@ -170,7 +170,7 @@ class ConfigLoader(metaclass=Singleton):
 
         self._cfg_file_dat_rt = cfg_file_dat_rt  # round-trippable data from YAML file
 
-        _uid, uid_file_path = self._get_user_id()
+        host_uid, host_uid_file_path = self._get_user_id()
 
         self._with_config = with_config  # overides values in _configured_data
         self._meta_data = {
@@ -180,9 +180,9 @@ class ConfigLoader(metaclass=Singleton):
             "config_file_contents": cfg_file_contents,
             "config_invocation_key": cfg_inv_key,
             "config_schemas": cfg_schemas,
-            "invoking_user_id": uid or _uid,
-            "host_user_id": _uid,
-            "user_id_file_path": uid_file_path,
+            "invoking_user_id": uid or host_uid,
+            "host_user_id": host_uid,
+            "host_user_id_file_path": host_uid_file_path,
         }
         self._configured_data = cfg_inv_data["config"]
 
@@ -199,7 +199,7 @@ class ConfigLoader(metaclass=Singleton):
         self._configured_data = self._validate_configured_data(self._configured_data)
 
         if self.get("telemetry"):
-            self._init_sentry(_uid)
+            self._init_sentry(host_uid)
 
     def _init_sentry(self, uid):
         sentry_logging = LoggingIntegration(
@@ -248,7 +248,7 @@ class ConfigLoader(metaclass=Singleton):
         elif name in self._with_config:
             return self._with_config[name]
         elif name in self._configurable_keys:
-            return self._configured_data[name]
+            return self._configured_data.get(name)
         else:
             raise ConfigUnknownItemError(
                 f"Specified name {name!r} is not a valid configuration item."
@@ -455,7 +455,13 @@ class ConfigLoader(metaclass=Singleton):
 
         # validate change:
         dat_copy = copy.deepcopy(self._configured_data)
-        old_value = dat_copy[name]
+
+        old_value_is_unset = False
+        try:
+            old_value = dat_copy[name]
+        except KeyError:
+            old_value_is_unset = True
+
         if is_unset:
             del dat_copy[name]
         else:
@@ -468,7 +474,7 @@ class ConfigLoader(metaclass=Singleton):
         # new value may have been type-casted during validation:
         new_value = validated_data[name]
 
-        if old_value == new_value:
+        if not old_value_is_unset and old_value == new_value:
             warnings.warn(f"Config key {name!r} is already set to value {new_value!r}.")
             return
 
@@ -480,7 +486,10 @@ class ConfigLoader(metaclass=Singleton):
 
         except Exception as err:
             # reinstate old value:
-            self._update_configured_data(name, value=old_value)
+            if old_value_is_unset:
+                self._update_configured_data(name, is_unset=True)
+            else:
+                self._update_configured_data(name, value=old_value)
             raise ConfigChangeFileUpdateError(name, err=err)
 
         if is_unset:
@@ -564,7 +573,9 @@ class ConfigLoader(metaclass=Singleton):
         lines = []
         blocks = {"meta-data": self._meta_data}
         if not just_meta:
-            blocks.update({"configuration": self._configured_data})
+            blocks.update(
+                {"configuration": {**self._configured_data, **self._with_config}}
+            )
         for title, dat in blocks.items():
             lines.append(f"{title}:")
             for key, val in dat.items():
