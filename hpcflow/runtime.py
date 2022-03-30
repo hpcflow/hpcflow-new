@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 import sys
 from pathlib import Path
 import warnings
@@ -53,6 +54,7 @@ class RunTimeInfo(PrettyPrinter):
             self.script_path = path_argv
             self.python_executable_path = path_exec
 
+        self.python_version = platform.python_version()
         self.is_venv = hasattr(sys, "real_prefix") or sys.base_prefix != sys.prefix
         self.is_conda_venv = "CONDA_PREFIX" in os.environ
 
@@ -87,11 +89,17 @@ class RunTimeInfo(PrettyPrinter):
             warnings.warn(msg)
 
         for k, v in self._get_members().items():
-            if k in ("is_frozen", "is_venv", "is_conda_venv", "executable_name"):
+            if k in (
+                "is_frozen",
+                "is_venv",
+                "is_conda_venv",
+                "executable_name",
+                "python_version",
+            ):
                 sentry_sdk.set_tag(f"rti.{k}", v)
 
     def _get_members(self):
-        out = {"is_frozen": self.is_frozen}
+        out = {"is_frozen": self.is_frozen, "python_version": self.python_version}
         if self.is_frozen:
             out.update(
                 {
