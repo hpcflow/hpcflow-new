@@ -1,5 +1,4 @@
+from PyInstaller.utils.hooks import collect_data_files
+
 hiddenimports = ["hpcflow.data"]
-datas = [
-    ("../hpcflow/data/config_file_schema.yaml", "hpcflow/data"),
-    ("../hpcflow/data/config_schema.yaml", "hpcflow/data"),
-]
+datas = collect_data_files("hpcflow")
