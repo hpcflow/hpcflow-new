@@ -100,8 +100,8 @@ class ConfigLoader(metaclass=Singleton):
                     "machine": socket.gethostname(),
                     "telemetry": True,
                     "log_file_path": "logs/app.log",
-                    "environment_sources": [],
-                    "task_schema_sources": [],
+                    "environment_files": [],
+                    "task_schema_files": [],
                 },
             }
         }
