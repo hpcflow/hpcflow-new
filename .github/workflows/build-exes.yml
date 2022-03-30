@@ -5,6 +5,10 @@ env:
 
 on:
   workflow_dispatch:
+    logLevel:
+      description: "PyInstaller log level"
+      required: true
+      default: "INFO"
 
 jobs:
   build-executables:
@@ -68,12 +72,12 @@ jobs:
       - name: Build with pyinstaller (non Windows)
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
+        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }}
 
       - name: Build with pyinstaller (Windows)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}"
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }}
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
@@ -153,7 +157,7 @@ jobs:
 
       - name: Build with pyinstaller for CentOS
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-linux
+        run: ./make.sh hpcflow-${{ env.vers }}-linux ${{ github.event.inputs.logLevel }}
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
