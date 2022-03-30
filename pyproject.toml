@@ -47,6 +47,9 @@ pyinstaller = ["pyinstaller"]
 [tool.poetry.scripts]
 hpcflow = 'hpcflow.cli.cli:cli'
 
+[tool.poetry.plugins.pyinstaller40]
+hook-dirs = "pyinstaller.__init__:get_hook_dirs"
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.2.0a3"
