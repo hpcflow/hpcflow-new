@@ -183,33 +183,40 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-dev --extras "pyinstaller"
 
-      - name: Build with pyinstaller for ${{ matrix.executable_os }}
-        run: poetry run pyinstaller --clean -y --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} --onefile hpcflow/cli/cli.py
+      - name: Build with pyinstaller (non Windows)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} INFO
+
+      - name: Build with pyinstaller (Windows)
+        if: contains(matrix.os, 'windows')
+        working-directory: pyinstaller
+        run: ./make.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
-          path: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
+          path: pyinstaller/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
 
       - name: Upload build directory
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-build
-          path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}
+          path: pyinstaller/build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}
 
-      - name: Basic executable test (windows)
+      - name: Version check (windows)
         if: contains(matrix.os, 'windows')
         run: |
           $tag = "${{ needs.bump-version.outputs.new_tag_name }}"
           $tagNoV = $tag.trim('v')
-          $hpcflow_vers = dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
+          $hpcflow_vers = pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
           $hpcflow_vers_expected = "hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
@@ -217,16 +224,20 @@ jobs:
             exit 1
           }
 
-      - name: Basic executable test (non-windows)
+      - name: Version check (non-windows)
         if: "!contains(matrix.os, 'windows')"
         run: |
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
-          hpcflow_vers=$(dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
+          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
           hpcflow_vers_expected="hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
+
+      - name: Basic CLI checks
+        run: |
+          pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} config get --all
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -251,35 +262,40 @@ jobs:
         run: poetry install --no-dev --extras "pyinstaller"
 
       - name: Build with pyinstaller for CentOS
-        run: poetry run pyinstaller --clean -y --name=hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --onefile hpcflow/cli/cli.py
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux INFO
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
-          path: dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+          path: pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Upload spec file
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
-          path: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
+          path: pyinstaller/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
 
       - name: Upload build directory
         uses: actions/upload-artifact@v2
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-build
-          path: build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+          path: pyinstaller/build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
-      - name: Basic executable test
+      - name: Version check
         run: |
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
-          hpcflow_vers=$(dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version)
+          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version)
           hpcflow_vers_expected="hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
+
+      - name: Basic CLI checks
+        run: |
+          pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux config get --all
 
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-linux]
