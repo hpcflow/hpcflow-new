@@ -22,6 +22,8 @@ rules:
         - environment_files
 
   - path: [telemetry]
+    cast:
+      str: bool
     condition:
       value.type.equal_to: bool
 
@@ -43,19 +45,24 @@ rules:
 
   - path: [log_file_path]
     condition:
-      value.type.equal_to: str
+      value.is_instance: [str, path]
+
   - path: [log_file_level]
     condition:
       value.allowed_keys: [notset, debug, info, warning, error, critical]
+
   - path: [log_console_level]
     condition:
       value.allowed_keys: [notset, debug, info, warning, error, critical]
+
   - path: [task_schema_files]
     condition:
       value.type.equal_to: list
+
   - path: [task_schema_files, { type: list_value }]
     condition:
-      value.type.equal_to: str
+      value.is_instance: [str, path]
+
   - path: [environment_files, { type: list_value }]
     condition:
-      value.type.equal_to: str
+      value.is_instance: [str, path]
