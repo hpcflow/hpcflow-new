@@ -1,4 +1,27 @@
 
+<a name="v0.2.0a4"></a>
+## [v0.2.0a4](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a3...v0.2.0a4) - 2022.03.30
+
+### 🐛 Bug Fixes
+
+* actions workflow
+* more config fixes
+* update config valida schema
+* default config
+* add pyinstaller hidden imports
+* test config CLI
+
+### 👷 Build changes
+
+* workflows
+* add pyinstaller log level actions input
+* use pyinstaller collect_data_files
+* chmod+x pyinstaller make
+* use pyinstaller hook
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a3"></a>
 ## [v0.2.0a3](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a2...v0.2.0a3) - 2022.03.29
 
