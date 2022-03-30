@@ -86,7 +86,7 @@ jobs:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
           path: build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
-      - name: Basic executable test (windows)
+      - name: Version check (windows)
         if: contains(matrix.os, 'windows')
         run: |
           $tag = "${{ env.cur_tag }}"
@@ -99,7 +99,7 @@ jobs:
             exit 1
           }
 
-      - name: Basic executable test (non-windows)
+      - name: Version check (non-windows)
         if: "!contains(matrix.os, 'windows')"
         run: |
           tag=${{ env.cur_tag }}
@@ -109,6 +109,10 @@ jobs:
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
+
+      - name: Basic CLI checks
+        run: |
+          dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} config get --all
 
   build-executables-linux:
     runs-on: ubuntu-latest
