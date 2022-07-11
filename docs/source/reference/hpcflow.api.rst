@@ -19,3 +19,7 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. autofunction:: hpcflow.api.make_workflow
+
+.. autoclass:: hpcflow.api.Task
