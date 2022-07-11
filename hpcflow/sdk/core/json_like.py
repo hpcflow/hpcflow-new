@@ -88,6 +88,12 @@ class ChildObjectSpec:
     is_enum: Optional[
         bool
     ] = False  # if true, we don't invoke to/from_json_like on the data/Enum
+    is_dict_values: Optional[
+        bool
+    ] = False  # if True, the child object is a dict, whose values are of the specified class. The dict structure will remain.
+    is_dict_values_ensure_list: Optional[
+        bool
+    ] = False  # if True, values that are not lists are cast to lists and multiple child objects are instantiated for each dict value
 
     shared_data_name: Optional[str] = None
     shared_data_primary_key: Optional[str] = None
@@ -117,6 +123,15 @@ class ChildObjectSpec:
         if not self.is_multiple and self.dict_key_attr:
             raise ValueError(
                 f"If `dict_key_attr` is specified, `is_multiple` must be set to True."
+            )
+        if not self.is_multiple and self.is_dict_values:
+            raise ValueError(
+                f"If `is_dict_values` is specified, `is_multiple` must be set to True."
+            )
+        if self.is_dict_values_ensure_list and not self.is_dict_values:
+            raise ValueError(
+                "If `is_dict_values_ensure_list` is specified, `is_dict_values` must be "
+                "set to True."
             )
         if self.parent_ref:
             if not isinstance(self.parent_ref, str):
@@ -191,29 +206,53 @@ class BaseJSONLike:
                 return json_like_i
 
             multi_chd_objs = []
+
+            # (if is_dict_values) indices into multi_chd_objs that enable reconstruction
+            # of the source dict:
+            is_dict_values_idx = {}
+
             if child_obj_spec.is_multiple:
                 if type(json_like_i) == dict:
-                    if not child_obj_spec.dict_key_attr:
-                        raise ValueError(
-                            f"{cls.__name__!r}: must specify a `dict_key_attr` for child "
-                            f"object spec {child_obj_spec.name!r}."
-                        )
+                    if child_obj_spec.is_dict_values:
+                        # keep as a dict
+                        for k, v in json_like_i.items():
 
-                    for k, v in json_like_i.items():
-                        all_attrs = {child_obj_spec.dict_key_attr: k}
-                        if child_obj_spec.dict_val_attr:
-                            all_attrs[child_obj_spec.dict_val_attr] = v
-                        else:
-                            if not isinstance(v, dict):
-                                raise TypeError(
-                                    f"Value for key {k!r} must be a dict representing "
-                                    f"attributes of the {child_obj_spec.name!r} child "
-                                    f"object (parent: {cls.__name__!r}). If it instead "
-                                    f"represents a single attribute, set the "
-                                    f"`dict_val_attr` of the child object spec."
-                                )
-                            all_attrs.update(v)
-                        multi_chd_objs.append(all_attrs)
+                            if child_obj_spec.is_dict_values_ensure_list:
+                                if not isinstance(v, list):
+                                    v = [v]
+                            else:
+                                v = [v]
+
+                            for i in v:
+                                new_multi_idx = len(multi_chd_objs)
+                                if k not in is_dict_values_idx:
+                                    is_dict_values_idx[k] = []
+                                is_dict_values_idx[k].append(new_multi_idx)
+                                multi_chd_objs.append(i)
+
+                    else:
+                        # want to cast to a list
+                        if not child_obj_spec.dict_key_attr:
+                            raise ValueError(
+                                f"{cls.__name__!r}: must specify a `dict_key_attr` for child "
+                                f"object spec {child_obj_spec.name!r}."
+                            )
+
+                        for k, v in json_like_i.items():
+                            all_attrs = {child_obj_spec.dict_key_attr: k}
+                            if child_obj_spec.dict_val_attr:
+                                all_attrs[child_obj_spec.dict_val_attr] = v
+                            else:
+                                if not isinstance(v, dict):
+                                    raise TypeError(
+                                        f"Value for key {k!r} must be a dict representing "
+                                        f"attributes of the {child_obj_spec.name!r} child "
+                                        f"object (parent: {cls.__name__!r}). If it instead "
+                                        f"represents a single attribute, set the "
+                                        f"`dict_val_attr` of the child object spec."
+                                    )
+                                all_attrs.update(v)
+                            multi_chd_objs.append(all_attrs)
 
                 elif type(json_like_i) == list:
                     multi_chd_objs = json_like_i
@@ -262,7 +301,15 @@ class BaseJSONLike:
                             i = chd_cls.from_json_like(i, shared_data)
                         out.append(i)
 
-            if not child_obj_spec.is_multiple:
+            if child_obj_spec.is_dict_values:
+                out_dict = {}
+                for k, v in is_dict_values_idx.items():
+                    out_dict[k] = [out[i] for i in v]
+                    if not child_obj_spec.is_dict_values_ensure_list:
+                        out_dict[k] = out_dict[k][0]
+                out = out_dict
+
+            elif not child_obj_spec.is_multiple:
                 out = out[0]
 
             return out

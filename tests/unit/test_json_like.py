@@ -923,6 +923,186 @@ def test_from_json_like_optional_attr_with_enum():
     assert objA == ObjA(a=9, b=None)
 
 
+def test_from_json_like_with_is_multiple():
+    BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
+
+    @dataclass
+    class ObjB(BaseJSONLikeSubClass):
+        name: str
+        c: int
+
+    @dataclass
+    class ObjA(BaseJSONLikeSubClass):
+
+        _child_objects = (ChildObjectSpec(name="b", class_obj=ObjB, is_multiple=True),)
+        a: int
+        b: Any
+
+    # e.g. from data files:
+    js_in = {
+        "a": 9,
+        "b": [{"name": "c1", "c": 2}, {"name": "c2", "c": 3}],  # multiple
+    }
+
+    objA = ObjA.from_json_like(js_in)
+    assert objA == ObjA(a=9, b=[ObjB(name="c1", c=2), ObjB(name="c2", c=3)])
+
+
+def test_from_json_like_with_is_multiple_dict_values():
+    BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
+
+    @dataclass
+    class ObjB(BaseJSONLikeSubClass):
+        name: str
+        c: int
+
+    @dataclass
+    class ObjA(BaseJSONLikeSubClass):
+
+        _child_objects = (
+            ChildObjectSpec(
+                name="b",
+                class_obj=ObjB,
+                is_multiple=True,
+                is_dict_values=True,
+            ),
+        )
+        a: int
+        b: Any
+
+    # e.g. from data files:
+    js_in = {
+        "a": 9,
+        "b": {
+            "key1": {"name": "c1", "c": 2},
+            "key2": {"name": "c2", "c": 3},
+        },  # multiple dict values, arbitrary keys, dict structure will be maintained
+    }
+
+    objA = ObjA.from_json_like(js_in)
+    assert objA == ObjA(
+        a=9,
+        b={"key1": ObjB(name="c1", c=2), "key2": ObjB(name="c2", c=3)},
+    )
+
+
+def test_from_json_like_with_is_multiple_dict_values_ensure_list():
+    BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
+
+    @dataclass
+    class ObjB(BaseJSONLikeSubClass):
+        name: str
+        c: int
+
+    @dataclass
+    class ObjA(BaseJSONLikeSubClass):
+
+        _child_objects = (
+            ChildObjectSpec(
+                name="b",
+                class_obj=ObjB,
+                is_multiple=True,
+                is_dict_values=True,
+                is_dict_values_ensure_list=True,
+            ),
+        )
+        a: int
+        b: Any
+
+    # e.g. from data files:
+    js_in = {
+        "a": 9,
+        "b": {
+            "key1": {"name": "c1", "c": 2},
+            "key2": [{"name": "c2", "c": 3}, {"name": "c3", "c": 4}],
+        },
+        # multiple dict values (and multiple items for each), arbitrary keys, dict
+        # structure will be maintained
+    }
+
+    objA = ObjA.from_json_like(js_in)
+    assert objA == ObjA(
+        a=9,
+        b={
+            "key1": [ObjB(name="c1", c=2)],
+            "key2": [ObjB(name="c2", c=3), ObjB(name="c3", c=4)],
+        },
+    )
+
+
+def test_from_json_like_round_trip_with_is_multiple_dict_values():
+    BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
+
+    @dataclass
+    class ObjB(BaseJSONLikeSubClass):
+        name: str
+        c: int
+
+    @dataclass
+    class ObjA(BaseJSONLikeSubClass):
+
+        _child_objects = (
+            ChildObjectSpec(
+                name="b",
+                class_obj=ObjB,
+                is_multiple=True,
+                is_dict_values=True,
+            ),
+        )
+        a: int
+        b: Any
+
+    # e.g. from data files:
+    js_in = {
+        "a": 9,
+        "b": {
+            "key1": {"name": "c1", "c": 2},
+            "key2": {"name": "c2", "c": 3},
+        },  # multiple dict values, arbitrary keys, dict structure will be maintained
+    }
+
+    objA = ObjA.from_json_like(js_in)
+    assert objA.to_json_like()[0] == js_in
+
+
+def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list():
+    BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
+
+    @dataclass
+    class ObjB(BaseJSONLikeSubClass):
+        name: str
+        c: int
+
+    @dataclass
+    class ObjA(BaseJSONLikeSubClass):
+
+        _child_objects = (
+            ChildObjectSpec(
+                name="b",
+                class_obj=ObjB,
+                is_multiple=True,
+                is_dict_values=True,
+                is_dict_values_ensure_list=True,
+            ),
+        )
+        a: int
+        b: Any
+
+    # e.g. from data files:
+    js_in = {
+        "a": 9,
+        "b": {
+            "key1": [{"name": "c1", "c": 2}],
+            "key2": [{"name": "c2", "c": 3}, {"name": "c3", "c": 4}],
+        },
+        # multiple dict values (and multiple items for each), arbitrary keys, dict
+        # structure will be maintained
+    }
+
+    objA = ObjA.from_json_like(js_in)
+    assert objA.to_json_like()[0] == js_in
+
+
 def test_from_json_like_with_is_multiple_and_shared_data():
 
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
