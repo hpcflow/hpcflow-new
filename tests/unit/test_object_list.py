@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from hpcflow.object_list import DotAccessObjectList
+from hpcflow.sdk.core.object_list import ObjectList, DotAccessObjectList
 
 
 @dataclass
@@ -15,9 +15,7 @@ class MyObj:
 def simple_object_list():
 
     my_objs = [MyObj(name="A", data=1), MyObj(name="B", data=2)]
-    obj_list = DotAccessObjectList(
-        *my_objs, access_attribute="name", descriptor="my_object"
-    )
+    obj_list = DotAccessObjectList(my_objs, access_attribute="name")
     out = {"objects": my_objs, "object_list": obj_list}
     return out
 
@@ -57,3 +55,27 @@ def test_add_obj_to_middle(simple_object_list):
     new_obj = MyObj("C", 3)
     obj_list.add_object(new_obj, 1)
     assert obj_list[1] == new_obj
+
+
+def test_get_obj_attr_custom_callable():
+    def my_get_obj_attr(self, obj, attr):
+        if attr == "a":
+            return getattr(obj, attr)
+        else:
+            return getattr(obj, "b")[attr]
+
+    MyObjectList = type("MyObjectList", (ObjectList,), {})
+    MyObjectList._get_obj_attr = my_get_obj_attr
+
+    o1 = MyObjectList(
+        [
+            {"a": 1, "b": {"c1": 2}},
+            {"a": 2, "b": {"c1": 3}},
+        ]
+    )
+    assert o1.get(c1=2) == o1[0]
+
+
+def test_get_with_missing_key():
+    o1 = ObjectList([{"a": 1}, {"b": 2}])
+    assert o1.get(a=1) == {"a": 1}

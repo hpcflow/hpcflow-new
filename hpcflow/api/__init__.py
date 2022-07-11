@@ -1,20 +1,40 @@
-import logging
+from hpcflow import __version__
+from hpcflow.sdk import ConfigOptions
+from hpcflow.sdk.app import BaseApp
+from hpcflow.sdk.core.parameters import InputValue
 
-from hpcflow import RUN_TIME_INFO
-from hpcflow.utils import sentry_wrap
+config_options = ConfigOptions(
+    directory_env_var="HPCFLOW_CONFIG_DIR",
+    default_directory="~/.hpcflow",
+    sentry_DSN="https://2463b288fd1a40f4bada9f5ff53f6811@o1180430.ingest.sentry.io/6293231",
+    sentry_traces_sample_rate=1.0,
+    sentry_env="main" if "a" in __version__ else "develop",
+)
 
-__all__ = ("make_workflow",)
+hpcflow = BaseApp(
+    name="hpcflow",
+    version=__version__,
+    description="Computational workflow management",
+    config_options=config_options,
+)
 
-logger = logging.getLogger(__name__)
+load_config = hpcflow.load_config
+reload_config = hpcflow.reload_config
+make_workflow = hpcflow.make_workflow
 
-
-def make_workflow(dir: str):
-    """Make a new workflow, innit.
-
-    Parameters
-    ----------
-    dir
-        Directory to make new workflow in.
-    """
-    with sentry_wrap("make_workflow") as span:
-        logger.info(f"make_workflow; is_venv: {RUN_TIME_INFO.is_venv}")
+# expose core classes that require access to the App instance:
+TaskSchema = hpcflow.TaskSchema
+Task = hpcflow.Task
+WorkflowTask = hpcflow.WorkflowTask
+Workflow = hpcflow.Workflow
+WorkflowTemplate = hpcflow.WorkflowTemplate
+Action = hpcflow.Action
+ActionScope = hpcflow.ActionScope
+ActionScopeType = hpcflow.ActionScopeType
+Environment = hpcflow.Environment
+InputFile = hpcflow.InputFile
+InputSource = hpcflow.InputSource
+Command = hpcflow.Command
+ActionEnvironment = hpcflow.ActionEnvironment
+Parameter = hpcflow.Parameter
+ValueSequence = hpcflow.ValueSequence

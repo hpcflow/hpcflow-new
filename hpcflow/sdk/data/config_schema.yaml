@@ -1,0 +1,110 @@
+rules:
+  - path: []
+    condition:
+      value.allowed_keys:
+        - telemetry
+        - machine
+        - user_name
+        - user_orcid
+        - user_affiliation
+        - log_file_path
+        - log_file_level
+        - log_console_level
+        - task_schema_files
+        - parameter_files
+        - file_files
+        - environment_files
+
+  - path: []
+    condition:
+      value.required_keys:
+        - telemetry
+        - machine
+        - task_schema_files
+        - parameter_files
+        - file_files
+        - environment_files
+
+  - path: []
+    condition:
+      value.forbidden_keys:
+        - config_directory # Config metadata
+        - config_file_name # Config metadata
+        - config_file_path # Config metadata
+        - config_file_contents # Config metadata
+        - config_invocation_key # Config metadata
+        - config_schemas # Config metadata
+        - invoking_user_id # Config metadata
+        - host_user_id # Config metadata
+        - host_user_id_file_path # Config metadata
+        - config_callback # Config method
+        - get_all # Config method
+        - get # Config method
+        - set # Config method
+        - unset # Config method
+        - save # Config method
+        - reload # Config method
+
+  - path: [telemetry]
+    condition:
+      value.type.equal_to: bool
+
+  - path: [machine]
+    condition:
+      value.type.equal_to: str
+
+  - path: [user_name]
+    condition:
+      value.type.equal_to: str
+
+  - path: [user_orcid]
+    condition:
+      value.type.equal_to: str
+
+  - path: [user_affiliation]
+    condition:
+      value.type.equal_to: str
+
+  - path: [log_file_path]
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [log_file_level]
+    condition:
+      value.in: [notset, debug, info, warning, error, critical]
+
+  - path: [log_console_level]
+    condition:
+      value.in: [notset, debug, info, warning, error, critical]
+
+  - path: [task_schema_files]
+    condition:
+      value.type.equal_to: list
+
+  - path: [environment_files]
+    condition:
+      value.type.equal_to: list
+
+  - path: [parameter_files]
+    condition:
+      value.type.equal_to: list
+
+  - path: [file_files]
+    condition:
+      value.type.equal_to: list
+
+  - path: [task_schema_files, { type: list_value }]
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [environment_files, { type: list_value }]
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [parameter_files, { type: list_value }]
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [file_files, { type: list_value }]
+    condition:
+      value.is_instance: [str, path]
