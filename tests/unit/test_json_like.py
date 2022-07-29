@@ -648,7 +648,7 @@ def test_from_json_like_raises_with_parent_ref_bad_attribute():
         ObjA.from_json_like(js_1)
 
 
-def test_to_json_like_with_parent_ref():
+def test_json_like_round_trip_with_parent_ref():
     @dataclass
     class ObjB(BaseJSONLike):
 
@@ -692,9 +692,7 @@ def test_to_json_like_with_parent_ref():
         },
     }
 
-    objA = ObjA(a=1, b=ObjB(name=js_1["b"]["name"], c=js_1["b"]["c"]))
-    objA.b.obj_A = objA
-
+    objA = ObjA.from_json_like(js_1)
     assert objA.to_json_like()[0] == js_1
 
 
