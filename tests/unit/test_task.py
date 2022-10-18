@@ -6,7 +6,6 @@ from hpcflow.api import (
     SchemaOutput,
     TaskSchema,
     TaskSourceType,
-    hpcflow,
     Task,
     InputValue,
     InputSource,
