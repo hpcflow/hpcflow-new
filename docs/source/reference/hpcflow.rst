@@ -8,6 +8,7 @@ Subpackages
    :maxdepth: 4
 
    hpcflow.api
+   hpcflow.app
    hpcflow.cli
    hpcflow.data
 
@@ -122,14 +123,6 @@ hpcflow.parameters module
 -------------------------
 
 .. automodule:: hpcflow.parameters
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-hpcflow.runtime module
-----------------------
-
-.. automodule:: hpcflow.runtime
    :members:
    :undoc-members:
    :show-inheritance:

@@ -5,3 +5,4 @@ hpcflow-new
    :maxdepth: 4
 
    hpcflow
+   pyinstaller
