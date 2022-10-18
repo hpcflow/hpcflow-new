@@ -1,5 +1,7 @@
+import pytest
 from hpcflow.api import (
     InputSourceType,
+    Parameter,
     SchemaInput,
     SchemaOutput,
     TaskSchema,
@@ -12,30 +14,46 @@ from hpcflow.api import (
 )
 
 
-def test_task_expected_input_source_mode_no_sources():
-    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1")])
+@pytest.fixture
+def param_p1():
+    return Parameter("p1")
+
+
+@pytest.fixture
+def param_p2():
+    return Parameter("p2")
+
+
+@pytest.fixture
+def param_p3():
+    return Parameter("p3")
+
+
+def test_task_expected_input_source_mode_no_sources(param_p1):
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput(param_p1)])
     t1 = Task(
         schemas=s1,
-        inputs=[InputValue("p1", value=101)],
+        inputs=[InputValue(param_p1, value=101)],
     )
     assert t1.input_source_mode == InputSourceMode.AUTO
 
 
-def test_task_expected_input_source_mode_with_sources():
-    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1")])
+def test_task_expected_input_source_mode_with_sources(param_p1):
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput(param_p1)])
     t1 = Task(
         schemas=s1,
-        inputs=[InputValue("p1", value=101)],
+        inputs=[InputValue(param_p1, value=101)],
         input_sources=[InputSource.local()],
     )
     assert t1.input_source_mode == InputSourceMode.MANUAL
 
 
-def test_task_get_available_task_input_sources_expected_return_first_task_local_value():
+def test_task_get_available_task_input_sources_expected_return_first_task_local_value(
+    param_p1,
+):
 
-    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1")])
-
-    t1 = Task(schemas=s1, inputs=[InputValue("p1", value=101)])
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput(param_p1)])
+    t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
 
     available = t1.get_available_task_input_sources()
     available_exp = {"p1": [InputSource(source_type=InputSourceType.LOCAL)]}
@@ -43,9 +61,11 @@ def test_task_get_available_task_input_sources_expected_return_first_task_local_
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_first_task_default_value():
+def test_task_get_available_task_input_sources_expected_return_first_task_default_value(
+    param_p1,
+):
 
-    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1", default_value=101)])
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput(param_p1, default_value=101)])
 
     t1 = Task(schemas=s1)
 
@@ -55,17 +75,19 @@ def test_task_get_available_task_input_sources_expected_return_first_task_defaul
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_one_output():
+def test_task_get_available_task_input_sources_expected_return_one_param_one_output(
+    param_p1, param_p2
+):
 
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2)],
     )
-    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput("p2")])
+    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1)
+    t1 = Task(schemas=s1, insert_ID=0)
     t2 = Task(schemas=s2)
 
     available = t2.get_available_task_input_sources([t1])
@@ -81,17 +103,19 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default():
+def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default(
+    param_p1, param_p2
+):
 
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2)],
     )
-    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput("p2", default_value=2002)])
+    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1)
+    t1 = Task(schemas=s1, insert_ID=0)
     t2 = Task(schemas=s2)
 
     available = t2.get_available_task_input_sources([t1])
@@ -108,18 +132,20 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_local():
+def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_local(
+    param_p1, param_p2
+):
 
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2)],
     )
-    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput("p2")])
+    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2, inputs=[InputValue("p2", value=202)])
+    t1 = Task(schemas=s1, insert_ID=0)
+    t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -135,18 +161,20 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default_and_local():
+def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default_and_local(
+    param_p1, param_p2
+):
 
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2)],
     )
-    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput("p2", default_value=2002)])
+    s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2, inputs=[InputValue("p2", value=202)])
+    t1 = Task(schemas=s1, insert_ID=0)
+    t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -163,23 +191,25 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_two_outputs():
+def test_task_get_available_task_input_sources_expected_return_one_param_two_outputs(
+    param_p1, param_p2, param_p3
+):
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2"), SchemaOutput("p3")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2), SchemaOutput(param_p3)],
     )
     s2 = TaskSchema(
         "ts2",
         actions=[],
-        inputs=[SchemaInput("p2")],
-        outputs=[SchemaOutput("p3"), SchemaOutput("p4")],
+        inputs=[SchemaInput(param_p2)],
+        outputs=[SchemaOutput(param_p3), SchemaOutput("p4")],
     )
-    s3 = TaskSchema("ts3", actions=[], inputs=[SchemaInput("p3")])
+    s3 = TaskSchema("ts3", actions=[], inputs=[SchemaInput(param_p3)])
 
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2)
+    t1 = Task(schemas=s1, insert_ID=0)
+    t2 = Task(schemas=s2, insert_ID=1)
     t3 = Task(schemas=s3)
 
     available = t3.get_available_task_input_sources([t1, t2])
@@ -200,21 +230,25 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_two_params_one_output():
+def test_task_get_available_task_input_sources_expected_return_two_params_one_output(
+    param_p1,
+    param_p2,
+    param_p3,
+):
 
     s1 = TaskSchema(
         "ts1",
         actions=[],
-        inputs=[SchemaInput("p1")],
-        outputs=[SchemaOutput("p2"), SchemaOutput("p3")],
+        inputs=[SchemaInput(param_p1)],
+        outputs=[SchemaOutput(param_p2), SchemaOutput(param_p3)],
     )
     s2 = TaskSchema(
         "ts2",
         actions=[],
-        inputs=[SchemaInput("p2"), SchemaInput("p3")],
+        inputs=[SchemaInput(param_p2), SchemaInput(param_p3)],
     )
 
-    t1 = Task(schemas=s1)
+    t1 = Task(schemas=s1, insert_ID=0)
     t2 = Task(schemas=s2)
 
     available = t2.get_available_task_input_sources([t1])
