@@ -61,7 +61,7 @@ from .log import AppLog
 from .runtime import RunTimeInfo
 
 SDK_logger = SDK_logger.getChild(__name__)
-print(f"SDK_logger.level: {SDK_logger.level}")
+# print(f"SDK_logger.level: {SDK_logger.level}")
 
 
 class BaseApp:

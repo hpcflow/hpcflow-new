@@ -14,7 +14,7 @@ class AppLog:
         self.console_handler = self._add_console_logger(
             level=log_console_level or AppLog.DEFAULT_LOG_LEVEL_CONSOLE
         )
-        print(f"log_console_level: {log_console_level}")
+        # print(f"log_console_level: {log_console_level}")
 
     def _add_console_logger(self, level, fmt=None):
         if not fmt:

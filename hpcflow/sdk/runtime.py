@@ -29,7 +29,7 @@ class RunTimeInfo(PrettyPrinter):
 
     def __init__(self, name, version, logger):
 
-        is_frozen = getattr(sys, "frozen", False)
+        is_frozen = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
         bundle_dir = (
             sys._MEIPASS if is_frozen else os.path.dirname(os.path.abspath(__file__))
         )
