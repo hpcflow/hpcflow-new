@@ -1,30 +1,4 @@
 
-<a name="v0.2.0a5"></a>
-## [v0.2.0a5](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a4...v0.2.0a5) - 2022.10.18
-
-### ✨ Features
-
-* initial pass of zarr integration
-* support ChildObjectSpec within dict values
-* JSONLike superclass
-* add python_version to run time info and Sentry tag
-
-### 🐛 Bug Fixes
-
-* more unit tests
-* failing tests
-* to_json_like round trip test with parent ref
-
-### 👷 Build changes
-
-* update poetry pre-commit
-* updated poetry lock
-* update gitignore
-* merge
-* update deps
-* update binary download links file [skip ci]
-
-
 <a name="v0.2.0a4"></a>
 ## [v0.2.0a4](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a3...v0.2.0a4) - 2022.03.30
 
