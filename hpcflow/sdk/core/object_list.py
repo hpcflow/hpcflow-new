@@ -396,6 +396,11 @@ class CommandFilesList(AppDataList):
         super().__init__(_objects, access_attribute="label", descriptor="command file")
 
 
+class WorkflowTaskList(DotAccessObjectList):
+    def __init__(self, _objects):
+        super().__init__(_objects, access_attribute="unique_name", descriptor="task")
+
+
 def index(obj_lst, obj):
     for idx, i in enumerate(obj_lst._objects):
         if obj is i:

@@ -105,8 +105,9 @@ class TaskSchema(JSONLike):
             if isinstance(i, Parameter):
                 self.outputs[idx] = SchemaOutput(i)
 
-        if not self.actions:
-            raise MissingActionsError("A task schema must define at least one Action.")
+        # TEMP: maybe don't need this check? Could be useful for testing to allow no actions?
+        # if not self.actions:
+        #     raise MissingActionsError("A task schema must define at least one Action.")
 
     @property
     def name(self):

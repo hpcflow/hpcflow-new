@@ -1,7 +1,6 @@
 from hpcflow import __version__
 from hpcflow.sdk import ConfigOptions
 from hpcflow.sdk.app import BaseApp
-from hpcflow.sdk.core.parameters import InputValue
 
 config_options = ConfigOptions(
     directory_env_var="HPCFLOW_CONFIG_DIR",
@@ -34,7 +33,15 @@ ActionScopeType = hpcflow.ActionScopeType
 Environment = hpcflow.Environment
 InputFile = hpcflow.InputFile
 InputSource = hpcflow.InputSource
+InputSourceType = hpcflow.InputSourceType
+InputSourceMode = hpcflow.InputSourceMode
 Command = hpcflow.Command
 ActionEnvironment = hpcflow.ActionEnvironment
 Parameter = hpcflow.Parameter
 ValueSequence = hpcflow.ValueSequence
+ZarrEncodable = hpcflow.ZarrEncodable
+InputValue = hpcflow.InputValue
+ResourceSpec = hpcflow.ResourceSpec
+SchemaInput = hpcflow.SchemaInput
+SchemaOutput = hpcflow.SchemaOutput
+TaskSourceType = hpcflow.TaskSourceType

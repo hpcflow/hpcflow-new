@@ -5,8 +5,14 @@ import hashlib
 import json
 from typing import Optional, Type
 
-from hpcflow.sdk.core.utils import classproperty
+from hpcflow.sdk.core.utils import (
+    classproperty,
+    get_in_container,
+    get_relative_path,
+    set_in_container,
+)
 from hpcflow.sdk.core.validation import get_schema
+from .errors import ToJSONLikeChildReferenceError
 
 
 PRIMITIVES = (
@@ -17,23 +23,25 @@ PRIMITIVES = (
 )
 
 
-def to_json_like(obj, shared_data=None, parent_refs=None, _depth=0):
+def to_json_like(obj, shared_data=None, parent_refs=None, path=None):
 
-    if _depth > 50:
-        raise RuntimeError("I'm in too deep!")
+    path = path or []
+
+    if len(path) > 50:
+        raise RuntimeError(f"I'm in too deep! Path is: {path}")
 
     if isinstance(obj, (list, tuple, set)):
         out = []
-        for item in obj:
+        for idx, item in enumerate(obj):
             if hasattr(item, "to_json_like"):
                 item, shared_data = item.to_json_like(
                     shared_data=shared_data,
                     exclude=list((parent_refs or {}).values()),
-                    _depth=_depth + 1,
+                    path=path + [idx],
                 )
             else:
                 item, shared_data = to_json_like(
-                    item, shared_data=shared_data, _depth=_depth + 1
+                    item, shared_data=shared_data, path=path + [idx]
                 )
             out.append(item)
         if isinstance(obj, tuple):
@@ -45,14 +53,20 @@ def to_json_like(obj, shared_data=None, parent_refs=None, _depth=0):
         out = {}
         for dct_key, dct_val in obj.items():
             if hasattr(dct_val, "to_json_like"):
-                dct_val, shared_data = dct_val.to_json_like(
-                    shared_data=shared_data,
-                    exclude=[(parent_refs or {}).get(dct_key)],
-                    _depth=_depth + 1,
-                )
+                try:
+                    dct_val, shared_data = dct_val.to_json_like(
+                        shared_data=shared_data,
+                        exclude=[(parent_refs or {}).get(dct_key)],
+                        path=path + [dct_key],
+                    )
+                except ToJSONLikeChildReferenceError:
+                    continue
             else:
                 dct_val, shared_data = to_json_like(
-                    dct_val, shared_data=shared_data, _depth=_depth + 1
+                    dct_val,
+                    shared_data=shared_data,
+                    parent_refs=parent_refs,
+                    path=path + [dct_key],
                 )
             out.update({dct_key: dct_val})
 
@@ -63,7 +77,7 @@ def to_json_like(obj, shared_data=None, parent_refs=None, _depth=0):
         out = obj.name
 
     else:
-        out, shared_data = obj.to_json_like(shared_data=shared_data, _depth=_depth + 1)
+        out, shared_data = obj.to_json_like(shared_data=shared_data, path=path)
 
     return out, shared_data
 
@@ -334,7 +348,8 @@ class BaseJSONLike:
                 if len(cls._child_objects) > 1:
                     raise TypeError(
                         f"If ChildObjectSpec has `is_single_attribute=True`, only one "
-                        f"ChildObjectSpec may be specified on the class."
+                        f"ChildObjectSpec may be specified on the class. Specified child "
+                        f"objects specs are: {cls._child_objects!r}."
                     )
                 json_like = {chd.name: json_like}
 
@@ -356,11 +371,21 @@ class BaseJSONLike:
             raise TypeError(
                 f"Failed initialisation of class {cls.__name__!r}. Check the signature. "
                 f"Caught TypeError: {err}"
-            ) from None
+            )
+
+        # if parent_refs:
+        #     print(
+        #         f"\nJSONLike.from_json_like: cls: {cls!r}; json_like: {json_like!r}; chd: {chd!r}"
+        #     )
 
         for k, v in parent_refs.items():
             chd_obj = getattr(obj, k)
-            if not chd.is_multiple:
+            try:
+                chd = [i for i in cls._child_objects if i.name == k][0]
+            except IndexError:
+                chd = None
+            # print(f"\nchd_obj: {chd_obj!r}")
+            if not chd or not chd.is_multiple:
                 chd_obj = [chd_obj]
             for i in chd_obj:
                 if not hasattr(i, v):
@@ -389,7 +414,7 @@ class BaseJSONLike:
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
 
-    def to_json_like(self, dct=None, shared_data=None, exclude=None, _depth=0):
+    def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
 
         if dct is None:
             dct = {k: v for k, v in self.to_dict().items() if k not in (exclude or [])}
@@ -408,12 +433,13 @@ class BaseJSONLike:
             if chd.parent_ref:
                 parent_refs.update({chd.name: chd.parent_ref})
 
+        if path and path[-1] in parent_refs.values():
+            raise ToJSONLikeChildReferenceError()
+
         json_like, shared_data = to_json_like(
-            dct, shared_data=shared_data, parent_refs=parent_refs, _depth=_depth
+            dct, shared_data=shared_data, parent_refs=parent_refs, path=path
         )
         shared_data = shared_data or {}
-
-        # print(f"{self.__class__.__name__}.json_like: {json_like}")
 
         for chd in self._child_objects or []:
 

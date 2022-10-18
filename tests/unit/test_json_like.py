@@ -1267,3 +1267,42 @@ def test_from_json_like_round_trip_enum_case_insensitivity():
     objA_1 = ObjA.from_json_like(js_in_1)
     objA_2 = ObjA.from_json_like(js_in_2)
     assert objA_1 == objA_2
+
+
+def test_to_json_like_with_child_ref():
+    """i.e. check parent references are not included in child item to_json_like output:"""
+
+    @dataclass
+    class ObjB(BaseJSONLike):
+
+        name: str
+        c: int
+        obj_A: Optional[Any] = None
+
+    @dataclass
+    class ObjA(BaseJSONLike):
+
+        _child_objects = (
+            ChildObjectSpec(
+                name="b",
+                class_obj=ObjB,
+                parent_ref="obj_A",
+            ),
+        )
+        a: int
+        b: float
+
+    objB = ObjB(name="c1", c=8)
+    objA = ObjA(a=1, b=objB)
+
+    js_1 = {
+        "a": 1,
+        "b": {
+            "name": "c1",
+            "c": 8,
+        },
+    }
+
+    objA = ObjA.from_json_like(js_1)
+
+    assert objA.b.obj_A == objA and objA.b.to_json_like()[0] == js_1["b"]

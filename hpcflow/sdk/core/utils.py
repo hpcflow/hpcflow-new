@@ -153,7 +153,16 @@ def get_in_container(cont, path):
     return cur_data
 
 
-def set_in_container(cont, path, value):
+def set_in_container(cont, path, value, ensure_path=False):
+
+    if ensure_path:
+        num_path = len(path)
+        for idx in range(1, num_path):
+            try:
+                get_in_container(cont, path[:idx])
+            except (KeyError, ValueError):
+                set_in_container(cont, path[:idx], {}, ensure_path=False)
+
     sub_data = get_in_container(cont, path[:-1])
     sub_data[path[-1]] = value
 
@@ -299,3 +308,41 @@ def read_YAML_file(path):
 def read_JSON_file(path):
     with Path(path).open("rt") as fh:
         return json.load(fh)
+
+
+def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
+    """Get the repeat index for each item in a list.
+
+    Parameters
+    ----------
+    lst : list
+        Must contain hashable items, or hashable objects that are returned via `callable`
+        called on each item.
+    distinguish_singular : bool, optional
+        If True, items that are not repeated will have a repeat index of 0, and items that
+        are repeated will have repeat indices starting from 1.
+    item_callable : callable, optional
+        If specified, comparisons are made on the output of this callable on each item.
+
+    Returns
+    -------
+    repeat_idx : list of int
+        Repeat indices of each item (see `distinguish_singular` for details).
+
+    """
+
+    idx = {}
+    for i_idx, item in enumerate(lst):
+        if item_callable:
+            item = item_callable(item)
+        if item not in idx:
+            idx[item] = []
+        idx[item] += [i_idx]
+
+    rep_idx = [None] * len(lst)
+    for k, v in idx.items():
+        start = len(v) > 1 if distinguish_singular else 0
+        for i_idx, i in enumerate(v, start):
+            rep_idx[i] = i_idx
+
+    return rep_idx

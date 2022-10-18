@@ -131,6 +131,11 @@ class ConfigFile:
 
         """
 
+        print(f"ConfigFile._resolve_config_dir: directory: {directory}")
+        print(
+            f"ConfigFile._resolve_config_dir: self.config._options.directory_env_var: {self.config._options.directory_env_var}"
+        )
+
         if not directory:
             directory = Path(
                 os.getenv(
@@ -140,6 +145,8 @@ class ConfigFile:
             ).expanduser()
         else:
             directory = Path(directory)
+
+        print(f"directory: {directory}")
 
         if not directory.is_dir():
             self.logger.debug(

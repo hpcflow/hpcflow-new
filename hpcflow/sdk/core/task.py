@@ -18,14 +18,18 @@ from .errors import (
 from .object_list import GroupList, index
 from .parameters import (
     InputSource,
+    InputSourceMode,
+    InputSourceType,
     InputValue,
     ParameterPath,
+    ResourceSpec,
     SchemaInput,
     SchemaOutput,
+    TaskSourceType,
     ValuePerturbation,
     ValueSequence,
 )
-from .utils import get_duplicate_items
+from .utils import get_duplicate_items, get_item_repeat_index
 
 
 class Task(JSONLike):
@@ -44,10 +48,14 @@ class Task(JSONLike):
         "_perturbations",
         "_sequences",
         "_input_sources",
+        "_input_source_mode",
         "_nesting_order",
         "_groups",
         "_name",
         "_defined_input_types",  # assigned in _validate()
+        "workflow_template",
+        "_insert_ID",
+        "_dir_name",
     )
 
     app = None
@@ -65,11 +73,29 @@ class Task(JSONLike):
             is_multiple=True,
             dict_key_attr="parameter",
             dict_val_attr="value",
+            parent_ref="_task",
+        ),
+        ChildObjectSpec(
+            name="resources",
+            class_name="ResourceSpec",
+            parent_ref="_task",
+        ),
+        ChildObjectSpec(
+            name="sequences",
+            class_name="ValueSequence",
+            is_multiple=True,
         ),
         ChildObjectSpec(
             name="input_sources",
             class_name="InputSource",
             is_multiple=True,
+            is_dict_values=True,
+            is_dict_values_ensure_list=True,
+        ),
+        ChildObjectSpec(
+            name="input_source_mode",
+            class_name="InputSourceMode",
+            is_enum=True,
         ),
     )
 
@@ -85,9 +111,14 @@ class Task(JSONLike):
         perturbations: Optional[List[ValuePerturbation]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         input_sources: Optional[Dict[str, InputSource]] = None,
-        nesting_order: Optional[Dict] = None,
+        input_source_mode: Optional[Union[str, InputSourceType]] = None,
+        nesting_order: Optional[List] = None,
         groups: Optional[List[ElementGroup]] = None,
+        workflow_template=None,
+        insert_ID=None,
+        dir_name=None,
     ):
+        # TODO: modify from_JSON_like(?) so "internal" attributes are not in init
 
         """
         Parameters
@@ -99,6 +130,20 @@ class Task(JSONLike):
             the app configuration.
 
         """
+
+        # TODO: allow init via specifying objective and/or method and/or implementation
+        # (lists of) strs e.g.: Task(
+        #   objective='simulate_VE_loading',
+        #   method=['CP_FFT', 'taylor'],
+        #   implementation=['damask', 'damask']
+        # )
+        # where method and impl must be single strings of lists of the same length
+        # and method/impl are optional/required only if necessary to disambiguate
+        #
+        # this would be like Task(schemas=[
+        #   'simulate_VE_loading_CP_FFT_damask',
+        #   'simulate_VE_loading_taylor_damask'
+        # ])
 
         if not isinstance(schemas, list):
             schemas = [schemas]
@@ -116,7 +161,9 @@ class Task(JSONLike):
 
         self._schemas = _schemas
         self._repeats = repeats
-        self._resources = resources or {"main": {}}  # TODO: use action names from schemas
+        self._resources = resources or self.app.ResourceSpec(
+            main={}
+        )  # TODO: use action names from schemas
         self._inputs = inputs or []
         self._input_files = input_files or []
         self._input_file_generator_sources = input_file_generator_sources or []
@@ -124,11 +171,18 @@ class Task(JSONLike):
         self._perturbations = perturbations or []
         self._sequences = sequences or []
         self._input_sources = input_sources or {}
+        self._input_source_mode = input_source_mode or (
+            InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
+        )
         self._nesting_order = nesting_order or {}
         self._groups = GroupList(groups or [])
 
         self._validate()
         self._name = self._get_name()
+        self._insert_ID = insert_ID
+        self._dir_name = dir_name
+
+        self.workflow_template = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
@@ -165,6 +219,9 @@ class Task(JSONLike):
                 f"The following input parameters are unexpected: {list(unexpected_types)!r}"
             )
 
+        for i in self.sequences:
+            self._nesting_order.update({".".join(i.path): i.nesting_order})
+
         for k, v in self.nesting_order.items():
             if v < 0:
                 raise TaskTemplateInvalidNesting(
@@ -186,6 +243,98 @@ class Task(JSONLike):
                 f"{f'_and' if need_and else ''}"
             )
         return out
+
+    @staticmethod
+    def get_task_unique_names(tasks: List[Task]):
+        """Get the unique name of each in a list of tasks.
+
+        Returns
+        -------
+        list of str
+
+        """
+
+        task_name_rep_idx = get_item_repeat_index(
+            tasks,
+            item_callable=lambda x: x.name,
+            distinguish_singular=True,
+        )
+
+        names = []
+        for idx, task in enumerate(tasks):
+            add_rep = f"_{task_name_rep_idx[idx]}" if task_name_rep_idx[idx] > 0 else ""
+            names.append(f"{task.name}{add_rep}")
+
+        return names
+
+    def _get_nesting_order(self, seq):
+        """Find the nesting order for a task sequence."""
+        return self.nesting_order[seq._get_param_path()] if len(seq.values) > 1 else -1
+
+    def make_persistent(self, workflow):
+        """Add all task input data to a persistent workflow and return a record of the
+        Zarr parameter group indices for each bit of task data."""
+
+        input_data_indices = {}
+
+        input_data_indices.update(self.resources.make_persistent(workflow))
+
+        for inp_i in self.inputs:
+            input_data_indices.update(inp_i.make_persistent(workflow))
+
+        for seq_i in self.sequences:
+            input_data_indices.update(seq_i.make_persistent(workflow))
+
+        return input_data_indices
+
+    def _prepare_persistent_outputs(self, workflow, num_elements):
+        # TODO: check that schema is present when adding task? (should this be here?)
+        output_data_indices = {}
+        for schema in self.schemas:
+            for output in schema.outputs:
+                output_data_indices[output.typ] = []
+                for i in range(num_elements):
+                    group_idx = workflow._add_parameter_group(data=None, is_set=False)
+                    output_data_indices[output.typ].append(group_idx)
+
+        return output_data_indices
+
+    def prepare_element_resolution(self):
+
+        multiplicities = [
+            {
+                "multiplicity": 1,
+                "nesting_order": -1,
+                "address": self.resources._get_param_path(),
+            }
+        ]
+
+        for inp_i in self.inputs:
+            multiplicities.append(
+                {
+                    "multiplicity": 1,
+                    "nesting_order": -1,
+                    "address": inp_i._get_param_path(),
+                }
+            )
+
+        for seq_i in self.sequences:
+            multiplicities.append(
+                {
+                    "multiplicity": len(seq_i.values),
+                    "nesting_order": self._get_nesting_order(seq_i),
+                    "address": seq_i._get_param_path(),
+                }
+            )
+
+        return multiplicities
+
+    @property
+    def index(self):
+        if self.workflow_template:
+            return self.workflow_template.tasks.index(self)
+        else:
+            return None
 
     @classmethod
     def from_spec(cls, spec, all_schemas, all_parameters):
@@ -259,6 +408,46 @@ class Task(JSONLike):
 
         return cls(**spec)
 
+    def get_available_task_input_sources(
+        self, source_tasks: Optional[List[Task]] = None
+    ) -> List[InputSource]:
+        """For each input parameter of this task, generate a list of possible input sources
+        that derive from inputs or outputs of this and other provided tasks.
+
+        Note this only produces a subset of available input sources for each input
+        parameter; other available input sources may exist from workflow imports."""
+
+        available = {}
+        for schema_input in self.all_schema_inputs:
+            available[schema_input.typ] = []
+
+            for src_task_idx, src_task_i in enumerate(source_tasks or []):
+
+                for param_i in src_task_i.provides_parameters:
+
+                    if param_i.typ == schema_input.typ:
+
+                        available[schema_input.typ].append(
+                            self.app.InputSource(
+                                source_type=self.app.InputSourceType.TASK,
+                                task_ref=src_task_i.insert_ID,
+                                task_source_type={
+                                    "SchemaInput": self.app.TaskSourceType.INPUT,
+                                    "SchemaOutput": self.app.TaskSourceType.OUTPUT,
+                                }[
+                                    param_i.__class__.__name__
+                                ],  # TODO: make nicer
+                            )
+                        )
+
+            if schema_input.typ in self.defined_input_types:
+                available[schema_input.typ].append(self.app.InputSource.local())
+
+            if schema_input.default_value is not None:
+                available[schema_input.typ].append(self.app.InputSource.default())
+
+        return available
+
     @property
     def schemas(self):
         return self._schemas
@@ -300,8 +489,21 @@ class Task(JSONLike):
         return self._input_sources
 
     @property
+    def input_source_mode(self):
+        return self._input_source_mode
+
+    @property
+    def insert_ID(self):
+        return self._insert_ID
+
+    @property
+    def dir_name(self):
+        "Artefact directory name."
+        return self._dir_name
+
+    @property
     def nesting_order(self):
-        return self._nesting_order
+        return {tuple(k.split(".")): v for k, v in self._nesting_order.items()}
 
     @property
     def groups(self):
@@ -427,30 +629,36 @@ class Task(JSONLike):
 
 
 class WorkflowTask:
-    """Class to represent a Task as positioned within a Workflow."""
+    """Class to represent a Task that is bound to a Workflow."""
 
     def __init__(
         self,
         template: Task,
+        element_indices: List,
+        index: int,
         workflow: Workflow,
-        initial_index: int,
     ):
 
         self._template = template
+        self._element_indices = element_indices
         self._workflow = workflow
-        self._initial_index = initial_index
+        self._index = index
 
     @property
     def template(self):
         return self._template
 
     @property
-    def workflow(self):
-        return self._workflow
+    def element_indices(self):
+        return self._element_indices
 
     @property
-    def element_indices(self):
-        return self.workflow.element_indices[self.index]
+    def elements(self):
+        return [self.workflow.elements[i] for i in self.element_indices]
+
+    @property
+    def workflow(self):
+        return self._workflow
 
     @property
     def num_elements(self):
@@ -460,13 +668,20 @@ class WorkflowTask:
     def index(self):
         """Zero-based position within the workflow. Uses initial index if appending to the
         workflow is not complete."""
-        try:
-            return index(self.workflow.tasks, self)
-        except ValueError:
-            return self._initial_index
+        return self._index
+
+    @property
+    def name(self):
+        return self.template.name
+
+    @property
+    def insert_ID(self):
+        return self.template.insert_ID
+
+    @property
+    def dir_name(self):
+        return self.template.dir_name
 
     @property
     def unique_name(self):
-        name_repeat_index = self.workflow.name_repeat_indices[self.index]
-        add_rep = f"{'_' + name_repeat_index if name_repeat_index > 1 else ''}"
-        return f"{self.template.name}{add_rep}"
+        return self.workflow.get_task_unique_names()[self.index]

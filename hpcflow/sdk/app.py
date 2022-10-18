@@ -39,14 +39,19 @@ from .core.object_list import (
     TaskSchemasList,
     EnvironmentsList,
 )
+from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
     InputValue,
+    ResourceSpec,
+    InputSourceMode,
     InputSource,
+    InputSourceType,
     Parameter,
     ParameterPropagationMode,
     SchemaInput,
     SchemaOutput,
     SchemaParameter,
+    TaskSourceType,
     ValueSequence,
 )
 from .core.task import Task, WorkflowTask
@@ -110,6 +115,7 @@ class BaseApp:
         self.SchemaOutput = self.inject_into(SchemaOutput)
         self.SchemaParameter = self.inject_into(SchemaParameter)
         self.InputValue = self.inject_into(InputValue)
+        self.ResourceSpec = self.inject_into(ResourceSpec)
         self.InputSource = self.inject_into(InputSource)
         self.ActionScope = self.inject_into(ActionScope)
 
@@ -126,6 +132,10 @@ class BaseApp:
         self.ParameterPropagationMode = ParameterPropagationMode
         self.ValueSequence = ValueSequence
         self.ActionScopeType = ActionScopeType
+        self.InputSourceType = InputSourceType
+        self.InputSourceMode = InputSourceMode
+        self.ZarrEncodable = ZarrEncodable
+        self.TaskSourceType = TaskSourceType
 
         # Add API functions as methods:
         SDK_logger.debug(f"Assigning API functions to the {self.__class__.__name__}.")

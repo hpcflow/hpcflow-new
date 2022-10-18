@@ -72,3 +72,11 @@ class FromSpecMissingObjectError(Exception):
 
 class TaskSchemaMissingParameterError(Exception):
     pass
+
+
+class ToJSONLikeChildReferenceError(Exception):
+    pass
+
+
+class InvalidInputSourceTaskReference(Exception):
+    pass
