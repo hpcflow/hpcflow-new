@@ -45,7 +45,7 @@ black = "^22.3.0"
 pyinstaller = ["pyinstaller"]
 
 [tool.poetry.scripts]
-hpcflow = 'hpcflow.cli.cli:cli'
+hpcflow = 'hpcflow.cli:hpcflow.CLI'
 
 [tool.poetry.plugins.pyinstaller40]
 hook-dirs = "pyinstaller.__init__:get_hook_dirs"
