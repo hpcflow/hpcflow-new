@@ -13,16 +13,18 @@ from hpcflow.api import (
 
 
 def test_task_expected_input_source_mode_no_sources():
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1")])
     t1 = Task(
-        schemas=hpcflow.task_schemas.dummy_task_1,
+        schemas=s1,
         inputs=[InputValue("p1", value=101)],
     )
     assert t1.input_source_mode == InputSourceMode.AUTO
 
 
 def test_task_expected_input_source_mode_with_sources():
+    s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput("p1")])
     t1 = Task(
-        schemas=hpcflow.task_schemas.dummy_task_1,
+        schemas=s1,
         inputs=[InputValue("p1", value=101)],
         input_sources=[InputSource.local()],
     )
