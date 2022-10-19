@@ -1,4 +1,15 @@
 
+<a name="v0.2.0a6"></a>
+## [v0.2.0a6](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a5...v0.2.0a6) - 2022.10.19
+
+### 👷 Build changes
+
+* update GHA workflows
+* add missing data files
+* update GH Actions workflows
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a5"></a>
 ## [v0.2.0a5](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a4...v0.2.0a5) - 2022.10.19
 
