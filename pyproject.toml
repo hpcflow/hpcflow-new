@@ -13,7 +13,10 @@ packages = [
 include = [
     "hpcflow/data/workflow_spec_schema.yaml",
     "hpcflow/data/task_schema_spec_schema.yaml",
-    "hpcflow/data/environments_spec_schema.yaml"
+    "hpcflow/data/environments_spec_schema.yaml",
+    "hpcflow/data/files_spec_schema.yaml",
+    "hpcflow/data/config_file_schema.yaml",
+    "hpcflow/data/config_schema.yaml"
 ]
 
 [tool.poetry.dependencies]
