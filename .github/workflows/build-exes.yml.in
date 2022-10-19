@@ -1,7 +1,7 @@
 name: build-exes
 
 env:
-  PYTHON_VERSION_BUILD_EXES: 3.9
+  PYTHON_VERSION_BUILD_EXES: "3.10"
 
 on:
   workflow_dispatch:
@@ -16,12 +16,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, macos-10.15]
+        os: [windows-2019, macos-11]
         include:
           - os: windows-2019
             executable_ext: .exe
             executable_os: win
-          - os: macos-10.15
+          - os: macos-11
             executable_ext: ""
             executable_os: macOS
 
