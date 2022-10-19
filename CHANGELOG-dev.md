@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a7"></a>
+## [v0.2.0a7](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a6...v0.2.0a7) - 2022.10.19
+
+### 🐛 Bug Fixes
+
+* GHA git perms
+
+### 👷 Build changes
+
+* try to fix mac problem when using SDK
+* merge
+* update poetry
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a6"></a>
 ## [v0.2.0a6](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a5...v0.2.0a6) - 2022.10.19
 
