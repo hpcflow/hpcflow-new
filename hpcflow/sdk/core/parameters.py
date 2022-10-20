@@ -387,19 +387,20 @@ class InputValue(AbstractInputValue):
         value: Optional[Any] = None,
         _value: Optional[Any] = None,
         _value_group_idx: Optional[int] = None,
+        _task: Optional[Any] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
 
         self.parameter = parameter
         self.path = path
-        self._value = value or _value
+        self._value = value if value is not None else _value
         self._value_group_idx = _value_group_idx
 
         self._validate()
         # TODO: don't init here, since this will need to be JSONable in the template?
 
-        self._task = None
+        self._task = _task
 
     def _get_param_path(self):
         return tuple(["inputs", self.parameter.typ] + (self.path or []))
