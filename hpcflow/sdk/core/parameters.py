@@ -299,6 +299,8 @@ class ValueSequence(JSONLike):
 class AbstractInputValue(JSONLike):
     """Class to represent all sequence-able inputs to a task."""
 
+    _workflow = None
+
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
@@ -344,7 +346,7 @@ class AbstractInputValue(JSONLike):
     @property
     def value(self):
         if self._value_group_idx is not None:
-            grp = self._workflow.get_zarr_parameter_group(self._value_group_idx)
+            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
             val = zarr_decode(grp)
             if self.parameter._value_class:
                 val = self.parameter._value_class(**val)
