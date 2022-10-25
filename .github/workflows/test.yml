@@ -18,7 +18,7 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # PAT of user who has permission to bypass branch
           # protection || or standard GITHUB_TOKEN if running on an external fork (won't
@@ -26,6 +26,8 @@ jobs:
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }}
           # checkout PR source branch (head_ref) if event is pull_request:
           ref: ${{ github.head_ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
 
       - run: |
           git config user.name hpcflow-actions
