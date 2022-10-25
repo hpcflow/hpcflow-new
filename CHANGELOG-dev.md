@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a8"></a>
+## [v0.2.0a8](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a7...v0.2.0a8) - 2022.10.25
+
+### ♻ Code Refactoring
+
+* Remove multiprocessing.freeze_support
+
+### 👷 Build changes
+
+* Fix failing test workflow on fork
+* update binary download links file [skip ci]
+* **workflow:** Fix failing test wokflow on fork
+
+
 <a name="v0.2.0a7"></a>
 ## [v0.2.0a7](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a6...v0.2.0a7) - 2022.10.19
 
