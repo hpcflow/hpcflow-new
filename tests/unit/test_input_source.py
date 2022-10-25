@@ -12,7 +12,7 @@ def test_input_source_class_method_default():
 
 def test_input_source_class_method_task():
     task_ref = 0
-    assert InputSource.task(task_ref, TaskSourceType.ANY) == InputSource(
+    assert InputSource.task(task_ref) == InputSource(
         source_type=InputSourceType.TASK, task_ref=task_ref
     )
 
