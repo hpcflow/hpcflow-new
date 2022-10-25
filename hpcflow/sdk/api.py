@@ -21,3 +21,24 @@ def make_workflow(app, dir):
     """
     pass
     app.API_logger.info("hey")
+
+
+def run_hpcflow_tests(app, *args):
+    """Run hpcflow test suite. This function is only available from derived apps.
+
+    Notes
+    -----
+    It may not be possible to run hpcflow tests after/before running tests of the derived
+    app within the same process, due to caching."""
+
+    from hpcflow.api import hpcflow
+
+    hpcflow.run_tests(*args)
+
+
+def run_tests(app, *args):
+    """Run {name} test suite."""
+
+    import pytest
+
+    pytest.main(["--pyargs", f"{app.name}"] + (app.pytest_args or []) + list(args))
