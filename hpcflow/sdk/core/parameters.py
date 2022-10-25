@@ -518,7 +518,7 @@ class InputSource(JSONLike):
             if self.task_ref is None:
                 raise ValueError(f"Must specify `task_ref` if `source_type` is TASK.")
             if self.task_source_type is None:
-                self.task_source_type = TaskSourceType.ANY
+                self.task_source_type = TaskSourceType.OUTPUT
 
         if self.source_type is InputSourceType.IMPORT and self.import_ref is None:
             raise ValueError(f"Must specify `import_ref` if `source_type` is IMPORT.")
@@ -584,7 +584,11 @@ class InputSource(JSONLike):
         return task_source_type
 
     @classmethod
-    def _parse_string_definition(cls, str_defn):
+    def from_string(cls, str_defn):
+        return cls(**cls._parse_from_string(str_defn))
+
+    @classmethod
+    def _parse_from_string(cls, str_defn):
         """Parse a dot-delimited string definition of an InputSource.
 
         Examples:
@@ -612,9 +616,21 @@ class InputSource(JSONLike):
 
         if source_type is InputSourceType.TASK:
             task_ref = parts[1]
-            task_source_type = cls._validate_task_source_type(parts[2])
+            try:
+                task_ref = int(task_ref)
+            except ValueError:
+                pass
+            try:
+                task_source_type_str = parts[2]
+            except IndexError:
+                task_source_type_str = TaskSourceType.OUTPUT
+            task_source_type = cls._validate_task_source_type(task_source_type_str)
         elif source_type is InputSourceType.IMPORT:
             import_ref = parts[1]
+            try:
+                import_ref = int(import_ref)
+            except ValueError:
+                pass
 
         return {
             "source_type": source_type,
@@ -626,12 +642,12 @@ class InputSource(JSONLike):
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
         if isinstance(json_like, str):
-            json_like = cls._parse_string_definition(json_like)
+            json_like = cls._parse_from_string(json_like)
         return super().from_json_like(json_like, shared_data)
 
     @classmethod
-    def import_(cls, imports_ref):
-        return cls(source_type=InputSourceType.IMPORTS, imports_ref=imports_ref)
+    def import_(cls, import_ref):
+        return cls(source_type=InputSourceType.IMPORT, import_ref=import_ref)
 
     @classmethod
     def local(cls):
@@ -646,76 +662,10 @@ class InputSource(JSONLike):
         if not task_source_type:
             task_source_type = TaskSourceType.OUTPUT
         return cls(
-            source_type=InputSourceType.TASKS,
+            source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
         )
-
-    def validate(
-        self,
-        schema_input: SchemaInput,
-        task_template: Task,
-        workflow_like: Workflow,
-    ):
-        """Check a supplied source is valid for a given workflow (template)."""
-
-        print("validating input source.")
-
-        if self.source_type == "tasks":
-
-            # check referenced task exists:
-            try:
-                ref_task = getattr(workflow_like.tasks, self.task_ref)
-            except AttributeError:
-                raise InputSourceValidationError(
-                    f"InputSource {self.source!r} cannot be resolved within the workflow."
-                )
-
-            # check the parameter is provided by the referenced task:
-            if self.task_source_type == "inputs":
-                if schema_input.typ not in ref_task.template.all_schema_input_types:
-                    raise InputSourceValidationError(
-                        f"Input parameter {schema_input.typ!r} cannot be sourced from task "
-                        f"{self.task_ref!r}, since the task schemas do not provide this "
-                        f"parameter as an input. Available inputs from this task are: "
-                        f"{ref_task.template.all_schema_input_types!r}."
-                    )
-            elif self.task_source_type == "outputs":
-                if schema_input.typ not in ref_task.template.all_schema_output_types:
-                    raise InputSourceValidationError(
-                        f"Input parameter {schema_input.typ!r} cannot be sourced from task "
-                        f"{self.task_ref!r}, since the task schemas do not provide this "
-                        f"parameter as an output. Available outputs from this task are: "
-                        f"{ref_task.template.all_schema_output_types!r}."
-                    )
-
-        elif self.source_type == "imports":
-            raise NotImplementedError("ain't dunit yet")
-
-        elif self.source_type == "default":
-            # check a default value exists:
-            if schema_input.default_value is None:
-                raise InputSourceValidationError(
-                    f"Input parameter {schema_input.typ!r} cannot be sourced from the "
-                    f"default value, because no default value is specified."
-                )
-
-        elif self.source_type == "local":
-            # check local value is supplied by schema:
-            if schema_input.typ not in task_template.all_schema_input_types:
-                raise InputSourceValidationError(
-                    f"Input parameter {schema_input.typ!r} cannot be sourced from the "
-                    f"local inputs, because the schema does not provide such an input. "
-                    f"Available inputs defined by the schema are: "
-                    f"{task_template.all_schema_inputs!r}."
-                )
-
-            # check local value exists:
-            if schema_input.typ not in task_template.defined_input_types:
-                raise InputSourceValidationError(
-                    f"Input parameter {schema_input.typ!r} cannot be sourced from the "
-                    f"local inputs, because no local value is defined."
-                )
 
 
 @dataclass
