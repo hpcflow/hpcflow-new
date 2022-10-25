@@ -139,11 +139,18 @@ class BaseApp:
 
         # Add API functions as methods:
         SDK_logger.debug(f"Assigning API functions to the {self.__class__.__name__}.")
-        for func in (func for func in api.__dict__.values() if callable(func)):
+
+        def get_api_method(func):
+            # this function avoids scope issues
+            return lambda *args, **kwargs: func(self, *args, **kwargs)
+
+        all_funcs = [func_i for func_i in api.__dict__.values() if callable(func_i)]
+        for func in all_funcs:
+
             SDK_logger.debug(f"Wrapping API callable: {func!r}")
             # allow sub-classes to override API functions:
             if not hasattr(self, func.__name__):
-                api_method = lambda *args, **kwargs: func(self, *args, **kwargs)
+                api_method = get_api_method(func)
                 api_method = wraps(func)(api_method)
                 api_method.__doc__ = func.__doc__.format(name=name)
                 setattr(self, func.__name__, api_method)
