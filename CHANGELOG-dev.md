@@ -1,4 +1,13 @@
 
+<a name="v0.2.0a11"></a>
+## [v0.2.0a11](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a10...v0.2.0a11) - 2022.10.29
+
+### 👷 Build changes
+
+* add empty init py in tests
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a10"></a>
 ## [v0.2.0a10](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a9...v0.2.0a10) - 2022.10.29
 
