@@ -8,8 +8,6 @@ env:
 
 on:
   workflow_dispatch: # manual invocation
-  push:
-    branches-ignore: [main, develop] # have to manually change these
   pull_request:
     types: [opened, edited, synchronize]
     branches: [main, develop] # have to manually change these
@@ -27,7 +25,6 @@ jobs:
           # checkout PR source branch (head_ref) if event is pull_request:
           ref: ${{ github.head_ref || github.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-
 
       - run: |
           git config user.name hpcflow-actions
@@ -86,7 +83,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          poetry install --without dev,pyinstaller
 
       - name: Run tests
         run: |
@@ -99,7 +96,7 @@ jobs:
       image: aplowman/centos7-poetry
     steps:
       - uses: actions/checkout@v2
-        with:          
+        with:
           ref: ${{ github.ref }}
 
       - name: Set ownership
@@ -117,7 +114,7 @@ jobs:
           key: venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry install --without dev,pyinstaller
 
       - name: Run tests
         run: |
