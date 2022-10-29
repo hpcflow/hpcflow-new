@@ -1,4 +1,30 @@
 
+<a name="v0.2.0a9"></a>
+## [v0.2.0a9](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a8...v0.2.0a9) - 2022.10.29
+
+### ♻ Code Refactoring
+
+* remove unused import
+
+### ✨ Features
+
+* add testing to API and CLI
+
+### 🐛 Bug Fixes
+
+* scoping issue when adding multiple API methods to the BaseApp
+* init of InputValue with array value
+* retrieval of Task inputs once workflow-bound
+
+### 👷 Build changes
+
+* update deps
+* allow tests to run frozen
+* merge develop
+* update binary download links file [skip ci]
+* merge from develop
+
+
 <a name="v0.2.0a8"></a>
 ## [v0.2.0a8](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a7...v0.2.0a8) - 2022.10.25
 
