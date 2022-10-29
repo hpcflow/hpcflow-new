@@ -28,7 +28,6 @@ jobs:
           ref: ${{ github.head_ref || github.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-
       - run: |
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
@@ -86,7 +85,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          poetry install --without dev,pyinstaller
 
       - name: Run tests
         run: |
@@ -99,7 +98,7 @@ jobs:
       image: aplowman/centos7-poetry
     steps:
       - uses: actions/checkout@v2
-        with:          
+        with:
           ref: ${{ github.ref }}
 
       - name: Set ownership
@@ -117,7 +116,7 @@ jobs:
           key: venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry install --without dev,pyinstaller
 
       - name: Run tests
         run: |
