@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a10"></a>
+## [v0.2.0a10](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a9...v0.2.0a10) - 2022.10.29
+
+### 🐛 Bug Fixes
+
+* **build:** GHA poetry install commands
+
+### 👷 Build changes
+
+* revert "bump: 0.2.0a9 → 0.2.0a10 [skip ci]"
+* remove unused 'include'
+* add test extra
+* use poetry dep groups
+* update binary download links file [skip ci]
+* **GHA:** don't run test on push
+
+
 <a name="v0.2.0a9"></a>
 ## [v0.2.0a9](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a8...v0.2.0a9) - 2022.10.29
 
