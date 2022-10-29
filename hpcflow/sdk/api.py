@@ -38,7 +38,10 @@ def run_hpcflow_tests(app, *args):
 def run_tests(app, *args):
     """Run {name} test suite."""
 
-    import pytest
+    try:
+        import pytest
+    except ModuleNotFoundError:
+        raise RuntimeError(f"{app.name} has not been built with testing dependencies.")
 
     with importlib.resources.path(app.name, "tests") as test_dir:
         pytest.main(

@@ -48,7 +48,7 @@ jobs:
         run: poetry config virtualenvs.in-project true
 
       - name: Install dependencies
-        run: poetry install --no-dev --extras "pyinstaller"
+        run: poetry install --without dev
 
       - name: Get exectuable version name (non Windows)
         if: "!contains(matrix.os, 'windows')"
@@ -150,7 +150,7 @@ jobs:
           key: venv-build-CentOS-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install --no-dev --extras "pyinstaller"
+        run: poetry install --without dev
 
       - name: Get exectuable version name
         run: |
