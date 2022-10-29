@@ -1,7 +1,6 @@
 """API functions, which are dynamically added to the BaseApp class on __init__"""
 
-# from hpcflow.core.task import Task
-# from hpcflow.core.task_schema import TaskSchema
+import importlib
 from hpcflow.sdk.core.utils import load_config
 
 
@@ -41,4 +40,10 @@ def run_tests(app, *args):
 
     import pytest
 
-    pytest.main(["--pyargs", f"{app.name}"] + (app.pytest_args or []) + list(args))
+    with importlib.resources.path(app.name, "tests") as test_dir:
+        pytest.main(
+            [str(test_dir)]
+            + (app.pytest_args or [])
+            + list(args)
+            + ["--log-level", "INFO"]
+        )
