@@ -15,6 +15,10 @@ hpcflow = BaseApp(
     version=__version__,
     description="Computational workflow management",
     config_options=config_options,
+    pytest_args=[
+        "--verbose",
+        "--exitfirst",
+    ],
 )
 
 load_config = hpcflow.load_config

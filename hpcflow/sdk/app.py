@@ -73,6 +73,7 @@ class BaseApp:
         version,
         description,
         config_options,
+        pytest_args=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
@@ -80,6 +81,7 @@ class BaseApp:
         self.version = version
         self.description = description
         self.config_options = config_options
+        self.pytest_args = pytest_args
 
         self.CLI = self._make_CLI()
         self.log = AppLog(self)
@@ -139,11 +141,22 @@ class BaseApp:
 
         # Add API functions as methods:
         SDK_logger.debug(f"Assigning API functions to the {self.__class__.__name__}.")
-        for func in (func for func in api.__dict__.values() if callable(func)):
+
+        def get_api_method(func):
+            # this function avoids scope issues
+            return lambda *args, **kwargs: func(self, *args, **kwargs)
+
+        all_funcs = [func_i for func_i in api.__dict__.values() if callable(func_i)]
+        for func in all_funcs:
+
+            if type(self) is BaseApp and func.__name__ == "run_hpcflow_tests":
+                # this method provides the same functionality as the `run_tests` method
+                continue
+
             SDK_logger.debug(f"Wrapping API callable: {func!r}")
             # allow sub-classes to override API functions:
             if not hasattr(self, func.__name__):
-                api_method = lambda *args, **kwargs: func(self, *args, **kwargs)
+                api_method = get_api_method(func)
                 api_method = wraps(func)(api_method)
                 api_method.__doc__ = func.__doc__.format(name=name)
                 setattr(self, func.__name__, api_method)
@@ -264,7 +277,23 @@ class BaseApp:
         def make_workflow():
             self.make_workflow(dir=".")
 
-        return make_workflow
+        @click.command(help=f"Run {self.name} test suite.")
+        def test():
+            self.run_tests()
+
+        @click.command(help=f"Run hpcflow test suite.")
+        def test_hpcflow():
+            self.run_hpcflow_tests()
+
+        commands = [
+            make_workflow,
+            test,
+        ]
+
+        if type(self) is not BaseApp:
+            commands.append(test_hpcflow)
+
+        return commands
 
     def _make_CLI(self):
         """Generate the root CLI for the app."""
@@ -315,7 +344,8 @@ class BaseApp:
 
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))
-        new_CLI.add_command(self._make_API_CLI())
+        for cli_cmd in self._make_API_CLI():
+            new_CLI.add_command(cli_cmd)
 
         return new_CLI
 
