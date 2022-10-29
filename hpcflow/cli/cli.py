@@ -1,5 +1,3 @@
-import sys
-
 from hpcflow.api import hpcflow
 
 if __name__ == "__main__":
