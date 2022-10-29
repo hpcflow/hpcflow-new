@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a12"></a>
+## [v0.2.0a12](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a11...v0.2.0a12) - 2022.10.29
+
+### 🐛 Bug Fixes
+
+* invoke tests from non-frozen
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a11"></a>
 ## [v0.2.0a11](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a10...v0.2.0a11) - 2022.10.29
 
