@@ -5,13 +5,8 @@ import hashlib
 import json
 from typing import Optional, Type
 
-from hpcflow.sdk.core.utils import (
-    classproperty,
-    get_in_container,
-    get_relative_path,
-    set_in_container,
-)
-from hpcflow.sdk.core.validation import get_schema
+from .utils import classproperty
+from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
 
 

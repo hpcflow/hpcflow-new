@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from re import I
 from typing import Dict, List, Optional, Union
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 

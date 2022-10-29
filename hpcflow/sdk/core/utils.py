@@ -1,6 +1,4 @@
-from dataclasses import dataclass
 from functools import wraps
-
 import contextlib
 import json
 import keyword
@@ -9,15 +7,12 @@ import random
 import re
 import string
 from datetime import datetime, timezone
-from typing import Mapping, Optional
-from unicodedata import name
-import warnings
+from typing import Mapping
 
 from ruamel.yaml import YAML
+import sentry_sdk
 
 from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
-
-import sentry_sdk
 
 
 def load_config(func):
