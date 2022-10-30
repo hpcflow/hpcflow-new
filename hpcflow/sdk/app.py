@@ -1,19 +1,15 @@
 """An hpcflow application."""
 
 from functools import wraps
-from pathlib import Path
 import warnings
 
 import click
 from colorama import init as colorama_init
 from termcolor import colored
-from ruamel.yaml import YAML
 
 from hpcflow import __version__
-from hpcflow.sdk.core.commands import Command
-from hpcflow.sdk.core.utils import read_YAML_file
-from hpcflow.sdk.core.validation import get_schema
-
+from .core.commands import Command
+from .core.utils import read_YAML_file
 from . import api, SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
@@ -27,12 +23,6 @@ from .core.command_files import (
     OutputFileParser,
 )
 from .core.environment import Environment, Executable, ExecutableInstance
-from .core.errors import (
-    EnvironmentSpecValidationError,
-    FileSpecValidationError,
-    ParameterSpecValidationError,
-    TaskSchemaSpecValidationError,
-)
 from .core.object_list import (
     CommandFilesList,
     ParametersList,

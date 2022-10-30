@@ -1,43 +1,22 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from operator import itemgetter
 from pathlib import Path
-from types import SimpleNamespace
 from typing import List, Optional
 from pprint import pprint
 from warnings import warn
 
 import zarr
-from hpcflow.sdk.core.element import Element
 
-from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.zarr_io import zarr_encode
-
-from .object_list import TaskList, TaskTemplateList, WorkflowTaskList
-from .parameters import (
-    AvailableInputSources,
-    InputSource,
-    InputSourceType,
-    ParameterPropagationMode,
-    SchemaInput,
-    SchemaOutput,
-    TaskSourceType,
-    ValueSequence,
-)
+from .element import Element
+from .json_like import ChildObjectSpec, JSONLike
+from .zarr_io import zarr_encode
+from .object_list import WorkflowTaskList
+from .parameters import InputSource
 from .loop import Loop
 from .task import Task, WorkflowTask
 from .task_schema import TaskSchema
-from .utils import (
-    get_in_container,
-    get_item_repeat_index,
-    get_relative_path,
-    get_time_stamp,
-    group_by_dict_key_values,
-    set_in_container,
-    read_YAML_file,
-    read_JSON_file,
-)
+from .utils import group_by_dict_key_values, read_YAML_file
 from .errors import InvalidInputSourceTaskReference
 
 TS_FMT = r"%Y.%m.%d_%H:%M:%S_%z"

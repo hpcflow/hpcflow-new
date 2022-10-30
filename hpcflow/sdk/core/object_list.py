@@ -1,8 +1,6 @@
-from operator import is_
 from types import SimpleNamespace
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.utils import capitalise_first_letter
 
 
 class ObjectList(JSONLike):

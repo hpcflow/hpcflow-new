@@ -1,13 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from optparse import Option
 from typing import Dict, List, Optional, Tuple, Union
 
-from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-
-
+from .json_like import ChildObjectSpec, JSONLike
 from .command_files import FileSpec
-from .element import Element, ElementFilter, ElementGroup
+from .element import ElementFilter, ElementGroup
 from .errors import (
     MissingInputs,
     TaskTemplateInvalidNesting,
@@ -15,7 +11,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
 )
-from .object_list import GroupList, index
+from .object_list import GroupList
 from .parameters import (
     InputSource,
     InputSourceMode,
