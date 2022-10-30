@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a13"></a>
+## [v0.2.0a13](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a12...v0.2.0a13) - 2022.10.30
+
+### 👷 Build changes
+
+* deps
+* update binary download links file [skip ci]
+* add pyi hidden import
+* **GHA:** update py vers
+* **GHA:** run tests on frozen app
+* **GHA:** remove pytest module restriction
+* **GHA:** update os vers
+* **GHA:** template updates
+
+
 <a name="v0.2.0a12"></a>
 ## [v0.2.0a12](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a11...v0.2.0a12) - 2022.10.29
 
