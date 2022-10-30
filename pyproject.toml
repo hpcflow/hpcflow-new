@@ -49,7 +49,7 @@ test = ["pytest"]
 hpcflow = 'hpcflow.cli.cli:hpcflow.CLI'
 
 [tool.poetry.plugins.pyinstaller40]
-hook-dirs = "pyinstaller.__init__:get_hook_dirs"
+hook-dirs = "hpcflow.__pyinstaller:get_hook_dirs"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
