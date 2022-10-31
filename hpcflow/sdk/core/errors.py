@@ -54,10 +54,6 @@ class DuplicateExecutableError(ValueError):
     pass
 
 
-class MissingActionsError(ValueError):
-    pass
-
-
 class MissingCompatibleActionEnvironment(Exception):
     pass
 

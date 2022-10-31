@@ -50,3 +50,5 @@ SchemaInput = hpcflow.SchemaInput
 SchemaOutput = hpcflow.SchemaOutput
 TaskSourceType = hpcflow.TaskSourceType
 TaskObjective = hpcflow.TaskObjective
+FileSpec = hpcflow.FileSpec
+InputFileGenerator = hpcflow.InputFileGenerator

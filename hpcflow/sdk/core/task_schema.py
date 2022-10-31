@@ -78,6 +78,22 @@ class TaskSchema(JSONLike):
             f")"
         )
 
+    def __eq__(self, other):
+        if type(other) is not self.__class__:
+            return False
+        if (
+            self.objective == other.objective
+            and self.actions == other.actions
+            and self.method == other.method
+            and self.implementation == other.implementation
+            and self.inputs == other.inputs
+            and self.outputs == other.outputs
+            and self.version == other.version
+            and self._hash_value == other._hash_value
+        ):
+            return True
+        return False
+
     def _validate(self):
 
         if isinstance(self.objective, str):
@@ -97,10 +113,6 @@ class TaskSchema(JSONLike):
         for idx, i in enumerate(self.outputs):
             if isinstance(i, Parameter):
                 self.outputs[idx] = SchemaOutput(i)
-
-        # TEMP: maybe don't need this check? Could be useful for testing to allow no actions?
-        # if not self.actions:
-        #     raise MissingActionsError("A task schema must define at least one Action.")
 
     @property
     def name(self):

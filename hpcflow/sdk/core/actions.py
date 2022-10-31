@@ -150,6 +150,19 @@ class Action(JSONLike):
         self.output_file_parsers = output_file_parsers or []
         self.conditions = conditions or []
 
+    def __eq__(self, other):
+        if type(other) is not self.__class__:
+            return False
+        if (
+            self.commands == other.commands
+            and self.environments == other.environments
+            and self.input_file_generators == other.input_file_generators
+            and self.output_file_parsers == other.output_file_parsers
+            and self.conditions == other.conditions
+        ):
+            return True
+        return False
+
     def get_parameter_dependence(self, parameter: SchemaParameter):
         """Find if/where a given parameter is used by the action."""
         writer_files = [

@@ -1,59 +1,52 @@
-# from multiprocessing import dummy
-# import pytest
-# from hpcflow.actions import Action
-# from hpcflow.commands import Command
+import pytest
 
-# from hpcflow.errors import InvalidIdentifier, MissingActionsError
-# from hpcflow.task_schema import TaskObjective, TaskSchema
+from hpcflow.api import Action, Command, TaskObjective, TaskSchema
+from hpcflow.sdk.core.errors import InvalidIdentifier
 
 
-# @pytest.fixture
-# def dummy_action():
-#     return Action(commands=[Command("ls")])
+@pytest.fixture
+def action_a1():
+    return Action(commands=[Command("ls")], environments=[])
 
 
-# @pytest.fixture
-# def dummy_schema(dummy_action):
-#     return TaskSchema(TaskObjective("simulate"), actions=[dummy_action])
+@pytest.fixture
+def schema_s1_kwargs(action_a1):
+    return {"objective": TaskObjective("t1"), "actions": [action_a1]}
 
 
-# @pytest.fixture
-# def dummy_schema_args(dummy_action):
-#     return {"objective": TaskObjective("simulate"), "actions": [dummy_action]}
+def test_task_schema_equality():
+    t1a = TaskSchema("t1", actions=[])
+    t1b = TaskSchema("t1", actions=[])
+    assert t1a == t1b
 
 
-# def test_init_with_str_objective(dummy_action):
-#     obj_str = "simulate"
-#     obj = TaskObjective(obj_str)
-#     common = {"actions": [dummy_action]}
-#     assert TaskSchema(obj_str, **common) == TaskSchema(obj, **common)
+def test_init_with_str_objective(action_a1):
+    obj_str = "t1"
+    obj = TaskObjective(obj_str)
+    common = {"actions": [action_a1]}
+    assert TaskSchema(obj_str, **common) == TaskSchema(obj, **common)
 
 
-# def test_raise_on_missing_actions():
-#     with pytest.raises(MissingActionsError):
-#         TaskSchema("simulate", actions=[])
+def test_init_with_method_with_underscore(schema_s1_kwargs):
+    TaskSchema(method="my_method", **schema_s1_kwargs)
 
 
-# def test_init_with_method_with_underscore(dummy_schema_args):
-#     TaskSchema(method="my_method", **dummy_schema_args)
+def test_raise_on_invalid_method_digit(schema_s1_kwargs):
+    with pytest.raises(InvalidIdentifier):
+        TaskSchema(method="9", **schema_s1_kwargs)
 
 
-# def test_raise_on_invalid_method_digit(dummy_schema_args):
-#     with pytest.raises(InvalidIdentifier):
-#         TaskSchema(method="9", **dummy_schema_args)
+def test_raise_on_invalid_method_space(schema_s1_kwargs):
+    with pytest.raises(InvalidIdentifier):
+        TaskSchema(method="my method", **schema_s1_kwargs)
 
 
-# def test_raise_on_invalid_method_space(dummy_schema_args):
-#     with pytest.raises(InvalidIdentifier):
-#         TaskSchema(method="my method", **dummy_schema_args)
+def test_raise_on_invalid_method_non_alpha_numeric(schema_s1_kwargs):
+    with pytest.raises(InvalidIdentifier):
+        TaskSchema(method="_mymethod", **schema_s1_kwargs)
 
 
-# def test_raise_on_invalid_method_non_alpha_numeric(dummy_schema_args):
-#     with pytest.raises(InvalidIdentifier):
-#         TaskSchema(method="_mymethod", **dummy_schema_args)
-
-
-# def test_method_lowercasing(dummy_schema_args):
-#     assert TaskSchema(method="MyMethod", **dummy_schema_args) == TaskSchema(
-#         method="mymethod", **dummy_schema_args
-#     )
+def test_method_lowercasing(schema_s1_kwargs):
+    assert TaskSchema(method="MyMethod", **schema_s1_kwargs) == TaskSchema(
+        method="mymethod", **schema_s1_kwargs
+    )
