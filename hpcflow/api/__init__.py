@@ -49,3 +49,4 @@ ResourceSpec = hpcflow.ResourceSpec
 SchemaInput = hpcflow.SchemaInput
 SchemaOutput = hpcflow.SchemaOutput
 TaskSourceType = hpcflow.TaskSourceType
+TaskObjective = hpcflow.TaskObjective
