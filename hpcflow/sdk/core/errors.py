@@ -76,3 +76,7 @@ class ToJSONLikeChildReferenceError(Exception):
 
 class InvalidInputSourceTaskReference(Exception):
     pass
+
+
+class WorkflowNotFoundError(Exception):
+    pass
