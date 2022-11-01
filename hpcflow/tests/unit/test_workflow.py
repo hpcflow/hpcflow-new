@@ -1,10 +1,15 @@
 import pytest
 
-from hpcflow.api import WorkflowTemplate, Workflow
+from hpcflow.api import hpcflow, WorkflowTemplate, Workflow
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 
 
-def test_make_empty_workflow(tmp_path):
+@pytest.fixture
+def null_config(tmp_path):
+    hpcflow.load_config(config_dir=tmp_path)
+
+
+def test_make_empty_workflow(null_config, tmp_path):
     Workflow.from_template(WorkflowTemplate(name="w1"), path=tmp_path)
 
 
