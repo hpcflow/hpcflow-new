@@ -194,9 +194,6 @@ class BuiltinSchemaParameter:
 
 
 class ValueSequence(JSONLike):
-
-    # TODO: use a  different class for "bound" ValueSequences; WorkflowValueSequence???
-
     def __init__(
         self,
         path: Sequence[Union[str, int, float]],

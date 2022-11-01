@@ -281,6 +281,7 @@ class BaseApp:
         ]
 
         if type(self) is not BaseApp:
+            # `test_hpcflow` is the same as `test` for the BaseApp
             commands.append(test_hpcflow)
 
         return commands
