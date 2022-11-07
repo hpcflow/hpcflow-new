@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
-          path: {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -98,33 +98,9 @@ jobs:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}-build
           path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}
 
-      - name: Version check (windows)
-        if: contains(matrix.os, 'windows')
-        run: |
-          $tag = "{% raw %}${{ env.cur_tag }}{% endraw %}"
-          $tagNoV = $tag.trim('v')
-          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version
-          ${{ executable_name }}_vers_expected = "{{ executable_name }}, version $tagNoV"
-          echo ${{ executable_name }}_vers
-          echo "${{ executable_name }}_vers_expected"
-          if (${{ executable_name }}_vers -ne ${{ executable_name }}_vers_expected) {
-            exit 1
-          }
-
-      - name: Version check (non-windows)
-        if: "!contains(matrix.os, 'windows')"
-        run: |
-          tag={% raw %}${{ env.cur_tag }}{% endraw %}
-          tagNoV=${tag:1}
-          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version)
-          {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
-          echo ${{ executable_name }}_vers
-          echo ${{ executable_name }}_vers_expected
-          [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
-
       - name: Run test suite on the frozen app
         run: |
-          {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} test
+          {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -170,7 +146,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
-          path: {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
+          path: {{ pyinstaller_dir }}/dist/onefile{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -184,16 +160,6 @@ jobs:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-build
           path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
 
-      - name: Version check
-        run: |
-          tag={% raw %}${{ env.cur_tag }}{% endraw %}
-          tagNoV=${tag:1}
-          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }{% endraw %}}-linux --version)
-          {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
-          echo ${{ executable_name }}_vers
-          echo ${{ executable_name }}_vers_expected
-          [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
-
       - name: Run test suite on the frozen app
         run: |
-          {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ env.vers }{% endraw %}}-linux test
+          {{ pyinstaller_dir }}/dist/onefile{{ executable_name }}-{% raw %}${{ env.vers }{% endraw %}}-linux test

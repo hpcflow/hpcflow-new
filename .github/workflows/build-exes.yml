@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -98,33 +98,9 @@ jobs:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
-      - name: Version check (windows)
-        if: contains(matrix.os, 'windows')
-        run: |
-          $tag = "${{ env.cur_tag }}"
-          $tagNoV = $tag.trim('v')
-          $hpcflow_vers = pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
-          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo "$hpcflow_vers_expected"
-          if ($hpcflow_vers -ne $hpcflow_vers_expected) {
-            exit 1
-          }
-
-      - name: Version check (non-windows)
-        if: "!contains(matrix.os, 'windows')"
-        run: |
-          tag=${{ env.cur_tag }}
-          tagNoV=${tag:1}
-          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo $hpcflow_vers_expected
-          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
-
       - name: Run test suite on the frozen app
         run: |
-          pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -170,7 +146,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux
-          path: pyinstaller/dist/hpcflow-${{ env.vers }}-linux
+          path: pyinstaller/dist/onefilehpcflow-${{ env.vers }}-linux
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -184,16 +160,6 @@ jobs:
           name: hpcflow-${{ env.vers }}-linux-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-linux
 
-      - name: Version check
-        run: |
-          tag=${{ env.cur_tag }}
-          tagNoV=${tag:1}
-          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ env.vers }}-linux --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo $hpcflow_vers_expected
-          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
-
       - name: Run test suite on the frozen app
         run: |
-          pyinstaller/dist/hpcflow-${{ env.vers }}-linux test
+          pyinstaller/dist/onefilehpcflow-${{ env.vers }}-linux test

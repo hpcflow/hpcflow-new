@@ -199,18 +199,6 @@ jobs:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
-      - name: Upload spec file
-        uses: actions/upload-artifact@v3
-        with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
-          path: pyinstaller/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}.spec
-
-      - name: Upload build directory
-        uses: actions/upload-artifact@v3
-        with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-build
-          path: pyinstaller/build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}
-
       - name: Version check (windows)
         if: contains(matrix.os, 'windows')
         run: |
@@ -276,18 +264,6 @@ jobs:
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
           path: pyinstaller/dist/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
-
-      - name: Upload spec file
-        uses: actions/upload-artifact@v3
-        with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
-          path: pyinstaller/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux.spec
-
-      - name: Upload build directory
-        uses: actions/upload-artifact@v3
-        with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-build
-          path: pyinstaller/build/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Version check
         run: |
