@@ -361,7 +361,10 @@ class BaseJSONLike:
                 need_hash = True
 
         try:
-            obj = cls(**json_like)
+            if hasattr(cls, "_json_like_constructor"):
+                obj = cls._json_like_constructor(**json_like)
+            else:
+                obj = cls(**json_like)
         except TypeError as err:
             raise TypeError(
                 f"Failed initialisation of class {cls.__name__!r}. Check the signature. "

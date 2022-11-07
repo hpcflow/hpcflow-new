@@ -110,9 +110,6 @@ class Task(JSONLike):
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         groups: Optional[List[ElementGroup]] = None,
-        workflow_template=None,
-        insert_ID=None,
-        dir_name=None,
     ):
         # TODO: modify from_JSON_like(?) so "internal" attributes are not in init
 
@@ -175,10 +172,18 @@ class Task(JSONLike):
 
         self._validate()
         self._name = self._get_name()
-        self._insert_ID = insert_ID
-        self._dir_name = dir_name
 
-        self.workflow_template = None
+        self.workflow_template = None  # assigned by parent WorkflowTemplate
+
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+        insert_ID = json_like.pop("insert_ID")
+        dir_name = json_like.pope("dir_name")
+        obj = cls(**json_like)
+        obj._insert_ID = insert_ID
+        obj._dir_name = dir_name
+        return obj
 
     def __repr__(self):
         return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
