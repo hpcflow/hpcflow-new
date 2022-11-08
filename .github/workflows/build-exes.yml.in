@@ -90,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
-          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -157,8 +157,8 @@ jobs:
       - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
-          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
