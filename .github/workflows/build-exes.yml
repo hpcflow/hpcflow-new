@@ -80,11 +80,17 @@ jobs:
         working-directory: pyinstaller
         run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }}
 
-      - name: Upload executable artifact
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+
+      - name: Upload executable artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: pyinstaller/dist/onefolder/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -142,11 +148,17 @@ jobs:
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ env.vers }}-linux ${{ github.event.inputs.logLevel }}
 
-      - name: Upload executable artifact
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux
-          path: pyinstaller/dist/onefilehpcflow-${{ env.vers }}-linux
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux
+
+      - name: Upload executable artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: pyinstaller/dist/onefolder/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -162,4 +174,4 @@ jobs:
 
       - name: Run test suite on the frozen app
         run: |
-          pyinstaller/dist/onefilehpcflow-${{ env.vers }}-linux test
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux test
