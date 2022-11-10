@@ -100,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}-dir
-          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }-dir}{% endraw %}
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}-dir
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3

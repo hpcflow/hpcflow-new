@@ -100,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
-          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }-dir}
+          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
