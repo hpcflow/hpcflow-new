@@ -7,7 +7,14 @@
 # 
 EXE_NAME_DEFAULT="hpcflow"
 LOG_LEVEL_DEFAULT="INFO"
+BUILD_TYPE_DEFAULT="onefile"
 EXE_NAME="${1:-$EXE_NAME_DEFAULT}"
 LOG_LEVEL="${2:-$LOG_LEVEL_DEFAULT}"
-poetry run pyinstaller --log-level=$LOG_LEVEL --distpath ./dist/onefile --onefile --clean -y --name=$EXE_NAME ../hpcflow/cli/cli.py
-poetry run pyinstaller --log-level=$LOG_LEVEL --distpath ./dist/onedir --onedir --clean -y --name=$EXE_NAME ../hpcflow/cli/cli.py
+BUILD_TYPE="${3:-$BUILD_TYPE_DEFAULT}"
+
+if $BUILD_TYPE = 'onefile'
+    poetry run pyinstaller --log-level=$LOG_LEVEL --distpath ./dist/onefile --onefile --clean -y --name=$EXE_NAME ../hpcflow/cli/cli.py
+elif $BUILD_TYPE = 'onefolder'
+    poetry run pyinstaller --log-level=$LOG_LEVEL --distpath ./dist/onedir --onedir --clean -y --name=$EXE_NAME ../hpcflow/cli/cli.py
+else
+    echo 'Error: Build tyope ${BUILD_TYPE} unknown. Specify either onefile or onefolder.'
