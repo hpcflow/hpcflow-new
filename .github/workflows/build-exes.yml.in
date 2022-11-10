@@ -70,15 +70,25 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $env:GITHUB_ENV
 
-      - name: Build with pyinstaller (non Windows)
+      - name: Build with pyinstaller (non Windows, file)
         if: "!contains(matrix.os, 'windows')"
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }}{% endraw %}
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }} 'onefile'{% endraw %}
 
-      - name: Build with pyinstaller (Windows)
+      - name: Build with pyinstaller (non Windows, folder)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: {{ pyinstaller_dir }}
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onefolder'{% endraw %}
+
+      - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }}{% endraw %}
+        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefile'{% endraw %}
+
+      - name: Build with pyinstaller (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: {{ pyinstaller_dir }}
+        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefolder'{% endraw %}
 
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
@@ -89,8 +99,8 @@ jobs:
       - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
-          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}
+          name: {{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}{% endraw %}-dir
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }-dir}{% endraw %}
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -144,9 +154,13 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 
-      - name: Build with pyinstaller for CentOS
+      - name: Build with pyinstaller for CentOS (file)
         working-directory: pyinstaller
-        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-linux ${{ github.event.inputs.logLevel }}{% endraw %}
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-linux ${{ github.event.inputs.logLevel } onefile}{% endraw %}
+
+      - name: Build with pyinstaller for CentOS (folder)
+        working-directory: pyinstaller
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ env.vers }}-linux-dir ${{ github.event.inputs.logLevel } onefolder}{% endraw %}
 
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
@@ -157,8 +171,8 @@ jobs:
       - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
-          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
+          name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-dir
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-dir
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
