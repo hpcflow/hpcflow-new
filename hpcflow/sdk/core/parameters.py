@@ -127,6 +127,28 @@ class SchemaInput(SchemaParameter):
     group: Optional[str] = None
     where: Optional[ElementFilter] = None
 
+    def __repr__(self) -> str:
+
+        default_str = ""
+        if self.default_value is not None:
+            default_str = f", default_value={self.default_value!r}"
+
+        group_str = ""
+        if self.group is not None:
+            group_str = f", group={self.group!r}"
+
+        where_str = ""
+        if self.where is not None:
+            where_str = f", group={self.where!r}"
+
+        return (
+            f"{self.__class__.__name__}("
+            f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
+            f"propagation_mode={self.propagation_mode.name!r}"
+            f"{default_str}{group_str}{where_str}"
+            f")"
+        )
+
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
