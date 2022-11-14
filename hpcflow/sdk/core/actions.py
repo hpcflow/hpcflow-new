@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import enum
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from valida.conditions import ConditionLike
 
@@ -48,7 +48,11 @@ class ActionScope(JSONLike):
         ),
     )
 
-    def __init__(self, typ: ActionScopeType, **kwargs):
+    def __init__(self, typ: Union[ActionScopeType, str], **kwargs):
+
+        if isinstance(typ, str):
+            typ = getattr(self.app.ActionScopeType, typ.upper())
+
         self.typ = typ
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 

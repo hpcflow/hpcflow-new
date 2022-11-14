@@ -804,8 +804,6 @@ class Workflow:
 
     def add_task(self, task: Task, new_index=None):
 
-        print(f"task.resources: {task.resources}")
-
         if new_index is None:
             new_index = self.num_tasks
 

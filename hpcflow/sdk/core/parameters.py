@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
-from hpcflow.sdk.core.errors import ValuesAlreadyPersistentError
+from hpcflow.sdk.core.errors import (
+    ValuesAlreadyPersistentError,
+    MalformedParameterPathError,
+)
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
@@ -192,7 +195,7 @@ class ValueSequence(JSONLike):
         nesting_order: int,
         values: List[Any],
     ):
-        self.path = path
+        self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
         self._values = values
 
@@ -225,6 +228,29 @@ class ValueSequence(JSONLike):
         obj = cls(**json_like)
         obj._values_group_idx = _values_group_idx
         return obj
+
+    def _validate_parameter_path(self, path):
+        if not isinstance(path, str):
+            raise MalformedParameterPathError(
+                f"`path` must be a string, but given path has type {type(path)} with value "
+                f"{path!r}."
+            )
+        path_split = path.split(".")
+        if not path_split[0] in ("inputs", "outputs", "resources"):
+            raise MalformedParameterPathError(
+                f'`path` must start with "inputs", "outputs", or "resources", but given path '
+                f"is: {path!r}."
+            )
+        if path_split[0] == "resources":
+            try:
+                self.app.ActionScope.from_json_like(path_split[1])
+            except Exception as err:
+                raise MalformedParameterPathError(
+                    f"Cannot parse a resource action scope from the second component of the "
+                    f"path: {path!r}. Exception was: {err}."
+                ) from None
+
+        return path
 
     def to_dict(self):
         out = super().to_dict()

@@ -84,3 +84,7 @@ class WorkflowNotFoundError(Exception):
 
 class ValuesAlreadyPersistentError(Exception):
     pass
+
+
+class MalformedParameterPathError(ValueError):
+    pass
