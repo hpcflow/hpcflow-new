@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -17,14 +17,13 @@ from .loop import Loop
 from .task import Task, WorkflowTask
 from .task_schema import TaskSchema
 from .utils import group_by_dict_key_values, read_YAML_file
-from .errors import InvalidInputSourceTaskReference
+from .errors import InvalidInputSourceTaskReference, WorkflowNotFoundError
 
 TS_FMT = r"%Y.%m.%d_%H:%M:%S_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
 # class WorkflowTemplateOld(JSONLike):
-#     app = None
 
 #     _child_objects = (
 #         ChildObjectSpec(
@@ -389,11 +388,13 @@ class WorkflowTemplate(JSONLike):
             parent_ref="workflow_template",
         ),
     )
-    app = None
 
     name: str
-    tasks: Optional[List[Task]] = None
+    tasks: Optional[List[Task]] = field(default_factory=lambda: [])
     workflow: Optional[Workflow] = None
+
+    def __post_init__(self):
+        self._set_parent_refs()
 
     @classmethod
     def from_YAML_file(cls, path):
@@ -405,14 +406,15 @@ class WorkflowTemplate(JSONLike):
 class Workflow:
     """Class to represent a persistent workflow."""
 
-    app = None
+    _app_attr = "app"
 
     def __init__(self, path):
         """Load a persistent workflow from a path."""
 
-        root = zarr.open(path, mode="r")
-
         self.path = path
+
+        root = self._get_workflow_root_group(mode="r")
+
         self._persistent_metadata = root.attrs.asdict()
 
         self._shared_data = None
@@ -421,6 +423,14 @@ class Workflow:
         self._template = None
 
         self.history = root.attrs["history"]
+
+    def _get_workflow_root_group(self, mode):
+        try:
+            return zarr.open(self.path, mode=mode)
+        except zarr.errors.PathNotFoundError:
+            raise WorkflowNotFoundError(
+                f"No workflow found at path: {self.path}"
+            ) from None
 
     @property
     def shared_data(self):
@@ -535,8 +545,7 @@ class Workflow:
 
     @classmethod
     def from_template(cls, template, path=None, name=None, overwrite=False):
-        tasks = template.__dict__.pop("tasks")
-        # print(f"tasks: {tasks}")
+        tasks = template.__dict__.pop("tasks") or []
         template.tasks = []
         obj = cls._make_empty_workflow(template, path, name, overwrite)
         for task in tasks:
@@ -672,11 +681,11 @@ class Workflow:
         self._shared_data = None
         self._template = None
 
-        root = zarr.open(self.path, mode="r+")
+        root = self._get_workflow_root_group(mode="r+")
         root.attrs.put(self._persistent_metadata)
 
     def get_zarr_parameter_group(self, group_idx):
-        root = zarr.open(self.path, mode="r")
+        root = self._get_workflow_root_group(mode="r")
         return root.get(f"parameter_data/{group_idx}")
 
     @staticmethod
@@ -734,7 +743,7 @@ class Workflow:
 
     def _add_parameter_group(self, data, is_set):
 
-        root = zarr.open(self.path, mode="r+")
+        root = self._get_workflow_root_group(mode="r+")
         param_dat_group = root.get("parameter_data")
 
         names = [int(i) for i in param_dat_group.keys()]
@@ -750,15 +759,17 @@ class Workflow:
         self, input_data_indices, output_data_indices, element_data_indices
     ):
 
+        # print(f"input_data_indices: {input_data_indices}")
+        # print(f"output_data_indices: {output_data_indices}")
+        # print(f"element_data_indices: {element_data_indices}")
+
         new_elements = []
         for i_idx, i in enumerate(element_data_indices):
-            elem_i = {".".join(k): input_data_indices[tuple(k)][v] for k, v in i.items()}
+            elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update(
-                {
-                    ".".join(("outputs", k)): v[i_idx]
-                    for k, v in output_data_indices.items()
-                }
+                {f"outputs.{k}": v[i_idx] for k, v in output_data_indices.items()}
             )
+            # print(f"elem_i: {elem_i}")
             new_elements.append(elem_i)
 
         return new_elements
@@ -790,6 +801,8 @@ class Workflow:
         return uniq_names[new_index]
 
     def add_task(self, task: Task, new_index=None):
+
+        print(f"task.resources: {task.resources}")
 
         if new_index is None:
             new_index = self.num_tasks

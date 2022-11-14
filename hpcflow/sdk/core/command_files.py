@@ -1,10 +1,10 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
 
-from hpcflow.sdk.core.parameters import Parameter
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 
@@ -12,7 +12,6 @@ from hpcflow.sdk.core.utils import search_dir_files_by_regex
 @dataclass
 class FileSpec(JSONLike):
 
-    app = None
     _validation_schema = "files_spec_schema.yaml"
     _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
 
@@ -79,7 +78,6 @@ class FileNameExt(JSONLike):
 @dataclass
 class InputFileGenerator(JSONLike):
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="input_file",
@@ -111,7 +109,6 @@ class InputFileGenerator(JSONLike):
 @dataclass
 class OutputFileParser(JSONLike):
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="output",
@@ -171,8 +168,6 @@ class _FileContentsSpecifier(JSONLike):
 
 
 class InputFile(_FileContentsSpecifier):
-    app = None
-
     def __init__(
         self,
         file: Union[FileSpec, str],

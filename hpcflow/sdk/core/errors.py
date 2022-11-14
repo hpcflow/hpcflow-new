@@ -54,10 +54,6 @@ class DuplicateExecutableError(ValueError):
     pass
 
 
-class MissingActionsError(ValueError):
-    pass
-
-
 class MissingCompatibleActionEnvironment(Exception):
     pass
 
@@ -79,4 +75,12 @@ class ToJSONLikeChildReferenceError(Exception):
 
 
 class InvalidInputSourceTaskReference(Exception):
+    pass
+
+
+class WorkflowNotFoundError(Exception):
+    pass
+
+
+class ValuesAlreadyPersistentError(Exception):
     pass

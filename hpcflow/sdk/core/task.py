@@ -11,7 +11,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
 )
-from .object_list import GroupList
+from .object_list import GroupList, ResourceList
 from .parameters import (
     InputSource,
     InputSourceMode,
@@ -33,28 +33,27 @@ class Task(JSONLike):
     "locally". The remaining input values are expected to be satisfied by other
     tasks/imports in the workflow."""
 
-    __slots__ = (
-        "_schemas",
-        "_repeats",
-        "_resources",
-        "_inputs",
-        "_input_files",
-        "_input_file_generator_sources",
-        "_output_file_parser_sources",
-        "_perturbations",
-        "_sequences",
-        "_input_sources",
-        "_input_source_mode",
-        "_nesting_order",
-        "_groups",
-        "_name",
-        "_defined_input_types",  # assigned in _validate()
-        "workflow_template",
-        "_insert_ID",
-        "_dir_name",
-    )
+    # __slots__ = (
+    #     "_schemas",
+    #     "_repeats",
+    #     "_resources",
+    #     "_inputs",
+    #     "_input_files",
+    #     "_input_file_generator_sources",
+    #     "_output_file_parser_sources",
+    #     "_perturbations",
+    #     "_sequences",
+    #     "_input_sources",
+    #     "_input_source_mode",
+    #     "_nesting_order",
+    #     "_groups",
+    #     "_name",
+    #     "_defined_input_types",  # assigned in _validate()
+    #     "workflow_template",
+    #     "_insert_ID",
+    #     "_dir_name",
+    # )
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="schemas",
@@ -73,7 +72,7 @@ class Task(JSONLike):
         ),
         ChildObjectSpec(
             name="resources",
-            class_name="ResourceSpec",
+            class_name="ResourceList",
             parent_ref="_task",
         ),
         ChildObjectSpec(
@@ -110,9 +109,6 @@ class Task(JSONLike):
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         groups: Optional[List[ElementGroup]] = None,
-        workflow_template=None,
-        insert_ID=None,
-        dir_name=None,
     ):
         # TODO: modify from_JSON_like(?) so "internal" attributes are not in init
 
@@ -155,11 +151,14 @@ class Task(JSONLike):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
+        if isinstance(resources, dict):
+            resources = self.app.ResourceList.from_json_like(resources)
+        elif not resources:
+            resources = self.app.ResourceList([self.app.ResourceSpec()])
+
         self._schemas = _schemas
         self._repeats = repeats
-        self._resources = resources or self.app.ResourceSpec(
-            main={}
-        )  # TODO: use action names from schemas
+        self._resources = resources
         self._inputs = inputs or []
         self._input_files = input_files or []
         self._input_file_generator_sources = input_file_generator_sources or []
@@ -171,22 +170,35 @@ class Task(JSONLike):
             InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
         )
         self._nesting_order = nesting_order or {}
-        self._groups = GroupList(groups or [])
+        self._groups = self.app.GroupList(groups or [])
+
+        self._set_parent_refs()
 
         self._validate()
         self._name = self._get_name()
-        self._insert_ID = insert_ID
-        self._dir_name = dir_name
 
-        self.workflow_template = None
+        self.workflow_template = None  # assigned by parent WorkflowTemplate
+        self._insert_ID = None
+        self._dir_name = None
+
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+        insert_ID = json_like.pop("insert_ID", None)
+        dir_name = json_like.pop("dir_name", None)
+        obj = cls(**json_like)
+        obj._insert_ID = insert_ID
+        obj._dir_name = dir_name
+        return obj
 
     def __repr__(self):
         return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
 
     def to_dict(self):
+        out = super().to_dict()
         return {
-            k.lstrip("_"): getattr(self, k)
-            for k in self.__slots__
+            k.lstrip("_"): v
+            for k, v in out.items()
             if k not in ["_name", "_defined_input_types"]
         }
 
@@ -216,7 +228,7 @@ class Task(JSONLike):
             )
 
         for i in self.sequences:
-            self._nesting_order.update({".".join(i.path): i.nesting_order})
+            self._nesting_order.update({i.path: i.nesting_order})
 
         for k, v in self.nesting_order.items():
             if v < 0:
@@ -273,7 +285,7 @@ class Task(JSONLike):
 
         input_data_indices = {}
 
-        input_data_indices.update(self.resources.make_persistent(workflow))
+        # input_data_indices.update(self.resources.make_persistent(workflow))
 
         for inp_i in self.inputs:
             input_data_indices.update(inp_i.make_persistent(workflow))
@@ -298,11 +310,11 @@ class Task(JSONLike):
     def prepare_element_resolution(self):
 
         multiplicities = [
-            {
-                "multiplicity": 1,
-                "nesting_order": -1,
-                "address": self.resources._get_param_path(),
-            }
+            # {
+            #     "multiplicity": 1,
+            #     "nesting_order": -1,
+            #     "address": self.resources._get_param_path(),
+            # }
         ]
 
         for inp_i in self.inputs:
@@ -417,6 +429,8 @@ class Task(JSONLike):
         for schema_input in self.all_schema_inputs:
             available[schema_input.typ] = []
 
+            print(f"schema_input: {schema_input.parameter.typ}")
+
             for src_task_idx, src_task_i in enumerate(source_tasks or []):
 
                 for param_i in src_task_i.provides_parameters:
@@ -499,7 +513,7 @@ class Task(JSONLike):
 
     @property
     def nesting_order(self):
-        return {tuple(k.split(".")): v for k, v in self._nesting_order.items()}
+        return self._nesting_order
 
     @property
     def groups(self):

@@ -5,11 +5,18 @@ from hpcflow.api import (
     SchemaInput,
     SchemaOutput,
     TaskSchema,
+    TaskObjective,
     TaskSourceType,
     Task,
     InputValue,
     InputSource,
     InputSourceMode,
+)
+from hpcflow.sdk.core.errors import (
+    TaskTemplateInvalidNesting,
+    TaskTemplateMultipleInputValues,
+    TaskTemplateMultipleSchemaObjectives,
+    TaskTemplateUnexpectedInput,
 )
 
 
@@ -86,8 +93,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -114,8 +123,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -143,8 +154,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -172,8 +185,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -207,9 +222,12 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     )
     s3 = TaskSchema("ts3", actions=[], inputs=[SchemaInput(param_p3)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
-    t2 = Task(schemas=s2, insert_ID=1)
+    t1 = Task(schemas=s1)
+    t2 = Task(schemas=s2)
     t3 = Task(schemas=s3)
+
+    t1._insert_ID = 0
+    t2._insert_ID = 1
 
     available = t3.get_available_task_input_sources([t1, t2])
     available_exp = {
@@ -247,8 +265,10 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
         inputs=[SchemaInput(param_p2), SchemaInput(param_p3)],
     )
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -288,3 +308,151 @@ def test_get_task_unique_names_two_tasks_with_repeat():
     t2 = Task(schemas=s1)
 
     assert Task.get_task_unique_names([t1, t2]) == ["ts1_1", "ts1_2"]
+
+
+def test_raise_on_multiple_schema_objectives():
+
+    s1 = TaskSchema("t1", actions=[])
+    s2 = TaskSchema("t2", actions=[])
+    with pytest.raises(TaskTemplateMultipleSchemaObjectives):
+        Task(schemas=[s1, s2])
+
+
+def test_raise_on_unexpected_inputs(param_p1, param_p2):
+
+    s1 = TaskSchema("t1", actions=[], inputs=[param_p1])
+
+    with pytest.raises(TaskTemplateUnexpectedInput):
+        Task(
+            schemas=s1,
+            inputs=[
+                InputValue(param_p1, value=101),
+                InputValue(param_p2, value=4),
+            ],
+        )
+
+
+def test_raise_on_multiple_input_values(param_p1):
+
+    s1 = TaskSchema("s1", inputs=[param_p1], actions=[])
+
+    with pytest.raises(TaskTemplateMultipleInputValues):
+        Task(
+            schemas=s1,
+            inputs=[
+                InputValue(param_p1, value=101),
+                InputValue(param_p1, value=7),
+            ],
+        )
+
+
+def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
+
+    s1 = TaskSchema("s1", inputs=[param_p1, param_p2], actions=[])
+    t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
+
+    assert t1.defined_input_types == {param_p1.typ} and t1.undefined_input_types == {
+        param_p2.typ
+    }
+
+
+def test_expected_return_all_schema_input_types_single_schema(param_p1, param_p2):
+
+    s1 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p2])
+    t1 = Task(schemas=s1)
+
+    assert t1.all_schema_input_types == {param_p1.typ, param_p2.typ}
+
+
+def test_expected_return_all_schema_input_types_multiple_schemas(
+    param_p1, param_p2, param_p3
+):
+
+    s1 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p2])
+    s2 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p3])
+
+    t1 = Task(schemas=[s1, s2])
+
+    assert t1.all_schema_input_types == {param_p1.typ, param_p2.typ, param_p3.typ}
+
+
+def test_expected_name_single_schema():
+    s1 = TaskSchema("t1", actions=[])
+    t1 = Task(schemas=[s1])
+    assert t1.name == "t1"
+
+
+def test_expected_name_single_schema_with_method():
+    s1 = TaskSchema("t1", method="m1", actions=[])
+    t1 = Task(schemas=s1)
+    assert t1.name == "t1_m1"
+
+
+def test_expected_name_single_schema_with_implementation():
+    s1 = TaskSchema("t1", implementation="i1", actions=[])
+    t1 = Task(schemas=s1)
+    assert t1.name == "t1_i1"
+
+
+def test_expected_name_single_schema_with_method_and_implementation():
+    s1 = TaskSchema("t1", method="m1", implementation="i1", actions=[])
+    t1 = Task(schemas=s1)
+    assert t1.name == "t1_m1_i1"
+
+
+def test_expected_name_multiple_schemas():
+    s1 = TaskSchema("t1", actions=[])
+    s2 = TaskSchema("t1", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1"
+
+
+def test_expected_name_two_schemas_first_with_method():
+    s1 = TaskSchema("t1", method="m1", actions=[])
+    s2 = TaskSchema("t1", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_m1"
+
+
+def test_expected_name_two_schemas_first_with_method_and_implementation():
+    s1 = TaskSchema("t1", method="m1", implementation="i1", actions=[])
+    s2 = TaskSchema("t1", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_m1_i1"
+
+
+def test_expected_name_two_schemas_both_with_method():
+    s1 = TaskSchema("t1", method="m1", actions=[])
+    s2 = TaskSchema("t1", method="m2", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_m1_and_m2"
+
+
+def test_expected_name_two_schemas_first_with_method_second_with_implementation():
+    s1 = TaskSchema("t1", method="m1", actions=[])
+    s2 = TaskSchema("t1", implementation="i2", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_m1_and_i2"
+
+
+def test_expected_name_two_schemas_first_with_implementation_second_with_method():
+    s1 = TaskSchema("t1", implementation="i1", actions=[])
+    s2 = TaskSchema("t1", method="m2", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_i1_and_m2"
+
+
+def test_expected_name_two_schemas_both_with_method_and_implementation():
+    s1 = TaskSchema("t1", method="m1", implementation="i1", actions=[])
+    s2 = TaskSchema("t1", method="m2", implementation="i2", actions=[])
+    t1 = Task(schemas=[s1, s2])
+    assert t1.name == "t1_m1_i1_and_m2_i2"
+
+
+def test_raise_on_negative_nesting_order(param_p1):
+    s1 = TaskSchema("t1", inputs=[param_p1], actions=[])
+    with pytest.raises(TaskTemplateInvalidNesting):
+        Task(schemas=s1, nesting_order={"p1": -1})
+
+
+# TODO: test resolution of elements and with raise MissingInputs

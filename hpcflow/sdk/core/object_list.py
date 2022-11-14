@@ -109,7 +109,12 @@ class ObjectList(JSONLike):
 
     def _validate_get(self, result, kwargs):
         if not result:
-            raise ValueError(f"No {self._descriptor} objects with attributes: {kwargs}.")
+            available = []
+            for obj in self._objects:
+                available.append({k: getattr(obj, k) for k in kwargs})
+            raise ValueError(
+                f"No {self._descriptor} objects with attributes: {kwargs}. Available objects have attributes: {tuple(available)!r}."
+            )
 
         elif len(result) > 1:
             raise ValueError(f"Multiple objects with attributes: {kwargs}.")
@@ -231,7 +236,7 @@ class DotAccessObjectList(ObjectList):
 
 class AppDataList(DotAccessObjectList):
 
-    _app = None
+    _app_attr = "_app"
 
     def to_dict(self):
         return {"_objects": super().to_dict()["_objects"]}
@@ -348,18 +353,20 @@ class ExecutablesList(AppDataList):
     """A list-like container for environment executables with dot-notation access by
     executable label."""
 
+    environment = None
     _child_objects = (
         ChildObjectSpec(
             name="_objects",
             class_name="Executable",
             is_multiple=True,
             is_single_attribute=True,
-            parent_ref="environment",
+            parent_ref="_executables_list",
         ),
     )
 
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="label", descriptor="executable")
+        self._set_parent_refs()
 
 
 class ParametersList(AppDataList):
@@ -397,6 +404,41 @@ class CommandFilesList(AppDataList):
 class WorkflowTaskList(DotAccessObjectList):
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
+
+
+class ResourceList(ObjectList):
+
+    _app_attr = "_app"
+    _task = None
+    _child_objects = (
+        ChildObjectSpec(
+            name="_objects",
+            class_name="ResourceSpec",
+            is_multiple=True,
+            is_single_attribute=True,
+            dict_key_attr="scope",
+            parent_ref="_resource_list",
+        ),
+    )
+
+    def __init__(self, _objects):
+        super().__init__(_objects, descriptor="resource specification")
+        self._set_parent_refs()
+
+    @property
+    def task(self):
+        return self._task
+
+    def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
+        """Overridden to write out as a dict keyed by action scope (like as can be
+        specified in the input YAML) instead of list."""
+
+        out, shared_data = super().to_json_like(dct, shared_data, exclude, path)
+        as_dict = {}
+        for res_spec_js in out:
+            scope = self._app.ActionScope.from_json_like(res_spec_js.pop("scope"))
+            as_dict[scope.to_string()] = res_spec_js
+        return as_dict, shared_data
 
 
 def index(obj_lst, obj):

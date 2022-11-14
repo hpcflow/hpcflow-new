@@ -7,8 +7,6 @@ from hpcflow.sdk.core.json_like import JSONLike
 @dataclass
 class Command(JSONLike):
 
-    app = None
-
     command: str
     arguments: List[Any] = None
     stdout: str = None
