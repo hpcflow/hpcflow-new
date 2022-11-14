@@ -26,7 +26,7 @@ class ElementInputs:
     def __getattr__(self, name):
         if name not in self._get_input_names():
             raise ValueError(f"No input named {name!r}.")
-        return self.element.get(("inputs", name))
+        return self.element.get(f"inputs.{name}")
 
     def __dir__(self):
         return super().__dir__() + self._get_input_names()
@@ -46,7 +46,7 @@ class ElementOutputs:
     def __getattr__(self, name):
         if name not in self._get_output_names():
             raise ValueError(f"No output named {name!r}.")
-        return self.element.get(("outputs", name))
+        return self.element.get(f"outputs.{name}")
 
     def __dir__(self):
         return super().__dir__() + self._get_output_names()
@@ -74,7 +74,7 @@ class Element:
 
     @property
     def resources(self):
-        return self.app.ResourceList.from_json_like(self.get(("resources",)))
+        return self.app.ResourceList.from_json_like(self.get("resources"))
 
     def __post_init__(self):
         # ensure sorted from smallest to largest path:
@@ -86,7 +86,7 @@ class Element:
         )
 
     def _path_to_parameter(self, path):
-        if len(path) != 2:
+        if len(path) != 2 or path[0] == "resources":
             return
 
         if path[0] == "inputs":
@@ -101,10 +101,10 @@ class Element:
                     if j.parameter.typ == path[1]:
                         return j.parameter
 
-    def get(self, path=None):
+    def get(self, path: str = None):
         """Get element data from the persistent store."""
 
-        path = path or []
+        path = (path or "").split(".")
         parameter = self._path_to_parameter(path)
         current_value = None
         for path_i, data_idx_i in self.data_index.items():
