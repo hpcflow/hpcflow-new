@@ -120,7 +120,7 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         run: |
-          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -196,4 +196,4 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         run: |
-          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-linux-dir test
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir/hpcflow-${{ env.vers }}-linux-dir test

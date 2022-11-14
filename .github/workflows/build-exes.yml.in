@@ -120,7 +120,7 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         run: |
-          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} test
+          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}{% endraw %} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -196,4 +196,4 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         run: |
-          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-linux-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ env.vers }}-${{ matrix.executable_os }}-linux-dir{% endraw %} test
+          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}-linux-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ env.vers }}-linux-dir{% endraw %} test
