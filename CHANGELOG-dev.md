@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a15"></a>
+## [v0.2.0a15](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a14...v0.2.0a15) - 2022.11.14
+
+### ♻ Code Refactoring
+
+* add App.assign_core_classes
+
+### ✨ Features
+
+* add optional _json_like_constructor method
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* **GHA:** Update workflow YAML files
+* **GHA:** Update workflow templates
+
+
 <a name="v0.2.0a14"></a>
 ## [v0.2.0a14](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a13...v0.2.0a14) - 2022.10.30
 
