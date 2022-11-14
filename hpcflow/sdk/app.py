@@ -15,6 +15,7 @@ from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
 from .core.actions import ActionScopeType
+from .core.element import Element
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
@@ -112,6 +113,7 @@ class BaseApp:
         core_classes += [
             ActionScopeType,
             Executable,
+            Element,
             InputSourceMode,
             InputSourceType,
             NumCores,

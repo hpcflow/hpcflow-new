@@ -261,7 +261,8 @@ class Task(JSONLike):
 
         input_data_indices = {}
 
-        # input_data_indices.update(self.resources.make_persistent(workflow))
+        for res_i in self.resources:
+            input_data_indices.update(res_i.make_persistent(workflow))
 
         for inp_i in self.inputs:
             input_data_indices.update(inp_i.make_persistent(workflow))
@@ -285,13 +286,15 @@ class Task(JSONLike):
 
     def prepare_element_resolution(self):
 
-        multiplicities = [
-            # {
-            #     "multiplicity": 1,
-            #     "nesting_order": -1,
-            #     "address": self.resources._get_param_path(),
-            # }
-        ]
+        multiplicities = []
+        for res_i in self.resources:
+            multiplicities.append(
+                {
+                    "multiplicity": 1,
+                    "nesting_order": -1,
+                    "address": res_i._get_param_path(),
+                }
+            )
 
         for inp_i in self.inputs:
             multiplicities.append(

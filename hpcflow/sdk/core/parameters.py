@@ -471,9 +471,16 @@ class ResourceSpec(JSONLike):
     )
 
     def __init__(self, scope=None, scratch=None, num_cores=None):
+
         self.scope = scope or self.app.ActionScope.any()
-        self.scratch = scratch
-        self.num_cores = num_cores
+
+        # user-specified resource parameters:
+        self._scratch = scratch
+        self._num_cores = num_cores
+
+        # assigned by `make_persistent`
+        self._workflow = None
+        self._value_group_idx = None
 
     def __repr__(self):
         scratch_str = ""
@@ -491,11 +498,83 @@ class ResourceSpec(JSONLike):
             f")"
         )
 
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+
+        _value_group_idx = json_like.pop("value_group_idx", None)
+        obj = cls(**json_like)
+        obj._value_group_idx = _value_group_idx
+
+        return obj
+
     def _get_param_path(self):
         scope_str = ""
         if self.scope.typ.name != self.app.ActionScopeType.ANY.name:
             scope_str = f".{self.scope.to_string()}"
         return f"resources{scope_str}"
+
+    def to_dict(self):
+        out = super().to_dict()
+        if "_workflow" in out:
+            del out["_workflow"]
+        out = {k.lstrip("_"): v for k, v in out.items()}
+        return out
+
+    def _get_members(self):
+        out = self.to_dict()
+        del out["scope"]
+        del out["value_group_idx"]
+        return out
+
+    def make_persistent(self, workflow) -> Dict:
+        """Save to a persistent workflow.
+
+        Parameters
+        ----------
+        workflow : Workflow
+
+        Returns
+        -------
+        dict of tuple : int
+            Single-item dict whose key is the data path for this task input and whose
+            value is the integer index of the parameter data Zarr group where the data is
+            stored.
+        """
+        param_group_idx = workflow._add_parameter_group(self._get_members(), is_set=True)
+        self._value_group_idx = param_group_idx
+        self._workflow = workflow
+
+        self._num_cores = None
+        self._scratch = None
+
+        return {self._get_param_path(): [param_group_idx]}
+
+    def _get_value(self, value_name=None):
+        if self._value_group_idx is not None:
+            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
+            val = zarr_decode(grp)
+        else:
+            val = self._get_members()
+        if value_name:
+            val = val[value_name]
+
+        return val
+
+    @property
+    def scratch(self):
+        return self._get_value("scratch")
+
+    @property
+    def num_cores(self):
+        return self._get_value("num_cores")
+
+    @property
+    def workflow(self):
+        if self._workflow:
+            return self._workflow
+        elif self.task:
+            return self.task.workflow_template.workflow
 
     @property
     def task(self):

@@ -454,9 +454,9 @@ class Workflow:
     @property
     def tasks(self):
         if self._tasks is None:
-            self._tasks = WorkflowTaskList(
+            self._tasks = self.app.WorkflowTaskList(
                 [
-                    WorkflowTask(
+                    self.app.WorkflowTask(
                         workflow=self, template=self.template.tasks[idx], index=idx, **i
                     )
                     for idx, i in enumerate(self._persistent_metadata["tasks"])
@@ -476,7 +476,9 @@ class Workflow:
     def elements(self):
         if not self._elements:
             self._elements = [
-                Element(task=task, data_index=self._persistent_metadata["elements"][i])
+                self.app.Element(
+                    task=task, data_index=self._persistent_metadata["elements"][i]
+                )
                 for task in self.tasks
                 for i in task.element_indices
             ]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from valida.conditions import ConditionLike
 from hpcflow.sdk.core.zarr_io import zarr_decode
@@ -37,6 +37,9 @@ class ElementOutputs:
 
     element: Element
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(" f"{', '.join(self._get_output_names())}" f")"
+
     def _get_output_names(self):
         return list(self.element.task.template.all_schema_output_types)
 
@@ -51,6 +54,9 @@ class ElementOutputs:
 
 @dataclass
 class Element:
+
+    _app_attr = "app"
+
     task: Task
     data_index: Dict
 
@@ -65,6 +71,10 @@ class Element:
     @property
     def outputs(self):
         return ElementOutputs(self)
+
+    @property
+    def resources(self):
+        return self.app.ResourceList.from_json_like(self.get(("resources",)))
 
     def __post_init__(self):
         # ensure sorted from smallest to largest path:
@@ -96,7 +106,6 @@ class Element:
 
         path = path or []
         parameter = self._path_to_parameter(path)
-        print(f"parameter: {parameter}")
         current_value = None
         for path_i, data_idx_i in self.data_index.items():
 
