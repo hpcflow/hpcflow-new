@@ -621,8 +621,8 @@ class Workflow:
                 self._resolve_input_source_task_reference(specified_source, new_name)
                 if specified_source not in available_sources[schema_input.typ]:
                     raise ValueError(
-                        f"The following input source is not available for schema input "
-                        f"{schema_input!r}: {specified_source.to_string()!r}. Available "
+                        f"The input source {specified_source.to_string()!r} is not "
+                        f"available for schema input {schema_input!r}. Available "
                         f"input sources are: "
                         f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
                     )
