@@ -11,17 +11,14 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
 )
-from .object_list import GroupList, ResourceList
 from .parameters import (
     InputSource,
     InputSourceMode,
     InputSourceType,
     InputValue,
     ParameterPath,
-    ResourceSpec,
     SchemaInput,
     SchemaOutput,
-    TaskSourceType,
     ValuePerturbation,
     ValueSequence,
 )
@@ -32,27 +29,6 @@ class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
     "locally". The remaining input values are expected to be satisfied by other
     tasks/imports in the workflow."""
-
-    # __slots__ = (
-    #     "_schemas",
-    #     "_repeats",
-    #     "_resources",
-    #     "_inputs",
-    #     "_input_files",
-    #     "_input_file_generator_sources",
-    #     "_output_file_parser_sources",
-    #     "_perturbations",
-    #     "_sequences",
-    #     "_input_sources",
-    #     "_input_source_mode",
-    #     "_nesting_order",
-    #     "_groups",
-    #     "_name",
-    #     "_defined_input_types",  # assigned in _validate()
-    #     "workflow_template",
-    #     "_insert_ID",
-    #     "_dir_name",
-    # )
 
     _child_objects = (
         ChildObjectSpec(
