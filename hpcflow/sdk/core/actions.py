@@ -1,6 +1,8 @@
-from dataclasses import dataclass, field
+from __future__ import annotations
+from dataclasses import dataclass
 import enum
-from typing import Dict, List, Optional, Tuple
+import re
+from typing import List, Optional, Tuple
 
 from valida.conditions import ConditionLike
 
@@ -9,25 +11,34 @@ from hpcflow.sdk.core.commands import Command
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.errors import MissingCompatibleActionEnvironment
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.parameters import SchemaParameter
+
+
+ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
 class ActionScopeType(enum.Enum):
 
-    ALL = 0
+    ANY = 0
     MAIN = 1
     PROCESSING = 2
     INPUT_FILE_GENERATOR = 3
     OUTPUT_FILE_PARSER = 4
 
 
-@dataclass
+ACTION_SCOPE_ALLOWED_KWARGS = {
+    ActionScopeType.ANY.name: set(),
+    ActionScopeType.MAIN.name: set(),
+    ActionScopeType.PROCESSING.name: set(),
+    ActionScopeType.INPUT_FILE_GENERATOR.name: {"file"},
+    ActionScopeType.OUTPUT_FILE_PARSER.name: {"output"},
+}
+
+
 class ActionScope(JSONLike):
     """Class to represent the identification of a subset of task schema actions by a
     filtering process.
     """
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="typ",
@@ -37,9 +48,58 @@ class ActionScope(JSONLike):
         ),
     )
 
-    app = None
-    typ: ActionScopeType
-    kwargs: Optional[Dict] = field(default_factory=lambda: {})
+    def __init__(self, typ: ActionScopeType, **kwargs):
+        self.typ = typ
+        self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+        bad_keys = set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]
+        if bad_keys:
+            raise TypeError(
+                f"The following keyword arguments are unknown for ActionScopeType "
+                f"{self.typ.name}: {bad_keys}."
+            )
+
+    def __repr__(self):
+        kwargs_str = ""
+        if self.kwargs:
+            kwargs_str = ", ".join(f"{k}={v!r}" for k, v in self.kwargs.items())
+        return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        if self.typ is other.typ and self.kwargs == other.kwargs:
+            return True
+        return False
+
+    @classmethod
+    def _parse_from_string(cls, string):
+        typ_str, kwargs_str = re.search(ACTION_SCOPE_REGEX, string).groups()
+        kwargs = {}
+        if kwargs_str:
+            for i in kwargs_str.split(","):
+                name, val = i.split("=")
+                kwargs[name.strip()] = val.strip()
+        return {"type": typ_str, **kwargs}
+
+    def to_string(self):
+        kwargs_str = ""
+        if self.kwargs:
+            kwargs_str = "[" + ", ".join(f"{k}={v}" for k, v in self.kwargs.items()) + "]"
+        return f"{self.typ.name.lower()}{kwargs_str}"
+
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        if isinstance(json_like, str):
+            json_like = cls._parse_from_string(json_like)
+        else:
+            typ = json_like.pop("type")
+            json_like = {"type": typ, **json_like.pop("kwargs", {})}
+        return super().from_json_like(json_like, shared_data)
+
+    @classmethod
+    def any(cls):
+        return cls(typ=ActionScopeType.ANY)
 
     @classmethod
     def main(cls):
@@ -51,17 +111,16 @@ class ActionScope(JSONLike):
 
     @classmethod
     def input_file_generator(cls, file=None):
-        return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, kwargs={"file": file})
+        return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, file=file)
 
     @classmethod
     def output_file_parser(cls, output=None):
-        return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, kwargs={"output": output})
+        return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, output=output)
 
 
 @dataclass
 class ActionEnvironment(JSONLike):
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="scope",
@@ -108,7 +167,6 @@ class ActionCondition:
 class Action(JSONLike):
     """"""
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="commands",
@@ -210,7 +268,7 @@ class Action(JSONLike):
     ):
         return self.get_resolved_action_env(
             relevant_scopes=(
-                ActionScopeType.ALL,
+                ActionScopeType.ANY,
                 ActionScopeType.PROCESSING,
                 ActionScopeType.INPUT_FILE_GENERATOR,
             ),
@@ -220,7 +278,7 @@ class Action(JSONLike):
     def get_output_file_parser_action_env(self, output_file_parser: OutputFileParser):
         return self.get_resolved_action_env(
             relevant_scopes=(
-                ActionScopeType.ALL,
+                ActionScopeType.ANY,
                 ActionScopeType.PROCESSING,
                 ActionScopeType.OUTPUT_FILE_PARSER,
             ),
@@ -229,7 +287,7 @@ class Action(JSONLike):
 
     def get_commands_action_env(self):
         return self.get_resolved_action_env(
-            relevant_scopes=(ActionScopeType.ALL, ActionScopeType.MAIN),
+            relevant_scopes=(ActionScopeType.ANY, ActionScopeType.MAIN),
             commands=self.commands,
         )
 

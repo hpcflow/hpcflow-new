@@ -93,8 +93,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -121,8 +123,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -150,8 +154,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -179,8 +185,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     s2 = TaskSchema("ts2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {
@@ -214,9 +222,12 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     )
     s3 = TaskSchema("ts3", actions=[], inputs=[SchemaInput(param_p3)])
 
-    t1 = Task(schemas=s1, insert_ID=0)
-    t2 = Task(schemas=s2, insert_ID=1)
+    t1 = Task(schemas=s1)
+    t2 = Task(schemas=s2)
     t3 = Task(schemas=s3)
+
+    t1._insert_ID = 0
+    t2._insert_ID = 1
 
     available = t3.get_available_task_input_sources([t1, t2])
     available_exp = {
@@ -254,8 +265,10 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
         inputs=[SchemaInput(param_p2), SchemaInput(param_p3)],
     )
 
-    t1 = Task(schemas=s1, insert_ID=0)
+    t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
+
+    t1._insert_ID = 0
 
     available = t2.get_available_task_input_sources([t1])
     available_exp = {

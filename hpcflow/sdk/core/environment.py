@@ -6,7 +6,6 @@ from textwrap import dedent
 from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
-from hpcflow.sdk.core.object_list import ExecutablesList
 
 
 @dataclass
@@ -45,8 +44,8 @@ class ExecutableInstance(JSONLike):
     def __post_init__(self):
         if not isinstance(self.num_cores, dict):
             self.num_cores = {"start": self.num_cores, "stop": self.num_cores}
-        if not isinstance(self.num_cores, NumCores):
-            self.num_cores = NumCores(**self.num_cores)
+        if not isinstance(self.num_cores, self.app.NumCores):
+            self.num_cores = self.app.NumCores(**self.num_cores)
 
     def __eq__(self, other):
         if (
@@ -63,7 +62,6 @@ class ExecutableInstance(JSONLike):
         return cls(**spec)
 
 
-@dataclass
 class Executable(JSONLike):
 
     _child_objects = (
@@ -74,12 +72,20 @@ class Executable(JSONLike):
         ),
     )
 
-    label: str
-    instances: List[ExecutableInstance] = field(repr=False, default_factory=lambda: [])
-    environment: Any = field(default=None, repr=False)
+    def __init__(self, label: str, instances: List[ExecutableInstance]):
 
-    def __post_init__(self):
-        self.label = check_valid_py_identifier(self.label)
+        self.label = check_valid_py_identifier(label)
+        self.instances = instances
+
+        self._executables_list = None  # assigned by parent
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"label={self.label}, "
+            f"instances={self.instances!r}"
+            f")"
+        )
 
     def __eq__(self, other):
         if (
@@ -91,6 +97,10 @@ class Executable(JSONLike):
             return True
         return False
 
+    @property
+    def environment(self):
+        return self._executables_list.environment
+
     def filter_instances(self, parallel_mode=None, num_cores=None):
         out = []
         for i in self.instances:
@@ -100,29 +110,30 @@ class Executable(JSONLike):
         return out
 
 
-@dataclass
 class Environment(JSONLike):
 
-    app = None
+    _hash_value = None
     _validation_schema = "environments_spec_schema.yaml"
     _child_objects = (
         ChildObjectSpec(
             name="executables",
-            class_name="Executable",
-            is_multiple=True,
+            class_name="ExecutablesList",
+            parent_ref="environment",
         ),
     )
 
-    name: str
-    setup: Optional[Sequence] = None
-    specifiers: Optional[dict] = None
-    executables: Optional[List[Executable]] = field(default_factory=lambda: [])
-    _hash_value: Optional[str] = field(default=None, repr=False)
-
-    def __post_init__(self):
-        for i in self.executables:
-            i.environment = self
-
+    def __init__(
+        self, name, setup=None, specifiers=None, executables=None, _hash_value=None
+    ):
+        self.name = name
+        self.setup = setup
+        self.specifiers = specifiers
+        self.executables = (
+            executables
+            if isinstance(executables, self.app.ExecutablesList)
+            else self.app.ExecutablesList(executables or [])
+        )
+        self._hash_value = _hash_value
         if self.setup:
             if isinstance(self.setup, str):
                 self.setup = tuple(
@@ -130,9 +141,7 @@ class Environment(JSONLike):
                 )
             elif not isinstance(self.setup, tuple):
                 self.setup = tuple(self.setup)
-
-        self.executables = ExecutablesList(self.executables)
-
+        self._set_parent_refs()
         self._validate()
 
     def __eq__(self, other):

@@ -301,7 +301,13 @@ class BaseJSONLike:
                     out = []
                     for i in multi_chd_objs:
                         if i is not None:
-                            i = getattr(chd_cls, i.upper())
+                            try:
+                                i = getattr(chd_cls, i.upper())
+                            except AttributeError:
+                                raise ValueError(
+                                    f"Enumeration {chd_cls!r} has no name {i!r}. Available"
+                                    f" names are: {chd_cls._member_names_!r}."
+                                )
                         out.append(i)
                 else:
                     out = []
@@ -336,7 +342,6 @@ class BaseJSONLike:
         shared_data = shared_data or {}
         json_like = copy.deepcopy(json_like)
 
-        parent_refs = {}
         for chd in cls._child_objects or []:
 
             if chd.is_single_attribute:
@@ -352,9 +357,6 @@ class BaseJSONLike:
                 json_like_i = json_like.pop(chd.json_like_name)
                 json_like[chd.name] = _from_json_like_item(chd, json_like_i)
 
-            if chd.parent_ref:
-                parent_refs.update({chd.name: chd.parent_ref})
-
         need_hash = False
         if hasattr(cls, "_hash_value"):
             if "_hash_value" not in json_like:
@@ -362,7 +364,7 @@ class BaseJSONLike:
 
         try:
             if hasattr(cls, "_json_like_constructor"):
-                obj = cls._json_like_constructor(**json_like)
+                obj = cls._json_like_constructor(json_like)
             else:
                 obj = cls(**json_like)
         except TypeError as err:
@@ -371,28 +373,6 @@ class BaseJSONLike:
                 f"Caught TypeError: {err}"
             )
 
-        # if parent_refs:
-        #     print(
-        #         f"\nJSONLike.from_json_like: cls: {cls!r}; json_like: {json_like!r}; chd: {chd!r}"
-        #     )
-
-        for k, v in parent_refs.items():
-            chd_obj = getattr(obj, k)
-            try:
-                chd = [i for i in cls._child_objects if i.name == k][0]
-            except IndexError:
-                chd = None
-            # print(f"\nchd_obj: {chd_obj!r}")
-            if not chd or not chd.is_multiple:
-                chd_obj = [chd_obj]
-            for i in chd_obj:
-                if not hasattr(i, v):
-                    raise ValueError(
-                        f"Child object {i!r} does not have an attribute {v!r} to "
-                        f"assign to the parent object."
-                    )
-                setattr(i, v, obj)
-
         if need_hash:
             re_json_like = obj.to_json_like()[0]
             re_json_like.pop("_hash_value", None)
@@ -400,6 +380,18 @@ class BaseJSONLike:
             obj._hash_value = hash_val
 
         return obj
+
+    def _set_parent_refs(self):
+        """Assign references to self on child objects that declare a parent ref
+        attribute."""
+
+        for chd in self._child_objects:
+            if chd.parent_ref:
+                if chd.is_multiple:
+                    for i in getattr(self, chd.name):
+                        setattr(i, chd.parent_ref, self)
+                else:
+                    setattr(getattr(self, chd.name), chd.parent_ref, self)
 
     @staticmethod
     def _get_hash(json_like):
@@ -430,9 +422,6 @@ class BaseJSONLike:
 
             if chd.parent_ref:
                 parent_refs.update({chd.name: chd.parent_ref})
-
-        if path and path[-1] in parent_refs.values():
-            raise ToJSONLikeChildReferenceError()
 
         json_like, shared_data = to_json_like(
             dct, shared_data=shared_data, parent_refs=parent_refs, path=path
@@ -474,9 +463,25 @@ class BaseJSONLike:
 class JSONLike(BaseJSONLike):
     """BaseJSONLike, where the class namespace is the App instance."""
 
+    _app_attr = "app"  # for some classes we change this to "_app"
+
     @classproperty
     def _class_namespace(cls):
-        try:
-            return getattr(cls, "_app")
-        except AttributeError:
-            return getattr(cls, "app")
+        return getattr(cls, cls._app_attr)
+
+    def to_dict(self):
+
+        out = super().to_dict()
+
+        # remove parent references:
+        app = self._class_namespace
+        for sub_cls in app._core_classes:
+            if hasattr(sub_cls, "_child_objects"):
+                for chd in sub_cls._child_objects or []:
+                    if chd.parent_ref:
+                        if (
+                            self.__class__.__name__ == chd.class_name
+                            or self.__class__ is chd.class_obj
+                        ):
+                            out.pop(chd.parent_ref, None)
+        return out

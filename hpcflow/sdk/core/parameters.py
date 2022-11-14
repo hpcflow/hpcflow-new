@@ -5,12 +5,9 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
-from hpcflow.sdk.core.errors import InputSourceValidationError
+from hpcflow.sdk.core.errors import ValuesAlreadyPersistentError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.utils import (
-    check_in_object_list,
-    check_valid_py_identifier,
-)
+from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
 
 
@@ -49,8 +46,6 @@ class Parameter(JSONLike):
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
 
-    app = None
-
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
         for i in ZarrEncodable.__subclasses__():
@@ -80,7 +75,6 @@ class SchemaParameter(JSONLike):
             shared_data_primary_key="typ",
         ),
     )
-    app = None
 
     def __post_init__(self):
         self._validate()
@@ -129,8 +123,6 @@ class SchemaInput(SchemaParameter):
     # elements from other tasks?
     group: Optional[str] = None
     where: Optional[ElementFilter] = None
-
-    app = None
 
     def _validate(self):
         super()._validate()
@@ -196,26 +188,43 @@ class BuiltinSchemaParameter:
 class ValueSequence(JSONLike):
     def __init__(
         self,
-        path: Sequence[Union[str, int, float]],
+        path: str,
         nesting_order: int,
-        values: Optional[Any] = None,
-        _values: Optional[Any] = None,
-        _values_group_idx: Optional[int] = None,
+        values: List[Any],
     ):
-        self.path = tuple(path)
+        self.path = path
         self.nesting_order = nesting_order
-        self._values = values or _values
-        self._values_group_idx = _values_group_idx
+        self._values = values
+
+        self._values_group_idx = None
         self._workflow = None
 
     def __repr__(self):
+        vals_grp_idx = (
+            f"values_group_idx={self._values_group_idx}, "
+            if self._values_group_idx
+            else ""
+        )
         return (
             f"{self.__class__.__name__}("
-            f"_values_group_idx={self._values_group_idx}, "
+            f"path={self.path!r}, "
             f"nesting_order={self.nesting_order}, "
+            f"{vals_grp_idx}"
             f"values={self.values}"
             f")"
         )
+
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+
+        _values_group_idx = json_like.pop("_values_group_idx", None)
+        if "_values" in json_like:
+            json_like["values"] = json_like.pop("_values")
+
+        obj = cls(**json_like)
+        obj._values_group_idx = _values_group_idx
+        return obj
 
     def to_dict(self):
         out = super().to_dict()
@@ -239,10 +248,16 @@ class ValueSequence(JSONLike):
                     raise ValueError(msg)
 
     def _get_param_path(self):
-        return tuple(self.path)
+        return self.path  # TODO: maybe not needed?
 
     def make_persistent(self, workflow):
         """Save value to a persistent workflow."""
+
+        # TODO: test raise
+        if self._values_group_idx is not None:
+            raise ValuesAlreadyPersistentError(
+                f"{self.__class__.__name__} is already persistent."
+            )
 
         param_group_idx = []
         for i in self._values:
@@ -364,7 +379,6 @@ class ValuePerturbation(AbstractInputValue):
 
 class InputValue(AbstractInputValue):
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -377,27 +391,53 @@ class InputValue(AbstractInputValue):
     def __init__(
         self,
         parameter: Union[Parameter, SchemaInput, str],
-        path: Optional[Sequence[Union[str, int, float]]] = None,
         value: Optional[Any] = None,
-        _value: Optional[Any] = None,
-        _value_group_idx: Optional[int] = None,
-        _task: Optional[Any] = None,
+        path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
 
         self.parameter = parameter
-        self.path = path
-        self._value = value if value is not None else _value
-        self._value_group_idx = _value_group_idx
+        self.path = (path.strip(".") if path else None) or None
+        self._value = value
 
-        self._validate()
-        # TODO: don't init here, since this will need to be JSONable in the template?
+        self._value_group_idx = None  # assigned by method make_persistent
+        self._task = None  # assigned by parent Task
 
-        self._task = _task
+    def __repr__(self):
+
+        val_grp_idx = ""
+        if self._value_group_idx is not None:
+            val_grp_idx = f", value_group_idx={self._value_group_idx}"
+
+        path_str = ""
+        if self.path is not None:
+            path_str = f", path={self.path!r}"
+
+        return (
+            f"{self.__class__.__name__}("
+            f"parameter={self.parameter.typ!r}, "
+            f"value={self.value}"
+            f"{path_str}"
+            f"{val_grp_idx}"
+            f")"
+        )
+
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+
+        _value_group_idx = json_like.pop("_value_group_idx", None)
+        if "_value" in json_like:
+            json_like["value"] = json_like.pop("_value")
+
+        obj = cls(**json_like)
+        obj._value_group_idx = _value_group_idx
+
+        return obj
 
     def _get_param_path(self):
-        return tuple(["inputs", self.parameter.typ] + (self.path or []))
+        return f"inputs.{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
@@ -405,9 +445,7 @@ class InputValue(AbstractInputValue):
         if "path" not in json_like:
             param_spec = json_like["parameter"].split(".")
             json_like["parameter"] = param_spec[0]
-            json_like["path"] = param_spec[1:]
-
-        # print(f"InputValue.from_json_like: json_like: {json_like}")
+            json_like["path"] = ".".join(param_spec[1:])
 
         obj = super().from_json_like(json_like, shared_data)
 
@@ -420,42 +458,48 @@ class InputValue(AbstractInputValue):
         single-value sequences."""
         return True if self.path else False
 
-    def _validate(self):
-        pass
-        # if self.sequences:
-        #     seen_addresses = []
-        #     for i in self.sequences:
-        #         if i.address not in seen_addresses:
-        #             seen_addresses.append(i.address)
-        #         else:
-        #             raise InputValueDuplicateSequenceAddress(
-        #                 f"`{i.__class__.__name__}` defined with address {i.address!r} multiple "
-        #                 f"times."
-        #             )
-        #         i.check_address_exists(self.value)
 
+class ResourceSpec(JSONLike):
 
-@dataclass
-class ResourceSpec(AbstractInputValue):
+    _resource_list = None
 
-    app = None
+    _child_objects = (
+        ChildObjectSpec(
+            name="scope",
+            class_name="ActionScope",
+        ),
+    )
 
-    def __init__(
-        self,
-        _value: Optional[Any] = None,
-        _value_group_idx: Optional[int] = None,
-        **kwargs,
-    ):
+    def __init__(self, scope=None, scratch=None, num_cores=None):
+        self.scope = scope or self.app.ActionScope.any()
+        self.scratch = scratch
+        self.num_cores = num_cores
 
-        self.parameter = Parameter(typ="resource_spec")  # TODO make built-in parameter?
-        self.path = None
-        self._value = kwargs or _value
-        self._value_group_idx = _value_group_idx
+    def __repr__(self):
+        scratch_str = ""
+        if self.scratch is not None:
+            scratch_str = f", scratch={self.scratch!r}"
+        num_cores_str = ""
+        if self.num_cores is not None:
+            num_cores_str = f", num_cores={self.num_cores!r}"
 
-        self._task = None
+        return (
+            f"{self.__class__.__name__}("
+            f"scope={self.scope}"
+            f"{scratch_str}"
+            f"{num_cores_str}"
+            f")"
+        )
 
     def _get_param_path(self):
-        return tuple(["resources"] + (self.path or []))
+        scope_str = ""
+        if self.scope.typ.name != self.app.ActionScopeType.ANY.name:
+            scope_str = f".{self.scope.to_string()}"
+        return f"resources{scope_str}"
+
+    @property
+    def task(self):
+        return self._resource_list.task
 
 
 class InputSourceType(enum.Enum):
@@ -483,7 +527,6 @@ class InputSourceMode(enum.Enum):
 
 class InputSource(JSONLike):
 
-    app = None
     _child_objects = (
         ChildObjectSpec(
             name="source_type",

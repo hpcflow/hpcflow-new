@@ -29,7 +29,6 @@ class TaskSchema(JSONLike):
     #   - still need to define e.g. defaults, so makes sense to keep inputs/outputs as schema
     #     parameters, and then verify that all action parameters are taken from schema parameters.
     # - should command files be listed as part of the schema? probably, yes.
-    app = None
     _validation_schema = "task_schema_spec_schema.yaml"
     _hash_value = None
     _child_objects = (
@@ -97,7 +96,7 @@ class TaskSchema(JSONLike):
     def _validate(self):
 
         if isinstance(self.objective, str):
-            self.objective = TaskObjective(self.objective)
+            self.objective = self.app.TaskObjective(self.objective)
 
         if self.method:
             self.method = check_valid_py_identifier(self.method)
@@ -107,12 +106,12 @@ class TaskSchema(JSONLike):
         # coerce Parameters to SchemaInputs
         for idx, i in enumerate(self.inputs):
             if isinstance(i, Parameter):
-                self.inputs[idx] = SchemaInput(i)
+                self.inputs[idx] = self.app.SchemaInput(i)
 
         # coerce Parameters to SchemaOutputs
         for idx, i in enumerate(self.outputs):
             if isinstance(i, Parameter):
-                self.outputs[idx] = SchemaOutput(i)
+                self.outputs[idx] = self.app.SchemaOutput(i)
 
     @property
     def name(self):

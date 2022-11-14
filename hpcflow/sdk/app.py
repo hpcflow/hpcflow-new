@@ -8,50 +8,29 @@ from colorama import init as colorama_init
 from termcolor import colored
 
 from hpcflow import __version__
-from .core.commands import Command
+from .core.json_like import JSONLike
 from .core.utils import read_YAML_file
 from . import api, SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
-from .core.actions import Action, ActionEnvironment, ActionScope, ActionScopeType
-from .core.command_files import (
-    FileNameSpec,
-    FileSpec,
-    InputFile,
-    InputFileGenerator,
-    OutputFileParser,
-)
-from .core.environment import Environment, Executable, ExecutableInstance
-from .core.object_list import (
-    CommandFilesList,
-    ParametersList,
-    TaskSchemasList,
-    EnvironmentsList,
-)
+from .core.actions import ActionScopeType
+from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
-    InputValue,
-    ResourceSpec,
     InputSourceMode,
-    InputSource,
     InputSourceType,
-    Parameter,
     ParameterPropagationMode,
-    SchemaInput,
-    SchemaOutput,
-    SchemaParameter,
     TaskSourceType,
     ValueSequence,
 )
-from .core.task import Task, WorkflowTask
-from .core.task_schema import TaskObjective, TaskSchema
-from .core.workflow import Workflow, WorkflowTemplate
+from .core.task import WorkflowTask
+from .core.task_schema import TaskObjective
+from .core.workflow import Workflow
 from .log import AppLog
 from .runtime import RunTimeInfo
 
 SDK_logger = SDK_logger.getChild(__name__)
-# print(f"SDK_logger.level: {SDK_logger.level}")
 
 
 class BaseApp:
@@ -87,47 +66,7 @@ class BaseApp:
         self._task_schemas = None
         self._app_data = {}
 
-        # For core classes that need access to App metadata (e.g. config):
-        self.Action = self.inject_into(Action)
-        self.ActionEnvironment = self.inject_into(ActionEnvironment)
-        self.Command = self.inject_into(Command)
-        self.InputFileGenerator = self.inject_into(InputFileGenerator)
-        self.OutputFileParser = self.inject_into(OutputFileParser)
-        self.Task = self.inject_into(Task)
-        self.WorkflowTask = self.inject_into(WorkflowTask)
-        self.Parameter = self.inject_into(Parameter)
-        self.TaskSchema = self.inject_into(TaskSchema)
-        self.WorkflowTemplate = self.inject_into(WorkflowTemplate)
-        self.Workflow = self.inject_into(Workflow)
-        self.Environment = self.inject_into(Environment)
-        self.Executable = self.inject_into(Executable)
-        self.ExecutableInstance = self.inject_into(ExecutableInstance)
-        self.InputFile = self.inject_into(InputFile)
-        self.SchemaInput = self.inject_into(SchemaInput)
-        self.SchemaOutput = self.inject_into(SchemaOutput)
-        self.SchemaParameter = self.inject_into(SchemaParameter)
-        self.InputValue = self.inject_into(InputValue)
-        self.ResourceSpec = self.inject_into(ResourceSpec)
-        self.InputSource = self.inject_into(InputSource)
-        self.ActionScope = self.inject_into(ActionScope)
-
-        self.FileSpec = self.inject_into(FileSpec)
-        self.FileNameSpec = self.inject_into(FileNameSpec)
-
-        self.TaskSchemasList = self.inject_into(TaskSchemasList, app_attr="_app")
-        self.EnvironmentsList = self.inject_into(EnvironmentsList, app_attr="_app")
-        self.ParametersList = self.inject_into(ParametersList, app_attr="_app")
-        self.CommandFilesList = self.inject_into(CommandFilesList, app_attr="_app")
-
-        # Injection not needed, but for uniform access (e.g. in from_json_like):
-        self.TaskObjective = TaskObjective
-        self.ParameterPropagationMode = ParameterPropagationMode
-        self.ValueSequence = ValueSequence
-        self.ActionScopeType = ActionScopeType
-        self.InputSourceType = InputSourceType
-        self.InputSourceMode = InputSourceMode
-        self.ZarrEncodable = ZarrEncodable
-        self.TaskSourceType = TaskSourceType
+        self._core_classes = self._assign_core_classes()
 
         # Add API functions as methods:
         SDK_logger.debug(f"Assigning API functions to the {self.__class__.__name__}.")
@@ -151,9 +90,51 @@ class BaseApp:
                 api_method.__doc__ = func.__doc__.format(name=name)
                 setattr(self, func.__name__, api_method)
 
-    def inject_into(self, cls, app_attr="app"):
+    def _get_core_JSONLike_classes(self):
+        """Get all JSONLike subclasses (recursively)."""
+
+        def all_subclasses(cls):
+            return set(cls.__subclasses__()).union(
+                [s for c in cls.__subclasses__() for s in all_subclasses(c)]
+            )
+
+        return all_subclasses(JSONLike)
+
+    def inject_into(self, cls):
         SDK_logger.debug(f"Injecting app {self!r} into class {cls.__name__}")
-        return type(cls.__name__, (cls,), {app_attr: self})
+        return type(cls.__name__, (cls,), {getattr(cls, "_app_attr"): self})
+
+    def _assign_core_classes(self):
+
+        core_classes = list(self._get_core_JSONLike_classes())
+
+        # Non-`JSONLike` classes:
+        core_classes += [
+            ActionScopeType,
+            Executable,
+            InputSourceMode,
+            InputSourceType,
+            NumCores,
+            ParameterPropagationMode,
+            TaskObjective,
+            TaskSourceType,
+            ValueSequence,
+            Workflow,
+            WorkflowTask,
+            ZarrEncodable,
+        ]
+        for cls in core_classes:
+            if hasattr(cls, "_app_attr"):
+                setattr(self, cls.__name__, self.inject_into(cls))
+            else:
+                setattr(self, cls.__name__, cls)
+
+        return tuple(
+            sorted(
+                core_classes,
+                key=lambda x: f"{x.__module__}.{x.__qualname__}",
+            )
+        )
 
     def _ensure_data_files(self):
         if not self.is_data_files_loaded:

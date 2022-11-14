@@ -80,3 +80,7 @@ class InvalidInputSourceTaskReference(Exception):
 
 class WorkflowNotFoundError(Exception):
     pass
+
+
+class ValuesAlreadyPersistentError(Exception):
+    pass

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -24,7 +24,6 @@ TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
 # class WorkflowTemplateOld(JSONLike):
-#     app = None
 
 #     _child_objects = (
 #         ChildObjectSpec(
@@ -389,11 +388,13 @@ class WorkflowTemplate(JSONLike):
             parent_ref="workflow_template",
         ),
     )
-    app = None
 
     name: str
-    tasks: Optional[List[Task]] = None
+    tasks: Optional[List[Task]] = field(default_factory=lambda: [])
     workflow: Optional[Workflow] = None
+
+    def __post_init__(self):
+        self._set_parent_refs()
 
     @classmethod
     def from_YAML_file(cls, path):
@@ -405,7 +406,7 @@ class WorkflowTemplate(JSONLike):
 class Workflow:
     """Class to represent a persistent workflow."""
 
-    app = None
+    _app_attr = "app"
 
     def __init__(self, path):
         """Load a persistent workflow from a path."""
@@ -758,15 +759,17 @@ class Workflow:
         self, input_data_indices, output_data_indices, element_data_indices
     ):
 
+        # print(f"input_data_indices: {input_data_indices}")
+        # print(f"output_data_indices: {output_data_indices}")
+        # print(f"element_data_indices: {element_data_indices}")
+
         new_elements = []
         for i_idx, i in enumerate(element_data_indices):
-            elem_i = {".".join(k): input_data_indices[tuple(k)][v] for k, v in i.items()}
+            elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update(
-                {
-                    ".".join(("outputs", k)): v[i_idx]
-                    for k, v in output_data_indices.items()
-                }
+                {f"outputs.{k}": v[i_idx] for k, v in output_data_indices.items()}
             )
+            # print(f"elem_i: {elem_i}")
             new_elements.append(elem_i)
 
         return new_elements
@@ -798,6 +801,8 @@ class Workflow:
         return uniq_names[new_index]
 
     def add_task(self, task: Task, new_index=None):
+
+        print(f"task.resources: {task.resources}")
 
         if new_index is None:
             new_index = self.num_tasks
