@@ -78,7 +78,7 @@ jobs:
       - name: Build with pyinstaller (non Windows, folder)
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onefolder'
+        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onedir'
 
       - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
@@ -88,7 +88,7 @@ jobs:
       - name: Build with pyinstaller (Windows, folder)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefolder'
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onedir'
 
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
@@ -164,7 +164,7 @@ jobs:
 
       - name: Build with pyinstaller for CentOS (folder)
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-linux-dir ${{ github.event.inputs.logLevel }} onefolder
+        run: ./make.sh hpcflow-${{ env.vers }}-linux-dir ${{ github.event.inputs.logLevel }} onedir
 
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
