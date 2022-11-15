@@ -49,6 +49,26 @@ class Parameter(JSONLike):
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
 
+    def __repr__(self) -> str:
+
+        is_file_str = ""
+        if self.is_file:
+            is_file_str = f", is_file={self.is_file!r}"
+
+        sub_parameters_str = ""
+        if self.sub_parameters:
+            sub_parameters_str = f", sub_parameters={self.sub_parameters!r}"
+
+        _value_class_str = ""
+        if self._value_class is not None:
+            _value_class_str = f", _value_class={self._value_class!r}"
+
+        return (
+            f"{self.__class__.__name__}("
+            f"typ={self.typ!r}{is_file_str}{sub_parameters_str}{_value_class_str}"
+            f")"
+        )
+
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
         for i in ZarrEncodable.__subclasses__():
