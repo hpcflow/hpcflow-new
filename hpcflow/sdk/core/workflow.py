@@ -632,46 +632,14 @@ class Workflow:
 
         print(f"{new_task.unsourced_inputs=}")
 
-        # if an input is not specified at all in the `inputs` dict (what about when list?),
+        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
         # then check if there is an input files entry for associated inputs,
         # if there is
 
         # set source for any unsourced inputs:
         for input_type in new_task.unsourced_inputs:
-
             inp_i_sources = available_sources[input_type]
-            print(f"inp_i_sources: {inp_i_sources}")
-            # TODO: pre-sort available sources so that we can just pop off the first one?
-
-            # input may not be required
-
-            # # set source for this input:
-            # if inp_i_sources["has_local"]:
-            #     new_sources = [InputSource("local")]
-
-            # elif inp_i_sources["tasks"]:
-            #     # we can only take parameters with implicit propagation mode:
-            #     params_info = []
-            #     for (task_idx, task_name), params in inp_i_sources["tasks"].items():
-            #         for i in params:
-            #             if i.propagation_mode == ParameterPropagationMode.IMPLICIT:
-            #                 params_info.append((i.input_or_output, task_idx, task_name))
-
-            #     # sort by output/input (output first), then by task index (highest first):
-            #     params_info = sorted(
-            #         params_info, key=itemgetter(0, 1), reverse=True
-            #     )  # TODO: TEST THIS!!!
-            #     print(f"params_info: {params_info}")
-            #     new_sources = [
-            #         InputSource(f"tasks.{params_info[0][2]}.{params_info[0][0]}s")
-            #     ]
-
-            # else:
-            #     # input may not need defining (if all associated input files are passed
-            #     # and the input does not appear in any action commands)
-            #     new_sources = None
-
-            # new_task.input_sources.update({input_type: new_sources})
+            new_task.input_sources.update({input_type: inp_i_sources[0]})
 
     def _dump_persistent_metadata(self):
 
