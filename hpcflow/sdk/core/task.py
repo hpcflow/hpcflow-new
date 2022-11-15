@@ -10,6 +10,7 @@ from .errors import (
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
+    TaskTemplateUnexpectedSequenceInput,
 )
 from .parameters import (
     InputSource,
@@ -189,7 +190,7 @@ class Task(JSONLike):
                 f"objective, but found multiple objectives: {list(names)!r}"
             )
 
-        input_types = [i.parameter.typ for i in self.get_non_sub_parameter_input_values()]
+        input_types = [i.parameter.typ for i in self.inputs]
         dup_params = get_duplicate_items(input_types)
         if dup_params:
             raise TaskTemplateMultipleInputValues(
@@ -203,8 +204,20 @@ class Task(JSONLike):
                 f"The following input parameters are unexpected: {list(unexpected_types)!r}"
             )
 
-        for i in self.sequences:
-            self._nesting_order.update({i.path: i.nesting_order})
+        seq_inp_types = []
+        for seq_i in self.sequences:
+            inp_type = seq_i.input_type
+            if inp_type:
+                bad_inp = {inp_type} - self.all_schema_input_types
+                allowed_str = ", ".join(f'"{i}"' for i in self.all_schema_input_types)
+                if bad_inp:
+                    raise TaskTemplateUnexpectedSequenceInput(
+                        f"The input type {inp_type!r} specified in the following sequence"
+                        f" path is unexpected: {seq_i.path!r}. Available input types are: "
+                        f"{allowed_str}."
+                    )
+                seq_inp_types.append(inp_type)
+            self._nesting_order.update({seq_i.path: seq_i.nesting_order})
 
         for k, v in self.nesting_order.items():
             if v < 0:
@@ -213,7 +226,7 @@ class Task(JSONLike):
                     f"of {v!r} was specified."
                 )
 
-        self._defined_input_types = set(input_types)
+        self._defined_input_types = set(input_types + seq_inp_types)
 
     def _get_name(self):
         out = f"{self.objective.name}"
@@ -323,78 +336,6 @@ class Task(JSONLike):
         else:
             return None
 
-    @classmethod
-    def from_spec(cls, spec, all_schemas, all_parameters):
-        key = (
-            spec.pop("objective"),
-            spec.pop("method", None),
-            spec.pop("implementation", None),
-        )  # TODO: maybe don't mutate spec?
-        spec["schemas"] = all_schemas[
-            key
-        ]  # TODO parse multiple methods/impl not multiple schemas
-
-        sequences = spec.pop("sequences", [])
-        inputs_spec = spec.pop("inputs", [])
-        input_sources_spec = spec.pop("input_sources", {})
-        perturbs_spec = spec.pop("perturbations", {})
-        nesting_order = spec.pop("nesting_order", {})
-
-        for k in list(nesting_order.keys()):
-            new_k = tuple(k.split("."))
-            nesting_order[new_k] = nesting_order.pop(k)
-
-        print(f"nesting_order: {nesting_order}")
-
-        inputs = []
-        if isinstance(inputs_spec, dict):
-            # transform to a list:
-            for input_path, input_val in inputs_spec.items():
-                is_sequence = input_path.endswith("[]")
-                if is_sequence:
-                    input_path = input_path.split("[]")[0]
-                input_path = input_path.split(".")
-                inputs.append(
-                    {
-                        "parameter": input_path[0],
-                        "path": input_path[1:],
-                        "value": input_val[0] if is_sequence else input_val,
-                    }
-                )
-                if is_sequence:
-                    seq_path = ["inputs"] + input_path
-                    sequences.append(
-                        {
-                            "path": seq_path,
-                            "values": input_val,
-                            "nesting_order": nesting_order.get(tuple(seq_path)),
-                        }
-                    )
-        else:
-            inputs = inputs_spec
-
-        # add any nesting orders that are defined in the sequences:
-        for i in sequences:
-            if "nesting_order" in i:
-                nesting_order.update({tuple(i["path"]): i["nesting_order"]})
-
-        perturbs = [{"name": p_name, **p} for p_name, p in perturbs_spec.items()]
-
-        spec.update(
-            {
-                "inputs": [InputValue.from_spec(i, all_parameters) for i in inputs],
-                "sequences": [ValueSequence.from_spec(i) for i in sequences],
-                "perturbations": [ValuePerturbation.from_spec(i) for i in perturbs],
-                "nesting_order": nesting_order,
-                "input_sources": {
-                    i: [InputSource.from_spec(j) for j in sources]
-                    for i, sources in input_sources_spec.items()
-                },
-            }
-        )
-
-        return cls(**spec)
-
     def get_available_task_input_sources(
         self, source_tasks: Optional[List[Task]] = None
     ) -> List[InputSource]:
@@ -403,6 +344,8 @@ class Task(JSONLike):
 
         Note this only produces a subset of available input sources for each input
         parameter; other available input sources may exist from workflow imports."""
+
+        # TODO: also search sub-parameters in the source tasks!
 
         available = {}
         for schema_input in self.all_schema_inputs:

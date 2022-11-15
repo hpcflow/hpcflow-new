@@ -10,6 +10,10 @@ class TaskTemplateUnexpectedInput(ValueError):
     pass
 
 
+class TaskTemplateUnexpectedSequenceInput(ValueError):
+    pass
+
+
 class TaskTemplateMultipleInputValues(ValueError):
     pass
 
@@ -87,4 +91,8 @@ class ValuesAlreadyPersistentError(Exception):
 
 
 class MalformedParameterPathError(ValueError):
+    pass
+
+
+class UnknownResourceSpecItemError(ValueError):
     pass

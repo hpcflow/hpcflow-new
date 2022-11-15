@@ -630,8 +630,7 @@ class Workflow:
         # print(f"\nall_sources:")
         # pprint(all_sources)
 
-        print(f"new_task.unsourced_inputs")
-        pprint(new_task.unsourced_inputs)
+        print(f"{new_task.unsourced_inputs=}")
 
         # if an input is not specified at all in the `inputs` dict (what about when list?),
         # then check if there is an input files entry for associated inputs,

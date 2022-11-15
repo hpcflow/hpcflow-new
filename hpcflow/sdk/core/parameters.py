@@ -8,6 +8,7 @@ import numpy as np
 from hpcflow.sdk.core.errors import (
     ValuesAlreadyPersistentError,
     MalformedParameterPathError,
+    UnknownResourceSpecItemError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
@@ -244,6 +245,8 @@ class ValueSequence(JSONLike):
         self._values_group_idx = None
         self._workflow = None
 
+        self._path_split = None  # assigned by property `path_split`
+
     def __repr__(self):
         vals_grp_idx = (
             f"values_group_idx={self._values_group_idx}, "
@@ -259,6 +262,31 @@ class ValueSequence(JSONLike):
             f")"
         )
 
+    @property
+    def parameter(self):
+        if self.input_type:
+            return self.app.parameters.get(self.input_type)
+
+    @property
+    def path_split(self):
+        if self._path_split is None:
+            self._path_split = self.path.split(".")
+        return self._path_split
+
+    @property
+    def path_type(self):
+        return self.path_split[0]
+
+    @property
+    def input_type(self):
+        if self.path_type == "inputs":
+            return self.path_split[1]
+
+    @property
+    def resource_scope(self):
+        if self.path_type == "resources":
+            return self.path_split[1]
+
     @classmethod
     def _json_like_constructor(cls, json_like):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
@@ -272,11 +300,13 @@ class ValueSequence(JSONLike):
         return obj
 
     def _validate_parameter_path(self, path):
+
         if not isinstance(path, str):
             raise MalformedParameterPathError(
                 f"`path` must be a string, but given path has type {type(path)} with value "
                 f"{path!r}."
             )
+        path = path.lower()
         path_split = path.split(".")
         if not path_split[0] in ("inputs", "resources"):
             raise MalformedParameterPathError(
@@ -292,10 +322,21 @@ class ValueSequence(JSONLike):
                     f"path: {path!r}. Exception was: {err}."
                 ) from None
 
+            if len(path_split) > 2:
+                path_split_2 = path_split[2]
+                allowed = ResourceSpec.ALLOWED_PARAMETERS
+                if path_split_2 not in allowed:
+                    allowed_keys_str = ", ".join(f'"{i}"' for i in allowed)
+                    raise UnknownResourceSpecItemError(
+                        f"Resource item name {path_split_2!r} is unknown. Allowed "
+                        f"resource item names are: {allowed_keys_str}."
+                    )
+
         return path
 
     def to_dict(self):
         out = super().to_dict()
+        del out["_path_split"]
         if "_workflow" in out:
             del out["_workflow"]
         return out
@@ -529,6 +570,11 @@ class InputValue(AbstractInputValue):
 
 class ResourceSpec(JSONLike):
 
+    ALLOWED_PARAMETERS = {
+        "scratch",
+        "num_cores",
+    }
+
     _resource_list = None
 
     _child_objects = (
@@ -551,27 +597,32 @@ class ResourceSpec(JSONLike):
         self._value_group_idx = None
 
     def __repr__(self):
-        scratch_str = ""
-        if self.scratch is not None:
-            scratch_str = f", scratch={self.scratch!r}"
-        num_cores_str = ""
-        if self.num_cores is not None:
-            num_cores_str = f", num_cores={self.num_cores!r}"
+        param_strs = ""
+        for i in self.ALLOWED_PARAMETERS:
+            i_str = ""
+            i_val = getattr(self, i)
+            if i_val is not None:
+                i_str = f", {i}={i_val}"
+            param_strs += i_str
 
-        return (
-            f"{self.__class__.__name__}("
-            f"scope={self.scope}"
-            f"{scratch_str}"
-            f"{num_cores_str}"
-            f")"
-        )
+        return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
 
     @classmethod
     def _json_like_constructor(cls, json_like):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("value_group_idx", None)
-        obj = cls(**json_like)
+        try:
+            obj = cls(**json_like)
+        except TypeError:
+            given_keys = set(k for k in json_like.keys() if k != "scope")
+            bad_keys = given_keys - cls.ALLOWED_PARAMETERS
+            bad_keys_str = ", ".join(f'"{i}"' for i in bad_keys)
+            allowed_keys_str = ", ".join(f'"{i}"' for i in cls.ALLOWED_PARAMETERS)
+            raise UnknownResourceSpecItemError(
+                f"The following resource item names are unknown: {bad_keys_str}. Allowed "
+                f"resource item names are: {allowed_keys_str}."
+            )
         obj._value_group_idx = _value_group_idx
 
         return obj
@@ -690,6 +741,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
+        path=None,
         where=None,
     ):
 
@@ -698,6 +750,7 @@ class InputSource(JSONLike):
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
         self.where = where
+        self.path = path
 
         if self.source_type is InputSourceType.TASK:
             if self.task_ref is None:
@@ -717,6 +770,7 @@ class InputSource(JSONLike):
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
             and self.where == other.where
+            and self.path == other.path
         ):
             return True
         else:
