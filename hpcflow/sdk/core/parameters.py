@@ -784,6 +784,14 @@ class InputSource(JSONLike):
             f")"
         )
 
+    def get_task(self, workflow):
+        """If source_type is task, then return the referenced task from the given
+        workflow."""
+        if self.source_type is InputSourceType.TASK:
+            for task in workflow.tasks:
+                if task.insert_ID == self.task_ref:
+                    return task
+
     def to_string(self):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:

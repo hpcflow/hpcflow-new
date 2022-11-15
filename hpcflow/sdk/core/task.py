@@ -283,6 +283,22 @@ class Task(JSONLike):
         for seq_i in self.sequences:
             input_data_indices.update(seq_i.make_persistent(workflow))
 
+        for inp_typ in self.all_schema_input_types:
+            sources = self.input_sources[inp_typ]
+            for inp_src in sources:
+                if inp_src.source_type is InputSourceType.TASK:
+                    src_task = inp_src.get_task(workflow)
+                    grp_idx = [
+                        elem.data_index[f"outputs.{inp_typ}"]
+                        for elem in src_task.elements
+                    ]
+                    key = f"inputs.{inp_typ}"
+                    if self.app.InputSource.local() in sources:
+                        # add task source to local source
+                        input_data_indices[key] += grp_idx
+                    else:
+                        input_data_indices.update({key: grp_idx})
+
         return input_data_indices
 
     def _prepare_persistent_outputs(self, workflow, num_elements):
@@ -297,33 +313,15 @@ class Task(JSONLike):
 
         return output_data_indices
 
-    def prepare_element_resolution(self):
+    def prepare_element_resolution(self, input_data_indices):
 
         multiplicities = []
-        for res_i in self.resources:
+        for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
                 {
-                    "multiplicity": 1,
-                    "nesting_order": -1,
-                    "address": res_i._get_param_path(),
-                }
-            )
-
-        for inp_i in self.inputs:
-            multiplicities.append(
-                {
-                    "multiplicity": 1,
-                    "nesting_order": -1,
-                    "address": inp_i._get_param_path(),
-                }
-            )
-
-        for seq_i in self.sequences:
-            multiplicities.append(
-                {
-                    "multiplicity": len(seq_i.values),
-                    "nesting_order": self._get_nesting_order(seq_i),
-                    "address": seq_i._get_param_path(),
+                    "multiplicity": len(inp_idx_i),
+                    "nesting_order": self.nesting_order.get(path_i, -1),
+                    "path": path_i,
                 }
             )
 
@@ -351,9 +349,7 @@ class Task(JSONLike):
         for schema_input in self.all_schema_inputs:
             available[schema_input.typ] = []
 
-            print(f"schema_input: {schema_input.parameter.typ}")
-
-            for src_task_idx, src_task_i in enumerate(source_tasks or []):
+            for src_task_i in source_tasks or []:
 
                 for param_i in src_task_i.provides_parameters:
 
