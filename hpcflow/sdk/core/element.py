@@ -76,15 +76,6 @@ class Element:
     def resources(self):
         return self.app.ResourceList.from_json_like(self.get("resources"))
 
-    def __post_init__(self):
-        # ensure sorted from smallest to largest path:
-        self.data_index = dict(
-            sorted(
-                {tuple(k.split(".")): v for k, v in self.data_index.items()}.items(),
-                key=lambda x: len(x[0]),
-            )
-        )
-
     def _path_to_parameter(self, path):
         if len(path) != 2 or path[0] == "resources":
             return
@@ -104,11 +95,12 @@ class Element:
     def get(self, path: str = None):
         """Get element data from the persistent store."""
 
-        path = (path or "").split(".")
+        path = [] if not path else path.split(".")
         parameter = self._path_to_parameter(path)
         current_value = None
         for path_i, data_idx_i in self.data_index.items():
 
+            path_i = path_i.split(".")
             is_parent = False
             is_update = False
             try:

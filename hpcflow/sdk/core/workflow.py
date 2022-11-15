@@ -738,7 +738,13 @@ class Workflow:
             elem_i.update(
                 {f"outputs.{k}": v[i_idx] for k, v in output_data_indices.items()}
             )
-            # print(f"elem_i: {elem_i}")
+
+            # ensure sorted from smallest to largest path (so more-specific items
+            # overwrite less-specific items):
+            elem_i_split = {tuple(k.split(".")): v for k, v in elem_i.items()}
+            elem_i_srt = dict(sorted(elem_i_split.items(), key=lambda x: len(x[0])))
+            elem_i = {".".join(k): v for k, v in elem_i_srt.items()}
+
             new_elements.append(elem_i)
 
         return new_elements
