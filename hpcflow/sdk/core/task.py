@@ -56,6 +56,7 @@ class Task(JSONLike):
             name="sequences",
             class_name="ValueSequence",
             is_multiple=True,
+            parent_ref="_task",
         ),
         ChildObjectSpec(
             name="input_sources",

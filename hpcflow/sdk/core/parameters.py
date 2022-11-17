@@ -244,6 +244,7 @@ class ValueSequence(JSONLike):
 
         self._values_group_idx = None
         self._workflow = None
+        self._task = None  # assigned by parent Task
 
         self._path_split = None  # assigned by property `path_split`
 
@@ -380,14 +381,17 @@ class ValueSequence(JSONLike):
 
     @property
     def workflow(self):
-        return self._workflow
+        if self._workflow:
+            return self._workflow
+        elif self._task:
+            return self._task.workflow_template.workflow
 
     @property
     def values(self):
         if self._values_group_idx is not None:
             vals = []
             for pg_idx_i in self._values_group_idx:
-                grp = self._workflow.get_zarr_parameter_group(pg_idx_i)
+                grp = self.workflow.get_zarr_parameter_group(pg_idx_i)
                 vals.append(zarr_decode(grp))
             return vals
         else:
