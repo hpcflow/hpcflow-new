@@ -1,6 +1,7 @@
 """An hpcflow application."""
 
 from functools import wraps
+from importlib import resources
 import warnings
 
 import click
@@ -65,6 +66,7 @@ class BaseApp:
         self._command_files = None
         self._envs = None
         self._task_schemas = None
+        self_scripts = None
         self._app_data = {}
 
         self._core_classes = self._assign_core_classes()
@@ -158,6 +160,9 @@ class BaseApp:
         self._task_schemas = self._load_task_schemas()
         self._app_data["task_schemas"] = self._task_schemas
 
+        self._scripts = self._load_scripts()
+        self._app_data["scripts"] = self._scripts
+
         self.logger.info("Data files loaded.")
 
     def load_data_files(self):
@@ -193,6 +198,11 @@ class BaseApp:
     def command_files(self):
         self._ensure_data_files()
         return self._command_files
+
+    @property
+    def scripts(self):
+        self._ensure_data_files()
+        return self._scripts
 
     @property
     def logger(self):
@@ -354,6 +364,13 @@ class BaseApp:
             all_ts.extend(read_YAML_file(path))
 
         return self.TaskSchemasList.from_json_like(all_ts)
+
+    def _load_scripts(self):
+        # TODO: load custom directories / custom functions (via decorator)
+        scripts = {}
+        for i in resources.files(package="hpcflow.sdk.demo.scripts").iterdir():
+            scripts[i.name] = i
+        return scripts
 
     def shared_data_from_json_like(self, json_like):
         cls_lookup = {
