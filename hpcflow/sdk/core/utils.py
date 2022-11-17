@@ -2,9 +2,11 @@ from functools import wraps
 import contextlib
 import json
 import keyword
+import os
 from pathlib import Path
 import random
 import re
+import socket
 import string
 from datetime import datetime, timezone
 from typing import Mapping
@@ -341,3 +343,11 @@ def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
             rep_idx[i] = i_idx
 
     return rep_idx
+
+
+def get_process_stamp():
+    return "{} {} {}".format(
+        datetime.now(),
+        socket.gethostname(),
+        os.getpid(),
+    )

@@ -29,6 +29,7 @@ from .core.parameters import (
 from .core.task import WorkflowTask
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
+from .demo.cli import get_demo_software_CLI
 from .log import AppLog
 from .runtime import RunTimeInfo
 
@@ -328,6 +329,7 @@ class BaseApp:
 
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))
+        new_CLI.add_command(get_demo_software_CLI(self))
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 
