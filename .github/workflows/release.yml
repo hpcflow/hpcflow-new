@@ -186,7 +186,12 @@ jobs:
       - name: Build with pyinstaller (non Windows)
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} INFO
+        run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} INFO 'onefile'
+        
+      - name: Build with pyinstaller (non Windows, folder)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name}}-${{ matrix.executable_os }}-dir INFO 'onedir'
 
       - name: Build with pyinstaller (Windows)
         if: contains(matrix.os, 'windows')
@@ -224,6 +229,7 @@ jobs:
             exit 1
           }
 
+<<<<<<< HEAD
       - name: Version check (non-windows)
         if: "!contains(matrix.os, 'windows')"
         run: |
