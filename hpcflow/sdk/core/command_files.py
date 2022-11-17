@@ -159,6 +159,11 @@ class _FileContentsSpecifier(JSONLike):
         ):
             raise ValueError("Specify exactly one of `path` and `contents`.")
 
+    def to_dict(self):
+        out = super().to_dict()
+        out["path"] = str(self.path)
+        return out
+
     @property
     def contents(self):
         if self.path is not None:
@@ -170,6 +175,16 @@ class _FileContentsSpecifier(JSONLike):
 
 
 class InputFile(_FileContentsSpecifier):
+
+    _child_objects = (
+        ChildObjectSpec(
+            name="file",
+            class_name="FileSpec",
+            shared_data_name="command_files",
+            shared_data_primary_key="label",
+        ),
+    )
+
     def __init__(
         self,
         file: Union[FileSpec, str],
@@ -180,7 +195,17 @@ class InputFile(_FileContentsSpecifier):
         super().__init__(path, contents, extension)
         self.file = file
         if not isinstance(self.file, FileSpec):
-            self.file = self.app.command_files[self.file]
+            self.file = self.app.command_files.get(self.file)
+
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        json_like["contents"] = json_like.pop("_contents")
+        return super().from_json_like(json_like, shared_data)
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(" f"file={self.file}, " f"path={self.path}" f")"
+        )
 
 
 class InputFileGeneratorSource(_FileContentsSpecifier):
