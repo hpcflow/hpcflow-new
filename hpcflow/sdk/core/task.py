@@ -612,6 +612,10 @@ class WorkflowTask:
         return self.template.dir_name
 
     @property
+    def dir_path(self):
+        return self.workflow.path / "tasks" / self.dir_name
+
+    @property
     def unique_name(self):
         return self.workflow.get_task_unique_names()[self.index]
 
