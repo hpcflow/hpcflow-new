@@ -833,6 +833,13 @@ class Workflow:
         # TODO: add new downstream elements?
         pass
 
+    def submit(self):
+        for task in self.tasks:
+            task.write_element_dirs()
+            for element in task.elements:
+                for action in element.resolve_actions():
+                    action.execute()
+
     def rename(self, new_name):
         pass
 

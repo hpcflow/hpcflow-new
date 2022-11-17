@@ -613,3 +613,22 @@ class WorkflowTask:
     @property
     def unique_name(self):
         return self.workflow.get_task_unique_names()[self.index]
+
+    @property
+    def element_dir_list_file_path(self):
+        return self.dir_path / "element_dirs.txt"
+
+    @property
+    def run_script_file_path(self):
+        return self.dir_path / "run_script.ps1"
+
+    def write_element_dirs(self):
+        self.dir_path.mkdir(exist_ok=True, parents=True)
+        elem_paths = [self.dir_path / elem.dir_name for elem in self.elements]
+        for path_i in elem_paths:
+            path_i.mkdir(exist_ok=True)
+
+        # write a text file whose lines correspond to element paths
+        with self.element_dir_list_file_path.open("wt") as fp:
+            for elem in elem_paths:
+                fp.write(f"{elem}\n")

@@ -15,7 +15,7 @@ from . import api, SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
-from .core.actions import ActionScopeType
+from .core.actions import Action, ActionScopeType, ElementAction
 from .core.element import Element
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
@@ -115,8 +115,10 @@ class BaseApp:
         # Non-`JSONLike` classes:
         core_classes += [
             ActionScopeType,
+            Action,
             Executable,
             Element,
+            ElementAction,
             InputSourceMode,
             InputSourceType,
             NumCores,

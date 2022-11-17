@@ -76,6 +76,18 @@ class Element:
     def resources(self):
         return self.app.ResourceList.from_json_like(self.get("resources"))
 
+    @property
+    def index(self):
+        return self.task.elements.index(self)
+
+    @property
+    def dir_name(self):
+        return str(self.index)
+
+    @property
+    def dir_path(self):
+        return self.task.dir_path / self.dir_name
+
     def _path_to_parameter(self, path):
         if len(path) != 2 or path[0] == "resources":
             return
@@ -133,6 +145,15 @@ class Element:
             current_value = parameter._value_class(**current_value)
 
         return current_value
+
+    def resolve_actions(self):
+        """Return a list of `ElementAction`s given the associated schema(s) and particular
+        parametrisation of this element."""
+        element_actions = []
+        for schema in self.task.template.schemas:
+            for action in schema.actions:
+                element_actions.extend(action.resolve_element_actions(element=self))
+        return tuple(element_actions)
 
 
 @dataclass

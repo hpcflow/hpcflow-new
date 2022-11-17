@@ -97,6 +97,7 @@ class InputFileGenerator(JSONLike):
 
     input_file: FileSpec
     inputs: List[Parameter]
+    script: str = None
     environment: Environment = None
 
     # @classmethod
@@ -128,6 +129,7 @@ class OutputFileParser(JSONLike):
 
     output: Parameter
     output_files: List[FileSpec]
+    script: str = None
     environment: Environment = None
     inputs: List[str] = None
     options: Dict = None
