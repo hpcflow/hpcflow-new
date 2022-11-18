@@ -77,7 +77,7 @@ class ElementAction:
 
                 elif typ == "script":
                     script_name = val
-                    sub_str_new = str(self.element.dir_path / script_name)
+                    sub_str_new = '"' + str(self.element.dir_path / script_name) + '"'
                     scripts.append(script_name)
 
                 elif typ == "file":
