@@ -5,5 +5,5 @@
 # 
 # Might need to disable desktop cloud sync. engines during this!
 # 
-param($ExeName = "hpcflow", $LogLevel = "INFO", $BuildType = 'onefile')
-poetry run pyinstaller --log-level=$LogLevel --distpath ./dist/$BuildType --$BuildType --clean -y --name=$ExeName ..\hpcflow\cli\cli.py
+param($ExeName = "hpcflow", $LogLevel = "INFO")
+poetry run pyinstaller --log-level=$LogLevel --onefile --clean -y --name=$ExeName ..\hpcflow\cli\cli.py
