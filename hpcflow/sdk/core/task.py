@@ -48,6 +48,11 @@ class Task(JSONLike):
             parent_ref="_task",
         ),
         ChildObjectSpec(
+            name="input_files",
+            class_name="InputFile",
+            is_multiple=True,
+        ),
+        ChildObjectSpec(
             name="resources",
             class_name="ResourceList",
             parent_ref="_task",

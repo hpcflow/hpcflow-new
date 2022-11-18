@@ -398,22 +398,27 @@ class ValueSequence(JSONLike):
             return self._values
 
     @classmethod
-    def from_linear_space(cls, start, stop, num=50, address=None, **kwargs):
+    def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
         values = list(np.linspace(start, stop, num=num, **kwargs))
-        return cls(values, address=address)
+        return cls(values=values, path=path, nesting_order=nesting_order)
 
     @classmethod
-    def from_range(cls, start, stop, step=1, address=None):
+    def from_range(cls, start, stop, nesting_order, step=1, path=None):
         if isinstance(step, int):
-            return cls(values=list(np.arange(start, stop, step)), address=address)
+            return cls(
+                values=list(np.arange(start, stop, step)),
+                path=path,
+                nesting_order=nesting_order,
+            )
         else:
             # Use linspace for non-integer step, as recommended by Numpy:
             return cls.from_linear_space(
                 start,
                 stop,
                 num=int((stop - start) / step),
-                address=address,
+                address=path,
                 endpoint=False,
+                nesting_order=nesting_order,
             )
 
 

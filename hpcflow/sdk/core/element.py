@@ -151,6 +151,7 @@ class Element:
         parametrisation of this element."""
         element_actions = []
         for schema in self.task.template.schemas:
+            # TODO: add a TaskSchema.resolve_actions method?
             for action in schema.actions:
                 element_actions.extend(action.resolve_element_actions(element=self))
         return tuple(element_actions)
