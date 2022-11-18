@@ -183,7 +183,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev
 
-      - name: Build with pyinstaller (non Windows)
+      - name: Build with pyinstaller (non Windows, file)
         if: "!contains(matrix.os, 'windows')"
         working-directory: {{ pyinstaller_dir }}
         run: ./make.sh {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} INFO 'onefile'{% endraw %}
@@ -193,35 +193,34 @@ jobs:
         working-directory: {{ pyinstaller_dir }}
         run: ./make.sh {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name}}-${{ matrix.executable_os }}-dir INFO 'onedir'{% endraw %}
 
-      - name: Build with pyinstaller (Windows)
+      - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO{% endraw %}
+        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO 'onefile'{% endraw %}
 
-      - name: Upload executable artifact
+      - name: Build with pyinstaller (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: {{ pyinstaller_dir }}
+        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir" -LogLevel INFO -BuildType 'onedir'{% endraw %}
+
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
-          path: {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
+          path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %}
 
-      - name: Upload spec file
+      - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}.spec
-          path: {{ pyinstaller_dir }}/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}.spec
+          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}-dir
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}-dir
 
-      - name: Upload build directory
-        uses: actions/upload-artifact@v3
-        with:
-          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}-build
-          path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}{% endraw %}
-
-      - name: Version check (windows)
+      - name: Version check (windows, file)
         if: contains(matrix.os, 'windows')
         run: |
           $tag = "{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}"
           $tagNoV = $tag.trim('v')
-          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version
+          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version
           ${{ executable_name }}_vers_expected = "{{ executable_name }}, version $tagNoV"
           echo ${{ executable_name }}_vers
           echo "${{ executable_name }}_vers_expected"
@@ -229,21 +228,48 @@ jobs:
             exit 1
           }
 
-<<<<<<< HEAD
-      - name: Version check (non-windows)
+      - name: Version check (windows, folder)
+        if: contains(matrix.os, 'windows')
+        run: |
+          $tag = "{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}"
+          $tagNoV = $tag.trim('v')
+          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}$-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} {% endraw %} --version
+          ${{ executable_name }}_vers_expected = "{{ executable_name }}, version $tagNoV"
+          echo ${{ executable_name }}_vers
+          echo "${{ executable_name }}_vers_expected"
+          if (${{ executable_name }}_vers -ne ${{ executable_name }}_vers_expected) {
+            exit 1
+          }
+
+      - name: Version check (non-windows, file)
         if: "!contains(matrix.os, 'windows')"
         run: |
           tag={% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
           tagNoV=${tag:1}
-          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version)
+          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} --version)
           {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
           echo ${{ executable_name }}_vers
           echo ${{ executable_name }}_vers_expected
           [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
 
-      - name: Run test suite on the frozen app
+      - name: Version check (non-windows, folder)
+        if: "!contains(matrix.os, 'windows')"
         run: |
-          {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} test
+          tag={% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
+          tagNoV=${tag:1}
+          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}{% endraw %} --version)
+          {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
+          echo ${{ executable_name }}_vers
+          echo ${{ executable_name }}_vers_expected
+          [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
+
+      - name: Run test suite on the frozen app (file)
+        run: |
+          {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}{% endraw %} test
+
+      - name: Run test suite on the frozen app (folder)
+        run: |
+          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}{% endraw %} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -273,41 +299,53 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev
 
-      - name: Build with pyinstaller for CentOS
+      - name: Build with pyinstaller for CentOS (file)
         working-directory: pyinstaller
-        run: ./make.sh {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-linux INFO{% endraw %}
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-linux INFO onefile{% endraw %}
 
-      - name: Upload executable artifact
+      - name: Build with pyinstaller for CentOS (folder)
+        working-directory: pyinstaller
+        run: ./make.sh {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-linux-dir INFO onedir{% endraw %}
+
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
-          path: {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
+          path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
 
-      - name: Upload spec file
+      - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux.spec
-          path: {{ pyinstaller_dir }}/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux.spec
+          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir
 
-      - name: Upload build directory
-        uses: actions/upload-artifact@v3
-        with:
-          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-build
-          path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
-
-      - name: Version check
+      - name: Version check (file)
         run: |
           tag={% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
           tagNoV=${tag:1}
-          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux --version)
+          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux --version)
           {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
           echo ${{ executable_name }}_vers
           echo ${{ executable_name }}_vers_expected
           [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
 
-      - name: Run test suite on the frozen app
+      - name: Version check (folder)
         run: |
-          {{ pyinstaller_dir }}/dist/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux test
+          tag={% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}
+          tagNoV=${tag:1}
+          {{ executable_name }}_vers=$({{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir --version)
+          {{ executable_name }}_vers_expected="{{ executable_name }}, version $tagNoV"
+          echo ${{ executable_name }}_vers
+          echo ${{ executable_name }}_vers_expected
+          [ "${{ executable_name }}_vers" = "${{ executable_name }}_vers_expected" ]
+
+      - name: Run test suite on the frozen app (file)
+        run: |
+          {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux test
+
+      - name: Run test suite on the frozen app (folder)
+        run: |
+          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux-dir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux-dir test
 
   release-github-PyPI:
     needs: [bump-version, build-executables, build-executables-linux]
@@ -362,6 +400,9 @@ jobs:
             **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-win.exe
             **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-macOS
             **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-win-dir.zip
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-macOS-dir.zip
+            **/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir.zip
           prerelease: {{ '${{' }} github.event.pull_request.base.ref == '{{ pre_release_branch }}' {{ '}}' }}
 
       - name: Release info
@@ -370,7 +411,7 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path
           out_yaml = ''
-          for i in ['win.exe', 'macOS', 'linux']:
+          for i in ['win.exe', 'macOS', 'linux', 'win-dir.zip', 'macOS-dir.zip', 'linux-dir.zip']:
             exe_name = '{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-' + i
             url = 'https://github.com/{{ org }}/{{ repo }}/releases/download/{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}/' + exe_name
             out_yaml += exe_name + ': ' + url + '\n'
