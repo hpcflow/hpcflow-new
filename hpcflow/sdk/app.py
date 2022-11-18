@@ -260,8 +260,16 @@ class BaseApp:
         """Generate the CLI for the main functionality."""
 
         @click.command(help=f"Generate a new {self.name} workflow")
-        def make_workflow():
-            self.make_workflow(dir=".")
+        @click.argument("template_file")
+        @click.argument("directory")
+        def make_workflow(template_file, directory):
+            return self.make_workflow(template_file, directory)
+
+        @click.command(help=f"Generate and submit a new {self.name} workflow")
+        @click.argument("template_file")
+        @click.argument("directory")
+        def submit_workflow(template_file, directory):
+            return self.submit_workflow(template_file, directory)
 
         @click.command(help=f"Run {self.name} test suite.")
         def test():
@@ -273,6 +281,7 @@ class BaseApp:
 
         commands = [
             make_workflow,
+            submit_workflow,
             test,
         ]
 

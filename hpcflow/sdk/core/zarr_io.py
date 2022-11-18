@@ -24,7 +24,6 @@ def zarr_encode(data, zarr_group):
 
         if isinstance(obj, ZarrEncodable):
             obj = obj.to_dict()
-            print(f"obj as dict: {obj}")
             out, encoded = _zarr_encode(
                 obj, zarr_group=zarr_group, path=path, encoded=encoded
             )

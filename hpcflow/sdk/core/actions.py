@@ -147,7 +147,6 @@ class ElementAction:
                 fp.write("".join(script_lns))
 
         for command in resolved_commands:
-            print(f"\nTry to run: {command}")
             proc_i = subprocess.run(
                 command,
                 shell=True,

@@ -1,25 +1,52 @@
 """API functions, which are dynamically added to the BaseApp class on __init__"""
 
 import importlib
+
+import hpcflow.sdk.scripting
 from hpcflow.sdk.core.utils import load_config
 
 
 @load_config
-def make_workflow(app, dir):
-    """make a new {name} workflow.
+def make_workflow(app, template_file, dir):
+    """Generate a new {name} workflow.
 
     Parameters
     ----------
-    dir
+    template_file:
+        Path to YAML file workflow template.
+    dir:
         Directory into which the workflow will be generated.
 
     Returns
     -------
-    nonsense : Workflow
+    Workflow
 
     """
-    pass
-    app.API_logger.info("hey")
+    app.API_logger.info("make workflow")
+    wkt = app.WorkflowTemplate.from_YAML_file(template_file)
+    wk = app.Workflow.from_template(wkt, path=dir)
+    return wk
+
+
+@load_config
+def submit_workflow(app, template_file, dir):
+    """Generate and submit a new {name} workflow.
+
+    Parameters
+    ----------
+    template_file:
+        Path to YAML file workflow template.
+    dir:
+        Directory into which the workflow will be generated.
+
+    Returns
+    -------
+    Workflow
+    """
+    app.API_logger.info("submit workflow")
+    wk = app.make_workflow(template_file, dir)
+    wk.submit()
+    return wk
 
 
 def run_hpcflow_tests(app, *args):
