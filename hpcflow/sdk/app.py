@@ -380,9 +380,15 @@ class BaseApp:
 
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
+        pkg = "hpcflow.sdk.demo.scripts"
+        script_names = (
+            name
+            for name in resources.contents(pkg)
+            if name != "__init__.py" and resources.is_resource(pkg, name)
+        )
         scripts = {}
-        for i in resources.files(package="hpcflow.sdk.demo.scripts").iterdir():
-            scripts[i.name] = i
+        for i in script_names:
+            scripts[i] = resources.path(pkg, i)
         return scripts
 
     def shared_data_from_json_like(self, json_like):
