@@ -302,7 +302,7 @@ class BaseApp:
         def run_time_info_callback(ctx, param, value):
             if not value or ctx.resilient_parsing:
                 return
-            click.echo(self.run_time_info)
+            click.echo(str(self.run_time_info))
             ctx.exit()
 
         @click.group(name=self.name)

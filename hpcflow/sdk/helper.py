@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -8,6 +9,28 @@ import time
 import click
 from platformdirs import user_data_dir
 import psutil
+
+
+def kill_proc_tree(
+    pid, sig=signal.SIGTERM, include_parent=True, timeout=None, on_terminate=None
+):
+    """Kill a process tree (including grandchildren) with signal
+    "sig" and return a (gone, still_alive) tuple.
+    "on_terminate", if specified, is a callback function which is
+    called as soon as a child terminates.
+    """
+    assert pid != os.getpid(), "won't kill myself"
+    parent = psutil.Process(pid)
+    children = parent.children(recursive=True)
+    if include_parent:
+        children.append(parent)
+    for p in children:
+        try:
+            p.send_signal(sig)
+        except psutil.NoSuchProcess:
+            pass
+    gone, alive = psutil.wait_procs(children, timeout=timeout, callback=on_terminate)
+    return (gone, alive)
 
 
 def get_helper_CLI(app):
@@ -34,6 +57,13 @@ def get_helper_CLI(app):
         """Run the helper functionality."""
         run_helper(polling_interval)
 
+    @helper.command()
+    def uptime():
+        """Get the uptime of the helper process."""
+        out = get_helper_uptime(app)
+        if out:
+            click.echo(out)
+
     return helper
 
 
@@ -52,22 +82,14 @@ def start_helper(app, polling_interval):
         if os.name == "nt":
             kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW}
 
-        # for i in os.get_exec_path():
-        #     i_app = Path(i).joinpath(f"{app.name}.cmd")
-        #     if i_app.is_file():
-        #         break
-
-        args = [
-            str(sys.executable),
-            "-m",
-            "hpcflow.cli.cli",  # TODO: search for correct entry point , or store in run-time-info?
+        args = app.run_time_info.get_invocation_command()
+        args += [
             "--config-dir",
             str(app.config.config_directory),
-            "server",
+            "helper",
             "run",
             str(polling_interval),
         ]
-        print(f"{args=}")
 
         proc = subprocess.Popen(
             args=args,
@@ -82,17 +104,33 @@ def start_helper(app, polling_interval):
             fp.write(f"{proc.pid}\n")
 
 
-def stop_helper(app):
+def get_helper_PID(app):
 
     PID_file = Path(user_data_dir(appname=app.name)).joinpath("pid.txt")
     if not PID_file.is_file():
-        print("Server not running!")
+        print("Helper not running!")
+        return None
     else:
         with PID_file.open("rt") as fp:
-            server_pid = int(fp.read().strip())
-        proc = psutil.Process(server_pid)
-        proc.kill()
-        PID_file.unlink()
+            helper_pid = int(fp.read().strip())
+        return helper_pid, PID_file
+
+
+def stop_helper(app):
+    pid_info = get_helper_PID(app)
+    if pid_info:
+        pid, pid_file = pid_info
+        kill_proc_tree(pid=pid)
+        pid_file.unlink()
+
+
+def get_helper_uptime(app):
+    pid_info = get_helper_PID(app)
+    if pid_info:
+        proc = psutil.Process(pid_info[0])
+        create_time = datetime.fromtimestamp(proc.create_time())
+        uptime = datetime.now() - create_time
+        return uptime
 
 
 def run_helper(polling_interval):

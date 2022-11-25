@@ -51,6 +51,7 @@ class RunTimeInfo(PrettyPrinter):
             self.resolved_executable_name = self.resolved_executable_path.name
         else:
             self.script_path = path_argv
+            self.resolved_script_path = path_argv.absolute()
             self.python_executable_path = path_exec
 
         self.python_version = platform.python_version()
@@ -61,6 +62,8 @@ class RunTimeInfo(PrettyPrinter):
         self.sys_base_prefix = getattr(sys, "base_prefix", None)
         self.sys_real_prefix = getattr(sys, "real_prefix", None)
         self.conda_prefix = os.environ.get("CONDA_PREFIX")
+
+        self.invocation_command = self.get_invocation_command()
 
         try:
             self.venv_path = self._set_venv_path()
@@ -112,6 +115,7 @@ class RunTimeInfo(PrettyPrinter):
             out.update(
                 {
                     "script_path": self.script_path,
+                    "resolved_script_path": self.resolved_script_path,
                     "python_executable_path": self.python_executable_path,
                     "is_venv": self.is_venv,
                     "is_conda_venv": self.is_conda_venv,
@@ -123,6 +127,7 @@ class RunTimeInfo(PrettyPrinter):
                 }
             )
         out.update({"working_dir": self.working_dir})
+        out.update({"invocation_command": self.get_invocation_command()})
         return out
 
     def __repr__(self):
@@ -149,3 +154,10 @@ class RunTimeInfo(PrettyPrinter):
 
     def get_deactivate_env_command(self):
         pass
+
+    def get_invocation_command(self):
+        """Get the command that was used to invoke this instance of the app."""
+        if self.is_frozen:
+            return [str(self.resolved_executable_path)]
+        else:
+            return [str(self.python_executable_path), str(self.resolved_script_path)]
