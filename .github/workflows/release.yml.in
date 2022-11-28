@@ -196,7 +196,7 @@ jobs:
       - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO 'onefile'{% endraw %}
+        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO -BuildType 'onefile'{% endraw %}
 
       - name: Build with pyinstaller (Windows, folder)
         if: contains(matrix.os, 'windows')

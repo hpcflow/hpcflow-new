@@ -196,7 +196,7 @@ jobs:
       - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO 'onefile'
+        run: ./make.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO -BuildType 'onefile'
 
       - name: Build with pyinstaller (Windows, folder)
         if: contains(matrix.os, 'windows')
