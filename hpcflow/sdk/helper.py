@@ -58,6 +58,18 @@ def get_helper_CLI(app):
         run_helper(polling_interval)
 
     @helper.command()
+    @click.option("-f", "--file", is_flag=True)
+    def pid(file):
+        """Get the process ID of the running helper, if running."""
+        out = get_helper_PID(app)
+        if out:
+            pid, pid_file = out
+            if file:
+                click.echo(f"{pid} ({str(pid_file)})")
+            else:
+                click.echo(pid)
+
+    @helper.command()
     def uptime():
         """Get the uptime of the helper process."""
         out = get_helper_uptime(app)
