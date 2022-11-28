@@ -12,4 +12,3 @@ EXE_NAME="${1:-$EXE_NAME_DEFAULT}"
 LOG_LEVEL="${2:-$LOG_LEVEL_DEFAULT}"
 BUILD_TYPE="${3:-$BUILD_TYPE_DEFAULT}"
 poetry run pyinstaller --log-level=$LOG_LEVEL --distpath ./dist/$BUILD_TYPE --$BUILD_TYPE --clean -y --name=$EXE_NAME ../hpcflow/cli/cli.py
-
