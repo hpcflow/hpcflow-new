@@ -61,13 +61,26 @@ def get_helper_CLI(app):
     @click.option("-f", "--file", is_flag=True)
     def pid(file):
         """Get the process ID of the running helper, if running."""
-        out = get_helper_PID(app)
-        if out:
-            pid, pid_file = out
+        pid_info = get_helper_PID(app)
+        if pid_info:
+            pid, pid_file = pid_info
             if file:
                 click.echo(f"{pid} ({str(pid_file)})")
             else:
                 click.echo(pid)
+
+    @helper.command()
+    def clear():
+        """Remove the PID file (and kill the process if it exists). This should not
+        normally be needed."""
+        try:
+            stop_helper(app)
+        except psutil.NoSuchProcess:
+            pid_info = get_helper_PID(app)
+            if pid_info:
+                pid_file = pid_info[1]
+                print("Removing file {pid_file!r}")
+                pid_file.unlink()
 
     @helper.command()
     def uptime():
