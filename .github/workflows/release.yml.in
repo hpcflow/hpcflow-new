@@ -316,7 +316,7 @@ jobs:
       - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux
+          name: {{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir
           path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}-linux-dir
 
       - name: Version check (file)

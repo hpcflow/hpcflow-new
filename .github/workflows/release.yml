@@ -316,7 +316,7 @@ jobs:
       - name: Upload executable artifact (folder)
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
+          name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir
 
       - name: Version check (file)
