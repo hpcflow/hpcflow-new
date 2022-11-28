@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -9,6 +10,9 @@ import time
 import click
 from platformdirs import user_data_dir
 import psutil
+
+
+DEFAULT_TIMEOUT = 3600  # seconds
 
 
 def kill_proc_tree(
@@ -42,9 +46,16 @@ def get_helper_CLI(app):
 
     @helper.command()
     @click.argument("polling_interval", type=click.INT)
-    def start(polling_interval):
+    @click.option(
+        "-t",
+        "--timeout",
+        type=click.FLOAT,
+        default=DEFAULT_TIMEOUT,
+        help="Timeout in seconds.",
+    )
+    def start(polling_interval, timeout):
         """Start the helper process."""
-        start_helper(app, polling_interval)
+        start_helper(app, polling_interval, timeout)
 
     @helper.command()
     def stop():
@@ -53,9 +64,17 @@ def get_helper_CLI(app):
 
     @helper.command()
     @click.argument("polling_interval", type=click.INT)
-    def run(polling_interval):
+    @click.option(
+        "-t",
+        "--timeout",
+        type=click.FLOAT,
+        default=DEFAULT_TIMEOUT,
+        help="Timeout in seconds.",
+    )
+    def run(polling_interval, timeout):
         """Run the helper functionality."""
-        run_helper(polling_interval)
+        timeout = timedelta(seconds=timeout)
+        run_helper(app, polling_interval, timeout)
 
     @helper.command()
     @click.option("-f", "--file", is_flag=True)
@@ -92,9 +111,14 @@ def get_helper_CLI(app):
     return helper
 
 
-def start_helper(app, polling_interval):
+def get_PID_file_path(app):
+    """We segregate by hostname to account for the case where multiple machines might use
+    the same shared file system."""
+    return Path(user_data_dir(appname=app.name)).joinpath(socket.gethostname(), "pid.txt")
 
-    PID_file = Path(user_data_dir(appname=app.name)).joinpath("pid.txt")
+
+def start_helper(app, polling_interval, timeout):
+    PID_file = get_PID_file_path(app)
     if PID_file.is_file():
         print("Helper already running?")
         with PID_file.open("rt") as fp:
@@ -107,12 +131,17 @@ def start_helper(app, polling_interval):
         if os.name == "nt":
             kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW}
 
+        if isinstance(timeout, timedelta):
+            timeout = timeout.seconds
+
         args = app.run_time_info.get_invocation_command()
         args += [
             "--config-dir",
             str(app.config.config_directory),
             "helper",
             "run",
+            "--timeout",
+            str(timeout),
             str(polling_interval),
         ]
 
@@ -125,13 +154,21 @@ def start_helper(app, polling_interval):
         )
 
         print(f"Writing process ID {proc.pid} to file.")
-        with PID_file.open("wt") as fp:
-            fp.write(f"{proc.pid}\n")
+        try:
+            with PID_file.open("wt") as fp:
+                fp.write(f"{proc.pid}\n")
+        except FileNotFoundError as err:
+            print(
+                f"Could not write to the PID file {PID_file!r}; killing helper process. "
+                f"Exception was: {err!r}"
+            )
+            proc.kill()
+            sys.exit(1)
 
 
 def get_helper_PID(app):
 
-    PID_file = Path(user_data_dir(appname=app.name)).joinpath("pid.txt")
+    PID_file = get_PID_file_path(app)
     if not PID_file.is_file():
         print("Helper not running!")
         return None
@@ -158,8 +195,31 @@ def get_helper_uptime(app):
         return uptime
 
 
-def run_helper(polling_interval):
+def run_helper(app, polling_interval, timeout=DEFAULT_TIMEOUT):
+
+    if not isinstance(timeout, timedelta):
+        timeout = timedelta(seconds=timeout)
+
+    start_time = datetime.now()
+
+    with Path("test_file.txt").open("a") as fp:
+        fp.write(f"start_time: {str(start_time)}\n")
+
     while True:
+
+        dt = datetime.now() - start_time
+
         with Path("test_file.txt").open("a") as fp:
-            fp.write(str(datetime.now()) + "\n")
+
+            fp.write(str(dt) + "\n")
+
+            if dt >= timeout:
+                fp.write(f"Exiting due to timeout ({timeout!r}).\n")
+                pid_info = get_helper_PID(app)
+                if pid_info:
+                    pid_file = pid_info[1]
+                    fp.write(f"Deleting PID file: {pid_file!r}\n")
+                    pid_file.unlink()
+                sys.exit(0)
+
         time.sleep(polling_interval)
