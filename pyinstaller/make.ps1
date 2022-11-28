@@ -7,4 +7,3 @@
 # 
 param($ExeName = "hpcflow", $LogLevel = "INFO", $BuildType = 'onefile')
 poetry run pyinstaller --log-level=$LogLevel --distpath ./dist/$BuildType --$BuildType --clean -y --name=$ExeName ..\hpcflow\cli\cli.py
-
