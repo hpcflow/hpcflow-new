@@ -233,7 +233,7 @@ jobs:
         run: |
           $tag = "{% raw %}${{ needs.bump-version.outputs.new_tag_name }}{% endraw %}"
           $tagNoV = $tag.trim('v')
-          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}$-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} {% endraw %} --version
+          ${{ executable_name }}_vers = {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} {% endraw %} --version
           ${{ executable_name }}_vers_expected = "{{ executable_name }}, version $tagNoV"
           echo ${{ executable_name }}_vers
           echo "${{ executable_name }}_vers_expected"
