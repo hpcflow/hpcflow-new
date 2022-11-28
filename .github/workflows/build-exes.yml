@@ -70,21 +70,37 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $env:GITHUB_ENV
 
-      - name: Build with pyinstaller (non Windows)
+      - name: Build with pyinstaller (non Windows, file)
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }}
+        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }} 'onefile'
 
-      - name: Build with pyinstaller (Windows)
+      - name: Build with pyinstaller (non Windows, folder)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onedir'
+
+      - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }}
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefile'
 
-      - name: Upload executable artifact
+      - name: Build with pyinstaller (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: pyinstaller
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onedir'
+
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+
+      - name: Upload executable artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
+          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -98,33 +114,13 @@ jobs:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
-      - name: Version check (windows)
-        if: contains(matrix.os, 'windows')
+      - name: Run test suite on the frozen app (file)
         run: |
-          $tag = "${{ env.cur_tag }}"
-          $tagNoV = $tag.trim('v')
-          $hpcflow_vers = pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
-          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo "$hpcflow_vers_expected"
-          if ($hpcflow_vers -ne $hpcflow_vers_expected) {
-            exit 1
-          }
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
 
-      - name: Version check (non-windows)
-        if: "!contains(matrix.os, 'windows')"
+      - name: Run test suite on the frozen app (folder)
         run: |
-          tag=${{ env.cur_tag }}
-          tagNoV=${tag:1}
-          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo $hpcflow_vers_expected
-          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
-
-      - name: Run test suite on the frozen app
-        run: |
-          pyinstaller/dist/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
 
   build-executables-linux:
     runs-on: ubuntu-latest
@@ -162,15 +158,25 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $GITHUB_ENV
 
-      - name: Build with pyinstaller for CentOS
+      - name: Build with pyinstaller for CentOS (file)
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-linux ${{ github.event.inputs.logLevel }}
+        run: ./make.sh hpcflow-${{ env.vers }}-linux ${{ github.event.inputs.logLevel }} onefile
 
-      - name: Upload executable artifact
+      - name: Build with pyinstaller for CentOS (folder)
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ env.vers }}-linux-dir ${{ github.event.inputs.logLevel }} onedir
+
+      - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux
-          path: pyinstaller/dist/hpcflow-${{ env.vers }}-linux
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux
+
+      - name: Upload executable artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-linux-dir
+          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir
 
       - name: Upload spec file
         uses: actions/upload-artifact@v3
@@ -184,16 +190,10 @@ jobs:
           name: hpcflow-${{ env.vers }}-linux-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-linux
 
-      - name: Version check
+      - name: Run test suite on the frozen app (file)
         run: |
-          tag=${{ env.cur_tag }}
-          tagNoV=${tag:1}
-          hpcflow_vers=$(pyinstaller/dist/hpcflow-${{ env.vers }}-linux --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
-          echo $hpcflow_vers
-          echo $hpcflow_vers_expected
-          [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux test
 
-      - name: Run test suite on the frozen app
+      - name: Run test suite on the frozen app (folder)
         run: |
-          pyinstaller/dist/hpcflow-${{ env.vers }}-linux test
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir/hpcflow-${{ env.vers }}-linux-dir test
