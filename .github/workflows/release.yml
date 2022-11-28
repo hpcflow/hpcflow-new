@@ -233,7 +233,7 @@ jobs:
         run: |
           $tag = "${{ needs.bump-version.outputs.new_tag_name }}"
           $tagNoV = $tag.trim('v')
-          $hpcflow_vers = pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}$-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}  --version
+          $hpcflow_vers = pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}  --version
           $hpcflow_vers_expected = "hpcflow, version $tagNoV"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
