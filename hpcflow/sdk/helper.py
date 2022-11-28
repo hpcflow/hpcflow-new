@@ -79,7 +79,7 @@ def get_helper_CLI(app):
             pid_info = get_helper_PID(app)
             if pid_info:
                 pid_file = pid_info[1]
-                print("Removing file {pid_file!r}")
+                print(f"Removing file {pid_file!r}")
                 pid_file.unlink()
 
     @helper.command()
