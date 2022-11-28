@@ -400,9 +400,9 @@ jobs:
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-win.exe
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-macOS
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
-            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-win-dir.zip
-            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-macOS-dir.zip
-            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir.zip
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-win-dir
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-macOS-dir
+            **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
 
       - name: Release info
@@ -411,7 +411,7 @@ jobs:
           binaryYaml=$(python3 -c "
           from pathlib import Path
           out_yaml = ''
-          for i in ['win.exe', 'macOS', 'linux', 'win-dir.zip', 'macOS-dir.zip', 'linux-dir.zip']:
+          for i in ['win.exe', 'macOS', 'linux', 'win-dir', 'macOS-dir', 'linux-dir']:
             exe_name = 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-' + i
             url = 'https://github.com/hpcflow/hpcflow-new/releases/download/${{ needs.bump-version.outputs.new_tag_name }}/' + exe_name
             out_yaml += exe_name + ': ' + url + '\n'
