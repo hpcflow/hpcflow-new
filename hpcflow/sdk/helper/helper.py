@@ -16,6 +16,8 @@ from .watcher import MonitorController
 
 
 DEFAULT_TIMEOUT = 3600  # seconds
+DEFAULT_TIMEOUT_CHECK = 60  # seconds
+DEFAULT_WATCH_INTERVAL = 10  # seconds
 
 
 def kill_proc_tree(
@@ -56,7 +58,25 @@ def get_watcher_file_path(app):
     return get_user_data_dir(app) / "watch_workflows.txt"
 
 
-def start_helper(app, polling_interval, timeout):
+def get_helper_log_path(app):
+    """Get the log file path for the helper."""
+    return get_user_data_dir(app) / "helper.log"
+
+
+def get_helper_watch_list(app):
+    """Get the list of workflows currently being watched by the helper process."""
+    logger = get_helper_logger(app)
+    wks = MonitorController.parse_watch_workflows_file(get_watcher_file_path(app), logger)
+    return wks
+
+
+def start_helper(
+    app,
+    timeout=DEFAULT_TIMEOUT,
+    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
+    watch_interval=DEFAULT_WATCH_INTERVAL,
+    logger=None,
+):
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
         print("Helper already running?")
@@ -65,14 +85,21 @@ def start_helper(app, polling_interval, timeout):
             print(f"{helper_pid=}")
 
     else:
-        logger = get_helper_logger(app)
-        logger.info(f"Starting helper with {polling_interval=!r} and {timeout=!r}.")
+        logger = logger or get_helper_logger(app)
+        logger.info(
+            f"Starting helper with {timeout=!r}, {timeout_check_interval=!r} and "
+            f"{watch_interval=!r}."
+        )
         kwargs = {}
         if os.name == "nt":
             kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW}
 
         if isinstance(timeout, timedelta):
-            timeout = timeout.seconds
+            timeout = timeout.total_seconds()
+        if isinstance(timeout_check_interval, timedelta):
+            timeout_check_interval = timeout_check_interval.total_seconds()
+        if isinstance(watch_interval, timedelta):
+            watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
         args += [
@@ -82,7 +109,10 @@ def start_helper(app, polling_interval, timeout):
             "run",
             "--timeout",
             str(timeout),
-            str(polling_interval),
+            "--timeout-check-interval",
+            str(timeout_check_interval),
+            "--watch-interval",
+            str(watch_interval),
         ]
 
         proc = subprocess.Popen(
@@ -106,6 +136,16 @@ def start_helper(app, polling_interval, timeout):
             sys.exit(1)
 
 
+def restart_helper(
+    app,
+    timeout=DEFAULT_TIMEOUT,
+    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
+    watch_interval=DEFAULT_WATCH_INTERVAL,
+):
+    logger = stop_helper(app, return_logger=True)
+    start_helper(app, timeout, timeout_check_interval, watch_interval, logger=logger)
+
+
 def get_helper_PID(app):
 
     PID_file = get_PID_file_path(app)
@@ -118,7 +158,7 @@ def get_helper_PID(app):
         return helper_pid, PID_file
 
 
-def stop_helper(app):
+def stop_helper(app, return_logger=False):
     logger = get_helper_logger(app)
     pid_info = get_helper_PID(app)
     if pid_info:
@@ -130,6 +170,9 @@ def stop_helper(app):
         workflow_dirs_file_path = get_watcher_file_path(app)
         logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
         workflow_dirs_file_path.unlink()
+
+    if return_logger:
+        return logger
 
 
 def get_helper_uptime(app):
@@ -143,7 +186,7 @@ def get_helper_uptime(app):
 
 def get_helper_logger(app):
 
-    log_path = get_watcher_file_path(app).parent / "watcher.log"
+    log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
@@ -174,25 +217,41 @@ def helper_timeout(app, timeout, controller, logger):
     sys.exit(0)
 
 
-def run_helper(app, polling_interval, timeout=DEFAULT_TIMEOUT):
+def run_helper(
+    app,
+    timeout=DEFAULT_TIMEOUT,
+    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
+    watch_interval=DEFAULT_WATCH_INTERVAL,
+):
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming
 
-    if not isinstance(timeout, timedelta):
-        timeout = timedelta(seconds=timeout)
+    # TODO: we will want to set the timeout to be slightly more than the largest allowable
+    # walltime in the case of scheduler submissions.
+
+    if isinstance(timeout, timedelta):
+        timeout_s = timeout.total_seconds()
+    else:
+        timeout_s = timeout
+        timeout = timedelta(seconds=timeout_s)
+
+    if isinstance(timeout_check_interval, timedelta):
+        timeout_check_interval_s = timeout_check_interval.total_seconds()
+    else:
+        timeout_check_interval_s = timeout_check_interval
+        timeout_check_interval = timedelta(seconds=timeout_check_interval_s)
 
     start_time = datetime.now()
     logger = get_helper_logger(app)
-    controller = MonitorController(get_watcher_file_path(app), logger)
-
+    controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
+    timeout_limit = timeout - timeout_check_interval
     try:
         while True:
-            dt = datetime.now() - start_time
-            if dt >= timeout:
+            if datetime.now() - start_time >= timeout_limit:
                 helper_timeout(app, timeout, controller, logger)
-            time.sleep(polling_interval)
+            time.sleep(timeout_check_interval_s)
 
     except KeyboardInterrupt:
         controller.stop()

@@ -1,16 +1,16 @@
-import time
-import logging
-from logging.handlers import RotatingFileHandler
+from datetime import timedelta
 from pathlib import Path
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler, PatternMatchingEventHandler
-
-logger = None
 
 
 class MonitorController:
-    def __init__(self, workflow_dirs_file_path, logger):
+    def __init__(self, workflow_dirs_file_path, watch_interval, logger):
 
+        if isinstance(watch_interval, timedelta):
+            watch_interval = watch_interval.total_seconds()
+
+        self.watch_interval = int(watch_interval)
         self.workflow_dirs_file_path = Path(workflow_dirs_file_path).absolute()
         self.logger = logger
 
@@ -26,7 +26,7 @@ class MonitorController:
         self.event_handler = PatternMatchingEventHandler(patterns=["watch_workflows.txt"])
         self.event_handler.on_modified = self.on_modified
 
-        self.observer = Observer()
+        self.observer = PollingObserver(timeout=self.watch_interval)
         self.observer.schedule(
             self.event_handler,
             path=self.workflow_dirs_file_path.parent,
@@ -35,10 +35,17 @@ class MonitorController:
 
         self.observer.start()
 
-        workflow_paths = self.parse_watch_workflows_file(self.workflow_dirs_file_path)
-        self.workflow_monitor = WorkflowMonitor(workflow_paths, logger=self.logger)
+        workflow_paths = self.parse_watch_workflows_file(
+            self.workflow_dirs_file_path, logger=self.logger
+        )
+        self.workflow_monitor = WorkflowMonitor(
+            workflow_paths,
+            watch_interval=self.watch_interval,
+            logger=self.logger,
+        )
 
-    def parse_watch_workflows_file(self, path):
+    @staticmethod
+    def parse_watch_workflows_file(path, logger):
         # TODO: and parse element IDs as well; and record which are set/unset.
         with Path(path).open("rt") as fp:
             lns = fp.readlines()
@@ -50,7 +57,7 @@ class MonitorController:
                 continue
             wk_path = Path(ln_s).absolute()
             if not wk_path.is_dir():
-                self.logger.warning(f"{str(wk_path)} is not a workflow")
+                logger.warning(f"{str(wk_path)} is not a workflow")
                 continue
 
             wks.append(
@@ -63,7 +70,7 @@ class MonitorController:
 
     def on_modified(self, event):
         self.logger.info(f"Watch file modified: {event.src_path}")
-        wks = self.parse_watch_workflows_file(event.src_path)
+        wks = self.parse_watch_workflows_file(event.src_path, logger=self.logger)
         self.workflow_monitor.update_workflow_paths(wks)
 
     def join(self):
@@ -76,17 +83,21 @@ class MonitorController:
 
 
 class WorkflowMonitor:
-    def __init__(self, workflow_paths, logger):
+    def __init__(self, workflow_paths, watch_interval, logger):
+
+        if isinstance(watch_interval, timedelta):
+            watch_interval = watch_interval.total_seconds()
 
         self.event_handler = FileSystemEventHandler()
         self.workflow_paths = workflow_paths
+        self.watch_interval = int(watch_interval)
         self.logger = logger
 
         self._monitor_workflow_paths()
 
     def _monitor_workflow_paths(self):
 
-        self.observer = Observer()
+        self.observer = PollingObserver(timeout=self.watch_interval)
         for i in self.workflow_paths:
             self.observer.schedule(self.event_handler, path=i["path"], recursive=False)
             self.logger.info(f"Watching workflow: {i['path'].name}")
