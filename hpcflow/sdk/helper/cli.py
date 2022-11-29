@@ -13,6 +13,7 @@ from .helper import (
     start_helper,
     stop_helper,
     restart_helper,
+    clear_helper,
     run_helper,
     get_helper_PID,
     get_helper_uptime,
@@ -125,14 +126,7 @@ def get_helper_CLI(app):
     def clear():
         """Remove the PID file (and kill the helper process if it exists). This should not
         normally be needed."""
-        try:
-            stop_helper(app)
-        except psutil.NoSuchProcess:
-            pid_info = get_helper_PID(app)
-            if pid_info:
-                pid_file = pid_info[1]
-                print(f"Removing file {pid_file!r}")
-                pid_file.unlink()
+        clear_helper(app)
 
     @helper.command()
     def uptime():

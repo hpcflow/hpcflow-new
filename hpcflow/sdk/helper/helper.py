@@ -175,6 +175,17 @@ def stop_helper(app, return_logger=False):
         return logger
 
 
+def clear_helper(app):
+    try:
+        stop_helper(app)
+    except psutil.NoSuchProcess:
+        pid_info = get_helper_PID(app)
+        if pid_info:
+            pid_file = pid_info[1]
+            print(f"Removing file {pid_file!r}")
+            pid_file.unlink()
+
+
 def get_helper_uptime(app):
     pid_info = get_helper_PID(app)
     if pid_info:
