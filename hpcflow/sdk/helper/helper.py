@@ -119,13 +119,17 @@ def get_helper_PID(app):
 
 
 def stop_helper(app):
+    logger = get_helper_logger(app)
     pid_info = get_helper_PID(app)
     if pid_info:
-        logger = get_helper_logger(app)
         logger.info(f"Stopping helper.")
         pid, pid_file = pid_info
         kill_proc_tree(pid=pid)
         pid_file.unlink()
+
+        workflow_dirs_file_path = get_watcher_file_path(app)
+        logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
+        workflow_dirs_file_path.unlink()
 
 
 def get_helper_uptime(app):
