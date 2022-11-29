@@ -1,4 +1,56 @@
 
+<a name="v0.2.0a16"></a>
+## [v0.2.0a16](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a15...v0.2.0a16) - 2022.11.28
+
+### ✨ Features
+
+* **gha:** Add pyinstaller onedir to release
+
+### 🐛 Bug Fixes
+
+* Correct typo in linux onedir upload name
+* Correct typo in release build windows, file
+* Remove .zip from onedir filenames
+* Correct typo in Version check (win, folder).
+* Correct typo in Version check (win, folder).
+* Correct erroneous version number.
+* Remove erroneously updated changelog.
+* Remove erroneously updated changelog.
+* Fix typo in release workflow template
+* Fix incorrect folder for pyinst onefolder
+* Change onefolder to onefir in makefiles
+* Correct typos in make script
+* Correct typo in build-exes workflow
+* Fix typo in build-exes template & workflow
+* Fix typo in pyinstaller/make.sh
+* Change onefolder to onedir in makefiles
+* **gha:** Correct typo in build wf file & template
+* **gha:** Fix typo in build-exes wf temp & file
+
+### 👷 Build changes
+
+* Update make scripts.
+* Add onefile build to ipyinstaller makefiles
+* Update pyinstaller make scripts
+* Add sep folder for onefile, onefolder build
+* Update make scripts
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* **GHA:** Update build workflow template & file
+* **GHA:** Update workflow templates and files
+* **gha:** Update build-exes wf template and file
+* **gha:** Update release & build-exes workflows
+* **gha:** Update build-exes wf template & file
+* **gha:** Update build-exes template & workflow
+* **gha:** Update release wf with pyinst ondir
+* **gha:** Update build workflow file & template
+* **gha:** Update pyinstaller make files
+* **gha:** Update build-exes wf template and file
+* **gha:** Update release & build-exes workflows.
+* **gha:** Update release & build-exes workflows
+* **pyinstaller:** Update pyinstaller make files
+
+
 <a name="v0.2.0a15"></a>
 ## [v0.2.0a15](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a14...v0.2.0a15) - 2022.11.14
 
