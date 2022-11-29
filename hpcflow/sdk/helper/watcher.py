@@ -89,6 +89,7 @@ class WorkflowMonitor:
             watch_interval = watch_interval.total_seconds()
 
         self.event_handler = FileSystemEventHandler()
+        self.event_handler.on_modified = self.on_modified
         self.workflow_paths = workflow_paths
         self.watch_interval = int(watch_interval)
         self.logger = logger
@@ -103,6 +104,9 @@ class WorkflowMonitor:
             self.logger.info(f"Watching workflow: {i['path'].name}")
 
         self.observer.start()
+
+    def on_modified(self, event):
+        self.logger.info(f"Workflow modified: {event.src_path}")
 
     def update_workflow_paths(self, new_paths):
         self.logger.info(f"Updating watched workflows.")
