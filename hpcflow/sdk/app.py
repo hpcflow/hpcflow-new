@@ -31,7 +31,7 @@ from .core.task import WorkflowTask
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
-from .helper import get_helper_CLI
+from .helper.cli import get_helper_CLI
 from .log import AppLog
 from .runtime import RunTimeInfo
 
