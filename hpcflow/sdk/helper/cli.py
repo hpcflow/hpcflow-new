@@ -147,8 +147,8 @@ def get_helper_CLI(app):
 
     @helper.command()
     def watch_list():
-        """Get the path to the workflow watch list file (may not exist)."""
-        for wk in get_helper_watch_list(app):
+        """Get the list of workflows currently being watched."""
+        for wk in get_helper_watch_list(app) or []:
             click.echo(str(wk["path"]))
 
     return helper

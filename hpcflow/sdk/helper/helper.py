@@ -66,8 +66,9 @@ def get_helper_log_path(app):
 def get_helper_watch_list(app):
     """Get the list of workflows currently being watched by the helper process."""
     logger = get_helper_logger(app)
-    wks = MonitorController.parse_watch_workflows_file(get_watcher_file_path(app), logger)
-    return wks
+    watch_file_path = get_watcher_file_path(app)
+    if watch_file_path.exists():
+        return MonitorController.parse_watch_workflows_file(watch_file_path, logger)
 
 
 def start_helper(
