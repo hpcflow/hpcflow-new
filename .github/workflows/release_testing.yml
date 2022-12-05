@@ -1,5 +1,4 @@
-name: release
-concurrency: release
+name: release_testing
 
 env:
   PYTHON_VERSION_BUMP: "3.10"
