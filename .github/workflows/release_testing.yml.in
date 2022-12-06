@@ -153,14 +153,14 @@ jobs:
 
       - name: Release
         id: release
-        uses: softprops/action-gh-release@v0.1.13 
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: test-tag 
           files: |
-            **/{{ executable_name }}-release-test-build-win.exe
-            **/{{ executable_name }}-release-test-build-macOS
-            **/{{ executable_name }}-release-test-build-linux
-            **/{{ executable_name }}-release-test-build-win-dir
-            **/{{ executable_name }}-release-test-build-macOS-dir
-            **/{{ executable_name }}-release-test-build-linux-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-win.exe
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-macOS
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-linux
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-win-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-macOS-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-linux-dir
           prerelease: true 
