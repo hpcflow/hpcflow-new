@@ -153,7 +153,7 @@ jobs:
 
       - name: Release
         id: release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v0.1.13 
         with:
           tag_name: test-tag 
           files: |
