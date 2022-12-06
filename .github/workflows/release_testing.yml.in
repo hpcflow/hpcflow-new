@@ -1,5 +1,4 @@
-name: release
-concurrency: release
+name: release_testing
 
 env:
   PYTHON_VERSION_BUMP: "3.10"
@@ -137,31 +136,10 @@ jobs:
   release-github:
     needs: [build-executables, build-executables-linux]
     runs-on: ubuntu-latest
-    outputs:
-      binary_download_links: {% raw %}${{ steps.get_binary_download_links.outputs.binary_download_links }}{% endraw %}
     steps:
       - uses: actions/checkout@v3
         with:
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: {% raw %}${{ env.PYTHON_VERSION_RELEASE }}{% endraw %}
-
-      - name: Cache the virtualenv
-        uses: actions/cache@v3
-        with:
-          path: ./.venv
-          key: {% raw %}venv-release-${{ hashFiles('**/poetry.lock') }}{% endraw %}
-
-      - name: Install poetry
-        run: python -m pip install poetry==1.2.2
-
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Install dependencies
-        run: poetry install --without dev,pyinstaller
 
       - run: mkdir release-artifacts
 
@@ -179,10 +157,10 @@ jobs:
         with:
           tag_name: test-tag 
           files: |
-            **/{{ executable_name }}-test-release-build-win.exe
-            **/{{ executable_name }}-test-release-build-macOS
-            **/{{ executable_name }}-test-release-build-linux
-            **/{{ executable_name }}-test-release-build-win-dir
-            **/{{ executable_name }}-test-release-build-macOS-dir
-            **/{{ executable_name }}-test-release-build-linux-dir
+            **/{{ executable_name }}-release-test-build-win.exe
+            **/{{ executable_name }}-release-test-build-macOS
+            **/{{ executable_name }}-release-test-build-linux
+            **/{{ executable_name }}-release-test-build-win-dir
+            **/{{ executable_name }}-release-test-build-macOS-dir
+            **/{{ executable_name }}-release-test-build-linux-dir
           prerelease: true 
