@@ -157,10 +157,10 @@ jobs:
         with:
           tag_name: test-tag 
           files: |
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-win.exe
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-macOS
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-linux
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-win-dir
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-macOS-dir
-            /home/runner/work/hpcflow-new/hpcflow-new/{{ executable_name }}-release-test-build-linux-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-win.exe
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-macOS
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-linux
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-win-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-macOS-dir
+            /home/runner/work/hpcflow-new/hpcflow-new/release-artifacts/{{ executable_name }}-release-test-build-linux-dir
           prerelease: true 
