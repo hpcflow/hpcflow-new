@@ -151,11 +151,18 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R
 
+      - uses: montudor/action-zip@v1
+         with:
+           args: zip -qq -r hpcflow-release-test-build-win-dir.zip hpcflow-release-test-build-win-dir 
+
+      - name: Display structure of downloaded files
+        run: ls -R
+
       - name: Release
         id: release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: test-tag 
           files: |
-            hpcflow-release-test-build-win-dir
+            hpcflow-release-test-build-win-dir.zip
           prerelease: true 
