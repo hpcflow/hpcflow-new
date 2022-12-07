@@ -86,6 +86,13 @@ jobs:
           name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir
           path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir
 
+      - name: Upload executable artifact (Windows, compressed folder)
+        if: contains(matrix.os, 'windows')
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+          path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir
+
   build-executables-linux:
     runs-on: ubuntu-latest
     container:
@@ -146,14 +153,7 @@ jobs:
       - uses: actions/download-artifact@v3
         id: download_executables
         with:
-          name: hpcflow-release-test-build-macOS-dir
-
-      - name: Display structure of downloaded files
-        run: ls -R
-
-      - uses: montudor/action-zip@v1
-        with:
-          args: zip -qq -r hpcflow-release-test-build-macOS-dir.zip hpcflow-release-test-build-macOS-dir 
+          name: hpcflow-release-test-build-win-dir.zip
 
       - name: Display structure of downloaded files
         run: ls -R
@@ -164,5 +164,5 @@ jobs:
         with:
           tag_name: test-tag 
           files: |
-            hpcflow-release-test-build-macOS-dir.zip
+            hpcflow-release-test-build-win-dir.zip
           prerelease: true 
