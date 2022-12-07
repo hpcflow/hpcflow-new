@@ -8,5 +8,5 @@
 param($ExeName = "hpcflow", $LogLevel = "INFO", $BuildType = 'onefile')
 poetry run pyinstaller --log-level=$LogLevel --distpath ./dist/$BuildType --$BuildType --clean -y --name=$ExeName ..\hpcflow\cli\cli.py
 If ($BuildType -eq 'onedir') {
-	Compress-Archive -Path ./dist/$BuildType/$ExeName -DestinationPath ./dist/$BuildType/$ExeName.zip
+	Compress-Archive -Path ./dist/$BuildType/$ExeName -DestinationPath ./dist/$BuildType/$ExeName
 }

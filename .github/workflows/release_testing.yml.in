@@ -74,6 +74,11 @@ jobs:
         working-directory: {{ pyinstaller_dir }}
         run: ./make.ps1 -ExeName "{{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}-dir" -LogLevel INFO -BuildType 'onedir'{% endraw %}
 
+      - name: Compress folder (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: {{ pyinstaller_dir }}
+        run: ./compress.ps1 -ExeName "{{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}-dir" -BuildType 'onedir'{% endraw %}
+          
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
@@ -85,6 +90,13 @@ jobs:
         with:
           name: {{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}{% endraw %}-dir
           path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}{% endraw %}-dir
+
+      - name: Upload compressed artifact (folder)
+        if: contains(matrix.os, 'windows')
+        uses: actions/upload-artifact@v3
+        with:
+          name: {{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}{% endraw %}-dir.zip
+          path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-release-test-build-{% raw %}${{ matrix.executable_os }}{% endraw %}-dir.zip
 
   build-executables-linux:
     runs-on: ubuntu-latest
