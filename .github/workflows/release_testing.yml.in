@@ -146,8 +146,7 @@ jobs:
       - uses: actions/download-artifact@v3
         id: download_executables
         with:
-          name: hpcflow-release-test-build-macOS-dir
-          path: release-artifacts
+          name: hpcflow-release-test-build-win-dir
 
       - name: Display structure of downloaded files
         run: ls -R
@@ -158,5 +157,5 @@ jobs:
         with:
           tag_name: test-tag 
           files: |
-            **/release-artifacts/{{ executable_name }}-release-test-build-macOS-dir
+            hpcflow-release-test-build-win-dir
           prerelease: true 
