@@ -146,14 +146,14 @@ jobs:
       - uses: actions/download-artifact@v3
         id: download_executables
         with:
-          name: hpcflow-release-test-build-win-dir
+          name: hpcflow-release-test-build-macOS-dir
 
       - name: Display structure of downloaded files
         run: ls -R
 
       - uses: montudor/action-zip@v1
         with:
-          args: zip -qq -r hpcflow-release-test-build-win-dir.zip . -i hpcflow-release-test-build-win-dir 
+          args: zip -qq -r hpcflow-release-test-build-macOS-dir.zip hpcflow-release-test-build-macOS-dir 
 
       - name: Display structure of downloaded files
         run: ls -R
@@ -164,5 +164,5 @@ jobs:
         with:
           tag_name: test-tag 
           files: |
-            hpcflow-release-test-build-win-dir.zip
+            hpcflow-release-test-build-macOS-dir.zip
           prerelease: true 
