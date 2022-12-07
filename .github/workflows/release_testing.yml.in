@@ -152,8 +152,8 @@ jobs:
         run: ls -R
 
       - uses: montudor/action-zip@v1
-         with:
-           args: zip -qq -r hpcflow-release-test-build-win-dir.zip hpcflow-release-test-build-win-dir 
+        with:
+          args: zip -qq -r hpcflow-release-test-build-win-dir.zip hpcflow-release-test-build-win-dir 
 
       - name: Display structure of downloaded files
         run: ls -R
