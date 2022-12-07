@@ -95,8 +95,8 @@ jobs:
         if: contains(matrix.os, 'windows')
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
-          path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+          name: test_compress.zip 
+          path: pyinstaller/dist/onedir/test_compress.zip
 
   build-executables-linux:
     runs-on: ubuntu-latest
