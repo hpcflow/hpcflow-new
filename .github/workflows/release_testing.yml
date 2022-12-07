@@ -98,6 +98,15 @@ jobs:
           name: test_compress.zip 
           path: pyinstaller/dist/onedir/test_compress.zip
 
+      - name: Upload compressed artifact II (folder)
+        if: contains(matrix.os, 'windows')
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+          path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+
+
+
   build-executables-linux:
     runs-on: ubuntu-latest
     container:
@@ -160,6 +169,11 @@ jobs:
         with:
           name: test_compress.zip 
 
+      - uses: actions/download-artifact@v3
+        id: download_executables
+        with:
+          name: hpcflow-release-test-build-win-dir.zip
+
       - name: Display structure of downloaded files
         run: ls -R
 
@@ -170,4 +184,5 @@ jobs:
           tag_name: test-tag 
           files: |
             test_compress.zip
+            hpcflow-release-test-build-win-dir.zip
           prerelease: true 
