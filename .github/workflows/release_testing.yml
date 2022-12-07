@@ -165,12 +165,12 @@ jobs:
       - run: mkdir release-artifacts
 
       - uses: actions/download-artifact@v3
-        id: download_executables
+        id: download_executables_I
         with:
           name: test_compress.zip 
 
       - uses: actions/download-artifact@v3
-        id: download_executables
+        id: download_executables_II
         with:
           name: hpcflow-release-test-build-win-dir.zip
 
