@@ -32,18 +32,21 @@ def get_helper_CLI(app):
         "--timeout",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT,
+        show_default=True,
         help="Helper timeout in seconds.",
     )
     @click.option(
         "--timeout-check-interval",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT_CHECK,
+        show_default=True,
         help="Interval between testing if the timeout has been exceeded in seconds.",
     )
     @click.option(
         "--watch-interval",
         type=click.FLOAT,
         default=DEFAULT_WATCH_INTERVAL,
+        show_default=True,
         help=(
             "Polling interval for watching workflows (and the workflow watch list) in "
             "seconds."
@@ -63,18 +66,21 @@ def get_helper_CLI(app):
         "--timeout",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT,
+        show_default=True,
         help="Helper timeout in seconds.",
     )
     @click.option(
         "--timeout-check-interval",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT_CHECK,
+        show_default=True,
         help="Interval between testing if the timeout has been exceeded in seconds.",
     )
     @click.option(
         "--watch-interval",
         type=click.FLOAT,
         default=DEFAULT_WATCH_INTERVAL,
+        show_default=True,
         help=(
             "Polling interval for watching workflows (and the workflow watch list) in "
             "seconds."
@@ -89,18 +95,21 @@ def get_helper_CLI(app):
         "--timeout",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT,
+        show_default=True,
         help="Helper timeout in seconds.",
     )
     @click.option(
         "--timeout-check-interval",
         type=click.FLOAT,
         default=DEFAULT_TIMEOUT_CHECK,
+        show_default=True,
         help="Interval between testing if the timeout has been exceeded in seconds.",
     )
     @click.option(
         "--watch-interval",
         type=click.FLOAT,
         default=DEFAULT_WATCH_INTERVAL,
+        show_default=True,
         help=(
             "Polling interval for watching workflows (and the workflow watch list) in "
             "seconds."
