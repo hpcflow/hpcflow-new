@@ -1,45 +1,4 @@
 
-<a name="v0.2.0a17"></a>
-## [v0.2.0a17](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a16...v0.2.0a17) - 2022.12.08
-
-### Other changes
-
-* remove extra space
-* Remove test workflows.
-* rectify conflicting action ids
-* test exisitng *win-dir.zip
-* add renamed archive to release
-* change compressed filename
-* Test separate compress script
-* tweaking if statement again
-* tweak if statement
-* fix if statement
-* test zip win-dir right after build
-* test zip on macOS
-* tweak zip command
-* remove extra space
-* test zip win-dir before release
-* test download to action root
-* test macOS-dir in isolation
-* Try download win-dir only
-* Try artefact path beginning ./
-* fix path to artifacts
-* test specify full path to artefacts
-* test softprops/action-gh-release[@v0](https://github.com/v0).1.13
-* fix artefact names in relese step
-* Add workflow to test GH releasing
-
-### 🐛 Bug Fixes
-
-* Fix name of release_testing wf.
-
-### 👷 Build changes
-
-* Add compress script (bash)
-* Add compress script (powershell)
-* **gha:** Compress onedir output for release
-
-
 <a name="v0.2.0a16"></a>
 ## [v0.2.0a16](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a15...v0.2.0a16) - 2022.11.28
 
