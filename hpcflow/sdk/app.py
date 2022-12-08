@@ -2,6 +2,7 @@
 
 from functools import wraps
 from importlib import resources
+import time
 import warnings
 
 import click
@@ -30,6 +31,7 @@ from .core.task import WorkflowTask
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
+from .helper.cli import get_helper_CLI
 from .log import AppLog
 from .runtime import RunTimeInfo
 
@@ -274,6 +276,7 @@ class BaseApp:
         @click.command(help=f"Run {self.name} test suite.")
         def test():
             self.run_tests()
+            time.sleep(10)
 
         @click.command(help=f"Run hpcflow test suite.")
         def test_hpcflow():
@@ -299,7 +302,7 @@ class BaseApp:
         def run_time_info_callback(ctx, param, value):
             if not value or ctx.resilient_parsing:
                 return
-            click.echo(self.run_time_info)
+            click.echo(str(self.run_time_info))
             ctx.exit()
 
         @click.group(name=self.name)
@@ -341,6 +344,7 @@ class BaseApp:
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))
         new_CLI.add_command(get_demo_software_CLI(self))
+        new_CLI.add_command(get_helper_CLI(self))
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 
