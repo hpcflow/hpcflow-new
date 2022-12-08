@@ -87,8 +87,8 @@ def start_helper(
     else:
         logger = logger or get_helper_logger(app)
         logger.info(
-            f"Starting helper with {timeout=!r}, {timeout_check_interval=!r} and "
-            f"{watch_interval=!r}."
+            f"Starting helper with timeout={timeout!r}, timeout_check_interval="
+            f"{timeout_check_interval!r} and watch_interval={watch_interval!r}."
         )
         kwargs = {}
         if os.name == "nt":
