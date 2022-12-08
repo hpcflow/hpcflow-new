@@ -80,10 +80,9 @@ def start_helper(
 ):
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
-        print("Helper already running?")
         with PID_file.open("rt") as fp:
             helper_pid = int(fp.read().strip())
-            print(f"{helper_pid=}")
+            print(f"Helper already running, with process ID: {helper_pid}")
 
     else:
         logger = logger or get_helper_logger(app)
