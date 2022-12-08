@@ -5,5 +5,5 @@
 # 
 # Might need to disable desktop cloud sync. engines during this!
 # 
-param($ExeName = "hpcflow", $BuildType = 'onefile')
+param($ExeName = "hpcflow", $BuildType = 'onedir')
 Compress-Archive -Path ./dist/$BuildType/$ExeName -DestinationPath ./dist/$BuildType/test_compress
