@@ -80,7 +80,7 @@ jobs:
         run: ./compress.ps1 -ExeName 'hpcflow-release-test-build-${{ matrix.executable_os }}-dir' -BuildType 'onedir'
 
       - name: Compress folder (non-windows, folder)
-        if: contains(matrix.os, 'windows')
+        if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
         run: ./compress.sh hpcflow-release-test-build-${{ matrix.executable_os }}-dir onedir
           
@@ -97,14 +97,6 @@ jobs:
           path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir
 
       - name: Upload compressed artifact (folder)
-        if: contains(matrix.os, 'windows')
-        uses: actions/upload-artifact@v3
-        with:
-          name: test_compress.zip 
-          path: pyinstaller/dist/onedir/test_compress.zip
-
-      - name: Upload compressed artifact II (folder)
-        if: contains(matrix.os, 'windows')
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
