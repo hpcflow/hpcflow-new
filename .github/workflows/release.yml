@@ -196,12 +196,12 @@ jobs:
       - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO -BuildType 'onefile'
+        run: ./make.ps1 -ExeName 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}' -LogLevel INFO -BuildType 'onefile'
 
       - name: Build with pyinstaller (Windows, folder)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir" -LogLevel INFO -BuildType 'onedir'
+        run: ./make.ps1 -ExeName 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir' -LogLevel INFO -BuildType 'onedir'
 
       - name: Version check (windows, file)
         if: contains(matrix.os, 'windows')
@@ -262,7 +262,7 @@ jobs:
       - name: Compress folder (windows, folder)
         if: contains(matrix.os, 'windows')
         working-directory: pyinstaller
-        run: ./compress.ps1 -ExeName "hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir" -BuildType 'onedir'
+        run: ./compress.ps1 -ExeName 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir' -BuildType 'onedir'
 
       - name: Compress folder (non-windows, folder)
         if: "!contains(matrix.os, 'windows')" 
