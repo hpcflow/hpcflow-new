@@ -173,7 +173,7 @@ jobs:
         with:
           name: hpcflow-release-test-build-linux-dir.zip
 
- ow-release-test-build-win-dir.zipoad-artifact@v3
+      - uses: actions/download-artifact@v3
         id: download_executables_II
         with:
           name: hpcflow-release-test-build-win-dir.zip
