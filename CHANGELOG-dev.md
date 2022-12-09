@@ -1,4 +1,237 @@
 
+<a name="v0.2.0a17"></a>
+## [v0.2.0a17](https://github.com/hpcflow/hpcflow-new/compare/test-tag...v0.2.0a17) - 2022.12.09
+
+### Other changes
+
+* tweak powershell compress
+* test bash compress
+* Fix filenames in release testing
+* correct error in release_testing
+* Update permissions on compress script
+* fix filenames in release_testing
+* Change to compress script (bash)
+* re-add release_testing.yaml
+* Update permissions on compress (bash)
+* remove extra space
+* Remove test workflows.
+* rectify conflicting action ids
+* test exisitng *win-dir.zip
+* add renamed archive to release
+* change compressed filename
+* Test separate compress script
+* tweaking if statement again
+* tweak if statement
+* fix if statement
+* test zip win-dir right after build
+* test zip on macOS
+* tweak zip command
+* remove extra space
+* test zip win-dir before release
+* test download to action root
+* test macOS-dir in isolation
+* Try download win-dir only
+* Try artefact path beginning ./
+* fix path to artifacts
+* test specify full path to artefacts
+* test softprops/action-gh-release[@v0](https://github.com/v0).1.13
+* fix artefact names in relese step
+* Add workflow to test GH releasing
+
+### ♻ Code Refactoring
+
+* add App.assign_core_classes
+* remove unused import
+* Remove multiprocessing.freeze_support
+
+### ✨ Features
+
+* change package name temporarily
+* add optional _json_like_constructor method
+* add testing to API and CLI
+* initial pass of zarr integration
+* support ChildObjectSpec within dict values
+* JSONLike superclass
+* add python_version to run time info and Sentry tag
+* add sentry tracing
+* improve configuration feature
+* pass version to RunTimeInfo
+* add --run-time-info option to CLI
+* add logging
+* test
+* **gha:** Add pyinstaller onedir to release
+
+### 🐛 Bug Fixes
+
+* pyinstaller build scripts
+* Correct typo in linux onedir upload name
+* Correct typo in release build windows, file
+* Remove .zip from onedir filenames
+* Correct typo in Version check (win, folder).
+* Correct typo in Version check (win, folder).
+* Correct erroneous version number.
+* Remove erroneously updated changelog.
+* Remove erroneously updated changelog.
+* Fix typo in release workflow template
+* Fix incorrect folder for pyinst onefolder
+* workflow dep
+* Correct typos in make script
+* Correct typo in build-exes workflow
+* Fix typo in build-exes template & workflow
+* show config dir metadata on ConfigValidationError
+* Fix typo in pyinstaller/make.sh
+* Change onefolder to onefir in makefiles
+* Change onefolder to onedir in makefiles
+* invoke tests from non-frozen
+* Fix name of release_testing wf.
+* scoping issue when adding multiple API methods to the BaseApp
+* init of InputValue with array value
+* retrieval of Task inputs once workflow-bound
+* GHA git perms
+* scripts
+* more unit tests
+* failing tests
+* to_json_like round trip test with parent ref
+* actions workflow
+* more config fixes
+* update config valida schema
+* default config
+* add pyinstaller hidden imports
+* test config CLI
+* better config
+* overriding log file from CLI
+* **build:** GHA poetry install commands
+* **gha:** Correct typo in build wf file & template
+* **gha:** Fix typo in build-exes wf temp & file
+
+### 👷 Build changes
+
+* repeat release
+* Add compress script (bash)
+* Add compress script (powershell)
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* Update pyinstaller make scripts
+* slightly increase black line-length
+* update poetry lock
+* add scripts for sphinx-apidoc
+* add auto-gen requirements
+* pre-commits
+* poetry update again
+* Update make scripts.
+* remove unused ci pre-commit
+* update binary download links file [skip ci]
+* merge
+* Update make scripts
+* clean before pyinstaller run
+* update binary download links file [skip ci]
+* merge
+* Add sep folder for onefile, onefolder build
+* Add onefile build to ipyinstaller makefiles
+* update binary download links file [skip ci]
+* update deps
+* revert "bump: 0.2.0a2 → 0.2.0a3 [skip ci]"
+* update binary download links file [skip ci]
+* fix entrypoint
+* update binary download links file [skip ci]
+* fix pyinstaller entry in actions
+* merge develop
+* fix pyinstaller scripts
+* revert "bump: 0.2.0a2 → 0.2.0a3 [skip ci]"
+* move tests to unit dir
+* add pyi hidden import
+* deps
+* update binary download links file [skip ci]
+* update binary download links file [skip ci]
+* add empty init py in tests
+* update binary download links file [skip ci]
+* revert "bump: 0.2.0a9 → 0.2.0a10 [skip ci]"
+* add back sdk data hiddenimport!
+* merge develop
+* revert "bump: 0.2.0a9 → 0.2.0a10 [skip ci]"
+* add empty init file back to sdk data
+* try to fix mac problem when using SDK
+* revert "bump: 0.2.0a9 → 0.2.0a10 [skip ci]"
+* remove unused 'include'
+* add test extra
+* use poetry dep groups
+* update binary download links file [skip ci]
+* update deps
+* allow tests to run frozen
+* merge develop
+* update binary download links file [skip ci]
+* Fix failing test workflow on fork
+* try pyinstaller fix
+* merge from develop
+* update binary download links file [skip ci]
+* try add hidden import
+* merge
+* update poetry
+* update binary download links file [skip ci]
+* update GHA workflows
+* add missing data files
+* update GH Actions workflows
+* update binary download links file [skip ci]
+* merge
+* merge from develop
+* fix pyinstaller build on MacOS
+* more pyinstaller tweaks
+* update pyinstaller hooks
+* update poetry pre-commit
+* update GH workflows
+* update gitignore
+* merge
+* update deps
+* update binary download links file [skip ci]
+* workflows
+* add pyinstaller log level actions input
+* use pyinstaller collect_data_files
+* chmod+x pyinstaller make
+* use pyinstaller hook
+* merge
+* update binary download links file [skip ci]
+* CI issue https://github.com/psf/black/issues/2964
+* update GH workflow cache keys
+* remove debug print
+* test on docker image as well
+* try add tkinter import 2
+* try add hidden import again
+* updated poetry lock
+* add hidden import for linux pyinstaller
+* **GHA:** Update workflow templates and files
+* **GHA:** update os vers
+* **GHA:** remove pytest module restriction
+* **GHA:** run tests on frozen app
+* **GHA:** update py vers
+* **GHA:** template updates
+* **GHA:** don't run test on push
+* **GHA:** Update build workflow template & file
+* **GHA:** Update workflow templates
+* **GHA:** Update workflow YAML files
+* **gha:** Update build workflow file & template
+* **gha:** Update release & build-exes workflows.
+* **gha:** Compress onedir output for release
+* **gha:** Update build-exes template & workflow
+* **gha:** Update release & build-exes workflows
+* **gha:** Update build-exes wf template and file
+* **gha:** Update build-exes wf template and file
+* **gha:** Update release wf with pyinst ondir
+* **gha:** Update pyinstaller make files
+* **gha:** Update release & build-exes workflows
+* **gha:** Update build-exes wf template & file
+* **pyi:** fix custom hook
+* **pyinstaller:** Update pyinstaller make files
+* **workflow:** Fix failing test wokflow on fork
+
+
+<a name="test-tag"></a>
+## [test-tag](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a16...test-tag) - 2022.12.09
+
+### Other changes
+
+* add workflow to main to enable running
+
+
 <a name="v0.2.0a16"></a>
 ## [v0.2.0a16](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a15...v0.2.0a16) - 2022.11.28
 
