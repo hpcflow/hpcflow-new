@@ -171,9 +171,9 @@ jobs:
       - uses: actions/download-artifact@v3
         id: download_executables_I
         with:
-          name: test_compress.zip 
+          name: hpcflow-release-test-build-linux-dir.zip
 
-      - uses: actions/download-artifact@v3
+ ow-release-test-build-win-dir.zipoad-artifact@v3
         id: download_executables_II
         with:
           name: hpcflow-release-test-build-win-dir.zip
@@ -189,4 +189,5 @@ jobs:
           files: |
             test_compress.zip
             hpcflow-release-test-build-win-dir.zip
+            hpcflow-release-test-build-linux-dir.zip
           prerelease: true 
