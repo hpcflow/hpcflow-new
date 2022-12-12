@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a18"></a>
+## [v0.2.0a18](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a17...v0.2.0a18) - 2022.12.12
+
+### Other changes
+
+* Add wf to main so appears in API
+* Add wf to main so appears in API
+
+### 🐛 Bug Fixes
+
+* Update wf
+* Make capitalisation consistent.
+* Make capitalisation consistent.
+* onedir output now linked correctly
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a17"></a>
 ## [v0.2.0a17](https://github.com/hpcflow/hpcflow-new/compare/test-tag...v0.2.0a17) - 2022.12.09
 
