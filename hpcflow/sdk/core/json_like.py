@@ -374,10 +374,7 @@ class BaseJSONLike:
             )
 
         if need_hash:
-            re_json_like = obj.to_json_like()[0]
-            re_json_like.pop("_hash_value", None)
-            hash_val = cls._get_hash(re_json_like)
-            obj._hash_value = hash_val
+            obj._set_hash()
 
         return obj
 
@@ -393,8 +390,18 @@ class BaseJSONLike:
                 else:
                     setattr(getattr(self, chd.name), chd.parent_ref, self)
 
+    def _get_hash(self):
+        json_like = self.to_json_like()[0]
+        hash_val = self._get_hash_from_json_like(json_like)
+        return hash_val
+
+    def _set_hash(self):
+        self._hash_value = self._get_hash()
+
     @staticmethod
-    def _get_hash(json_like):
+    def _get_hash_from_json_like(json_like):
+        json_like = copy.deepcopy(json_like)
+        json_like.pop("_hash_value", None)
         json_str_i = json.dumps(json_like, sort_keys=True)
         return hashlib.md5(json_str_i.encode("utf-8")).hexdigest()
 
@@ -445,8 +452,7 @@ class BaseJSONLike:
                 shared_keys = []
                 for i in chd_obj_js:
 
-                    i.pop("_hash_value", None)
-                    hash_i = self._get_hash(i)
+                    hash_i = self._get_hash_from_json_like(i)
                     shared_keys.append(f"hash:{hash_i}")
 
                     if hash_i not in shared_data[chd.shared_data_name]:

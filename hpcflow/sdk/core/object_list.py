@@ -255,7 +255,9 @@ class AppDataList(DotAccessObjectList):
                 {**obj_js, "_hash_value": hash_val}
                 for hash_val, obj_js in json_like.items()
             ]
-        return super().from_json_like(json_like, shared_data=cls._app.app_data)
+        return super().from_json_like(
+            json_like, shared_data=shared_data or cls._app.app_data
+        )
 
 
 class TaskList(AppDataList):

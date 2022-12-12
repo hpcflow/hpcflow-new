@@ -404,8 +404,12 @@ class BaseApp:
         }
         shared_data = {}
         for k, v in cls_lookup.items():
-            shared_data[k] = v.from_json_like(json_like.get(k, {}), is_hashed=True)
-
+            shared_data_k = v.from_json_like(
+                json_like.get(k, {}),
+                shared_data=shared_data,
+                is_hashed=True,
+            )
+            shared_data[k] = shared_data_k
         return shared_data
 
 
