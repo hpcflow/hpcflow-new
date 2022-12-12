@@ -17,7 +17,7 @@ from .loop import Loop
 from .task import Task, WorkflowTask
 from .task_schema import TaskSchema
 from .utils import group_by_dict_key_values, read_YAML_file
-from .errors import InvalidInputSourceTaskReference, WorkflowNotFoundError
+from .errors import InvalidInputSourceTaskReference, MissingInputs, WorkflowNotFoundError
 
 TS_FMT = r"%Y.%m.%d_%H:%M:%S_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
@@ -629,9 +629,24 @@ class Workflow:
         # if there is
 
         # set source for any unsourced inputs:
+        missing = []
         for input_type in new_task.unsourced_inputs:
             inp_i_sources = available_sources[input_type]
-            new_task.input_sources.update({input_type: [inp_i_sources[0]]})
+            source = None
+            try:
+                source = inp_i_sources[0]
+            except IndexError:
+                missing.append(input_type)
+
+            if source is not None:
+                new_task.input_sources.update({input_type: [source]})
+
+        if missing:
+            missing_str = ", ".join(f"{i!r}" for i in missing)
+            raise MissingInputs(
+                message=f"The following inputs have no sources: {missing_str}.",
+                missing_inputs=missing,
+            )
 
     def _dump_persistent_metadata(self):
 
