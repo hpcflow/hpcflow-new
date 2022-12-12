@@ -515,52 +515,6 @@ class Task(JSONLike):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
 
-    def get_input_multiplicities(self, missing_multiplicities=None):
-        """Get multiplicities for all inputs."""
-
-        if self.undefined_input_types:
-            missing_inputs = self.undefined_input_types - set(
-                (missing_multiplicities or {}).keys()
-            )
-            if missing_inputs:
-                raise MissingInputs(
-                    f"The following inputs are not assigned values, so task input "
-                    f"multiplicities cannot be resolved: {list(missing_inputs)!r}."
-                )
-
-        input_multiplicities = []
-        for i in self.input_values:
-            if i.sequences:
-                for seq in i.sequences:
-                    address = tuple([i.parameter.typ] + seq.address)
-                    address_str = ".".join(address)
-                    input_multiplicities.append(
-                        {
-                            "address": address,
-                            "multiplicity": len(seq.values),
-                            "nesting_order": self.nesting_order[address_str],
-                        }
-                    )
-            else:
-                input_multiplicities.append(
-                    {
-                        "address": (i.parameter.typ,),
-                        "multiplicity": 1,
-                        "nesting_order": -1,
-                    }
-                )
-
-        for inp_type, multi in (missing_multiplicities or {}).items():
-            input_multiplicities.append(
-                {
-                    "address": (inp_type,),
-                    "multiplicity": multi,
-                    "nesting_order": self.nesting_order[inp_type],
-                }
-            )
-
-        return input_multiplicities
-
 
 class WorkflowTask:
     """Class to represent a Task that is bound to a Workflow."""
