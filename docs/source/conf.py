@@ -99,8 +99,14 @@ with Path("released_binaries.yml") as fh:
 
 # Generate install/index.rst file programmatically, including binary download links:
 
-EXE_PLAT_LOOKUP = {"win.exe": "Windows executable", "macOS": "macOS executable", "linux": "Linux executable",
-                    "win-dir.zip": "Windows folder", "linux-dir.zip": "Linux Folder", "macOS-dir.zip": "macOS Folder"}
+EXE_PLAT_LOOKUP = {
+    "win.exe": "Windows executable",
+    "macOS": "macOS executable",
+    "linux": "Linux executable",
+    "win-dir.zip": "Windows folder",
+    "linux-dir.zip": "Linux Folder",
+    "macOS-dir.zip": "macOS Folder",
+}
 
 get_links_table = (
     '<table class="binary-downloads-table">\n'
