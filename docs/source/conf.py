@@ -99,13 +99,14 @@ with Path("released_binaries.yml") as fh:
 
 # Generate install/index.rst file programmatically, including binary download links:
 
-EXE_PLAT_LOOKUP = {"win.exe": "Windows", "macOS": "macOS", "linux": "Linux"}
+EXE_PLAT_LOOKUP = {"win.exe": "Windows executable", "macOS": "macOS executable", "linux": "Linux executable",
+                    "win-dir.zip": "Windows folder", "linux-dir.zip": "Linux Folder", "macOS-dir.zip": "macOS Folder"}
 
 get_links_table = (
     '<table class="binary-downloads-table">\n'
     + indent(
         text="\n".join(
-            f'<tr><td>{EXE_PLAT_LOOKUP[exe_name.split("-")[-1]]}</td><td><a href="{link}">{exe_name}</a></td></tr>'
+            f'<tr><td>{EXE_PLAT_LOOKUP["-".join(exe_name.split("-")[2:])]}</td><td><a href="{link}">{exe_name}</a></td></tr>'
             for exe_name, link in sorted(bins_dat.items())
         ),
         prefix="  ",
@@ -132,6 +133,11 @@ Download binaries (v{release})
 ********************************
 
 Release notes: `on GitHub <https://github.com/hpcflow/hpcflow-new/releases/tag/v{release}>`_
+
+Binaries are available in two formats:
+
+  * A single executable file containing everything.
+  * A folder containing an executable and supporting files.
 
 Click below to download the HPCFlow binary for your platform (other binary releases are available by using the version switcher in the top-right corner):
 
