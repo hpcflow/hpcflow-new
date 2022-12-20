@@ -84,16 +84,11 @@ class Task(JSONLike):
         resources: Optional[Dict[str, Dict]] = None,
         inputs: Optional[List[InputValue]] = None,
         input_files: Optional[List[FileSpec]] = None,
-        input_file_generator_sources: Optional[List] = None,
-        output_file_parser_sources: Optional[List] = None,
-        perturbations: Optional[List[ValuePerturbation]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
-        groups: Optional[List[ElementGroup]] = None,
     ):
-        # TODO: modify from_JSON_like(?) so "internal" attributes are not in init
 
         """
         Parameters
@@ -144,16 +139,12 @@ class Task(JSONLike):
         self._resources = resources
         self._inputs = inputs or []
         self._input_files = input_files or []
-        self._input_file_generator_sources = input_file_generator_sources or []
-        self._output_file_parser_sources = output_file_parser_sources or []
-        self._perturbations = perturbations or []
         self._sequences = sequences or []
         self._input_sources = input_sources or {}
         self._input_source_mode = input_source_mode or (
             InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
         )
         self._nesting_order = nesting_order or {}
-        self._groups = self.app.GroupList(groups or [])
 
         self._set_parent_refs()
 
