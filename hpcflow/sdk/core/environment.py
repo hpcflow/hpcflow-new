@@ -127,7 +127,7 @@ class Environment(JSONLike):
     ):
         self.name = name
         self.setup = setup
-        self.specifiers = specifiers
+        self.specifiers = specifiers or {}
         self.executables = (
             executables
             if isinstance(executables, self.app.ExecutablesList)

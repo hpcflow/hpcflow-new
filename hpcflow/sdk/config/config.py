@@ -514,6 +514,10 @@ class Config:
             with uid_file_path.open("rt") as fh:
                 uid = fh.read().strip()
 
+        # Generate sub-dir for this hostname (used by helper process):
+        hostname_dir = uid_file_dir.joinpath(socket.gethostname())
+        hostname_dir.mkdir(exist_ok=True)
+
         return uid, uid_file_path
 
     def _init_schemas(self):

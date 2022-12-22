@@ -454,9 +454,9 @@ class Workflow:
     @property
     def tasks(self):
         if self._tasks is None:
-            self._tasks = WorkflowTaskList(
+            self._tasks = self.app.WorkflowTaskList(
                 [
-                    WorkflowTask(
+                    self.app.WorkflowTask(
                         workflow=self, template=self.template.tasks[idx], index=idx, **i
                     )
                     for idx, i in enumerate(self._persistent_metadata["tasks"])
@@ -476,7 +476,9 @@ class Workflow:
     def elements(self):
         if not self._elements:
             self._elements = [
-                Element(task=task, data_index=self._persistent_metadata["elements"][i])
+                self.app.Element(
+                    task=task, data_index=self._persistent_metadata["elements"][i]
+                )
                 for task in self.tasks
                 for i in task.element_indices
             ]
@@ -610,67 +612,26 @@ class Workflow:
 
         # TODO: get available input sources from workflow imports
 
-        print("available_sources")
-        pprint(available_sources)
-
         # check any specified sources are valid:
         for schema_input in new_task.all_schema_inputs:
             for specified_source in new_task.input_sources.get(schema_input.typ, []):
                 self._resolve_input_source_task_reference(specified_source, new_name)
                 if specified_source not in available_sources[schema_input.typ]:
                     raise ValueError(
-                        f"The following input source is not available for schema input "
-                        f"{schema_input!r}: {specified_source.to_string()!r}. Available "
+                        f"The input source {specified_source.to_string()!r} is not "
+                        f"available for schema input {schema_input!r}. Available "
                         f"input sources are: "
                         f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
                     )
 
-        # print(f"\nall_sources:")
-        # pprint(all_sources)
-
-        print(f"new_task.unsourced_inputs")
-        pprint(new_task.unsourced_inputs)
-
-        # if an input is not specified at all in the `inputs` dict (what about when list?),
+        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
         # then check if there is an input files entry for associated inputs,
         # if there is
 
         # set source for any unsourced inputs:
         for input_type in new_task.unsourced_inputs:
-
             inp_i_sources = available_sources[input_type]
-            print(f"inp_i_sources: {inp_i_sources}")
-            # TODO: pre-sort available sources so that we can just pop off the first one?
-
-            # input may not be required
-
-            # # set source for this input:
-            # if inp_i_sources["has_local"]:
-            #     new_sources = [InputSource("local")]
-
-            # elif inp_i_sources["tasks"]:
-            #     # we can only take parameters with implicit propagation mode:
-            #     params_info = []
-            #     for (task_idx, task_name), params in inp_i_sources["tasks"].items():
-            #         for i in params:
-            #             if i.propagation_mode == ParameterPropagationMode.IMPLICIT:
-            #                 params_info.append((i.input_or_output, task_idx, task_name))
-
-            #     # sort by output/input (output first), then by task index (highest first):
-            #     params_info = sorted(
-            #         params_info, key=itemgetter(0, 1), reverse=True
-            #     )  # TODO: TEST THIS!!!
-            #     print(f"params_info: {params_info}")
-            #     new_sources = [
-            #         InputSource(f"tasks.{params_info[0][2]}.{params_info[0][0]}s")
-            #     ]
-
-            # else:
-            #     # input may not need defining (if all associated input files are passed
-            #     # and the input does not appear in any action commands)
-            #     new_sources = None
-
-            # new_task.input_sources.update({input_type: new_sources})
+            new_task.input_sources.update({input_type: [inp_i_sources[0]]})
 
     def _dump_persistent_metadata(self):
 
@@ -699,7 +660,7 @@ class Workflow:
             Each list item represents a sequence of values with keys:
                 multiplicity: int
                 nesting_order: int
-                address : str
+                path : str
 
         Returns
         -------
@@ -734,7 +695,7 @@ class Workflow:
                     new_elements.append(
                         {
                             **element,
-                            **{i["address"]: val_idx for i in para_sequences},
+                            **{i["path"]: val_idx for i in para_sequences},
                         }
                     )
             element_dat_idx = new_elements
@@ -769,7 +730,13 @@ class Workflow:
             elem_i.update(
                 {f"outputs.{k}": v[i_idx] for k, v in output_data_indices.items()}
             )
-            # print(f"elem_i: {elem_i}")
+
+            # ensure sorted from smallest to largest path (so more-specific items
+            # overwrite less-specific items):
+            elem_i_split = {tuple(k.split(".")): v for k, v in elem_i.items()}
+            elem_i_srt = dict(sorted(elem_i_split.items(), key=lambda x: len(x[0])))
+            elem_i = {".".join(k): v for k, v in elem_i_srt.items()}
+
             new_elements.append(elem_i)
 
         return new_elements
@@ -802,18 +769,11 @@ class Workflow:
 
     def add_task(self, task: Task, new_index=None):
 
-        print(f"task.resources: {task.resources}")
-
         if new_index is None:
             new_index = self.num_tasks
 
         new_task_name = self._get_new_task_unique_name(task, new_index)
-        input_sources = self.ensure_input_sources(task, new_index, new_task_name)
-
-        print("input_sources")
-        pprint(input_sources)
-
-        # TODO: use input sources!
+        self.ensure_input_sources(task, new_index, new_task_name)
 
         # TODO: also save the original Task object, since it may be modified before
         # adding to the workflow
@@ -829,7 +789,7 @@ class Workflow:
         # elements to a pre-existing task?
 
         input_data_idx = task.make_persistent(self)
-        multiplicities = task.prepare_element_resolution()
+        multiplicities = task.prepare_element_resolution(input_data_idx)
         element_data_idx = self.resolve_element_data_indices(multiplicities)
 
         output_data_idx = task._prepare_persistent_outputs(self, len(element_data_idx))
@@ -840,18 +800,6 @@ class Workflow:
         element_indices = list(
             range(len(self.elements), len(self.elements) + len(elements))
         )
-
-        # print("input_data_indices")
-        # pprint(input_data_idx)
-
-        # print("multiplicities")
-        # pprint(multiplicities)
-
-        # print("element_data_indices")
-        # pprint(element_data_idx)
-
-        # print("elements")
-        # pprint(elements)
 
         task._insert_ID = self.num_tasks
         task._dir_name = f"task_{task.insert_ID}_{new_task_name}"
@@ -884,6 +832,13 @@ class Workflow:
         # TODO: find position of new task, then call add_task
         # TODO: add new downstream elements?
         pass
+
+    def submit(self):
+        for task in self.tasks:
+            task.write_element_dirs()
+            for element in task.elements:
+                for action in element.resolve_actions():
+                    action.execute()
 
     def rename(self, new_name):
         pass

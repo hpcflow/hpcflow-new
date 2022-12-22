@@ -10,18 +10,16 @@ from .errors import (
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
+    TaskTemplateUnexpectedSequenceInput,
 )
-from .object_list import GroupList, ResourceList
 from .parameters import (
     InputSource,
     InputSourceMode,
     InputSourceType,
     InputValue,
     ParameterPath,
-    ResourceSpec,
     SchemaInput,
     SchemaOutput,
-    TaskSourceType,
     ValuePerturbation,
     ValueSequence,
 )
@@ -32,27 +30,6 @@ class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
     "locally". The remaining input values are expected to be satisfied by other
     tasks/imports in the workflow."""
-
-    # __slots__ = (
-    #     "_schemas",
-    #     "_repeats",
-    #     "_resources",
-    #     "_inputs",
-    #     "_input_files",
-    #     "_input_file_generator_sources",
-    #     "_output_file_parser_sources",
-    #     "_perturbations",
-    #     "_sequences",
-    #     "_input_sources",
-    #     "_input_source_mode",
-    #     "_nesting_order",
-    #     "_groups",
-    #     "_name",
-    #     "_defined_input_types",  # assigned in _validate()
-    #     "workflow_template",
-    #     "_insert_ID",
-    #     "_dir_name",
-    # )
 
     _child_objects = (
         ChildObjectSpec(
@@ -71,6 +48,11 @@ class Task(JSONLike):
             parent_ref="_task",
         ),
         ChildObjectSpec(
+            name="input_files",
+            class_name="InputFile",
+            is_multiple=True,
+        ),
+        ChildObjectSpec(
             name="resources",
             class_name="ResourceList",
             parent_ref="_task",
@@ -79,6 +61,7 @@ class Task(JSONLike):
             name="sequences",
             class_name="ValueSequence",
             is_multiple=True,
+            parent_ref="_task",
         ),
         ChildObjectSpec(
             name="input_sources",
@@ -213,7 +196,7 @@ class Task(JSONLike):
                 f"objective, but found multiple objectives: {list(names)!r}"
             )
 
-        input_types = [i.parameter.typ for i in self.get_non_sub_parameter_input_values()]
+        input_types = [i.parameter.typ for i in self.inputs]
         dup_params = get_duplicate_items(input_types)
         if dup_params:
             raise TaskTemplateMultipleInputValues(
@@ -227,8 +210,20 @@ class Task(JSONLike):
                 f"The following input parameters are unexpected: {list(unexpected_types)!r}"
             )
 
-        for i in self.sequences:
-            self._nesting_order.update({i.path: i.nesting_order})
+        seq_inp_types = []
+        for seq_i in self.sequences:
+            inp_type = seq_i.input_type
+            if inp_type:
+                bad_inp = {inp_type} - self.all_schema_input_types
+                allowed_str = ", ".join(f'"{i}"' for i in self.all_schema_input_types)
+                if bad_inp:
+                    raise TaskTemplateUnexpectedSequenceInput(
+                        f"The input type {inp_type!r} specified in the following sequence"
+                        f" path is unexpected: {seq_i.path!r}. Available input types are: "
+                        f"{allowed_str}."
+                    )
+                seq_inp_types.append(inp_type)
+            self._nesting_order.update({seq_i.path: seq_i.nesting_order})
 
         for k, v in self.nesting_order.items():
             if v < 0:
@@ -237,7 +232,7 @@ class Task(JSONLike):
                     f"of {v!r} was specified."
                 )
 
-        self._defined_input_types = set(input_types)
+        self._defined_input_types = set(input_types + seq_inp_types)
 
     def _get_name(self):
         out = f"{self.objective.name}"
@@ -285,13 +280,30 @@ class Task(JSONLike):
 
         input_data_indices = {}
 
-        # input_data_indices.update(self.resources.make_persistent(workflow))
+        for res_i in self.resources:
+            input_data_indices.update(res_i.make_persistent(workflow))
 
         for inp_i in self.inputs:
             input_data_indices.update(inp_i.make_persistent(workflow))
 
         for seq_i in self.sequences:
             input_data_indices.update(seq_i.make_persistent(workflow))
+
+        for inp_typ in self.all_schema_input_types:
+            sources = self.input_sources[inp_typ]
+            for inp_src in sources:
+                if inp_src.source_type is InputSourceType.TASK:
+                    src_task = inp_src.get_task(workflow)
+                    grp_idx = [
+                        elem.data_index[f"outputs.{inp_typ}"]
+                        for elem in src_task.elements
+                    ]
+                    key = f"inputs.{inp_typ}"
+                    if self.app.InputSource.local() in sources:
+                        # add task source to local source
+                        input_data_indices[key] += grp_idx
+                    else:
+                        input_data_indices.update({key: grp_idx})
 
         return input_data_indices
 
@@ -307,31 +319,15 @@ class Task(JSONLike):
 
         return output_data_indices
 
-    def prepare_element_resolution(self):
+    def prepare_element_resolution(self, input_data_indices):
 
-        multiplicities = [
-            # {
-            #     "multiplicity": 1,
-            #     "nesting_order": -1,
-            #     "address": self.resources._get_param_path(),
-            # }
-        ]
-
-        for inp_i in self.inputs:
+        multiplicities = []
+        for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
                 {
-                    "multiplicity": 1,
-                    "nesting_order": -1,
-                    "address": inp_i._get_param_path(),
-                }
-            )
-
-        for seq_i in self.sequences:
-            multiplicities.append(
-                {
-                    "multiplicity": len(seq_i.values),
-                    "nesting_order": self._get_nesting_order(seq_i),
-                    "address": seq_i._get_param_path(),
+                    "multiplicity": len(inp_idx_i),
+                    "nesting_order": self.nesting_order.get(path_i, -1),
+                    "path": path_i,
                 }
             )
 
@@ -344,78 +340,6 @@ class Task(JSONLike):
         else:
             return None
 
-    @classmethod
-    def from_spec(cls, spec, all_schemas, all_parameters):
-        key = (
-            spec.pop("objective"),
-            spec.pop("method", None),
-            spec.pop("implementation", None),
-        )  # TODO: maybe don't mutate spec?
-        spec["schemas"] = all_schemas[
-            key
-        ]  # TODO parse multiple methods/impl not multiple schemas
-
-        sequences = spec.pop("sequences", [])
-        inputs_spec = spec.pop("inputs", [])
-        input_sources_spec = spec.pop("input_sources", {})
-        perturbs_spec = spec.pop("perturbations", {})
-        nesting_order = spec.pop("nesting_order", {})
-
-        for k in list(nesting_order.keys()):
-            new_k = tuple(k.split("."))
-            nesting_order[new_k] = nesting_order.pop(k)
-
-        print(f"nesting_order: {nesting_order}")
-
-        inputs = []
-        if isinstance(inputs_spec, dict):
-            # transform to a list:
-            for input_path, input_val in inputs_spec.items():
-                is_sequence = input_path.endswith("[]")
-                if is_sequence:
-                    input_path = input_path.split("[]")[0]
-                input_path = input_path.split(".")
-                inputs.append(
-                    {
-                        "parameter": input_path[0],
-                        "path": input_path[1:],
-                        "value": input_val[0] if is_sequence else input_val,
-                    }
-                )
-                if is_sequence:
-                    seq_path = ["inputs"] + input_path
-                    sequences.append(
-                        {
-                            "path": seq_path,
-                            "values": input_val,
-                            "nesting_order": nesting_order.get(tuple(seq_path)),
-                        }
-                    )
-        else:
-            inputs = inputs_spec
-
-        # add any nesting orders that are defined in the sequences:
-        for i in sequences:
-            if "nesting_order" in i:
-                nesting_order.update({tuple(i["path"]): i["nesting_order"]})
-
-        perturbs = [{"name": p_name, **p} for p_name, p in perturbs_spec.items()]
-
-        spec.update(
-            {
-                "inputs": [InputValue.from_spec(i, all_parameters) for i in inputs],
-                "sequences": [ValueSequence.from_spec(i) for i in sequences],
-                "perturbations": [ValuePerturbation.from_spec(i) for i in perturbs],
-                "nesting_order": nesting_order,
-                "input_sources": {
-                    i: [InputSource.from_spec(j) for j in sources]
-                    for i, sources in input_sources_spec.items()
-                },
-            }
-        )
-
-        return cls(**spec)
-
     def get_available_task_input_sources(
         self, source_tasks: Optional[List[Task]] = None
     ) -> List[InputSource]:
@@ -425,13 +349,13 @@ class Task(JSONLike):
         Note this only produces a subset of available input sources for each input
         parameter; other available input sources may exist from workflow imports."""
 
+        # TODO: also search sub-parameters in the source tasks!
+
         available = {}
         for schema_input in self.all_schema_inputs:
             available[schema_input.typ] = []
 
-            print(f"schema_input: {schema_input.parameter.typ}")
-
-            for src_task_idx, src_task_i in enumerate(source_tasks or []):
+            for src_task_i in source_tasks or []:
 
                 for param_i in src_task_i.provides_parameters:
 
@@ -693,5 +617,28 @@ class WorkflowTask:
         return self.template.dir_name
 
     @property
+    def dir_path(self):
+        return self.workflow.path / "tasks" / self.dir_name
+
+    @property
     def unique_name(self):
         return self.workflow.get_task_unique_names()[self.index]
+
+    @property
+    def element_dir_list_file_path(self):
+        return self.dir_path / "element_dirs.txt"
+
+    @property
+    def run_script_file_path(self):
+        return self.dir_path / "run_script.ps1"
+
+    def write_element_dirs(self):
+        self.dir_path.mkdir(exist_ok=True, parents=True)
+        elem_paths = [self.dir_path / elem.dir_name for elem in self.elements]
+        for path_i in elem_paths:
+            path_i.mkdir(exist_ok=True)
+
+        # write a text file whose lines correspond to element paths
+        with self.element_dir_list_file_path.open("wt") as fp:
+            for elem in elem_paths:
+                fp.write(f"{elem}\n")

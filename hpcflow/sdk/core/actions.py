@@ -2,7 +2,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import enum
 import re
-from typing import List, Optional, Tuple
+import subprocess
+from textwrap import dedent
+from typing import List, Optional, Tuple, Union
 
 from valida.conditions import ConditionLike
 
@@ -34,6 +36,132 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
+@dataclass
+class ElementAction:
+
+    _app_attr = "app"
+
+    element: Element
+    root_action: Action
+    commands: List[Command]
+
+    input_file_generator: Optional[InputFileGenerator] = None
+    output_parser: Optional[OutputFileParser] = None
+
+    def get_environment(self):
+        # TODO: select correct environment according to scope:
+        return self.root_action.environments[0].environment
+
+    def execute(self):
+        vars_regex = r"\<\<(executable|parameter|script|file):(.*?)\>\>"
+        env = None
+        resolved_commands = []
+        scripts = []
+        for command in self.commands:
+
+            command_resolved = command.command
+            re_groups = re.findall(vars_regex, command.command)
+            for typ, val in re_groups:
+
+                sub_str_original = f"<<{typ}:{val}>>"
+
+                if typ == "executable":
+                    if env is None:
+                        env = self.get_environment()
+                    exe = env.executables.get(val)
+                    sub_str_new = exe.instances[0].command  # TODO: ...
+
+                elif typ == "parameter":
+                    param = self.element.get(f"inputs.{val}")
+                    sub_str_new = str(param)  # TODO: custom formatting...
+
+                elif typ == "script":
+                    script_name = val
+                    sub_str_new = '"' + str(self.element.dir_path / script_name) + '"'
+                    scripts.append(script_name)
+
+                elif typ == "file":
+                    sub_str_new = self.app.command_files.get(val).value()
+
+                command_resolved = command_resolved.replace(sub_str_original, sub_str_new)
+
+            resolved_commands.append(command_resolved)
+
+        # generate scripts:
+        for script in scripts:
+            script_path = self.element.dir_path / script
+            snippet_path = self.app.scripts.get(script)
+            with snippet_path.open("rt") as fp:
+                script_body = fp.readlines()
+
+            main_func_name = script.strip(".py")  # TODO: don't assume this
+
+            script_lns = script_body
+            script_lns += [
+                "\n\n",
+                'if __name__ == "__main__":\n',
+                "    import zarr\n",
+            ]
+
+            if self.input_file_generator:
+                input_file = self.input_file_generator.input_file
+                invoc_args = f"path=Path('./{input_file.value()}'), **params"
+                input_zarr_groups = {
+                    k.typ: self.element.data_index[f"inputs.{k.typ}"]
+                    for k in self.input_file_generator.inputs
+                }
+                script_lns += [
+                    f"    from hpcflow.sdk.core.zarr_io import zarr_decode\n\n",
+                    f"    params = {{}}\n",
+                    f"    param_data = Path('../../../parameter_data')\n",
+                    f"    for param_group_idx in {list(input_zarr_groups.values())!r}:\n",
+                ]
+                for k in input_zarr_groups:
+                    script_lns += [
+                        f"        grp_i = zarr.open(param_data / str(param_group_idx), mode='r')\n",
+                        f"        params[{k!r}] = zarr_decode(grp_i)\n",
+                    ]
+
+                script_lns += [
+                    f"\n    {main_func_name}({invoc_args})\n\n",
+                ]
+
+            elif self.output_parser:
+                out_name = self.output_parser.output.typ
+                out_files = {k.label: k.value() for k in self.output_parser.output_files}
+                invoc_args = ", ".join(f"{k}={v!r}" for k, v in out_files.items())
+                output_zarr_group = self.element.data_index[f"outputs.{out_name}"]
+
+                script_lns += [
+                    f"    from hpcflow.sdk.core.zarr_io import zarr_encode\n\n",
+                    f"    {out_name} = {main_func_name}({invoc_args})\n\n",
+                ]
+
+                script_lns += [
+                    f"    param_data = Path('../../../parameter_data')\n",
+                    f"    output_group = zarr.open(param_data / \"{str(output_zarr_group)}\", mode='r+')\n",
+                    f"    zarr_encode({out_name}, output_group)\n",
+                ]
+
+            with script_path.open("wt", newline="") as fp:
+                fp.write("".join(script_lns))
+
+        for command in resolved_commands:
+            proc_i = subprocess.run(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self.element.dir_path,
+            )
+            stdout = proc_i.stdout.decode()
+            stderr = proc_i.stderr.decode()
+            if stdout:
+                print(stdout)
+            if stderr:
+                print(stderr)
+
+
 class ActionScope(JSONLike):
     """Class to represent the identification of a subset of task schema actions by a
     filtering process.
@@ -48,7 +176,11 @@ class ActionScope(JSONLike):
         ),
     )
 
-    def __init__(self, typ: ActionScopeType, **kwargs):
+    def __init__(self, typ: Union[ActionScopeType, str], **kwargs):
+
+        if isinstance(typ, str):
+            typ = getattr(self.app.ActionScopeType, typ.upper())
+
         self.typ = typ
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
@@ -167,6 +299,7 @@ class ActionCondition:
 class Action(JSONLike):
     """"""
 
+    _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(
             name="commands",
@@ -319,6 +452,41 @@ class Action(JSONLike):
             cmd_acts.append(act_i)
 
         return cmd_acts
+
+    def resolve_element_actions(self, element):
+        element_actions = []
+
+        for i in self.input_file_generators:
+            element_act_i = self.app.ElementAction(
+                element=element,
+                root_action=self,
+                commands=[
+                    Command(command=f"<<executable:python>> <<script:{i.script}>>")
+                ],
+                input_file_generator=i,
+            )
+            element_actions.append(element_act_i)
+
+        element_actions.append(
+            self.app.ElementAction(
+                element=element,
+                root_action=self,
+                commands=self.commands,
+            )
+        )
+
+        for i in self.output_file_parsers:
+            element_act_i = self.app.ElementAction(
+                element=element,
+                root_action=self,
+                commands=[
+                    Command(command=f"<<executable:python>> <<script:{i.script}>>")
+                ],
+                output_parser=i,
+            )
+            element_actions.append(element_act_i)
+
+        return element_actions
 
 
 @dataclass

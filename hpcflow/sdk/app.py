@@ -1,6 +1,8 @@
 """An hpcflow application."""
 
 from functools import wraps
+from importlib import resources
+import time
 import warnings
 
 import click
@@ -14,7 +16,8 @@ from . import api, SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
-from .core.actions import ActionScopeType
+from .core.actions import Action, ActionScopeType, ElementAction
+from .core.element import Element
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
@@ -27,6 +30,8 @@ from .core.parameters import (
 from .core.task import WorkflowTask
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
+from .demo.cli import get_demo_software_CLI
+from .helper.cli import get_helper_CLI
 from .log import AppLog
 from .runtime import RunTimeInfo
 
@@ -64,6 +69,7 @@ class BaseApp:
         self._command_files = None
         self._envs = None
         self._task_schemas = None
+        self_scripts = None
         self._app_data = {}
 
         self._core_classes = self._assign_core_classes()
@@ -111,7 +117,10 @@ class BaseApp:
         # Non-`JSONLike` classes:
         core_classes += [
             ActionScopeType,
+            Action,
             Executable,
+            Element,
+            ElementAction,
             InputSourceMode,
             InputSourceType,
             NumCores,
@@ -156,6 +165,9 @@ class BaseApp:
         self._task_schemas = self._load_task_schemas()
         self._app_data["task_schemas"] = self._task_schemas
 
+        self._scripts = self._load_scripts()
+        self._app_data["scripts"] = self._scripts
+
         self.logger.info("Data files loaded.")
 
     def load_data_files(self):
@@ -191,6 +203,11 @@ class BaseApp:
     def command_files(self):
         self._ensure_data_files()
         return self._command_files
+
+    @property
+    def scripts(self):
+        self._ensure_data_files()
+        return self._scripts
 
     @property
     def logger(self):
@@ -245,12 +262,21 @@ class BaseApp:
         """Generate the CLI for the main functionality."""
 
         @click.command(help=f"Generate a new {self.name} workflow")
-        def make_workflow():
-            self.make_workflow(dir=".")
+        @click.argument("template_file")
+        @click.argument("directory")
+        def make_workflow(template_file, directory):
+            return self.make_workflow(template_file, directory)
+
+        @click.command(help=f"Generate and submit a new {self.name} workflow")
+        @click.argument("template_file")
+        @click.argument("directory")
+        def submit_workflow(template_file, directory):
+            return self.submit_workflow(template_file, directory)
 
         @click.command(help=f"Run {self.name} test suite.")
         def test():
             self.run_tests()
+            time.sleep(10)
 
         @click.command(help=f"Run hpcflow test suite.")
         def test_hpcflow():
@@ -258,6 +284,7 @@ class BaseApp:
 
         commands = [
             make_workflow,
+            submit_workflow,
             test,
         ]
 
@@ -275,7 +302,7 @@ class BaseApp:
         def run_time_info_callback(ctx, param, value):
             if not value or ctx.resilient_parsing:
                 return
-            click.echo(self.run_time_info)
+            click.echo(str(self.run_time_info))
             ctx.exit()
 
         @click.group(name=self.name)
@@ -316,6 +343,8 @@ class BaseApp:
 
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))
+        new_CLI.add_command(get_demo_software_CLI(self))
+        new_CLI.add_command(get_helper_CLI(self))
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 
@@ -352,6 +381,19 @@ class BaseApp:
             all_ts.extend(read_YAML_file(path))
 
         return self.TaskSchemasList.from_json_like(all_ts)
+
+    def _load_scripts(self):
+        # TODO: load custom directories / custom functions (via decorator)
+        pkg = "hpcflow.sdk.demo.scripts"
+        script_names = (
+            name
+            for name in resources.contents(pkg)
+            if name != "__init__.py" and resources.is_resource(pkg, name)
+        )
+        scripts = {}
+        for i in script_names:
+            scripts[i] = resources.path(pkg, i)
+        return scripts
 
     def shared_data_from_json_like(self, json_like):
         cls_lookup = {

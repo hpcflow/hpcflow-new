@@ -10,6 +10,10 @@ class TaskTemplateUnexpectedInput(ValueError):
     pass
 
 
+class TaskTemplateUnexpectedSequenceInput(ValueError):
+    pass
+
+
 class TaskTemplateMultipleInputValues(ValueError):
     pass
 
@@ -83,4 +87,12 @@ class WorkflowNotFoundError(Exception):
 
 
 class ValuesAlreadyPersistentError(Exception):
+    pass
+
+
+class MalformedParameterPathError(ValueError):
+    pass
+
+
+class UnknownResourceSpecItemError(ValueError):
     pass

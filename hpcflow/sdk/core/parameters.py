@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
-from hpcflow.sdk.core.errors import ValuesAlreadyPersistentError
+from hpcflow.sdk.core.errors import (
+    ValuesAlreadyPersistentError,
+    MalformedParameterPathError,
+    UnknownResourceSpecItemError,
+)
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
@@ -45,6 +49,26 @@ class Parameter(JSONLike):
     sub_parameters: List[SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
+
+    def __repr__(self) -> str:
+
+        is_file_str = ""
+        if self.is_file:
+            is_file_str = f", is_file={self.is_file!r}"
+
+        sub_parameters_str = ""
+        if self.sub_parameters:
+            sub_parameters_str = f", sub_parameters={self.sub_parameters!r}"
+
+        _value_class_str = ""
+        if self._value_class is not None:
+            _value_class_str = f", _value_class={self._value_class!r}"
+
+        return (
+            f"{self.__class__.__name__}("
+            f"typ={self.typ!r}{is_file_str}{sub_parameters_str}{_value_class_str}"
+            f")"
+        )
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
@@ -124,6 +148,28 @@ class SchemaInput(SchemaParameter):
     group: Optional[str] = None
     where: Optional[ElementFilter] = None
 
+    def __repr__(self) -> str:
+
+        default_str = ""
+        if self.default_value is not None:
+            default_str = f", default_value={self.default_value!r}"
+
+        group_str = ""
+        if self.group is not None:
+            group_str = f", group={self.group!r}"
+
+        where_str = ""
+        if self.where is not None:
+            where_str = f", group={self.where!r}"
+
+        return (
+            f"{self.__class__.__name__}("
+            f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
+            f"propagation_mode={self.propagation_mode.name!r}"
+            f"{default_str}{group_str}{where_str}"
+            f")"
+        )
+
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
@@ -192,12 +238,15 @@ class ValueSequence(JSONLike):
         nesting_order: int,
         values: List[Any],
     ):
-        self.path = path
+        self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
         self._values = values
 
         self._values_group_idx = None
         self._workflow = None
+        self._task = None  # assigned by parent Task
+
+        self._path_split = None  # assigned by property `path_split`
 
     def __repr__(self):
         vals_grp_idx = (
@@ -214,6 +263,31 @@ class ValueSequence(JSONLike):
             f")"
         )
 
+    @property
+    def parameter(self):
+        if self.input_type:
+            return self.app.parameters.get(self.input_type)
+
+    @property
+    def path_split(self):
+        if self._path_split is None:
+            self._path_split = self.path.split(".")
+        return self._path_split
+
+    @property
+    def path_type(self):
+        return self.path_split[0]
+
+    @property
+    def input_type(self):
+        if self.path_type == "inputs":
+            return self.path_split[1]
+
+    @property
+    def resource_scope(self):
+        if self.path_type == "resources":
+            return self.path_split[1]
+
     @classmethod
     def _json_like_constructor(cls, json_like):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
@@ -226,8 +300,44 @@ class ValueSequence(JSONLike):
         obj._values_group_idx = _values_group_idx
         return obj
 
+    def _validate_parameter_path(self, path):
+
+        if not isinstance(path, str):
+            raise MalformedParameterPathError(
+                f"`path` must be a string, but given path has type {type(path)} with value "
+                f"{path!r}."
+            )
+        path = path.lower()
+        path_split = path.split(".")
+        if not path_split[0] in ("inputs", "resources"):
+            raise MalformedParameterPathError(
+                f'`path` must start with "inputs", "outputs", or "resources", but given path '
+                f"is: {path!r}."
+            )
+        if path_split[0] == "resources":
+            try:
+                self.app.ActionScope.from_json_like(path_split[1])
+            except Exception as err:
+                raise MalformedParameterPathError(
+                    f"Cannot parse a resource action scope from the second component of the "
+                    f"path: {path!r}. Exception was: {err}."
+                ) from None
+
+            if len(path_split) > 2:
+                path_split_2 = path_split[2]
+                allowed = ResourceSpec.ALLOWED_PARAMETERS
+                if path_split_2 not in allowed:
+                    allowed_keys_str = ", ".join(f'"{i}"' for i in allowed)
+                    raise UnknownResourceSpecItemError(
+                        f"Resource item name {path_split_2!r} is unknown. Allowed "
+                        f"resource item names are: {allowed_keys_str}."
+                    )
+
+        return path
+
     def to_dict(self):
         out = super().to_dict()
+        del out["_path_split"]
         if "_workflow" in out:
             del out["_workflow"]
         return out
@@ -271,36 +381,44 @@ class ValueSequence(JSONLike):
 
     @property
     def workflow(self):
-        return self._workflow
+        if self._workflow:
+            return self._workflow
+        elif self._task:
+            return self._task.workflow_template.workflow
 
     @property
     def values(self):
         if self._values_group_idx is not None:
             vals = []
             for pg_idx_i in self._values_group_idx:
-                grp = self._workflow.get_zarr_parameter_group(pg_idx_i)
+                grp = self.workflow.get_zarr_parameter_group(pg_idx_i)
                 vals.append(zarr_decode(grp))
             return vals
         else:
             return self._values
 
     @classmethod
-    def from_linear_space(cls, start, stop, num=50, address=None, **kwargs):
+    def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
         values = list(np.linspace(start, stop, num=num, **kwargs))
-        return cls(values, address=address)
+        return cls(values=values, path=path, nesting_order=nesting_order)
 
     @classmethod
-    def from_range(cls, start, stop, step=1, address=None):
+    def from_range(cls, start, stop, nesting_order, step=1, path=None):
         if isinstance(step, int):
-            return cls(values=list(np.arange(start, stop, step)), address=address)
+            return cls(
+                values=list(np.arange(start, stop, step)),
+                path=path,
+                nesting_order=nesting_order,
+            )
         else:
             # Use linspace for non-integer step, as recommended by Numpy:
             return cls.from_linear_space(
                 start,
                 stop,
                 num=int((stop - start) / step),
-                address=address,
+                address=path,
                 endpoint=False,
+                nesting_order=nesting_order,
             )
 
 
@@ -461,6 +579,11 @@ class InputValue(AbstractInputValue):
 
 class ResourceSpec(JSONLike):
 
+    ALLOWED_PARAMETERS = {
+        "scratch",
+        "num_cores",
+    }
+
     _resource_list = None
 
     _child_objects = (
@@ -471,31 +594,115 @@ class ResourceSpec(JSONLike):
     )
 
     def __init__(self, scope=None, scratch=None, num_cores=None):
+
         self.scope = scope or self.app.ActionScope.any()
-        self.scratch = scratch
-        self.num_cores = num_cores
+
+        # user-specified resource parameters:
+        self._scratch = scratch
+        self._num_cores = num_cores
+
+        # assigned by `make_persistent`
+        self._workflow = None
+        self._value_group_idx = None
 
     def __repr__(self):
-        scratch_str = ""
-        if self.scratch is not None:
-            scratch_str = f", scratch={self.scratch!r}"
-        num_cores_str = ""
-        if self.num_cores is not None:
-            num_cores_str = f", num_cores={self.num_cores!r}"
+        param_strs = ""
+        for i in self.ALLOWED_PARAMETERS:
+            i_str = ""
+            i_val = getattr(self, i)
+            if i_val is not None:
+                i_str = f", {i}={i_val}"
+            param_strs += i_str
 
-        return (
-            f"{self.__class__.__name__}("
-            f"scope={self.scope}"
-            f"{scratch_str}"
-            f"{num_cores_str}"
-            f")"
-        )
+        return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
+
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+
+        _value_group_idx = json_like.pop("value_group_idx", None)
+        try:
+            obj = cls(**json_like)
+        except TypeError:
+            given_keys = set(k for k in json_like.keys() if k != "scope")
+            bad_keys = given_keys - cls.ALLOWED_PARAMETERS
+            bad_keys_str = ", ".join(f'"{i}"' for i in bad_keys)
+            allowed_keys_str = ", ".join(f'"{i}"' for i in cls.ALLOWED_PARAMETERS)
+            raise UnknownResourceSpecItemError(
+                f"The following resource item names are unknown: {bad_keys_str}. Allowed "
+                f"resource item names are: {allowed_keys_str}."
+            )
+        obj._value_group_idx = _value_group_idx
+
+        return obj
 
     def _get_param_path(self):
         scope_str = ""
         if self.scope.typ.name != self.app.ActionScopeType.ANY.name:
             scope_str = f".{self.scope.to_string()}"
         return f"resources{scope_str}"
+
+    def to_dict(self):
+        out = super().to_dict()
+        if "_workflow" in out:
+            del out["_workflow"]
+        out = {k.lstrip("_"): v for k, v in out.items()}
+        return out
+
+    def _get_members(self):
+        out = self.to_dict()
+        del out["scope"]
+        del out["value_group_idx"]
+        return out
+
+    def make_persistent(self, workflow) -> Dict:
+        """Save to a persistent workflow.
+
+        Parameters
+        ----------
+        workflow : Workflow
+
+        Returns
+        -------
+        dict of tuple : int
+            Single-item dict whose key is the data path for this task input and whose
+            value is the integer index of the parameter data Zarr group where the data is
+            stored.
+        """
+        param_group_idx = workflow._add_parameter_group(self._get_members(), is_set=True)
+        self._value_group_idx = param_group_idx
+        self._workflow = workflow
+
+        self._num_cores = None
+        self._scratch = None
+
+        return {self._get_param_path(): [param_group_idx]}
+
+    def _get_value(self, value_name=None):
+        if self._value_group_idx is not None:
+            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
+            val = zarr_decode(grp)
+        else:
+            val = self._get_members()
+        if value_name:
+            val = val[value_name]
+
+        return val
+
+    @property
+    def scratch(self):
+        return self._get_value("scratch")
+
+    @property
+    def num_cores(self):
+        return self._get_value("num_cores")
+
+    @property
+    def workflow(self):
+        if self._workflow:
+            return self._workflow
+        elif self.task:
+            return self.task.workflow_template.workflow
 
     @property
     def task(self):
@@ -517,9 +724,10 @@ class TaskSourceType(enum.Enum):
 
 
 class InputSourceMode(enum.Enum):
-    """Set to MANUAL if a task has input source(s) specified on creation (or modification)
-    otherwise set to AUTO, in which case input sources will be set by hpcflow, and input
-    sources may be appended to if new tasks/imports are added to the workflow."""
+    """Set to MANUAL for a task if the task has input source(s) specified on creation (or
+    modification) otherwise set to AUTO, in which case input sources will be set by
+    hpcflow, and input sources may be appended to if new tasks/imports are added to the
+    workflow."""
 
     AUTO = 0
     MANUAL = 1
@@ -542,6 +750,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
+        path=None,
         where=None,
     ):
 
@@ -550,6 +759,7 @@ class InputSource(JSONLike):
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
         self.where = where
+        self.path = path
 
         if self.source_type is InputSourceType.TASK:
             if self.task_ref is None:
@@ -569,6 +779,7 @@ class InputSource(JSONLike):
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
             and self.where == other.where
+            and self.path == other.path
         ):
             return True
         else:
@@ -581,6 +792,14 @@ class InputSource(JSONLike):
             f'{", ".join([f"{k}={repr(v)}" for k, v in members.items()])}'
             f")"
         )
+
+    def get_task(self, workflow):
+        """If source_type is task, then return the referenced task from the given
+        workflow."""
+        if self.source_type is InputSourceType.TASK:
+            for task in workflow.tasks:
+                if task.insert_ID == self.task_ref:
+                    return task
 
     def to_string(self):
         out = [self.source_type.name.lower()]
