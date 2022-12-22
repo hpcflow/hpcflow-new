@@ -1,4 +1,131 @@
 
+<a name="v0.2.0a19"></a>
+## [v0.2.0a19](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a18...v0.2.0a19) - 2022.12.22
+
+### ♻ Code Refactoring
+
+* remove unused imports; sort
+
+### ✨ Features
+
+* move clear_helper to API
+* add WorkflowMonitor.on_modified event to log
+* more helper functions + use PollingObserver to work on networked file systems
+* add watchdog to helper
+* add timeout option to helper
+* add clear command to helper CLI
+* add pid command to helper CLI
+* initial server implementation
+* expose make/submit-workflow to CLI
+* add Workflow.submit for local serial execution
+* add demo-software CLI
+* add scripts app data and first demo scripts
+* validate inputs and sequence paths
+* update SchemaInput repr
+* add resources property to Element
+
+### 🐛 Bug Fixes
+
+* another py37 f-string
+* py37 fstring incompat
+* helper watch-list if not running
+* delete watch file in stop_helper
+* missing f-string
+* merge branch 'aplowman/develop' into feat/server
+* App._load_scripts for frozen app
+* helper invocation on frozen
+* ValueSequence cls methods
+* quote script paths
+* add missing WorkflowTask.dir_path prop
+* InputFile
+* ValueSequence repr
+* EnvironmentList.get when no specifiers
+* element resolution of downstream tasks
+* Element.get with no path arg
+* set unsourced inputs
+* sequence path cannot start with output!
+* add _validate_parameter_path to ValueSequence
+* use dot-delimited string for Element.get() path arg
+
+### 👷 Build changes
+
+* merge
+* update binary download links file [skip ci]
+* merge branch 'aplowman/develop' into feat/server
+* merge branch 'develop' into aplowman/develop
+* add watchdog dep
+
+
+<a name="v0.2.0a18"></a>
+## [v0.2.0a18](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a17...v0.2.0a18) - 2022.12.12
+
+### Other changes
+
+* Add wf to main so appears in API
+* Add wf to main so appears in API
+
+### 🐛 Bug Fixes
+
+* Update wf
+* Make capitalisation consistent.
+* Make capitalisation consistent.
+* onedir output now linked correctly
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a17"></a>
+## [v0.2.0a17](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a16...v0.2.0a17) - 2022.12.09
+
+### Other changes
+
+* tweak powershell compress
+* test bash compress
+* Fix filenames in release testing
+* correct error in release_testing
+* Update permissions on compress script
+* fix filenames in release_testing
+* Change to compress script (bash)
+* re-add release_testing.yaml
+* Update permissions on compress (bash)
+* remove extra space
+* Remove test workflows.
+* rectify conflicting action ids
+* test exisitng *win-dir.zip
+* add renamed archive to release
+* change compressed filename
+* Test separate compress script
+* tweaking if statement again
+* tweak if statement
+* fix if statement
+* test zip win-dir right after build
+* test zip on macOS
+* tweak zip command
+* remove extra space
+* test zip win-dir before release
+* test download to action root
+* test macOS-dir in isolation
+* Try download win-dir only
+* Try artefact path beginning ./
+* fix path to artifacts
+* test specify full path to artefacts
+* test softprops/action-gh-release[@v0](https://github.com/v0).1.13
+* fix artefact names in relese step
+* Add workflow to test GH releasing
+
+### 🐛 Bug Fixes
+
+* Fix name of release_testing wf.
+
+### 👷 Build changes
+
+* Add compress script (bash)
+* Add compress script (powershell)
+* **gha:** Compress onedir output for release
+
+
 <a name="v0.2.0a16"></a>
 ## [v0.2.0a16](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a15...v0.2.0a16) - 2022.11.28
 
