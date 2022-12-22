@@ -1,0 +1,202 @@
+name: release_testing
+
+env:
+  PYTHON_VERSION_BUMP: "3.10"
+  PYTHON_VERSION_BUILD_EXES: "3.10"
+  PYTHON_VERSION_RELEASE: "3.10"
+  PYTHON_VERSION_BUILD_DOCS: "3.10"
+  PYTHON_VERSION_UPDATE_WEB: "3.10"
+
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "PyInstaller log level"
+        required: true
+        default: "INFO"
+
+jobs:
+  build-executables:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019, macos-11]
+        include:
+          - os: windows-2019
+            executable_ext: .exe
+            executable_os: win
+          - os: macos-11
+            executable_ext: ""
+            executable_os: macOS
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # get all history and tags
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install poetry
+        run: python -m pip install poetry==1.2.2
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: poetry install --without dev
+
+      - name: Build with pyinstaller (non Windows, file)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-release-test-build-${{ matrix.executable_os }} INFO 'onefile'
+        
+      - name: Build with pyinstaller (non Windows, folder)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-release-test-build-${{ matrix.executable_os }}-dir INFO 'onedir'
+
+      - name: Build with pyinstaller (Windows, file)
+        if: contains(matrix.os, 'windows')
+        working-directory: pyinstaller
+        run: ./make.ps1 -ExeName "hpcflow-release-test-build-${{ matrix.executable_os }}" -LogLevel INFO -BuildType 'onefile'
+
+      - name: Build with pyinstaller (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: pyinstaller
+        run: ./make.ps1 -ExeName "hpcflow-release-test-build-${{ matrix.executable_os }}-dir" -LogLevel INFO -BuildType 'onedir'
+
+      - name: Compress folder (Windows, folder)
+        if: contains(matrix.os, 'windows')
+        working-directory: pyinstaller
+        run: ./compress.ps1 -ExeName 'hpcflow-release-test-build-${{ matrix.executable_os }}-dir' -BuildType 'onedir'
+
+      - name: Compress folder (non-windows, folder)
+        if: "!contains(matrix.os, 'windows')"
+        working-directory: pyinstaller
+        run: ./compress.sh hpcflow-release-test-build-${{ matrix.executable_os }}-dir onedir
+
+      - name: Upload compressed artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+          path: pyinstaller/dist/onedir/hpcflow-release-test-build-${{ matrix.executable_os }}-dir.zip
+
+  build-executables-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: aplowman/centos7-poetry
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set ownership
+        run: |
+          # see: https://github.com/actions/runner/issues/2033#issuecomment-1204205989
+          # this is to fix GIT not liking owner of the checkout dir
+          chown -R $(id -u):$(id -g) $PWD
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-build-CentOS-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --without dev
+
+      - name: Build with pyinstaller for CentOS (file)
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-release-test-build-linux INFO onefile
+
+      - name: Build with pyinstaller for CentOS (folder)
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-release-test-build-linux-dir INFO onedir
+
+      - name: Upload executable artifact (file)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-release-test-build-linux
+          path: pyinstaller/dist/onefile/hpcflow-release-test-build-linux
+
+      - name: Upload executable artifact (folder)
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-release-test-build-linux-dir
+          path: pyinstaller/dist/onedir/hpcflow-release-test-build-linux-dir
+
+  release-github:
+    needs: [build-executables, build-executables-linux]
+    runs-on: ubuntu-latest
+    outputs:
+      binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
+
+      - run: mkdir release-artifacts
+
+      - uses: actions/download-artifact@v3
+        id: download_executables_I
+        with:
+          name: hpcflow-release-test-build-macOS-dir.zip
+
+      - uses: actions/download-artifact@v3
+        id: download_executables_II
+        with:
+          name: hpcflow-release-test-build-win-dir.zip
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION_RELEASE }}
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-release-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install poetry
+        run: python -m pip install poetry==1.2.2
+
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: poetry install --without dev,pyinstaller
+
+      - run: mkdir release-artifacts
+
+      - uses: actions/download-artifact@v3
+        id: download_executables
+        with:
+          path: release-artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R
+
+      - name: Release
+        id: release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: test-tag 
+          files: |
+            **/hpcflow-test-release-build-win.exe
+            **/hpcflow-test-release-build-macOS
+            **/hpcflow-test-release-build-linux
+            **/hpcflow-test-release-build-win-dir
+            **/hpcflow-test-release-build-macOS-dir
+            **/hpcflow-test-release-build-linux-dir
+          prerelease: true 
