@@ -15,6 +15,14 @@ from .utils import check_valid_py_identifier
 
 @dataclass
 class TaskObjective(JSONLike):
+
+    _child_objects = (
+        ChildObjectSpec(
+            name="name",
+            is_single_attribute=True,
+        ),
+    )
+
     name: str
 
     def __post_init__(self):
