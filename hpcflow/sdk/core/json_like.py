@@ -268,8 +268,9 @@ class BaseJSONLike:
 
                 else:
                     raise TypeError(
-                        f"Child object {child_obj_spec.name} of {cls.__name__!r} must a "
-                        f"list or dict."
+                        f"Child object {child_obj_spec.name} of {cls.__name__!r} must be "
+                        f"a list or dict, but is of type {type(json_like_i)} with value "
+                        f"{json_like_i!r}."
                     )
             else:
                 multi_chd_objs = [json_like_i]
@@ -385,10 +386,13 @@ class BaseJSONLike:
         for chd in self._child_objects:
             if chd.parent_ref:
                 if chd.is_multiple:
-                    for i in getattr(self, chd.name):
-                        setattr(i, chd.parent_ref, self)
+                    for chd_obj in getattr(self, chd.name):
+                        if chd_obj:
+                            setattr(chd_obj, chd.parent_ref, self)
                 else:
-                    setattr(getattr(self, chd.name), chd.parent_ref, self)
+                    chd_obj = getattr(self, chd.name)
+                    if chd_obj:
+                        setattr(chd_obj, chd.parent_ref, self)
 
     def _get_hash(self):
         json_like = self.to_json_like()[0]
@@ -452,6 +456,7 @@ class BaseJSONLike:
                 shared_keys = []
                 for i in chd_obj_js:
 
+                    i.pop("_hash_value", None)
                     hash_i = self._get_hash_from_json_like(i)
                     shared_keys.append(f"hash:{hash_i}")
 

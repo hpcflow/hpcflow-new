@@ -14,12 +14,12 @@ from .zarr_io import zarr_encode
 from .object_list import WorkflowTaskList
 from .parameters import InputSource
 from .loop import Loop
-from .task import Task, WorkflowTask
+from .task import ElementSet, Task, WorkflowTask
 from .task_schema import TaskSchema
-from .utils import group_by_dict_key_values, read_YAML_file
+from .utils import group_by_dict_key_values, read_YAML, read_YAML_file
 from .errors import InvalidInputSourceTaskReference, MissingInputs, WorkflowNotFoundError
 
-TS_FMT = r"%Y.%m.%d_%H:%M:%S_%z"
+TS_FMT = r"%Y.%m.%d_%H:%M:%S.%f_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
@@ -45,10 +45,28 @@ class WorkflowTemplate(JSONLike):
         self._set_parent_refs()
 
     @classmethod
-    def from_YAML_file(cls, path):
-        dat = read_YAML_file(path)
+    def _from_data(cls, data):
         cls.app._ensure_data_files()  # TODO: fix this at App
-        return cls.from_json_like(dat, shared_data=cls.app.app_data)
+
+        # use element_sets if not already:
+        for task_idx, task_dat in enumerate(data["tasks"]):
+            if "element_sets" not in task_dat:
+                # add a single element set:
+                elem_set = {}
+                for chd_obj in ElementSet._child_objects:
+                    if chd_obj.name in task_dat:
+                        elem_set[chd_obj.name] = task_dat.pop(chd_obj.name)
+                data["tasks"][task_idx]["element_sets"] = [elem_set]
+
+        return cls.from_json_like(data, shared_data=cls.app.app_data)
+
+    @classmethod
+    def from_YAML_string(cls, string):
+        return cls._from_data(read_YAML(string))
+
+    @classmethod
+    def from_YAML_file(cls, path):
+        return cls._from_data(read_YAML_file(path))
 
 
 class Workflow:
@@ -65,12 +83,13 @@ class Workflow:
 
         self._persistent_metadata = root.attrs.asdict()
 
+        # TODO: load history on demand.
+        self._history = root.get("history").attrs.asdict()
+
         self._shared_data = None
         self._tasks = None
         self._elements = None
         self._template = None
-
-        self.history = root.attrs["history"]
 
     def _get_workflow_root_group(self, mode):
         try:
@@ -137,6 +156,26 @@ class Workflow:
         return self._persistent_metadata["task_name_repeat_idx"]
 
     @classmethod
+    def _get_new_history_event(cls, event_type, **kwargs):
+        timestamp = datetime.now(timezone.utc).astimezone()
+        event = {
+            "type": event_type,
+            "at": timestamp.strftime(TS_FMT),
+            "machine": cls.app.config.get("machine"),
+            "content": kwargs,
+        }
+        return timestamp, event
+
+    def get_last_event_of_type(self, event_type):
+        for evt in self._history["events"][::-1]:
+            if evt["type"] == event_type:
+                return evt
+
+    def _append_history_event(self, evt):
+        self._history["events"].append(evt)
+        self._dump_history_metadata()
+
+    @classmethod
     def _make_empty_workflow(
         cls,
         template: WorkflowTemplate,
@@ -152,30 +191,19 @@ class Workflow:
 
         cls.app._ensure_data_files()  # TODO: fix this at App
 
-        timestamp = datetime.now(timezone.utc).astimezone()
+        timestamp, event = cls._get_new_history_event("create")
         history = {
             "timestamp_format": TS_FMT,
-            "events": [
-                {
-                    "type": "create",
-                    "at": timestamp.strftime(TS_FMT),
-                    "machine": cls.app.config.get("machine"),
-                }
-            ],
+            "events": [event],
         }
 
         path = Path(path or "").resolve()
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
         path = path.joinpath(name)
 
-        # TODO: extra out input values from template and save in zarr parameter data
-
         template_js, template_sh = template.to_json_like()
-        # print(f"template_js: {template_js}")
-        # print(f"template_sh: {template_sh}")
 
         root_attrs = {
-            "history": history,
             "shared_data": template_sh,
             "template": template_js,
             "parameter_mapping": [],
@@ -184,12 +212,15 @@ class Workflow:
             "task_name_repeat_idx": [],
         }
 
-        # TODO: intermittent Dropbox permission error; wrap in exception are retry?
+        # TODO: intermittent Dropbox permission error; use package `reretry` to retry?
         store = zarr.DirectoryStore(path)
         root = zarr.group(store=store, overwrite=overwrite)
         root.attrs.update(root_attrs)
 
         root.create_group("parameter_data")
+
+        hist_group = root.create_group("history")
+        hist_group.attrs.update(history)
 
         return cls.load(path)
 
@@ -247,55 +278,6 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
-    def ensure_input_sources(self, new_task: Task, new_index: int, new_name: str):
-        """Check valid input sources are specified for a new task to be added to the
-        workflow in a given position. If none are specified, set them according to the
-        default behaviour."""
-
-        # TODO: order sources by preference so can just take first in the case of input
-        # source mode AUTO?
-        available_sources = new_task.get_available_task_input_sources(
-            self.template.tasks[:new_index]
-        )
-
-        # TODO: get available input sources from workflow imports
-
-        # check any specified sources are valid:
-        for schema_input in new_task.all_schema_inputs:
-            for specified_source in new_task.input_sources.get(schema_input.typ, []):
-                self._resolve_input_source_task_reference(specified_source, new_name)
-                if specified_source not in available_sources[schema_input.typ]:
-                    raise ValueError(
-                        f"The input source {specified_source.to_string()!r} is not "
-                        f"available for schema input {schema_input!r}. Available "
-                        f"input sources are: "
-                        f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
-                    )
-
-        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
-        # then check if there is an input files entry for associated inputs,
-        # if there is
-
-        # set source for any unsourced inputs:
-        missing = []
-        for input_type in new_task.unsourced_inputs:
-            inp_i_sources = available_sources[input_type]
-            source = None
-            try:
-                source = inp_i_sources[0]
-            except IndexError:
-                missing.append(input_type)
-
-            if source is not None:
-                new_task.input_sources.update({input_type: [source]})
-
-        if missing:
-            missing_str = ", ".join(f"{i!r}" for i in missing)
-            raise MissingInputs(
-                message=f"The following inputs have no sources: {missing_str}.",
-                missing_inputs=missing,
-            )
-
     def _dump_persistent_metadata(self):
 
         # invalidate workflow attributes to force re-init on access:
@@ -307,6 +289,11 @@ class Workflow:
 
         root = self._get_workflow_root_group(mode="r+")
         root.attrs.put(self._persistent_metadata)
+
+    def _dump_history_metadata(self):
+
+        hist = self._get_workflow_root_group(mode="r+").get("history")
+        hist.attrs.put(self._history)
 
     def get_zarr_parameter_group(self, group_idx):
         root = self._get_workflow_root_group(mode="r")
@@ -430,61 +417,110 @@ class Workflow:
 
         return uniq_names[new_index]
 
-    def add_task(self, task: Task, new_index=None):
+    def _append_history_add_empty_task(self, new_index, added_shared_data):
+        _, evt = self._get_new_history_event(
+            event_type="add_empty_task",
+            new_index=new_index,
+            added_shared_data=added_shared_data,
+        )
+        self._append_history_event(evt)
+
+    def _append_history_add_element_set(self, task_index, element_indices):
+        _, evt = self._get_new_history_event(
+            event_type="add_element_set",
+            task_index=task_index,
+            element_indices=element_indices,
+        )
+        self._append_history_event(evt)
+
+    def _append_history_remove_task(self, index, reason):
+        _, evt = self._get_new_history_event(
+            event_type="remove_task", index=index, reason=reason
+        )
+        self._append_history_event(evt)
+
+    def _add_empty_task(self, task: Task, new_index=None):
 
         if new_index is None:
             new_index = self.num_tasks
 
         new_task_name = self._get_new_task_unique_name(task, new_index)
-        self.ensure_input_sources(task, new_index, new_task_name)
-
-        # TODO: also save the original Task object, since it may be modified before
-        # adding to the workflow
-
-        # TODO: think about ability to change input sources? (in the context of adding a new task)
-        # what happens when new insert a new task and it outputs a parameter that is used by a downstream task?
-        # does it depend on what we originally specify as the downstream tasks's input sources?
-
-        # add input source type "auto" (which is set by default)
-        # then a "resolved source" property which is resolved to a specific source depending on the available sources?
-
-        # TODO: perhaps refactor into an `add_elements` that can also be used to add
-        # elements to a pre-existing task?
-
-        input_data_idx = task.make_persistent(self)
-        multiplicities = task.prepare_element_resolution(input_data_idx)
-        element_data_idx = self.resolve_element_data_indices(multiplicities)
-
-        output_data_idx = task._prepare_persistent_outputs(self, len(element_data_idx))
-        elements = self.generate_new_elements(
-            input_data_idx, output_data_idx, element_data_idx
-        )
-
-        element_indices = list(
-            range(len(self.elements), len(self.elements) + len(elements))
-        )
 
         task._insert_ID = self.num_tasks
         task._dir_name = f"task_{task.insert_ID}_{new_task_name}"
 
-        task_js, task_shared_data = task.to_json_like()
+        # make any SchemaInput default values persistent:
+        for schema in task.schemas:
+            schema.make_persistent(self)
+
+        task_js, task_shared_data = task.to_json_like(exclude=["element_sets"])
+        task_js["element_sets"] = []
 
         # add any missing shared data for this task template:
+        added_shared_data = {}
         for shared_name, shared_data in task_shared_data.items():
             if shared_name not in self._persistent_metadata["shared_data"]:
                 self._persistent_metadata["shared_data"][shared_name] = {}
+
+            added_shared_data[shared_name] = []
+
             for k, v in shared_data.items():
                 if k not in self._persistent_metadata["shared_data"][shared_name]:
                     self._persistent_metadata["shared_data"][shared_name][k] = v
+                    added_shared_data[shared_name].append(k)
 
-        self._persistent_metadata["template"]["tasks"].append(task_js)
+        empty_task = {"element_indices": []}
+        self._persistent_metadata["template"]["tasks"].insert(new_index, task_js)
+        self._persistent_metadata["tasks"].insert(new_index, empty_task)
+        self._dump_persistent_metadata()
 
-        wk_task = {"element_indices": element_indices}
+        self._append_history_add_empty_task(new_index, added_shared_data)
 
-        self._persistent_metadata["tasks"].insert(new_index, wk_task)
-        self._persistent_metadata["elements"].extend(elements)
+        new_task = self.tasks[new_index]
+
+        return new_task
+
+    def _remove_task(self, index, reason=None):
+
+        # TODO: remove elements etc; and consider downstream data?
+
+        self.app.logger.info(
+            f"removing task {index}"
+        )  # TODO: get logging working!!! why log twice?
+
+        self._persistent_metadata["template"]["tasks"].pop(index)
+        self._persistent_metadata["tasks"].pop(index)
+        self._dump_persistent_metadata()
+
+        add_task_event = self.get_last_event_of_type("add_empty_task")
+        to_remove_sh = add_task_event["content"]["added_shared_data"]
+
+        for sh_name, sh_hashes in to_remove_sh.items():
+            for hash_i in sh_hashes:
+                del self._persistent_metadata["shared_data"][sh_name][hash_i]
+
+            if not self._persistent_metadata["shared_data"][sh_name]:
+                del self._persistent_metadata["shared_data"][sh_name]
 
         self._dump_persistent_metadata()
+
+        self._append_history_remove_task(index, reason)
+
+    def add_task(self, task: Task, new_index=None):
+
+        try:
+            new_wk_task = self._add_empty_task(task, new_index)
+            new_wk_task.add_elements(element_sets=task.element_sets)
+        except MissingInputs as err:
+            self._remove_task(new_wk_task.index, reason="Failed to add new task.")
+            raise err
+
+        # TODO: also save the original Task object, since it may be modified (e.g.
+        # input_sources) before adding to the workflow
+
+        # TODO: think about ability to change input sources? (in the context of adding a new task)
+        # what happens when new insert a new task and it outputs a parameter that is used by a downstream task?
+        # does it depend on what we originally specify as the downstream tasks's input sources?
 
     def add_task_after(self, task_ref):
         # TODO: find position of new task, then call add_task

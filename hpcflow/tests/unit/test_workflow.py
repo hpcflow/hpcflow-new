@@ -1,3 +1,5 @@
+import copy
+from textwrap import dedent
 import pytest
 
 from hpcflow.api import (
@@ -54,6 +56,14 @@ def test_raise_on_missing_workflow(tmp_path):
         Workflow(tmp_path)
 
 
+def test_add_empty_task(empty_workflow, param_p1):
+    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1])
+    t1 = Task(schemas=s1)
+    wk_t1 = empty_workflow._add_empty_task(t1)
+
+    assert len(empty_workflow.tasks) == 1 and wk_t1.index == 0 and wk_t1.name == "ts1"
+
+
 def test_raise_on_missing_inputs_add_first_task(empty_workflow, param_p1):
     s1 = TaskSchema("ts1", actions=[], inputs=[param_p1])
     t1 = Task(schemas=s1)
@@ -70,3 +80,118 @@ def test_raise_on_missing_inputs_add_second_task(workflow_w1, param_p2, param_p3
         workflow_w1.add_task(t2)
 
     assert exc_info.value.missing_inputs == [param_p3.typ]  # p2 comes from existing task
+
+
+def test_no_change_to_persistent_metadata_on_add_task_failure(
+    workflow_w1, param_p2, param_p3
+):
+
+    data = copy.deepcopy(workflow_w1._persistent_metadata)
+
+    s2 = TaskSchema("ts2", actions=[], inputs=[param_p2, param_p3])
+    t2 = Task(schemas=s2)
+    with pytest.raises(MissingInputs) as exc_info:
+        workflow_w1.add_task(t2)
+
+    assert workflow_w1._persistent_metadata == data
+
+
+@pytest.mark.skip(
+    reason=(
+        "Need to be able to either add task schemas to the app here, or have support for "
+        "built in task schemas."
+    )
+)
+def test_WorkflowTemplate_from_YAML_string(null_config, param_p1, param_p2):
+    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
+    wkt_yml = dedent(
+        """
+        name: simple_workflow
+
+        tasks:
+        - schemas: [ts1]
+          element_sets:
+            inputs:
+              p2: 201
+              p5: 501
+            sequences:
+              - path: inputs.p1
+                nesting_order: 0
+                values: [101, 102]
+    """
+    )
+    wkt = WorkflowTemplate.from_YAML_string(wkt_yml)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Need to be able to either add task schemas to the app here, or have support for "
+        "built in task schemas."
+    )
+)
+def test_WorkflowTemplate_from_YAML_string_without_element_sets(
+    null_config, param_p1, param_p2
+):
+    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
+    wkt_yml = dedent(
+        """
+        name: simple_workflow
+
+        tasks:
+        - schemas: [ts1]
+          inputs:
+            p2: 201
+            p5: 501
+          sequences:
+            - path: inputs.p1
+              nesting_order: 0
+              values: [101, 102]
+    """
+    )
+    wkt = WorkflowTemplate.from_YAML_string(wkt_yml)
+
+
+@pytest.mark.skip(
+    reason=(
+        "Need to be able to either add task schemas to the app here, or have support for "
+        "built in task schemas."
+    )
+)
+def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equivalence(
+    null_config, param_p1, param_p2
+):
+    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
+    wkt_yml_1 = dedent(
+        """
+        name: simple_workflow
+
+        tasks:
+        - schemas: [ts1]
+          element_sets:
+            inputs:
+              p2: 201
+              p5: 501
+            sequences:
+              - path: inputs.p1
+                nesting_order: 0
+                values: [101, 102]
+    """
+    )
+    wkt_yml_2 = dedent(
+        """
+        name: simple_workflow
+
+        tasks:
+        - schemas: [ts1]
+          inputs:
+            p2: 201
+            p5: 501
+          sequences:
+            - path: inputs.p1
+              nesting_order: 0
+              values: [101, 102]
+    """
+    )
+    wkt_1 = WorkflowTemplate.from_YAML_string(wkt_yml_1)
+    wkt_2 = WorkflowTemplate.from_YAML_string(wkt_yml_2)
+    assert wkt_1 == wkt_2

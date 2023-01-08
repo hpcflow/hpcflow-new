@@ -27,7 +27,7 @@ from .core.parameters import (
     TaskSourceType,
     ValueSequence,
 )
-from .core.task import WorkflowTask
+from .core.task import WorkflowTask, ElementSet
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
@@ -121,6 +121,7 @@ class BaseApp:
             Executable,
             Element,
             ElementAction,
+            ElementSet,
             InputSourceMode,
             InputSourceType,
             NumCores,

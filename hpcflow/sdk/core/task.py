@@ -26,42 +26,28 @@ from .parameters import (
 from .utils import get_duplicate_items, get_item_repeat_index
 
 
-class Task(JSONLike):
-    """Parametrisation of an isolated task for which a subset of input values are given
-    "locally". The remaining input values are expected to be satisfied by other
-    tasks/imports in the workflow."""
+class ElementSet(JSONLike):
+    """Class to represent a parametrisation of a new set of elements."""
 
     _child_objects = (
-        ChildObjectSpec(
-            name="schemas",
-            class_name="TaskSchema",
-            is_multiple=True,
-            shared_data_name="task_schemas",
-            shared_data_primary_key="name",
-        ),
         ChildObjectSpec(
             name="inputs",
             class_name="InputValue",
             is_multiple=True,
             dict_key_attr="parameter",
             dict_val_attr="value",
-            parent_ref="_task",
-        ),
-        ChildObjectSpec(
-            name="input_files",
-            class_name="InputFile",
-            is_multiple=True,
+            parent_ref="_element_set",
         ),
         ChildObjectSpec(
             name="resources",
             class_name="ResourceList",
-            parent_ref="_task",
+            parent_ref="_element_set",
         ),
         ChildObjectSpec(
             name="sequences",
             class_name="ValueSequence",
             is_multiple=True,
-            parent_ref="_task",
+            parent_ref="_element_set",
         ),
         ChildObjectSpec(
             name="input_sources",
@@ -79,15 +65,177 @@ class Task(JSONLike):
 
     def __init__(
         self,
-        schemas: Union[TaskSchema, str, List[TaskSchema], List[str]],
+        inputs: Optional[List[InputValue]] = None,
+        sequences: Optional[List[ValueSequence]] = None,
+        resources: Optional[Dict[str, Dict]] = None,
         repeats: Optional[Union[int, List[int]]] = 1,
+        input_sources: Optional[Dict[str, InputSource]] = None,
+        input_source_mode: Optional[Union[str, InputSourceType]] = None,
+        nesting_order: Optional[List] = None,
+    ):
+
+        if isinstance(resources, dict):
+            resources = self.app.ResourceList.from_json_like(resources)
+        elif not resources:
+            resources = self.app.ResourceList([self.app.ResourceSpec()])
+
+        self.inputs = inputs or []
+        self.repeats = repeats
+        self.resources = resources
+        self.sequences = sequences or []
+        self.input_sources = input_sources or {}
+        self.input_source_mode = input_source_mode or (
+            InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
+        )
+        self.nesting_order = nesting_order or {}
+
+        self._validate()
+        self._set_parent_refs()
+
+        self._task_template = None  # assigned by parent Task
+        self._defined_input_types = None  # assigned on _task_template assignment
+
+    def to_dict(self):
+        dct = super().to_dict()
+        del dct["_defined_input_types"]
+        del dct["_task_template"]
+        return dct
+
+    @property
+    def task_template(self):
+        return self._task_template
+
+    @task_template.setter
+    def task_template(self, value):
+        self._task_template = value
+        self._validate_against_template()
+
+    @property
+    def input_types(self):
+        return [i.parameter.typ for i in self.inputs]
+
+    def _validate(self):
+        dup_params = get_duplicate_items(self.input_types)
+        if dup_params:
+            raise TaskTemplateMultipleInputValues(
+                f"The following parameters are associated with multiple input value "
+                f"definitions: {dup_params!r}."
+            )
+
+    def _validate_against_template(self):
+
+        unexpected_types = (
+            set(self.input_types) - self.task_template.all_schema_input_types
+        )
+        if unexpected_types:
+            raise TaskTemplateUnexpectedInput(
+                f"The following input parameters are unexpected: {list(unexpected_types)!r}"
+            )
+
+        seq_inp_types = []
+        for seq_i in self.sequences:
+            inp_type = seq_i.input_type
+            if inp_type:
+                bad_inp = {inp_type} - self.task_template.all_schema_input_types
+                allowed_str = ", ".join(
+                    f'"{i}"' for i in self.task_template.all_schema_input_types
+                )
+                if bad_inp:
+                    raise TaskTemplateUnexpectedSequenceInput(
+                        f"The input type {inp_type!r} specified in the following sequence"
+                        f" path is unexpected: {seq_i.path!r}. Available input types are: "
+                        f"{allowed_str}."
+                    )
+                seq_inp_types.append(inp_type)
+            self.nesting_order.update({seq_i.path: seq_i.nesting_order})
+
+        for k, v in self.nesting_order.items():
+            if v < 0:
+                raise TaskTemplateInvalidNesting(
+                    f"`nesting_order` must be >=0 for all keys, but for key {k!r}, value "
+                    f"of {v!r} was specified."
+                )
+
+        self._defined_input_types = set(self.input_types + seq_inp_types)
+
+    @classmethod
+    def ensure_element_sets(
+        cls,
+        inputs=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        input_source_mode=None,
+        nesting_order=None,
+        element_sets=None,
+    ):
+        args = (
+            inputs,
+            sequences,
+            resources,
+            repeats,
+            input_sources,
+            input_source_mode,
+            nesting_order,
+        )
+        args_not_none = [i is not None for i in args]
+
+        if any(args_not_none):
+            if element_sets is not None:
+                raise ValueError(
+                    "If providing an `element_set`, no other arguments are allowed."
+                )
+            else:
+                element_sets = [cls(*args)]
+        else:
+            if element_sets is None:
+                element_sets = [cls(*args)]
+
+        return element_sets
+
+    @property
+    def defined_input_types(self):
+        return self._defined_input_types
+
+    @property
+    def undefined_input_types(self):
+        return self.task_template.all_schema_input_types - self.defined_input_types
+
+
+class Task(JSONLike):
+    """Parametrisation of an isolated task for which a subset of input values are given
+    "locally". The remaining input values are expected to be satisfied by other
+    tasks/imports in the workflow."""
+
+    _child_objects = (
+        ChildObjectSpec(
+            name="schemas",
+            class_name="TaskSchema",
+            is_multiple=True,
+            shared_data_name="task_schemas",
+            shared_data_primary_key="name",
+            parent_ref="_task_template",
+        ),
+        ChildObjectSpec(
+            name="element_sets",
+            class_name="ElementSet",
+            is_multiple=True,
+            parent_ref="task_template",
+        ),
+    )
+
+    def __init__(
+        self,
+        schemas: Union[TaskSchema, str, List[TaskSchema], List[str]],
+        repeats: Optional[Union[int, List[int]]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         inputs: Optional[List[InputValue]] = None,
-        input_files: Optional[List[FileSpec]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
+        element_sets: Optional[List[ElementSet]] = None,  # TODO
     ):
 
         """
@@ -129,24 +277,18 @@ class Task(JSONLike):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
-        if isinstance(resources, dict):
-            resources = self.app.ResourceList.from_json_like(resources)
-        elif not resources:
-            resources = self.app.ResourceList([self.app.ResourceSpec()])
-
         self._schemas = _schemas
-        self._repeats = repeats
-        self._resources = resources
-        self._inputs = inputs or []
-        self._input_files = input_files or []
-        self._sequences = sequences or []
-        self._input_sources = input_sources or {}
-        self._input_source_mode = input_source_mode or (
-            InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
-        )
-        self._nesting_order = nesting_order or {}
 
-        self._set_parent_refs()
+        self._element_sets = self.app.ElementSet.ensure_element_sets(
+            inputs=inputs,
+            sequences=sequences,
+            resources=resources,
+            repeats=repeats,
+            input_sources=input_sources,
+            input_source_mode=input_source_mode,
+            nesting_order=nesting_order,
+            element_sets=element_sets,
+        )
 
         self._validate()
         self._name = self._get_name()
@@ -154,6 +296,8 @@ class Task(JSONLike):
         self.workflow_template = None  # assigned by parent WorkflowTemplate
         self._insert_ID = None
         self._dir_name = None
+
+        self._set_parent_refs()
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -170,11 +314,7 @@ class Task(JSONLike):
 
     def to_dict(self):
         out = super().to_dict()
-        return {
-            k.lstrip("_"): v
-            for k, v in out.items()
-            if k not in ["_name", "_defined_input_types"]
-        }
+        return {k.lstrip("_"): v for k, v in out.items() if k != "_name"}
 
     def _validate(self):
 
@@ -186,44 +326,6 @@ class Task(JSONLike):
                 f"All task schemas used within a task must have the same "
                 f"objective, but found multiple objectives: {list(names)!r}"
             )
-
-        input_types = [i.parameter.typ for i in self.inputs]
-        dup_params = get_duplicate_items(input_types)
-        if dup_params:
-            raise TaskTemplateMultipleInputValues(
-                f"The following parameters are associated with multiple input value "
-                f"definitions: {dup_params!r}."
-            )
-
-        unexpected_types = set(input_types) - self.all_schema_input_types
-        if unexpected_types:
-            raise TaskTemplateUnexpectedInput(
-                f"The following input parameters are unexpected: {list(unexpected_types)!r}"
-            )
-
-        seq_inp_types = []
-        for seq_i in self.sequences:
-            inp_type = seq_i.input_type
-            if inp_type:
-                bad_inp = {inp_type} - self.all_schema_input_types
-                allowed_str = ", ".join(f'"{i}"' for i in self.all_schema_input_types)
-                if bad_inp:
-                    raise TaskTemplateUnexpectedSequenceInput(
-                        f"The input type {inp_type!r} specified in the following sequence"
-                        f" path is unexpected: {seq_i.path!r}. Available input types are: "
-                        f"{allowed_str}."
-                    )
-                seq_inp_types.append(inp_type)
-            self._nesting_order.update({seq_i.path: seq_i.nesting_order})
-
-        for k, v in self.nesting_order.items():
-            if v < 0:
-                raise TaskTemplateInvalidNesting(
-                    f"`nesting_order` must be >=0 for all keys, but for key {k!r}, value "
-                    f"of {v!r} was specified."
-                )
-
-        self._defined_input_types = set(input_types + seq_inp_types)
 
     def _get_name(self):
         out = f"{self.objective.name}"
@@ -310,14 +412,14 @@ class Task(JSONLike):
 
         return output_data_indices
 
-    def prepare_element_resolution(self, input_data_indices):
+    def prepare_element_resolution(self, element_set, input_data_indices):
 
         multiplicities = []
         for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
                 {
                     "multiplicity": len(inp_idx_i),
-                    "nesting_order": self.nesting_order.get(path_i, -1),
+                    "nesting_order": element_set.nesting_order.get(path_i, -1),
                     "path": path_i,
                 }
             )
@@ -332,7 +434,9 @@ class Task(JSONLike):
             return None
 
     def get_available_task_input_sources(
-        self, source_tasks: Optional[List[Task]] = None
+        self,
+        element_set: ElementSet,
+        source_tasks: Optional[List[Task]] = None,
     ) -> List[InputSource]:
         """For each input parameter of this task, generate a list of possible input sources
         that derive from inputs or outputs of this and other provided tasks.
@@ -365,7 +469,7 @@ class Task(JSONLike):
                             )
                         )
 
-            if schema_input.typ in self.defined_input_types:
+            if schema_input.typ in element_set.defined_input_types:
                 available[schema_input.typ].append(self.app.InputSource.local())
 
             if schema_input.default_value is not None:
@@ -378,44 +482,8 @@ class Task(JSONLike):
         return self._schemas
 
     @property
-    def repeats(self):
-        return self._repeats
-
-    @property
-    def resources(self):
-        return self._resources
-
-    @property
-    def inputs(self):
-        return self._inputs
-
-    @property
-    def input_files(self):
-        return self._input_files
-
-    @property
-    def input_file_generator_sources(self):
-        return self._input_file_generator_sources
-
-    @property
-    def output_file_parser_sources(self):
-        return self._output_file_parser_sources
-
-    @property
-    def perturbations(self):
-        return self._perturbations
-
-    @property
-    def sequences(self):
-        return self._sequences
-
-    @property
-    def input_sources(self):
-        return self._input_sources
-
-    @property
-    def input_source_mode(self):
-        return self._input_source_mode
+    def element_sets(self):
+        return self._element_sets
 
     @property
     def insert_ID(self):
@@ -425,14 +493,6 @@ class Task(JSONLike):
     def dir_name(self):
         "Artefact directory name."
         return self._dir_name
-
-    @property
-    def nesting_order(self):
-        return self._nesting_order
-
-    @property
-    def groups(self):
-        return self._groups
 
     @property
     def name(self):
@@ -509,6 +569,8 @@ class Task(JSONLike):
 
 class WorkflowTask:
     """Class to represent a Task that is bound to a Workflow."""
+
+    _app_attr = "app"
 
     def __init__(
         self,
@@ -587,3 +649,165 @@ class WorkflowTask:
         with self.element_dir_list_file_path.open("wt") as fp:
             for elem in elem_paths:
                 fp.write(f"{elem}\n")
+
+    def _make_new_elements_persistent(self, element_set):
+
+        input_data_indices = {}
+
+        for res_i in element_set.resources:
+            input_data_indices.update(res_i.make_persistent(self.workflow))
+
+        for inp_i in element_set.inputs:
+            input_data_indices.update(inp_i.make_persistent(self.workflow))
+
+        for seq_i in element_set.sequences:
+            input_data_indices.update(seq_i.make_persistent(self.workflow))
+
+        for schema_input in self.template.all_schema_inputs:
+            key = f"inputs.{schema_input.typ}"
+            sources = element_set.input_sources[schema_input.typ]
+            for inp_src in sources:
+
+                if inp_src.source_type is InputSourceType.TASK:
+                    src_task = inp_src.get_task(self.workflow)
+                    grp_idx = [
+                        elem.data_index[f"outputs.{schema_input.typ}"]
+                        for elem in src_task.elements
+                    ]
+
+                    if self.app.InputSource.local() in sources:
+                        # add task source to existing local source:
+                        input_data_indices[key] += grp_idx
+                    else:
+                        # overwrite existing local source (if it exists):
+                        input_data_indices.update({key: grp_idx})
+
+                if inp_src.source_type is InputSourceType.DEFAULT:
+                    grp_idx = [schema_input.default_value._value_group_idx]
+                    if self.app.InputSource.local() in sources:
+                        input_data_indices[key] += grp_idx
+                    else:
+                        input_data_indices[key] = grp_idx
+
+        return input_data_indices
+
+    def ensure_input_sources(self, element_set):
+        """Check valid input sources are specified for a new task to be added to the
+        workflow in a given position. If none are specified, set them according to the
+        default behaviour."""
+
+        # TODO: order sources by preference so can just take first in the case of input
+        # source mode AUTO?
+
+        # this just depends on this schema and other schemas:
+        available_sources = self.template.get_available_task_input_sources(
+            element_set=element_set,
+            source_tasks=self.workflow.template.tasks[: self.index],
+        )  # TODO: test all parameters have a key here?
+
+        # TODO: get available input sources from workflow imports
+
+        # check any specified sources are valid:
+        for schema_input in self.template.all_schema_inputs:
+            for specified_source in element_set.input_sources.get(schema_input.typ, []):
+                self.workflow._resolve_input_source_task_reference(
+                    specified_source, self.unique_name
+                )
+                if specified_source not in available_sources[schema_input.typ]:
+                    raise ValueError(
+                        f"The input source {specified_source.to_string()!r} is not "
+                        f"available for schema input {schema_input!r}. Available "
+                        f"input sources are: "
+                        f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
+                    )
+
+        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
+        # then check if there is an input files entry for associated inputs,
+        # if there is
+
+        unsourced_inputs = self.template.all_schema_input_types - set(
+            element_set.input_sources.keys()
+        )
+
+        # set source for any unsourced inputs:
+        missing = []
+        for input_type in unsourced_inputs:
+            inp_i_sources = available_sources[input_type]
+            source = None
+            try:
+                source = inp_i_sources[0]
+            except IndexError:
+                missing.append(input_type)
+
+            if source is not None:
+                element_set.input_sources.update({input_type: [source]})
+
+        if missing:
+            missing_str = ", ".join(f"{i!r}" for i in missing)
+            raise MissingInputs(
+                message=f"The following inputs have no sources: {missing_str}.",
+                missing_inputs=missing,
+            )
+
+    def add_elements(
+        self,
+        # base_element=None, # TODO
+        inputs=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        input_source_mode=None,
+        nesting_order=None,
+        element_sets=None,
+    ):
+
+        element_sets = self.app.ElementSet.ensure_element_sets(
+            inputs=inputs,
+            sequences=sequences,
+            resources=resources,
+            repeats=repeats,
+            input_sources=input_sources,
+            input_source_mode=input_source_mode,
+            nesting_order=nesting_order,
+            element_sets=element_sets,
+        )
+
+        for elem_set_i in element_sets:
+            elem_set_i.task_template = self.template
+            self.ensure_input_sources(
+                elem_set_i
+            )  # currently modifies element_set.input_sources
+
+            input_data_idx = self._make_new_elements_persistent(elem_set_i)
+            multiplicities = self.template.prepare_element_resolution(
+                elem_set_i, input_data_idx
+            )
+            element_data_idx = self.workflow.resolve_element_data_indices(multiplicities)
+            output_data_idx = self.template._prepare_persistent_outputs(
+                self.workflow, len(element_data_idx)
+            )
+            new_elements = self.workflow.generate_new_elements(
+                input_data_idx, output_data_idx, element_data_idx
+            )
+
+            element_indices = list(
+                range(
+                    len(self.workflow.elements),
+                    len(self.workflow.elements) + len(new_elements),
+                )
+            )
+
+            elem_set_i_js, _ = elem_set_i.to_json_like()
+            # (shared data should already have been updated as part of the schema)
+
+            self.workflow._persistent_metadata["elements"].extend(new_elements)
+            self.workflow._persistent_metadata["tasks"][self.index][
+                "element_indices"
+            ].extend(element_indices)
+            self.workflow._persistent_metadata["template"]["tasks"][self.index][
+                "element_sets"
+            ].append(elem_set_i_js)
+            self.workflow._append_history_add_element_set(self.index, element_indices)
+
+        self.workflow._dump_persistent_metadata()

@@ -94,7 +94,7 @@ class SchemaParameter(JSONLike):
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_name="parameters",
             shared_data_primary_key="typ",
         ),
@@ -121,16 +121,19 @@ class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
     applied."""
 
+    _task_schema = None  # assigned by parent TaskSchema
+
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_name="parameters",
             shared_data_primary_key="typ",
         ),
         ChildObjectSpec(
             name="default_value",
             class_name="InputValue",
+            parent_ref="_schema_input",
         ),
         ChildObjectSpec(
             name="propagation_mode",
@@ -147,6 +150,10 @@ class SchemaInput(SchemaParameter):
     # elements from other tasks?
     group: Optional[str] = None
     where: Optional[ElementFilter] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self._set_parent_refs()
 
     def __repr__(self) -> str:
 
@@ -170,6 +177,10 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
+    @property
+    def task_schema(self):
+        return self._task_schema
+
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
@@ -188,24 +199,6 @@ class SchemaInput(SchemaParameter):
     @property
     def input_or_output(self):
         return "input"
-
-    # @classmethod
-    # def from_json_like(cls, json_like):
-    #     kwargs = cls.prepare_from_json_like(json_like)
-    #     cls.app.logger.warn(f"SchemaInput.from_json_like: kwargs: {kwargs}")
-    #     return super().from_json_like(kwargs)
-
-    # @classmethod
-    # @required_keys(1, "parameter")
-    # @allowed_keys(1, "parameter", "default_value", "propagation_mode")
-    # @check_in_object_list(spec_name="parameter")
-    # def from_spec(cls, spec, parameters):
-    #     cls.app.logger.debug("SchemaInput.from_spec")
-    #     if "default_value" in spec:
-    #         spec["default_value"] = InputValue(
-    #             parameter=parameters[spec["parameter"]], value=spec["default_value"]
-    #         )
-    #     return super().from_spec(spec, parameters)
 
 
 @dataclass
@@ -244,7 +237,7 @@ class ValueSequence(JSONLike):
 
         self._values_group_idx = None
         self._workflow = None
-        self._task = None  # assigned by parent Task
+        self._element_set = None  # assigned by parent ElementSet
 
         self._path_split = None  # assigned by property `path_split`
 
@@ -383,8 +376,8 @@ class ValueSequence(JSONLike):
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self._task:
-            return self._task.workflow_template.workflow
+        elif self._element_set:
+            return self._element_set.task_template.workflow_template.workflow
 
     @property
     def values(self):
@@ -467,8 +460,10 @@ class AbstractInputValue(JSONLike):
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self._task:
-            return self._task.workflow_template.workflow
+        elif self._element_set:
+            return self._element_set.task_template.workflow_template.workflow
+        elif self._schema_input:
+            return self._schema_input.task_schema.task_template.workflow_template.workflow
 
     @property
     def value(self):
@@ -500,7 +495,7 @@ class InputValue(AbstractInputValue):
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_primary_key="typ",
             shared_data_name="parameters",
         ),
@@ -508,19 +503,25 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Union[Parameter, SchemaInput, str],
+        parameter: Union[Parameter, str],
         value: Optional[Any] = None,
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
+        elif isinstance(parameter, SchemaInput):
+            parameter = parameter.parameter
 
         self.parameter = parameter
         self.path = (path.strip(".") if path else None) or None
         self._value = value
 
         self._value_group_idx = None  # assigned by method make_persistent
-        self._task = None  # assigned by parent Task
+        self._element_set = None  # assigned by parent ElementSet (if belonging)
+
+        # assigned by parent SchemaInput (if this object is a default value of a
+        # SchemaInput):
+        self._schema_input = None
 
     def __repr__(self):
 
@@ -637,15 +638,17 @@ class ResourceSpec(JSONLike):
         return obj
 
     def _get_param_path(self):
-        scope_str = ""
-        if self.scope.typ.name != self.app.ActionScopeType.ANY.name:
-            scope_str = f".{self.scope.to_string()}"
-        return f"resources{scope_str}"
+        return f"resources.{self.scope.to_string()}"
 
     def to_dict(self):
         out = super().to_dict()
         if "_workflow" in out:
             del out["_workflow"]
+
+        if self._value_group_idx is not None:
+            # only store pointer to persistent data:
+            out = {k: v for k, v in out.items() if k in ["_value_group_idx", "scope"]}
+
         out = {k.lstrip("_"): v for k, v in out.items()}
         return out
 
@@ -685,7 +688,7 @@ class ResourceSpec(JSONLike):
         else:
             val = self._get_members()
         if value_name:
-            val = val[value_name]
+            val = val.get(value_name)
 
         return val
 
@@ -701,12 +704,12 @@ class ResourceSpec(JSONLike):
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self.task:
-            return self.task.workflow_template.workflow
+        elif self.element_set:
+            return self.element_set.task_template.workflow_template.workflow
 
     @property
-    def task(self):
-        return self._resource_list.task
+    def element_set(self):
+        return self._resource_list.element_set
 
 
 class InputSourceType(enum.Enum):

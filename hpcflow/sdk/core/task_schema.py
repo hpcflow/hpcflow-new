@@ -41,7 +41,12 @@ class TaskSchema(JSONLike):
     _hash_value = None
     _child_objects = (
         ChildObjectSpec(name="objective", class_name="TaskObjective"),
-        ChildObjectSpec(name="inputs", class_name="SchemaInput", is_multiple=True),
+        ChildObjectSpec(
+            name="inputs",
+            class_name="SchemaInput",
+            is_multiple=True,
+            parent_ref="_task_schema",
+        ),
         ChildObjectSpec(name="outputs", class_name="SchemaOutput", is_multiple=True),
         ChildObjectSpec(name="actions", class_name="Action", is_multiple=True),
     )
@@ -67,6 +72,9 @@ class TaskSchema(JSONLike):
 
         self._validate()
         self.version = version
+        self._task_template = None  # assigned by parent Task
+
+        self._set_parent_refs()
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
@@ -121,6 +129,11 @@ class TaskSchema(JSONLike):
             if isinstance(i, Parameter):
                 self.outputs[idx] = self.app.SchemaOutput(i)
 
+    def make_persistent(self, workflow):
+        for input_i in self.inputs:
+            if input_i.default_value is not None:
+                input_i.default_value.make_persistent(workflow)
+
     @property
     def name(self):
         out = (
@@ -145,6 +158,10 @@ class TaskSchema(JSONLike):
             for i in self.inputs + self.outputs
             if i.propagation_mode != ParameterPropagationMode.NEVER
         )
+
+    @property
+    def task_template(self):
+        return self._task_template
 
     @classmethod
     def get_by_key(cls, key):

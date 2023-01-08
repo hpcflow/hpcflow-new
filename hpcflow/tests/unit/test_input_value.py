@@ -51,12 +51,12 @@ def test_get_param_path_with_empty_path(param_p1):
 
 def test_resource_spec_get_param_path():
     rs1 = ResourceSpec()
-    assert rs1._get_param_path() == "resources"
+    assert rs1._get_param_path() == "resources.any"
 
 
 def test_resource_spec_get_param_path_scope_any_with_single_kwarg():
     rs1 = ResourceSpec(scratch="local")
-    assert rs1._get_param_path() == "resources"
+    assert rs1._get_param_path() == "resources.any"
 
 
 def test_resources_spec_get_param_path_scope_main():

@@ -296,10 +296,13 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
-def read_YAML_file(path):
+def read_YAML(loadable_yaml):
     yaml = YAML(typ="safe")
-    with Path(path).open("rt") as fh:
-        return yaml.load(fh)
+    return yaml.load(loadable_yaml)
+
+
+def read_YAML_file(path):
+    return read_YAML(Path(path))
 
 
 def read_JSON_file(path):

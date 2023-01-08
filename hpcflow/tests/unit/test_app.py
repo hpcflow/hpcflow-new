@@ -27,7 +27,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency():
                 "method": ts1.method,
                 "implementation": ts1.implementation,
                 "version": ts1.version,
-                "objective": {"name": ts1.objective.name},
+                "objective": ts1.objective.name,
                 "inputs": [
                     {
                         "group": None,

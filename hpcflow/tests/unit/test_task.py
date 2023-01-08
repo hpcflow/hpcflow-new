@@ -41,7 +41,7 @@ def test_task_expected_input_source_mode_no_sources(param_p1):
         schemas=s1,
         inputs=[InputValue(param_p1, value=101)],
     )
-    assert t1.input_source_mode == InputSourceMode.AUTO
+    assert t1.element_sets[0].input_source_mode == InputSourceMode.AUTO
 
 
 def test_task_expected_input_source_mode_with_sources(param_p1):
@@ -51,7 +51,7 @@ def test_task_expected_input_source_mode_with_sources(param_p1):
         inputs=[InputValue(param_p1, value=101)],
         input_sources=[InputSource.local()],
     )
-    assert t1.input_source_mode == InputSourceMode.MANUAL
+    assert t1.element_sets[0].input_source_mode == InputSourceMode.MANUAL
 
 
 def test_task_get_available_task_input_sources_expected_return_first_task_local_value(
@@ -61,7 +61,10 @@ def test_task_get_available_task_input_sources_expected_return_first_task_local_
     s1 = TaskSchema("ts1", actions=[], inputs=[SchemaInput(param_p1)])
     t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
 
-    available = t1.get_available_task_input_sources()
+    available = t1.get_available_task_input_sources(
+        element_set=t1.element_sets[0],
+        source_tasks=[],
+    )
     available_exp = {"p1": [InputSource(source_type=InputSourceType.LOCAL)]}
 
     assert available == available_exp
@@ -75,7 +78,7 @@ def test_task_get_available_task_input_sources_expected_return_first_task_defaul
 
     t1 = Task(schemas=s1)
 
-    available = t1.get_available_task_input_sources()
+    available = t1.get_available_task_input_sources(element_set=t1.element_sets[0])
     available_exp = {"p1": [InputSource(source_type=InputSourceType.DEFAULT)]}
 
     assert available == available_exp
@@ -98,7 +101,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
     t1._insert_ID = 0
 
-    available = t2.get_available_task_input_sources([t1])
+    available = t2.get_available_task_input_sources(
+        element_set=t2.element_sets[0],
+        source_tasks=[t1],
+    )
     available_exp = {
         "p2": [
             InputSource(
@@ -128,7 +134,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
     t1._insert_ID = 0
 
-    available = t2.get_available_task_input_sources([t1])
+    available = t2.get_available_task_input_sources(
+        element_set=t2.element_sets[0],
+        source_tasks=[t1],
+    )
     available_exp = {
         "p2": [
             InputSource(
@@ -159,7 +168,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
     t1._insert_ID = 0
 
-    available = t2.get_available_task_input_sources([t1])
+    available = t2.get_available_task_input_sources(
+        element_set=t2.element_sets[0],
+        source_tasks=[t1],
+    )
     available_exp = {
         "p2": [
             InputSource(
@@ -190,7 +202,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
     t1._insert_ID = 0
 
-    available = t2.get_available_task_input_sources([t1])
+    available = t2.get_available_task_input_sources(
+        element_set=t2.element_sets[0],
+        source_tasks=[t1],
+    )
     available_exp = {
         "p2": [
             InputSource(
@@ -229,7 +244,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     t1._insert_ID = 0
     t2._insert_ID = 1
 
-    available = t3.get_available_task_input_sources([t1, t2])
+    available = t3.get_available_task_input_sources(
+        element_set=t3.element_sets[0],
+        source_tasks=[t1, t2],
+    )
     available_exp = {
         "p3": [
             InputSource(
@@ -270,7 +288,10 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
 
     t1._insert_ID = 0
 
-    available = t2.get_available_task_input_sources([t1])
+    available = t2.get_available_task_input_sources(
+        element_set=t2.element_sets[0],
+        source_tasks=[t1],
+    )
     available_exp = {
         "p2": [
             InputSource(
@@ -350,10 +371,10 @@ def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
 
     s1 = TaskSchema("s1", inputs=[param_p1, param_p2], actions=[])
     t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
-
-    assert t1.defined_input_types == {param_p1.typ} and t1.undefined_input_types == {
-        param_p2.typ
-    }
+    element_set = t1.element_sets[0]
+    assert element_set.defined_input_types == {
+        param_p1.typ
+    } and element_set.undefined_input_types == {param_p2.typ}
 
 
 def test_expected_return_all_schema_input_types_single_schema(param_p1, param_p2):
@@ -456,3 +477,9 @@ def test_raise_on_negative_nesting_order(param_p1):
 
 
 # TODO: test resolution of elements and with raise MissingInputs
+
+
+def test_empty_task_init(param_p1):
+    """Check we can init a Task with no input values."""
+    s1 = TaskSchema("t1", inputs=[param_p1], actions=[])
+    t1 = Task(schemas=s1)
