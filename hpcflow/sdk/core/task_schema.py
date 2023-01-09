@@ -128,6 +128,8 @@ class TaskSchema(JSONLike):
         for idx, i in enumerate(self.outputs):
             if isinstance(i, Parameter):
                 self.outputs[idx] = self.app.SchemaOutput(i)
+            elif isinstance(i, SchemaInput):
+                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
 
     def make_persistent(self, workflow):
         for input_i in self.inputs:
