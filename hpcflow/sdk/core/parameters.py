@@ -356,20 +356,19 @@ class ValueSequence(JSONLike):
     def make_persistent(self, workflow):
         """Save value to a persistent workflow."""
 
-        # TODO: test raise
         if self._values_group_idx is not None:
-            raise ValuesAlreadyPersistentError(
-                f"{self.__class__.__name__} is already persistent."
-            )
+            param_group_idx = self._values_group_idx
 
-        param_group_idx = []
-        for i in self._values:
-            pg_idx_i = workflow._add_parameter_group(i, is_set=True)
-            param_group_idx.append(pg_idx_i)
+        else:
+            param_group_idx = []
+            for i in self._values:
+                pg_idx_i = workflow._add_parameter_group(i, is_set=True)
+                param_group_idx.append(pg_idx_i)
 
-        self._values_group_idx = param_group_idx
-        self._workflow = workflow
-        self._values = None
+            self._values_group_idx = param_group_idx
+            self._workflow = workflow
+            self._values = None
+
         return (self._get_param_path(), param_group_idx)
 
     @property
@@ -450,10 +449,14 @@ class AbstractInputValue(JSONLike):
             stored.
         """
 
-        param_group_idx = workflow._add_parameter_group(self._value, is_set=True)
-        self._value_group_idx = param_group_idx
-        self._workflow = workflow
-        self._value = None
+        if self._value_group_idx is not None:
+            param_group_idx = self._value_group_idx
+        else:
+            param_group_idx = workflow._add_parameter_group(self._value, is_set=True)
+            self._value_group_idx = param_group_idx
+            self._workflow = workflow
+            self._value = None
+
         return (self._get_param_path(), [param_group_idx])
 
     @property
@@ -673,12 +676,18 @@ class ResourceSpec(JSONLike):
             contains the indices of the parameter data Zarr groups where the data is
             stored.
         """
-        param_group_idx = workflow._add_parameter_group(self._get_members(), is_set=True)
-        self._value_group_idx = param_group_idx
-        self._workflow = workflow
+        if self._value_group_idx is not None:
+            param_group_idx = self._value_group_idx
 
-        self._num_cores = None
-        self._scratch = None
+        else:
+            param_group_idx = workflow._add_parameter_group(
+                self._get_members(), is_set=True
+            )
+            self._value_group_idx = param_group_idx
+            self._workflow = workflow
+
+            self._num_cores = None
+            self._scratch = None
 
         return (self._get_param_path(), [param_group_idx])
 

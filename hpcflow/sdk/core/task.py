@@ -76,6 +76,8 @@ class ElementSet(JSONLike):
 
         if isinstance(resources, dict):
             resources = self.app.ResourceList.from_json_like(resources)
+        elif isinstance(resources, list):
+            resources = self.app.ResourceList(resources)
         elif not resources:
             resources = self.app.ResourceList([self.app.ResourceSpec()])
 
