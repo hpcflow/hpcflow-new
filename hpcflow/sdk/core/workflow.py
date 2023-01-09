@@ -206,7 +206,6 @@ class Workflow:
         root_attrs = {
             "shared_data": template_sh,
             "template": template_js,
-            "parameter_mapping": [],
             "elements": [],
             "tasks": [],
             "task_name_repeat_idx": [],
