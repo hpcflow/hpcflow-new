@@ -370,7 +370,7 @@ class ValueSequence(JSONLike):
         self._values_group_idx = param_group_idx
         self._workflow = workflow
         self._values = None
-        return {self._get_param_path(): param_group_idx}
+        return (self._get_param_path(), param_group_idx)
 
     @property
     def workflow(self):
@@ -444,9 +444,9 @@ class AbstractInputValue(JSONLike):
 
         Returns
         -------
-        dict of tuple : int
-            Single-item dict whose key is the data path for this task input and whose
-            value is the integer index of the parameter data Zarr group where the data is
+        (str, list of int)
+            String is the data path for this task input and single item integer list
+            contains the index of the parameter data Zarr group where the data is
             stored.
         """
 
@@ -454,7 +454,7 @@ class AbstractInputValue(JSONLike):
         self._value_group_idx = param_group_idx
         self._workflow = workflow
         self._value = None
-        return {self._get_param_path(): [param_group_idx]}
+        return (self._get_param_path(), [param_group_idx])
 
     @property
     def workflow(self):
@@ -667,9 +667,10 @@ class ResourceSpec(JSONLike):
 
         Returns
         -------
-        dict of tuple : int
-            Single-item dict whose key is the data path for this task input and whose
-            value is the integer index of the parameter data Zarr group where the data is
+
+        (str, list of int)
+            String is the data path for this task input and integer list
+            contains the indices of the parameter data Zarr groups where the data is
             stored.
         """
         param_group_idx = workflow._add_parameter_group(self._get_members(), is_set=True)
@@ -679,7 +680,7 @@ class ResourceSpec(JSONLike):
         self._num_cores = None
         self._scratch = None
 
-        return {self._get_param_path(): [param_group_idx]}
+        return (self._get_param_path(), [param_group_idx])
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:

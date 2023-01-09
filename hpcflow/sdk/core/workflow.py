@@ -367,14 +367,15 @@ class Workflow:
         return new_idx
 
     def generate_new_elements(
-        self, input_data_indices, output_data_indices, element_data_indices
+        self,
+        input_data_indices,
+        output_data_indices,
+        element_data_indices,
+        input_sources,
     ):
 
-        # print(f"input_data_indices: {input_data_indices}")
-        # print(f"output_data_indices: {output_data_indices}")
-        # print(f"element_data_indices: {element_data_indices}")
-
         new_elements = []
+        element_inp_sources = {}
         for i_idx, i in enumerate(element_data_indices):
             elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update(
@@ -389,7 +390,14 @@ class Workflow:
 
             new_elements.append(elem_i)
 
-        return new_elements
+            # track input sources for each new element:
+            for k, v in i.items():
+                if k in input_sources:
+                    if k not in element_inp_sources:
+                        element_inp_sources[k] = []
+                    element_inp_sources[k].append(input_sources[k][v])
+
+        return new_elements, element_inp_sources
 
     def get_task_unique_names(self, map_to_insert_ID=False):
         """Return the unique names of all workflow tasks.
@@ -469,7 +477,12 @@ class Workflow:
                     self._persistent_metadata["shared_data"][shared_name][k] = v
                     added_shared_data[shared_name].append(k)
 
-        empty_task = {"element_indices": []}
+        empty_task = {
+            "element_indices": [],
+            "element_input_sources": {
+                f"inputs.{k}": [] for k in task.all_schema_input_types
+            },
+        }
         self._persistent_metadata["template"]["tasks"].insert(new_index, task_js)
         self._persistent_metadata["tasks"].insert(new_index, empty_task)
         self._dump_persistent_metadata()

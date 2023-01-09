@@ -576,12 +576,14 @@ class WorkflowTask:
         self,
         template: Task,
         element_indices: List,
+        element_input_sources: Dict,
         index: int,
         workflow: Workflow,
     ):
 
         self._template = template
         self._element_indices = element_indices
+        self._element_input_sources = element_input_sources
         self._workflow = workflow
         self._index = index
 
@@ -653,15 +655,21 @@ class WorkflowTask:
     def _make_new_elements_persistent(self, element_set):
 
         input_data_indices = {}
+        input_sources = {}
 
         for res_i in element_set.resources:
-            input_data_indices.update(res_i.make_persistent(self.workflow))
+            key, group = res_i.make_persistent(self.workflow)
+            input_data_indices[key] = group
 
         for inp_i in element_set.inputs:
-            input_data_indices.update(inp_i.make_persistent(self.workflow))
+            key, group = inp_i.make_persistent(self.workflow)
+            input_data_indices[key] = group
+            input_sources[key] = ["local" for _ in group]
 
         for seq_i in element_set.sequences:
-            input_data_indices.update(seq_i.make_persistent(self.workflow))
+            key, group = seq_i.make_persistent(self.workflow)
+            input_data_indices[key] = group
+            input_sources[key] = ["local" for _ in group]
 
         for schema_input in self.template.all_schema_inputs:
             key = f"inputs.{schema_input.typ}"
@@ -669,27 +677,39 @@ class WorkflowTask:
             for inp_src in sources:
 
                 if inp_src.source_type is InputSourceType.TASK:
+
                     src_task = inp_src.get_task(self.workflow)
                     grp_idx = [
                         elem.data_index[f"outputs.{schema_input.typ}"]
                         for elem in src_task.elements
                     ]
+                    inp_src_i = [
+                        f"element.{i}.{inp_src.task_source_type.name}"
+                        for i in src_task.element_indices
+                    ]
 
                     if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
                         input_data_indices[key] += grp_idx
+                        input_sources[key] += inp_src_i
+
                     else:
                         # overwrite existing local source (if it exists):
-                        input_data_indices.update({key: grp_idx})
+                        input_data_indices[key] = grp_idx
+                        input_sources[key] = inp_src_i
 
                 if inp_src.source_type is InputSourceType.DEFAULT:
+
                     grp_idx = [schema_input.default_value._value_group_idx]
                     if self.app.InputSource.local() in sources:
                         input_data_indices[key] += grp_idx
+                        input_sources[key] += ["default"]
+
                     else:
                         input_data_indices[key] = grp_idx
+                        input_sources[key] = ["default"]
 
-        return input_data_indices
+        return input_data_indices, input_sources
 
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
@@ -779,7 +799,7 @@ class WorkflowTask:
                 elem_set_i
             )  # currently modifies element_set.input_sources
 
-            input_data_idx = self._make_new_elements_persistent(elem_set_i)
+            input_data_idx, input_sources = self._make_new_elements_persistent(elem_set_i)
             multiplicities = self.template.prepare_element_resolution(
                 elem_set_i, input_data_idx
             )
@@ -787,8 +807,12 @@ class WorkflowTask:
             output_data_idx = self.template._prepare_persistent_outputs(
                 self.workflow, len(element_data_idx)
             )
-            new_elements = self.workflow.generate_new_elements(
-                input_data_idx, output_data_idx, element_data_idx
+
+            new_elements, element_input_sources = self.workflow.generate_new_elements(
+                input_data_idx,
+                output_data_idx,
+                element_data_idx,
+                input_sources,
             )
 
             element_indices = list(
@@ -805,6 +829,12 @@ class WorkflowTask:
             self.workflow._persistent_metadata["tasks"][self.index][
                 "element_indices"
             ].extend(element_indices)
+
+            for k, v in element_input_sources.items():
+                self.workflow._persistent_metadata["tasks"][self.index][
+                    "element_input_sources"
+                ][k].extend(v)
+
             self.workflow._persistent_metadata["template"]["tasks"][self.index][
                 "element_sets"
             ].append(elem_set_i_js)
