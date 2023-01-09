@@ -579,6 +579,7 @@ class WorkflowTask:
         template: Task,
         element_indices: List,
         element_input_sources: Dict,
+        element_set_indices: List,
         index: int,
         workflow: Workflow,
     ):
@@ -586,6 +587,7 @@ class WorkflowTask:
         self._template = template
         self._element_indices = element_indices
         self._element_input_sources = element_input_sources
+        self._element_set_indices = element_set_indices
         self._workflow = workflow
         self._index = index
 
@@ -596,6 +598,14 @@ class WorkflowTask:
     @property
     def element_indices(self):
         return self._element_indices
+
+    @property
+    def element_input_sources(self):
+        return self._element_input_sources
+
+    @property
+    def element_set_indices(self):
+        return self._element_set_indices
 
     @property
     def elements(self):
@@ -642,6 +652,14 @@ class WorkflowTask:
     @property
     def run_script_file_path(self):
         return self.dir_path / "run_script.ps1"
+
+    @property
+    def num_element_sets(self):
+        return len(
+            self.workflow._persistent_metadata["template"]["tasks"][self.index][
+                "element_sets"
+            ]
+        )
 
     def write_element_dirs(self):
         self.dir_path.mkdir(exist_ok=True, parents=True)
@@ -835,6 +853,7 @@ class WorkflowTask:
             # (shared data should already have been updated as part of the schema)
 
             self.workflow._persistent_metadata["elements"].extend(new_elements)
+
             self.workflow._persistent_metadata["tasks"][self.index][
                 "element_indices"
             ].extend(element_indices)
@@ -844,9 +863,14 @@ class WorkflowTask:
                     "element_input_sources"
                 ][k].extend(v)
 
+            self.workflow._persistent_metadata["tasks"][self.index][
+                "element_set_indices"
+            ].extend([self.num_element_sets] * len(new_elements))
+
             self.workflow._persistent_metadata["template"]["tasks"][self.index][
                 "element_sets"
             ].append(elem_set_i_js)
+
             self.workflow._append_history_add_element_set(self.index, element_indices)
 
         self.workflow._dump_persistent_metadata()

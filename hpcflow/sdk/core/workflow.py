@@ -482,6 +482,7 @@ class Workflow:
             "element_input_sources": {
                 f"inputs.{k}": [] for k in task.all_schema_input_types
             },
+            "element_set_indices": [],
         }
         self._persistent_metadata["template"]["tasks"].insert(new_index, task_js)
         self._persistent_metadata["tasks"].insert(new_index, empty_task)
