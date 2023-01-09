@@ -17,7 +17,7 @@ from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
 from .core.actions import Action, ActionScopeType, ElementAction
-from .core.element import Element
+from .core.element import Element, ElementInputs, ElementOutputs
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
@@ -120,6 +120,8 @@ class BaseApp:
             Action,
             Executable,
             Element,
+            ElementInputs,
+            ElementOutputs,
             ElementAction,
             ElementSet,
             InputSourceMode,

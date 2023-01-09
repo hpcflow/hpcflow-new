@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 from valida.conditions import ConditionLike
 from hpcflow.sdk.core.zarr_io import zarr_decode
+from hpcflow.sdk.core.parameters import InputValue
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_in_container,
@@ -14,6 +15,8 @@ from hpcflow.sdk.core.utils import (
 
 @dataclass
 class ElementInputs:
+
+    _app_attr = "_app"
 
     element: Element
 
@@ -34,6 +37,8 @@ class ElementInputs:
 
 @dataclass
 class ElementOutputs:
+
+    _app_attr = "_app"
 
     element: Element
 
@@ -66,11 +71,11 @@ class Element:
 
     @property
     def inputs(self):
-        return ElementInputs(self)
+        return self.app.ElementInputs(self)
 
     @property
     def outputs(self):
-        return ElementOutputs(self)
+        return self.app.ElementOutputs(self)
 
     @property
     def resources(self):
@@ -145,6 +150,33 @@ class Element:
             current_value = parameter._value_class(**current_value)
 
         return current_value
+
+    def to_element_set_data(self):
+        """Generate lists of workflow-bound InputValues and ResourceList."""
+        inputs = []
+        resources = []
+        for k, v in self.data_index.items():
+
+            k_s = k.split(".")
+
+            if k_s[0] == "inputs":
+                inp_val = self.app.InputValue(
+                    parameter=k_s[1],
+                    path=k_s[2:] or None,
+                    value=None,
+                )
+                inp_val._value_group_idx = v
+                inp_val._workflow = self.workflow
+                inputs.append(inp_val)
+
+            elif k_s[0] == "resources":
+                scope = self.app.ActionScope.from_json_like(k_s[1])
+                res = self.app.ResourceSpec(scope=scope)
+                res._value_group_idx = v
+                res._workflow = self.workflow
+                resources.append(res)
+
+        return inputs, resources
 
     def resolve_actions(self):
         """Return a list of `ElementAction`s given the associated schema(s) and particular

@@ -773,7 +773,7 @@ class WorkflowTask:
 
     def add_elements(
         self,
-        # base_element=None, # TODO
+        base_element=None,
         inputs=None,
         sequences=None,
         resources=None,
@@ -783,6 +783,13 @@ class WorkflowTask:
         nesting_order=None,
         element_sets=None,
     ):
+
+        if base_element is not None:
+            if base_element.task is not self:
+                raise ValueError("If specified, `base_element` must belong to this task.")
+            b_inputs, b_resources = base_element.to_element_set_data()
+            inputs = inputs or b_inputs
+            resources = resources or b_resources
 
         element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
