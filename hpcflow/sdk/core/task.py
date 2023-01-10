@@ -204,6 +204,11 @@ class ElementSet(JSONLike):
     def undefined_input_types(self):
         return self.task_template.all_schema_input_types - self.defined_input_types
 
+    def get_sequence_from_path(self, sequence_path):
+        for i in self.sequences:
+            if i.path == sequence_path:
+                return i
+
 
 class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
@@ -507,6 +512,10 @@ class Task(JSONLike):
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
     @property
+    def all_sequences_normalised_paths(self):
+        return [j.normalised_path for i in self.element_sets for j in i.sequences]
+
+    @property
     def universal_input_types(self):
         """Get input types that are associated with all schemas"""
 
@@ -540,6 +549,12 @@ class Task(JSONLike):
     def provides_parameters(self):
         return tuple(j for schema in self.schemas for j in schema.provides_parameters)
 
+    @property
+    def _metadata(self):
+        return self.workflow_template.workflow._persistent_metadata["template"]["tasks"][
+            self.index
+        ]
+
     def get_sub_parameter_input_values(self):
         return [i for i in self.inputs if i.is_sub_value]
 
@@ -564,6 +579,7 @@ class WorkflowTask:
         element_indices: List,
         element_input_sources: Dict,
         element_set_indices: List,
+        element_sequence_indices: Dict,
         index: int,
         workflow: Workflow,
     ):
@@ -572,12 +588,14 @@ class WorkflowTask:
         self._element_indices = element_indices
         self._element_input_sources = element_input_sources
         self._element_set_indices = element_set_indices
+        self._element_sequence_indices = element_sequence_indices
         self._workflow = workflow
         self._index = index
 
     @property
     def template(self):
-        return self._template
+        # via the workflow so that we see any metadata updates:
+        return self.workflow.tasks[self.index]._template
 
     @property
     def element_indices(self):
@@ -590,6 +608,10 @@ class WorkflowTask:
     @property
     def element_set_indices(self):
         return self._element_set_indices
+
+    @property
+    def element_sequence_indices(self):
+        return self._element_sequence_indices
 
     @property
     def elements(self):
@@ -645,6 +667,10 @@ class WorkflowTask:
             ]
         )
 
+    @property
+    def _metadata(self):
+        return self.workflow._persistent_metadata["tasks"][self.index]
+
     def write_element_dirs(self):
         self.dir_path.mkdir(exist_ok=True, parents=True)
         elem_paths = [self.dir_path / elem.dir_name for elem in self.elements]
@@ -660,6 +686,7 @@ class WorkflowTask:
 
         input_data_indices = {}
         input_sources = {}
+        sequence_idx = {}
 
         for res_i in element_set.resources:
             key, group = res_i.make_persistent(self.workflow)
@@ -674,6 +701,9 @@ class WorkflowTask:
             key, group = seq_i.make_persistent(self.workflow)
             input_data_indices[key] = group
             input_sources[key] = ["local" for _ in group]
+            sequence_idx[key] = list(range(len(group)))
+            # TODO: what happens if we don't use the local sequence? i.e. overwritten by
+            # task source?
 
         for schema_input in self.template.all_schema_inputs:
             key = f"inputs.{schema_input.typ}"
@@ -713,7 +743,7 @@ class WorkflowTask:
                         input_data_indices[key] = grp_idx
                         input_sources[key] = ["default"]
 
-        return input_data_indices, input_sources
+        return input_data_indices, input_sources, sequence_idx
 
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
@@ -772,6 +802,81 @@ class WorkflowTask:
                 missing_inputs=missing,
             )
 
+    def _add_element_set(self, element_set):
+
+        element_set.task_template = self.template
+        self.ensure_input_sources(
+            element_set
+        )  # currently modifies element_set.input_sources
+
+        input_data_idx, input_sources, seq_idx = self._make_new_elements_persistent(
+            element_set
+        )
+        multiplicities = self.template.prepare_element_resolution(
+            element_set, input_data_idx
+        )
+        element_data_idx = self.workflow.resolve_element_data_indices(multiplicities)
+        output_data_idx = self.template._prepare_persistent_outputs(
+            self.workflow, len(element_data_idx)
+        )
+
+        (
+            new_elements,
+            element_input_sources,
+            element_seq_idx,
+        ) = self.workflow.generate_new_elements(
+            input_data_idx,
+            output_data_idx,
+            element_data_idx,
+            input_sources,
+            seq_idx,
+        )
+
+        element_indices = list(
+            range(
+                len(self.workflow.elements),
+                len(self.workflow.elements) + len(new_elements),
+            )
+        )
+
+        element_set_js, _ = element_set.to_json_like()
+        # (shared data should already have been updated as part of the schema)
+
+        # need to add the element_set first so we can update `element_input_sources` and
+        # `element_sequence_indices` keys to include potentially new sequence/input paths
+        # from this element set:
+
+        self.template._metadata["element_sets"].append(element_set_js)
+        self.workflow._dump_persistent_metadata()
+
+        self._metadata["element_input_sources"] = {
+            **{k: [] for k in self.template.all_sourced_normalised_paths},
+            **self._metadata["element_input_sources"],
+        }
+
+        self._metadata["element_sequence_indices"] = {
+            **{k: [] for k in self.template.all_sequences_normalised_paths},
+            **self._metadata["element_sequence_indices"],
+        }
+
+        # Now update the remaining metadata:
+        self.workflow._persistent_metadata["elements"].extend(new_elements)
+        self._metadata["element_indices"].extend(element_indices)
+
+        for k, v in self._metadata["element_input_sources"].items():
+            v.extend(element_input_sources.get(k, [None] * len(new_elements)))
+
+        for k, v in self._metadata["element_sequence_indices"].items():
+            v.extend(element_seq_idx.get(k, [None] * len(new_elements)))
+
+        self._metadata["element_set_indices"].extend(
+            [self.num_element_sets - 1] * len(new_elements)
+        )
+
+        self.workflow._append_history_add_element_set(self.index, element_indices)
+
+        self.workflow._dump_persistent_metadata()
+
     def add_elements(
         self,
         base_element=None,
@@ -804,56 +909,4 @@ class WorkflowTask:
         )
 
         for elem_set_i in element_sets:
-            elem_set_i.task_template = self.template
-            self.ensure_input_sources(
-                elem_set_i
-            )  # currently modifies element_set.input_sources
-
-            input_data_idx, input_sources = self._make_new_elements_persistent(elem_set_i)
-            multiplicities = self.template.prepare_element_resolution(
-                elem_set_i, input_data_idx
-            )
-            element_data_idx = self.workflow.resolve_element_data_indices(multiplicities)
-            output_data_idx = self.template._prepare_persistent_outputs(
-                self.workflow, len(element_data_idx)
-            )
-
-            new_elements, element_input_sources = self.workflow.generate_new_elements(
-                input_data_idx,
-                output_data_idx,
-                element_data_idx,
-                input_sources,
-            )
-
-            element_indices = list(
-                range(
-                    len(self.workflow.elements),
-                    len(self.workflow.elements) + len(new_elements),
-                )
-            )
-
-            elem_set_i_js, _ = elem_set_i.to_json_like()
-            # (shared data should already have been updated as part of the schema)
-
-            self.workflow._persistent_metadata["elements"].extend(new_elements)
-
-            self.workflow._persistent_metadata["tasks"][self.index][
-                "element_indices"
-            ].extend(element_indices)
-
-            for k, v in self.workflow._persistent_metadata["tasks"][self.index][
-                "element_input_sources"
-            ].items():
-                v.extend(element_input_sources.get(k, [None] * len(new_elements)))
-
-            self.workflow._persistent_metadata["tasks"][self.index][
-                "element_set_indices"
-            ].extend([self.num_element_sets] * len(new_elements))
-
-            self.workflow._persistent_metadata["template"]["tasks"][self.index][
-                "element_sets"
-            ].append(elem_set_i_js)
-
-            self.workflow._append_history_add_element_set(self.index, element_indices)
-
-        self.workflow._dump_persistent_metadata()
+            self._add_element_set(elem_set_i)

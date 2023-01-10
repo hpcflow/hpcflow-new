@@ -62,8 +62,9 @@ class Element:
 
     _app_attr = "app"
 
-    task: Task
+    task: WorkflowTask
     data_index: Dict
+    global_index: int
 
     @property
     def workflow(self):
@@ -83,7 +84,36 @@ class Element:
 
     @property
     def index(self):
+        """Get the index of the element within the task.
+
+        Note: the `global_index` attribute returns the index of the element within the
+        workflow, across all tasks."""
+
         return self.task.elements.index(self)
+
+    @property
+    def input_sources(self):
+        return {k: v[self.index] for k, v in self.task.element_input_sources.items()}
+
+    @property
+    def sequence_value_indices(self):
+        return {k: v[self.index] for k, v in self.task.element_sequence_indices.items()}
+
+    @property
+    def element_set(self):
+        return self.task.template.element_sets[self.task.element_set_indices[self.index]]
+
+    def get_sequence_value(self, sequence_path):
+        seq = self.element_set.get_sequence_from_path(sequence_path)
+        if not seq:
+            raise ValueError(
+                f"No sequence with path {sequence_path!r} in this element's originating "
+                f"element set."
+            )
+        val_idx = self.sequence_value_indices[sequence_path]
+        val = seq.values[val_idx]
+
+        return val
 
     @property
     def dir_name(self):

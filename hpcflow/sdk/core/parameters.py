@@ -360,9 +360,6 @@ class ValueSequence(JSONLike):
                     )
                     raise ValueError(msg)
 
-    def _get_param_path(self):
-        return self.path  # TODO: maybe not needed?
-
     @property
     def normalised_path(self):
         return self.path
@@ -383,7 +380,7 @@ class ValueSequence(JSONLike):
             self._workflow = workflow
             self._values = None
 
-        return (self._get_param_path(), param_group_idx)
+        return (self.normalised_path, param_group_idx)
 
     @property
     def workflow(self):
@@ -471,7 +468,7 @@ class AbstractInputValue(JSONLike):
             self._workflow = workflow
             self._value = None
 
-        return (self._get_param_path(), [param_group_idx])
+        return (self.normalised_path, [param_group_idx])
 
     @property
     def workflow(self):
@@ -572,9 +569,6 @@ class InputValue(AbstractInputValue):
 
         return obj
 
-    def _get_param_path(self):
-        return f"inputs.{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
-
     @property
     def normalised_inputs_path(self):
         return f"{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
@@ -662,9 +656,6 @@ class ResourceSpec(JSONLike):
 
         return obj
 
-    def _get_param_path(self):
-        return f"resources.{self.scope.to_string()}"
-
     @property
     def normalised_resources_path(self):
         return self.scope.to_string()
@@ -719,7 +710,7 @@ class ResourceSpec(JSONLike):
             self._num_cores = None
             self._scratch = None
 
-        return (self._get_param_path(), [param_group_idx])
+        return (self.normalised_path, [param_group_idx])
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:

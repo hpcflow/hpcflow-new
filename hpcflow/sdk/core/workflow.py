@@ -144,7 +144,9 @@ class Workflow:
         if not self._elements:
             self._elements = [
                 self.app.Element(
-                    task=task, data_index=self._persistent_metadata["elements"][i]
+                    task=task,
+                    data_index=self._persistent_metadata["elements"][i],
+                    global_index=i,
                 )
                 for task in self.tasks
                 for i in task.element_indices
@@ -284,7 +286,6 @@ class Workflow:
         self._elements = None
         self._template = None
         self._shared_data = None
-        self._template = None
 
         root = self._get_workflow_root_group(mode="r+")
         root.attrs.put(self._persistent_metadata)
@@ -371,10 +372,12 @@ class Workflow:
         output_data_indices,
         element_data_indices,
         input_sources,
+        sequence_indices,
     ):
 
         new_elements = []
         element_inp_sources = {}
+        element_sequence_indices = {}
         for i_idx, i in enumerate(element_data_indices):
             elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update(
@@ -396,7 +399,14 @@ class Workflow:
                         element_inp_sources[k] = []
                     element_inp_sources[k].append(input_sources[k][v])
 
-        return new_elements, element_inp_sources
+            # track which sequence value indices (if any) are used for each new element:
+            for k, v in i.items():
+                if k in sequence_indices:
+                    if k not in element_sequence_indices:
+                        element_sequence_indices[k] = []
+                    element_sequence_indices[k].append(sequence_indices[k][v])
+
+        return new_elements, element_inp_sources, element_sequence_indices
 
     def get_task_unique_names(self, map_to_insert_ID=False):
         """Return the unique names of all workflow tasks.
@@ -478,8 +488,9 @@ class Workflow:
 
         empty_task = {
             "element_indices": [],
-            "element_input_sources": {k: [] for k in task.all_sourced_normalised_paths},
+            "element_input_sources": {},
             "element_set_indices": [],
+            "element_sequence_indices": {},
         }
         self._persistent_metadata["template"]["tasks"].insert(new_index, task_js)
         self._persistent_metadata["tasks"].insert(new_index, empty_task)
