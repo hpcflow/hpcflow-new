@@ -369,39 +369,6 @@ class Task(JSONLike):
         """Find the nesting order for a task sequence."""
         return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
 
-    def make_persistent(self, workflow):
-        """Add all task input data to a persistent workflow and return a record of the
-        Zarr parameter group indices for each bit of task data."""
-
-        input_data_indices = {}
-
-        for res_i in self.resources:
-            input_data_indices.update(res_i.make_persistent(workflow))
-
-        for inp_i in self.inputs:
-            input_data_indices.update(inp_i.make_persistent(workflow))
-
-        for seq_i in self.sequences:
-            input_data_indices.update(seq_i.make_persistent(workflow))
-
-        for inp_typ in self.all_schema_input_types:
-            sources = self.input_sources[inp_typ]
-            for inp_src in sources:
-                if inp_src.source_type is InputSourceType.TASK:
-                    src_task = inp_src.get_task(workflow)
-                    grp_idx = [
-                        elem.data_index[f"outputs.{inp_typ}"]
-                        for elem in src_task.elements
-                    ]
-                    key = f"inputs.{inp_typ}"
-                    if self.app.InputSource.local() in sources:
-                        # add task source to local source
-                        input_data_indices[key] += grp_idx
-                    else:
-                        input_data_indices.update({key: grp_idx})
-
-        return input_data_indices
-
     def _prepare_persistent_outputs(self, workflow, num_elements):
         # TODO: check that schema is present when adding task? (should this be here?)
         output_data_indices = {}
