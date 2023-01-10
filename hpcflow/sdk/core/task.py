@@ -367,7 +367,7 @@ class Task(JSONLike):
 
     def _get_nesting_order(self, seq):
         """Find the nesting order for a task sequence."""
-        return self.nesting_order[seq._get_param_path()] if len(seq.values) > 1 else -1
+        return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
 
     def make_persistent(self, workflow):
         """Add all task input data to a persistent workflow and return a record of the
@@ -519,9 +519,25 @@ class Task(JSONLike):
         return {inp_j for schema_i in self.schemas for inp_j in schema_i.input_types}
 
     @property
+    def all_schema_input_normalised_paths(self):
+        return {f"inputs.{i}" for i in self.all_schema_input_types}
+
+    @property
     def all_schema_output_types(self):
         """Get the set of all schema output types (over all specified schemas)."""
         return {out_j for schema_i in self.schemas for out_j in schema_i.output_types}
+
+    @property
+    def all_sourced_normalised_paths(self):
+        sourced_input_types = []
+        for elem_set in self.element_sets:
+            for inp in elem_set.inputs:
+                if inp.is_sub_value:
+                    sourced_input_types.append(inp.normalised_path)
+            for seq in elem_set.sequences:
+                if seq.is_sub_value:
+                    sourced_input_types.append(seq.normalised_path)
+        return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
     @property
     def universal_input_types(self):
@@ -858,10 +874,10 @@ class WorkflowTask:
                 "element_indices"
             ].extend(element_indices)
 
-            for k, v in element_input_sources.items():
-                self.workflow._persistent_metadata["tasks"][self.index][
-                    "element_input_sources"
-                ][k].extend(v)
+            for k, v in self.workflow._persistent_metadata["tasks"][self.index][
+                "element_input_sources"
+            ].items():
+                v.extend(element_input_sources.get(k, [None] * len(new_elements)))
 
             self.workflow._persistent_metadata["tasks"][self.index][
                 "element_set_indices"

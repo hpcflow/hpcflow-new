@@ -277,9 +277,19 @@ class ValueSequence(JSONLike):
             return self.path_split[1]
 
     @property
+    def input_path(self):
+        if self.path_type == "inputs":
+            return ".".join(self.path_split[2:]) or None
+
+    @property
     def resource_scope(self):
         if self.path_type == "resources":
             return self.path_split[1]
+
+    @property
+    def is_sub_value(self):
+        """True if the values are for a sub part of the parameter."""
+        return True if self.input_path else False
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -352,6 +362,10 @@ class ValueSequence(JSONLike):
 
     def _get_param_path(self):
         return self.path  # TODO: maybe not needed?
+
+    @property
+    def normalised_path(self):
+        return self.path
 
     def make_persistent(self, workflow):
         """Save value to a persistent workflow."""
@@ -561,6 +575,14 @@ class InputValue(AbstractInputValue):
     def _get_param_path(self):
         return f"inputs.{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
 
+    @property
+    def normalised_inputs_path(self):
+        return f"{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
+
+    @property
+    def normalised_path(self):
+        return f"inputs.{self.normalised_inputs_path}"
+
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
 
@@ -642,6 +664,14 @@ class ResourceSpec(JSONLike):
 
     def _get_param_path(self):
         return f"resources.{self.scope.to_string()}"
+
+    @property
+    def normalised_resources_path(self):
+        return self.scope.to_string()
+
+    @property
+    def normalised_path(self):
+        return f"resources.{self.normalised_resources_path}"
 
     def to_dict(self):
         out = super().to_dict()

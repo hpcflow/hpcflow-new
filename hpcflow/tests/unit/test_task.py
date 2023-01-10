@@ -174,12 +174,12 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available_exp = {
         "p2": [
+            InputSource(source_type=InputSourceType.LOCAL),
             InputSource(
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
             ),
-            InputSource(source_type=InputSourceType.LOCAL),
         ]
     }
     assert available == available_exp
@@ -208,12 +208,12 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available_exp = {
         "p2": [
+            InputSource(source_type=InputSourceType.LOCAL),
             InputSource(
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
             ),
-            InputSource(source_type=InputSourceType.LOCAL),
             InputSource(source_type=InputSourceType.DEFAULT),
         ]
     }

@@ -29,49 +29,49 @@ def test_fix_single_path_delimiter(param_p1):
     assert iv1.path == iv2.path
 
 
-def test_get_param_path_without_path(param_p1):
+def test_normalised_path_without_path(param_p1):
     iv1 = InputValue(parameter=param_p1, value=101)
-    assert iv1._get_param_path() == "inputs.p1"
+    assert iv1.normalised_path == "inputs.p1"
 
 
-def test_get_param_path_with_single_element_path(param_p1):
+def test_normalised_path_with_single_element_path(param_p1):
     iv1 = InputValue(parameter=param_p1, value=101, path="a")
-    assert iv1._get_param_path() == "inputs.p1.a"
+    assert iv1.normalised_path == "inputs.p1.a"
 
 
-def test_get_param_path_with_multi_element_path(param_p1):
+def test_normalised_path_with_multi_element_path(param_p1):
     iv1 = InputValue(parameter=param_p1, value=101, path="a.b")
-    assert iv1._get_param_path() == "inputs.p1.a.b"
+    assert iv1.normalised_path == "inputs.p1.a.b"
 
 
-def test_get_param_path_with_empty_path(param_p1):
+def test_normalised_path_with_empty_path(param_p1):
     iv1 = InputValue(parameter=param_p1, value=101, path="")
-    assert iv1._get_param_path() == "inputs.p1"
+    assert iv1.normalised_path == "inputs.p1"
 
 
 def test_resource_spec_get_param_path():
     rs1 = ResourceSpec()
-    assert rs1._get_param_path() == "resources.any"
+    assert rs1.normalised_path == "resources.any"
 
 
 def test_resource_spec_get_param_path_scope_any_with_single_kwarg():
     rs1 = ResourceSpec(scratch="local")
-    assert rs1._get_param_path() == "resources.any"
+    assert rs1.normalised_path == "resources.any"
 
 
 def test_resources_spec_get_param_path_scope_main():
     rs1 = ResourceSpec(scope=ActionScope.main())
-    assert rs1._get_param_path() == "resources.main"
+    assert rs1.normalised_path == "resources.main"
 
 
 def test_resources_spec_get_param_path_scope_with_kwargs():
     rs1 = ResourceSpec(scope=ActionScope.input_file_generator(file="file1"))
-    assert rs1._get_param_path() == "resources.input_file_generator[file=file1]"
+    assert rs1.normalised_path == "resources.input_file_generator[file=file1]"
 
 
 def test_resources_spec_get_param_path_scope_with_no_kwargs():
     rs1 = ResourceSpec(scope=ActionScope.input_file_generator())
-    assert rs1._get_param_path() == "resources.input_file_generator"
+    assert rs1.normalised_path == "resources.input_file_generator"
 
 
 # def test_raise_on_duplicate_input_value_sequence_address(param_p1):
