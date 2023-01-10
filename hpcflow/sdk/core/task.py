@@ -452,6 +452,10 @@ class Task(JSONLike):
         for schema_input in self.all_schema_inputs:
             available[schema_input.typ] = []
 
+            # local specification takes precedence:
+            if schema_input.typ in element_set.defined_input_types:
+                available[schema_input.typ].append(self.app.InputSource.local())
+
             for src_task_i in source_tasks or []:
 
                 for param_i in src_task_i.provides_parameters:
@@ -470,9 +474,6 @@ class Task(JSONLike):
                                 ],  # TODO: make nicer
                             )
                         )
-
-            if schema_input.typ in element_set.defined_input_types:
-                available[schema_input.typ].append(self.app.InputSource.local())
 
             if schema_input.default_value is not None:
                 available[schema_input.typ].append(self.app.InputSource.default())
@@ -736,9 +737,6 @@ class WorkflowTask:
         workflow in a given position. If none are specified, set them according to the
         default behaviour."""
 
-        # TODO: order sources by preference so can just take first in the case of input
-        # source mode AUTO?
-
         # this just depends on this schema and other schemas:
         available_sources = self.template.get_available_task_input_sources(
             element_set=element_set,
@@ -775,6 +773,8 @@ class WorkflowTask:
             inp_i_sources = available_sources[input_type]
             source = None
             try:
+                # first element is defined by default to take precedence in
+                # `get_available_task_input_sources`:
                 source = inp_i_sources[0]
             except IndexError:
                 missing.append(input_type)
