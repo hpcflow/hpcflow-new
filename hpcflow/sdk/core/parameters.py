@@ -230,9 +230,12 @@ class ValueSequence(JSONLike):
         path: str,
         nesting_order: int,
         values: List[Any],
+        is_unused: bool = False,
     ):
         self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
+        self.is_unused = is_unused
+
         self._values = values
 
         self._values_group_idx = None
@@ -363,6 +366,14 @@ class ValueSequence(JSONLike):
     @property
     def normalised_path(self):
         return self.path
+
+    @property
+    def normalised_inputs_path(self):
+        """Return the normalised path without the "inputs" prefix, if the sequence is an
+        inputs sequence, else return None."""
+
+        if self.parameter:
+            return ".".join(self.path_split[1:])
 
     def make_persistent(self, workflow):
         """Save value to a persistent workflow."""

@@ -209,6 +209,34 @@ class ElementSet(JSONLike):
             if i.path == sequence_path:
                 return i
 
+    def get_defined_parameter_types(self):
+        out = []
+        for inp in self.inputs:
+            if not inp.is_sub_value:
+                out.append(inp.normalised_inputs_path)
+        for seq in self.sequences:
+            if seq.parameter and not seq.is_sub_value:  # ignore resource sequences
+                out.append(seq.normalised_inputs_path)
+        return out
+
+    def get_defined_sub_parameter_types(self):
+        out = []
+        for inp in self.inputs:
+            if inp.is_sub_value:
+                out.append(inp.normalised_inputs_path)
+        for seq in self.sequences:
+            if seq.parameter and seq.is_sub_value:  # ignore resource sequences
+                out.append(seq.normalised_inputs_path)
+        return out
+
+    def get_locally_defined_inputs(self):
+        return self.get_defined_parameter_types() + self.get_defined_sub_parameter_types()
+
+    def get_sequence_by_path(self, path):
+        for seq in self.sequences:
+            if seq.path == path:
+                return seq
+
 
 class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
@@ -421,20 +449,21 @@ class Task(JSONLike):
         # TODO: also search sub-parameters in the source tasks!
 
         available = {}
-        for schema_input in self.all_schema_inputs:
-            available[schema_input.typ] = []
+        for inputs_path, def_val in self.get_all_inputs_info(element_set).items():
+
+            available[inputs_path] = []
 
             # local specification takes precedence:
-            if schema_input.typ in element_set.defined_input_types:
-                available[schema_input.typ].append(self.app.InputSource.local())
+            if inputs_path in element_set.get_locally_defined_inputs():
+                available[inputs_path].append(self.app.InputSource.local())
 
             for src_task_i in source_tasks or []:
 
                 for param_i in src_task_i.provides_parameters:
 
-                    if param_i.typ == schema_input.typ:
+                    if param_i.typ == inputs_path:
 
-                        available[schema_input.typ].append(
+                        available[inputs_path].append(
                             self.app.InputSource(
                                 source_type=self.app.InputSourceType.TASK,
                                 task_ref=src_task_i.insert_ID,
@@ -447,8 +476,8 @@ class Task(JSONLike):
                             )
                         )
 
-            if schema_input.default_value is not None:
-                available[schema_input.typ].append(self.app.InputSource.default())
+            if def_val:
+                available[inputs_path].append(self.app.InputSource.default())
 
         return available
 
@@ -511,9 +540,39 @@ class Task(JSONLike):
                     sourced_input_types.append(seq.normalised_path)
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
+    def get_all_inputs_info(self, element_set):
+        """Get a dict whose keys are the normalised paths (without the "inputs" prefix),
+        and whose values are the associated default value InputValue object, in the case
+        the input is a SchemaInput, and a default is defined.
+
+        Parameters
+        ----------
+        element_set : ElementSet
+            Find inputs and sequences in this element set that have sub-parameter paths.
+
+        """
+
+        info = {}
+        for schema_input in self.all_schema_inputs:
+            info[schema_input.parameter.typ] = schema_input.default_value
+
+        for inp_path in element_set.get_defined_sub_parameter_types():
+            info[inp_path] = None
+
+        return info
+
     @property
     def all_sequences_normalised_paths(self):
         return [j.normalised_path for i in self.element_sets for j in i.sequences]
+
+    @property
+    def all_used_sequences_normalised_paths(self):
+        return [
+            j.normalised_path
+            for i in self.element_sets
+            for j in i.sequences
+            if not j.is_unused
+        ]
 
     @property
     def universal_input_types(self):
@@ -688,6 +747,7 @@ class WorkflowTask:
         input_sources = {}
         sequence_idx = {}
 
+        # Assign first assuming all locally defined values are to be used:
         for res_i in element_set.resources:
             key, group = res_i.make_persistent(self.workflow)
             input_data_indices[key] = group
@@ -702,9 +762,8 @@ class WorkflowTask:
             input_data_indices[key] = group
             input_sources[key] = ["local" for _ in group]
             sequence_idx[key] = list(range(len(group)))
-            # TODO: what happens if we don't use the local sequence? i.e. overwritten by
-            # task source?
 
+        # Now check for task- and default-sources and overwrite or append to local sources:
         for schema_input in self.template.all_schema_inputs:
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
@@ -731,6 +790,10 @@ class WorkflowTask:
                         # overwrite existing local source (if it exists):
                         input_data_indices[key] = grp_idx
                         input_sources[key] = inp_src_i
+                        if key in sequence_idx:
+                            sequence_idx.pop(key)
+                            seq = element_set.get_sequence_by_path(key)
+                            seq.is_unused = True
 
                 if inp_src.source_type is InputSourceType.DEFAULT:
 
@@ -758,25 +821,27 @@ class WorkflowTask:
 
         # TODO: get available input sources from workflow imports
 
+        all_inputs_info = self.template.get_all_inputs_info(element_set)
+
         # check any specified sources are valid:
-        for schema_input in self.template.all_schema_inputs:
-            for specified_source in element_set.input_sources.get(schema_input.typ, []):
+        for inputs_path, def_val in all_inputs_info.items():
+            for specified_source in element_set.input_sources.get(inputs_path, []):
                 self.workflow._resolve_input_source_task_reference(
                     specified_source, self.unique_name
                 )
-                if specified_source not in available_sources[schema_input.typ]:
+                if specified_source not in available_sources[inputs_path]:
                     raise ValueError(
                         f"The input source {specified_source.to_string()!r} is not "
-                        f"available for schema input {schema_input!r}. Available "
+                        f"available for input path {inputs_path!r}. Available "
                         f"input sources are: "
-                        f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
+                        f"{[i.to_string() for i in available_sources[inputs_path]]}"
                     )
 
         # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
         # then check if there is an input files entry for associated inputs,
         # if there is
 
-        unsourced_inputs = self.template.all_schema_input_types - set(
+        unsourced_inputs = set(all_inputs_info.keys()) - set(
             element_set.input_sources.keys()
         )
 
@@ -805,6 +870,7 @@ class WorkflowTask:
     def _add_element_set(self, element_set):
 
         element_set.task_template = self.template
+
         self.ensure_input_sources(
             element_set
         )  # currently modifies element_set.input_sources
@@ -855,7 +921,10 @@ class WorkflowTask:
         }
 
         self._metadata["element_sequence_indices"] = {
-            **{k: [] for k in self.template.all_sequences_normalised_paths},
+            **{
+                k: [None for _ in range(self.num_elements)]
+                for k in self.template.all_used_sequences_normalised_paths
+            },
             **self._metadata["element_sequence_indices"],
         }
 
