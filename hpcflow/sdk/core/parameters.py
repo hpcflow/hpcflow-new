@@ -831,12 +831,23 @@ class InputSource(JSONLike):
             return False
 
     def __repr__(self) -> str:
-        members = {k: v for k, v in self.__dict__.items() if v is not None}
-        return (
-            f"{self.__class__.__name__}("
-            f'{", ".join([f"{k}={repr(v)}" for k, v in members.items()])}'
-            f")"
-        )
+        cls_method_name = self.source_type.name.lower()
+
+        if self.source_type is InputSourceType.IMPORT:
+            cls_method_name += "_"
+            args = f"import_ref={self.import_ref}"
+
+        elif self.source_type is InputSourceType.TASK:
+            args = (
+                f"task_ref={self.task_ref}, "
+                f"task_source_type={self.task_source_type.name.lower()}"
+            )
+        else:
+            args = ""
+
+        out = f"{self.__class__.__name__}.{cls_method_name}({args})"
+
+        return out
 
     def get_task(self, workflow):
         """If source_type is task, then return the referenced task from the given
