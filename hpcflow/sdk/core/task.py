@@ -457,24 +457,19 @@ class Task(JSONLike):
             if inputs_path in element_set.get_locally_defined_inputs():
                 available[inputs_path].append(self.app.InputSource.local())
 
+            # search for task sources:
             for src_task_i in source_tasks or []:
 
                 for param_i in src_task_i.provides_parameters:
 
                     if param_i.typ == inputs_path:
 
-                        available[inputs_path].append(
-                            self.app.InputSource(
-                                source_type=self.app.InputSourceType.TASK,
-                                task_ref=src_task_i.insert_ID,
-                                task_source_type={
-                                    "SchemaInput": self.app.TaskSourceType.INPUT,
-                                    "SchemaOutput": self.app.TaskSourceType.OUTPUT,
-                                }[
-                                    param_i.__class__.__name__
-                                ],  # TODO: make nicer
-                            )
+                        task_source = self.app.InputSource.task(
+                            task_ref=src_task_i.insert_ID,
+                            task_source_type=param_i.input_or_output,
                         )
+
+                        available[inputs_path].append(task_source)
 
             if def_val:
                 available[inputs_path].append(self.app.InputSource.default())
