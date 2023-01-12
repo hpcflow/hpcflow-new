@@ -334,9 +334,11 @@ class Workflow:
             all_multis = {i["multiplicity"] for i in para_sequences}
             if len(all_multis) > 1:
                 raise ValueError(
-                    f"All sequences with the same `nesting_order` must have the same "
-                    f"multiplicity, but found multiplicities {list(all_multis)!r} for "
-                    f"`nesting_order` of {para_sequences[0]['nesting_order']}."
+                    f"All inputs with the same `nesting_order` must have the same "
+                    f"multiplicity, but for paths "
+                    f"{[i['path'] for i in para_sequences]} with `nesting_order` "
+                    f"{para_sequences[0]['nesting_order']} found multiplicities "
+                    f"{list(all_multis)!r}."
                 )
 
             new_elements = []
