@@ -72,6 +72,7 @@ class ElementSet(JSONLike):
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
+        sourceable_elements: Optional[List[int]] = None,
     ):
 
         if isinstance(resources, dict):
@@ -90,6 +91,7 @@ class ElementSet(JSONLike):
             InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
         )
         self.nesting_order = nesting_order or {}
+        self.sourceable_elements = sourceable_elements
 
         self._validate()
         self._set_parent_refs()
@@ -171,6 +173,7 @@ class ElementSet(JSONLike):
         input_source_mode=None,
         nesting_order=None,
         element_sets=None,
+        sourceable_elements=None,
     ):
         args = (
             inputs,
@@ -189,10 +192,10 @@ class ElementSet(JSONLike):
                     "If providing an `element_set`, no other arguments are allowed."
                 )
             else:
-                element_sets = [cls(*args)]
+                element_sets = [cls(*args, sourceable_elements=sourceable_elements)]
         else:
             if element_sets is None:
-                element_sets = [cls(*args)]
+                element_sets = [cls(*args, sourceable_elements=sourceable_elements)]
 
         return element_sets
 
@@ -271,6 +274,7 @@ class Task(JSONLike):
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         element_sets: Optional[List[ElementSet]] = None,  # TODO
+        sourceable_elements: Optional[List[int]] = None,
     ):
 
         """
@@ -323,6 +327,7 @@ class Task(JSONLike):
             input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
+            sourceable_elements=sourceable_elements,
         )
 
         self._validate()
@@ -435,6 +440,10 @@ class Task(JSONLike):
         else:
             return None
 
+    @property
+    def _element_indices(self):
+        return self.workflow_template.workflow.tasks[self.index].element_indices
+
     def get_available_task_input_sources(
         self,
         element_set: ElementSet,
@@ -464,11 +473,21 @@ class Task(JSONLike):
 
                     if param_i.typ == inputs_path:
 
+                        src_elems = None
+                        if element_set.sourceable_elements is not None:
+                            # can only use a subset of elements:
+                            src_elems = list(
+                                set(element_set.sourceable_elements)
+                                & set(src_task_i._element_indices)
+                            )
+                            if not src_elems:
+                                continue
+
                         task_source = self.app.InputSource.task(
                             task_ref=src_task_i.insert_ID,
                             task_source_type=param_i.input_or_output,
+                            elements=src_elems,
                         )
-
                         available[inputs_path].append(task_source)
 
             if def_val:
@@ -767,13 +786,23 @@ class WorkflowTask:
                 if inp_src.source_type is InputSourceType.TASK:
 
                     src_task = inp_src.get_task(self.workflow)
+
+                    src_elements = [i for i in src_task.elements]
+                    if inp_src.elements:
+                        src_elements = [
+                            i for i in src_elements if i.global_index in inp_src.elements
+                        ]
+
+                    if not src_elements:
+                        continue
+
                     grp_idx = [
                         elem.data_index[f"outputs.{schema_input.typ}"]
-                        for elem in src_task.elements
+                        for elem in src_elements
                     ]
                     inp_src_i = [
-                        f"element.{i}.{inp_src.task_source_type.name}"
-                        for i in src_task.element_indices
+                        f"element.{i.global_index}.{inp_src.task_source_type.name}"
+                        for i in src_elements
                     ]
 
                     if self.app.InputSource.local() in sources:
@@ -819,12 +848,12 @@ class WorkflowTask:
         all_inputs_info = self.template.get_all_inputs_info(element_set)
 
         # check any specified sources are valid:
-        for inputs_path, def_val in all_inputs_info.items():
+        for inputs_path in all_inputs_info:
             for specified_source in element_set.input_sources.get(inputs_path, []):
                 self.workflow._resolve_input_source_task_reference(
                     specified_source, self.unique_name
                 )
-                if specified_source not in available_sources[inputs_path]:
+                if not specified_source.is_in(available_sources[inputs_path]):
                     raise ValueError(
                         f"The input source {specified_source.to_string()!r} is not "
                         f"available for input path {inputs_path!r}. Available "
@@ -952,7 +981,18 @@ class WorkflowTask:
         input_source_mode=None,
         nesting_order=None,
         element_sets=None,
+        sourceable_elements=None,
     ):
+        """Add more elements to this task.
+
+        Parameters
+        ----------
+        sourceable_elements : list of int, optional
+            If specified, a list of global element indices from which inputs
+            may be sourced. If not specified, all workflow elements are considered
+            sourceable.
+
+        """
 
         if base_element is not None:
             if base_element.task is not self:
@@ -970,6 +1010,7 @@ class WorkflowTask:
             input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
+            sourceable_elements=sourceable_elements,
         )
 
         for elem_set_i in element_sets:

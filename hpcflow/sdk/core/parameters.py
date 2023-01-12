@@ -795,6 +795,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
+        elements=None,
         path=None,
         where=None,
     ):
@@ -803,6 +804,7 @@ class InputSource(JSONLike):
         self.import_ref = import_ref
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
+        self.elements = elements
         self.where = where
         self.path = path
 
@@ -823,6 +825,7 @@ class InputSource(JSONLike):
             and self.import_ref == other.import_ref
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
+            and self.elements == other.elements
             and self.where == other.where
             and self.path == other.path
         ):
@@ -842,6 +845,8 @@ class InputSource(JSONLike):
                 f"task_ref={self.task_ref}, "
                 f"task_source_type={self.task_source_type.name.lower()}"
             )
+            if self.elements:
+                args += f", elements={self.elements}"
         else:
             args = ""
 
@@ -857,10 +862,28 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
+    def is_in(self, other_input_sources):
+        """Check if this input source is in a list of other input sources, without
+        considering the `elements` attribute."""
+
+        for other in other_input_sources:
+            if (
+                self.source_type == other.source_type
+                and self.import_ref == other.import_ref
+                and self.task_ref == other.task_ref
+                and self.task_source_type == other.task_source_type
+                and self.where == other.where
+                and self.path == other.path
+            ):
+                return True
+        return False
+
     def to_string(self):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]
+            if self.elements:
+                out += ["[" + ",".join(f"{i}" for i in self.elements) + "]"]
         elif self.source_type is InputSourceType.IMPORT:
             out += [str(self.import_ref)]
         return ".".join(out)
@@ -970,13 +993,14 @@ class InputSource(JSONLike):
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None):
+    def task(cls, task_ref, task_source_type=None, elements=None):
         if not task_source_type:
             task_source_type = TaskSourceType.OUTPUT
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
+            elements=elements,
         )
 
 
