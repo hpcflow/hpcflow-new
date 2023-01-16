@@ -244,6 +244,14 @@ class Workflow:
         """Alias for object initialisation."""
         return cls(path)
 
+    def copy(self, path=None):
+        """Copy the workflow to a new path and return the copied workflow."""
+        path = self.path.with_suffix(".copy") if path is None else path
+        if path.exists():
+            raise ValueError(f"Path already exists: {path}.")
+        shutil.copytree(self.path, path)
+        return self.load(path)
+
     def _resolve_input_source_task_reference(
         self, input_source: InputSource, new_task_name: str
     ):
