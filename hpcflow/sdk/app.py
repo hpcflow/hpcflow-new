@@ -310,7 +310,7 @@ class BaseApp:
             version=self.version,
             package_name=self.name,
             prog_name=self.name,
-            help=f"Show the version of {self.name} and exit."
+            help=f"Show the version of {self.name} and exit.",
         )
         @click.version_option(
             __version__,
