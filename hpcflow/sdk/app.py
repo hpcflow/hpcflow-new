@@ -1,7 +1,7 @@
 """An hpcflow application."""
 
 from functools import wraps
-from importlib import resources
+from importlib import resources, import_module
 import time
 import warnings
 
@@ -97,7 +97,12 @@ class BaseApp:
                 setattr(self, func.__name__, api_method)
 
     def _get_core_JSONLike_classes(self):
-        """Get all JSONLike subclasses (recursively)."""
+        """Get all JSONLike subclasses (recursively).
+
+        If this is run after App initialisation, the returned list will include the
+        app-injected sub-classes as well.
+
+        """
 
         def all_subclasses(cls):
             return set(cls.__subclasses__()).union(
@@ -112,25 +117,23 @@ class BaseApp:
 
     def _assign_core_classes(self):
 
+        # ensure classes defined in `object_list` are included in core classes:
+        import_module("hpcflow.sdk.core.object_list")
+
         core_classes = list(self._get_core_JSONLike_classes())
 
         # Non-`JSONLike` classes:
         core_classes += [
             ActionScopeType,
-            Action,
-            Executable,
             Element,
             ElementInputs,
             ElementOutputs,
             ElementAction,
-            ElementSet,
+            ElementPropagation,
             InputSourceMode,
             InputSourceType,
-            NumCores,
             ParameterPropagationMode,
-            TaskObjective,
             TaskSourceType,
-            ValueSequence,
             Workflow,
             WorkflowTask,
             ZarrEncodable,
@@ -143,7 +146,7 @@ class BaseApp:
 
         return tuple(
             sorted(
-                core_classes,
+                set(core_classes),
                 key=lambda x: f"{x.__module__}.{x.__qualname__}",
             )
         )
