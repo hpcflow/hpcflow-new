@@ -5,7 +5,7 @@ import hashlib
 import json
 from typing import Optional, Type
 
-from .utils import classproperty
+from .utils import classproperty, get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
 
@@ -268,8 +268,9 @@ class BaseJSONLike:
 
                 else:
                     raise TypeError(
-                        f"Child object {child_obj_spec.name} of {cls.__name__!r} must a "
-                        f"list or dict."
+                        f"Child object {child_obj_spec.name} of {cls.__name__!r} must be "
+                        f"a list or dict, but is of type {type(json_like_i)} with value "
+                        f"{json_like_i!r}."
                     )
             else:
                 multi_chd_objs = [json_like_i]
@@ -374,10 +375,7 @@ class BaseJSONLike:
             )
 
         if need_hash:
-            re_json_like = obj.to_json_like()[0]
-            re_json_like.pop("_hash_value", None)
-            hash_val = cls._get_hash(re_json_like)
-            obj._hash_value = hash_val
+            obj._set_hash()
 
         return obj
 
@@ -388,15 +386,27 @@ class BaseJSONLike:
         for chd in self._child_objects:
             if chd.parent_ref:
                 if chd.is_multiple:
-                    for i in getattr(self, chd.name):
-                        setattr(i, chd.parent_ref, self)
+                    for chd_obj in getattr(self, chd.name):
+                        if chd_obj:
+                            setattr(chd_obj, chd.parent_ref, self)
                 else:
-                    setattr(getattr(self, chd.name), chd.parent_ref, self)
+                    chd_obj = getattr(self, chd.name)
+                    if chd_obj:
+                        setattr(chd_obj, chd.parent_ref, self)
+
+    def _get_hash(self):
+        json_like = self.to_json_like()[0]
+        hash_val = self._get_hash_from_json_like(json_like)
+        return hash_val
+
+    def _set_hash(self):
+        self._hash_value = self._get_hash()
 
     @staticmethod
-    def _get_hash(json_like):
-        json_str_i = json.dumps(json_like, sort_keys=True)
-        return hashlib.md5(json_str_i.encode("utf-8")).hexdigest()
+    def _get_hash_from_json_like(json_like):
+        json_like = copy.deepcopy(json_like)
+        json_like.pop("_hash_value", None)
+        return get_md5_hash(json_like)
 
     def to_dict(self):
         if hasattr(self, "__dict__"):
@@ -446,7 +456,7 @@ class BaseJSONLike:
                 for i in chd_obj_js:
 
                     i.pop("_hash_value", None)
-                    hash_i = self._get_hash(i)
+                    hash_i = self._get_hash_from_json_like(i)
                     shared_keys.append(f"hash:{hash_i}")
 
                     if hash_i not in shared_data[chd.shared_data_name]:

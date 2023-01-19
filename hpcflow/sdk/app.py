@@ -1,7 +1,7 @@
 """An hpcflow application."""
 
 from functools import wraps
-from importlib import resources
+from importlib import resources, import_module
 import time
 import warnings
 
@@ -17,7 +17,7 @@ from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
 from .core.actions import Action, ActionScopeType, ElementAction
-from .core.element import Element
+from .core.element import Element, ElementInputs, ElementOutputs
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
@@ -27,7 +27,7 @@ from .core.parameters import (
     TaskSourceType,
     ValueSequence,
 )
-from .core.task import WorkflowTask
+from .core.task import ElementPropagation, WorkflowTask, ElementSet
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
@@ -97,7 +97,12 @@ class BaseApp:
                 setattr(self, func.__name__, api_method)
 
     def _get_core_JSONLike_classes(self):
-        """Get all JSONLike subclasses (recursively)."""
+        """Get all JSONLike subclasses (recursively).
+
+        If this is run after App initialisation, the returned list will include the
+        app-injected sub-classes as well.
+
+        """
 
         def all_subclasses(cls):
             return set(cls.__subclasses__()).union(
@@ -112,22 +117,23 @@ class BaseApp:
 
     def _assign_core_classes(self):
 
+        # ensure classes defined in `object_list` are included in core classes:
+        import_module("hpcflow.sdk.core.object_list")
+
         core_classes = list(self._get_core_JSONLike_classes())
 
         # Non-`JSONLike` classes:
         core_classes += [
             ActionScopeType,
-            Action,
-            Executable,
             Element,
+            ElementInputs,
+            ElementOutputs,
             ElementAction,
+            ElementPropagation,
             InputSourceMode,
             InputSourceType,
-            NumCores,
             ParameterPropagationMode,
-            TaskObjective,
             TaskSourceType,
-            ValueSequence,
             Workflow,
             WorkflowTask,
             ZarrEncodable,
@@ -140,7 +146,7 @@ class BaseApp:
 
         return tuple(
             sorted(
-                core_classes,
+                set(core_classes),
                 key=lambda x: f"{x.__module__}.{x.__qualname__}",
             )
         )
@@ -289,10 +295,43 @@ class BaseApp:
         ]
 
         if type(self) is not BaseApp:
-            # `test_hpcflow` is the same as `test` for the BaseApp
+            # `test_hpcflow` is the same as `test` for the BaseApp so no need to add both:
             commands.append(test_hpcflow)
 
         return commands
+
+    def _make_workflow_CLI(self):
+        """Generate the CLI for interacting with existing workflows."""
+
+        @click.group()
+        @click.argument("path", type=click.Path(exists=True))
+        @click.pass_context
+        def workflow(ctx, path):
+            """"""
+            wk = self.Workflow(path)
+            ctx.ensure_object(dict)
+            ctx.obj["workflow"] = wk
+
+        @workflow.command()
+        @click.pass_context
+        @click.option(
+            "--full",
+            is_flag=True,
+            default=False,
+            help="Show each event log item on a single line.",
+        )
+        @click.option(
+            "--max-line-length",
+            default=90,
+            help="Limit the maximum line length of the output.",
+        )
+        def log(ctx, full, max_line_length):
+            wk = ctx.obj["workflow"]
+            click.echo(
+                wk.event_log.format_events(full=full, max_line_length=max_line_length)
+            )
+
+        return workflow
 
     def _make_CLI(self):
         """Generate the root CLI for the app."""
@@ -345,6 +384,7 @@ class BaseApp:
         new_CLI.add_command(get_config_CLI(self))
         new_CLI.add_command(get_demo_software_CLI(self))
         new_CLI.add_command(get_helper_CLI(self))
+        new_CLI.add_command(self._make_workflow_CLI())
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 
@@ -404,8 +444,12 @@ class BaseApp:
         }
         shared_data = {}
         for k, v in cls_lookup.items():
-            shared_data[k] = v.from_json_like(json_like.get(k, {}), is_hashed=True)
-
+            shared_data_k = v.from_json_like(
+                json_like.get(k, {}),
+                shared_data=shared_data,
+                is_hashed=True,
+            )
+            shared_data[k] = shared_data_k
         return shared_data
 
 

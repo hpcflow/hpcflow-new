@@ -9,6 +9,7 @@ from hpcflow.sdk.core.errors import (
     ValuesAlreadyPersistentError,
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
+    WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
@@ -94,7 +95,7 @@ class SchemaParameter(JSONLike):
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_name="parameters",
             shared_data_primary_key="typ",
         ),
@@ -121,16 +122,19 @@ class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
     applied."""
 
+    _task_schema = None  # assigned by parent TaskSchema
+
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_name="parameters",
             shared_data_primary_key="typ",
         ),
         ChildObjectSpec(
             name="default_value",
             class_name="InputValue",
+            parent_ref="_schema_input",
         ),
         ChildObjectSpec(
             name="propagation_mode",
@@ -147,6 +151,10 @@ class SchemaInput(SchemaParameter):
     # elements from other tasks?
     group: Optional[str] = None
     where: Optional[ElementFilter] = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self._set_parent_refs()
 
     def __repr__(self) -> str:
 
@@ -170,6 +178,10 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
+    @property
+    def task_schema(self):
+        return self._task_schema
+
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
@@ -188,24 +200,6 @@ class SchemaInput(SchemaParameter):
     @property
     def input_or_output(self):
         return "input"
-
-    # @classmethod
-    # def from_json_like(cls, json_like):
-    #     kwargs = cls.prepare_from_json_like(json_like)
-    #     cls.app.logger.warn(f"SchemaInput.from_json_like: kwargs: {kwargs}")
-    #     return super().from_json_like(kwargs)
-
-    # @classmethod
-    # @required_keys(1, "parameter")
-    # @allowed_keys(1, "parameter", "default_value", "propagation_mode")
-    # @check_in_object_list(spec_name="parameter")
-    # def from_spec(cls, spec, parameters):
-    #     cls.app.logger.debug("SchemaInput.from_spec")
-    #     if "default_value" in spec:
-    #         spec["default_value"] = InputValue(
-    #             parameter=parameters[spec["parameter"]], value=spec["default_value"]
-    #         )
-    #     return super().from_spec(spec, parameters)
 
 
 @dataclass
@@ -237,14 +231,17 @@ class ValueSequence(JSONLike):
         path: str,
         nesting_order: int,
         values: List[Any],
+        is_unused: bool = False,
     ):
         self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
+        self.is_unused = is_unused
+
         self._values = values
 
         self._values_group_idx = None
         self._workflow = None
-        self._task = None  # assigned by parent Task
+        self._element_set = None  # assigned by parent ElementSet
 
         self._path_split = None  # assigned by property `path_split`
 
@@ -284,9 +281,19 @@ class ValueSequence(JSONLike):
             return self.path_split[1]
 
     @property
+    def input_path(self):
+        if self.path_type == "inputs":
+            return ".".join(self.path_split[2:]) or None
+
+    @property
     def resource_scope(self):
         if self.path_type == "resources":
             return self.path_split[1]
+
+    @property
+    def is_sub_value(self):
+        """True if the values are for a sub part of the parameter."""
+        return True if self.input_path else False
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -357,34 +364,54 @@ class ValueSequence(JSONLike):
                     )
                     raise ValueError(msg)
 
-    def _get_param_path(self):
-        return self.path  # TODO: maybe not needed?
+    @property
+    def normalised_path(self):
+        return self.path
+
+    @property
+    def normalised_inputs_path(self):
+        """Return the normalised path without the "inputs" prefix, if the sequence is an
+        inputs sequence, else return None."""
+
+        if self.parameter:
+            return ".".join(self.path_split[1:])
 
     def make_persistent(self, workflow):
         """Save value to a persistent workflow."""
 
-        # TODO: test raise
         if self._values_group_idx is not None:
-            raise ValuesAlreadyPersistentError(
-                f"{self.__class__.__name__} is already persistent."
-            )
+            is_new = False
+            param_group_idx = self._values_group_idx
+            if not all(workflow.check_parameter_group_exists(param_group_idx)):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
 
-        param_group_idx = []
-        for i in self._values:
-            pg_idx_i = workflow._add_parameter_group(i, is_set=True)
-            param_group_idx.append(pg_idx_i)
+        else:
+            param_group_idx = []
+            for i in self._values:
+                pg_idx_i = workflow._add_parameter_group(
+                    data=i,
+                    is_pending_add=workflow._in_batch_mode,
+                    is_set=True,
+                )
+                param_group_idx.append(pg_idx_i)
 
-        self._values_group_idx = param_group_idx
-        self._workflow = workflow
-        self._values = None
-        return {self._get_param_path(): param_group_idx}
+            is_new = True
+            self._values_group_idx = param_group_idx
+            self._workflow = workflow
+            self._values = None
+
+        return (self.normalised_path, param_group_idx, is_new)
 
     @property
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self._task:
-            return self._task.workflow_template.workflow
+        elif self._element_set:
+            return self._element_set.task_template.workflow_template.workflow
 
     @property
     def values(self):
@@ -429,10 +456,15 @@ class AbstractInputValue(JSONLike):
     _workflow = None
 
     def __repr__(self):
+        try:
+            value_str = f", value={self.value}"
+        except WorkflowParameterMissingError:
+            value_str = ""
+
         return (
             f"{self.__class__.__name__}("
-            f"_value_group_idx={self._value_group_idx}, "
-            f"value={self.value}"
+            f"_value_group_idx={self._value_group_idx}"
+            f"{value_str}"
             f")"
         )
 
@@ -451,24 +483,41 @@ class AbstractInputValue(JSONLike):
 
         Returns
         -------
-        dict of tuple : int
-            Single-item dict whose key is the data path for this task input and whose
-            value is the integer index of the parameter data Zarr group where the data is
+        (str, list of int)
+            String is the data path for this task input and single item integer list
+            contains the index of the parameter data Zarr group where the data is
             stored.
         """
 
-        param_group_idx = workflow._add_parameter_group(self._value, is_set=True)
-        self._value_group_idx = param_group_idx
-        self._workflow = workflow
-        self._value = None
-        return {self._get_param_path(): [param_group_idx]}
+        if self._value_group_idx is not None:
+            param_group_idx = self._value_group_idx
+            is_new = False
+            if not workflow.check_parameter_group_exists(param_group_idx):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
+        else:
+            param_group_idx = workflow._add_parameter_group(
+                data=self._value,
+                is_pending_add=workflow._in_batch_mode,
+                is_set=True,
+            )
+            is_new = True
+            self._value_group_idx = param_group_idx
+            self._value = None
+
+        return (self.normalised_path, [param_group_idx], is_new)
 
     @property
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self._task:
-            return self._task.workflow_template.workflow
+        elif self._element_set:
+            return self._element_set.task_template.workflow_template.workflow
+        elif self._schema_input:
+            return self._schema_input.task_schema.task_template.workflow_template.workflow
 
     @property
     def value(self):
@@ -500,7 +549,7 @@ class InputValue(AbstractInputValue):
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
-            class_name="SchemaInput",
+            class_name="Parameter",
             shared_data_primary_key="typ",
             shared_data_name="parameters",
         ),
@@ -508,19 +557,25 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Union[Parameter, SchemaInput, str],
+        parameter: Union[Parameter, str],
         value: Optional[Any] = None,
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
+        elif isinstance(parameter, SchemaInput):
+            parameter = parameter.parameter
 
         self.parameter = parameter
         self.path = (path.strip(".") if path else None) or None
         self._value = value
 
         self._value_group_idx = None  # assigned by method make_persistent
-        self._task = None  # assigned by parent Task
+        self._element_set = None  # assigned by parent ElementSet (if belonging)
+
+        # assigned by parent SchemaInput (if this object is a default value of a
+        # SchemaInput):
+        self._schema_input = None
 
     def __repr__(self):
 
@@ -532,10 +587,15 @@ class InputValue(AbstractInputValue):
         if self.path is not None:
             path_str = f", path={self.path!r}"
 
+        try:
+            value_str = f", value={self.value}"
+        except WorkflowParameterMissingError:
+            value_str = ""
+
         return (
             f"{self.__class__.__name__}("
-            f"parameter={self.parameter.typ!r}, "
-            f"value={self.value}"
+            f"parameter={self.parameter.typ!r}"
+            f"{value_str}"
             f"{path_str}"
             f"{val_grp_idx}"
             f")"
@@ -554,8 +614,13 @@ class InputValue(AbstractInputValue):
 
         return obj
 
-    def _get_param_path(self):
-        return f"inputs.{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
+    @property
+    def normalised_inputs_path(self):
+        return f"{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
+
+    @property
+    def normalised_path(self):
+        return f"inputs.{self.normalised_inputs_path}"
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
@@ -609,9 +674,14 @@ class ResourceSpec(JSONLike):
         param_strs = ""
         for i in self.ALLOWED_PARAMETERS:
             i_str = ""
-            i_val = getattr(self, i)
-            if i_val is not None:
-                i_str = f", {i}={i_val}"
+            try:
+                i_val = getattr(self, i)
+            except WorkflowParameterMissingError:
+                pass
+            else:
+                if i_val is not None:
+                    i_str = f", {i}={i_val}"
+
             param_strs += i_str
 
         return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
@@ -636,16 +706,23 @@ class ResourceSpec(JSONLike):
 
         return obj
 
-    def _get_param_path(self):
-        scope_str = ""
-        if self.scope.typ.name != self.app.ActionScopeType.ANY.name:
-            scope_str = f".{self.scope.to_string()}"
-        return f"resources{scope_str}"
+    @property
+    def normalised_resources_path(self):
+        return self.scope.to_string()
+
+    @property
+    def normalised_path(self):
+        return f"resources.{self.normalised_resources_path}"
 
     def to_dict(self):
         out = super().to_dict()
         if "_workflow" in out:
             del out["_workflow"]
+
+        if self._value_group_idx is not None:
+            # only store pointer to persistent data:
+            out = {k: v for k, v in out.items() if k in ["_value_group_idx", "scope"]}
+
         out = {k.lstrip("_"): v for k, v in out.items()}
         return out
 
@@ -664,19 +741,34 @@ class ResourceSpec(JSONLike):
 
         Returns
         -------
-        dict of tuple : int
-            Single-item dict whose key is the data path for this task input and whose
-            value is the integer index of the parameter data Zarr group where the data is
+
+        (str, list of int)
+            String is the data path for this task input and integer list
+            contains the indices of the parameter data Zarr groups where the data is
             stored.
         """
-        param_group_idx = workflow._add_parameter_group(self._get_members(), is_set=True)
-        self._value_group_idx = param_group_idx
-        self._workflow = workflow
+        if self._value_group_idx is not None:
+            param_group_idx = self._value_group_idx
+            is_new = False
+            if not workflow.check_parameter_group_exists(param_group_idx):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
+        else:
+            param_group_idx = workflow._add_parameter_group(
+                data=self._get_members(),
+                is_pending_add=workflow._in_batch_mode,
+                is_set=True,
+            )
+            is_new = True
+            self._value_group_idx = param_group_idx
+            self._workflow = workflow
+            self._num_cores = None
+            self._scratch = None
 
-        self._num_cores = None
-        self._scratch = None
-
-        return {self._get_param_path(): [param_group_idx]}
+        return (self.normalised_path, [param_group_idx], is_new)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
@@ -685,7 +777,7 @@ class ResourceSpec(JSONLike):
         else:
             val = self._get_members()
         if value_name:
-            val = val[value_name]
+            val = val.get(value_name)
 
         return val
 
@@ -701,12 +793,12 @@ class ResourceSpec(JSONLike):
     def workflow(self):
         if self._workflow:
             return self._workflow
-        elif self.task:
-            return self.task.workflow_template.workflow
+        elif self.element_set:
+            return self.element_set.task_template.workflow_template.workflow
 
     @property
-    def task(self):
-        return self._resource_list.task
+    def element_set(self):
+        return self._resource_list.element_set
 
 
 class InputSourceType(enum.Enum):
@@ -750,6 +842,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
+        elements=None,
         path=None,
         where=None,
     ):
@@ -758,6 +851,7 @@ class InputSource(JSONLike):
         self.import_ref = import_ref
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
+        self.elements = elements
         self.where = where
         self.path = path
 
@@ -778,6 +872,7 @@ class InputSource(JSONLike):
             and self.import_ref == other.import_ref
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
+            and self.elements == other.elements
             and self.where == other.where
             and self.path == other.path
         ):
@@ -786,12 +881,25 @@ class InputSource(JSONLike):
             return False
 
     def __repr__(self) -> str:
-        members = {k: v for k, v in self.__dict__.items() if v is not None}
-        return (
-            f"{self.__class__.__name__}("
-            f'{", ".join([f"{k}={repr(v)}" for k, v in members.items()])}'
-            f")"
-        )
+        cls_method_name = self.source_type.name.lower()
+
+        if self.source_type is InputSourceType.IMPORT:
+            cls_method_name += "_"
+            args = f"import_ref={self.import_ref}"
+
+        elif self.source_type is InputSourceType.TASK:
+            args = (
+                f"task_ref={self.task_ref}, "
+                f"task_source_type={self.task_source_type.name.lower()}"
+            )
+            if self.elements:
+                args += f", elements={self.elements}"
+        else:
+            args = ""
+
+        out = f"{self.__class__.__name__}.{cls_method_name}({args})"
+
+        return out
 
     def get_task(self, workflow):
         """If source_type is task, then return the referenced task from the given
@@ -801,10 +909,28 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
+    def is_in(self, other_input_sources):
+        """Check if this input source is in a list of other input sources, without
+        considering the `elements` attribute."""
+
+        for other in other_input_sources:
+            if (
+                self.source_type == other.source_type
+                and self.import_ref == other.import_ref
+                and self.task_ref == other.task_ref
+                and self.task_source_type == other.task_source_type
+                and self.where == other.where
+                and self.path == other.path
+            ):
+                return True
+        return False
+
     def to_string(self):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]
+            if self.elements:
+                out += ["[" + ",".join(f"{i}" for i in self.elements) + "]"]
         elif self.source_type is InputSourceType.IMPORT:
             out += [str(self.import_ref)]
         return ".".join(out)
@@ -914,13 +1040,14 @@ class InputSource(JSONLike):
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None):
+    def task(cls, task_ref, task_source_type=None, elements=None):
         if not task_source_type:
             task_source_type = TaskSourceType.OUTPUT
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
+            elements=elements,
         )
 
 
@@ -929,15 +1056,3 @@ class ParameterValue:
     @property
     def value(self):
         pass
-
-
-@dataclass
-class AvailableInputSources:
-    """Container for listing the available sources for a given input within a task."""
-
-    # TODO: should this be a list of `InputSource`?
-
-    has_local: bool
-    has_default: bool
-    tasks: Dict
-    imports: Dict

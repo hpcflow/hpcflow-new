@@ -1,378 +1,46 @@
 from __future__ import annotations
+from contextlib import contextmanager
+import copy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
+import shutil
+import time
 from typing import List, Optional
-from pprint import pprint
 from warnings import warn
 
 import zarr
+from reretry import retry
 
-from .element import Element
+from .event_log import EventLog
 from .json_like import ChildObjectSpec, JSONLike
 from .zarr_io import zarr_encode
-from .object_list import WorkflowTaskList
 from .parameters import InputSource
-from .loop import Loop
-from .task import Task, WorkflowTask
-from .task_schema import TaskSchema
-from .utils import group_by_dict_key_values, read_YAML_file
-from .errors import InvalidInputSourceTaskReference, WorkflowNotFoundError
+from .task import ElementSet, Task
+from .utils import get_md5_hash, group_by_dict_key_values, read_YAML, read_YAML_file
+from .errors import (
+    InvalidInputSourceTaskReference,
+    WorkflowBatchUpdateFailedError,
+    WorkflowNotFoundError,
+    WorkflowParameterMissingError,
+)
 
-TS_FMT = r"%Y.%m.%d_%H:%M:%S_%z"
+TS_FMT = r"%Y.%m.%d_%H:%M:%S.%f_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
-# class WorkflowTemplateOld(JSONLike):
+def dropbox_retry_fail(err):
+    # TODO: this should log instead of printing!
+    print("retrying...")
 
-#     _child_objects = (
-#         ChildObjectSpec(
-#             name="tasks",
-#             class_name="TaskTemplate",
-#             is_multiple=True,
-#         ),
-#     )
 
-#     def __init__(
-#         self,
-#         tasks: Optional[List[TaskTemplate]] = None,
-#         loops: Optional[List[Loop]] = None,
-#     ):
-
-#         self.parameter_data = []
-#         self.parameter_mapping = []
-#         self.elements = []
-#         self.tasks = TaskList([])
-#         self.element_indices = []
-#         self.name_repeat_indices = []
-
-#         for task in tasks or []:
-#             self.add_task(task)
-
-#     @classmethod
-#     def from_YAML_file(cls, path):
-#         dat = read_YAML_file(path)
-#         return cls.from_json_like(dat, shared_data=cls.app.app_data)
-
-#     @classmethod
-#     def from_JSON_file(cls, path):
-#         dat = read_JSON_file(path)
-#         return cls.from_json_like(dat, shared_data=cls.app.app_data)
-
-#     def get_possible_input_sources(
-#         self, schema_input: SchemaInput, new_task: TaskTemplate, new_index: int
-#     ):
-#         """Enumerate the possible sources for an input of a new task, given a proposed
-#         placement of that task."""
-
-#         # Get parameters provided by tasks up to `new_index`:
-#         task_sources = {}
-#         for task in self.tasks[:new_index]:
-#             provided = tuple(
-#                 i for i in task.template.provides_parameters if i.typ == schema_input.typ
-#             )
-#             if provided:
-#                 task_sources.update({(task.index, task.unique_name): provided})
-
-#         out = {
-#             "imports": {},
-#             "tasks": task_sources,
-#             "has_local": schema_input.typ in new_task.defined_input_types,
-#             # TODO: there *might* be local definition of a parameter in the form of the input files/writers specified?
-#             "has_default": schema_input.default_value is not None,
-#         }
-#         return out
-
-#     def ensure_input_sources(self, new_task: TaskTemplate, new_index: int):
-#         """Check valid input sources are specified for a new task to be added to the
-#         workflow in a given position. If none are specified, set them according to the
-#         default behaviour."""
-
-#         all_sources = {}
-#         for schema_input in new_task.all_schema_inputs:
-
-#             all_sources.update(
-#                 {
-#                     schema_input.typ: self.get_possible_input_sources(
-#                         schema_input, new_task, new_index
-#                     )
-#                 }
-#             )
-
-#             # if sources are specified, check they are resolvable:
-#             for specified_source in new_task.input_sources.get(schema_input.typ, []):
-#                 specified_source.validate(schema_input, new_task, self)
-
-#         print(f"\nall_sources: {all_sources}")
-#         print(f"new_task.unsourced_inputs: {new_task.unsourced_inputs}")
-
-#         # if an input is not specified at all in the `inputs` dict (what about when list?),
-#         # then check if there is an input files entry for associated inputs,
-#         # if there is
-
-#         # set source for any unsourced inputs:
-#         for input_type in new_task.unsourced_inputs:
-#             inp_i_sources = all_sources[input_type]
-
-#             print(f"sources: {inp_i_sources}")
-
-#             # input may not be required
-
-#             # set source for this input:
-#             if inp_i_sources["has_local"]:
-#                 new_sources = [InputSource("local")]
-
-#             elif inp_i_sources["tasks"]:
-#                 # we can only take parameters with implicit propagation mode:
-#                 params_info = []
-#                 for (task_idx, task_name), params in inp_i_sources["tasks"].items():
-#                     for i in params:
-#                         if i.propagation_mode == ParameterPropagationMode.IMPLICIT:
-#                             params_info.append((i.input_or_output, task_idx, task_name))
-
-#                 # sort by output/input (output first), then by task index (highest first):
-#                 params_info = sorted(
-#                     params_info, key=itemgetter(0, 1), reverse=True
-#                 )  # TODO: TEST THIS!!!
-#                 new_sources = [
-#                     InputSource(f"tasks.{params_info[0][2]}.{params_info[0][0]}s")
-#                 ]
-
-#             else:
-#                 # input may not need defining (if all associated input files are passed
-#                 # and the input does not appear in any action commands)
-#                 new_sources = None
-
-#             new_task.input_sources.update({input_type: new_sources})
-
-#     def add_task(self, task_template: Task):
-
-#         # TODO: can't do this check yet because required inputs of different elements may be different
-#         # e.g. if an input file is passed for some elements but not others.
-
-#         self.ensure_input_sources(
-#             task_template, len(self.tasks)
-#         )  # modifies task_template.input_sources
-#         # at this point the source for each input should be decided and well-defined.
-
-#         element_indices = []
-
-#         add_sequences = [  # treat the base inputs and resources as single-item sequences:
-#             ValueSequence(
-#                 path=["inputs"],
-#                 values=[
-#                     {
-#                         param.parameter.typ: param.value
-#                         for param in task_template.get_non_sub_parameter_input_values()
-#                     }
-#                 ],
-#                 nesting_order=-1,
-#             ),
-#             ValueSequence(
-#                 path=["resources"],
-#                 values=[task_template.resources],
-#                 nesting_order=-1,
-#             ),
-#         ]
-
-#         # treat sub-parameter input values as single-item sequences
-#         for i in task_template.get_sub_parameter_input_values():
-#             add_sequences.append(
-#                 ValueSequence(
-#                     path=["inputs", i.parameter.typ] + i.path,
-#                     values=[i.value],
-#                     nesting_order=-1,
-#                 )
-#             )
-
-#         multi = []
-#         input_map_indices = {}
-
-#         sequences = add_sequences + task_template.sequences
-#         for i in sequences:
-#             # add each sequence data:
-#             next_param_idx = len(self.parameter_data)
-#             num_values = len(i.values)
-#             self.parameter_data.extend([{"is_set": True, "data": j} for j in i.values])
-#             self.parameter_mapping.append(
-#                 list(range(next_param_idx, next_param_idx + num_values))
-#             )
-#             param_map_idx = len(self.parameter_mapping) - 1
-#             input_map_indices[tuple(i.path)] = param_map_idx
-#             nesting_order_i = (
-#                 task_template.nesting_order[tuple(i.path)] if num_values > 1 else -1
-#             )
-#             multi.append(
-#                 {
-#                     "multiplicity": num_values,
-#                     "nesting_order": nesting_order_i,
-#                     "address": i.path,
-#                 }
-#             )
-
-#         init_multi = WorkflowTemplateOld.resolve_initial_elements(multi)
-#         output_map_indices = {}
-#         num_elems = len(init_multi)
-#         for schema in task_template.schemas:
-#             for output in schema.outputs:
-#                 next_dat_idx = len(self.parameter_data)
-#                 next_map_idx = len(self.parameter_mapping)
-#                 out_data = [{"is_set": False, "data": None} for _ in range(num_elems)]
-#                 out_param_map = list(range(next_dat_idx, next_dat_idx + num_elems))
-#                 self.parameter_data.extend(out_data)
-#                 self.parameter_mapping.append(out_param_map)
-#                 output_map_indices[output.typ] = next_map_idx
-
-#         for i_idx, i in enumerate(init_multi):
-#             element_indices.append(len(self.elements))
-#             self.elements.append(
-#                 {
-#                     "inputs": [
-#                         {
-#                             "path": k,
-#                             "parameter_mapping_index": input_map_indices[tuple(k)],
-#                             "data_index": v,
-#                         }
-#                         for k, v in i["value_index"].items()
-#                     ],
-#                     "outputs": [
-#                         {
-#                             "path": ("outputs", k),
-#                             "parameter_mapping_index": v,
-#                             "data_index": i_idx,
-#                         }
-#                         for k, v in output_map_indices.items()
-#                     ],
-#                 }
-#             )
-
-#         self.element_indices.append(element_indices)
-#         self.name_repeat_indices.append(
-#             sum(i.template.name == task_template.name for i in self.tasks) + 1
-#         )
-#         task = Task(task_template, self, len(self.tasks))
-#         self.tasks.add_object(task)
-
-#     @staticmethod
-#     def resolve_initial_elements(multi):
-#         """
-#         Parameters
-#         ----------
-#         multi : list of dict
-#             Each list item represents a sequence of values with keys:
-#                 multiplicity: int
-#                 nesting_order: int
-#                 address : str
-#         """
-
-#         # order by nesting order (so lower nesting orders will be fastest-varying):
-#         multi_srt = sorted(multi, key=lambda x: x["nesting_order"])
-#         multi_srt_grp = group_by_dict_key_values(multi_srt, "nesting_order")
-
-#         elements = [{"value_index": {}}]
-#         for para_sequences in multi_srt_grp:
-
-#             # check all equivalent nesting_orders have equivalent multiplicities
-#             all_multis = {i["multiplicity"] for i in para_sequences}
-#             if len(all_multis) > 1:
-#                 raise ValueError(
-#                     f"All sequences with the same `nesting_order` must have the same "
-#                     f"multiplicity, but found multiplicities {list(all_multis)!r} for "
-#                     f"`nesting_order` of {para_sequences[0]['nesting_order']}."
-#                 )
-
-#             new_elements = []
-#             for val_idx in range(para_sequences[0]["multiplicity"]):
-#                 for element in elements:
-#                     new_elements.append(
-#                         {
-#                             "value_index": {
-#                                 **element["value_index"],
-#                                 **{i["address"]: val_idx for i in para_sequences},
-#                             }
-#                         }
-#                     )
-#             elements = new_elements
-
-#         return elements
-
-#     def add_task_after(self, task):
-#         pass
-
-#     def add_task_before(self, task):
-#         pass
-
-#     def remove_task(self, task):
-#         pass
-
-#     def get_input_values(self, task_index, parameter_path):
-#         """Get the value of an input for each element in a task."""
-#         return [
-#             self.get_input_value(
-#                 task_index=task_index, element_index=i, parameter_path=parameter_path
-#             )
-#             for i in range(self.tasks[task_index].num_elements)
-#         ]
-
-#     def get_input_value(self, task_index, element_index, parameter_path):
-
-#         element = self.elements[self.tasks[task_index].element_indices[element_index]]
-#         current_value = None
-#         for input_i in element["inputs"]:
-
-#             param_data_idx = self.parameter_mapping[input_i["parameter_mapping_index"]][
-#                 input_i["data_index"]
-#             ]
-
-#             is_parent = False
-#             is_update = False
-#             try:
-#                 rel_path_parts = get_relative_path(parameter_path, input_i["path"])
-#                 is_parent = True
-#             except ValueError:
-#                 try:
-#                     update_path = get_relative_path(input_i["path"], parameter_path)
-#                     is_update = True
-#                 except ValueError:
-#                     pass
-
-#             if is_parent:
-#                 # replace current value:
-#                 final_data_path = (param_data_idx, "data", *rel_path_parts)
-#                 try:
-#                     current_value = get_in_container(
-#                         self.parameter_data, final_data_path
-#                     )  # or use Zarr to get from persistent
-#                 except TypeError:
-#                     # import traceback
-
-#                     # traceback.print_exc()
-#                     pass
-
-#             elif is_update:
-#                 # update sub-part of current value
-#                 update_data = self.parameter_data[param_data_idx][
-#                     "data"
-#                 ]  # or use Zarr to get from persistent
-#                 set_in_container(current_value, update_path, update_data)
-
-#         return current_value
-
-#     def make_workflow(self, path):
-#         # TODO: make the workflow and save to path
-#         wk = Workflow(path)
-#         return wk
-
-#     @classmethod
-#     def from_spec(cls, spec, all_schemas, all_parameters):
-
-#         # initialise task templates:
-#         tasks = []
-#         for i in spec.pop("tasks"):
-#             tasks.append(TaskTemplate.from_spec(i, all_schemas, all_parameters))
-#         spec["task_templates"] = tasks
-
-#         return cls(**spec)
+# TODO: maybe this is only an issue on Windows?
+dropbox_permission_err_retry = retry(
+    PermissionError,
+    tries=10,
+    delay=1,
+    backoff=2,
+    fail_callback=dropbox_retry_fail,
+)
 
 
 @dataclass
@@ -397,10 +65,28 @@ class WorkflowTemplate(JSONLike):
         self._set_parent_refs()
 
     @classmethod
-    def from_YAML_file(cls, path):
-        dat = read_YAML_file(path)
+    def _from_data(cls, data):
         cls.app._ensure_data_files()  # TODO: fix this at App
-        return cls.from_json_like(dat, shared_data=cls.app.app_data)
+
+        # use element_sets if not already:
+        for task_idx, task_dat in enumerate(data["tasks"]):
+            if "element_sets" not in task_dat:
+                # add a single element set:
+                elem_set = {}
+                for chd_obj in ElementSet._child_objects:
+                    if chd_obj.name in task_dat:
+                        elem_set[chd_obj.name] = task_dat.pop(chd_obj.name)
+                data["tasks"][task_idx]["element_sets"] = [elem_set]
+
+        return cls.from_json_like(data, shared_data=cls.app.app_data)
+
+    @classmethod
+    def from_YAML_string(cls, string):
+        return cls._from_data(read_YAML(string))
+
+    @classmethod
+    def from_YAML_file(cls, path):
+        return cls._from_data(read_YAML_file(path))
 
 
 class Workflow:
@@ -413,18 +99,20 @@ class Workflow:
 
         self.path = path
 
-        root = self._get_workflow_root_group(mode="r")
+        self._set_original_metadata()
+        self._metadata = copy.deepcopy(self._original_metadata)  # "working copy"
 
-        self._persistent_metadata = root.attrs.asdict()
+        self.event_log = EventLog(self)
 
         self._shared_data = None
         self._tasks = None
         self._elements = None
         self._template = None
 
-        self.history = root.attrs["history"]
+        self._in_batch_mode = False  # flag to track when processing batch updates
+        self._batch_mode_parameter_data = {}
 
-    def _get_workflow_root_group(self, mode):
+    def _get_workflow_root_group(self, mode="r"):
         try:
             return zarr.open(self.path, mode=mode)
         except zarr.errors.PathNotFoundError:
@@ -432,11 +120,18 @@ class Workflow:
                 f"No workflow found at path: {self.path}"
             ) from None
 
+    def _get_workflow_parameter_group(self, mode="r"):
+        return self._get_workflow_root_group(mode=mode).parameter_data
+
+    @property
+    def metadata(self):
+        return self._metadata
+
     @property
     def shared_data(self):
         if not self._shared_data:
             self._shared_data = self.app.shared_data_from_json_like(
-                self._persistent_metadata["shared_data"]
+                self.metadata["shared_data"]
             )
         return self._shared_data
 
@@ -444,7 +139,7 @@ class Workflow:
     def template(self):
         if not self._template:
             self._template = self.app.WorkflowTemplate.from_json_like(
-                self._persistent_metadata["template"],
+                self.metadata["template"],
                 self.shared_data,
             )
             self._template.workflow = self
@@ -459,34 +154,48 @@ class Workflow:
                     self.app.WorkflowTask(
                         workflow=self, template=self.template.tasks[idx], index=idx, **i
                     )
-                    for idx, i in enumerate(self._persistent_metadata["tasks"])
+                    for idx, i in enumerate(self.metadata["tasks"])
                 ]
             )
         return self._tasks
 
     @property
     def num_tasks(self):
-        return len(self._persistent_metadata["tasks"])
+        return len(self.metadata["tasks"])
 
     @property
     def num_elements(self):
-        return len(self._persistent_metadata["elements"])
+        return len(self.metadata["elements"])
 
     @property
     def elements(self):
         if not self._elements:
-            self._elements = [
-                self.app.Element(
-                    task=task, data_index=self._persistent_metadata["elements"][i]
-                )
-                for task in self.tasks
-                for i in task.element_indices
-            ]
+            self._elements = sorted(
+                [
+                    self.app.Element(
+                        task=task,
+                        data_index=self.metadata["elements"][i],
+                        global_index=i,
+                    )
+                    for task in self.tasks
+                    for i in task.element_indices
+                ],
+                key=lambda x: x.global_index,
+            )
         return self._elements
 
     @property
     def task_name_repeat_idx(self):
-        return self._persistent_metadata["task_name_repeat_idx"]
+        return self.metadata["task_name_repeat_idx"]
+
+    @staticmethod
+    @dropbox_permission_err_retry
+    def _write_persistent_workflow(store, overwrite, root_attrs):
+        """Write the empty workflow data to the zarr store on disk."""
+        root = zarr.group(store=store, overwrite=overwrite)
+        root.attrs.update(root_attrs)
+        root.create_group("parameter_data")
+        EventLog.generate_in(root)
 
     @classmethod
     def _make_empty_workflow(
@@ -504,54 +213,40 @@ class Workflow:
 
         cls.app._ensure_data_files()  # TODO: fix this at App
 
-        timestamp = datetime.now(timezone.utc).astimezone()
-        history = {
-            "timestamp_format": TS_FMT,
-            "events": [
-                {
-                    "type": "create",
-                    "at": timestamp.strftime(TS_FMT),
-                    "machine": cls.app.config.get("machine"),
-                }
-            ],
-        }
+        timestamp = EventLog.get_timestamp()
 
         path = Path(path or "").resolve()
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
         path = path.joinpath(name)
 
-        # TODO: extra out input values from template and save in zarr parameter data
-
         template_js, template_sh = template.to_json_like()
-        # print(f"template_js: {template_js}")
-        # print(f"template_sh: {template_sh}")
 
+        store = zarr.DirectoryStore(path)
         root_attrs = {
-            "history": history,
             "shared_data": template_sh,
             "template": template_js,
-            "parameter_mapping": [],
             "elements": [],
             "tasks": [],
             "task_name_repeat_idx": [],
         }
+        cls._write_persistent_workflow(store, overwrite, root_attrs)
 
-        # TODO: intermittent Dropbox permission error; wrap in exception are retry?
-        store = zarr.DirectoryStore(path)
-        root = zarr.group(store=store, overwrite=overwrite)
-        root.attrs.update(root_attrs)
+        obj = cls.load(path)
+        obj.event_log.event_workflow_create(
+            timestamp=timestamp,
+            machine=obj.app.config.get("machine"),
+        )
 
-        root.create_group("parameter_data")
-
-        return cls.load(path)
+        return obj
 
     @classmethod
     def from_template(cls, template, path=None, name=None, overwrite=False):
         tasks = template.__dict__.pop("tasks") or []
         template.tasks = []
         obj = cls._make_empty_workflow(template, path, name, overwrite)
-        for task in tasks:
-            obj.add_task(task)
+        with obj.batch_update(is_workflow_creation=True):
+            for task in tasks:
+                obj._add_task(task, parent_events=[0])
         return obj
 
     @classmethod
@@ -563,6 +258,28 @@ class Workflow:
     def load(cls, path):
         """Alias for object initialisation."""
         return cls(path)
+
+    def copy(self, path=None):
+        """Copy the workflow to a new path and return the copied workflow."""
+        path = self.path.with_suffix(".copy") if path is None else path
+        if path.exists():
+            raise ValueError(f"Path already exists: {path}.")
+        shutil.copytree(self.path, path)
+        return self.load(path)
+
+    @dropbox_permission_err_retry
+    def _delete_no_confirm(self):
+        # Dropbox (on Windows, at least) seems to try to re-sync some of the workflow
+        # files if it is deleted soon after creation, which is the case on a failed
+        # workflow creation (e.g. missing inputs):
+        while self.path.is_dir():
+            shutil.rmtree(self.path)
+            time.sleep(0.5)
+
+    def delete(self):
+        """Delete the persistent workflow."""
+        # TODO: add confirmation
+        self._delete_no_confirm()
 
     def _resolve_input_source_task_reference(
         self, input_source: InputSource, new_task_name: str
@@ -599,55 +316,132 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
-    def ensure_input_sources(self, new_task: Task, new_index: int, new_name: str):
-        """Check valid input sources are specified for a new task to be added to the
-        workflow in a given position. If none are specified, set them according to the
-        default behaviour."""
+    def _clear_children(self):
+        """Force re-initialisation of workflow attributes from metadata on next access."""
 
-        # TODO: order sources by preference so can just take first in the case of input
-        # source mode AUTO?
-        available_sources = new_task.get_available_task_input_sources(
-            self.template.tasks[:new_index]
-        )
-
-        # TODO: get available input sources from workflow imports
-
-        # check any specified sources are valid:
-        for schema_input in new_task.all_schema_inputs:
-            for specified_source in new_task.input_sources.get(schema_input.typ, []):
-                self._resolve_input_source_task_reference(specified_source, new_name)
-                if specified_source not in available_sources[schema_input.typ]:
-                    raise ValueError(
-                        f"The input source {specified_source.to_string()!r} is not "
-                        f"available for schema input {schema_input!r}. Available "
-                        f"input sources are: "
-                        f"{[i.to_string() for i in available_sources[schema_input.typ]]}"
-                    )
-
-        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
-        # then check if there is an input files entry for associated inputs,
-        # if there is
-
-        # set source for any unsourced inputs:
-        for input_type in new_task.unsourced_inputs:
-            inp_i_sources = available_sources[input_type]
-            new_task.input_sources.update({input_type: [inp_i_sources[0]]})
-
-    def _dump_persistent_metadata(self):
-
-        # invalidate workflow attributes to force re-init on access:
         self._tasks = None
         self._elements = None
         self._template = None
         self._shared_data = None
-        self._template = None
 
-        root = self._get_workflow_root_group(mode="r+")
-        root.attrs.put(self._persistent_metadata)
+    def _discard_changed_metadata(self):
+        """Discard the working-copy of the metadata and re-load the original persistent
+        copy."""
+        self._metadata = copy.deepcopy(self._original_metadata)
+
+    def _set_original_metadata(self):
+        self._original_metadata = self._get_workflow_root_group(mode="r").attrs.asdict()
+
+    def _dump_metadata(self):
+        self._get_workflow_root_group(mode="r+").attrs.put(self.metadata)
+        self._set_original_metadata()
+        self._clear_children()
+
+    def _get_pending_add_parameter_keys(self):
+        keys = []
+        for grp_idx, val in self._get_parameter_items(mode="r"):
+            if "is_pending_add" in val.attrs:
+                keys.append(grp_idx)
+        return keys
+
+    def _accept_new_parameters(self):
+        """Remove the pending flag from newly added parameters so they integrate with the
+        workflow."""
+
+        param_group = self._get_workflow_parameter_group(mode="r+")
+        for key in self._get_pending_add_parameter_keys():
+            # print(f"_accept_new_parameters: {grp_idx}")  # TODO: log this
+            del param_group[key].attrs["is_pending_add"]
+
+    def _save_metadata(self):
+        """Make changes to the metadata attribute effective."""
+        self._clear_children()
+        if not self._in_batch_mode:
+            self._dump_metadata()
+
+    def _discard_new_parameters(self):
+        """Remove newly added parameter data from the workflow, in the case where a batch
+        update failed."""
+
+        param_group = self._get_workflow_parameter_group(mode="r+")
+        for grp_idx, val in param_group.items():
+            if "is_pending_add" in val.attrs:
+                # print(f"_discard_new_parameters: {grp_idx}")  # TODO: log this
+                self._remove_parameter_group(param_group, grp_idx)
+
+    def _check_is_modified_on_disk(self):
+        """Check if the workflow metadata has changed on disk since we loaded it."""
+        # TODO: check parameters and event log as well
+        md_mem = self._original_metadata
+        md_disk = self._get_workflow_root_group(mode="r").attrs.asdict()
+        return get_md5_hash(md_disk) != get_md5_hash(md_mem)
+
+    def _check_is_modified(self):
+        """Check if the workflow structure as stored in memory has changed at all."""
+
+        if self.event_log.has_unsaved_events:
+            return True
+
+        md_original = self._original_metadata
+        md = self.metadata
+        md_changed = get_md5_hash(md_original) != get_md5_hash(md)
+        if md_changed:
+            return True
+
+        for val in self._get_parameter_values():
+            if "is_pending_add" in val.attrs:
+                return True
+
+        return False
+
+    @contextmanager
+    def batch_update(self, is_workflow_creation=False):
+        """A context manager that batches up structural changes to the workflow and
+        executes them together when the context manager exits.
+
+        This reduces the number of writes to disk and means we don't have to roll-back
+        if an exception is raised halfway through a change.
+
+        """
+
+        if self._in_batch_mode:
+            yield
+        else:
+            try:
+                self._in_batch_mode = True
+                yield
+
+            except Exception as err:
+
+                self._in_batch_mode = False
+                self._discard_changed_metadata()
+                self._discard_new_parameters()
+                self.event_log.discard_new_events()
+                if is_workflow_creation:
+                    # creation failed, so no need to keep the newly generated workflow:
+                    self._delete_no_confirm()
+                raise err
+
+            else:
+                self._in_batch_mode = False
+
+                if self._check_is_modified_on_disk():
+                    raise WorkflowBatchUpdateFailedError(
+                        "Workflow modified on disk since it was loaded!"
+                    )
+
+                elif self._check_is_modified():
+                    self._dump_metadata()
+                    self._accept_new_parameters()
+                    self.event_log.dump_new_events()
 
     def get_zarr_parameter_group(self, group_idx):
-        root = self._get_workflow_root_group(mode="r")
-        return root.get(f"parameter_data/{group_idx}")
+        grp = self._get_workflow_parameter_group(mode="r").get(str(group_idx))
+        if grp is None:
+            raise WorkflowParameterMissingError(
+                f"Workflow parameter with group index {group_idx} does not exist."
+            )
+        return grp
 
     @staticmethod
     def resolve_element_data_indices(multiplicities):
@@ -684,9 +478,11 @@ class Workflow:
             all_multis = {i["multiplicity"] for i in para_sequences}
             if len(all_multis) > 1:
                 raise ValueError(
-                    f"All sequences with the same `nesting_order` must have the same "
-                    f"multiplicity, but found multiplicities {list(all_multis)!r} for "
-                    f"`nesting_order` of {para_sequences[0]['nesting_order']}."
+                    f"All inputs with the same `nesting_order` must have the same "
+                    f"multiplicity, but for paths "
+                    f"{[i['path'] for i in para_sequences]} with `nesting_order` "
+                    f"{para_sequences[0]['nesting_order']} found multiplicities "
+                    f"{[i['multiplicity'] for i in para_sequences]}."
                 )
 
             new_elements = []
@@ -702,29 +498,53 @@ class Workflow:
 
         return element_dat_idx
 
-    def _add_parameter_group(self, data, is_set):
+    def _add_parameter_group(self, data, is_pending_add, is_set):
 
-        root = self._get_workflow_root_group(mode="r+")
-        param_dat_group = root.get("parameter_data")
+        param_dat_group = self._get_workflow_parameter_group(mode="r+")
 
         names = [int(i) for i in param_dat_group.keys()]
         new_idx = max(names) + 1 if names else 0
         new_name = str(new_idx)
 
         new_param_group = param_dat_group.create_group(name=new_name)
-        zarr_encode(data, new_param_group)
+        zarr_encode(data, new_param_group, is_pending_add, is_set)
 
         return new_idx
 
+    @dropbox_permission_err_retry
+    def _remove_parameter_group(self, param_group, group_idx):
+        """Since removal of a parameter group may happen soon after it is added (in the
+        case a batch update goes wrong), we may run into dropbox sync issues, hence the
+        decorator."""
+
+        del param_group[str(group_idx)]
+
+    def check_parameter_group_exists(self, group_idx):
+
+        is_multi = True
+        if not isinstance(group_idx, (list, tuple)):
+            is_multi = False
+            group_idx = [group_idx]
+
+        param_group = self._get_workflow_parameter_group(mode="r")
+        out = [str(i) in param_group for i in group_idx]
+        if not is_multi:
+            out = out[0]
+
+        return out
+
     def generate_new_elements(
-        self, input_data_indices, output_data_indices, element_data_indices
+        self,
+        input_data_indices,
+        output_data_indices,
+        element_data_indices,
+        input_sources,
+        sequence_indices,
     ):
 
-        # print(f"input_data_indices: {input_data_indices}")
-        # print(f"output_data_indices: {output_data_indices}")
-        # print(f"element_data_indices: {element_data_indices}")
-
         new_elements = []
+        element_inp_sources = {}
+        element_sequence_indices = {}
         for i_idx, i in enumerate(element_data_indices):
             elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update(
@@ -739,7 +559,31 @@ class Workflow:
 
             new_elements.append(elem_i)
 
-        return new_elements
+            # track input sources for each new element:
+            for k, v in i.items():
+                if k in input_sources:
+                    if k not in element_inp_sources:
+                        element_inp_sources[k] = []
+                    element_inp_sources[k].append(input_sources[k][v])
+
+            # track which sequence value indices (if any) are used for each new element:
+            for k, v in i.items():
+                if k in sequence_indices:
+                    if k not in element_sequence_indices:
+                        element_sequence_indices[k] = []
+                    element_sequence_indices[k].append(sequence_indices[k][v])
+
+        return new_elements, element_inp_sources, element_sequence_indices
+
+    def _get_parameter_keys(self):
+        return list(int(i) for i in self._get_workflow_parameter_group().keys())
+
+    def _get_parameter_items(self, mode="r"):
+        for k, v in self._get_workflow_parameter_group(mode=mode).items():
+            yield (int(k), v)
+
+    def _get_parameter_values(self):
+        return self._get_workflow_parameter_group().values()
 
     def get_task_unique_names(self, map_to_insert_ID=False):
         """Return the unique names of all workflow tasks.
@@ -767,61 +611,70 @@ class Workflow:
 
         return uniq_names[new_index]
 
-    def add_task(self, task: Task, new_index=None):
+    def _add_empty_task(self, task: Task, parent_events, new_index=None):
 
         if new_index is None:
             new_index = self.num_tasks
 
         new_task_name = self._get_new_task_unique_name(task, new_index)
-        self.ensure_input_sources(task, new_index, new_task_name)
 
-        # TODO: also save the original Task object, since it may be modified before
-        # adding to the workflow
-
-        # TODO: think about ability to change input sources? (in the context of adding a new task)
-        # what happens when new insert a new task and it outputs a parameter that is used by a downstream task?
-        # does it depend on what we originally specify as the downstream tasks's input sources?
-
-        # add input source type "auto" (which is set by default)
-        # then a "resolved source" property which is resolved to a specific source depending on the available sources?
-
-        # TODO: perhaps refactor into an `add_elements` that can also be used to add
-        # elements to a pre-existing task?
-
-        input_data_idx = task.make_persistent(self)
-        multiplicities = task.prepare_element_resolution(input_data_idx)
-        element_data_idx = self.resolve_element_data_indices(multiplicities)
-
-        output_data_idx = task._prepare_persistent_outputs(self, len(element_data_idx))
-        elements = self.generate_new_elements(
-            input_data_idx, output_data_idx, element_data_idx
-        )
-
-        element_indices = list(
-            range(len(self.elements), len(self.elements) + len(elements))
-        )
-
-        task._insert_ID = self.num_tasks
-        task._dir_name = f"task_{task.insert_ID}_{new_task_name}"
-
-        task_js, task_shared_data = task.to_json_like()
+        task, new_param_groups = task.to_persistent(self)
+        task_js, task_shared_data = task.to_json_like(exclude=["element_sets"])
+        task_js["element_sets"] = []
+        task_js["insert_ID"] = self.num_tasks
+        task_js["dir_name"] = f"task_{self.num_tasks}_{new_task_name}"
 
         # add any missing shared data for this task template:
+        added_shared_data = {}
         for shared_name, shared_data in task_shared_data.items():
-            if shared_name not in self._persistent_metadata["shared_data"]:
-                self._persistent_metadata["shared_data"][shared_name] = {}
+            if shared_name not in self.metadata["shared_data"]:
+                self.metadata["shared_data"][shared_name] = {}
+
+            added_shared_data[shared_name] = []
+
             for k, v in shared_data.items():
-                if k not in self._persistent_metadata["shared_data"][shared_name]:
-                    self._persistent_metadata["shared_data"][shared_name][k] = v
+                if k not in self.metadata["shared_data"][shared_name]:
+                    self.metadata["shared_data"][shared_name][k] = v
+                    added_shared_data[shared_name].append(k)
 
-        self._persistent_metadata["template"]["tasks"].append(task_js)
+        self.event_log.event_add_empty_task(
+            new_index,
+            added_shared_data,
+            parents=parent_events,
+            new_parameter_groups=new_param_groups,
+        )
 
-        wk_task = {"element_indices": element_indices}
+        empty_task = {
+            "element_indices": [],
+            "element_input_sources": {},
+            "element_set_indices": [],
+            "element_sequence_indices": {},
+        }
+        self.metadata["template"]["tasks"].insert(new_index, task_js)
+        self.metadata["tasks"].insert(new_index, empty_task)
+        self._save_metadata()
 
-        self._persistent_metadata["tasks"].insert(new_index, wk_task)
-        self._persistent_metadata["elements"].extend(elements)
+        new_task = self.tasks[new_index]
 
-        self._dump_persistent_metadata()
+        return new_task
+
+    def _add_task(self, task: Task, parent_events, new_index=None):
+
+        evt = self.event_log.event_add_task(new_index, parents=parent_events)
+        parent_events = parent_events + [evt.index]
+        new_wk_task = self._add_empty_task(
+            task=task,
+            new_index=new_index,
+            parent_events=parent_events,
+        )
+        new_wk_task._add_elements(
+            element_sets=task.element_sets,
+            parent_events=parent_events,
+        )
+
+    def add_task(self, task: Task, new_index=None):
+        with self.batch_update():
+            self._add_task(task, new_index=new_index, parent_events=[])
 
     def add_task_after(self, task_ref):
         # TODO: find position of new task, then call add_task
