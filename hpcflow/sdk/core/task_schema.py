@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
@@ -132,9 +133,12 @@ class TaskSchema(JSONLike):
                 self.outputs[idx] = self.app.SchemaOutput(i.parameter)
 
     def make_persistent(self, workflow):
+        new_groups = []
         for input_i in self.inputs:
             if input_i.default_value is not None:
-                input_i.default_value.make_persistent(workflow)
+                _, group, is_new = input_i.default_value.make_persistent(workflow)
+                new_groups.extend(group) if is_new else None
+        return new_groups
 
     @property
     def name(self):

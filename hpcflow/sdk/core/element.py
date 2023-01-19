@@ -66,6 +66,13 @@ class Element:
     data_index: Dict
     global_index: int
 
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"task={self.task!r}, global_index={self.global_index!r}"
+            f")"
+        )
+
     @property
     def workflow(self):
         return self.task.workflow
@@ -102,6 +109,74 @@ class Element:
     @property
     def element_set(self):
         return self.task.template.element_sets[self.task.element_set_indices[self.index]]
+
+    @property
+    def task_dependencies(self):
+        """Get tasks that this element depends on."""
+
+        dependencies = []
+        for elem_idx in self.element_dependencies:
+            task_i = self.workflow.elements[elem_idx].task
+            if task_i not in dependencies:
+                dependencies.append(task_i)
+
+        return dependencies
+
+    @property
+    def dependent_tasks(self):
+        """Get tasks that depend on this element."""
+
+        dependents = []
+        for elem_idx in self.dependent_elements:
+            task_i = self.workflow.elements[elem_idx].task
+            if task_i not in dependents:
+                dependents.append(task_i)
+
+        return dependents
+
+    @property
+    def element_dependencies(self):
+        """Get indices of elements that this element depends on."""
+
+        dependencies = []
+
+        # get direct dependencies:
+        for src in self.input_sources.values():
+            if src.startswith("element"):
+                elem_idx = int(src.split(".")[1])
+                if elem_idx not in dependencies:
+                    dependencies.append(elem_idx)
+
+        # get indirect dependencies:
+        for elem_idx in dependencies:
+            for elem_dep_i in self.workflow.elements[elem_idx].element_dependencies:
+                if elem_dep_i not in dependencies:
+                    dependencies.append(elem_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_elements(self):
+        """Get indices of elements that depend on this element."""
+        dependents = []
+
+        # get direct dependents:
+        for task in self.task.dependent_tasks:
+            for element in task.elements:
+                for src in element.input_sources.values():
+                    if src.startswith("element"):
+                        elem_idx = int(src.split(".")[1])
+                        if elem_idx == self.global_index:
+                            if element.global_index not in dependents:
+                                dependents.append(element.global_index)
+
+        # get indirect dependents:
+        for elem_idx in dependents:
+            for elem_dep_i in self.workflow.elements[elem_idx].dependent_elements:
+                if elem_dep_i not in dependents:
+                    dependents.append(elem_dep_i)
+
+        return dependents
 
     def get_sequence_value(self, sequence_path):
         seq = self.element_set.get_sequence_from_path(sequence_path)

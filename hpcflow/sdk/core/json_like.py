@@ -5,7 +5,7 @@ import hashlib
 import json
 from typing import Optional, Type
 
-from .utils import classproperty
+from .utils import classproperty, get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
 
@@ -406,8 +406,7 @@ class BaseJSONLike:
     def _get_hash_from_json_like(json_like):
         json_like = copy.deepcopy(json_like)
         json_like.pop("_hash_value", None)
-        json_str_i = json.dumps(json_like, sort_keys=True)
-        return hashlib.md5(json_str_i.encode("utf-8")).hexdigest()
+        return get_md5_hash(json_like)
 
     def to_dict(self):
         if hasattr(self, "__dict__"):

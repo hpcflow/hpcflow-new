@@ -9,6 +9,7 @@ from hpcflow.sdk.core.errors import (
     ValuesAlreadyPersistentError,
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
+    WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
@@ -379,19 +380,31 @@ class ValueSequence(JSONLike):
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
+            is_new = False
             param_group_idx = self._values_group_idx
+            if not all(workflow.check_parameter_group_exists(param_group_idx)):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
 
         else:
             param_group_idx = []
             for i in self._values:
-                pg_idx_i = workflow._add_parameter_group(i, is_set=True)
+                pg_idx_i = workflow._add_parameter_group(
+                    data=i,
+                    is_pending_add=workflow._in_batch_mode,
+                    is_set=True,
+                )
                 param_group_idx.append(pg_idx_i)
 
+            is_new = True
             self._values_group_idx = param_group_idx
             self._workflow = workflow
             self._values = None
 
-        return (self.normalised_path, param_group_idx)
+        return (self.normalised_path, param_group_idx, is_new)
 
     @property
     def workflow(self):
@@ -443,10 +456,15 @@ class AbstractInputValue(JSONLike):
     _workflow = None
 
     def __repr__(self):
+        try:
+            value_str = f", value={self.value}"
+        except WorkflowParameterMissingError:
+            value_str = ""
+
         return (
             f"{self.__class__.__name__}("
-            f"_value_group_idx={self._value_group_idx}, "
-            f"value={self.value}"
+            f"_value_group_idx={self._value_group_idx}"
+            f"{value_str}"
             f")"
         )
 
@@ -473,13 +491,24 @@ class AbstractInputValue(JSONLike):
 
         if self._value_group_idx is not None:
             param_group_idx = self._value_group_idx
+            is_new = False
+            if not workflow.check_parameter_group_exists(param_group_idx):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(self._value, is_set=True)
+            param_group_idx = workflow._add_parameter_group(
+                data=self._value,
+                is_pending_add=workflow._in_batch_mode,
+                is_set=True,
+            )
+            is_new = True
             self._value_group_idx = param_group_idx
-            self._workflow = workflow
             self._value = None
 
-        return (self.normalised_path, [param_group_idx])
+        return (self.normalised_path, [param_group_idx], is_new)
 
     @property
     def workflow(self):
@@ -558,10 +587,15 @@ class InputValue(AbstractInputValue):
         if self.path is not None:
             path_str = f", path={self.path!r}"
 
+        try:
+            value_str = f", value={self.value}"
+        except WorkflowParameterMissingError:
+            value_str = ""
+
         return (
             f"{self.__class__.__name__}("
-            f"parameter={self.parameter.typ!r}, "
-            f"value={self.value}"
+            f"parameter={self.parameter.typ!r}"
+            f"{value_str}"
             f"{path_str}"
             f"{val_grp_idx}"
             f")"
@@ -640,9 +674,14 @@ class ResourceSpec(JSONLike):
         param_strs = ""
         for i in self.ALLOWED_PARAMETERS:
             i_str = ""
-            i_val = getattr(self, i)
-            if i_val is not None:
-                i_str = f", {i}={i_val}"
+            try:
+                i_val = getattr(self, i)
+            except WorkflowParameterMissingError:
+                pass
+            else:
+                if i_val is not None:
+                    i_str = f", {i}={i_val}"
+
             param_strs += i_str
 
         return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
@@ -710,18 +749,26 @@ class ResourceSpec(JSONLike):
         """
         if self._value_group_idx is not None:
             param_group_idx = self._value_group_idx
-
+            is_new = False
+            if not workflow.check_parameter_group_exists(param_group_idx):
+                raise RuntimeError(
+                    f"{self.__class__.__name__} has a parameter group index "
+                    f"({param_group_idx}), but does not exist in the workflow."
+                )
+            # TODO: log if already persistent.
         else:
             param_group_idx = workflow._add_parameter_group(
-                self._get_members(), is_set=True
+                data=self._get_members(),
+                is_pending_add=workflow._in_batch_mode,
+                is_set=True,
             )
+            is_new = True
             self._value_group_idx = param_group_idx
             self._workflow = workflow
-
             self._num_cores = None
             self._scratch = None
 
-        return (self.normalised_path, [param_group_idx])
+        return (self.normalised_path, [param_group_idx], is_new)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
@@ -1009,15 +1056,3 @@ class ParameterValue:
     @property
     def value(self):
         pass
-
-
-@dataclass
-class AvailableInputSources:
-    """Container for listing the available sources for a given input within a task."""
-
-    # TODO: should this be a list of `InputSource`?
-
-    has_local: bool
-    has_default: bool
-    tasks: Dict
-    imports: Dict

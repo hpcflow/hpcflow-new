@@ -1,4 +1,6 @@
 from __future__ import annotations
+import copy
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 from .json_like import ChildObjectSpec, JSONLike
@@ -99,6 +101,24 @@ class ElementSet(JSONLike):
         self._task_template = None  # assigned by parent Task
         self._defined_input_types = None  # assigned on _task_template assignment
 
+    @classmethod
+    def _json_like_constructor(cls, json_like):
+        """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
+        orig_inp = json_like.pop("original_input_sources", None)
+        orig_nest = json_like.pop("original_nesting_order", None)
+        obj = cls(**json_like)
+        obj.original_input_sources = orig_inp
+        obj.original_nesting_order = orig_nest
+        return obj
+
+    def prepare_persistent_copy(self):
+        """Return a copy of self, which will then be made persistent, and save copies of
+        attributes that may be changed during integration with the workflow."""
+        obj = copy.deepcopy(self)
+        obj.original_nesting_order = self.nesting_order
+        obj.original_input_sources = self.input_sources
+        return obj
+
     def to_dict(self):
         dct = super().to_dict()
         del dct["_defined_input_types"]
@@ -151,7 +171,8 @@ class ElementSet(JSONLike):
                         f"{allowed_str}."
                     )
                 seq_inp_types.append(inp_type)
-            self.nesting_order.update({seq_i.path: seq_i.nesting_order})
+            if seq_i.path not in self.nesting_order:
+                self.nesting_order.update({seq_i.path: seq_i.nesting_order})
 
         for k, v in self.nesting_order.items():
             if v < 0:
@@ -240,6 +261,66 @@ class ElementSet(JSONLike):
             if seq.path == path:
                 return seq
 
+    @property
+    def index(self):
+        for idx, element_set in enumerate(self.task_template.element_sets):
+            if element_set is self:
+                return idx
+
+    @property
+    def elements(self):
+        task = self.task_template.workflow_template.workflow.tasks[
+            self.task_template.index
+        ]
+        elements = task.get_elements_of_element_set(self.index)
+        return elements
+
+    @property
+    def task_dependencies(self):
+        """Get tasks that this element set depends on."""
+
+        dependencies = []
+        for element in self.elements:
+            for task_dep_i in element.task_dependencies:
+                if task_dep_i not in dependencies:
+                    dependencies.append(task_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_tasks(self):
+        """Get tasks that depend on this element set."""
+
+        dependents = []
+        for element in self.elements:
+            for task_dep_i in element.dependent_tasks:
+                if task_dep_i not in dependents:
+                    dependents.append(task_dep_i)
+        return dependents
+
+    @property
+    def element_dependencies(self):
+        """Get indices of elements that this element set depends on."""
+
+        dependencies = []
+        for element in self.elements:
+            for elem_dep_i in element.element_dependencies:
+                if elem_dep_i not in dependencies:
+                    dependencies.append(elem_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_elements(self):
+        """Get indices of elements that depend on this element set."""
+
+        dependents = []
+        for element in self.elements:
+            for elem_dep_i in element.dependent_elements:
+                if elem_dep_i not in dependents:
+                    dependents.append(elem_dep_i)
+        return dependents
+
 
 class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
@@ -273,7 +354,7 @@ class Task(JSONLike):
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
-        element_sets: Optional[List[ElementSet]] = None,  # TODO
+        element_sets: Optional[List[ElementSet]] = None,
         sourceable_elements: Optional[List[int]] = None,
     ):
 
@@ -352,6 +433,17 @@ class Task(JSONLike):
     def __repr__(self):
         return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
 
+    def to_persistent(self, workflow):
+        """Make a copy where any schema input defaults are saved to a persistent
+        workflow. ElementSet data is not made persistent."""
+
+        obj = copy.deepcopy(self)
+        new_param_groups = []
+        for schema in obj.schemas:
+            new_param_groups.extend(schema.make_persistent(workflow))
+
+        return obj, new_param_groups
+
     def to_dict(self):
         out = super().to_dict()
         return {k.lstrip("_"): v for k, v in out.items() if k != "_name"}
@@ -413,8 +505,12 @@ class Task(JSONLike):
         for schema in self.schemas:
             for output in schema.outputs:
                 output_data_indices[output.typ] = []
-                for i in range(num_elements):
-                    group_idx = workflow._add_parameter_group(data=None, is_set=False)
+                for _ in range(num_elements):
+                    group_idx = workflow._add_parameter_group(
+                        data=None,
+                        is_pending_add=workflow._in_batch_mode,
+                        is_set=False,
+                    )
                     output_data_indices[output.typ].append(group_idx)
 
         return output_data_indices
@@ -624,9 +720,7 @@ class Task(JSONLike):
 
     @property
     def _metadata(self):
-        return self.workflow_template.workflow._persistent_metadata["template"]["tasks"][
-            self.index
-        ]
+        return self.workflow_template.workflow.metadata["template"]["tasks"][self.index]
 
     def get_sub_parameter_input_values(self):
         return [i for i in self.inputs if i.is_sub_value]
@@ -664,6 +758,9 @@ class WorkflowTask:
         self._element_sequence_indices = element_sequence_indices
         self._workflow = workflow
         self._index = index
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.unique_name!r})"
 
     @property
     def template(self):
@@ -735,14 +832,12 @@ class WorkflowTask:
     @property
     def num_element_sets(self):
         return len(
-            self.workflow._persistent_metadata["template"]["tasks"][self.index][
-                "element_sets"
-            ]
+            self.workflow.metadata["template"]["tasks"][self.index]["element_sets"]
         )
 
     @property
     def _metadata(self):
-        return self.workflow._persistent_metadata["tasks"][self.index]
+        return self.workflow.metadata["tasks"][self.index]
 
     def write_element_dirs(self):
         self.dir_path.mkdir(exist_ok=True, parents=True)
@@ -760,27 +855,33 @@ class WorkflowTask:
         input_data_indices = {}
         input_sources = {}
         sequence_idx = {}
+        new_param_groups = []
 
         # Assign first assuming all locally defined values are to be used:
         for res_i in element_set.resources:
-            key, group = res_i.make_persistent(self.workflow)
+            key, group, is_new = res_i.make_persistent(self.workflow)
             input_data_indices[key] = group
+            new_param_groups.extend(group) if is_new else None
 
         for inp_i in element_set.inputs:
-            key, group = inp_i.make_persistent(self.workflow)
+            key, group, is_new = inp_i.make_persistent(self.workflow)
             input_data_indices[key] = group
             input_sources[key] = ["local" for _ in group]
+            new_param_groups.extend(group) if is_new else None
 
         for seq_i in element_set.sequences:
-            key, group = seq_i.make_persistent(self.workflow)
+            key, group, is_new = seq_i.make_persistent(self.workflow)
             input_data_indices[key] = group
             input_sources[key] = ["local" for _ in group]
             sequence_idx[key] = list(range(len(group)))
+            new_param_groups.extend(group) if is_new else None
 
         # Now check for task- and default-sources and overwrite or append to local sources:
         for schema_input in self.template.all_schema_inputs:
+
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
+
             for inp_src in sources:
 
                 if inp_src.source_type is InputSourceType.TASK:
@@ -830,7 +931,7 @@ class WorkflowTask:
                         input_data_indices[key] = grp_idx
                         input_sources[key] = ["default"]
 
-        return input_data_indices, input_sources, sequence_idx
+        return input_data_indices, input_sources, sequence_idx, new_param_groups
 
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
@@ -891,17 +992,25 @@ class WorkflowTask:
                 missing_inputs=missing,
             )
 
-    def _add_element_set(self, element_set):
+    def _add_element_set(self, element_set, parent_events):
+        """
+        Returns
+        -------
+        element_indices : list of int
+            Global indices of newly added elements.
 
-        element_set.task_template = self.template
+        """
 
-        self.ensure_input_sources(
-            element_set
-        )  # currently modifies element_set.input_sources
+        element_set.task_template = self.template  # may modify element_set.nesting_order
+        self.ensure_input_sources(element_set)  # may modify element_set.input_sources
 
-        input_data_idx, input_sources, seq_idx = self._make_new_elements_persistent(
-            element_set
-        )
+        (
+            input_data_idx,
+            input_sources,
+            seq_idx,
+            new_param_groups,
+        ) = self._make_new_elements_persistent(element_set)
+
         multiplicities = self.template.prepare_element_resolution(
             element_set, input_data_idx
         )
@@ -929,6 +1038,13 @@ class WorkflowTask:
             )
         )
 
+        evt = self.workflow.event_log.event_add_element_set(
+            task_index=self.index,
+            new_element_indices=element_indices,
+            new_parameter_groups=new_param_groups,
+            parents=parent_events,
+        )
+
         element_set_js, _ = element_set.to_json_like()
         # (shared data should already have been updated as part of the schema)
 
@@ -937,7 +1053,7 @@ class WorkflowTask:
         # from this element set:
 
         self.template._metadata["element_sets"].append(element_set_js)
-        self.workflow._dump_persistent_metadata()
+        self.workflow._save_metadata()
 
         self._metadata["element_input_sources"] = {
             **{k: [] for k in self.template.all_sourced_normalised_paths},
@@ -953,7 +1069,7 @@ class WorkflowTask:
         }
 
         # Now update the remaining metadata:
-        self.workflow._persistent_metadata["elements"].extend(new_elements)
+        self.workflow.metadata["elements"].extend(new_elements)
         self._metadata["element_indices"].extend(element_indices)
 
         for k, v in self._metadata["element_input_sources"].items():
@@ -966,9 +1082,22 @@ class WorkflowTask:
             [self.num_element_sets - 1] * len(new_elements)
         )
 
-        self.workflow._append_history_add_element_set(self.index, element_indices)
+        self.workflow._save_metadata()
 
-        self.workflow._dump_persistent_metadata()
+        return element_indices
+
+    @property
+    def upstream_tasks(self):
+        return [task for task in self.workflow.tasks[: self.index]]
+
+    @property
+    def downstream_tasks(self):
+        return [task for task in self.workflow.tasks[self.index + 1 :]]
+
+    def get_elements_of_element_set(self, set_index):
+        idx = [idx for idx, i in enumerate(self.element_set_indices) if i == set_index]
+        elements = [self.workflow.elements[self.element_indices[i]] for i in idx]
+        return elements
 
     def add_elements(
         self,
@@ -982,6 +1111,41 @@ class WorkflowTask:
         nesting_order=None,
         element_sets=None,
         sourceable_elements=None,
+        propagate_to=None,
+        return_indices=False,
+    ):
+        with self.workflow.batch_update():
+            return self._add_elements(
+                base_element=base_element,
+                inputs=inputs,
+                sequences=sequences,
+                resources=resources,
+                repeats=repeats,
+                input_sources=input_sources,
+                input_source_mode=input_source_mode,
+                nesting_order=nesting_order,
+                element_sets=element_sets,
+                sourceable_elements=sourceable_elements,
+                propagate_to=propagate_to,
+                return_indices=return_indices,
+                parent_events=[],
+            )
+
+    def _add_elements(
+        self,
+        base_element=None,
+        inputs=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        input_source_mode=None,
+        nesting_order=None,
+        element_sets=None,
+        sourceable_elements=None,
+        propagate_to=None,
+        return_indices=False,
+        parent_events=None,
     ):
         """Add more elements to this task.
 
@@ -991,8 +1155,20 @@ class WorkflowTask:
             If specified, a list of global element indices from which inputs
             may be sourced. If not specified, all workflow elements are considered
             sourceable.
+        propagate_to : list of ElementPropagation, optional
+            If specified as an empty or non-empty list, propagate the new elements
+            downstream. If an `ElementPropagation` object is not specified for a given
+            task, propagation will be attempted using default behaviour.
+        return_indices : bool, optional
+            If True, return the list of indices of the newly added elements. False by
+            default.
 
         """
+
+        evt = self.workflow.event_log.event_add_elements(
+            task_index=self.index,
+            parents=parent_events,
+        )
 
         if base_element is not None:
             if base_element.task is not self:
@@ -1013,5 +1189,119 @@ class WorkflowTask:
             sourceable_elements=sourceable_elements,
         )
 
+        parent_events = (parent_events or []) + [evt.index]
+        elem_idx = []
         for elem_set_i in element_sets:
-            self._add_element_set(elem_set_i)
+            elem_set_i = elem_set_i.prepare_persistent_copy()
+            elem_idx += self._add_element_set(elem_set_i, parent_events=parent_events)
+
+        if propagate_to is not None:
+
+            # TODO: also accept a dict as func arg:
+            propagate_to = {i.task.unique_name: i for i in propagate_to}
+
+            for task in self.downstream_tasks:
+
+                elem_propagate = propagate_to.get(
+                    task.unique_name, ElementPropagation(task=task)
+                )
+                if self.unique_name not in (
+                    i.unique_name for i in elem_propagate.element_set.task_dependencies
+                ):
+                    # TODO: why can't we just do
+                    #  `if self in not elem_propagate.element_set.task_dependencies:`?
+                    continue
+
+                # TODO: generate a new ElementSet for this task;
+                #       Assume for now we use a single base element set.
+                #       Later, allow combining multiple element sets.
+
+                elem_set_i = self.app.ElementSet(
+                    inputs=elem_propagate.element_set.inputs,
+                    sequences=elem_propagate.element_set.sequences,
+                    resources=elem_propagate.element_set.resources,
+                    repeats=elem_propagate.element_set.repeats,
+                    nesting_order=elem_propagate.nesting_order,
+                    sourceable_elements=elem_idx,
+                )
+                prop_elem_idx = task._add_elements(
+                    element_sets=[elem_set_i],
+                    return_indices=True,
+                    parent_events=parent_events,
+                )
+                elem_idx.extend(prop_elem_idx)
+
+        if return_indices:
+            return elem_idx
+
+    @property
+    def task_dependencies(self):
+        """Get tasks that this task depends on."""
+
+        dependencies = []
+        for element in self.elements:
+            for task_dep_i in element.task_dependencies:
+                if task_dep_i not in dependencies:
+                    dependencies.append(task_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_tasks(self):
+        """Get tasks that depend on this task."""
+        dependents = []
+
+        # get direct dependents:
+        for task in self.downstream_tasks:
+            for elem_set in task.template.element_sets:
+                for src_lst in elem_set.input_sources.values():
+                    for src in src_lst:
+                        if src.source_type is self.app.InputSourceType.TASK:
+                            if src.task_ref == self.index:
+                                if task not in dependents:
+                                    dependents.append(task)
+
+        # get indirect dependents:
+        for task in dependents:
+            for task_i_dep in task.dependent_tasks:
+                if task_i_dep not in dependents:
+                    dependents.append(task_i_dep)
+
+        return dependents
+
+    @property
+    def element_dependencies(self):
+        """Get indices of elements that this task depends on."""
+        dependencies = []
+        for element in self.elements:
+            for elem_dep_i in element.element_dependencies:
+                if elem_dep_i not in dependencies:
+                    dependencies.append(elem_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_elements(self):
+        """Get elements that depend on this task."""
+        dependents = []
+        for element in self.elements:
+            for elem_dep_i in element.dependent_elements:
+                if elem_dep_i not in dependents:
+                    dependents.append(elem_dep_i)
+
+        return dependents
+
+
+@dataclass
+class ElementPropagation:
+    """Class to represent how a newly added element set should propagate to a given
+    downstream task."""
+
+    task: Task
+    element_sets: Optional[Union[List[int], List[ElementSet]]] = None
+    nesting_order: Optional[Dict] = None
+
+    @property
+    def element_set(self):
+        # TEMP property; for now just use the first element set as the base:
+        return self.task.template.element_sets[0]

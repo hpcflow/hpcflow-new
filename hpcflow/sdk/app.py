@@ -27,7 +27,7 @@ from .core.parameters import (
     TaskSourceType,
     ValueSequence,
 )
-from .core.task import WorkflowTask, ElementSet
+from .core.task import ElementPropagation, WorkflowTask, ElementSet
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
@@ -295,10 +295,43 @@ class BaseApp:
         ]
 
         if type(self) is not BaseApp:
-            # `test_hpcflow` is the same as `test` for the BaseApp
+            # `test_hpcflow` is the same as `test` for the BaseApp so no need to add both:
             commands.append(test_hpcflow)
 
         return commands
+
+    def _make_workflow_CLI(self):
+        """Generate the CLI for interacting with existing workflows."""
+
+        @click.group()
+        @click.argument("path", type=click.Path(exists=True))
+        @click.pass_context
+        def workflow(ctx, path):
+            """"""
+            wk = self.Workflow(path)
+            ctx.ensure_object(dict)
+            ctx.obj["workflow"] = wk
+
+        @workflow.command()
+        @click.pass_context
+        @click.option(
+            "--full",
+            is_flag=True,
+            default=False,
+            help="Show each event log item on a single line.",
+        )
+        @click.option(
+            "--max-line-length",
+            default=90,
+            help="Limit the maximum line length of the output.",
+        )
+        def log(ctx, full, max_line_length):
+            wk = ctx.obj["workflow"]
+            click.echo(
+                wk.event_log.format_events(full=full, max_line_length=max_line_length)
+            )
+
+        return workflow
 
     def _make_CLI(self):
         """Generate the root CLI for the app."""
@@ -351,6 +384,7 @@ class BaseApp:
         new_CLI.add_command(get_config_CLI(self))
         new_CLI.add_command(get_demo_software_CLI(self))
         new_CLI.add_command(get_helper_CLI(self))
+        new_CLI.add_command(self._make_workflow_CLI())
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 

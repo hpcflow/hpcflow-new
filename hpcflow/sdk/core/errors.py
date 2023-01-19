@@ -100,3 +100,11 @@ class MalformedParameterPathError(ValueError):
 
 class UnknownResourceSpecItemError(ValueError):
     pass
+
+
+class WorkflowParameterMissingError(AttributeError):
+    pass
+
+
+class WorkflowBatchUpdateFailedError(Exception):
+    pass

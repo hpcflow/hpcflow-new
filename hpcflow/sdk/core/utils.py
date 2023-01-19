@@ -1,5 +1,6 @@
 from functools import wraps
 import contextlib
+import hashlib
 import json
 import keyword
 import os
@@ -354,3 +355,13 @@ def get_process_stamp():
         socket.gethostname(),
         os.getpid(),
     )
+
+
+def remove_ansi_escape_sequences(string):
+    ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
+    return ansi_escape.sub("", string)
+
+
+def get_md5_hash(obj):
+    json_str = json.dumps(obj, sort_keys=True)
+    return hashlib.md5(json_str.encode("utf-8")).hexdigest()

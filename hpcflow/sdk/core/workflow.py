@@ -1,26 +1,46 @@
 from __future__ import annotations
+from contextlib import contextmanager
+import copy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
+import shutil
+import time
 from typing import List, Optional
-from pprint import pprint
 from warnings import warn
 
 import zarr
+from reretry import retry
 
-from .element import Element
+from .event_log import EventLog
 from .json_like import ChildObjectSpec, JSONLike
 from .zarr_io import zarr_encode
-from .object_list import WorkflowTaskList
 from .parameters import InputSource
-from .loop import Loop
-from .task import ElementSet, Task, WorkflowTask
-from .task_schema import TaskSchema
-from .utils import group_by_dict_key_values, read_YAML, read_YAML_file
-from .errors import InvalidInputSourceTaskReference, MissingInputs, WorkflowNotFoundError
+from .task import ElementSet, Task
+from .utils import get_md5_hash, group_by_dict_key_values, read_YAML, read_YAML_file
+from .errors import (
+    InvalidInputSourceTaskReference,
+    WorkflowBatchUpdateFailedError,
+    WorkflowNotFoundError,
+    WorkflowParameterMissingError,
+)
 
 TS_FMT = r"%Y.%m.%d_%H:%M:%S.%f_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
+
+
+def dropbox_retry_fail(err):
+    # TODO: this should log instead of printing!
+    print("retrying...")
+
+
+# TODO: maybe this is only an issue on Windows?
+dropbox_permission_err_retry = retry(
+    PermissionError,
+    tries=10,
+    delay=1,
+    backoff=2,
+    fail_callback=dropbox_retry_fail,
+)
 
 
 @dataclass
@@ -79,19 +99,20 @@ class Workflow:
 
         self.path = path
 
-        root = self._get_workflow_root_group(mode="r")
+        self._set_original_metadata()
+        self._metadata = copy.deepcopy(self._original_metadata)  # "working copy"
 
-        self._persistent_metadata = root.attrs.asdict()
-
-        # TODO: load history on demand.
-        self._history = root.get("history").attrs.asdict()
+        self.event_log = EventLog(self)
 
         self._shared_data = None
         self._tasks = None
         self._elements = None
         self._template = None
 
-    def _get_workflow_root_group(self, mode):
+        self._in_batch_mode = False  # flag to track when processing batch updates
+        self._batch_mode_parameter_data = {}
+
+    def _get_workflow_root_group(self, mode="r"):
         try:
             return zarr.open(self.path, mode=mode)
         except zarr.errors.PathNotFoundError:
@@ -99,11 +120,18 @@ class Workflow:
                 f"No workflow found at path: {self.path}"
             ) from None
 
+    def _get_workflow_parameter_group(self, mode="r"):
+        return self._get_workflow_root_group(mode=mode).parameter_data
+
+    @property
+    def metadata(self):
+        return self._metadata
+
     @property
     def shared_data(self):
         if not self._shared_data:
             self._shared_data = self.app.shared_data_from_json_like(
-                self._persistent_metadata["shared_data"]
+                self.metadata["shared_data"]
             )
         return self._shared_data
 
@@ -111,7 +139,7 @@ class Workflow:
     def template(self):
         if not self._template:
             self._template = self.app.WorkflowTemplate.from_json_like(
-                self._persistent_metadata["template"],
+                self.metadata["template"],
                 self.shared_data,
             )
             self._template.workflow = self
@@ -126,56 +154,48 @@ class Workflow:
                     self.app.WorkflowTask(
                         workflow=self, template=self.template.tasks[idx], index=idx, **i
                     )
-                    for idx, i in enumerate(self._persistent_metadata["tasks"])
+                    for idx, i in enumerate(self.metadata["tasks"])
                 ]
             )
         return self._tasks
 
     @property
     def num_tasks(self):
-        return len(self._persistent_metadata["tasks"])
+        return len(self.metadata["tasks"])
 
     @property
     def num_elements(self):
-        return len(self._persistent_metadata["elements"])
+        return len(self.metadata["elements"])
 
     @property
     def elements(self):
         if not self._elements:
-            self._elements = [
-                self.app.Element(
-                    task=task,
-                    data_index=self._persistent_metadata["elements"][i],
-                    global_index=i,
-                )
-                for task in self.tasks
-                for i in task.element_indices
-            ]
+            self._elements = sorted(
+                [
+                    self.app.Element(
+                        task=task,
+                        data_index=self.metadata["elements"][i],
+                        global_index=i,
+                    )
+                    for task in self.tasks
+                    for i in task.element_indices
+                ],
+                key=lambda x: x.global_index,
+            )
         return self._elements
 
     @property
     def task_name_repeat_idx(self):
-        return self._persistent_metadata["task_name_repeat_idx"]
+        return self.metadata["task_name_repeat_idx"]
 
-    @classmethod
-    def _get_new_history_event(cls, event_type, **kwargs):
-        timestamp = datetime.now(timezone.utc).astimezone()
-        event = {
-            "type": event_type,
-            "at": timestamp.strftime(TS_FMT),
-            "machine": cls.app.config.get("machine"),
-            "content": kwargs,
-        }
-        return timestamp, event
-
-    def get_last_event_of_type(self, event_type):
-        for evt in self._history["events"][::-1]:
-            if evt["type"] == event_type:
-                return evt
-
-    def _append_history_event(self, evt):
-        self._history["events"].append(evt)
-        self._dump_history_metadata()
+    @dropbox_permission_err_retry
+    @staticmethod
+    def _write_persistent_workflow(store, overwrite, root_attrs):
+        """Write the empty workflow data to the zarr store on disk."""
+        root = zarr.group(store=store, overwrite=overwrite)
+        root.attrs.update(root_attrs)
+        root.create_group("parameter_data")
+        EventLog.generate_in(root)
 
     @classmethod
     def _make_empty_workflow(
@@ -193,11 +213,7 @@ class Workflow:
 
         cls.app._ensure_data_files()  # TODO: fix this at App
 
-        timestamp, event = cls._get_new_history_event("create")
-        history = {
-            "timestamp_format": TS_FMT,
-            "events": [event],
-        }
+        timestamp = EventLog.get_timestamp()
 
         path = Path(path or "").resolve()
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
@@ -205,6 +221,7 @@ class Workflow:
 
         template_js, template_sh = template.to_json_like()
 
+        store = zarr.DirectoryStore(path)
         root_attrs = {
             "shared_data": template_sh,
             "template": template_js,
@@ -212,26 +229,24 @@ class Workflow:
             "tasks": [],
             "task_name_repeat_idx": [],
         }
+        cls._write_persistent_workflow(store, overwrite, root_attrs)
 
-        # TODO: intermittent Dropbox permission error; use package `reretry` to retry?
-        store = zarr.DirectoryStore(path)
-        root = zarr.group(store=store, overwrite=overwrite)
-        root.attrs.update(root_attrs)
+        obj = cls.load(path)
+        obj.event_log.event_workflow_create(
+            timestamp=timestamp,
+            machine=obj.app.config.get("machine"),
+        )
 
-        root.create_group("parameter_data")
-
-        hist_group = root.create_group("history")
-        hist_group.attrs.update(history)
-
-        return cls.load(path)
+        return obj
 
     @classmethod
     def from_template(cls, template, path=None, name=None, overwrite=False):
         tasks = template.__dict__.pop("tasks") or []
         template.tasks = []
         obj = cls._make_empty_workflow(template, path, name, overwrite)
-        for task in tasks:
-            obj.add_task(task)
+        with obj.batch_update(is_workflow_creation=True):
+            for task in tasks:
+                obj._add_task(task, parent_events=[0])
         return obj
 
     @classmethod
@@ -251,6 +266,20 @@ class Workflow:
             raise ValueError(f"Path already exists: {path}.")
         shutil.copytree(self.path, path)
         return self.load(path)
+
+    @dropbox_permission_err_retry
+    def _delete_no_confirm(self):
+        # Dropbox (on Windows, at least) seems to try to re-sync some of the workflow
+        # files if it is deleted soon after creation, which is the case on a failed
+        # workflow creation (e.g. missing inputs):
+        while self.path.is_dir():
+            shutil.rmtree(self.path)
+            time.sleep(0.5)
+
+    def delete(self):
+        """Delete the persistent workflow."""
+        # TODO: add confirmation
+        self._delete_no_confirm()
 
     def _resolve_input_source_task_reference(
         self, input_source: InputSource, new_task_name: str
@@ -287,25 +316,132 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
-    def _dump_persistent_metadata(self):
+    def _clear_children(self):
+        """Force re-initialisation of workflow attributes from metadata on next access."""
 
-        # invalidate workflow attributes to force re-init on access:
         self._tasks = None
         self._elements = None
         self._template = None
         self._shared_data = None
 
-        root = self._get_workflow_root_group(mode="r+")
-        root.attrs.put(self._persistent_metadata)
+    def _discard_changed_metadata(self):
+        """Discard the working-copy of the metadata and re-load the original persistent
+        copy."""
+        self._metadata = copy.deepcopy(self._original_metadata)
 
-    def _dump_history_metadata(self):
+    def _set_original_metadata(self):
+        self._original_metadata = self._get_workflow_root_group(mode="r").attrs.asdict()
 
-        hist = self._get_workflow_root_group(mode="r+").get("history")
-        hist.attrs.put(self._history)
+    def _dump_metadata(self):
+        self._get_workflow_root_group(mode="r+").attrs.put(self.metadata)
+        self._set_original_metadata()
+        self._clear_children()
+
+    def _get_pending_add_parameter_keys(self):
+        keys = []
+        for grp_idx, val in self._get_parameter_items(mode="r"):
+            if "is_pending_add" in val.attrs:
+                keys.append(grp_idx)
+        return keys
+
+    def _accept_new_parameters(self):
+        """Remove the pending flag from newly added parameters so they integrate with the
+        workflow."""
+
+        param_group = self._get_workflow_parameter_group(mode="r+")
+        for key in self._get_pending_add_parameter_keys():
+            # print(f"_accept_new_parameters: {grp_idx}")  # TODO: log this
+            del param_group[key].attrs["is_pending_add"]
+
+    def _save_metadata(self):
+        """Make changes to the metadata attribute effective."""
+        self._clear_children()
+        if not self._in_batch_mode:
+            self._dump_metadata()
+
+    def _discard_new_parameters(self):
+        """Remove newly added parameter data from the workflow, in the case where a batch
+        update failed."""
+
+        param_group = self._get_workflow_parameter_group(mode="r+")
+        for grp_idx, val in param_group.items():
+            if "is_pending_add" in val.attrs:
+                # print(f"_discard_new_parameters: {grp_idx}")  # TODO: log this
+                self._remove_parameter_group(param_group, grp_idx)
+
+    def _check_is_modified_on_disk(self):
+        """Check if the workflow metadata has changed on disk since we loaded it."""
+        # TODO: check parameters and event log as well
+        md_mem = self._original_metadata
+        md_disk = self._get_workflow_root_group(mode="r").attrs.asdict()
+        return get_md5_hash(md_disk) != get_md5_hash(md_mem)
+
+    def _check_is_modified(self):
+        """Check if the workflow structure as stored in memory has changed at all."""
+
+        if self.event_log.has_unsaved_events:
+            return True
+
+        md_original = self._original_metadata
+        md = self.metadata
+        md_changed = get_md5_hash(md_original) != get_md5_hash(md)
+        if md_changed:
+            return True
+
+        for val in self._get_parameter_values():
+            if "is_pending_add" in val.attrs:
+                return True
+
+        return False
+
+    @contextmanager
+    def batch_update(self, is_workflow_creation=False):
+        """A context manager that batches up structural changes to the workflow and
+        executes them together when the context manager exits.
+
+        This reduces the number of writes to disk and means we don't have to roll-back
+        if an exception is raised halfway through a change.
+
+        """
+
+        if self._in_batch_mode:
+            yield
+        else:
+            try:
+                self._in_batch_mode = True
+                yield
+
+            except Exception as err:
+
+                self._in_batch_mode = False
+                self._discard_changed_metadata()
+                self._discard_new_parameters()
+                self.event_log.discard_new_events()
+                if is_workflow_creation:
+                    # creation failed, so no need to keep the newly generated workflow:
+                    self._delete_no_confirm()
+                raise err
+
+            else:
+                self._in_batch_mode = False
+
+                if self._check_is_modified_on_disk():
+                    raise WorkflowBatchUpdateFailedError(
+                        "Workflow modified on disk since it was loaded!"
+                    )
+
+                elif self._check_is_modified():
+                    self._dump_metadata()
+                    self._accept_new_parameters()
+                    self.event_log.dump_new_events()
 
     def get_zarr_parameter_group(self, group_idx):
-        root = self._get_workflow_root_group(mode="r")
-        return root.get(f"parameter_data/{group_idx}")
+        grp = self._get_workflow_parameter_group(mode="r").get(str(group_idx))
+        if grp is None:
+            raise WorkflowParameterMissingError(
+                f"Workflow parameter with group index {group_idx} does not exist."
+            )
+        return grp
 
     @staticmethod
     def resolve_element_data_indices(multiplicities):
@@ -346,7 +482,7 @@ class Workflow:
                     f"multiplicity, but for paths "
                     f"{[i['path'] for i in para_sequences]} with `nesting_order` "
                     f"{para_sequences[0]['nesting_order']} found multiplicities "
-                    f"{list(all_multis)!r}."
+                    f"{[i['multiplicity'] for i in para_sequences]}."
                 )
 
             new_elements = []
@@ -362,19 +498,40 @@ class Workflow:
 
         return element_dat_idx
 
-    def _add_parameter_group(self, data, is_set):
+    def _add_parameter_group(self, data, is_pending_add, is_set):
 
-        root = self._get_workflow_root_group(mode="r+")
-        param_dat_group = root.get("parameter_data")
+        param_dat_group = self._get_workflow_parameter_group(mode="r+")
 
         names = [int(i) for i in param_dat_group.keys()]
         new_idx = max(names) + 1 if names else 0
         new_name = str(new_idx)
 
         new_param_group = param_dat_group.create_group(name=new_name)
-        zarr_encode(data, new_param_group)
+        zarr_encode(data, new_param_group, is_pending_add, is_set)
 
         return new_idx
+
+    @dropbox_permission_err_retry
+    def _remove_parameter_group(self, param_group, group_idx):
+        """Since removal of a parameter group may happen soon after it is added (in the
+        case a batch update goes wrong), we may run into dropbox sync issues, hence the
+        decorator."""
+
+        del param_group[str(group_idx)]
+
+    def check_parameter_group_exists(self, group_idx):
+
+        is_multi = True
+        if not isinstance(group_idx, (list, tuple)):
+            is_multi = False
+            group_idx = [group_idx]
+
+        param_group = self._get_workflow_parameter_group(mode="r")
+        out = [str(i) in param_group for i in group_idx]
+        if not is_multi:
+            out = out[0]
+
+        return out
 
     def generate_new_elements(
         self,
@@ -418,6 +575,16 @@ class Workflow:
 
         return new_elements, element_inp_sources, element_sequence_indices
 
+    def _get_parameter_keys(self):
+        return list(int(i) for i in self._get_workflow_parameter_group().keys())
+
+    def _get_parameter_items(self, mode="r"):
+        for k, v in self._get_workflow_parameter_group(mode=mode).items():
+            yield (int(k), v)
+
+    def _get_parameter_values(self):
+        return self._get_workflow_parameter_group().values()
+
     def get_task_unique_names(self, map_to_insert_ID=False):
         """Return the unique names of all workflow tasks.
 
@@ -444,57 +611,38 @@ class Workflow:
 
         return uniq_names[new_index]
 
-    def _append_history_add_empty_task(self, new_index, added_shared_data):
-        _, evt = self._get_new_history_event(
-            event_type="add_empty_task",
-            new_index=new_index,
-            added_shared_data=added_shared_data,
-        )
-        self._append_history_event(evt)
-
-    def _append_history_add_element_set(self, task_index, element_indices):
-        _, evt = self._get_new_history_event(
-            event_type="add_element_set",
-            task_index=task_index,
-            element_indices=element_indices,
-        )
-        self._append_history_event(evt)
-
-    def _append_history_remove_task(self, index, reason):
-        _, evt = self._get_new_history_event(
-            event_type="remove_task", index=index, reason=reason
-        )
-        self._append_history_event(evt)
-
-    def _add_empty_task(self, task: Task, new_index=None):
+    def _add_empty_task(self, task: Task, parent_events, new_index=None):
 
         if new_index is None:
             new_index = self.num_tasks
 
         new_task_name = self._get_new_task_unique_name(task, new_index)
 
-        task._insert_ID = self.num_tasks
-        task._dir_name = f"task_{task.insert_ID}_{new_task_name}"
-
-        # make any SchemaInput default values persistent:
-        for schema in task.schemas:
-            schema.make_persistent(self)
-
+        task, new_param_groups = task.to_persistent(self)
         task_js, task_shared_data = task.to_json_like(exclude=["element_sets"])
         task_js["element_sets"] = []
+        task_js["insert_ID"] = self.num_tasks
+        task_js["dir_name"] = f"task_{self.num_tasks}_{new_task_name}"
 
         # add any missing shared data for this task template:
         added_shared_data = {}
         for shared_name, shared_data in task_shared_data.items():
-            if shared_name not in self._persistent_metadata["shared_data"]:
-                self._persistent_metadata["shared_data"][shared_name] = {}
+            if shared_name not in self.metadata["shared_data"]:
+                self.metadata["shared_data"][shared_name] = {}
 
             added_shared_data[shared_name] = []
 
             for k, v in shared_data.items():
-                if k not in self._persistent_metadata["shared_data"][shared_name]:
-                    self._persistent_metadata["shared_data"][shared_name][k] = v
+                if k not in self.metadata["shared_data"][shared_name]:
+                    self.metadata["shared_data"][shared_name][k] = v
                     added_shared_data[shared_name].append(k)
+
+        self.event_log.event_add_empty_task(
+            new_index,
+            added_shared_data,
+            parents=parent_events,
+            new_parameter_groups=new_param_groups,
+        )
 
         empty_task = {
             "element_indices": [],
@@ -502,57 +650,31 @@ class Workflow:
             "element_set_indices": [],
             "element_sequence_indices": {},
         }
-        self._persistent_metadata["template"]["tasks"].insert(new_index, task_js)
-        self._persistent_metadata["tasks"].insert(new_index, empty_task)
-        self._dump_persistent_metadata()
-
-        self._append_history_add_empty_task(new_index, added_shared_data)
+        self.metadata["template"]["tasks"].insert(new_index, task_js)
+        self.metadata["tasks"].insert(new_index, empty_task)
+        self._save_metadata()
 
         new_task = self.tasks[new_index]
 
         return new_task
 
-    def _remove_task(self, index, reason=None):
+    def _add_task(self, task: Task, parent_events, new_index=None):
 
-        # TODO: remove elements etc; and consider downstream data?
-
-        self.app.logger.info(
-            f"removing task {index}"
-        )  # TODO: get logging working!!! why log twice?
-
-        self._persistent_metadata["template"]["tasks"].pop(index)
-        self._persistent_metadata["tasks"].pop(index)
-        self._dump_persistent_metadata()
-
-        add_task_event = self.get_last_event_of_type("add_empty_task")
-        to_remove_sh = add_task_event["content"]["added_shared_data"]
-
-        for sh_name, sh_hashes in to_remove_sh.items():
-            for hash_i in sh_hashes:
-                del self._persistent_metadata["shared_data"][sh_name][hash_i]
-
-            if not self._persistent_metadata["shared_data"][sh_name]:
-                del self._persistent_metadata["shared_data"][sh_name]
-
-        self._dump_persistent_metadata()
-
-        self._append_history_remove_task(index, reason)
+        evt = self.event_log.event_add_task(new_index, parents=parent_events)
+        parent_events = parent_events + [evt.index]
+        new_wk_task = self._add_empty_task(
+            task=task,
+            new_index=new_index,
+            parent_events=parent_events,
+        )
+        new_wk_task._add_elements(
+            element_sets=task.element_sets,
+            parent_events=parent_events,
+        )
 
     def add_task(self, task: Task, new_index=None):
-
-        try:
-            new_wk_task = self._add_empty_task(task, new_index)
-            new_wk_task.add_elements(element_sets=task.element_sets)
-        except MissingInputs as err:
-            self._remove_task(new_wk_task.index, reason="Failed to add new task.")
-            raise err
-
-        # TODO: also save the original Task object, since it may be modified (e.g.
-        # input_sources) before adding to the workflow
-
-        # TODO: think about ability to change input sources? (in the context of adding a new task)
-        # what happens when new insert a new task and it outputs a parameter that is used by a downstream task?
-        # does it depend on what we originally specify as the downstream tasks's input sources?
+        with self.batch_update():
+            self._add_task(task, new_index=new_index, parent_events=[])
 
     def add_task_after(self, task_ref):
         # TODO: find position of new task, then call add_task
