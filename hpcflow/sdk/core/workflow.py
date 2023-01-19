@@ -188,8 +188,8 @@ class Workflow:
     def task_name_repeat_idx(self):
         return self.metadata["task_name_repeat_idx"]
 
-    @dropbox_permission_err_retry
     @staticmethod
+    @dropbox_permission_err_retry
     def _write_persistent_workflow(store, overwrite, root_attrs):
         """Write the empty workflow data to the zarr store on disk."""
         root = zarr.group(store=store, overwrite=overwrite)
