@@ -23,7 +23,11 @@ class InvalidIdentifier(ValueError):
 
 
 class MissingInputs(Exception):
-    pass
+    # TODO: add links to doc pages for common user-exceptions?
+
+    def __init__(self, message, missing_inputs) -> None:
+        self.missing_inputs = missing_inputs
+        super().__init__(message)
 
 
 class TaskTemplateInvalidNesting(ValueError):
@@ -95,4 +99,12 @@ class MalformedParameterPathError(ValueError):
 
 
 class UnknownResourceSpecItemError(ValueError):
+    pass
+
+
+class WorkflowParameterMissingError(AttributeError):
+    pass
+
+
+class WorkflowBatchUpdateFailedError(Exception):
     pass

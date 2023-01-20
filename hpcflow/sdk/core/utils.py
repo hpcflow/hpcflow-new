@@ -1,5 +1,6 @@
 from functools import wraps
 import contextlib
+import hashlib
 import json
 import keyword
 import os
@@ -296,10 +297,13 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
-def read_YAML_file(path):
+def read_YAML(loadable_yaml):
     yaml = YAML(typ="safe")
-    with Path(path).open("rt") as fh:
-        return yaml.load(fh)
+    return yaml.load(loadable_yaml)
+
+
+def read_YAML_file(path):
+    return read_YAML(Path(path))
 
 
 def read_JSON_file(path):
@@ -351,3 +355,13 @@ def get_process_stamp():
         socket.gethostname(),
         os.getpid(),
     )
+
+
+def remove_ansi_escape_sequences(string):
+    ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
+    return ansi_escape.sub("", string)
+
+
+def get_md5_hash(obj):
+    json_str = json.dumps(obj, sort_keys=True)
+    return hashlib.md5(json_str.encode("utf-8")).hexdigest()

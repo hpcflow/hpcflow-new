@@ -255,7 +255,9 @@ class AppDataList(DotAccessObjectList):
                 {**obj_js, "_hash_value": hash_val}
                 for hash_val, obj_js in json_like.items()
             ]
-        return super().from_json_like(json_like, shared_data=cls._app.app_data)
+        return super().from_json_like(
+            json_like, shared_data=shared_data or cls._app.app_data
+        )
 
 
 class TaskList(AppDataList):
@@ -409,7 +411,6 @@ class WorkflowTaskList(DotAccessObjectList):
 class ResourceList(ObjectList):
 
     _app_attr = "_app"
-    _task = None
     _child_objects = (
         ChildObjectSpec(
             name="_objects",
@@ -423,11 +424,12 @@ class ResourceList(ObjectList):
 
     def __init__(self, _objects):
         super().__init__(_objects, descriptor="resource specification")
+        self._element_set = None  # assigned by parent ElementSet
         self._set_parent_refs()
 
     @property
-    def task(self):
-        return self._task
+    def element_set(self):
+        return self._element_set
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
         """Overridden to write out as a dict keyed by action scope (like as can be

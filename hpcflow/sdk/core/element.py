@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 from valida.conditions import ConditionLike
 from hpcflow.sdk.core.zarr_io import zarr_decode
+from hpcflow.sdk.core.parameters import InputValue
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_in_container,
@@ -14,6 +15,8 @@ from hpcflow.sdk.core.utils import (
 
 @dataclass
 class ElementInputs:
+
+    _app_attr = "_app"
 
     element: Element
 
@@ -34,6 +37,8 @@ class ElementInputs:
 
 @dataclass
 class ElementOutputs:
+
+    _app_attr = "_app"
 
     element: Element
 
@@ -57,8 +62,16 @@ class Element:
 
     _app_attr = "app"
 
-    task: Task
+    task: WorkflowTask
     data_index: Dict
+    global_index: int
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"task={self.task!r}, global_index={self.global_index!r}"
+            f")"
+        )
 
     @property
     def workflow(self):
@@ -66,11 +79,11 @@ class Element:
 
     @property
     def inputs(self):
-        return ElementInputs(self)
+        return self.app.ElementInputs(self)
 
     @property
     def outputs(self):
-        return ElementOutputs(self)
+        return self.app.ElementOutputs(self)
 
     @property
     def resources(self):
@@ -78,7 +91,104 @@ class Element:
 
     @property
     def index(self):
+        """Get the index of the element within the task.
+
+        Note: the `global_index` attribute returns the index of the element within the
+        workflow, across all tasks."""
+
         return self.task.elements.index(self)
+
+    @property
+    def input_sources(self):
+        return {k: v[self.index] for k, v in self.task.element_input_sources.items()}
+
+    @property
+    def sequence_value_indices(self):
+        return {k: v[self.index] for k, v in self.task.element_sequence_indices.items()}
+
+    @property
+    def element_set(self):
+        return self.task.template.element_sets[self.task.element_set_indices[self.index]]
+
+    @property
+    def task_dependencies(self):
+        """Get tasks that this element depends on."""
+
+        dependencies = []
+        for elem_idx in self.element_dependencies:
+            task_i = self.workflow.elements[elem_idx].task
+            if task_i not in dependencies:
+                dependencies.append(task_i)
+
+        return dependencies
+
+    @property
+    def dependent_tasks(self):
+        """Get tasks that depend on this element."""
+
+        dependents = []
+        for elem_idx in self.dependent_elements:
+            task_i = self.workflow.elements[elem_idx].task
+            if task_i not in dependents:
+                dependents.append(task_i)
+
+        return dependents
+
+    @property
+    def element_dependencies(self):
+        """Get indices of elements that this element depends on."""
+
+        dependencies = []
+
+        # get direct dependencies:
+        for src in self.input_sources.values():
+            if src.startswith("element"):
+                elem_idx = int(src.split(".")[1])
+                if elem_idx not in dependencies:
+                    dependencies.append(elem_idx)
+
+        # get indirect dependencies:
+        for elem_idx in dependencies:
+            for elem_dep_i in self.workflow.elements[elem_idx].element_dependencies:
+                if elem_dep_i not in dependencies:
+                    dependencies.append(elem_dep_i)
+
+        return dependencies
+
+    @property
+    def dependent_elements(self):
+        """Get indices of elements that depend on this element."""
+        dependents = []
+
+        # get direct dependents:
+        for task in self.task.dependent_tasks:
+            for element in task.elements:
+                for src in element.input_sources.values():
+                    if src.startswith("element"):
+                        elem_idx = int(src.split(".")[1])
+                        if elem_idx == self.global_index:
+                            if element.global_index not in dependents:
+                                dependents.append(element.global_index)
+
+        # get indirect dependents:
+        for elem_idx in dependents:
+            for elem_dep_i in self.workflow.elements[elem_idx].dependent_elements:
+                if elem_dep_i not in dependents:
+                    dependents.append(elem_dep_i)
+
+        return dependents
+
+    def get_sequence_value(self, sequence_path):
+        seq = self.element_set.get_sequence_from_path(sequence_path)
+        if not seq:
+            raise ValueError(
+                f"No sequence with path {sequence_path!r} in this element's originating "
+                f"element set."
+            )
+        val_idx = self.sequence_value_indices[sequence_path]
+        val = seq.values[val_idx]
+
+        return val
 
     @property
     def dir_name(self):
@@ -145,6 +255,33 @@ class Element:
             current_value = parameter._value_class(**current_value)
 
         return current_value
+
+    def to_element_set_data(self):
+        """Generate lists of workflow-bound InputValues and ResourceList."""
+        inputs = []
+        resources = []
+        for k, v in self.data_index.items():
+
+            k_s = k.split(".")
+
+            if k_s[0] == "inputs":
+                inp_val = self.app.InputValue(
+                    parameter=k_s[1],
+                    path=k_s[2:] or None,
+                    value=None,
+                )
+                inp_val._value_group_idx = v
+                inp_val._workflow = self.workflow
+                inputs.append(inp_val)
+
+            elif k_s[0] == "resources":
+                scope = self.app.ActionScope.from_json_like(k_s[1])
+                res = self.app.ResourceSpec(scope=scope)
+                res._value_group_idx = v
+                res._workflow = self.workflow
+                resources.append(res)
+
+        return inputs, resources
 
     def resolve_actions(self):
         """Return a list of `ElementAction`s given the associated schema(s) and particular

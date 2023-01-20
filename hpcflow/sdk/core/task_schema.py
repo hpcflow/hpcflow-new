@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
@@ -15,6 +16,14 @@ from .utils import check_valid_py_identifier
 
 @dataclass
 class TaskObjective(JSONLike):
+
+    _child_objects = (
+        ChildObjectSpec(
+            name="name",
+            is_single_attribute=True,
+        ),
+    )
+
     name: str
 
     def __post_init__(self):
@@ -33,7 +42,12 @@ class TaskSchema(JSONLike):
     _hash_value = None
     _child_objects = (
         ChildObjectSpec(name="objective", class_name="TaskObjective"),
-        ChildObjectSpec(name="inputs", class_name="SchemaInput", is_multiple=True),
+        ChildObjectSpec(
+            name="inputs",
+            class_name="SchemaInput",
+            is_multiple=True,
+            parent_ref="_task_schema",
+        ),
         ChildObjectSpec(name="outputs", class_name="SchemaOutput", is_multiple=True),
         ChildObjectSpec(name="actions", class_name="Action", is_multiple=True),
     )
@@ -59,6 +73,9 @@ class TaskSchema(JSONLike):
 
         self._validate()
         self.version = version
+        self._task_template = None  # assigned by parent Task
+
+        self._set_parent_refs()
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
@@ -112,6 +129,16 @@ class TaskSchema(JSONLike):
         for idx, i in enumerate(self.outputs):
             if isinstance(i, Parameter):
                 self.outputs[idx] = self.app.SchemaOutput(i)
+            elif isinstance(i, SchemaInput):
+                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
+
+    def make_persistent(self, workflow):
+        new_groups = []
+        for input_i in self.inputs:
+            if input_i.default_value is not None:
+                _, group, is_new = input_i.default_value.make_persistent(workflow)
+                new_groups.extend(group) if is_new else None
+        return new_groups
 
     @property
     def name(self):
@@ -137,6 +164,10 @@ class TaskSchema(JSONLike):
             for i in self.inputs + self.outputs
             if i.propagation_mode != ParameterPropagationMode.NEVER
         )
+
+    @property
+    def task_template(self):
+        return self._task_template
 
     @classmethod
     def get_by_key(cls, key):
