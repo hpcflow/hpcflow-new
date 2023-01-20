@@ -346,7 +346,10 @@ class BaseApp:
 
         @click.group(name=self.name)
         @click.version_option(
-            version=self.version, package_name=self.name, prog_name=self.name
+            version=self.version,
+            package_name=self.name,
+            prog_name=self.name,
+            help=f"Show the version of {self.name} and exit.",
         )
         @click.version_option(
             __version__,
