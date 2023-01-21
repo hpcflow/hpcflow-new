@@ -54,10 +54,11 @@ class EventLog:
         self._set_original_metadata_lookup()
         self._metadata_lookup = copy.deepcopy(self._original_metadata_lookup)
 
-        disk_mdl = self._get_zarr_group("r").attrs["metadata_lookup"]
+        self._clear_new_events()
 
-        self._new_event_metadata = []
-        self._new_event_content = []
+    def _clear_new_events(self):
+        self._new_event_metadata = np.empty(shape=(0,), dtype=self._metadata_dtype)
+        self._new_event_content = np.empty(shape=(0,), dtype=object)
 
     def __eq__(self, other):
 
@@ -130,7 +131,7 @@ class EventLog:
 
     @property
     def has_unsaved_events(self):
-        return len(self._new_event_metadata) > 0
+        return self._new_event_metadata.size > 0
 
     @staticmethod
     def get_timestamp():
@@ -138,8 +139,7 @@ class EventLog:
 
     def dump_new_events(self):
         """"""
-        if not self._new_event_metadata:
-            # no changes
+        if not self.has_unsaved_events:
             return
 
         zarr_group = self._get_zarr_group(mode="r+")
@@ -148,17 +148,14 @@ class EventLog:
             zarr_group.attrs.put({"metadata_lookup": self._metadata_lookup})
             self._set_original_metadata_lookup()
 
-        zarr_group.metadata.append(np.concatenate(self._new_event_metadata))
+        zarr_group.metadata.append(self._new_event_metadata)
         zarr_group.content.append(self._new_event_content)
 
-        self._new_event_metadata = []
-        self._new_event_content = []
+        self._clear_new_events()
 
     def discard_new_events(self):
 
-        self._new_event_metadata = []
-        self._new_event_content = []
-
+        self._clear_new_events()
         if self._check_metadata_lookup_changed():
             self._metadata_lookup = copy.deepcopy(self._original_metadata_lookup)
 
@@ -202,8 +199,8 @@ class EventLog:
             dtype=self._metadata_dtype,
         )
 
-        self._new_event_metadata.append(new_metadata)
-        self._new_event_content.append(new_content)
+        self._new_event_metadata = np.append(self._new_event_metadata, new_metadata)
+        self._new_event_content = np.append(self._new_event_content, new_content)
 
         self._save_new_events()
         evt = self._construct_event(evt_content=new_content, evt_meta=new_metadata[0])
@@ -300,7 +297,7 @@ class EventLog:
             if evt_idx in range(self.num_saved_events):
                 continue
             evt_content = self._new_event_content[evt_idx - self.num_saved_events]
-            evt_meta = self._new_event_metadata[evt_idx - self.num_saved_events][0]
+            evt_meta = self._new_event_metadata[evt_idx - self.num_saved_events]
             out.append(self._construct_event(evt_content, evt_meta, meta_fields, as_json))
 
         return out
@@ -315,7 +312,13 @@ class EventLog:
     def get_events_of_type(self, event_type, as_json=False):
         type_idx = self._metadata_lookup["event_type"].index(event_type)
         idx = np.where(self.metadata["event_type"] == type_idx)[0]
-        return [self.get_event(i, as_json=as_json) for i in idx]
+        pending_idx = np.where(self._new_event_metadata["event_type"] == type_idx)[0]
+        pending_idx += self.num_saved_events
+        all_idx = np.concatenate((idx, pending_idx), dtype=int)
+        return [self.get_event(i, as_json=as_json) for i in all_idx]
+
+    def get_num_events_of_type(self, event_type, as_json=False):
+        return len(self.get_events_of_type(event_type, as_json=as_json))
 
     def format_events(self, event_slice=None, full=False, max_line_length=90):
         events = self.get_events(event_slice)
