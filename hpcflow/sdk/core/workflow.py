@@ -620,8 +620,9 @@ class Workflow:
 
         task, new_param_groups = task.to_persistent(self)
         task_js, task_shared_data = task.to_json_like(exclude=["element_sets"])
+        insert_ID = self.event_log.get_num_events_of_type("add_task") - 1
         task_js["element_sets"] = []
-        task_js["insert_ID"] = self.num_tasks
+        task_js["insert_ID"] = insert_ID
         task_js["dir_name"] = f"task_{self.num_tasks}_{new_task_name}"
 
         # add any missing shared data for this task template:
