@@ -80,7 +80,7 @@ def start_helper(
 ):
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
-        helper_pid=get_helper_PID(app)[0]
+        helper_pid = get_helper_PID(app)[0]
         print(f"Helper already running, with process ID: {helper_pid}")
 
     else:
@@ -147,8 +147,12 @@ def modify_helper(
 ):
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
-        [helper_pid,to,tci,wi]=strip_helper_PID(app)
-        if float(to) != timeout or float(tci) != timeout_check_interval or float(wi) != watch_interval :
+        [helper_pid, to, tci, wi] = strip_helper_PID(app)
+        if (
+            float(to) != timeout
+            or float(tci) != timeout_check_interval
+            or float(wi) != watch_interval
+        ):
             logger = get_helper_logger(app)
             logger.info(
                 f"Modifying helper with pid={helper_pid}"
@@ -202,8 +206,9 @@ def strip_helper_PID(app):
         with PID_file.open("rt") as fp:
             pidlines = fp.readlines()
             for i in range(4):
-                pidlines[i]=pidlines[i].strip('pid =tmeou-chknrvalw\n')
+                pidlines[i] = pidlines[i].strip("pid =tmeou-chknrvalw\n")
         return pidlines
+
 
 def get_helper_PID(app):
 
@@ -213,7 +218,7 @@ def get_helper_PID(app):
         return None
     else:
         with PID_file.open("rt") as fp:
-            helper_pid = int(fp.readline().strip('pid =\n'))
+            helper_pid = int(fp.readline().strip("pid =\n"))
         return helper_pid, PID_file
 
 
@@ -323,12 +328,12 @@ def run_helper(
             time_left_s = (end_time - datetime.now()).total_seconds()
             if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
-            time.sleep(min(timeout_check_interval_s,time_left_s))
-            #Reading args from PID file
+            time.sleep(min(timeout_check_interval_s, time_left_s))
+            # Reading args from PID file
             PID_vars_new = strip_helper_PID(app)
-            for i in [1,2,3]:
+            for i in [1, 2, 3]:
                 if PID_vars_new[i] != PID_vars[i]:
-                    change=f"parameter from {PID_vars[i]} to {PID_vars_new[i]}."
+                    change = f"parameter from {PID_vars[i]} to {PID_vars_new[i]}."
                     PID_vars[i] = PID_vars_new[i]
                     match i:
                         case 1:
@@ -343,13 +348,17 @@ def run_helper(
                         case 2:
                             timeout_check_interval = float(PID_vars_new[i])
                             if isinstance(timeout_check_interval, timedelta):
-                                timeout_check_interval_s = timeout_check_interval.total_seconds()
+                                timeout_check_interval_s = (
+                                    timeout_check_interval.total_seconds()
+                                )
                             else:
                                 timeout_check_interval_s = timeout_check_interval
-                                timeout_check_interval = timedelta(seconds=timeout_check_interval_s)
+                                timeout_check_interval = timedelta(
+                                    seconds=timeout_check_interval_s
+                                )
                             logger.info(f"Updataed timeout_check_interval {change}")
                         case 3:
-                            watch_interval=float(PID_vars_new[i])
+                            watch_interval = float(PID_vars_new[i])
                             # controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
                             logger.info(f"Updataed watch_interval {change}")
                             # Would this work?
