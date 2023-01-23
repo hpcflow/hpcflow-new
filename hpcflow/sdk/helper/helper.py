@@ -335,33 +335,31 @@ def run_helper(
                 if PID_vars_new[i] != PID_vars[i]:
                     change = f"parameter from {PID_vars[i]} to {PID_vars_new[i]}."
                     PID_vars[i] = PID_vars_new[i]
-                    match i:
-                        case 1:
-                            timeout = float(PID_vars_new[i])
-                            if isinstance(timeout, timedelta):
-                                timeout_s = timeout.total_seconds()
-                            else:
-                                timeout_s = timeout
-                                timeout = timedelta(seconds=timeout_s)
-                            end_time = start_time + timeout
-                            logger.info(f"Updataed timeout {change}")
-                        case 2:
-                            timeout_check_interval = float(PID_vars_new[i])
-                            if isinstance(timeout_check_interval, timedelta):
-                                timeout_check_interval_s = (
-                                    timeout_check_interval.total_seconds()
-                                )
-                            else:
-                                timeout_check_interval_s = timeout_check_interval
-                                timeout_check_interval = timedelta(
-                                    seconds=timeout_check_interval_s
-                                )
-                            logger.info(f"Updataed timeout_check_interval {change}")
-                        case 3:
-                            watch_interval = float(PID_vars_new[i])
-                            # controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
-                            logger.info(f"Updataed watch_interval {change}")
-                            # Would this work?
+                    if i == 1:
+                        timeout = float(PID_vars_new[i])
+                        if isinstance(timeout, timedelta):
+                            timeout_s = timeout.total_seconds()
+                        else:
+                            timeout_s = timeout
+                            timeout = timedelta(seconds=timeout_s)
+                        end_time = start_time + timeout
+                        logger.info(f"Updataed timeout {change}")
+                    elif i == 2:
+                        timeout_check_interval = float(PID_vars_new[i])
+                        if isinstance(timeout_check_interval, timedelta):
+                            timeout_check_interval_s = (
+                                timeout_check_interval.total_seconds()
+                            )
+                        else:
+                            timeout_check_interval_s = timeout_check_interval
+                            timeout_check_interval = timedelta(
+                                seconds=timeout_check_interval_s
+                            )
+                        logger.info(f"Updataed timeout_check_interval {change}")
+                    elif i == 3:
+                        watch_interval = float(PID_vars_new[i])
+                        controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
+                        logger.info(f"Updataed watch_interval {change}")
 
     except KeyboardInterrupt:
         controller.stop()
