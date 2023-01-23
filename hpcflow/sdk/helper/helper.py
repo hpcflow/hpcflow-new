@@ -358,7 +358,9 @@ def run_helper(
                         logger.info(f"Updataed timeout_check_interval {change}")
                     elif i == 3:
                         watch_interval = float(PID_vars_new[i])
-                        controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
+                        controller = MonitorController(
+                            get_watcher_file_path(app), watch_interval, logger
+                        )
                         logger.info(f"Updataed watch_interval {change}")
 
     except KeyboardInterrupt:
