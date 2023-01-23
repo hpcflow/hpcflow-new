@@ -314,15 +314,16 @@ def run_helper(
         timeout_check_interval = timedelta(seconds=timeout_check_interval_s)
 
     start_time = datetime.now()
+    end_time = start_time + timeout
     logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
     PID_vars = strip_helper_PID(app)
-    timeout_limit = timeout - timeout_check_interval
     try:
         while True:
-            if datetime.now() - start_time >= timeout_limit:
+            time_left_s = (end_time - datetime.now()).total_seconds()
+            if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
-            time.sleep(timeout_check_interval_s)
+            time.sleep(min(timeout_check_interval_s,time_left_s))
             #Reading args from PID file
             PID_vars_new = strip_helper_PID(app)
             for i in [1,2,3]:
