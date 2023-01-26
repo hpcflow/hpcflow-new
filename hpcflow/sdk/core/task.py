@@ -897,10 +897,10 @@ class WorkflowTask:
                     if not src_elements:
                         continue
 
-                    grp_idx = [
-                        elem.data_index[f"outputs.{schema_input.typ}"]
-                        for elem in src_elements
-                    ]
+                    src_key = (
+                        f"{inp_src.task_source_type.name.lower()}s.{schema_input.typ}"
+                    )
+                    grp_idx = [elem.data_index[src_key] for elem in src_elements]
                     inp_src_i = [
                         f"element.{i.global_index}.{inp_src.task_source_type.name}"
                         for i in src_elements
