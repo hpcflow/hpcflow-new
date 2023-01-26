@@ -36,6 +36,7 @@ Executable = hpcflow.Executable
 ExecutableInstance = hpcflow.ExecutableInstance
 ExecutablesList = hpcflow.ExecutablesList
 ElementPropagation = hpcflow.ElementPropagation
+ElementSet = hpcflow.ElementSet
 FileSpec = hpcflow.FileSpec
 InputFile = hpcflow.InputFile
 InputFileGenerator = hpcflow.InputFileGenerator

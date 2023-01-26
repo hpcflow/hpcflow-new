@@ -1,4 +1,34 @@
 
+<a name="v0.2.0a22"></a>
+## [v0.2.0a22](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a21...v0.2.0a22) - 2023.01.26
+
+### ✨ Features
+
+* example notebook
+
+### 🐛 Bug Fixes
+
+* add missing class to __init__
+* fix getting correct group index when from a task input
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a21"></a>
+## [v0.2.0a21](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a20...v0.2.0a21) - 2023.01.23
+
+### ♻ Code Refactoring
+
+* Moved helper dependencies to poetry.group.helper.dependencies
+
+### 👷 Build changes
+
+* poetry lock
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a20"></a>
 ## [v0.2.0a20](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a19...v0.2.0a20) - 2023.01.20
 
