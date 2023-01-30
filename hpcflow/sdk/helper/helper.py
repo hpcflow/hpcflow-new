@@ -341,41 +341,28 @@ def run_helper(
             time.sleep(min(timeout_check_interval_s, time_left_s))
             # Reading args from PID file
             helper_args_new = read_helper_args(app)
-            if helper_args_new['timeout'] != helper_args['timeout']:
-                change = f"parameter from {helper_args['timeout']} to {helper_args_new['timeout']}."
-                helper_args['timeout'] = helper_args_new['timeout']
-                timeout = helper_args['timeout']
-                if isinstance(timeout, timedelta):
-                    timeout_s = timeout.total_seconds()
-                else:
-                    timeout_s = timeout
-                    timeout = timedelta(seconds=timeout_s)
-                end_time = start_time + timeout
-                logger.info(f"Updataed timeout {change}")
-            if helper_args_new['timeout_check_interval'] != helper_args['timeout_check_interval']:
-                change = f"parameter from {helper_args['timeout_check_interval']} to {helper_args_new['timeout_check_interval']}."
-                helper_args['timeout_check_interval'] = helper_args_new['timeout_check_interval']
-                timeout_check_interval = helper_args_new['timeout_check_interval']
-                if isinstance(timeout_check_interval, timedelta):
-                    timeout_check_interval_s = (
-                        timeout_check_interval.total_seconds()
-                    )
-                else:
-                    timeout_check_interval_s = timeout_check_interval
-                    timeout_check_interval = timedelta(
-                        seconds=timeout_check_interval_s
-                    )
-                logger.info(f"Updataed timeout_check_interval {change}")
-            if helper_args_new['watch_interval'] != helper_args['watch_interval']:
-                change = f"parameter from {helper_args['watch_interval']} to {helper_args_new['watch_interval']}."
-                helper_args['watch_interval'] = helper_args_new['watch_interval']
-                watch_interval = helper_args_new['watch_interval']
-                controller.stop()
-                # TODO: we might need to consider if a workflow change could be missed during this stop
-                controller = MonitorController(
-                    get_watcher_file_path(app), watch_interval, logger
-                )
-                logger.info(f"Updataed watch_interval {change}")
+            for arg in helper_args:
+                if helper_args_new[arg] != helper_args[arg]:
+                    change = f"{arg} parameter from {helper_args[arg]} to {helper_args_new[arg]}."
+                    helper_args[arg] = helper_args_new[arg]
+                    t=helper_args[arg]
+                    if isinstance(t, timedelta):
+                        t_s = t.total_seconds()
+                    else:
+                        t_s = t
+                        t = timedelta(seconds=t_s)
+                    # Updates relevant parameters only
+                    if arg == 'timeout':
+                        timeout=t
+                        end_time = start_time + timeout
+                    elif arg == 'timeout_check_interval':
+                        timeout_check_interval_s=t_s
+                    elif arg == 'watch_interval':
+                        controller.stop()
+                        controller = MonitorController(
+                            get_watcher_file_path(app), helper_args[arg], logger
+                        )
+                    logger.info(f"Updataed {change}")
 
     except KeyboardInterrupt:
         controller.stop()
