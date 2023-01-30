@@ -176,10 +176,9 @@ def modify_helper(
                     fp.write(f"watch-interval = {watch_interval}\n")
             except FileNotFoundError as err:
                 logger.error(
-                    f"Could not write to the PID file {PID_file!r}; killing helper process. "
+                    f"Could not write to the PID file {PID_file!r};"
                     f"Exception was: {err!r}"
                 )
-                proc.kill()
                 sys.exit(1)
         else:
             print("Helper parameters already met.")
