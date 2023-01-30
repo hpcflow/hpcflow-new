@@ -124,11 +124,11 @@ def start_helper(
 
         logger.info(f"Writing process ID {proc.pid} to file.")
         try:
-            write_helper_args(app,proc.pid,timeout,timeout_check_interval,watch_interval)
-        except FileNotFoundError as err:
-            logger.error(
-                f"Killing helper process. "
+            write_helper_args(
+                app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
+        except FileNotFoundError as err:
+            logger.error(f"Killing helper process. ")
             proc.kill()
             sys.exit(1)
 
@@ -143,9 +143,9 @@ def modify_helper(
     if PID_file.is_file():
         helper_args = read_helper_args(app)
         if (
-            helper_args['timeout'] != timeout
-            or helper_args['timeout_check_interval'] != timeout_check_interval
-            or helper_args['watch_interval'] != watch_interval
+            helper_args["timeout"] != timeout
+            or helper_args["timeout_check_interval"] != timeout_check_interval
+            or helper_args["watch_interval"] != watch_interval
         ):
             logger = get_helper_logger(app)
             logger.info(
@@ -162,7 +162,13 @@ def modify_helper(
                 watch_interval = watch_interval.total_seconds()
 
             try:
-                write_helper_args(app,helper_args['pid'],timeout,timeout_check_interval,watch_interval)
+                write_helper_args(
+                    app,
+                    helper_args["pid"],
+                    timeout,
+                    timeout_check_interval,
+                    watch_interval,
+                )
             except FileNotFoundError as err:
                 sys.exit(1)
         else:
@@ -199,8 +205,7 @@ def write_helper_args(
     except FileNotFoundError as err:
         logger = get_helper_logger(app)
         logger.error(
-            f"Could not write to the PID file {PID_file!r};"
-            f"Exception was: {err!r}"
+            f"Could not write to the PID file {PID_file!r};" f"Exception was: {err!r}"
         )
         print(err)
 
@@ -211,12 +216,12 @@ def read_helper_args(app):
         print("Helper not running!")
         return None
     else:
-        helper_args={}
+        helper_args = {}
         with PID_file.open("rt") as fp:
             for line in fp:
-                (key, val) = line.split(' = ')
+                (key, val) = line.split(" = ")
                 helper_args[key] = float(val)
-        helper_args['pid'] = int(helper_args['pid'])
+        helper_args["pid"] = int(helper_args["pid"])
         return helper_args
 
 
@@ -345,19 +350,19 @@ def run_helper(
                 if helper_args_new[arg] != helper_args[arg]:
                     change = f"{arg} parameter from {helper_args[arg]} to {helper_args_new[arg]}."
                     helper_args[arg] = helper_args_new[arg]
-                    t=helper_args[arg]
+                    t = helper_args[arg]
                     if isinstance(t, timedelta):
                         t_s = t.total_seconds()
                     else:
                         t_s = t
                         t = timedelta(seconds=t_s)
                     # Updates relevant parameters only
-                    if arg == 'timeout':
-                        timeout=t
+                    if arg == "timeout":
+                        timeout = t
                         end_time = start_time + timeout
-                    elif arg == 'timeout_check_interval':
-                        timeout_check_interval_s=t_s
-                    elif arg == 'watch_interval':
+                    elif arg == "timeout_check_interval":
+                        timeout_check_interval_s = t_s
+                    elif arg == "watch_interval":
                         controller.stop()
                         controller = MonitorController(
                             get_watcher_file_path(app), helper_args[arg], logger
