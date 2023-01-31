@@ -48,6 +48,15 @@ def param_p3():
 
 
 @pytest.fixture
+def workflow_w0(null_config, tmp_path):
+    t1 = Task(schemas=[TaskSchema(objective='t1', actions=[])])
+    t2 = Task(schemas=[TaskSchema(objective='t2', actions=[])])
+
+    wkt = WorkflowTemplate(name="workflow_w0", tasks=[t1, t2])
+    return Workflow.from_template(wkt, path=tmp_path)
+
+
+@pytest.fixture
 def workflow_w1(null_config, tmp_path, param_p1, param_p2):
     s1 = TaskSchema("t1", actions=[], inputs=[param_p1], outputs=[param_p2])
     s2 = TaskSchema("t2", actions=[], inputs=[param_p2])
@@ -1151,3 +1160,23 @@ def test_parameters_pending_during_add_task(workflow_w4, param_p2, param_p3):
     with workflow_w4.batch_update():
         workflow_w4.add_task(t2)
         assert workflow_w4._get_pending_add_parameter_keys()
+
+
+def test_add_task_before_and_after(workflow_w0):
+    t3 = Task(schemas=TaskSchema(objective='at_end', actions=[]))
+    t4 = Task(schemas=TaskSchema(objective='after_t1', actions=[]))
+    t5 = Task(schemas=TaskSchema(objective='at_start', actions=[]))
+    t6 = Task(schemas=TaskSchema(objective='before_t2', actions=[]))
+
+    with workflow_w0.batch_update():
+        workflow_w0.add_task_after(t3)
+        workflow_w0.add_task_after(t4,workflow_w0.tasks.t1)
+        workflow_w0.add_task_before(t5)
+        workflow_w0.add_task_before(t6,workflow_w0.tasks.t2)
+
+        assert workflow_w0.tasks[0].name == 'at_start'
+        assert workflow_w0.tasks[1].name == 't1'
+        assert workflow_w0.tasks[2].name == 'after_t1'
+        assert workflow_w0.tasks[3].name == 'before_t2'
+        assert workflow_w0.tasks[4].name == 't2'
+        assert workflow_w0.tasks[5].name == 'at_end'
