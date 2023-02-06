@@ -678,13 +678,13 @@ class Workflow:
 
     def add_task_after(self, task: Task, task_ref=None):
         task_ref = task_ref or self.tasks[-1]
-        self.add_task(task,new_index=task_ref.index+1)
+        self.add_task(task, new_index=task_ref.index + 1)
         # TODO: add new downstream elements?
         pass
 
     def add_task_before(self, task: Task, task_ref=None):
         task_ref = task_ref or self.tasks[0]
-        self.add_task(task,new_index=task_ref.index)
+        self.add_task(task, new_index=task_ref.index)
         # TODO: add new downstream elements?
         pass
 
