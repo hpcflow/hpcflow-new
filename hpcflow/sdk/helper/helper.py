@@ -8,6 +8,8 @@ import socket
 import subprocess
 import sys
 import time
+from inspect import getsourcefile
+from hpcflow import cli
 
 from platformdirs import user_data_dir
 import psutil
@@ -101,6 +103,9 @@ def start_helper(
             watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
+        if 'pytest/__main__.py' in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + '/cli.py'
+            # TODO: This is not ideal, but works for the timebeing...
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -127,8 +132,8 @@ def start_helper(
             write_helper_args(
                 app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
-            # Make sure that the process is actually running.
-            time.sleep(0.2)  # Sleep time is necessary for poll to work.
+            #Make sure that the process is actually running.
+            time.sleep(.2)      # Sleep time is necessary for poll to work.
             poll = proc.poll()
             if poll is None:
                 logger.info(f"Process {proc.pid} successfully running.")
@@ -288,9 +293,7 @@ def get_helper_logger(app):
     if not len(logger.handlers):
         logger.setLevel(logging.INFO)
         f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
-        f_format = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
 
@@ -360,7 +363,7 @@ def run_helper(
                 if new_val != helper_args[name]:
                     change = f"{name} parameter from {helper_args[name]} to {new_val}."
                     helper_args[name] = new_val
-                    if name in ["timeout", "timeout_check_interval"]:
+                    if name in ["timeout","timeout_check_interval"]:
                         t = helper_args[name]
                         if isinstance(t, timedelta):
                             t_s = t.total_seconds()
@@ -369,9 +372,9 @@ def run_helper(
                         if name == "timeout":
                             timeout = timedelta(seconds=t_s)
                             end_time = start_time + timeout
-                        else:  # name == "timeout_check_interval"
+                        else: # name == "timeout_check_interval"
                             timeout_check_interval_s = t_s
-                    else:  # name == "watch_interval"
+                    else: # name == "watch_interval"
                         controller.stop()
                         # TODO: we might need to consider if a workflow change could be missed during this stop
                         controller = MonitorController(
