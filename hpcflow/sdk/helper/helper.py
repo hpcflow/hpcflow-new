@@ -277,11 +277,12 @@ def get_helper_logger(app):
 
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
-    f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    f_handler.setFormatter(f_format)
-    logger.addHandler(f_handler)
+    if not len(logger.handlers):
+        logger.setLevel(logging.INFO)
+        f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
+        f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        f_handler.setFormatter(f_format)
+        logger.addHandler(f_handler)
 
     return logger
 
