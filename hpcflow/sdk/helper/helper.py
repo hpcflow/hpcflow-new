@@ -127,6 +127,14 @@ def start_helper(
             write_helper_args(
                 app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
+            #Make sure that the process is actually running.
+            time.sleep(.2)      # Sleep time is necessary for poll to work.
+            poll = proc.poll()
+            if poll is None:
+                logger.info(f"Process {proc.pid} successfully running.")
+            else:
+                logger.error(f"Process {proc.pid} failed to start.")
+                sys.exit(1)
         except FileNotFoundError as err:
             logger.error(f"Killing helper process. ")
             proc.kill()
