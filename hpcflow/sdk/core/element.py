@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from valida.conditions import ConditionLike
+from valida.datapath import DataPath
+from valida.rules import Rule
+
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import InputValue
 from hpcflow.sdk.core.utils import (
@@ -292,6 +295,19 @@ class Element:
             for action in schema.actions:
                 element_actions.extend(action.resolve_element_actions(element=self))
         return tuple(element_actions)
+
+    def test_rule(self, rule: Rule) -> bool:
+        """Test a rule on this element data."""
+
+        param_path = ".".join(
+            i.condition.callable.kwargs["value"] for i in rule.path.parts[:2]
+        )
+        elem_dat = self.get(param_path)
+
+        data_path = DataPath(*rule.path.parts[2:])
+        rule = Rule(path=data_path, condition=rule.condition, cast=rule.cast)
+
+        return rule.test(elem_dat).is_valid
 
 
 @dataclass
