@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 from .json_like import ChildObjectSpec, JSONLike
-from .command_files import FileSpec
+from .command_files import FileSpec, InputFile
 from .element import ElementFilter, ElementGroup
 from .errors import (
     MissingInputs,
@@ -41,6 +41,12 @@ class ElementSet(JSONLike):
             parent_ref="_element_set",
         ),
         ChildObjectSpec(
+            name="input_files",
+            class_name="InputFile",
+            is_multiple=True,
+            parent_ref="_element_set",
+        ),
+        ChildObjectSpec(
             name="resources",
             class_name="ResourceList",
             parent_ref="_element_set",
@@ -68,6 +74,7 @@ class ElementSet(JSONLike):
     def __init__(
         self,
         inputs: Optional[List[InputValue]] = None,
+        input_files: Optional[List[InputFile]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         repeats: Optional[Union[int, List[int]]] = 1,
@@ -85,6 +92,7 @@ class ElementSet(JSONLike):
             resources = self.app.ResourceList([self.app.ResourceSpec()])
 
         self.inputs = inputs or []
+        self.input_files = input_files or []
         self.repeats = repeats
         self.resources = resources
         self.sequences = sequences or []
@@ -100,6 +108,12 @@ class ElementSet(JSONLike):
 
         self._task_template = None  # assigned by parent Task
         self._defined_input_types = None  # assigned on _task_template assignment
+
+    def __deepcopy__(self, memo):
+        obj = self.__class__(**copy.deepcopy(self.to_dict(), memo))
+        obj._task_template = self._task_template
+        obj._defined_input_types = self._defined_input_types
+        return obj
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -187,6 +201,7 @@ class ElementSet(JSONLike):
     def ensure_element_sets(
         cls,
         inputs=None,
+        input_files=None,
         sequences=None,
         resources=None,
         repeats=None,
@@ -198,6 +213,7 @@ class ElementSet(JSONLike):
     ):
         args = (
             inputs,
+            input_files,
             sequences,
             resources,
             repeats,
@@ -350,6 +366,7 @@ class Task(JSONLike):
         repeats: Optional[Union[int, List[int]]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         inputs: Optional[List[InputValue]] = None,
+        input_files: Optional[List[InputFile]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
@@ -401,6 +418,7 @@ class Task(JSONLike):
 
         self._element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
+            input_files=input_files,
             sequences=sequences,
             resources=resources,
             repeats=repeats,
@@ -432,6 +450,17 @@ class Task(JSONLike):
 
     def __repr__(self):
         return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
+
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        _insert_ID = kwargs.pop("insert_ID")
+        _dir_name = kwargs.pop("dir_name")
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._insert_ID = _insert_ID
+        obj._dir_name = _dir_name
+        obj._name = self._name
+        obj.workflow_template = self.workflow_template
+        return obj
 
     def to_persistent(self, workflow):
         """Make a copy where any schema input defaults are saved to a persistent
@@ -554,7 +583,7 @@ class Task(JSONLike):
         # TODO: also search sub-parameters in the source tasks!
 
         available = {}
-        for inputs_path, def_val in self.get_all_inputs_info(element_set).items():
+        for inputs_path, inp_info in self.get_all_inputs_info(element_set).items():
 
             available[inputs_path] = []
 
@@ -586,7 +615,7 @@ class Task(JSONLike):
                         )
                         available[inputs_path].append(task_source)
 
-            if def_val:
+            if inp_info["has_default"]:
                 available[inputs_path].append(self.app.InputSource.default())
 
         return available
@@ -650,6 +679,24 @@ class Task(JSONLike):
                     sourced_input_types.append(seq.normalised_path)
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
+    def is_input_type_required(self, typ, element_set):
+
+        provided_files = [i.file for i in element_set.input_files]
+        # required if is appears in any command:
+        for schema in self.schemas:
+            for act in schema.actions:
+                if typ in act.get_command_input_types():
+                    return True
+
+                # required if used in any input file generators and input file is not
+                # provided:
+                for IFG in act.input_file_generators:
+                    if typ in (i.typ for i in IFG.inputs):
+                        if IFG.input_file not in provided_files:
+                            return True
+
+        return False
+
     def get_all_inputs_info(self, element_set):
         """Get a dict whose keys are the normalised paths (without the "inputs" prefix),
         and whose values are the associated default value InputValue object, in the case
@@ -664,12 +711,23 @@ class Task(JSONLike):
 
         info = {}
         for schema_input in self.all_schema_inputs:
-            info[schema_input.parameter.typ] = schema_input.default_value
+            info[schema_input.parameter.typ] = {
+                "has_default": schema_input.default_value is not None
+            }
 
         for inp_path in element_set.get_defined_sub_parameter_types():
-            info[inp_path] = None
+            info[inp_path] = {"has_default": False}
+
+        for inp in info:
+            info[inp]["is_required"] = self.is_input_type_required(inp, element_set)
 
         return info
+
+    def get_all_required_schema_inputs(self, element_set):
+        info = self.get_all_inputs_info(element_set)
+        return tuple(
+            i for i in self.all_schema_inputs if info[i.parameter.typ]["is_required"]
+        )
 
     @property
     def all_sequences_normalised_paths(self):
@@ -869,6 +927,12 @@ class WorkflowTask:
             input_sources[key] = ["local" for _ in group]
             new_param_groups.extend(group) if is_new else None
 
+        for inp_file_i in element_set.input_files:
+            key, group, is_new = inp_file_i.make_persistent(self.workflow)
+            input_data_indices[key] = group
+            input_sources[key] = ["local" for _ in group]
+            new_param_groups.extend(group) if is_new else None
+
         for seq_i in element_set.sequences:
             key, group, is_new = seq_i.make_persistent(self.workflow)
             input_data_indices[key] = group
@@ -877,7 +941,7 @@ class WorkflowTask:
             new_param_groups.extend(group) if is_new else None
 
         # Now check for task- and default-sources and overwrite or append to local sources:
-        for schema_input in self.template.all_schema_inputs:
+        for schema_input in self.template.get_all_required_schema_inputs(element_set):
 
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
@@ -962,13 +1026,8 @@ class WorkflowTask:
                         f"{[i.to_string() for i in available_sources[inputs_path]]}"
                     )
 
-        # TODO: if an input is not specified at all in the `inputs` dict (what about when list?),
-        # then check if there is an input files entry for associated inputs,
-        # if there is
-
-        unsourced_inputs = set(all_inputs_info.keys()) - set(
-            element_set.input_sources.keys()
-        )
+        req_types = set(k for k, v in all_inputs_info.items() if v["is_required"])
+        unsourced_inputs = req_types - set(element_set.input_sources.keys())
 
         # set source for any unsourced inputs:
         missing = []
@@ -1103,6 +1162,7 @@ class WorkflowTask:
         self,
         base_element=None,
         inputs=None,
+        input_files=None,
         sequences=None,
         resources=None,
         repeats=None,
@@ -1118,6 +1178,7 @@ class WorkflowTask:
             return self._add_elements(
                 base_element=base_element,
                 inputs=inputs,
+                input_files=input_files,
                 sequences=sequences,
                 resources=resources,
                 repeats=repeats,
@@ -1135,6 +1196,7 @@ class WorkflowTask:
         self,
         base_element=None,
         inputs=None,
+        input_files=None,
         sequences=None,
         resources=None,
         repeats=None,
@@ -1179,6 +1241,7 @@ class WorkflowTask:
 
         element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
+            input_files=input_files,
             sequences=sequences,
             resources=resources,
             repeats=repeats,
@@ -1218,6 +1281,7 @@ class WorkflowTask:
 
                 elem_set_i = self.app.ElementSet(
                     inputs=elem_propagate.element_set.inputs,
+                    input_files=elem_propagate.element_set.input_files,
                     sequences=elem_propagate.element_set.sequences,
                     resources=elem_propagate.element_set.resources,
                     repeats=elem_propagate.element_set.repeats,
@@ -1290,6 +1354,19 @@ class WorkflowTask:
                     dependents.append(elem_dep_i)
 
         return dependents
+
+    def resolve_element_actions_NEW(self):
+
+        out = []
+        for schema in self.template.schemas:
+            for action in schema.actions:
+                for element in self.elements:
+                    act_req = action.test_element(element)
+                    if act_req:
+                        out.append(
+                            self.app.ElementActionNEW(action=action, element=element)
+                        )
+        return out
 
 
 @dataclass

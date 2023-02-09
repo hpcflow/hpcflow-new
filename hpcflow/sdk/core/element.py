@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from valida.conditions import ConditionLike
+from valida.datapath import DataPath
+from valida.rules import Rule
+
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import InputValue
 from hpcflow.sdk.core.utils import (
@@ -214,12 +217,13 @@ class Element:
                     if j.parameter.typ == path[1]:
                         return j.parameter
 
-    def get(self, path: str = None):
+    def get(self, path: str = None, raise_on_missing=False):
         """Get element data from the persistent store."""
 
         path = [] if not path else path.split(".")
         parameter = self._path_to_parameter(path)
         current_value = None
+        is_cur_val_set = False
         for path_i, data_idx_i in self.data_index.items():
 
             path_i = path_i.split(".")
@@ -234,6 +238,7 @@ class Element:
                     is_update = True
 
                 except ValueError:
+                    # no intersection between paths
                     continue
 
             zarr_group = self.workflow.get_zarr_parameter_group(data_idx_i)
@@ -242,14 +247,19 @@ class Element:
             if is_parent:
                 # replace current value:
                 try:
-                    current_value = get_in_container(data, rel_path)
-                except (KeyError, IndexError):
+                    current_value = get_in_container(data, rel_path, cast_indices=True)
+                    is_cur_val_set = True
+                except (KeyError, IndexError, ValueError):
                     continue
 
             elif is_update:
                 # update sub-part of current value
                 current_value = current_value or {}
                 set_in_container(current_value, update_path, data, ensure_path=True)
+                is_cur_val_set = True
+
+        if raise_on_missing and not is_cur_val_set:
+            raise ValueError(f"Path {path} does not exist in the element data.")
 
         if parameter and parameter._value_class:
             current_value = parameter._value_class(**current_value)
@@ -292,6 +302,19 @@ class Element:
             for action in schema.actions:
                 element_actions.extend(action.resolve_element_actions(element=self))
         return tuple(element_actions)
+
+    def test_rule(self, rule: Rule) -> bool:
+        """Test a rule on this element data."""
+
+        param_path = ".".join(
+            i.condition.callable.kwargs["value"] for i in rule.path.parts[:2]
+        )
+        elem_dat = self.get(param_path)
+
+        data_path = DataPath(*rule.path.parts[2:])
+        rule = Rule(path=data_path, condition=rule.condition, cast=rule.cast)
+
+        return rule.test(elem_dat).is_valid
 
 
 @dataclass
