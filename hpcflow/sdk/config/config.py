@@ -327,6 +327,7 @@ class Config:
         raise_on_missing=False,
         as_str=False,
         callback=True,
+        default_value=None,
     ):
         """Get a configuration item.
 
@@ -347,12 +348,16 @@ class Config:
             if raise_on_missing:
                 raise ValueError("Not set.")
             val = None
+            if default_value:
+                val = default_value
 
         elif name in self._modified_keys:
             val = self._modified_keys[name]
 
         elif name in self._configurable_keys:
-            val = self._file.get_config_item(name, raise_on_missing)
+            val = self._file.get_config_item(
+                name, raise_on_missing, default_value=default_value
+            )
 
         if callback:
             try:

@@ -417,11 +417,7 @@ class ValueSequence(JSONLike):
         else:
             param_group_idx = []
             for i in self._values:
-                pg_idx_i = workflow._add_parameter_group(
-                    data=i,
-                    is_pending_add=workflow._in_batch_mode,
-                    is_set=True,
-                )
+                pg_idx_i = workflow._add_parameter_data(i)
                 param_group_idx.append(pg_idx_i)
 
             is_new = True
@@ -524,13 +520,9 @@ class AbstractInputValue(JSONLike):
                 )
             # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(
-                data=self._value,
-                is_pending_add=workflow._in_batch_mode,
-                is_set=True,
-            )
-            is_new = True
+            param_group_idx = workflow._add_parameter_data(self._value)
             self._value_group_idx = param_group_idx
+            is_new = True
             self._value = None
 
         return (self.normalised_path, [param_group_idx], is_new)
@@ -801,11 +793,7 @@ class ResourceSpec(JSONLike):
                 )
             # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(
-                data=self._get_members(),
-                is_pending_add=workflow._in_batch_mode,
-                is_set=True,
-            )
+            param_group_idx = workflow._add_parameter_data(self._get_members())
             is_new = True
             self._value_group_idx = param_group_idx
             self._workflow = workflow

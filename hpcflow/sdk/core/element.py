@@ -6,7 +6,6 @@ from valida.conditions import ConditionLike
 from valida.datapath import DataPath
 from valida.rules import Rule
 
-from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import InputValue
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
@@ -40,6 +39,51 @@ class ElementInputs:
 
 @dataclass
 class ElementOutputs:
+
+    _app_attr = "_app"
+
+    element: Element
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(" f"{', '.join(self._get_output_names())}" f")"
+
+    def _get_output_names(self):
+        return list(self.element.task.template.all_schema_output_types)
+
+    def __getattr__(self, name):
+        if name not in self._get_output_names():
+            raise ValueError(f"No output named {name!r}.")
+        return self.element.get(f"outputs.{name}")
+
+    def __dir__(self):
+        return super().__dir__() + self._get_output_names()
+
+
+@dataclass
+class ElementInputsNEW:
+
+    _app_attr = "_app"
+
+    element: Element
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(" f"{', '.join(self._get_input_names())}" f")"
+
+    def _get_input_names(self):
+        return sorted(self.element.task.template.all_schema_input_types)
+
+    def __getattr__(self, name):
+        if name not in self._get_input_names():
+            raise ValueError(f"No input named {name!r}.")
+        p_idx = self.element.data_index[f"inputs.{name}"]
+        return self._app.ElementParameter(self.element.task, self.element.index, p_idx)
+
+    def __dir__(self):
+        return super().__dir__() + self._get_input_names()
+
+
+@dataclass
+class ElementOutputsNEW:
 
     _app_attr = "_app"
 
@@ -241,8 +285,8 @@ class Element:
                     # no intersection between paths
                     continue
 
-            zarr_group = self.workflow.get_zarr_parameter_group(data_idx_i)
-            data = zarr_decode(zarr_group)
+            # TODO: test unset outputs are returned correctly
+            data = self.workflow.get_parameter_data(data_idx_i)
 
             if is_parent:
                 # replace current value:
@@ -315,6 +359,110 @@ class Element:
         rule = Rule(path=data_path, condition=rule.condition, cast=rule.cast)
 
         return rule.test(elem_dat).is_valid
+
+
+@dataclass
+class ElementNEW:
+
+    _app_attr = "app"
+
+    task: WorkflowTask
+    data_index: Dict
+    input_sources: Dict
+    index: int
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(" f"task={self.task!r}, index={self.index!r}" f")"
+        )
+
+    @property
+    def workflow(self):
+        return self.task.workflow
+
+    @property
+    def inputs(self):
+        return self.app.ElementInputsNEW(self)
+
+    @property
+    def outputs(self):
+        return self.app.ElementOutputsNEW(self)
+
+    def _path_to_parameter(self, path):
+        if len(path) != 2 or path[0] == "resources":
+            return
+
+        if path[0] == "inputs":
+            for i in self.task.template.schemas:
+                for j in i.inputs:
+                    if j.parameter.typ == path[1]:
+                        return j.parameter
+
+        elif path[0] == "outputs":
+            for i in self.task.template.schemas:
+                for j in i.outputs:
+                    if j.parameter.typ == path[1]:
+                        return j.parameter
+
+    def get(self, path: str = None):
+        """Get element data from the persistent store."""
+
+        path = [] if not path else path.split(".")
+        parameter = self._path_to_parameter(path)
+        current_value = None
+        for path_i, data_idx_i in self.data_index.items():
+
+            path_i = path_i.split(".")
+            is_parent = False
+            is_update = False
+            try:
+                rel_path = get_relative_path(path, path_i)
+                is_parent = True
+            except ValueError:
+                try:
+                    update_path = get_relative_path(path_i, path)
+                    is_update = True
+
+                except ValueError:
+                    continue
+
+            # TODO: test unset outputs are returned correctly
+            data = self.workflow.get_parameter_data(data_idx_i)
+
+            if is_parent:
+                # replace current value:
+                try:
+                    current_value = get_in_container(data, rel_path)
+                except (KeyError, IndexError):
+                    continue
+
+            elif is_update:
+                # update sub-part of current value
+                current_value = current_value or {}
+                set_in_container(current_value, update_path, data, ensure_path=True)
+
+        if parameter and parameter._value_class:
+            current_value = parameter._value_class(**current_value)
+
+        return current_value
+
+
+@dataclass
+class ElementParameter:
+
+    _app_attr = "app"
+
+    task: WorkflowTask
+    element_idx: Element
+    parameter_idx: int
+
+    @property
+    def value(self):
+        return self.task.workflow.get_parameter_data(self.parameter_idx)
+
+    def get_size(self, on_disk=True):
+        # TODO: sum up base parameter + all array sizes from zarr
+        pass
 
 
 @dataclass

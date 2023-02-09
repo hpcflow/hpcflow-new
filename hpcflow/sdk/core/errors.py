@@ -108,3 +108,7 @@ class WorkflowParameterMissingError(AttributeError):
 
 class WorkflowBatchUpdateFailedError(Exception):
     pass
+
+
+class WorkflowLimitsError(ValueError):
+    pass

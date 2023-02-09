@@ -31,6 +31,14 @@ def modify_workflow_metadata_on_disk(workflow):
     workflow._get_workflow_root_group(mode="r+").attrs.put(changed_md)
 
 
+def make_workflow_w1_with_config_kwargs(config_kwargs, path, param_p1, param_p2):
+    hpcflow.load_config(**config_kwargs)
+    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1], outputs=[param_p2])
+    t1 = Task(schemas=s1, inputs=[InputValue(param_p1, 101)])
+    wkt = WorkflowTemplate(name="w1", tasks=[t1])
+    return Workflow.from_template(wkt, path=path)
+
+
 @pytest.fixture
 def null_config(tmp_path):
     hpcflow.load_config(config_dir=tmp_path)
@@ -280,3 +288,55 @@ def test_batch_update_abort_if_modified_on_disk(workflow_w1, schema_s2, param_p3
         with workflow_w1.batch_update():
             workflow_w1.add_task(t2)
             modify_workflow_metadata_on_disk(workflow_w1)
+
+
+def test_get_task_element_data_group_path_rollover_next_task_group_dir_2_nesting_levels(
+    tmp_path,
+    param_p1,
+    param_p2,
+):
+    wk = make_workflow_w1_with_config_kwargs(
+        config_kwargs={
+            "config_dir": tmp_path,
+            "num_task_group_nesting_levels": 2,
+        },
+        path=tmp_path,
+        param_p1=param_p1,
+        param_p2=param_p2,
+    )
+
+    num_per_dir = wk._limits.max_num_task_groups_per_dir
+    elem_group_path = wk._get_workflow_NEW_element_data_group().path
+    assert (
+        wk._get_task_element_data_group_path(num_per_dir - 1),
+        wk._get_task_element_data_group_path(num_per_dir),
+    ) == (
+        f"{elem_group_path}/t0/task_{num_per_dir - 1}",
+        f"{elem_group_path}/t1/task_{num_per_dir}",
+    )
+
+
+def test_get_task_element_data_group_path_rollover_next_task_group_dir_3_nesting_levels(
+    tmp_path,
+    param_p1,
+    param_p2,
+):
+    wk = make_workflow_w1_with_config_kwargs(
+        config_kwargs={
+            "config_dir": tmp_path,
+            "num_task_group_nesting_levels": 3,
+        },
+        path=tmp_path,
+        param_p1=param_p1,
+        param_p2=param_p2,
+    )
+
+    num_per_dir = wk._limits.max_num_task_groups_per_dir
+    elem_group_path = wk._get_workflow_NEW_element_data_group().path
+    assert (
+        wk._get_task_element_data_group_path(num_per_dir - 1),
+        wk._get_task_element_data_group_path(num_per_dir),
+    ) == (
+        f"{elem_group_path}/t0/t0/task_{num_per_dir - 1}",
+        f"{elem_group_path}/t0/t1/task_{num_per_dir}",
+    )

@@ -18,6 +18,16 @@ from .config.cli import get_config_CLI
 from .config.errors import ConfigError
 from .core.actions import Action, ActionScopeType, ElementAction, ElementActionNEW
 from .core.element import Element, ElementInputs, ElementOutputs
+from .core.actions import Action, ActionScopeType, ElementAction
+from .core.element import (
+    Element,
+    ElementInputs,
+    ElementInputsNEW,
+    ElementNEW,
+    ElementOutputs,
+    ElementOutputsNEW,
+    ElementParameter,
+)
 from .core.environment import Executable, NumCores
 from .core.zarr_io import ZarrEncodable
 from .core.parameters import (
@@ -30,6 +40,7 @@ from .core.parameters import (
 from .core.task import ElementPropagation, WorkflowTask, ElementSet
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
+from .core.persistent_IO import PersistentIO
 from .demo.cli import get_demo_software_CLI
 from .helper.cli import get_helper_CLI
 from .log import AppLog
@@ -126,14 +137,19 @@ class BaseApp:
         core_classes += [
             ActionScopeType,
             Element,
+            ElementNEW,
             ElementInputs,
+            ElementInputsNEW,
             ElementOutputs,
+            ElementOutputsNEW,
             ElementAction,
             ElementActionNEW,
+            ElementParameter,
             ElementPropagation,
             InputSourceMode,
             InputSourceType,
             ParameterPropagationMode,
+            PersistentIO,
             TaskSourceType,
             Workflow,
             WorkflowTask,

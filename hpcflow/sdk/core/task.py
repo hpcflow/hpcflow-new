@@ -3,6 +3,9 @@ import copy
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import zarr
+
 from .json_like import ChildObjectSpec, JSONLike
 from .command_files import FileSpec, InputFile
 from .element import ElementFilter, ElementGroup
@@ -25,7 +28,17 @@ from .parameters import (
     ValuePerturbation,
     ValueSequence,
 )
-from .utils import get_duplicate_items, get_item_repeat_index
+from .utils import (
+    ensure_in,
+    get_duplicate_items,
+    get_item_repeat_index,
+    list_to_dict,
+    merge_into_headered_zarr_column_array,
+    merge_into_zarr_column_array,
+)
+
+
+INPUT_SOURCE_TYPES = ["local", "default", "task", "import"]
 
 
 class ElementSet(JSONLike):
@@ -528,31 +541,29 @@ class Task(JSONLike):
         """Find the nesting order for a task sequence."""
         return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
 
-    def _prepare_persistent_outputs(self, workflow, num_elements):
+    def _prepare_persistent_outputs(self, workflow, num_elements, data_idx_path):
         # TODO: check that schema is present when adding task? (should this be here?)
         output_data_indices = {}
         for schema in self.schemas:
             for output in schema.outputs:
-                output_data_indices[output.typ] = []
+                pth_idx = ensure_in(f"outputs.{output.typ}", data_idx_path)
+                output_data_indices[pth_idx] = []
                 for _ in range(num_elements):
-                    group_idx = workflow._add_parameter_group(
-                        data=None,
-                        is_pending_add=workflow._in_batch_mode,
-                        is_set=False,
-                    )
-                    output_data_indices[output.typ].append(group_idx)
+                    group_idx = workflow._add_parameter_data()
+                    output_data_indices[pth_idx].append(group_idx)
 
         return output_data_indices
 
-    def prepare_element_resolution(self, element_set, input_data_indices):
+    def prepare_element_resolution(self, element_set, input_data_indices, data_idx_paths):
 
         multiplicities = []
-        for path_i, inp_idx_i in input_data_indices.items():
+        for path_i_idx, inp_idx_i in input_data_indices.items():
+            path_i = data_idx_paths[path_i_idx]
             multiplicities.append(
                 {
                     "multiplicity": len(inp_idx_i),
                     "nesting_order": element_set.nesting_order.get(path_i, -1),
-                    "path": path_i,
+                    "path_idx": path_i_idx,
                 }
             )
 
@@ -910,7 +921,7 @@ class WorkflowTask:
 
     def _make_new_elements_persistent(self, element_set):
 
-        input_data_indices = {}
+        input_data_idx = {}
         input_sources = {}
         sequence_idx = {}
         new_param_groups = []
@@ -918,25 +929,37 @@ class WorkflowTask:
         # Assign first assuming all locally defined values are to be used:
         for res_i in element_set.resources:
             key, group, is_new = res_i.make_persistent(self.workflow)
-            input_data_indices[key] = group
+            input_data_idx[key] = group
             new_param_groups.extend(group) if is_new else None
 
         for inp_i in element_set.inputs:
             key, group, is_new = inp_i.make_persistent(self.workflow)
-            input_data_indices[key] = group
+            input_data_idx[key] = group
+            src_arr = self.workflow.pIO._get_new_element_input_source_array(len(group))
+            src_arr[:]["source_type_index"] = INPUT_SOURCE_TYPES.index("local")
+            input_sources[key] = src_arr
+            new_param_groups.extend(group) if is_new else None
+
+        for inp_file_i in element_set.input_files:
+            key, group, is_new = inp_file_i.make_persistent(self.workflow)
+            input_data_idx[key] = group
             input_sources[key] = ["local" for _ in group]
             new_param_groups.extend(group) if is_new else None
 
         for inp_file_i in element_set.input_files:
             key, group, is_new = inp_file_i.make_persistent(self.workflow)
-            input_data_indices[key] = group
+            input_data_idx[key] = group
             input_sources[key] = ["local" for _ in group]
             new_param_groups.extend(group) if is_new else None
 
         for seq_i in element_set.sequences:
             key, group, is_new = seq_i.make_persistent(self.workflow)
-            input_data_indices[key] = group
-            input_sources[key] = ["local" for _ in group]
+            input_data_idx[key] = group
+            src_arr = self.workflow.pIO._get_new_element_input_source_array(len(group))
+            src_arr[:]["source_type_index"] = INPUT_SOURCE_TYPES.index("local")
+
+            input_sources[key] = src_arr
+
             sequence_idx[key] = list(range(len(group)))
             new_param_groups.extend(group) if is_new else None
 
@@ -965,20 +988,26 @@ class WorkflowTask:
                         f"{inp_src.task_source_type.name.lower()}s.{schema_input.typ}"
                     )
                     grp_idx = [elem.data_index[src_key] for elem in src_elements]
-                    inp_src_i = [
-                        f"element.{i.global_index}.{inp_src.task_source_type.name}"
-                        for i in src_elements
-                    ]
+                    # inp_src_i = [
+                    #     f"element.{i.global_index}.{inp_src.task_source_type.name}"
+                    #     for i in src_elements
+                    # ]
+                    src_arr = self.workflow.pIO._get_new_element_input_source_array(
+                        len(src_elements)
+                    )
+                    src_arr[:]["source_type_index"] = INPUT_SOURCE_TYPES.index("task")
+                    src_arr[:]["task_index"] = inp_src.task_ref
+                    src_arr[:]["element_index"] = [i.index for i in src_elements]
 
                     if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
-                        input_data_indices[key] += grp_idx
-                        input_sources[key] += inp_src_i
+                        input_data_idx[key] += grp_idx
+                        input_sources[key] = np.concatenate([input_sources[key], src_arr])
 
                     else:
                         # overwrite existing local source (if it exists):
-                        input_data_indices[key] = grp_idx
-                        input_sources[key] = inp_src_i
+                        input_data_idx[key] = grp_idx
+                        input_sources[key] = src_arr
                         if key in sequence_idx:
                             sequence_idx.pop(key)
                             seq = element_set.get_sequence_by_path(key)
@@ -986,16 +1015,31 @@ class WorkflowTask:
 
                 if inp_src.source_type is InputSourceType.DEFAULT:
 
+                    src_arr = self.workflow.pIO._get_new_element_input_source_array(1)
+                    src_arr[:]["source_type_index"] = INPUT_SOURCE_TYPES.index("default")
+
                     grp_idx = [schema_input.default_value._value_group_idx]
                     if self.app.InputSource.local() in sources:
-                        input_data_indices[key] += grp_idx
-                        input_sources[key] += ["default"]
+                        input_data_idx[key] += grp_idx
+                        input_sources[key] = np.concatenate([input_sources[key], src_arr])
 
                     else:
-                        input_data_indices[key] = grp_idx
-                        input_sources[key] = ["default"]
+                        input_data_idx[key] = grp_idx
+                        input_sources[key] = src_arr
 
-        return input_data_indices, input_sources, sequence_idx, new_param_groups
+        # sort smallest to largest path, so more-specific items overwrite less-specific
+        # items parameter retrieval:
+        data_idx_paths = sorted(input_data_idx.keys(), key=lambda x: len(x.split(".")))
+        input_data_idx = {data_idx_paths.index(k): v for k, v in input_data_idx.items()}
+        input_sources = {data_idx_paths.index(k): v for k, v in input_sources.items()}
+
+        return (
+            data_idx_paths,
+            input_data_idx,
+            input_sources,
+            sequence_idx,
+            new_param_groups,
+        )
 
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
@@ -1051,6 +1095,43 @@ class WorkflowTask:
                 missing_inputs=missing,
             )
 
+    def generate_new_elements(
+        self,
+        input_data_indices,
+        output_data_indices,
+        element_data_indices,
+        input_sources,
+        sequence_indices,
+    ):
+
+        new_elements = []
+        element_inp_sources = {}
+        element_sequence_indices = {}
+        for i_idx, i in enumerate(element_data_indices):
+            elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
+            elem_i.update({k: v[i_idx] for k, v in output_data_indices.items()})
+            new_elements.append(elem_i)
+
+            # track input sources for each new element:
+            # TODO: fix input sources tracking; should return the whole 2D input sources
+            # array from this func:
+            for k, v in i.items():
+
+                if k in input_sources:
+                    if k not in element_inp_sources:
+                        element_inp_sources[k] = []
+                    element_inp_sources[k].append(input_sources[k][v])
+
+            # track which sequence value indices (if any) are used for each new element:
+            # TODO: fix sequence tracking
+            for k, v in i.items():
+                if k in sequence_indices:
+                    if k not in element_sequence_indices:
+                        element_sequence_indices[k] = []
+                    element_sequence_indices[k].append(sequence_indices[k][v])
+
+        return new_elements, element_sequence_indices, element_inp_sources
+
     def _add_element_set(self, element_set, parent_events):
         """
         Returns
@@ -1064,30 +1145,72 @@ class WorkflowTask:
         self.ensure_input_sources(element_set)  # may modify element_set.input_sources
 
         (
+            data_idx_paths,
             input_data_idx,
             input_sources,
             seq_idx,
             new_param_groups,
         ) = self._make_new_elements_persistent(element_set)
 
+        # print(f"1 {data_idx_paths=}")
+        # print(f"1 {input_data_idx=}")
+
         multiplicities = self.template.prepare_element_resolution(
-            element_set, input_data_idx
+            element_set, input_data_idx, data_idx_paths
         )
-        element_data_idx = self.workflow.resolve_element_data_indices(multiplicities)
+        # print(f"{multiplicities=}")
+
+        element_data_idx = self.workflow.resolve_element_data_indices(
+            multiplicities, data_idx_paths
+        )
+        # print(f"{element_data_idx=}")
+
+        input_sources_data_idx = list_to_dict(
+            element_data_idx,
+            exclude=set(input_data_idx) - set(input_sources.keys()),
+        )
+        # print(f"{input_sources_data_idx=}")
+        elem_inp_src = {k: input_sources[k][v] for k, v in input_sources_data_idx.items()}
+        # print(f"{elem_inp_src=}")
+
+        self.workflow.pIO.append_element_input_sources(
+            task_insert_ID=self.insert_ID,
+            new_sources=elem_inp_src,
+            element_data_idx=element_data_idx,
+            data_idx_paths=data_idx_paths,
+        )
+
+        # print(f"{src_paths=}")
+        # print(f"{elem_inp_src_arr=}")
+
         output_data_idx = self.template._prepare_persistent_outputs(
-            self.workflow, len(element_data_idx)
+            self.workflow, len(element_data_idx), data_idx_paths
         )
+
+        # print(f"2 {data_idx_paths=}")
+        # print(f"1 {output_data_idx=}")
+        # print(f"{new_param_groups=}")
 
         (
             new_elements,
-            element_input_sources,
             element_seq_idx,
-        ) = self.workflow.generate_new_elements(
+            element_input_sources,
+        ) = self.generate_new_elements(
             input_data_idx,
             output_data_idx,
             element_data_idx,
             input_sources,
             seq_idx,
+        )
+        print(f"{data_idx_paths=}")
+        print(f"{new_elements=}")
+        # print(f"{src_paths=}")
+        # print(f"{element_seq_idx=}")
+
+        self.workflow.pIO.append_element_parameter_indices(
+            task_insert_ID=self.insert_ID,
+            new_elements=new_elements,
+            data_idx_paths=data_idx_paths,
         )
 
         element_indices = list(
@@ -1097,7 +1220,7 @@ class WorkflowTask:
             )
         )
 
-        evt = self.workflow.event_log.event_add_element_set(
+        self.workflow.event_log.event_add_element_set(
             task_index=self.index,
             new_element_indices=element_indices,
             new_parameter_groups=new_param_groups,
@@ -1128,8 +1251,14 @@ class WorkflowTask:
         }
 
         # Now update the remaining metadata:
+        # TEMP: convert elements back to old format so that still works for now:
+        new_elements = [
+            {data_idx_paths[k]: v for k, v in elem.items()} for elem in new_elements
+        ]
         self.workflow.metadata["elements"].extend(new_elements)
         self._metadata["element_indices"].extend(element_indices)
+
+        print(f"{element_input_sources=}")
 
         for k, v in self._metadata["element_input_sources"].items():
             v.extend(element_input_sources.get(k, [None] * len(new_elements)))
@@ -1354,6 +1483,79 @@ class WorkflowTask:
                     dependents.append(elem_dep_i)
 
         return dependents
+
+    def get_input_sources(self, use_indices=False):
+        return self.workflow.pIO.get_input_sources(self.insert_ID, use_indices)
+
+    def get_parameter_indices(self, use_indices=False):
+        return self.workflow.pIO.get_parameter_indices(self.insert_ID, use_indices)
+
+    @property
+    def num_elements_NEW(self):
+        return self.workflow.pIO.get_task_num_elements(self.insert_ID)
+
+    @property
+    def elements_NEW(self):
+        return Elements(self)
+
+    @property
+    def inputs(self):
+        return TaskInputParameters(self)
+
+    def get_parameters(self, path):
+        return Parameters(self, path)
+
+
+@dataclass
+class Elements:
+    task: WorkflowTask
+
+    def islice(self, start=None, end=None):
+        for i in self.task.workflow.pIO.task_elements_islice(self.task, start, end):
+            yield i
+
+    def __iter__(self):
+        return self.islice()
+
+    def __getitem__(self, selection):
+        return self.task.workflow.pIO.task_elements_get(self.task, selection)
+
+
+@dataclass
+class Parameters:
+    task: WorkflowTask
+    path: str
+
+    def islice(self, start=None, end=None):
+        for i in self.task.workflow.pIO.task_parameter_islice(
+            self.task, self.path, start, end
+        ):
+            yield i
+
+    def __iter__(self):
+        return self.islice()
+
+    def __getitem__(self, selection):
+        return self.task.workflow.pIO.task_parameters_get(self.task, self.path, selection)
+
+
+@dataclass
+class TaskInputParameters:
+    task: WorkflowTask
+
+    def __getattr__(self, name):
+        if name not in self._get_input_names():
+            raise ValueError(f"No input named {name!r}.")
+        return Parameters(self.task, f"inputs.{name}")
+
+    def __dir__(self):
+        return super().__dir__() + self._get_input_names()
+
+    def _get_input_names(self):
+        return sorted(self.task.template.all_schema_input_types)
+
+    def get(self, path):
+        pass
 
     def resolve_element_actions_NEW(self):
 

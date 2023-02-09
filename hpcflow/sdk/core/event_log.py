@@ -83,7 +83,7 @@ class EventLog:
         return len(self.metadata)
 
     def _get_zarr_group(self, mode="r"):
-        return self.workflow._get_workflow_root_group(mode).event_log
+        return self.workflow.pIO.get_workflow_root_group(mode).event_log
 
     @property
     def metadata(self):
@@ -310,7 +310,11 @@ class EventLog:
         )[0]
 
     def get_events_of_type(self, event_type, as_json=False):
-        type_idx = self._metadata_lookup["event_type"].index(event_type)
+        try:
+            type_idx = self._metadata_lookup["event_type"].index(event_type)
+        except ValueError:
+            return []
+
         idx = np.where(self.metadata["event_type"] == type_idx)[0]
         pending_idx = np.where(self._new_event_metadata["event_type"] == type_idx)[0]
         pending_idx += self.num_saved_events

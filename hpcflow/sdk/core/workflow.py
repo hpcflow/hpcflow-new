@@ -5,21 +5,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import shutil
 import time
-from typing import List, Optional
+from typing import List, Optional, Union
 from warnings import warn
 
+import numpy as np
 import zarr
-from reretry import retry
+
 
 from .event_log import EventLog
 from .json_like import ChildObjectSpec, JSONLike
-from .zarr_io import zarr_encode
 from .parameters import InputSource
 from .task import ElementSet, Task
-from .utils import get_md5_hash, group_by_dict_key_values, read_YAML, read_YAML_file
+from .utils import (
+    get_md5_hash,
+    get_nested_indices,
+    group_by_dict_key_values,
+    read_YAML,
+    read_YAML_file,
+)
+from .persistent_IO import PersistentIO, dropbox_permission_err_retry
 from .errors import (
     InvalidInputSourceTaskReference,
     WorkflowBatchUpdateFailedError,
+    WorkflowLimitsError,
     WorkflowNotFoundError,
     WorkflowParameterMissingError,
 )
@@ -28,19 +36,10 @@ TS_FMT = r"%Y.%m.%d_%H:%M:%S.%f_%z"
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
-def dropbox_retry_fail(err):
-    # TODO: this should log instead of printing!
-    print("retrying...")
-
-
-# TODO: maybe this is only an issue on Windows?
-dropbox_permission_err_retry = retry(
-    PermissionError,
-    tries=10,
-    delay=1,
-    backoff=2,
-    fail_callback=dropbox_retry_fail,
-)
+@dataclass
+class BatchUpdateData:
+    """Class to store batch update instructions, ready for writing to the persistent
+    workflow at the end of the batch update."""
 
 
 @dataclass
@@ -112,16 +111,9 @@ class Workflow:
         self._in_batch_mode = False  # flag to track when processing batch updates
         self._batch_mode_parameter_data = {}
 
-    def _get_workflow_root_group(self, mode="r"):
-        try:
-            return zarr.open(self.path, mode=mode)
-        except zarr.errors.PathNotFoundError:
-            raise WorkflowNotFoundError(
-                f"No workflow found at path: {self.path}"
-            ) from None
-
-    def _get_workflow_parameter_group(self, mode="r"):
-        return self._get_workflow_root_group(mode=mode).parameter_data
+    @property
+    def pIO(self):
+        return self.app.PersistentIO(self)
 
     @property
     def metadata(self):
@@ -188,15 +180,6 @@ class Workflow:
     def task_name_repeat_idx(self):
         return self.metadata["task_name_repeat_idx"]
 
-    @staticmethod
-    @dropbox_permission_err_retry
-    def _write_persistent_workflow(store, overwrite, root_attrs):
-        """Write the empty workflow data to the zarr store on disk."""
-        root = zarr.group(store=store, overwrite=overwrite)
-        root.attrs.update(root_attrs)
-        root.create_group("parameter_data")
-        EventLog.generate_in(root)
-
     @classmethod
     def _make_empty_workflow(
         cls,
@@ -219,17 +202,7 @@ class Workflow:
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
         path = path.joinpath(name)
 
-        template_js, template_sh = template.to_json_like()
-
-        store = zarr.DirectoryStore(path)
-        root_attrs = {
-            "shared_data": template_sh,
-            "template": template_js,
-            "elements": [],
-            "tasks": [],
-            "task_name_repeat_idx": [],
-        }
-        cls._write_persistent_workflow(store, overwrite, root_attrs)
+        cls.app.PersistentIO.write_persistent_workflow(template, path, overwrite)
 
         obj = cls.load(path)
         obj.event_log.event_workflow_create(
@@ -261,25 +234,13 @@ class Workflow:
 
     def copy(self, path=None):
         """Copy the workflow to a new path and return the copied workflow."""
-        path = self.path.with_suffix(".copy") if path is None else path
-        if path.exists():
-            raise ValueError(f"Path already exists: {path}.")
-        shutil.copytree(self.path, path)
-        return self.load(path)
+        return self.pIO.copy(path)
 
-    @dropbox_permission_err_retry
     def _delete_no_confirm(self):
-        # Dropbox (on Windows, at least) seems to try to re-sync some of the workflow
-        # files if it is deleted soon after creation, which is the case on a failed
-        # workflow creation (e.g. missing inputs):
-        while self.path.is_dir():
-            shutil.rmtree(self.path)
-            time.sleep(0.5)
+        self.pIO.delete_no_confirm()
 
     def delete(self):
-        """Delete the persistent workflow."""
-        # TODO: add confirmation
-        self._delete_no_confirm()
+        self.pIO.delete()
 
     def _resolve_input_source_task_reference(
         self, input_source: InputSource, new_task_name: str
@@ -330,10 +291,12 @@ class Workflow:
         self._metadata = copy.deepcopy(self._original_metadata)
 
     def _set_original_metadata(self):
-        self._original_metadata = self._get_workflow_root_group(mode="r").attrs.asdict()
+        self._original_metadata = self.pIO.get_workflow_root_group(
+            mode="r"
+        ).attrs.asdict()
 
     def _dump_metadata(self):
-        self._get_workflow_root_group(mode="r+").attrs.put(self.metadata)
+        self.pIO.get_workflow_root_group(mode="r+").attrs.put(self.metadata)
         self._set_original_metadata()
         self._clear_children()
 
@@ -348,7 +311,7 @@ class Workflow:
         """Remove the pending flag from newly added parameters so they integrate with the
         workflow."""
 
-        param_group = self._get_workflow_parameter_group(mode="r+")
+        param_group = self.pIO._get_workflow_parameter_group(mode="r+")
         for key in self._get_pending_add_parameter_keys():
             # print(f"_accept_new_parameters: {grp_idx}")  # TODO: log this
             del param_group[key].attrs["is_pending_add"]
@@ -363,7 +326,7 @@ class Workflow:
         """Remove newly added parameter data from the workflow, in the case where a batch
         update failed."""
 
-        param_group = self._get_workflow_parameter_group(mode="r+")
+        param_group = self.pIO._get_workflow_parameter_group(mode="r+")
         for grp_idx, val in param_group.items():
             if "is_pending_add" in val.attrs:
                 # print(f"_discard_new_parameters: {grp_idx}")  # TODO: log this
@@ -373,7 +336,7 @@ class Workflow:
         """Check if the workflow metadata has changed on disk since we loaded it."""
         # TODO: check parameters and event log as well
         md_mem = self._original_metadata
-        md_disk = self._get_workflow_root_group(mode="r").attrs.asdict()
+        md_disk = self.pIO.get_workflow_root_group(mode="r").attrs.asdict()
         return get_md5_hash(md_disk) != get_md5_hash(md_mem)
 
     def _check_is_modified(self):
@@ -436,7 +399,7 @@ class Workflow:
                     self.event_log.dump_new_events()
 
     def get_zarr_parameter_group(self, group_idx):
-        grp = self._get_workflow_parameter_group(mode="r").get(str(group_idx))
+        grp = self.pIO._get_workflow_parameter_group(mode="r").get(str(group_idx))
         if grp is None:
             raise WorkflowParameterMissingError(
                 f"Workflow parameter with group index {group_idx} does not exist."
@@ -444,7 +407,7 @@ class Workflow:
         return grp
 
     @staticmethod
-    def resolve_element_data_indices(multiplicities):
+    def resolve_element_data_indices(multiplicities, data_idx_paths):
         """Find the index of the Zarr parameter group index list corresponding to each
         input data for all elements.
 
@@ -455,6 +418,7 @@ class Workflow:
                 multiplicity: int
                 nesting_order: int
                 path : str
+        data_idx_paths : list of str
 
         Returns
         -------
@@ -480,9 +444,9 @@ class Workflow:
                 raise ValueError(
                     f"All inputs with the same `nesting_order` must have the same "
                     f"multiplicity, but for paths "
-                    f"{[i['path'] for i in para_sequences]} with `nesting_order` "
-                    f"{para_sequences[0]['nesting_order']} found multiplicities "
-                    f"{[i['multiplicity'] for i in para_sequences]}."
+                    f"{[data_idx_paths[i['path_idx']] for i in para_sequences]} with "
+                    f"`nesting_order` {para_sequences[0]['nesting_order']} found "
+                    f"multiplicities {[i['multiplicity'] for i in para_sequences]}."
                 )
 
             new_elements = []
@@ -491,25 +455,18 @@ class Workflow:
                     new_elements.append(
                         {
                             **element,
-                            **{i["path"]: val_idx for i in para_sequences},
+                            **{i["path_idx"]: val_idx for i in para_sequences},
                         }
                     )
             element_dat_idx = new_elements
 
         return element_dat_idx
 
-    def _add_parameter_group(self, data, is_pending_add, is_set):
+    def _add_parameter_data(self, data=None):
+        return self.pIO.add_parameter_data(data)
 
-        param_dat_group = self._get_workflow_parameter_group(mode="r+")
-
-        names = [int(i) for i in param_dat_group.keys()]
-        new_idx = max(names) + 1 if names else 0
-        new_name = str(new_idx)
-
-        new_param_group = param_dat_group.create_group(name=new_name)
-        zarr_encode(data, new_param_group, is_pending_add, is_set)
-
-        return new_idx
+    def get_parameter_data(self, indices):
+        return self.pIO.get_parameter_data(indices)
 
     @dropbox_permission_err_retry
     def _remove_parameter_group(self, param_group, group_idx):
@@ -526,64 +483,22 @@ class Workflow:
             is_multi = False
             group_idx = [group_idx]
 
-        param_group = self._get_workflow_parameter_group(mode="r")
+        param_group = self.pIO._get_workflow_parameter_group(mode="r")
         out = [str(i) in param_group for i in group_idx]
         if not is_multi:
             out = out[0]
 
         return out
 
-    def generate_new_elements(
-        self,
-        input_data_indices,
-        output_data_indices,
-        element_data_indices,
-        input_sources,
-        sequence_indices,
-    ):
-
-        new_elements = []
-        element_inp_sources = {}
-        element_sequence_indices = {}
-        for i_idx, i in enumerate(element_data_indices):
-            elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
-            elem_i.update(
-                {f"outputs.{k}": v[i_idx] for k, v in output_data_indices.items()}
-            )
-
-            # ensure sorted from smallest to largest path (so more-specific items
-            # overwrite less-specific items):
-            elem_i_split = {tuple(k.split(".")): v for k, v in elem_i.items()}
-            elem_i_srt = dict(sorted(elem_i_split.items(), key=lambda x: len(x[0])))
-            elem_i = {".".join(k): v for k, v in elem_i_srt.items()}
-
-            new_elements.append(elem_i)
-
-            # track input sources for each new element:
-            for k, v in i.items():
-                if k in input_sources:
-                    if k not in element_inp_sources:
-                        element_inp_sources[k] = []
-                    element_inp_sources[k].append(input_sources[k][v])
-
-            # track which sequence value indices (if any) are used for each new element:
-            for k, v in i.items():
-                if k in sequence_indices:
-                    if k not in element_sequence_indices:
-                        element_sequence_indices[k] = []
-                    element_sequence_indices[k].append(sequence_indices[k][v])
-
-        return new_elements, element_inp_sources, element_sequence_indices
-
     def _get_parameter_keys(self):
-        return list(int(i) for i in self._get_workflow_parameter_group().keys())
+        return list(int(i) for i in self.pIO._get_workflow_parameter_group().keys())
 
     def _get_parameter_items(self, mode="r"):
-        for k, v in self._get_workflow_parameter_group(mode=mode).items():
+        for k, v in self.pIO._get_workflow_parameter_group(mode=mode).items():
             yield (int(k), v)
 
     def _get_parameter_values(self):
-        return self._get_workflow_parameter_group().values()
+        return self.pIO._get_workflow_parameter_group().values()
 
     def get_task_unique_names(self, map_to_insert_ID=False):
         """Return the unique names of all workflow tasks.
@@ -612,6 +527,8 @@ class Workflow:
         return uniq_names[new_index]
 
     def _add_empty_task(self, task: Task, parent_events, new_index=None):
+
+        print(f"\n_add_empty_task")
 
         if new_index is None:
             new_index = self.num_tasks
@@ -656,6 +573,8 @@ class Workflow:
         self._save_metadata()
 
         new_task = self.tasks[new_index]
+
+        self.pIO.write_new_empty_task(insert_ID)
 
         return new_task
 
