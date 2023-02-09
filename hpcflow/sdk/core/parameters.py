@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 from dataclasses import dataclass, field
 import enum
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -92,6 +93,8 @@ class SubParameter:
 @dataclass
 class SchemaParameter(JSONLike):
 
+    _app_attr = "app"
+
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -106,7 +109,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self):
         if isinstance(self.parameter, str):
-            self.parameter = Parameter(self.parameter)
+            self.parameter = self.app.Parameter(self.parameter)
 
     @property
     def name(self):
@@ -177,6 +180,17 @@ class SchemaInput(SchemaParameter):
             f"{default_str}{group_str}{where_str}"
             f")"
         )
+
+    def __deepcopy__(self, memo):
+        kwargs = {
+            "parameter": self.parameter,
+            "default_value": self.default_value,
+            "propagation_mode": self.propagation_mode,
+            "group": self.group,
+        }
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._task_schema = self._task_schema
+        return obj
 
     @property
     def task_schema(self):
@@ -259,6 +273,17 @@ class ValueSequence(JSONLike):
             f"values={self.values}"
             f")"
         )
+
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        kwargs["values"] = kwargs.pop("_values")
+        _values_group_idx = kwargs.pop("_values_group_idx")
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._values_group_idx = _values_group_idx
+        obj._workflow = self._workflow
+        obj._element_set = self._element_set
+        obj._path_split = self._path_split
+        return obj
 
     @property
     def parameter(self):
@@ -577,6 +602,17 @@ class InputValue(AbstractInputValue):
         # SchemaInput):
         self._schema_input = None
 
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        _value = kwargs.pop("_value")
+        _value_group_idx = kwargs.pop("_value_group_idx")
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._value = _value
+        obj._value_group_idx = _value_group_idx
+        obj._element_set = self._element_set
+        obj._schema_input = self._schema_input
+        return obj
+
     def __repr__(self):
 
         val_grp_idx = ""
@@ -669,6 +705,14 @@ class ResourceSpec(JSONLike):
         # assigned by `make_persistent`
         self._workflow = None
         self._value_group_idx = None
+
+    def __deepcopy__(self, memo):
+        kwargs = copy.deepcopy(self.to_dict(), memo)
+        _value_group_idx = kwargs.pop("value_group_idx")
+        obj = self.__class__(**kwargs)
+        obj._value_group_idx = _value_group_idx
+        obj._resource_list = self._resource_list
+        return obj
 
     def __repr__(self):
         param_strs = ""

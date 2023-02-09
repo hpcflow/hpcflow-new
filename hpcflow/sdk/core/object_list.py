@@ -1,3 +1,4 @@
+import copy
 from types import SimpleNamespace
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -29,6 +30,12 @@ class ObjectList(JSONLike):
 
         self._validate()
 
+    def __deepcopy__(self, memo):
+        obj = self.__class__(copy.deepcopy(self._objects, memo))
+        obj._descriptor = self._descriptor
+        obj._object_is_dict = self._object_is_dict
+        return obj
+
     def _validate(self):
         for idx, obj in enumerate(self._objects):
 
@@ -41,7 +48,7 @@ class ObjectList(JSONLike):
         return len(self._objects)
 
     def __repr__(self):
-        return repr([self._get_item(i) for i in self._objects])
+        return f"{self.__class__.__name__}({[self._get_item(i) for i in self._objects]})"
 
     def __str__(self):
         return str([self._get_item(i) for i in self._objects])
@@ -426,6 +433,11 @@ class ResourceList(ObjectList):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set = None  # assigned by parent ElementSet
         self._set_parent_refs()
+
+    def __deepcopy__(self, memo):
+        obj = super().__deepcopy__(memo)
+        obj._element_set = self._element_set
+        return obj
 
     @property
     def element_set(self):

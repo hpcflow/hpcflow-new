@@ -1,7 +1,13 @@
 import copy
 import pytest
 from hpcflow.api import (
+    Action,
+    ActionEnvironment,
+    Command,
     ElementPropagation,
+    Environment,
+    FileSpec,
+    OutputFileParser,
     ValueSequence,
     hpcflow,
     InputSourceType,
@@ -25,6 +31,7 @@ from hpcflow.sdk.core.errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
 )
+from hpcflow.sdk.core.test_utils import make_schemas
 
 
 @pytest.fixture
@@ -99,26 +106,104 @@ def workflow_w3(null_config, tmp_path, param_p1, param_p2, param_p3, param_p4):
 
 
 @pytest.fixture
-def workflow_w4(null_config, tmp_path, param_p1, param_p2):
-    s1 = TaskSchema("t1", actions=[], inputs=[param_p1], outputs=[param_p2])
-    t1 = Task(schemas=s1, inputs=[InputValue(param_p1, 101)])
+def file_spec_fs1():
+    return FileSpec(label="file1", name="file1.txt")
+
+
+@pytest.fixture
+def env_1():
+    return Environment(name="env_1")
+
+
+@pytest.fixture
+def act_env_1(env_1):
+    return ActionEnvironment(env_1)
+
+
+@pytest.fixture
+def act_3(act_env_1, param_p2, file_spec_fs1):
+    return Action(
+        commands=[Command("<<parameter:p1>>")],
+        output_file_parsers=[
+            OutputFileParser(output=param_p2, output_files=[file_spec_fs1]),
+        ],
+        environments=[act_env_1],
+    )
+
+
+@pytest.fixture
+def schema_s3(param_p1, param_p2, act_3):
+    return TaskSchema("ts1", actions=[act_3], inputs=[param_p1], outputs=[param_p2])
+
+
+@pytest.fixture
+def workflow_w4(null_config, tmp_path, schema_s3, param_p1):
+    t1 = Task(schemas=schema_s3, inputs=[InputValue(param_p1, 101)])
     wkt = WorkflowTemplate(name="w1", tasks=[t1])
     return Workflow.from_template(wkt, path=tmp_path)
 
 
-def test_task_expected_input_source_mode_no_sources(param_p1):
-    s1 = TaskSchema("t1", actions=[], inputs=[SchemaInput(param_p1)])
+@pytest.fixture
+def env_1():
+    return Environment(name="env_1")
+
+
+@pytest.fixture
+def act_env_1(env_1):
+    return ActionEnvironment(env_1)
+
+
+@pytest.fixture
+def act_1(act_env_1):
+    return Action(
+        commands=[Command("<<parameter:p1>>")],
+        environments=[act_env_1],
+    )
+
+
+@pytest.fixture
+def act_2(act_env_1):
+    return Action(
+        commands=[Command("<<parameter:p2>>")],
+        environments=[act_env_1],
+    )
+
+
+@pytest.fixture
+def schema_s1(param_p1, act_1):
+    return TaskSchema("ts1", actions=[act_1], inputs=[param_p1])
+
+
+@pytest.fixture
+def schema_s2(param_p1, act_1):
+    return TaskSchema(
+        "ts1", actions=[act_1], inputs=[SchemaInput(param_p1, default_value=101)]
+    )
+
+
+@pytest.fixture
+def schema_s4(param_p2, act_2):
+    return TaskSchema("ts2", actions=[act_2], inputs=[param_p2])
+
+
+@pytest.fixture
+def schema_s5(param_p2, act_2):
+    return TaskSchema(
+        "ts2", actions=[act_2], inputs=[SchemaInput(param_p2, default_value=2002)]
+    )
+
+
+def test_task_expected_input_source_mode_no_sources(schema_s1, param_p1):
     t1 = Task(
-        schemas=s1,
+        schemas=schema_s1,
         inputs=[InputValue(param_p1, value=101)],
     )
     assert t1.element_sets[0].input_source_mode == InputSourceMode.AUTO
 
 
-def test_task_expected_input_source_mode_with_sources(param_p1):
-    s1 = TaskSchema("t1", actions=[], inputs=[SchemaInput(param_p1)])
+def test_task_expected_input_source_mode_with_sources(schema_s1, param_p1):
     t1 = Task(
-        schemas=s1,
+        schemas=schema_s1,
         inputs=[InputValue(param_p1, value=101)],
         input_sources=[InputSource.local()],
     )
@@ -126,11 +211,11 @@ def test_task_expected_input_source_mode_with_sources(param_p1):
 
 
 def test_task_get_available_task_input_sources_expected_return_first_task_local_value(
+    schema_s1,
     param_p1,
 ):
 
-    s1 = TaskSchema("t1", actions=[], inputs=[SchemaInput(param_p1)])
-    t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
+    t1 = Task(schemas=schema_s1, inputs=[InputValue(param_p1, value=101)])
 
     available = t1.get_available_task_input_sources(
         element_set=t1.element_sets[0],
@@ -142,13 +227,10 @@ def test_task_get_available_task_input_sources_expected_return_first_task_local_
 
 
 def test_task_get_available_task_input_sources_expected_return_first_task_default_value(
-    param_p1,
+    schema_s2,
 ):
 
-    s1 = TaskSchema("t1", actions=[], inputs=[SchemaInput(param_p1, default_value=101)])
-
-    t1 = Task(schemas=s1)
-
+    t1 = Task(schemas=schema_s2)
     available = t1.get_available_task_input_sources(element_set=t1.element_sets[0])
     available_exp = {"p1": [InputSource(source_type=InputSourceType.DEFAULT)]}
 
@@ -156,19 +238,11 @@ def test_task_get_available_task_input_sources_expected_return_first_task_defaul
 
 
 def test_task_get_available_task_input_sources_expected_return_one_param_one_output(
-    param_p1, param_p2
+    schema_s3, schema_s4
 ):
 
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2)],
-    )
-    s2 = TaskSchema("t2", actions=[], inputs=[SchemaInput(param_p2)])
-
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2)
+    t1 = Task(schemas=schema_s3)
+    t2 = Task(schemas=schema_s4)
 
     t1._insert_ID = 0
 
@@ -189,19 +263,11 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
 
 def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default(
-    param_p1, param_p2
+    schema_s3, schema_s5
 ):
 
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2)],
-    )
-    s2 = TaskSchema("t2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
-
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2)
+    t1 = Task(schemas=schema_s3)
+    t2 = Task(schemas=schema_s5)
 
     t1._insert_ID = 0
 
@@ -223,19 +289,11 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
 
 def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_local(
-    param_p1, param_p2
+    schema_s3, schema_s4, param_p2
 ):
 
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2)],
-    )
-    s2 = TaskSchema("t2", actions=[], inputs=[SchemaInput(param_p2)])
-
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+    t1 = Task(schemas=schema_s3)
+    t2 = Task(schemas=schema_s4, inputs=[InputValue(param_p2, value=202)])
 
     t1._insert_ID = 0
 
@@ -257,19 +315,11 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
 
 
 def test_task_get_available_task_input_sources_expected_return_one_param_one_output_with_default_and_local(
-    param_p1, param_p2
+    schema_s3, schema_s5, param_p2
 ):
 
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2)],
-    )
-    s2 = TaskSchema("t2", actions=[], inputs=[SchemaInput(param_p2, default_value=2002)])
-
-    t1 = Task(schemas=s1)
-    t2 = Task(schemas=s2, inputs=[InputValue(param_p2, value=202)])
+    t1 = Task(schemas=schema_s3)
+    t2 = Task(schemas=schema_s5, inputs=[InputValue(param_p2, value=202)])
 
     t1._insert_ID = 0
 
@@ -291,22 +341,14 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_expected_return_one_param_two_outputs(
-    param_p1, param_p2, param_p3
-):
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2), SchemaOutput(param_p3)],
+def test_task_get_available_task_input_sources_expected_return_one_param_two_outputs():
+    s1, s2, s3 = make_schemas(
+        [
+            [{"p1": None}, ("p2", "p3")],
+            [{"p2": None}, ("p3", "p4")],
+            [{"p3": None}, ()],
+        ]
     )
-    s2 = TaskSchema(
-        "t2",
-        actions=[],
-        inputs=[SchemaInput(param_p2)],
-        outputs=[SchemaOutput(param_p3), SchemaOutput("p4")],
-    )
-    s3 = TaskSchema("ts3", actions=[], inputs=[SchemaInput(param_p3)])
 
     t1 = Task(schemas=s1)
     t2 = Task(schemas=s2)
@@ -342,16 +384,11 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
     param_p3,
 ):
 
-    s1 = TaskSchema(
-        "t1",
-        actions=[],
-        inputs=[SchemaInput(param_p1)],
-        outputs=[SchemaOutput(param_p2), SchemaOutput(param_p3)],
-    )
-    s2 = TaskSchema(
-        "t2",
-        actions=[],
-        inputs=[SchemaInput(param_p2), SchemaInput(param_p3)],
+    s1, s2 = make_schemas(
+        [
+            [{"p1": None}, ("p2", "p3")],
+            [{"p2": None, "p3": None}, ()],
+        ]
     )
 
     t1 = Task(schemas=s1)
@@ -412,7 +449,7 @@ def test_raise_on_multiple_schema_objectives():
 
 def test_raise_on_unexpected_inputs(param_p1, param_p2):
 
-    s1 = TaskSchema("t1", actions=[], inputs=[param_p1])
+    s1 = make_schemas([[{"p1": None}, ()]])
 
     with pytest.raises(TaskTemplateUnexpectedInput):
         Task(
@@ -426,7 +463,7 @@ def test_raise_on_unexpected_inputs(param_p1, param_p2):
 
 def test_raise_on_multiple_input_values(param_p1):
 
-    s1 = TaskSchema("s1", inputs=[param_p1], actions=[])
+    s1 = make_schemas([[{"p1": None}, ()]])
 
     with pytest.raises(TaskTemplateMultipleInputValues):
         Task(
@@ -440,7 +477,8 @@ def test_raise_on_multiple_input_values(param_p1):
 
 def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
 
-    s1 = TaskSchema("s1", inputs=[param_p1, param_p2], actions=[])
+    s1 = make_schemas([[{"p1": None, "p2": None}, ()]])
+
     t1 = Task(schemas=s1, inputs=[InputValue(param_p1, value=101)])
     element_set = t1.element_sets[0]
     assert element_set.defined_input_types == {
@@ -450,7 +488,7 @@ def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
 
 def test_expected_return_all_schema_input_types_single_schema(param_p1, param_p2):
 
-    s1 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p2])
+    s1 = make_schemas([[{"p1": None, "p2": None}, ()]])
     t1 = Task(schemas=s1)
 
     assert t1.all_schema_input_types == {param_p1.typ, param_p2.typ}
@@ -460,8 +498,9 @@ def test_expected_return_all_schema_input_types_multiple_schemas(
     param_p1, param_p2, param_p3
 ):
 
-    s1 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p2])
-    s2 = TaskSchema("t1", actions=[], inputs=[param_p1, param_p3])
+    s1, s2 = make_schemas(
+        [[{"p1": None, "p2": None}, (), "t1"], [{"p1": None, "p3": None}, (), "t1"]]
+    )
 
     t1 = Task(schemas=[s1, s2])
 
@@ -541,8 +580,8 @@ def test_expected_name_two_schemas_both_with_method_and_implementation():
     assert t1.name == "t1_m1_i1_and_m2_i2"
 
 
-def test_raise_on_negative_nesting_order(param_p1):
-    s1 = TaskSchema("t1", inputs=[param_p1], actions=[])
+def test_raise_on_negative_nesting_order():
+    s1 = make_schemas([[{"p1": None}, ()]])
     with pytest.raises(TaskTemplateInvalidNesting):
         Task(schemas=s1, nesting_order={"p1": -1})
 
@@ -550,9 +589,9 @@ def test_raise_on_negative_nesting_order(param_p1):
 # TODO: test resolution of elements and with raise MissingInputs
 
 
-def test_empty_task_init(param_p1):
+def test_empty_task_init():
     """Check we can init a Task with no input values."""
-    s1 = TaskSchema("t1", inputs=[param_p1], actions=[])
+    s1 = make_schemas([[{"p1": None}, ()]])
     t1 = Task(schemas=s1)
 
 
@@ -1094,13 +1133,11 @@ def test_task_add_elements_sequence_multi_task_dependence_expected_new_data_inde
     )
 
 
-def test_no_change_to_persistent_metadata_on_add_task_failure(
-    workflow_w4, param_p2, param_p3
-):
+def test_no_change_to_persistent_metadata_on_add_task_failure(workflow_w4):
 
     data = copy.deepcopy(workflow_w4.metadata)
 
-    s2 = TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
+    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = Task(schemas=s2)
     with pytest.raises(MissingInputs) as exc_info:
         workflow_w4.add_task(t2)
@@ -1111,8 +1148,7 @@ def test_no_change_to_persistent_metadata_on_add_task_failure(
 def test_no_change_to_parameter_keys_on_add_task_failure(workflow_w4, param_p2, param_p3):
 
     param_keys = list(workflow_w4._get_workflow_parameter_group().keys())
-
-    s2 = TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
+    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = Task(schemas=s2)
     with pytest.raises(MissingInputs) as exc_info:
         workflow_w4.add_task(t2)
@@ -1127,7 +1163,7 @@ def test_expected_additional_parameter_keys_on_add_task(workflow_w4, param_p2, p
     param_keys = workflow_w4._get_parameter_keys()
     param_key_max = max(param_keys)
 
-    s2 = TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
+    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = Task(schemas=s2, inputs=[InputValue(param_p3, 301)])
     workflow_w4.add_task(t2)
 
@@ -1139,14 +1175,14 @@ def test_expected_additional_parameter_keys_on_add_task(workflow_w4, param_p2, p
 
 
 def test_parameters_accepted_on_add_task(workflow_w4, param_p2, param_p3):
-    s2 = TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
+    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = Task(schemas=s2, inputs=[InputValue(param_p3, 301)])
     workflow_w4.add_task(t2)
     assert not workflow_w4._get_pending_add_parameter_keys()
 
 
 def test_parameters_pending_during_add_task(workflow_w4, param_p2, param_p3):
-    s2 = TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
+    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = Task(schemas=s2, inputs=[InputValue(param_p3, 301)])
     with workflow_w4.batch_update():
         workflow_w4.add_task(t2)
