@@ -217,12 +217,13 @@ class Element:
                     if j.parameter.typ == path[1]:
                         return j.parameter
 
-    def get(self, path: str = None):
+    def get(self, path: str = None, raise_on_missing=False):
         """Get element data from the persistent store."""
 
         path = [] if not path else path.split(".")
         parameter = self._path_to_parameter(path)
         current_value = None
+        is_cur_val_set = False
         for path_i, data_idx_i in self.data_index.items():
 
             path_i = path_i.split(".")
@@ -237,6 +238,7 @@ class Element:
                     is_update = True
 
                 except ValueError:
+                    # no intersection between paths
                     continue
 
             zarr_group = self.workflow.get_zarr_parameter_group(data_idx_i)
@@ -245,14 +247,19 @@ class Element:
             if is_parent:
                 # replace current value:
                 try:
-                    current_value = get_in_container(data, rel_path)
-                except (KeyError, IndexError):
+                    current_value = get_in_container(data, rel_path, cast_indices=True)
+                    is_cur_val_set = True
+                except (KeyError, IndexError, ValueError):
                     continue
 
             elif is_update:
                 # update sub-part of current value
                 current_value = current_value or {}
                 set_in_container(current_value, update_path, data, ensure_path=True)
+                is_cur_val_set = True
+
+        if raise_on_missing and not is_cur_val_set:
+            raise ValueError(f"Path {path} does not exist in the element data.")
 
         if parameter and parameter._value_class:
             current_value = parameter._value_class(**current_value)

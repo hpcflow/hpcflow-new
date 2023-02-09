@@ -131,15 +131,22 @@ def group_by_dict_key_values(lst, *keys):
     return grouped
 
 
-def get_in_container(cont, path):
+def get_in_container(cont, path, cast_indices=False):
     cur_data = cont
     for idx, path_comp in enumerate(path):
         if isinstance(cur_data, (list, tuple)):
             if not isinstance(path_comp, int):
-                raise TypeError(
+                msg = (
                     f"Path component {path_comp!r} must be an integer index "
                     f"since data is a sequence: {cur_data!r}."
                 )
+                if cast_indices:
+                    try:
+                        path_comp = int(path_comp)
+                    except TypeError:
+                        raise TypeError(msg)
+                else:
+                    raise TypeError(msg)
             cur_data = cur_data[path_comp]
         elif isinstance(cur_data, Mapping):
             cur_data = cur_data[path_comp]

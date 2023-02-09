@@ -1,12 +1,29 @@
 import pytest
 
-from hpcflow.api import Action, Command, TaskObjective, TaskSchema
+from hpcflow.api import (
+    Action,
+    ActionEnvironment,
+    Command,
+    Environment,
+    TaskObjective,
+    TaskSchema,
+)
 from hpcflow.sdk.core.errors import InvalidIdentifier
 
 
 @pytest.fixture
-def action_a1():
-    return Action(commands=[Command("ls")], environments=[])
+def env_1():
+    return Environment(name="env_1")
+
+
+@pytest.fixture
+def act_env_1(env_1):
+    return ActionEnvironment(env_1)
+
+
+@pytest.fixture
+def action_a1(act_env_1):
+    return Action(commands=[Command("ls")], environments=[act_env_1])
 
 
 @pytest.fixture
