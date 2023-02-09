@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a23"></a>
+## [v0.2.0a23](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a22...v0.2.0a23) - 2023.02.09
+
+### ✨ Features
+
+* allow passing input files (fix [#345](https://github.com/hpcflow/hpcflow-new/issues/345)); also add rules to actions
+* add Element.test_rule to test a Rule on an element's data
+
+### 👷 Build changes
+
+* bump deps + remove helper group
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a22"></a>
 ## [v0.2.0a22](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a21...v0.2.0a22) - 2023.01.26
 
