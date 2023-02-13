@@ -64,7 +64,7 @@ def test_modify_helper(app):
                         timeout = 1
     assert timeout == 1
     assert update_count == 3
-    assert mod_count == 2
+    assert mod_count == 3
 
 
 def test_modify_helper_cli(app):

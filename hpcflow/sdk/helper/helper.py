@@ -104,9 +104,9 @@ def start_helper(
 
         args = app.run_time_info.get_invocation_command()
         if "pytest/__main__.py" in args[-1]:
-            print(f"\n\n{args[0]}\n{args[1]}\n")
+            logger.info(f"Invocation command:\n\n{args[0]}\n{args[1]}\n")
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
-            print(f"\n\n{args[0]}\n{args[1]}\n")
+            logger.info(f"Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
             # TODO: This is not ideal, but works for the timebeing...
         args += [
             "--config-dir",
