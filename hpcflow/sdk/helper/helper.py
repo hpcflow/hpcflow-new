@@ -108,8 +108,8 @@ def start_helper(
         if "pytest/__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
             logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
-        elif "pytest\__main__.py" in args[-1]:
-            args[-1] = os.path.dirname(getsourcefile(cli)) + "\cli.py"
+        elif "pytest\\__main__.py" in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + "\\cli.py"
             logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         args += [
             "--config-dir",
@@ -291,6 +291,8 @@ def get_helper_uptime(app):
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
+        logger = get_helper_logger(app)
+        logger.info(f"fhadb - Uptime: {uptime}")
         return uptime
 
 
