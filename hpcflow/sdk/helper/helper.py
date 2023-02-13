@@ -103,11 +103,14 @@ def start_helper(
             watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
-        logger.info(f"Invocation command:\n\n{args[0]}\n{args[1]}\n")
+        # TODO: This is not ideal, but works for the timebeing...
+        logger.info(f"fhadb - Invocation command:\n\n{args[0]}\n{args[1]}\n")
         if "pytest/__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
-            logger.info(f"Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
-            # TODO: This is not ideal, but works for the timebeing...
+            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
+        elif "pytest\__main__.py" in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + "\cli.py"
+            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -137,8 +140,10 @@ def start_helper(
             # Make sure that the process is actually running.
             try:
                 time.sleep(0.2)  # Sleep time is necessary for poll to work.
-                proc.poll()
-                psutil.Process(proc.pid)
+                pr=proc.poll()
+                logger.info(f"fhadb - poll result: {pr}")
+                procinfo=psutil.Process(proc.pid)
+                logger.info(f"fhadb - proc info: {procinfo}")
                 logger.info(f"Process {proc.pid} successfully running.")
             except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
