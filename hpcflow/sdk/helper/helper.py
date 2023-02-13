@@ -104,7 +104,9 @@ def start_helper(
 
         args = app.run_time_info.get_invocation_command()
         if "pytest/__main__.py" in args[-1]:
+            print(f"\n\n{args[0]}\n{args[1]}\n")
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
+            print(f"\n\n{args[0]}\n{args[1]}\n")
             # TODO: This is not ideal, but works for the timebeing...
         args += [
             "--config-dir",
@@ -133,11 +135,12 @@ def start_helper(
                 app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
             # Make sure that the process is actually running.
-            time.sleep(0.2)  # Sleep time is necessary for poll to work.
-            poll = proc.poll()
-            if poll is None:
+            try:
+                time.sleep(0.2)  # Sleep time is necessary for poll to work.
+                proc.poll()
+                psutil.Process(proc.pid)
                 logger.info(f"Process {proc.pid} successfully running.")
-            else:
+            except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
                 sys.exit(1)
         except FileNotFoundError as err:
