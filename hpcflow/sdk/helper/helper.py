@@ -339,6 +339,9 @@ def run_helper(
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
 
+    logger = get_helper_logger(app)
+    logger.info(f"fhadb - I am inside the run_helper function")
+
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming
@@ -360,11 +363,14 @@ def run_helper(
 
     start_time = datetime.now()
     end_time = start_time + timeout
-    logger = get_helper_logger(app)
+    # logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
     helper_args = read_helper_args(app)
     try:
         while True:
+            logger.info(f"fhadb - I am inside the while True loop.\n"+
+                        f"Time left: {time_left_s}"+
+                        f"Timeout: {timeout}")
             time_left_s = (end_time - datetime.now()).total_seconds()
             if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
