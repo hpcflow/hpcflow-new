@@ -140,9 +140,9 @@ def start_helper(
             # Make sure that the process is actually running.
             try:
                 time.sleep(0.2)  # Sleep time is necessary for poll to work.
-                pr=proc.poll()
+                pr = proc.poll()
                 logger.info(f"fhadb - poll result: {pr}")
-                procinfo=psutil.Process(proc.pid)
+                procinfo = psutil.Process(proc.pid)
                 logger.info(f"fhadb - proc info: {procinfo}")
                 logger.info(f"Process {proc.pid} successfully running.")
             except psutil.NoSuchProcess:
