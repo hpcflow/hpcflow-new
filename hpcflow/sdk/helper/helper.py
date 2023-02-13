@@ -369,7 +369,8 @@ def run_helper(
     try:
         while True:
             time_left_s = (end_time - datetime.now()).total_seconds()
-            logger.info(f"fhadb - I am inside the while True loop."
+            logger.info(
+                f"fhadb - I am inside the while True loop."
                 + f"\nTime left: {time_left_s}"
                 + f"\nTimeout: {timeout}"
             )
