@@ -103,8 +103,8 @@ def start_helper(
             watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
+        logger.info(f"Invocation command:\n\n{args[0]}\n{args[1]}\n")
         if "pytest/__main__.py" in args[-1]:
-            logger.info(f"Invocation command:\n\n{args[0]}\n{args[1]}\n")
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
             logger.info(f"Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
             # TODO: This is not ideal, but works for the timebeing...
