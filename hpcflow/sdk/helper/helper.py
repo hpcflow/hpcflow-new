@@ -368,12 +368,11 @@ def run_helper(
     helper_args = read_helper_args(app)
     try:
         while True:
-            logger.info(
-                f"fhadb - I am inside the while True loop.\n"
-                + f"Time left: {time_left_s}"
-                + f"Timeout: {timeout}"
-            )
             time_left_s = (end_time - datetime.now()).total_seconds()
+            logger.info(f"fhadb - I am inside the while True loop."
+                + f"\nTime left: {time_left_s}"
+                + f"\nTimeout: {timeout}"
+            )
             if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
