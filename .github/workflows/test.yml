@@ -124,8 +124,8 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev,pyinstaller
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      - name: Connection to github action runner with ssh
+        uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: Run tests
         run: |
