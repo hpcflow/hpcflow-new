@@ -298,6 +298,7 @@ def get_helper_uptime(app):
         logger.info(f"fhadb - cwd:{proc.cwd()}")
         logger.info(f"fhadb - command:{proc.cmdline()}")
         logger.info(f"fhadb - status:{proc.status()}")
+        logger.info(f"fhadb\n\n")
         return uptime
 
 
