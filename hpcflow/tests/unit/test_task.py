@@ -1162,21 +1162,25 @@ def test_parameters_pending_during_add_task(workflow_w4, param_p2, param_p3):
         assert workflow_w4._get_pending_add_parameter_keys()
 
 
-def test_add_task_before_and_after(workflow_w0):
-    t3 = Task(schemas=TaskSchema(objective="at_end", actions=[]))
-    t4 = Task(schemas=TaskSchema(objective="after_t1", actions=[]))
-    t5 = Task(schemas=TaskSchema(objective="at_start", actions=[]))
-    t6 = Task(schemas=TaskSchema(objective="before_t2", actions=[]))
+def test_add_task_after(workflow_w0):
+    new_task = Task(schemas=TaskSchema(objective="after_t1", actions=[]))
+    workflow_w0.add_task_after(new_task, workflow_w0.tasks.t1)
+    assert [i.name for i in workflow_w0.tasks] == ["t1", "after_t1", "t2"]
 
-    with workflow_w0.batch_update():
-        workflow_w0.add_task_after(t3)
-        workflow_w0.add_task_after(t4, workflow_w0.tasks.t1)
-        workflow_w0.add_task_before(t5)
-        workflow_w0.add_task_before(t6, workflow_w0.tasks.t2)
 
-        assert workflow_w0.tasks[0].name == "at_start"
-        assert workflow_w0.tasks[1].name == "t1"
-        assert workflow_w0.tasks[2].name == "after_t1"
-        assert workflow_w0.tasks[3].name == "before_t2"
-        assert workflow_w0.tasks[4].name == "t2"
-        assert workflow_w0.tasks[5].name == "at_end"
+def test_add_task_after_no_ref(workflow_w0):
+    new_task = Task(schemas=TaskSchema(objective="at_end", actions=[]))
+    workflow_w0.add_task_after(new_task)
+    assert [i.name for i in workflow_w0.tasks] == ["t1", "t2", "at_end"]
+
+
+def test_add_task_before(workflow_w0):
+    new_task = Task(schemas=TaskSchema(objective="before_t2", actions=[]))
+    workflow_w0.add_task_before(new_task, workflow_w0.tasks.t2)
+    assert [i.name for i in workflow_w0.tasks] == ["t1", "before_t2", "t2"]
+
+
+def test_add_task_before_no_ref(workflow_w0):
+    new_task = Task(schemas=TaskSchema(objective="at_start", actions=[]))
+    workflow_w0.add_task_before(new_task)
+    assert [i.name for i in workflow_w0.tasks] == ["at_start", "t1", "t2"]
