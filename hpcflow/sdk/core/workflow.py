@@ -679,12 +679,30 @@ class Workflow:
     def add_task_after(self, task: Task, task_ref=None):
         task_ref = task_ref or self.tasks[-1]
         self.add_task(task, new_index=task_ref.index + 1)
+        """Adds the given new_task after the task specified in task_ref.
+
+        Parameters
+        ----------
+        new_task : Task, required.
+        task_ref : Task, optional.
+            If no `task_ref` is given, the new task will be added at the end.
+
+        """
         # TODO: add new downstream elements?
         pass
 
     def add_task_before(self, task: Task, task_ref=None):
         task_ref = task_ref or self.tasks[0]
         self.add_task(task, new_index=task_ref.index)
+        """Adds the given new_task before the task specified in task_ref.
+
+        Parameters
+        ----------
+        new_task : Task, required.
+        task_ref : Task, optional.
+            If no task_ref is given, the new task will be added at the beginning.
+
+        """
         # TODO: add new downstream elements?
         pass
 
