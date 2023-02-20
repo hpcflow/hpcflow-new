@@ -18,7 +18,6 @@ def app():
     return hpcflow
 
 
-@pytest.mark.skip(reason=("Testing cli test on CentOS."))
 def test_modify_helper(app):
     tstart = datetime.now() - timedelta(seconds=0.2)
 
@@ -69,7 +68,7 @@ def test_modify_helper(app):
                         timeout = 1
     assert timeout == 1
     assert update_count == 3
-    assert mod_count == 2
+    assert mod_count == 3
 
 
 def test_modify_helper_cli(app):

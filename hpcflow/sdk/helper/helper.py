@@ -292,7 +292,12 @@ def get_helper_uptime(app):
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
         logger = get_helper_logger(app)
-        logger.info(f"fhadb - Uptime: {uptime}")
+        logger.info(f"fhadb Process info with psutil:\n\n")
+        logger.info(f"fhadb - uptime: {uptime}")
+        logger.info(f"fhadb - exe:{proc.exe()}")
+        logger.info(f"fhadb - cwd:{proc.cwd()}")
+        logger.info(f"fhadb - command:{proc.cmdline()}")
+        logger.info(f"fhadb - status:{proc.status()}")
         return uptime
 
 
