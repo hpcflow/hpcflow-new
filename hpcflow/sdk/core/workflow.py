@@ -676,9 +676,7 @@ class Workflow:
         with self.batch_update():
             self._add_task(task, new_index=new_index, parent_events=[])
 
-    def add_task_after(self, task: Task, task_ref=None):
-        task_ref = task_ref or self.tasks[-1]
-        self.add_task(task, new_index=task_ref.index + 1)
+    def add_task_after(self, new_task: Task, task_ref=None):
         """Adds the given new_task after the task specified in task_ref.
 
         Parameters
@@ -688,12 +686,11 @@ class Workflow:
             If no `task_ref` is given, the new task will be added at the end.
 
         """
+        new_index = task_ref.index + 1 if task_ref else None
+        self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
-        pass
 
-    def add_task_before(self, task: Task, task_ref=None):
-        task_ref = task_ref or self.tasks[0]
-        self.add_task(task, new_index=task_ref.index)
+    def add_task_before(self, new_task: Task, task_ref=None):
         """Adds the given new_task before the task specified in task_ref.
 
         Parameters
@@ -703,8 +700,9 @@ class Workflow:
             If no task_ref is given, the new task will be added at the beginning.
 
         """
+        new_index = task_ref.index if task_ref else 0
+        self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
-        pass
 
     def submit(self):
         for task in self.tasks:
