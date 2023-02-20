@@ -39,6 +39,8 @@ def test_modify_helper(app):
     assert args["watch_interval"] == 1
     time.sleep(1.5)
 
+    helper.get_helper_uptime(app)
+
     helper.modify_helper(app, timeout=5, timeout_check_interval=2, watch_interval=1)
     time.sleep(3.5)
     # If the parameters have been loaded correctly, then it should have timed out by now.
