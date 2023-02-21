@@ -299,6 +299,9 @@ def get_helper_uptime(app):
         logger.info(f"fhadb - command:{proc.cmdline()}")
         logger.info(f"fhadb - status:{proc.status()}")
         logger.info(f"fhadb\n\n")
+        with open("fhadb.txt", "r") as f:
+            fhadb = f.read(f"fhadb - Can I get the helper logger?")
+        logger.info(f"fhadb file:\n{fhadb}\n")
         return uptime
 
 
@@ -344,10 +347,10 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-    with (open("fhadb_log")) as fp:
-        fp.write(f"fhadb - Can I get the helper logger?")
+    with open("fhadb.txt", "w") as f:
+        f.write(f"fhadb - Can I get the helper logger?")
         logger = get_helper_logger(app)
-        fp.write(f"fhadb - Seems like I just did!")
+        f.write(f"fhadb - Seems like I just did!")
     logger.info(f"fhadb - I am inside the run_helper function")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
