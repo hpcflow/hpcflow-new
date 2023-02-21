@@ -323,19 +323,31 @@ def get_helper_logger(app):
 def helper_timeout(app, timeout, controller, logger):
     """Kill the helper due to running duration exceeding the timeout."""
 
-    logger.info(f"Helper exiting due to timeout ({timeout!r}).")
-    pid_info = get_helper_PID(app)
-    if pid_info:
-        pid_file = pid_info[1]
-        logger.info(f"Deleting PID file: {pid_file!r}.")
-        pid_file.unlink()
+    with open("fhadb.txt", "a") as f:
+        f.write(f"\nfhadb - Helper exiting due to timeout")
+        logger.info(f"Helper exiting due to timeout ({timeout!r}).")
+        pid_info = get_helper_PID(app)
+        f.write(f"\nfhadb - pid_info {pid_info}")
+        if pid_info:
+            pid_file = pid_info[1]
+            f.write(f"\nfhadb - pid_info[1] {pid_info[1]}")
+            logger.info(f"Deleting PID file: {pid_file!r}.")
+            pid_file.unlink()
+            f.write(f"\nfhadb - pid_file unlinked... maybe...")
 
-    logger.info(f"Stopping all watchers.")
-    controller.stop()
-    controller.join()
+        f.write(f"\nfhadb - Stopping all watchers")
+        logger.info(f"Stopping all watchers.")
+        f.write(f"\nfhadb - stopping controller")
+        controller.stop()
+        f.write(f"\nfhadb - joining controller")
+        controller.join()
+        f.write(f"\nfhadb - joined... or is it joined?")
 
-    logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
-    controller.workflow_dirs_file_path.unlink()
+        f.write(f"\nfhadb - Deleting watcher file")
+        logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
+        f.write(f"\nfhadb - deleted")
+        controller.workflow_dirs_file_path.unlink()
+        f.write(f"\nfhadb - unlinked")
 
     sys.exit(0)
 
