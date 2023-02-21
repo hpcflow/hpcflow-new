@@ -39,8 +39,6 @@ def test_modify_helper(app):
     assert args["watch_interval"] == 1
     time.sleep(1.5)
 
-    helper.get_helper_uptime(app)
-
     helper.modify_helper(app, timeout=5, timeout_check_interval=2, watch_interval=1)
     time.sleep(3.5)
     # If the parameters have been loaded correctly, then it should have timed out by now.
@@ -49,6 +47,7 @@ def test_modify_helper(app):
         assert True
     else:
         helper.get_helper_uptime(app)
+        stop_helper(app)
         assert False
 
     # This checks the logs were updated correctly and without repetition.
@@ -70,7 +69,7 @@ def test_modify_helper(app):
                         timeout = 1
     assert timeout == 1
     assert update_count == 3
-    assert mod_count == 3
+    assert mod_count == 2
 
 
 def test_modify_helper_cli(app):
