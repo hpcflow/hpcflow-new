@@ -352,7 +352,7 @@ def run_helper(
         f.write(f"\nfhadb - Seems like I just did!")
         f.write(f"\nfhadb - Now I'll write something to the log...")
         logger.info(f"fhadb - I am inside the run_helper function")
-        f.write(f"\nfhadb - Done, log has been written to!")
+        f.write(f"\nfhadb - Done, log has been written to!... has it, really?")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
@@ -378,14 +378,20 @@ def run_helper(
     # logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
     helper_args = read_helper_args(app)
+    with open("fhadb.txt", "a") as f:
+        f.write(f"\nfhadb - I am about to enter the while True...")
     try:
         while True:
+            with open("fhadb.txt", "a") as f:
+                f.write(f"\nfhadb - I am inside while True!")
             time_left_s = (end_time - datetime.now()).total_seconds()
             logger.info(
                 f"fhadb - I am inside the while True loop."
                 + f"\nTime left: {time_left_s}"
                 + f"\nTimeout: {timeout}"
             )
+            with open("fhadb.txt", "a") as f:
+                f.write(f"\nfhadb - Just wrote to log again... or did I?")
             if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
@@ -393,6 +399,8 @@ def run_helper(
             helper_args_new = read_helper_args(app)
             for name, new_val in helper_args_new.items():
                 if new_val != helper_args[name]:
+                    with open("fhadb.txt", "a") as f:
+                        f.write(f"\nfhadb - I detected a change!")
                     change = f"{name} parameter from {helper_args[name]} to {new_val}."
                     helper_args[name] = new_val
                     if name in ["timeout", "timeout_check_interval"]:
