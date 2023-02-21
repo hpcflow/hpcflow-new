@@ -106,26 +106,11 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Set ownership
-        run: |
-          # see: https://github.com/actions/runner/issues/2033#issuecomment-1204205989
-          # this is to fix GIT not liking owner of the checkout dir
-          chown -R $(id -u):$(id -g) $PWD
-
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
 
-      - name: Cache the virtualenv
-        uses: actions/cache@v3
-        with:
-          path: ./.venv
-          key: venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
         run: poetry install --without dev,pyinstaller
-
-      - name: Connection to github action runner with ssh
-        uses: valeriangalliat/action-sshd-cloudflared@v1
 
       - name: Run tests
         run: |
