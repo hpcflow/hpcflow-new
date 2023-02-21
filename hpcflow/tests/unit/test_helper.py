@@ -47,7 +47,7 @@ def test_modify_helper(app):
         assert True
     else:
         helper.get_helper_uptime(app)
-        stop_helper(app)
+        helper.stop_helper(app)
         assert False
 
     # This checks the logs were updated correctly and without repetition.
