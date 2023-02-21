@@ -286,21 +286,21 @@ def clear_helper(app):
 
 
 def get_helper_uptime(app):
+    logger = get_helper_logger(app)
+    logger.info(f"fhadb Process info with psutil:\n\n")
+    logger.info(f"fhadb - uptime: {uptime}")
+    logger.info(f"fhadb - exe:{proc.exe()}")
+    logger.info(f"fhadb - cwd:{proc.cwd()}")
+    logger.info(f"fhadb - command:{proc.cmdline()}")
+    logger.info(f"fhadb - status:{proc.status()}")
+    logger.info(f"fhadb\n\n")
+    with open("fhadb.txt", "r") as f:
+        logger.info(f"fhadb file:\n{f.read()}\n")
     pid_info = get_helper_PID(app)
     if pid_info:
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
-        logger = get_helper_logger(app)
-        logger.info(f"fhadb Process info with psutil:\n\n")
-        logger.info(f"fhadb - uptime: {uptime}")
-        logger.info(f"fhadb - exe:{proc.exe()}")
-        logger.info(f"fhadb - cwd:{proc.cwd()}")
-        logger.info(f"fhadb - command:{proc.cmdline()}")
-        logger.info(f"fhadb - status:{proc.status()}")
-        logger.info(f"fhadb\n\n")
-        with open("fhadb.txt", "r") as f:
-            logger.info(f"fhadb file:\n{f.read()}\n")
         return uptime
 
 
