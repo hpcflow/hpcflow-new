@@ -300,8 +300,7 @@ def get_helper_uptime(app):
         logger.info(f"fhadb - status:{proc.status()}")
         logger.info(f"fhadb\n\n")
         with open("fhadb.txt", "r") as f:
-            fhadb = f.read(f"fhadb - Can I get the helper logger?")
-        logger.info(f"fhadb file:\n{fhadb}\n")
+            logger.info(f"fhadb file:\n{f.read()}\n")
         return uptime
 
 
