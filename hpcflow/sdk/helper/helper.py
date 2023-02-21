@@ -382,6 +382,7 @@ def run_helper(
         f.write(f"\nfhadb - I am about to enter the while True...")
     try:
         while True:
+            time_left_s = (end_time - datetime.now()).total_seconds()
             with open("fhadb.txt", "a") as f:
                 f.write(
                     f"\nfhadb - I am inside while True loop"
@@ -389,7 +390,6 @@ def run_helper(
                     + f"\nTimeout: {timeout}"
                     + f"\nTimeout-check-interval: {timeout_check_interval_s}"
                 )
-            time_left_s = (end_time - datetime.now()).total_seconds()
             logger.info(
                 f"fhadb - I am inside the while True loop."
                 + f"\nTime left: {time_left_s}"
