@@ -349,8 +349,10 @@ def run_helper(
     with open("fhadb.txt", "w") as f:
         f.write(f"fhadb - Can I get the helper logger?")
         logger = get_helper_logger(app)
-        f.write(f"fhadb - Seems like I just did!")
-    logger.info(f"fhadb - I am inside the run_helper function")
+        f.write(f"\nfhadb - Seems like I just did!")
+        f.write(f"\nfhadb - Now I'll write something to the log...")
+        logger.info(f"fhadb - I am inside the run_helper function")
+        f.write(f"\nfhadb - Done, log has been written to!")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
