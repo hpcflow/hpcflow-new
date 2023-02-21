@@ -399,6 +399,8 @@ def run_helper(
             with open("fhadb.txt", "a") as f:
                 f.write(f"\nfhadb - Just wrote to log again... or did I?")
             if time_left_s <= 0:
+                with open("fhadb.txt", "a") as f:
+                    f.write(f"\nfhadb - Time's up! I'm stopping")
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
             # Reading args from PID file

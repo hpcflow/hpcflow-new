@@ -98,7 +98,15 @@ jobs:
 
   test-CentOS:
     needs: pre-commit
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
     container:
       image: aplowman/centos7-poetry
     steps:
