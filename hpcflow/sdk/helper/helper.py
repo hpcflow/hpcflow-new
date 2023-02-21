@@ -287,11 +287,11 @@ def clear_helper(app):
 
 def get_helper_uptime(app):
     pid_info = get_helper_PID(app)
+    logger = get_helper_logger(app)
     if pid_info:
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
-        logger = get_helper_logger(app)
         logger.info(f"fhadb Process info with psutil:\n\n")
         logger.info(f"fhadb - uptime: {uptime}")
         logger.info(f"fhadb - exe:{proc.exe()}")
