@@ -420,7 +420,11 @@ def run_helper(
                         controller = MonitorController(
                             get_watcher_file_path(app), helper_args[name], logger
                         )
+                    with open("fhadb.txt", "a") as f:
+                        f.write(f"\nfhadb - I just updated {change}")
                     logger.info(f"Updated {change}")
+                    with open("fhadb.txt", "a") as f:
+                        f.write(f"\nfhadb - And recorded it to the log... in theory...")
 
     except KeyboardInterrupt:
         controller.stop()
