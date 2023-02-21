@@ -344,8 +344,9 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-
+    print(f"fhadb - Can I get the helper logger?")
     logger = get_helper_logger(app)
+    print(f"fhadb - Seems like I just did!")
     logger.info(f"fhadb - I am inside the run_helper function")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
