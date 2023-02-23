@@ -124,11 +124,14 @@ def start_helper(
             str(watch_interval),
         ]
 
+        fff = open("subprocesstd.log", "w")
+        # fff=subprocess.DEVNULL
+
         proc = subprocess.Popen(
             args=args,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdin=fff,
+            stdout=fff,
+            stderr=fff,
             **kwargs,
         )
 
@@ -301,12 +304,13 @@ def get_helper_uptime(app):
         logger.info(f"fhadb\n\n")
         return uptime
     with open("fhadb.txt", "r") as f:
-        logger.info(f"fhadb file:\n{f.read()}\n")
+        logger.info(f"\n\nfhadb - fhadb file:\n{f.read()}\n")
+    with open("subprocesstd.log", "r") as f:
+        logger.info(f"\n\nfhadb - subprocesstd file:\n{f.read()}\n")
 
 
-def get_helper_logger(app):
-
-    log_path = get_helper_log_path(app)
+def get_helper_logger(app, log_path=None):
+    log_path = log_path or get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     if not len(logger.handlers):
         logger.setLevel(logging.INFO)
@@ -360,7 +364,9 @@ def run_helper(
 ):
     with open("fhadb.txt", "w") as f:
         f.write(f"fhadb - Can I get the helper logger?")
-        logger = get_helper_logger(app)
+        separate_log_path = get_user_data_dir(app) / "helper_run.log"
+        f.write(f"\nfhadb - New path {separate_log_path}")
+        logger = get_helper_logger(app, separate_log_path)
         f.write(f"\nfhadb - Seems like I just did!")
         f.write(f"\nfhadb - Now I'll write something to the log...")
         logger.info(f"fhadb - I am inside the run_helper function")

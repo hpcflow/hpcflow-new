@@ -40,7 +40,7 @@ def test_modify_helper(app):
     time.sleep(1.5)
 
     helper.modify_helper(app, timeout=5, timeout_check_interval=2, watch_interval=1)
-    time.sleep(10)
+    time.sleep(5)
     # If the parameters have been loaded correctly, then it should have timed out by now.
     pid = helper.get_helper_PID(app)
     if pid == None:
@@ -52,11 +52,24 @@ def test_modify_helper(app):
         assert False
 
     # This checks the logs were updated correctly and without repetition.
-    logfile = helper.get_helper_log_path(app)
+    logfile_h = helper.get_helper_log_path(app)
+    logfile_r = helper.get_user_data_dir(app) / "helper_run.log"
     mod_count = 0
     update_count = 0
     timeout = 0
-    with open(logfile, "r") as lf:
+    with open(logfile_h, "r") as lf:
+        for line in lf:
+            if " - INFO - " in line:
+                (t, m) = line.split(" - INFO - ")
+                logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
+                if logt > tstart:
+                    if "Modifying" in m:
+                        mod_count = mod_count + 1
+                    elif "Updated" in m:
+                        update_count = update_count + 1
+                    elif "Helper exiting due to timeout" in m:
+                        timeout = 1
+    with open(logfile_r, "r") as lf:
         for line in lf:
             if " - INFO - " in line:
                 (t, m) = line.split(" - INFO - ")
