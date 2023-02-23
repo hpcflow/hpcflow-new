@@ -22,7 +22,7 @@ def test_modify_helper(app):
     tstart = datetime.now() - timedelta(seconds=0.2)
 
     helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
-    time.sleep(0.5)
+    time.sleep(2.5)
 
     # This checks that parameters already in the file are being compared to new inputs
     so = io.StringIO()  # Create StringIO object
