@@ -307,8 +307,10 @@ def get_helper_uptime(app):
         logger.info(f"\n\nfhadb - fhadb file:\n{f.read()}\n")
     with open("subprocesstd.log", "r") as f:
         logger.info(f"\n\nfhadb - subprocesstd file:\n{f.read()}\n")
+    with open(get_helper_log_path(app), "r") as f:
+        logger.info(f"\n\n\n\nfhadb - helper.log file:\n{f.read()}\n")
     with open(get_user_data_dir(app) / "helper_run.log", "r") as f:
-        logger.info(f"\n\nfhadb - helper_run.log file:\n{f.read()}\n")
+        logger.info(f"\n\n\n\nfhadb - helper_run.log file:\n{f.read()}\n")
 
 
 def get_helper_logger(app, log_path=None):
