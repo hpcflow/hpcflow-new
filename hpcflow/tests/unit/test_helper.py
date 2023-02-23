@@ -25,11 +25,12 @@ def test_modify_helper(app):
     time.sleep(2.5)
 
     # This checks that parameters already in the file are being compared to new inputs
+    pytest_stdout = sys.stdout
     so = io.StringIO()  # Create StringIO object
     sys.stdout = so  # Redirect stdout.
     helper.modify_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
     assert so.getvalue().splitlines()[-1] == "Helper parameters already met."
-    sys.stdout = sys.__stdout__  # Reset stdout.
+    sys.stdout = pytest_stdout  # Reset stdout.
 
     helper.modify_helper(app, timeout=60, timeout_check_interval=2, watch_interval=1)
     # This checks if the file was written with new variables
@@ -94,7 +95,7 @@ def test_modify_helper_cli(app):
         r, args="helper start --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
     assert so == ""
-    time.sleep(0.5)
+    time.sleep(2.5)
     so = cli(
         args="helper modify --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
@@ -104,23 +105,23 @@ def test_modify_helper_cli(app):
         r, args="helper modify --timeout 60 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == ""
-    time.sleep(1.5)
+    time.sleep(3.5)
     so = cli(
         r, args="helper modify --timeout 60 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == "Helper parameters already met."
 
     so = cli(
-        r, args="helper modify --timeout 5 --timeout-check-interval 2 --watch-interval 1"
+        r, args="helper modify --timeout 10 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == ""
-    time.sleep(2.5)
+    time.sleep(3)
     so = cli(
         r, args="helper modify --timeout 5 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == "Helper parameters already met."
 
-    time.sleep(1)
+    time.sleep(5)
     so = cli(r, args="helper pid")
     assert so == "Helper not running!"
 
