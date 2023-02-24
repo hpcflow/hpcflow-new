@@ -375,6 +375,12 @@ def run_helper(
         f.write(f"\nfhadb - Now I'll write something to the log...")
         logger.info(f"fhadb - I am inside the run_helper function")
         f.write(f"\nfhadb - Done, log has been written to!... has it, really?")
+        f.write(f"\nfhadb - Changed my mind, I want to use the same log")
+        separate_log_path = get_helper_log_path(app)
+        f.write(f"\nfhadb - New/old log path {separate_log_path}")
+        logger = get_helper_logger(app, separate_log_path)
+        f.write(f"\nfhadb - Done, should be back in same log")
+        logger.info(f"fhadb - This should be in the new... well, old... log")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
