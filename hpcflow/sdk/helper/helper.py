@@ -121,14 +121,11 @@ def start_helper(
             str(watch_interval),
         ]
 
-        fff = open("subprocesstd.log", "w")
-        # fff=subprocess.DEVNULL
-
         proc = subprocess.Popen(
             args=args,
-            stdin=fff,
-            stdout=fff,
-            stderr=fff,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             **kwargs,
         )
 
@@ -284,7 +281,6 @@ def clear_helper(app):
 
 def get_helper_uptime(app):
     pid_info = get_helper_PID(app)
-    logger = get_helper_logger(app)
     if pid_info:
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
