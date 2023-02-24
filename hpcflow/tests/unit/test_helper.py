@@ -44,13 +44,7 @@ def test_modify_helper(app):
     time.sleep(5)
     # If the parameters have been loaded correctly, then it should have timed out by now.
     pid = helper.get_helper_PID(app)
-    if pid == None:
-        helper.get_helper_uptime(app)
-        assert True
-    else:
-        helper.get_helper_uptime(app)
-        helper.stop_helper(app)
-        assert False
+    assert pid == None
 
     # This checks the logs were updated correctly and without repetition.
     logfile = helper.get_helper_log_path(app)
