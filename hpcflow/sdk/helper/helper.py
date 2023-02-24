@@ -290,16 +290,10 @@ def get_helper_uptime(app):
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
         return uptime
-    with open("subprocesstd.log", "r") as f:
-        logger.info(f"\n\nfhadb - subprocesstd file:\n{f.read()}\n")
-    with open(get_helper_log_path(app), "r") as f:
-        logger.info(f"\n\n\n\nfhadb - helper.log file:\n{f.read()}\n")
-    with open(get_user_data_dir(app) / "helper_run.log", "r") as f:
-        logger.info(f"\n\n\n\nfhadb - helper_run.log file:\n{f.read()}\n")
 
 
-def get_helper_logger(app, log_path=None):
-    log_path = log_path or get_helper_log_path(app)
+def get_helper_logger(app):
+    log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     if not len(logger.handlers):
         logger.setLevel(logging.INFO)
@@ -336,14 +330,6 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-
-    separate_log_path = get_user_data_dir(app) / "helper_run.log"
-    logger = get_helper_logger(app, separate_log_path)
-    logger.info(f"fhadb - I am in the other run log.")
-    separate_log_path = get_helper_log_path(app)
-    logger = get_helper_logger(app, separate_log_path)
-    logger.info(f"fhadb - This should be in the new... well, old... log")
-
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming
@@ -365,7 +351,7 @@ def run_helper(
 
     start_time = datetime.now()
     end_time = start_time + timeout
-    # logger = get_helper_logger(app)
+    logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
     helper_args = read_helper_args(app)
     try:
