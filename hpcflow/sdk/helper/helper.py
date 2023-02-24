@@ -303,8 +303,6 @@ def get_helper_uptime(app):
         logger.info(f"fhadb - status:{proc.status()}")
         logger.info(f"fhadb\n\n")
         return uptime
-    with open("fhadb.txt", "r") as f:
-        logger.info(f"\n\nfhadb - fhadb file:\n{f.read()}\n")
     with open("subprocesstd.log", "r") as f:
         logger.info(f"\n\nfhadb - subprocesstd file:\n{f.read()}\n")
     with open(get_helper_log_path(app), "r") as f:
@@ -330,32 +328,17 @@ def get_helper_logger(app, log_path=None):
 
 def helper_timeout(app, timeout, controller, logger):
     """Kill the helper due to running duration exceeding the timeout."""
-
-    with open("fhadb.txt", "a") as f:
-        f.write(f"\nfhadb - Helper exiting due to timeout")
-        logger.info(f"Helper exiting due to timeout ({timeout!r}).")
-        pid_info = get_helper_PID(app)
-        f.write(f"\nfhadb - pid_info {pid_info}")
-        if pid_info:
-            pid_file = pid_info[1]
-            f.write(f"\nfhadb - pid_info[1] {pid_info[1]}")
-            logger.info(f"Deleting PID file: {pid_file!r}.")
-            pid_file.unlink()
-            f.write(f"\nfhadb - pid_file unlinked... maybe...")
-
-        f.write(f"\nfhadb - Stopping all watchers")
-        logger.info(f"Stopping all watchers.")
-        f.write(f"\nfhadb - stopping controller")
-        controller.stop()
-        f.write(f"\nfhadb - joining controller")
-        controller.join()
-        f.write(f"\nfhadb - joined... or is it joined?")
-
-        f.write(f"\nfhadb - Deleting watcher file")
-        logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
-        f.write(f"\nfhadb - deleted")
-        controller.workflow_dirs_file_path.unlink()
-        f.write(f"\nfhadb - unlinked")
+    logger.info(f"Helper exiting due to timeout ({timeout!r}).")
+    pid_info = get_helper_PID(app)
+    if pid_info:
+        pid_file = pid_info[1]
+        logger.info(f"Deleting PID file: {pid_file!r}.")
+        pid_file.unlink()
+    logger.info(f"Stopping all watchers.")
+    controller.stop()
+    controller.join()
+    logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
+    controller.workflow_dirs_file_path.unlink()
 
     sys.exit(0)
 
@@ -366,21 +349,13 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-    with open("fhadb.txt", "w") as f:
-        f.write(f"fhadb - Can I get the helper logger?")
-        separate_log_path = get_user_data_dir(app) / "helper_run.log"
-        f.write(f"\nfhadb - New path {separate_log_path}")
-        logger = get_helper_logger(app, separate_log_path)
-        f.write(f"\nfhadb - Seems like I just did!")
-        f.write(f"\nfhadb - Now I'll write something to the log...")
-        logger.info(f"fhadb - I am inside the run_helper function")
-        f.write(f"\nfhadb - Done, log has been written to!... has it, really?")
-        f.write(f"\nfhadb - Changed my mind, I want to use the same log")
-        separate_log_path = get_helper_log_path(app)
-        f.write(f"\nfhadb - New/old log path {separate_log_path}")
-        logger = get_helper_logger(app, separate_log_path)
-        f.write(f"\nfhadb - Done, should be back in same log")
-        logger.info(f"fhadb - This should be in the new... well, old... log")
+
+    separate_log_path = get_user_data_dir(app) / "helper_run.log"
+    logger = get_helper_logger(app, separate_log_path)
+    logger.info(f"fhadb - I am inside the run_helper function")
+    separate_log_path = get_helper_log_path(app)
+    logger = get_helper_logger(app, separate_log_path)
+    logger.info(f"fhadb - This should be in the new... well, old... log")
 
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
@@ -406,41 +381,22 @@ def run_helper(
     # logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
     helper_args = read_helper_args(app)
-    with open("fhadb.txt", "a") as f:
-        f.write(f"\nfhadb - I am about to enter the while True...")
     try:
         while True:
             time_left_s = (end_time - datetime.now()).total_seconds()
-            with open("fhadb.txt", "a") as f:
-                f.write(
-                    f"\nfhadb - I am inside while True loop"
-                    + f"\nTime left: {time_left_s}"
-                    + f"\nTimeout: {timeout}"
-                    + f"\nTimeout-check-interval: {timeout_check_interval_s}"
-                )
             logger.info(
                 f"fhadb - I am inside the while True loop."
                 + f"\nTime left: {time_left_s}"
                 + f"\nTimeout: {timeout}"
                 + f"\nTimeout-check-interval: {timeout_check_interval_s}"
             )
-            with open("fhadb.txt", "a") as f:
-                f.write(f"\nfhadb - Just wrote to log again... or did I?")
-                f.write(
-                    f"\nfhadb - Coming up next time_left_s:{time_left_s}, condition: {(time_left_s <= 0)}"
-                )
             if time_left_s <= 0:
-
-                with open("fhadb.txt", "a") as f:
-                    f.write(f"\nfhadb - Time's up! I'm stopping")
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
             # Reading args from PID file
             helper_args_new = read_helper_args(app)
             for name, new_val in helper_args_new.items():
                 if new_val != helper_args[name]:
-                    with open("fhadb.txt", "a") as f:
-                        f.write(f"\nfhadb - I detected a change!")
                     change = f"{name} parameter from {helper_args[name]} to {new_val}."
                     helper_args[name] = new_val
                     if name in ["timeout", "timeout_check_interval"]:
@@ -460,11 +416,7 @@ def run_helper(
                         controller = MonitorController(
                             get_watcher_file_path(app), helper_args[name], logger
                         )
-                    with open("fhadb.txt", "a") as f:
-                        f.write(f"\nfhadb - I just updated {change}")
                     logger.info(f"Updated {change}")
-                    with open("fhadb.txt", "a") as f:
-                        f.write(f"\nfhadb - And recorded it to the log... in theory...")
 
     except KeyboardInterrupt:
         controller.stop()
