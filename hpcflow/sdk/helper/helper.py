@@ -104,13 +104,10 @@ def start_helper(
 
         args = app.run_time_info.get_invocation_command()
         # TODO: This is not ideal, but works for the timebeing...
-        logger.info(f"fhadb - Invocation command:\n\n{args[0]}\n{args[1]}\n")
         if "pytest/__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
-            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         elif "pytest\\__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "\\cli.py"
-            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -140,10 +137,7 @@ def start_helper(
             # Make sure that the process is actually running.
             try:
                 time.sleep(0.2)  # Sleep time is necessary for poll to work.
-                pr = proc.poll()
-                logger.info(f"fhadb - poll result: {pr}")
-                procinfo = psutil.Process(proc.pid)
-                logger.info(f"fhadb - proc info: {procinfo}")
+                proc.poll()
                 logger.info(f"Process {proc.pid} successfully running.")
             except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
@@ -291,13 +285,10 @@ def get_helper_uptime(app):
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
-        logger = get_helper_logger(app)
-        logger.info(f"fhadb - Uptime: {uptime}")
         return uptime
 
 
 def get_helper_logger(app):
-
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     if not len(logger.handlers):
@@ -314,18 +305,15 @@ def get_helper_logger(app):
 
 def helper_timeout(app, timeout, controller, logger):
     """Kill the helper due to running duration exceeding the timeout."""
-
     logger.info(f"Helper exiting due to timeout ({timeout!r}).")
     pid_info = get_helper_PID(app)
     if pid_info:
         pid_file = pid_info[1]
         logger.info(f"Deleting PID file: {pid_file!r}.")
         pid_file.unlink()
-
     logger.info(f"Stopping all watchers.")
     controller.stop()
     controller.join()
-
     logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
     controller.workflow_dirs_file_path.unlink()
 
@@ -338,7 +326,6 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming

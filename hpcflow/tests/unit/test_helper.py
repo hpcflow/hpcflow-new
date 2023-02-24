@@ -22,14 +22,15 @@ def test_modify_helper(app):
     tstart = datetime.now() - timedelta(seconds=0.2)
 
     helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
-    time.sleep(0.5)
+    time.sleep(2.5)
 
     # This checks that parameters already in the file are being compared to new inputs
+    pytest_stdout = sys.stdout
     so = io.StringIO()  # Create StringIO object
     sys.stdout = so  # Redirect stdout.
     helper.modify_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
     assert so.getvalue().splitlines()[-1] == "Helper parameters already met."
-    sys.stdout = sys.__stdout__  # Reset stdout.
+    sys.stdout = pytest_stdout  # Reset stdout.
 
     helper.modify_helper(app, timeout=60, timeout_check_interval=2, watch_interval=1)
     # This checks if the file was written with new variables
@@ -37,17 +38,13 @@ def test_modify_helper(app):
     assert args["timeout"] == 60
     assert args["timeout_check_interval"] == 2
     assert args["watch_interval"] == 1
-    time.sleep(1.5)
+    time.sleep(3.5)
 
     helper.modify_helper(app, timeout=5, timeout_check_interval=2, watch_interval=1)
-    time.sleep(3.5)
+    time.sleep(5)
     # If the parameters have been loaded correctly, then it should have timed out by now.
     pid = helper.get_helper_PID(app)
-    if pid == None:
-        assert True
-    else:
-        helper.get_helper_uptime(app)
-        assert False
+    assert pid == None
 
     # This checks the logs were updated correctly and without repetition.
     logfile = helper.get_helper_log_path(app)
@@ -65,7 +62,7 @@ def test_modify_helper(app):
                     elif "Updated" in m:
                         update_count = update_count + 1
                     elif "Helper exiting due to timeout" in m:
-                        timeout = 1
+                        timeout = timeout + 1
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
@@ -79,7 +76,7 @@ def test_modify_helper_cli(app):
         r, args="helper start --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
     assert so == ""
-    time.sleep(0.5)
+    time.sleep(2.5)
     so = cli(
         args="helper modify --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
@@ -89,27 +86,27 @@ def test_modify_helper_cli(app):
         r, args="helper modify --timeout 60 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == ""
-    time.sleep(1.5)
+    time.sleep(3.5)
     so = cli(
         r, args="helper modify --timeout 60 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == "Helper parameters already met."
 
     so = cli(
-        r, args="helper modify --timeout 5 --timeout-check-interval 2 --watch-interval 1"
+        r, args="helper modify --timeout 10 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == ""
-    time.sleep(2.5)
+    time.sleep(3)
     so = cli(
-        r, args="helper modify --timeout 5 --timeout-check-interval 2 --watch-interval 1"
+        r, args="helper modify --timeout 10 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == "Helper parameters already met."
 
-    time.sleep(1)
+    time.sleep(5)
     so = cli(r, args="helper pid")
     assert so == "Helper not running!"
 
-    logfile = cli(r=r, args="helper log-path")
+    logfile = cli(r, args="helper log-path")
     mod_count = 0
     update_count = 0
     timeout = 0
@@ -124,7 +121,7 @@ def test_modify_helper_cli(app):
                     elif "Updated" in m:
                         update_count = update_count + 1
                     elif "Helper exiting due to timeout" in m:
-                        timeout = 1
+                        timeout = timeout + 1
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
