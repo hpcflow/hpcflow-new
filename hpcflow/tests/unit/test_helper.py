@@ -117,7 +117,7 @@ def test_modify_helper_cli(app):
     assert so == ""
     time.sleep(3)
     so = cli(
-        r, args="helper modify --timeout 5 --timeout-check-interval 2 --watch-interval 1"
+        r, args="helper modify --timeout 10 --timeout-check-interval 2 --watch-interval 1"
     )
     assert so == "Helper parameters already met."
 
