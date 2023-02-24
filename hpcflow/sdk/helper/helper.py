@@ -104,13 +104,10 @@ def start_helper(
 
         args = app.run_time_info.get_invocation_command()
         # TODO: This is not ideal, but works for the timebeing...
-        logger.info(f"fhadb - Invocation command:\n\n{args[0]}\n{args[1]}\n")
         if "pytest/__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
-            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         elif "pytest\\__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "\\cli.py"
-            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -143,10 +140,7 @@ def start_helper(
             # Make sure that the process is actually running.
             try:
                 time.sleep(0.2)  # Sleep time is necessary for poll to work.
-                pr = proc.poll()
-                logger.info(f"fhadb - poll result: {pr}")
-                procinfo = psutil.Process(proc.pid)
-                logger.info(f"fhadb - proc info: {procinfo}")
+                proc.poll()
                 logger.info(f"Process {proc.pid} successfully running.")
             except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
@@ -295,13 +289,6 @@ def get_helper_uptime(app):
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
-        logger.info(f"fhadb Process info with psutil:\n\n")
-        logger.info(f"fhadb - uptime: {uptime}")
-        logger.info(f"fhadb - exe:{proc.exe()}")
-        logger.info(f"fhadb - cwd:{proc.cwd()}")
-        logger.info(f"fhadb - command:{proc.cmdline()}")
-        logger.info(f"fhadb - status:{proc.status()}")
-        logger.info(f"fhadb\n\n")
         return uptime
     with open("subprocesstd.log", "r") as f:
         logger.info(f"\n\nfhadb - subprocesstd file:\n{f.read()}\n")
@@ -352,7 +339,7 @@ def run_helper(
 
     separate_log_path = get_user_data_dir(app) / "helper_run.log"
     logger = get_helper_logger(app, separate_log_path)
-    logger.info(f"fhadb - I am inside the run_helper function")
+    logger.info(f"fhadb - I am in the other run log.")
     separate_log_path = get_helper_log_path(app)
     logger = get_helper_logger(app, separate_log_path)
     logger.info(f"fhadb - This should be in the new... well, old... log")
@@ -384,12 +371,6 @@ def run_helper(
     try:
         while True:
             time_left_s = (end_time - datetime.now()).total_seconds()
-            logger.info(
-                f"fhadb - I am inside the while True loop."
-                + f"\nTime left: {time_left_s}"
-                + f"\nTimeout: {timeout}"
-                + f"\nTimeout-check-interval: {timeout_check_interval_s}"
-            )
             if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
