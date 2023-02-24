@@ -103,9 +103,14 @@ def start_helper(
             watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
+        # TODO: This is not ideal, but works for the timebeing...
+        logger.info(f"fhadb - Invocation command:\n\n{args[0]}\n{args[1]}\n")
         if "pytest/__main__.py" in args[-1]:
             args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
-            # TODO: This is not ideal, but works for the timebeing...
+            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
+        elif "pytest\\__main__.py" in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + "\\cli.py"
+            logger.info(f"fhadb - Modified invocation command:\n\n{args[0]}\n{args[1]}\n")
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -133,11 +138,14 @@ def start_helper(
                 app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
             # Make sure that the process is actually running.
-            time.sleep(0.2)  # Sleep time is necessary for poll to work.
-            poll = proc.poll()
-            if poll is None:
+            try:
+                time.sleep(0.2)  # Sleep time is necessary for poll to work.
+                pr = proc.poll()
+                logger.info(f"fhadb - poll result: {pr}")
+                procinfo = psutil.Process(proc.pid)
+                logger.info(f"fhadb - proc info: {procinfo}")
                 logger.info(f"Process {proc.pid} successfully running.")
-            else:
+            except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
                 sys.exit(1)
         except FileNotFoundError as err:
@@ -283,6 +291,8 @@ def get_helper_uptime(app):
         proc = psutil.Process(pid_info[0])
         create_time = datetime.fromtimestamp(proc.create_time())
         uptime = datetime.now() - create_time
+        logger = get_helper_logger(app)
+        logger.info(f"fhadb - Uptime: {uptime}")
         return uptime
 
 
