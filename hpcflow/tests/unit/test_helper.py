@@ -53,12 +53,11 @@ def test_modify_helper(app):
         assert False
 
     # This checks the logs were updated correctly and without repetition.
-    logfile_h = helper.get_helper_log_path(app)
-    logfile_r = helper.get_user_data_dir(app) / "helper_run.log"
+    logfile = helper.get_helper_log_path(app)
     mod_count = 0
     update_count = 0
     timeout = 0
-    with open(logfile_h, "r") as lf:
+    with open(logfile, "r") as lf:
         for line in lf:
             if " - INFO - " in line:
                 (t, m) = line.split(" - INFO - ")
@@ -70,21 +69,9 @@ def test_modify_helper(app):
                         update_count = update_count + 1
                     elif "Helper exiting due to timeout" in m:
                         timeout = timeout + 1
-    with open(logfile_r, "r") as lf:
-        for line in lf:
-            if " - INFO - " in line:
-                (t, m) = line.split(" - INFO - ")
-                logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
-                if logt > tstart:
-                    if "Modifying" in m:
-                        mod_count = mod_count + 1
-                    elif "Updated" in m:
-                        update_count = update_count + 1
-                    elif "Helper exiting due to timeout" in m:
-                        timeout = timeout + 1
-    assert timeout == 2
-    assert update_count == 6
-    assert mod_count == 4
+    assert timeout == 1
+    assert update_count == 3
+    assert mod_count == 2
 
 
 def test_modify_helper_cli(app):
@@ -125,24 +112,11 @@ def test_modify_helper_cli(app):
     so = cli(r, args="helper pid")
     assert so == "Helper not running!"
 
-    logfile_h = cli(r, args="helper log-path")
-    logfile_r = logfile_h[:-4] + "_run.log"
+    logfile = cli(r, args="helper log-path")
     mod_count = 0
     update_count = 0
     timeout = 0
-    with open(logfile_h, "r") as lf:
-        for line in lf:
-            if " - INFO - " in line:
-                (t, m) = line.split(" - INFO - ")
-                logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
-                if logt > tstart:
-                    if "Modifying" in m:
-                        mod_count = mod_count + 1
-                    elif "Updated" in m:
-                        update_count = update_count + 1
-                    elif "Helper exiting due to timeout" in m:
-                        timeout = timeout + 1
-    with open(logfile_r, "r") as lf:
+    with open(logfile, "r") as lf:
         for line in lf:
             if " - INFO - " in line:
                 (t, m) = line.split(" - INFO - ")
