@@ -156,14 +156,14 @@ def start_helper(
                     wait_helper = wait_helper + 1
                     print(".", end="")
                 logger.error(f"Helper failed to start and write to log.")
-                kill_proc_tree(pid)
+                kill_proc_tree(proc.pid)
                 clear_helper(app)
                 sys.exit(1)
             except StopIteration:
                 pass
         except FileNotFoundError as err:
             logger.error(f"Killing helper process. ")
-            kill_proc_tree(pid)
+            kill_proc_tree(proc.pid)
             sys.exit(1)
 
 
@@ -205,6 +205,7 @@ def modify_helper(
                 )
             except FileNotFoundError as err:
                 sys.exit(1)
+            # TODO: should we have a wait for the parameter update?
         else:
             print("Helper parameters already met.")
     else:
@@ -258,8 +259,8 @@ def read_helper_args(app):
         return helper_args
 
 
-def read_helper_log(app):
-    tstart = datetime.now() - get_helper_uptime(app)
+def read_helper_log(app, start_t=None):
+    tstart = start_t or (datetime.now() - get_helper_uptime(app))
     log_file = get_helper_log_path(app)
     if not log_file.is_file():
         print("Logfile not found!")
@@ -272,7 +273,7 @@ def read_helper_log(app):
                     (t, m) = line.split(" - INFO - ")
                     logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
                     if logt > tstart:
-                        log_lines.append(line)
+                        log_lines.append(line.strip())
         return log_lines
 
 
@@ -370,7 +371,8 @@ def run_helper(
     # TODO: we will want to set the timeout to be slightly more than the largest allowable
     # walltime in the case of scheduler submissions.
 
-    helper_args = read_helper_args(app)
+    empty_args = dict.fromkeys(["timeout", "timeout_check_interval", "watch_interval"])
+    helper_args = read_helper_args(app) or empty_args
     helper_args["timeout"] = timeout
     helper_args["timeout_check_interval"] = timeout_check_interval
     helper_args["watch_interval"] = watch_interval
@@ -403,7 +405,7 @@ def run_helper(
                 helper_timeout(app, timeout, controller, logger)
             time.sleep(min(timeout_check_interval_s, time_left_s))
             # Reading args from PID file
-            helper_args_new = read_helper_args(app)
+            helper_args_new = read_helper_args(app) or empty_args
             for name, new_val in helper_args_new.items():
                 if new_val != helper_args[name]:
                     change = f"{name} parameter from {helper_args[name]} to {new_val}."
