@@ -22,7 +22,6 @@ def test_modify_helper(app):
     tstart = datetime.now() - timedelta(seconds=0.2)
 
     helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
-    time.sleep(2.5)
 
     # This checks that parameters already in the file are being compared to new inputs
     pytest_stdout = sys.stdout
@@ -75,8 +74,7 @@ def test_modify_helper_cli(app):
     so = cli(
         r, args="helper start --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
-    assert so == ""
-    time.sleep(2.5)
+    assert "Helper started successfully." in so
     so = cli(
         args="helper modify --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )

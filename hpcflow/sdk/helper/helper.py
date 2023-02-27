@@ -141,10 +141,29 @@ def start_helper(
                 logger.info(f"Process {proc.pid} successfully running.")
             except psutil.NoSuchProcess:
                 logger.error(f"Process {proc.pid} failed to start.")
+                clear_helper(app)
                 sys.exit(1)
+            # Waits for the helper to start and write to log
+            print("Waiting for helper to start", end="")
+            try:
+                for wait_helper in range(5):
+                    log_lines = read_helper_log(app)
+                    for line in log_lines:
+                        if "Helper started" in line:
+                            print("\rHelper started successfully.")
+                            raise StopIteration
+                    time.sleep(1)
+                    wait_helper = wait_helper + 1
+                    print(".", end="")
+                logger.error(f"Helper failed to start and write to log.")
+                kill_proc_tree(pid)
+                clear_helper(app)
+                sys.exit(1)
+            except StopIteration:
+                pass
         except FileNotFoundError as err:
             logger.error(f"Killing helper process. ")
-            proc.kill()
+            kill_proc_tree(pid)
             sys.exit(1)
 
 
@@ -237,6 +256,24 @@ def read_helper_args(app):
                 helper_args[key] = float(val)
         helper_args["pid"] = int(helper_args["pid"])
         return helper_args
+
+
+def read_helper_log(app):
+    tstart = datetime.now() - get_helper_uptime(app)
+    log_file = get_helper_log_path(app)
+    if not log_file.is_file():
+        print("Logfile not found!")
+        return None
+    else:
+        log_lines = []
+        with log_file.open("rt") as lf:
+            for line in lf:
+                if " - INFO - " in line:
+                    (t, m) = line.split(" - INFO - ")
+                    logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
+                    if logt > tstart:
+                        log_lines.append(line)
+        return log_lines
 
 
 def get_helper_PID(app):
@@ -333,6 +370,17 @@ def run_helper(
     # TODO: we will want to set the timeout to be slightly more than the largest allowable
     # walltime in the case of scheduler submissions.
 
+    helper_args = read_helper_args(app)
+    helper_args["timeout"] = timeout
+    helper_args["timeout_check_interval"] = timeout_check_interval
+    helper_args["watch_interval"] = watch_interval
+
+    logger = get_helper_logger(app)
+    logger.info(
+        f"Helper started with timeout={timeout!r}, timeout_check_interval="
+        f"{timeout_check_interval!r} and watch_interval={watch_interval!r}."
+    )
+
     if isinstance(timeout, timedelta):
         timeout_s = timeout.total_seconds()
     else:
@@ -347,9 +395,7 @@ def run_helper(
 
     start_time = datetime.now()
     end_time = start_time + timeout
-    logger = get_helper_logger(app)
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
-    helper_args = read_helper_args(app)
     try:
         while True:
             time_left_s = (end_time - datetime.now()).total_seconds()
