@@ -18,6 +18,195 @@ def app():
     return hpcflow
 
 
+# TODO: test_get_user_data_dir
+# TODO: test_get_PID_file_path
+# TODO: test_get_helper_PID
+# TODO: test_get_helper_log_path
+# TODO: test_get_helper_logger
+# TODO: test_logger.info
+# TODO: test_logger.error
+# TODO: test_get_watcher_file_path
+# TODO: test_get_helper_watch_list
+# TODO: test_clear_helper
+# TODO: test_kill_proc_tree
+# TODO: test_get_helper_uptime
+
+
+def test_write_and_read_helper_args(app):
+    helper.write_helper_args(app, 123, 4, 5, 6)
+    read_helper_args = helper.read_helper_args(app)
+    assert {
+        "pid": 123,
+        "timeout": 4,
+        "timeout_check_interval": 5.0,
+        "watch_interval": 6.0,
+    } == read_helper_args
+
+
+def test_read_helper_log_with_start_t(app):
+    oldlogs = [
+        "2023-02-27 8:00:00,000 - hpcflow.sdk.helper.helper - INFO - log 1 before start",
+        "2023-02-27 8:00:01,000 - hpcflow.sdk.helper.helper - INFO - log 2 before start",
+    ]
+    start_t = datetime(2023, 2, 27, 8, 0, 2, 0)
+    newlogs = [
+        "2023-02-27 8:00:03,000 - hpcflow.sdk.helper.helper - INFO - log 1 after start",
+        "2023-02-27 8:00:04,000 - hpcflow.sdk.helper.helper - INFO - log 2 after start",
+    ]
+    log_file = helper.get_helper_log_path(app)
+    with log_file.open("wt") as f:
+        for line in oldlogs + newlogs:
+            f.write(line + "\n")
+    read_logs = helper.read_helper_log(app, start_t)
+    assert newlogs == read_logs
+
+
+# TODO: test_read_helper_log (without start_t, which uses uptime)... use mock for uptime to avoid using start?
+
+
+def test_start_and_stop_default(app):
+    pytest_stdout = sys.stdout
+    so = io.StringIO()  # Create StringIO object
+    sys.stdout = so  # Redirect stdout.
+    try:
+        helper.start_helper(app)
+        assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+    finally:
+        try:
+            helper.stop_helper(app)
+            assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+        finally:
+            sys.stdout = pytest_stdout  # Reset stdout.
+
+
+def test_start_and_stop_params(app):
+    pytest_stdout = sys.stdout
+    so = io.StringIO()  # Create StringIO object
+    sys.stdout = so  # Redirect stdout.
+    try:
+        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+        helper_args = helper.read_helper_args(app)
+        assert {
+            "pid": helper_args["pid"],
+            "timeout": 60,
+            "timeout_check_interval": 1.0,
+            "watch_interval": 3.0,
+        } == helper_args
+    finally:
+        try:
+            helper.stop_helper(app)
+            assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+        finally:
+            sys.stdout = pytest_stdout  # Reset stdout.
+
+
+def test_modify_helper_detects_repeated_values(app):
+    pytest_stdout = sys.stdout
+    so = io.StringIO()  # Create StringIO object
+    sys.stdout = so  # Redirect stdout.
+    try:
+        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        helper.modify_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        assert so.getvalue().splitlines()[-1] == "Helper parameters already met."
+    finally:
+        helper.stop_helper(app)
+        sys.stdout = pytest_stdout  # Reset stdout.
+
+
+def test_modify_helper_writes_parameters_to_PID_file(app):
+    try:
+        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        pid = helper.get_helper_PID(app)[0]
+        helper.modify_helper(app, timeout=40, timeout_check_interval=2, watch_interval=1)
+        helper_args = helper.read_helper_args(app)
+
+        assert {
+            "pid": pid,
+            "timeout": 40,
+            "timeout_check_interval": 2.0,
+            "watch_interval": 1.0,
+        } == helper_args
+    finally:
+        helper.stop_helper(app)
+
+
+def test_modify_helper_writes_modification_to_logs(app):
+    try:
+        t_start = datetime.now()
+        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        helper.modify_helper(app, timeout=40, timeout_check_interval=2, watch_interval=1)
+        pid = helper.get_helper_PID(app)[0]
+        xlog = f"Modifying helper with pid={pid} to: timeout=40, timeout_check_interval=2 and watch_interval=1."
+        log_lines = helper.read_helper_log(app, t_start)
+        assert xlog in log_lines[-1]
+    finally:
+        helper.stop_helper(app)
+
+
+# TODO: test_restart_helper
+# TODO: test_helper_timeout
+# TODO: def test_run_helper_timeouts_when_it_should(app):
+
+
+def test_run_helper_writes_start_signal_to_log(app):
+    found = False
+    t_start = datetime.now()
+    time.sleep(0.2)
+    try:
+        helper.run_helper(app, 1, 2, 3)
+    except SystemExit:
+        xlog = "Helper started with timeout=1, timeout_check_interval=2 and watch_interval=3."
+        log_lines = helper.read_helper_log(app, t_start)
+        for line in log_lines:
+            if xlog in line:
+                found = True
+                break
+        assert found
+
+
+def test_run_helper_uses_params_over_pid_file_values(app):
+    helper.write_helper_args(app, 123, 4, 5, 6)
+    found = False
+    t_start = datetime.now()
+    time.sleep(0.2)
+    try:
+        helper.run_helper(app, 1, 2, 3)
+    except SystemExit:
+        xlog = "Helper started with timeout=1, timeout_check_interval=2 and watch_interval=3."
+        log_lines = helper.read_helper_log(app, t_start)
+        for line in log_lines:
+            if xlog in line:
+                found = True
+                break
+        assert found
+
+
+def test_run_helper_detects_parameter_changes(app):
+    helper.write_helper_args(app, 456, 1, 2, 3)
+    t_start = datetime.now()
+    time.sleep(0.2)
+    try:
+        helper.run_helper(app, 10, 1, 1)
+    except SystemExit:
+        xlog = [
+            "Updated timeout parameter from 10 to 1.",
+            "Updated timeout_check_interval parameter from 1 to 2.",
+            "Updated watch_interval parameter from 1 to 3.",
+        ]
+        log_lines = helper.read_helper_log(app, t_start)
+        updates = 0
+        for xline in xlog:
+            for line in log_lines:
+                if xline in line:
+                    updates = updates + 1
+        assert updates == 3
+
+
+# TODO: test_helper_cli (or should this be a separate test file?)
+
+
+# TODO: The tests below are actually functional tests... move them to another folder?
 def test_modify_helper(app):
     tstart = datetime.now() - timedelta(seconds=0.2)
 
