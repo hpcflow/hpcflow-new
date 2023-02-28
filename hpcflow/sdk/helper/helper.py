@@ -146,7 +146,7 @@ def start_helper(
             # Waits for the helper to start and write to log
             print("Waiting for helper to start", end="")
             try:
-                for wait_helper in range(5):
+                for wait_helper in range(10):
                     log_lines = read_helper_log(app)
                     for line in log_lines:
                         if "Helper started" in line:

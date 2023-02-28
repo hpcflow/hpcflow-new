@@ -41,6 +41,8 @@ def test_write_and_read_helper_args(app):
         "timeout_check_interval": 5.0,
         "watch_interval": 6.0,
     } == read_helper_args
+    pid_file = helper.get_PID_file_path(app)
+    pid_file.unlink()
 
 
 def test_read_helper_log_with_start_t(app):
@@ -61,29 +63,29 @@ def test_read_helper_log_with_start_t(app):
     assert newlogs == read_logs
 
 
-# TODO: Use mock for uptime to avoid using start_helper and stop_helper?
+# TODO: Use mock for uptime to avoid using start_helper?
 def test_read_helper_log_with_uptime(app):
-    try:
-        helper.clear_helper(app)
-        logger = helper.get_helper_logger(app)
-        logger.info("log 1 before start")
-        logger.info("log 2 before start")
-        time.sleep(0.2)
+    helper.clear_helper(app)
+    logger = helper.get_helper_logger(app)
+    logger.info("log 1 before start")
+    logger.info("log 2 before start")
+    time.sleep(2)  # Not needed after todo is addressed
+    try:  # Not needed after todo is addressed
         helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
-        time.sleep(0.2)
+        time.sleep(0.2)  # Not needed after todo is addressed
         logger.info("log 1 after start")
         logger.info("log 2 after start")
-        time.sleep(0.2)
+        time.sleep(0.2)  # Not needed after todo is addressed
         read_logs = helper.read_helper_log(app)
-        print(f"{read_logs}")
-        # assert read_logs.len() == 2
+        assert len(read_logs) <= 8  # After todo is addressed the 8 should be a 2
         assert "log 1 after start" in read_logs[-2]
         assert "log 2 after start" in read_logs[-1]
-    finally:
-        helper.stop_helper(app)
+    finally:  # Not needed after todo is addressed
+        helper.clear_helper(app)  # Not needed after todo is addressed
 
 
 def test_start_and_stop_default(app):
+    helper.clear_helper(app)
     pytest_stdout = sys.stdout
     so = io.StringIO()  # Create StringIO object
     sys.stdout = so  # Redirect stdout.
@@ -97,9 +99,11 @@ def test_start_and_stop_default(app):
             assert solen == len(so.getvalue().splitlines())
         finally:
             sys.stdout = pytest_stdout  # Reset stdout.
+            helper.clear_helper(app)
 
 
 def test_start_and_stop_params(app):
+    helper.clear_helper(app)
     pytest_stdout = sys.stdout
     so = io.StringIO()  # Create StringIO object
     sys.stdout = so  # Redirect stdout.
@@ -120,9 +124,11 @@ def test_start_and_stop_params(app):
             assert solen == len(so.getvalue().splitlines())
         finally:
             sys.stdout = pytest_stdout  # Reset stdout.
+            helper.clear_helper(app)
 
 
 def test_modify_helper_detects_repeated_values(app):
+    helper.clear_helper(app)
     pytest_stdout = sys.stdout
     so = io.StringIO()  # Create StringIO object
     sys.stdout = so  # Redirect stdout.
@@ -131,11 +137,12 @@ def test_modify_helper_detects_repeated_values(app):
         helper.modify_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
         assert so.getvalue().splitlines()[-1] == "Helper parameters already met."
     finally:
-        helper.stop_helper(app)
         sys.stdout = pytest_stdout  # Reset stdout.
+        helper.clear_helper(app)
 
 
 def test_modify_helper_writes_parameters_to_PID_file(app):
+    helper.clear_helper(app)
     try:
         helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
         pid = helper.get_helper_PID(app)[0]
@@ -149,12 +156,13 @@ def test_modify_helper_writes_parameters_to_PID_file(app):
             "watch_interval": 1.0,
         } == helper_args
     finally:
-        helper.stop_helper(app)
+        helper.clear_helper(app)
 
 
 def test_modify_helper_writes_modification_to_logs(app):
+    helper.clear_helper(app)
+    t_start = datetime.now()
     try:
-        t_start = datetime.now()
         helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
         helper.modify_helper(app, timeout=40, timeout_check_interval=2, watch_interval=1)
         pid = helper.get_helper_PID(app)[0]
@@ -162,7 +170,7 @@ def test_modify_helper_writes_modification_to_logs(app):
         log_lines = helper.read_helper_log(app, t_start)
         assert xlog in log_lines[-1]
     finally:
-        helper.stop_helper(app)
+        helper.clear_helper(app)
 
 
 # TODO: test_restart_helper
@@ -229,6 +237,7 @@ def test_run_helper_detects_parameter_changes(app):
 
 # TODO: The tests below are actually functional tests... move them to another folder?
 def test_modify_helper(app):
+    helper.clear_helper(app)
     start_t = datetime.now()
     time.sleep(0.2)
 
@@ -273,6 +282,7 @@ def test_modify_helper(app):
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
+    helper.clear_helper(app)
 
 
 def test_modify_helper_cli(app):
@@ -280,6 +290,7 @@ def test_modify_helper_cli(app):
     time.sleep(0.2)
     r = CliRunner()
 
+    so = cli(r, args="helper clear")
     so = cli(
         r, args="helper start --timeout 60 --timeout-check-interval 1 --watch-interval 3"
     )
@@ -329,6 +340,7 @@ def test_modify_helper_cli(app):
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
+    so = cli(r, args="helper clear")
 
 
 def cli(r=CliRunner(), args=""):
