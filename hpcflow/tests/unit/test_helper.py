@@ -61,7 +61,26 @@ def test_read_helper_log_with_start_t(app):
     assert newlogs == read_logs
 
 
-# TODO: test_read_helper_log (without start_t, which uses uptime)... use mock for uptime to avoid using start?
+# TODO: Use mock for uptime to avoid using start_helper and stop_helper?
+def test_read_helper_log_with_uptime(app):
+    try:
+        helper.clear_helper(app)
+        logger = helper.get_helper_logger(app)
+        logger.info("log 1 before start")
+        logger.info("log 2 before start")
+        time.sleep(0.2)
+        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
+        time.sleep(0.2)
+        logger.info("log 1 after start")
+        logger.info("log 2 after start")
+        time.sleep(0.2)
+        read_logs = helper.read_helper_log(app)
+        print(f"{read_logs}")
+        # assert read_logs.len() == 2
+        assert "log 1 after start" in read_logs[-2]
+        assert "log 2 after start" in read_logs[-1]
+    finally:
+        helper.stop_helper(app)
 
 
 def test_start_and_stop_default(app):
@@ -73,8 +92,9 @@ def test_start_and_stop_default(app):
         assert so.getvalue().splitlines()[-1] == "Helper started successfully."
     finally:
         try:
+            solen = len(so.getvalue().splitlines())
             helper.stop_helper(app)
-            assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+            assert solen == len(so.getvalue().splitlines())
         finally:
             sys.stdout = pytest_stdout  # Reset stdout.
 
@@ -95,8 +115,9 @@ def test_start_and_stop_params(app):
         } == helper_args
     finally:
         try:
+            solen = len(so.getvalue().splitlines())
             helper.stop_helper(app)
-            assert so.getvalue().splitlines()[-1] == "Helper started successfully."
+            assert solen == len(so.getvalue().splitlines())
         finally:
             sys.stdout = pytest_stdout  # Reset stdout.
 
@@ -208,7 +229,8 @@ def test_run_helper_detects_parameter_changes(app):
 
 # TODO: The tests below are actually functional tests... move them to another folder?
 def test_modify_helper(app):
-    tstart = datetime.now() - timedelta(seconds=0.2)
+    start_t = datetime.now()
+    time.sleep(0.2)
 
     helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
 
@@ -235,29 +257,27 @@ def test_modify_helper(app):
     assert pid == None
 
     # This checks the logs were updated correctly and without repetition.
-    logfile = helper.get_helper_log_path(app)
+    read_logs = helper.read_helper_log(app, start_t)
     mod_count = 0
     update_count = 0
     timeout = 0
-    with open(logfile, "r") as lf:
-        for line in lf:
-            if " - INFO - " in line:
-                (t, m) = line.split(" - INFO - ")
-                logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
-                if logt > tstart:
-                    if "Modifying" in m:
-                        mod_count = mod_count + 1
-                    elif "Updated" in m:
-                        update_count = update_count + 1
-                    elif "Helper exiting due to timeout" in m:
-                        timeout = timeout + 1
+    for line in read_logs:
+        if " - INFO - " in line:
+            (t, m) = line.split(" - INFO - ")
+            if "Modifying" in m:
+                mod_count = mod_count + 1
+            elif "Updated" in m:
+                update_count = update_count + 1
+            elif "Helper exiting due to timeout" in m:
+                timeout = timeout + 1
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
 
 
 def test_modify_helper_cli(app):
-    tstart = datetime.now() - timedelta(seconds=0.2)
+    start_t = datetime.now()
+    time.sleep(0.2)
     r = CliRunner()
 
     so = cli(
@@ -293,22 +313,19 @@ def test_modify_helper_cli(app):
     so = cli(r, args="helper pid")
     assert so == "Helper not running!"
 
-    logfile = cli(r, args="helper log-path")
+    read_logs = helper.read_helper_log(app, start_t)
     mod_count = 0
     update_count = 0
     timeout = 0
-    with open(logfile, "r") as lf:
-        for line in lf:
-            if " - INFO - " in line:
-                (t, m) = line.split(" - INFO - ")
-                logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
-                if logt > tstart:
-                    if "Modifying" in m:
-                        mod_count = mod_count + 1
-                    elif "Updated" in m:
-                        update_count = update_count + 1
-                    elif "Helper exiting due to timeout" in m:
-                        timeout = timeout + 1
+    for line in read_logs:
+        if " - INFO - " in line:
+            (t, m) = line.split(" - INFO - ")
+            if "Modifying" in m:
+                mod_count = mod_count + 1
+            elif "Updated" in m:
+                update_count = update_count + 1
+            elif "Helper exiting due to timeout" in m:
+                timeout = timeout + 1
     assert timeout == 1
     assert update_count == 3
     assert mod_count == 2
