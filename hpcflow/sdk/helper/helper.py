@@ -299,8 +299,9 @@ def stop_helper(app, return_logger=False):
         pid_file.unlink()
 
         workflow_dirs_file_path = get_watcher_file_path(app)
-        logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
-        workflow_dirs_file_path.unlink()
+        if workflow_dirs_file_path.exists():
+            logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
+            workflow_dirs_file_path.unlink()
 
     if return_logger:
         return logger
