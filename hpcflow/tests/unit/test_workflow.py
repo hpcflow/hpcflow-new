@@ -26,9 +26,11 @@ from hpcflow.sdk.core.errors import (
 
 def modify_workflow_metadata_on_disk(workflow):
     """Make a non-sense change to the on-disk metadata."""
-    changed_md = copy.deepcopy(workflow.metadata)
+    assert workflow.store_format == "zarr"
+    wk_md = workflow._store.load_metadata()
+    changed_md = copy.deepcopy(wk_md)
     changed_md["new_key"] = "new_value"
-    workflow._get_workflow_root_group(mode="r+").attrs.put(changed_md)
+    workflow._store._get_root_group(mode="r+").attrs.put(changed_md)
 
 
 def make_workflow_w1_with_config_kwargs(config_kwargs, path, param_p1, param_p2):
@@ -139,8 +141,7 @@ def test_raise_on_missing_workflow(tmp_path):
 
 def test_add_empty_task(empty_workflow, schema_s1):
     t1 = Task(schemas=schema_s1)
-    wk_t1 = empty_workflow._add_empty_task(t1, parent_events=None)
-
+    wk_t1 = empty_workflow._add_empty_task(t1)
     assert len(empty_workflow.tasks) == 1 and wk_t1.index == 0 and wk_t1.name == "ts1"
 
 
@@ -160,26 +161,20 @@ def test_raise_on_missing_inputs_add_second_task(workflow_w1, schema_s2, param_p
     assert exc_info.value.missing_inputs == [param_p3.typ]  # p2 comes from existing task
 
 
+@pytest.mark.skip(reason="TODO: Not implemented.")
 def test_new_workflow_deleted_on_creation_failure():
     pass
 
 
-@pytest.mark.skip(
-    reason=(
-        "Need to be able to either add app data to the app here, or have support for "
-        "built in app data; can't init ValueSequence."
-    )
-)
-def test_WorkflowTemplate_from_YAML_string(null_config, param_p1, param_p2):
-    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
+def test_WorkflowTemplate_from_YAML_string(null_config):
     wkt_yml = dedent(
         """
         name: simple_workflow
 
         tasks:
-        - schemas: [ts1]
+        - schemas: [dummy_task_1]
           element_sets:
-            inputs:
+          - inputs:
               p2: 201
               p5: 501
             sequences:
@@ -188,25 +183,16 @@ def test_WorkflowTemplate_from_YAML_string(null_config, param_p1, param_p2):
                 values: [101, 102]
     """
     )
-    wkt = WorkflowTemplate.from_YAML_string(wkt_yml)
+    WorkflowTemplate.from_YAML_string(wkt_yml)
 
 
-@pytest.mark.skip(
-    reason=(
-        "Need to be able to either add app data to the app here, or have support for "
-        "built in app data; can't init ValueSequence."
-    )
-)
-def test_WorkflowTemplate_from_YAML_string_without_element_sets(
-    null_config, param_p1, param_p2
-):
-    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
+def test_WorkflowTemplate_from_YAML_string_without_element_sets(null_config):
     wkt_yml = dedent(
         """
         name: simple_workflow
 
         tasks:
-        - schemas: [ts1]
+        - schemas: [dummy_task_1]
           inputs:
             p2: 201
             p5: 501
@@ -216,33 +202,26 @@ def test_WorkflowTemplate_from_YAML_string_without_element_sets(
               values: [101, 102]
     """
     )
-    wkt = WorkflowTemplate.from_YAML_string(wkt_yml)
+    WorkflowTemplate.from_YAML_string(wkt_yml)
 
 
-@pytest.mark.skip(
-    reason=(
-        "Need to be able to either add app data to the app here, or have support for "
-        "built in app data; can't init ValueSequence."
-    )
-)
 def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equivalence(
-    null_config, param_p1, param_p2
+    null_config,
 ):
-    s1 = TaskSchema("ts1", actions=[], inputs=[param_p1, param_p2])
     wkt_yml_1 = dedent(
         """
         name: simple_workflow
 
         tasks:
-        - schemas: [ts1]
+        - schemas: [dummy_task_1]
           element_sets:
-            inputs:
-              p2: 201
-              p5: 501
-            sequences:
-              - path: inputs.p1
-                nesting_order: 0
-                values: [101, 102]
+            - inputs:
+                p2: 201
+                p5: 501
+              sequences:
+                - path: inputs.p1
+                  nesting_order: 0
+                  values: [101, 102]
     """
     )
     wkt_yml_2 = dedent(
@@ -250,7 +229,7 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
         name: simple_workflow
 
         tasks:
-        - schemas: [ts1]
+        - schemas: [dummy_task_1]
           inputs:
             p2: 201
             p5: 501
@@ -265,78 +244,29 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
     assert wkt_1 == wkt_2
 
 
-def test_check_is_modified_during_add_task(workflow_w1, schema_s2, param_p3):
+def test_store_has_pending_during_add_task(workflow_w1, schema_s2, param_p3):
     t2 = Task(schemas=schema_s2, inputs=[InputValue(param_p3, 301)])
     with workflow_w1.batch_update():
         workflow_w1.add_task(t2)
-        assert workflow_w1._check_is_modified()
+        assert workflow_w1._store.has_pending
 
 
 def test_empty_batch_update_does_nothing(workflow_w1):
     with workflow_w1.batch_update():
-        assert not workflow_w1._check_is_modified()
+        assert not workflow_w1._store.has_pending
 
 
-def test_check_is_modified_on_disk_when_metadata_changed(workflow_w1):
-    modify_workflow_metadata_on_disk(workflow_w1)
-    assert workflow_w1._check_is_modified_on_disk()
+def test_is_modified_on_disk_when_metadata_changed(workflow_w1):
+    # this is ZarrPersistentStore-specific; might want to consider a refactor later
+    with workflow_w1._store.cached_load():
+        modify_workflow_metadata_on_disk(workflow_w1)
+        assert workflow_w1._store.is_modified_on_disk()
 
 
 def test_batch_update_abort_if_modified_on_disk(workflow_w1, schema_s2, param_p3):
     t2 = Task(schemas=schema_s2, inputs=[InputValue(param_p3, 301)])
     with pytest.raises(WorkflowBatchUpdateFailedError):
-        with workflow_w1.batch_update():
-            workflow_w1.add_task(t2)
-            modify_workflow_metadata_on_disk(workflow_w1)
-
-
-def test_get_task_element_data_group_path_rollover_next_task_group_dir_2_nesting_levels(
-    tmp_path,
-    param_p1,
-    param_p2,
-):
-    wk = make_workflow_w1_with_config_kwargs(
-        config_kwargs={
-            "config_dir": tmp_path,
-            "num_task_group_nesting_levels": 2,
-        },
-        path=tmp_path,
-        param_p1=param_p1,
-        param_p2=param_p2,
-    )
-
-    num_per_dir = wk._limits.max_num_task_groups_per_dir
-    elem_group_path = wk._get_workflow_NEW_element_data_group().path
-    assert (
-        wk._get_task_element_data_group_path(num_per_dir - 1),
-        wk._get_task_element_data_group_path(num_per_dir),
-    ) == (
-        f"{elem_group_path}/t0/task_{num_per_dir - 1}",
-        f"{elem_group_path}/t1/task_{num_per_dir}",
-    )
-
-
-def test_get_task_element_data_group_path_rollover_next_task_group_dir_3_nesting_levels(
-    tmp_path,
-    param_p1,
-    param_p2,
-):
-    wk = make_workflow_w1_with_config_kwargs(
-        config_kwargs={
-            "config_dir": tmp_path,
-            "num_task_group_nesting_levels": 3,
-        },
-        path=tmp_path,
-        param_p1=param_p1,
-        param_p2=param_p2,
-    )
-
-    num_per_dir = wk._limits.max_num_task_groups_per_dir
-    elem_group_path = wk._get_workflow_NEW_element_data_group().path
-    assert (
-        wk._get_task_element_data_group_path(num_per_dir - 1),
-        wk._get_task_element_data_group_path(num_per_dir),
-    ) == (
-        f"{elem_group_path}/t0/t0/task_{num_per_dir - 1}",
-        f"{elem_group_path}/t0/t1/task_{num_per_dir}",
-    )
+        with workflow_w1._store.cached_load():
+            with workflow_w1.batch_update():
+                workflow_w1.add_task(t2)
+                modify_workflow_metadata_on_disk(workflow_w1)

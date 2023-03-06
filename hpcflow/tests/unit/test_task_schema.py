@@ -5,10 +5,12 @@ from hpcflow.api import (
     ActionEnvironment,
     Command,
     Environment,
+    Parameter,
     TaskObjective,
     TaskSchema,
 )
 from hpcflow.sdk.core.errors import InvalidIdentifier
+from hpcflow.sdk.core.test_utils import make_actions, make_parameters
 
 
 @pytest.fixture
@@ -67,3 +69,48 @@ def test_method_lowercasing(schema_s1_kwargs):
     assert TaskSchema(method="MyMethod", **schema_s1_kwargs) == TaskSchema(
         method="mymethod", **schema_s1_kwargs
     )
+
+
+def test_schema_action_validate():
+    p1, p2, p3, p4 = make_parameters(4)
+    act_1, act_2, act_3 = make_actions([("p1", "p5"), (("p2", "p5"), "p3"), ("p3", "p4")])
+    TaskSchema("t1", actions=[act_1, act_2, act_3], inputs=[p1, p2], outputs=[p3, p4])
+
+
+def test_schema_action_validate_raise_on_extra_schema_input():
+    # assert raise ValueError
+    p1, p2, p3, p4 = make_parameters(4)
+    p7 = Parameter("p7")
+    act_1, act_2, act_3 = make_actions([("p1", "p5"), (("p2", "p5"), "p3"), ("p3", "p4")])
+    with pytest.raises(ValueError):
+        TaskSchema(
+            "t1", actions=[act_1, act_2, act_3], inputs=[p1, p2, p7], outputs=[p3, p4]
+        )
+
+
+def test_schema_action_validate_raise_on_extra_schema_output():
+    p7 = Parameter("p7")
+    p1, p2, p3, p4 = make_parameters(4)
+    act_1, act_2, act_3 = make_actions([("p1", "p5"), (("p2", "p5"), "p3"), ("p3", "p4")])
+    with pytest.raises(ValueError):
+        TaskSchema(
+            "t1", actions=[act_1, act_2, act_3], inputs=[p1, p2], outputs=[p3, p4, p7]
+        )
+
+
+def test_schema_action_validate_raise_on_extra_action_input():
+    p1, p2, p3, p4 = make_parameters(4)
+    act_1, act_2, act_3 = make_actions(
+        [(("p1", "p7"), "p5"), (("p2", "p5"), "p3"), ("p3", "p4")]
+    )
+    with pytest.raises(ValueError):
+        TaskSchema("t1", actions=[act_1, act_2, act_3], inputs=[p1, p2], outputs=[p3, p4])
+
+
+def test_schema_action_validate_raise_on_extra_action_output():
+    p1, p2, p3, p4 = make_parameters(4)
+    act_1, act_2, act_3 = make_actions(
+        [("p1", "p5"), (("p2", "p5"), "p3"), ("p3", "p4", "p7")]
+    )
+    with pytest.raises(ValueError):
+        TaskSchema("t1", actions=[act_1, act_2, act_3], inputs=[p1, p2], outputs=[p3, p4])

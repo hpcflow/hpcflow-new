@@ -2,7 +2,11 @@ import pytest
 import zarr
 import numpy as np
 
-from hpcflow.sdk.core.utils import get_nested_indices, merge_into_zarr_column_array
+from hpcflow.sdk.core.utils import (
+    bisect_slice,
+    get_nested_indices,
+    merge_into_zarr_column_array,
+)
 
 
 def test_get_nested_indices_expected_values_size_2_nest_levels_2():
@@ -311,6 +315,22 @@ def test_merge_into_zarr_column_array_with_new_column(zarr_column_array):
     headers = merge_into_zarr_column_array(arr, headers, new_arr, new_headers)
 
     assert np.all(arr[:] == expected) and headers == new_headers
+
+
+def test_bisect_slice():
+    tot_len = 8
+    tot_lst = list(range(tot_len))
+    for sel_start in range(tot_len + 1):
+        for sel_step in range(1, tot_len):
+            for sel_stop in range(sel_start, tot_len + 1):
+                for len_A in range(tot_len):
+                    lst_A = tot_lst[:len_A]
+                    lst_B = tot_lst[len_A:]
+                    selection = slice(sel_start, sel_stop, sel_step)
+                    slice_A, slice_B = bisect_slice(selection, len(lst_A))
+                    sub_A = lst_A[slice_A]
+                    sub_B = lst_B[slice_B]
+                    assert sub_A + sub_B == tot_lst[selection]
 
 
 # from hpcflow.utils import (

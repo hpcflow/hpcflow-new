@@ -30,6 +30,12 @@ class MissingInputs(Exception):
         super().__init__(message)
 
 
+class ExtraInputs(Exception):
+    def __init__(self, message, extra_inputs) -> None:
+        self.extra_inputs = extra_inputs
+        super().__init__(message)
+
+
 class TaskTemplateInvalidNesting(ValueError):
     pass
 

@@ -18,6 +18,7 @@ from ruamel.yaml import YAML
 import sentry_sdk
 
 from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
+from hpcflow.sdk.typing import PathLike
 
 
 def load_config(func):
@@ -311,7 +312,7 @@ def read_YAML(loadable_yaml):
     return yaml.load(loadable_yaml)
 
 
-def read_YAML_file(path):
+def read_YAML_file(path: PathLike):
     return read_YAML(Path(path))
 
 
@@ -518,3 +519,25 @@ def merge_into_headered_zarr_column_array(
     )
     set_in_container(attrs, header_path, new_headers)
     arr.attrs.put(attrs)
+
+
+def bisect_slice(selection: slice, len_A: int):
+    """Given two sequences (the first of which of known length), get the two slices that
+    are equivalent to a given slice if the two sequences were combined."""
+
+    if selection.start < 0 or selection.stop < 0 or selection.step < 0:
+        raise NotImplementedError("Can't do negative slices yet.")
+
+    A_idx = selection.indices(len_A)
+    B_start = selection.start - len_A
+    if len_A != 0 and B_start < 0:
+        B_start = B_start % selection.step
+    if len_A > selection.stop:
+        B_stop = B_start
+    else:
+        B_stop = selection.stop - len_A
+    B_idx = (B_start, B_stop, selection.step)
+    A_slice = slice(*A_idx)
+    B_slice = slice(*B_idx)
+
+    return A_slice, B_slice
