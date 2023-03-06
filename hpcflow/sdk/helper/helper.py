@@ -270,8 +270,9 @@ def read_helper_log(app, start_t=None):
         with log_file.open("rt") as lf:
             for line in lf:
                 if " - INFO - " in line:
-                    (t, m) = line.split(" - INFO - ")
-                    logt = datetime.strptime(t[0:22], "%Y-%m-%d %H:%M:%S,%f")
+                    (ts, m) = line.split(" - INFO - ")
+                    (t, s) = ts.split(" - ")
+                    logt = datetime.strptime(t, "%Y-%m-%d %H:%M:%S,%f")
                     if logt > tstart:
                         log_lines.append(line.strip())
         return log_lines
@@ -299,6 +300,7 @@ def stop_helper(app, return_logger=False):
         pid_file.unlink()
 
         workflow_dirs_file_path = get_watcher_file_path(app)
+        # TODO: maybe we should not be allowing for the file to be missing... check why it is missing!
         if workflow_dirs_file_path.exists():
             logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
             workflow_dirs_file_path.unlink()

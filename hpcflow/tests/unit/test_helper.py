@@ -29,6 +29,7 @@ def app():
 # TODO: test_get_helper_watch_list
 # TODO: test_clear_helper
 # TODO: test_kill_proc_tree
+
 # TODO: test_get_helper_uptime
 
 
@@ -63,25 +64,25 @@ def test_read_helper_log_with_start_t(app):
     assert newlogs == read_logs
 
 
-# TODO: Use mock for uptime to avoid using start_helper?
-def test_read_helper_log_with_uptime(app):
+def test_read_helper_log_with_uptime(app, mocker):
     helper.clear_helper(app)
     logger = helper.get_helper_logger(app)
     logger.info("log 1 before start")
     logger.info("log 2 before start")
-    time.sleep(2)  # Not needed after todo is addressed
-    try:  # Not needed after todo is addressed
-        helper.start_helper(app, timeout=60, timeout_check_interval=1, watch_interval=3)
-        time.sleep(0.2)  # Not needed after todo is addressed
-        logger.info("log 1 after start")
-        logger.info("log 2 after start")
-        time.sleep(0.2)  # Not needed after todo is addressed
-        read_logs = helper.read_helper_log(app)
-        assert len(read_logs) <= 8  # After todo is addressed the 8 should be a 2
-        assert "log 1 after start" in read_logs[-2]
-        assert "log 2 after start" in read_logs[-1]
-    finally:  # Not needed after todo is addressed
-        helper.clear_helper(app)  # Not needed after todo is addressed
+    time.sleep(0.01)
+    start_t = datetime.now()
+    time.sleep(0.01)
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_helper_uptime",
+        # get_helper_uptime calls are bypassed with this return value
+        return_value=datetime.now() - start_t,
+    )
+    logger.info("log 1 after start")
+    logger.info("log 2 after start")
+    read_logs = helper.read_helper_log(app)
+    assert len(read_logs) == 2
+    assert "log 1 after start" in read_logs[-2]
+    assert "log 2 after start" in read_logs[-1]
 
 
 def test_start_and_stop_default(app):
