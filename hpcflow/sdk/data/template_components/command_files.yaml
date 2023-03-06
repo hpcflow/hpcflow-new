@@ -1,0 +1,19 @@
+- label: t1_infile_1
+  name:
+    name: t1_infile_1.txt
+- label: t1_infile_2
+  name:
+    name: t1_infile_2.txt
+- label: t1_outfile_1
+  name:
+    name: outfile.txt
+- label: lammps_atoms_file
+  name:
+    name: atoms.lammps
+- label: lammps_input_script
+  name:
+    name: in.lammps
+- label: lammps_dump_files
+  name:
+    name: (dump.\d+.txt)
+    is_regex: true

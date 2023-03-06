@@ -10,12 +10,15 @@ import re
 import socket
 import string
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Mapping, List, Union
 
+import zarr
+import numpy.typing as npt
 from ruamel.yaml import YAML
 import sentry_sdk
 
 from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
+from hpcflow.sdk.typing import PathLike
 
 
 def load_config(func):
@@ -309,7 +312,7 @@ def read_YAML(loadable_yaml):
     return yaml.load(loadable_yaml)
 
 
-def read_YAML_file(path):
+def read_YAML_file(path: PathLike):
     return read_YAML(Path(path))
 
 
@@ -372,3 +375,169 @@ def remove_ansi_escape_sequences(string):
 def get_md5_hash(obj):
     json_str = json.dumps(obj, sort_keys=True)
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
+
+
+def get_nested_indices(idx, size, nest_levels, raise_on_rollover=False):
+    """Generate the set of nested indices of length `n` that correspond to a global
+    `idx`.
+
+    Examples
+    --------
+    >>> for i in range(4**2): print(get_nest_index(i, nest_levels=2, size=4))
+    [0, 0]
+    [0, 1]
+    [0, 2]
+    [0, 3]
+    [1, 0]
+    [1, 1]
+    [1, 2]
+    [1, 3]
+    [2, 0]
+    [2, 1]
+    [2, 2]
+    [2, 3]
+    [3, 0]
+    [3, 1]
+    [3, 2]
+    [3, 3]
+
+    >>> for i in range(4**3): print(get_nested_indices(i, nest_levels=3, size=4))
+    [0, 0, 0]
+    [0, 0, 1]
+    [0, 0, 2]
+    [0, 0, 3]
+    [0, 1, 0]
+       ...
+    [3, 2, 3]
+    [3, 3, 0]
+    [3, 3, 1]
+    [3, 3, 2]
+    [3, 3, 3]
+    """
+    if raise_on_rollover and idx >= size**nest_levels:
+        raise ValueError(
+            f"`idx` ({idx}) is greater than or equal to  size**nest_levels` "
+            f"({size**nest_levels})."
+        )
+
+    return [(idx // (size ** (nest_levels - (i + 1)))) % size for i in range(nest_levels)]
+
+
+def ensure_in(item, lst):
+    """Get the index of an item in a list and append the item if it is not in the
+    list."""
+    # TODO: add tests
+    try:
+        idx = lst.index(item)
+    except ValueError:
+        lst.append(item)
+        idx = len(lst) - 1
+    return idx
+
+
+def list_to_dict(lst, exclude=None):
+    # TODD: test
+    exclude = exclude or []
+    dct = {k: [] for k in lst[0].keys() if k not in exclude}
+    for i in lst:
+        for k, v in i.items():
+            if k not in exclude:
+                dct[k].append(v)
+
+    return dct
+
+
+def merge_into_zarr_column_array(
+    arr: zarr.Array,
+    headers: List[str],
+    new_arr: Union[npt.NDArray, zarr.Array],
+    new_headers: List[str],
+) -> List[str]:
+    """Append rows into a 2D array whose columns correspond to a list of string
+    headers, accounting for different/new headers corresponding to the new array."""
+
+    # TODO: support removal of columns, if a whole column is the fill value?
+
+    if arr.dtype != new_arr.dtype:
+        raise ValueError(
+            f"New array (dtype {new_arr.dtype}) must have the same dtype as the array "
+            f"into which the new array is to be merged (dtype {arr.dtype})."
+        )
+
+    if len(headers) != arr.shape[1]:
+        raise ValueError(
+            "`headers` must be a list of length equal to the number of "
+            "columns in `arr`."
+        )
+
+    if len(new_headers) != new_arr.shape[1]:
+        raise ValueError(
+            "`new_headers` must be a list of length equal to the number of "
+            "columns in `new_arr`."
+        )
+
+    length = arr.shape[0]
+
+    # add new columns:
+    add_headers = set(new_headers) - set(headers)
+    if add_headers:
+        headers += list(add_headers)
+        arr.resize(arr.shape[0], len(headers))
+
+    # add new rows:
+    arr.resize(arr.shape[0] + new_arr.shape[0], len(headers))
+
+    # get indices of new_headers in new columns:
+    head_idx = [headers.index(i) for i in new_headers]
+
+    # fill new row data:
+    for idx, i in enumerate(head_idx):
+        arr[length:, i] = new_arr[:, idx]
+
+    return headers
+
+
+def merge_into_headered_zarr_column_array(
+    arr: zarr.Array,
+    new_arr: zarr.Array,
+    header_path: List[str],
+):
+    """Like `merge_into_zarr_column_array`, but the old and new headers are expected
+    at a particular path within the array attributes."""
+
+    attrs = arr.attrs.asdict()
+    headers = get_in_container(attrs, header_path)
+
+    new_attrs = new_arr.attrs.asdict()
+    new_headers = get_in_container(new_attrs, header_path)
+
+    new_headers = merge_into_zarr_column_array(
+        arr=arr,
+        headers=headers,
+        new_arr=new_arr,
+        new_headers=new_headers,
+    )
+    set_in_container(attrs, header_path, new_headers)
+    arr.attrs.put(attrs)
+
+
+def bisect_slice(selection: slice, len_A: int):
+    """Given two sequences (the first of which of known length), get the two slices that
+    are equivalent to a given slice if the two sequences were combined."""
+
+    if selection.start < 0 or selection.stop < 0 or selection.step < 0:
+        raise NotImplementedError("Can't do negative slices yet.")
+
+    A_idx = selection.indices(len_A)
+    B_start = selection.start - len_A
+    if len_A != 0 and B_start < 0:
+        B_start = B_start % selection.step
+    if len_A > selection.stop:
+        B_stop = B_start
+    else:
+        B_stop = selection.stop - len_A
+    B_idx = (B_start, B_stop, selection.step)
+    A_slice = slice(*A_idx)
+    B_slice = slice(*B_idx)
+
+    return A_slice, B_slice

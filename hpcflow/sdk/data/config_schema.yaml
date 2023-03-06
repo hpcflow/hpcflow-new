@@ -10,20 +10,26 @@ rules:
         - log_file_path
         - log_file_level
         - log_console_level
-        - task_schema_files
-        - parameter_files
-        - file_files
-        - environment_files
+        - task_schema_sources
+        - parameter_sources
+        - command_file_sources
+        - environment_sources
+        - max_num_zarr_objects_per_dir
+        - num_zarr_objects_nesting_levels
+        - num_task_group_nesting_levels
+        - parameter_index_dtype
+        - element_index_dtype
+        - task_index_dtype
 
   - path: []
     condition:
       value.required_keys:
         - telemetry
         - machine
-        - task_schema_files
-        - parameter_files
-        - file_files
-        - environment_files
+        - task_schema_sources
+        - parameter_sources
+        - command_file_sources
+        - environment_sources
 
   - path: []
     condition:
@@ -77,34 +83,34 @@ rules:
     condition:
       value.in: [notset, debug, info, warning, error, critical]
 
-  - path: [task_schema_files]
+  - path: [task_schema_sources]
     condition:
       value.type.equal_to: list
 
-  - path: [environment_files]
+  - path: [environment_sources]
     condition:
       value.type.equal_to: list
 
-  - path: [parameter_files]
+  - path: [parameter_sources]
     condition:
       value.type.equal_to: list
 
-  - path: [file_files]
+  - path: [command_file_sources]
     condition:
       value.type.equal_to: list
 
-  - path: [task_schema_files, { type: list_value }]
+  - path: [task_schema_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]
 
-  - path: [environment_files, { type: list_value }]
+  - path: [environment_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]
 
-  - path: [parameter_files, { type: list_value }]
+  - path: [parameter_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]
 
-  - path: [file_files, { type: list_value }]
+  - path: [command_file_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]

@@ -36,7 +36,7 @@ class FileSpec(JSONLike):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.label is other.label and self.name == other.name:
+        if self.label == other.label and self.name == other.name:
             return True
         return False
 
@@ -232,7 +232,7 @@ class _FileContentsSpecifier(JSONLike):
 
         return out
 
-    def make_persistent(self, workflow) -> Dict:
+    def make_persistent(self, workflow, source) -> Dict:
         """Save to a persistent workflow.
 
         Parameters
@@ -248,29 +248,28 @@ class _FileContentsSpecifier(JSONLike):
             stored.
         """
         if self._value_group_idx is not None:
-            param_group_idx = self._value_group_idx
+            data_ref = self._value_group_idx
             is_new = False
-            if not workflow.check_parameter_group_exists(param_group_idx):
+            if not workflow.check_parameter_group_exists(data_ref):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
-                    f"({param_group_idx}), but does not exist in the workflow."
+                    f"({data_ref}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(
+            data_ref = workflow._add_parameter_data(
                 data=self._get_members(ensure_contents=True, use_file_label=True),
-                is_pending_add=workflow._in_batch_mode,
-                is_set=True,
+                source=source,
             )
             is_new = True
-            self._value_group_idx = param_group_idx
+            self._value_group_idx = data_ref
             self._workflow = workflow
             self._path = None
             self._contents = None
             self._extension = None
             self._store_contents = None
 
-        return (self.normalised_path, [param_group_idx], is_new)
+        return (self.normalised_path, [data_ref], is_new)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:

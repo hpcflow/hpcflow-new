@@ -199,10 +199,10 @@ class ConfigFile:
         self.data = data
         self.data_rt = data_rt
 
-    def get_config_item(self, name, raise_on_missing=False):
+    def get_config_item(self, name, raise_on_missing=False, default_value=None):
         if raise_on_missing and name not in self.invoc_data["config"]:
             raise ValueError(f"missing from file: {name!r}")
-        return self.invoc_data["config"].get(name)
+        return self.invoc_data["config"].get(name, default_value)
 
     def is_item_set(self, name):
         try:

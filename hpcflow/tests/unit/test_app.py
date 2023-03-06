@@ -52,7 +52,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                 "type": p1.typ,
             }
         },
-        "envs": {
+        "environments": {
             env_hash: {
                 "name": "env_1",
                 "setup": None,
@@ -89,7 +89,9 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                             }
                         ],
                         "input_files": [],
-                        "outputs": [],
+                        "output_files": [],
+                        "input_file_generators": [],
+                        "output_file_parsers": [],
                         "environments": [
                             {
                                 "scope": {"kwargs": {}, "type": "ANY"},
@@ -103,7 +105,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
         },
     }
 
-    sh = hpcflow.shared_data_from_json_like(shared_data_json)
+    sh = hpcflow.template_components_from_json_like(shared_data_json)
 
     assert sh["parameters"] == hpcflow.ParametersList([p1]) and sh[
         "task_schemas"

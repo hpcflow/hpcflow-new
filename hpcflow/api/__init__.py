@@ -10,11 +10,17 @@ config_options = ConfigOptions(
     sentry_env="main" if "a" in __version__ else "develop",
 )
 
+# built in template components (in this case, for demonstration purposes):
+template_components = BaseApp.load_builtin_template_component_data(
+    "hpcflow.sdk.data.template_components"
+)
+
 hpcflow = BaseApp(
     name="hpcflow",
     version=__version__,
     description="Computational workflow management",
     config_options=config_options,
+    template_components=template_components,
     pytest_args=[
         "--verbose",
         "--exitfirst",
@@ -47,6 +53,7 @@ InputSourceType = hpcflow.InputSourceType
 InputValue = hpcflow.InputValue
 OutputFileParser = hpcflow.OutputFileParser
 Parameter = hpcflow.Parameter
+ParameterValue = hpcflow.ParameterValue
 ResourceList = hpcflow.ResourceList
 ResourceSpec = hpcflow.ResourceSpec
 SchemaInput = hpcflow.SchemaInput
@@ -59,4 +66,3 @@ ValueSequence = hpcflow.ValueSequence
 Workflow = hpcflow.Workflow
 WorkflowTask = hpcflow.WorkflowTask
 WorkflowTemplate = hpcflow.WorkflowTemplate
-ZarrEncodable = hpcflow.ZarrEncodable

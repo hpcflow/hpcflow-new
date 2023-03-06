@@ -43,4 +43,4 @@ def check_load_data_files(config, value):
     """Check data files (e.g. task schema files) can be loaded successfully. This is only
     done on `config.set` (and not on `config.get` or `config._validate`) because it could
     be expensive in the case of remote files."""
-    config._app.load_data_files()
+    config._app.reload_template_components(warn=False)
