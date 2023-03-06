@@ -1,4 +1,26 @@
 
+<a name="v0.2.0a24"></a>
+## [v0.2.0a24](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a23...v0.2.0a24) - 2023.03.06
+
+### ✨ Features
+
+* store element meta-data in zarr array
+
+### 🐛 Bug Fixes
+
+* add missing import to pyinstsaller hook
+* Task.insert_ID is now unique!
+* get_events_of_type now considers unsaved events
+
+### 👷 Build changes
+
+* merge develop
+* merge develop
+* update binary download links file [skip ci]
+* merge develop
+* merge from remote
+
+
 <a name="v0.2.0a23"></a>
 ## [v0.2.0a23](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a22...v0.2.0a23) - 2023.02.09
 
