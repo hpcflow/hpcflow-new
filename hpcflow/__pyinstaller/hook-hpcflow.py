@@ -5,6 +5,7 @@ hiddenimports = [
     "hpcflow.sdk.data.template_components",
     "hpcflow.sdk.demo.scripts",
     "hpcflow.sdk.core.object_list",
+    "hpcflow.sdk.core.test_utils",
     "click.testing",
 ]
 
