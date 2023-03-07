@@ -45,7 +45,16 @@ def test_get_helper_PID_no_file(app):
 # TODO: test_logger.error
 # TODO: test_get_watcher_file_path
 # TODO: test_get_helper_watch_list
-# TODO: test_clear_helper
+
+
+def test_clear_helper_no_process(app):
+    pid_fp = helper.get_PID_file_path(app)
+    with pid_fp.open("wt") as fp:
+        fp.write(f"pid = {12345}\n")
+    helper.clear_helper(app)
+    assert pid_fp.is_file() == False
+
+
 # TODO: test_kill_proc_tree
 
 # TODO: test_get_helper_uptime
