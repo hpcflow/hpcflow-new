@@ -42,9 +42,27 @@ def test_get_helper_PID_no_file(app):
 
 
 # TODO: test_get_helper_log_path
-# TODO: test_get_helper_logger
-# TODO: test_logger.info
-# TODO: test_logger.error
+
+
+def test_helper_logger(app):
+    log_fp = helper.get_helper_log_path(app)
+    if log_fp.is_file():
+        log_fp.unlink()
+    logger = helper.get_helper_logger(app)
+    assert len(logger.handlers) == 1
+    logger.info("***Test info log.")
+    logger.error("***Test error log.")
+    logger2 = helper.get_helper_logger(app)
+    logger2.info("***Test for duplicate logs.")
+    assert len(logger.handlers) == 1
+    with log_fp.open("rt") as logs:
+        lines = logs.readlines()
+        assert len(lines) == 3
+        assert "INFO - ***Test info log." in lines[0]
+        assert "ERROR - ***Test error log." in lines[1]
+        assert "INFO - ***Test for duplicate logs." in lines[2]
+
+
 # TODO: test_get_watcher_file_path
 # TODO: test_get_helper_watch_list
 
