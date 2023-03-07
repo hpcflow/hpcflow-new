@@ -285,8 +285,7 @@ def get_helper_PID(app):
         print("Helper not running!")
         return None
     else:
-        with PID_file.open("rt") as fp:
-            helper_pid = int(fp.readline().strip("pid =\n"))
+        helper_pid = read_helper_args(app)["pid"]
         return helper_pid, PID_file
 
 

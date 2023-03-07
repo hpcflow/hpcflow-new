@@ -20,7 +20,25 @@ def app():
 
 # TODO: test_get_user_data_dir
 # TODO: test_get_PID_file_path
-# TODO: test_get_helper_PID
+
+
+def test_get_helper_PID(app):
+    pid_fp = helper.get_PID_file_path(app)
+    with pid_fp.open("wt") as fp:
+        fp.write(f"pid = {12345}\n")
+    (pid, file) = helper.get_helper_PID(app)
+    assert 12345 == pid
+    assert file == pid_fp
+
+
+def test_get_helper_PID_no_file(app):
+    pid_fp = helper.get_PID_file_path(app)
+    if pid_fp.is_file():
+        pid_fp.unlink()
+    ghpid = helper.get_helper_PID(app)
+    assert None == ghpid
+
+
 # TODO: test_get_helper_log_path
 # TODO: test_get_helper_logger
 # TODO: test_logger.info
