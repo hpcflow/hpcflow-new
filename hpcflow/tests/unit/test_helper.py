@@ -247,7 +247,6 @@ def test_modify_helper_writes_modification_to_logs(app):
 
 # TODO: test_restart_helper
 # TODO: test_helper_timeout
-# TODO: def test_run_helper_timeouts_when_it_should(app):
 
 
 def test_run_helper_writes_start_signal_to_log(app):
@@ -281,6 +280,34 @@ def test_run_helper_uses_params_over_pid_file_values(app):
                 found = True
                 break
         assert found
+
+
+def test_run_helper_timeouts_when_it_should(app):
+    helper.clear_helper(app)
+    pid_fp = helper.get_PID_file_path(app)
+    t_start = datetime.now()
+    time.sleep(0.1)
+    try:
+        helper.run_helper(app, 1, 2, 3)
+        time.sleep(5)
+        assert False
+    except SystemExit:
+        assert pid_fp.is_file() == False
+        log_lines = helper.read_helper_log(app, t_start)
+        for line in log_lines:
+            if "Helper started with timeout=" in line:
+                (ts, m) = line.split(" - INFO - ")
+                (t0, s) = ts.split(" - ")
+                t0 = datetime.strptime(t0, "%Y-%m-%d %H:%M:%S,%f")
+            elif "Helper exiting due to timeout" in line:
+                (ts, m) = line.split(" - INFO - ")
+                (tf, s) = ts.split(" - ")
+                tf = datetime.strptime(tf, "%Y-%m-%d %H:%M:%S,%f")
+                break
+        lifespan = tf - t0
+        assert lifespan.seconds == 1
+    finally:
+        helper.clear_helper(app)
 
 
 def test_run_helper_detects_parameter_changes(app):
