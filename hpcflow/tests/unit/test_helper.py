@@ -1,7 +1,9 @@
 import pytest
 from datetime import datetime, timedelta
 import time
+from pathlib import Path
 
+import os
 import io
 import sys
 import subprocess
@@ -21,7 +23,15 @@ def app():
 
 
 # TODO: test_get_user_data_dir
-# TODO: test_get_PID_file_path
+
+
+def test_get_PID_file_path(app, mocker):
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_user_data_dir",
+        return_value=Path("/user_data_dir"),
+    )
+    pid_fp = helper.get_PID_file_path(app)
+    assert Path("/user_data_dir/pid.txt") == pid_fp
 
 
 def test_get_helper_PID(app):
@@ -41,7 +51,13 @@ def test_get_helper_PID_no_file(app):
     assert None == ghpid
 
 
-# TODO: test_get_helper_log_path
+def test_get_helper_log_path(app, mocker):
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_user_data_dir",
+        return_value=Path("/user_data_dir"),
+    )
+    log_fp = helper.get_helper_log_path(app)
+    assert Path("/user_data_dir/helper.log") == log_fp
 
 
 def test_helper_logger(app):
@@ -63,8 +79,41 @@ def test_helper_logger(app):
         assert "INFO - ***Test for duplicate logs." in lines[2]
 
 
-# TODO: test_get_watcher_file_path
-# TODO: test_get_helper_watch_list
+def test_get_watcher_file_path(app, mocker):
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_user_data_dir",
+        return_value=Path("/user_data_dir"),
+    )
+    watcher_fp = helper.get_watcher_file_path(app)
+    assert Path("/user_data_dir/watch_workflows.txt") == watcher_fp
+
+
+def test_get_helper_watch_list(app, mocker):
+    mocklist = [{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}]
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_watcher_file_path",
+        return_value=Path(os.getcwd()),
+    )
+    mocker.patch(
+        "hpcflow.sdk.helper.watcher.MonitorController.parse_watch_workflows_file",
+        return_value=mocklist,
+    )
+    helper_watch_list = helper.get_helper_watch_list(app)
+    assert mocklist == helper_watch_list
+
+
+def test_get_helper_watch_list_no_file(app, mocker):
+    mocklist = [{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}]
+    mocker.patch(
+        "hpcflow.sdk.helper.helper.get_watcher_file_path",
+        return_value=Path("/non_existent_watcher_file_path"),
+    )
+    mocker.patch(
+        "hpcflow.sdk.helper.watcher.MonitorController.parse_watch_workflows_file",
+        return_value=mocklist,
+    )
+    helper_watch_list = helper.get_helper_watch_list(app)
+    assert None == helper_watch_list
 
 
 def test_clear_helper_no_process(app):
@@ -145,7 +194,6 @@ def test_read_helper_log_with_uptime(app, mocker):
     time.sleep(0.01)
     mocker.patch(
         "hpcflow.sdk.helper.helper.get_helper_uptime",
-        # get_helper_uptime calls are bypassed with this return value
         return_value=datetime.now() - start_t,
     )
     logger.info("log 1 after start")
