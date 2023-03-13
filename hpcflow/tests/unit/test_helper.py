@@ -127,30 +127,34 @@ def test_clear_helper_no_process(app):
 # TODO: test_kill_proc_tree
 
 
-# TODO: test_get_helper_uptime
-# def test_get_helper_uptime(app):
-#     # TODO: get_helper_uptime uses proc.create_time, which is known to be inacurate.
-#     # See https://github.com/giampaolo/psutil/issues/877
-#     # This is probably only an issue for tests, but uptime should not be trusted for
-#     # measurements under the second scale.
-#     try:
-#         pid_fp = helper.get_PID_file_path(app)
-#         t_0 = datetime.now()
-#         proc = subprocess.Popen(["sleep", "100"])
-#         t_1 = datetime.now()
-#         with pid_fp.open("wt") as fp:
-#             fp.write(f"pid = {proc.pid}\n")
-#         t_2 = datetime.now()
-#         uptime = helper.get_helper_uptime(app)
-#         t_3 = datetime.now()
-#         out_t = t_3 - t_0
-#         in_t = t_2 - t_1
-#         assert out_t > uptime
-#         assert in_t < uptime
-#     finally:
-#         helper.kill_proc_tree(proc.pid)
-#         with pytest.raises(psutil.NoSuchProcess):
-#             psutil.Process(proc.pid)
+def test_get_helper_uptime(app):
+    # TODO: get_helper_uptime uses proc.create_time, which is known to be inacurate.
+    # See https://github.com/giampaolo/psutil/issues/877
+    # This is probably only an issue for tests, but uptime should not be trusted for
+    # measurements under the "1 second" scale.
+    # When this is solved, the "time.sleep(0.5)" lines can be removed.
+    try:
+        pid_fp = helper.get_PID_file_path(app)
+        t_0 = datetime.now()
+        time.sleep(0.5)
+        proc = subprocess.Popen(["sleep", "100"])
+        time.sleep(0.5)
+        t_1 = datetime.now()
+        with pid_fp.open("wt") as fp:
+            fp.write(f"pid = {proc.pid}\n")
+        t_2 = datetime.now()
+        time.sleep(0.5)
+        uptime = helper.get_helper_uptime(app)
+        time.sleep(0.5)
+        t_3 = datetime.now()
+        out_t = t_3 - t_0
+        in_t = t_2 - t_1
+        assert out_t > uptime
+        assert in_t < uptime
+    finally:
+        helper.kill_proc_tree(proc.pid)
+        with pytest.raises(psutil.NoSuchProcess):
+            psutil.Process(proc.pid)
 
 
 def test_write_and_read_helper_args(app):
