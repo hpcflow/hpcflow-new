@@ -116,10 +116,10 @@ def test_watch_list_path(app):
 def test_watch_list(app, mocker):
     mocker.patch(
         "hpcflow.sdk.helper.cli.get_helper_watch_list",
-        return_value=[{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}],
+        return_value=[{"path": Path("mockpath1")}, {"path": Path("mockpath2")}],
     )
     so = cli(args="helper watch-list")
-    assert so == "/mockpath1\n/mockpath2"
+    assert so == "mockpath1\nmockpath2"
 
 
 # TODO: The test below is actually a functional test... move to another folder?

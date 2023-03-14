@@ -87,7 +87,7 @@ def test_get_watcher_file_path(app, mocker):
 
 
 def test_get_helper_watch_list(app, mocker):
-    mocklist = [{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}]
+    mocklist = [{"path": Path("mockpath1")}, {"path": Path("mockpath2")}]
     mocker.patch(
         "hpcflow.sdk.helper.helper.get_watcher_file_path",
         return_value=Path(os.getcwd()),
@@ -101,7 +101,7 @@ def test_get_helper_watch_list(app, mocker):
 
 
 def test_get_helper_watch_list_no_file(app, mocker):
-    mocklist = [{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}]
+    mocklist = [{"path": Path("mockpath1")}, {"path": Path("mockpath2")}]
     mocker.patch(
         "hpcflow.sdk.helper.helper.get_watcher_file_path",
         return_value=Path("/non_existent_watcher_file_path"),
@@ -415,7 +415,6 @@ def test_run_helper_detects_parameter_changes(app):
         assert updates == 3
 
 
-# TODO: test_helper_cli (or should this be a separate test file?)
 
 
 # TODO: The test below is actually a functional test... move to another folder?
