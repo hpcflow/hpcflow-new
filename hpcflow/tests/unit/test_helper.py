@@ -7,7 +7,7 @@ import os
 import io
 import sys
 import subprocess
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import psutil
 
 from hpcflow.sdk.helper import helper
@@ -124,25 +124,31 @@ def test_clear_helper_no_process(app):
 
 
 def test_kill_proc_tree():
+    queue = Queue()
     depth = 3
     parent = Process(
         target=sleeping_child,
-        args=[10, depth],
+        args=[queue, 10, depth],
     )
     parent.start()
     print(f"\nfhadb: parent:{parent.pid}")
-    time.sleep(2)
-    children = psutil.Process(parent.pid).children(recursive=True)
-    children.append(parent)
-    pids = [child.pid for child in children]
-    print(f"fhadb: pids:{pids}")
+    children = []
+    fhadbslept = 0
+    while len(children) < depth:
+        children.append(queue.get())
+        time.sleep(0.01)
+        fhadbslept = fhadbslept + 0.01
+    print(f"fhadb: qpids:{children}")
+    print(f"fhadb: slept:{fhadbslept}")
+    children.append(parent.pid)
+    print(f"fhadb: pids:{children}")
     try:
         g, a = helper.kill_proc_tree(parent.pid)
         assert len(g) == depth + 1
         assert len(a) == 0
     finally:
         sitll_running = 0
-        for pid in pids:
+        for pid in children:
             try:
                 proc = psutil.Process(pid)
                 print(f"Process {proc.pid} still running!")
@@ -492,11 +498,12 @@ def test_modify_helper(app):
     helper.clear_helper(app)
 
 
-def sleeping_child(t, depth):
+def sleeping_child(queue, t, depth):
     if depth > 1:
-        child = Process(target=sleeping_child, args=[t, depth - 1])
+        child = Process(target=sleeping_child, args=[queue, t, depth - 1])
     else:
         child = Process(target=time.sleep, args=[t])
     child.start()
+    queue.put(child.pid)
     print(f"fhadb:   child {depth}:{child.pid}")
     child.join()
