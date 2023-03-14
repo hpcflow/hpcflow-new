@@ -130,10 +130,12 @@ def test_kill_proc_tree():
         args=[10, depth],
     )
     parent.start()
-    time.sleep(0.2)
+    print(f"\nfhadb: parent:{parent.pid}")
+    time.sleep(2)
     children = psutil.Process(parent.pid).children(recursive=True)
     children.append(parent)
     pids = [child.pid for child in children]
+    print(f"fhadb: pids:{pids}")
     try:
         g, a = helper.kill_proc_tree(parent.pid)
         assert len(g) == depth + 1
@@ -496,4 +498,5 @@ def sleeping_child(t, depth):
     else:
         child = Process(target=time.sleep, args=[t])
     child.start()
+    print(f"fhadb:   child {depth}:{child.pid}")
     child.join()
