@@ -120,4 +120,4 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose --exitfirst
+          poetry run python -m pytest --verbose --exitfirst -s
