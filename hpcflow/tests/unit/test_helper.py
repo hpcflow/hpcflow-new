@@ -128,15 +128,18 @@ def test_kill_proc_tree():
     pytest_stdout = sys.stdout
     sys.stdout = sys.__stdout__
     # fhadb/\
+    print(f"\nfhadb:--------------------------------------------------------------")
+    print(f"fhadb: creating queue")
     queue = Queue()
     depth = 3
+    print(f"fhadb: creating parent")
     parent = Process(
         target=sleeping_child,
         args=[queue, 10, depth],
     )
+    print(f"fhadb: starting parent")
     parent.start()
-    print(f"\nfhadb:--------------------------------------------------------------")
-    print(f"\nfhadb: parent:{parent.pid}")
+    print(f"fhadb: parent:{parent.pid}")
     children = []
     fhadbslept = datetime.now()
     while len(children) < depth:
