@@ -131,15 +131,14 @@ def test_kill_proc_tree():
         args=[queue, 10, depth],
     )
     parent.start()
+    print(f"\nfhadb:--------------------------------------------------------------")
     print(f"\nfhadb: parent:{parent.pid}")
     children = []
-    fhadbslept = 0
+    fhadbslept = datetime.now()
     while len(children) < depth:
         children.append(queue.get())
-        time.sleep(0.01)
-        fhadbslept = fhadbslept + 0.01
-    print(f"fhadb: qpids:{children}")
-    print(f"fhadb: slept:{fhadbslept}")
+        print(f"fhadb: received one... qpids:{children}")
+    print(f"fhadb: slept:{datetime.now()-fhadbslept}")
     children.append(parent.pid)
     print(f"fhadb: pids:{children}")
     try:
