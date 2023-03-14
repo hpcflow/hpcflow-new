@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import call, Mock
 from datetime import datetime, timedelta
 import time
 from pathlib import Path
@@ -297,16 +296,14 @@ def test_modify_helper_writes_modification_to_logs(app):
 
 
 def test_restart_helper(app, mocker):
-    mocker.patch("hpcflow.sdk.helper.helper.stop_helper")
-    stop_spy = mocker.spy(helper, "stop_helper")
-    mocker.patch("hpcflow.sdk.helper.helper.start_helper")
-    start_spy = mocker.spy(helper, "start_helper")
+    stop_spy = mocker.patch("hpcflow.sdk.helper.helper.stop_helper")
+    start_spy = mocker.patch("hpcflow.sdk.helper.helper.start_helper")
     helper.restart_helper(app)
     assert stop_spy.call_count == 1
     assert start_spy.call_count == 1
 
 
-def test_helper_timeout(app):
+def test_helper_timeout(app, mocker):
     timeout = timedelta(seconds=60)
     pid_fp = helper.get_PID_file_path(app)
     with pid_fp.open("wt") as fp:
@@ -314,19 +311,19 @@ def test_helper_timeout(app):
     pid_fp2 = Path(str(pid_fp)[:-4] + "2.txt")
     with pid_fp2.open("wt") as fp:
         fp.write(f"workflow_dirs_file\n")
-    m_controller = Mock()
+    m_controller = mocker.Mock()
     m_controller.workflow_dirs_file_path = pid_fp2
-    m_logger = Mock()
+    m_logger = mocker.Mock()
     try:
         helper.helper_timeout(app, timeout, m_controller, m_logger)
     except SystemExit:
         assert 4 == m_logger.info.call_count
         m_logger.info.assert_has_calls(
             [
-                call(f"Helper exiting due to timeout ({timeout!r})."),
-                call(f"Deleting PID file: {pid_fp!r}."),
-                call("Stopping all watchers."),
-                call(f"Deleting watcher file: {pid_fp2}"),
+                mocker.call(f"Helper exiting due to timeout ({timeout!r})."),
+                mocker.call(f"Deleting PID file: {pid_fp!r}."),
+                mocker.call("Stopping all watchers."),
+                mocker.call(f"Deleting watcher file: {pid_fp2}"),
             ]
         )
         m_controller.stop.assert_called_once()
