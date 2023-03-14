@@ -16,19 +16,110 @@ def app():
     return hpcflow
 
 
-# TODO: def test_start
-# TODO: def test_modify
-# TODO: def test_stop
-# TODO: def test_run
-# TODO: def test_restart
-# TODO: def test_pid
-# TODO: def test_pid_file
-# TODO: def test_clear
-# TODO: def test_uptime_running
-# TODO: def test_uptime_not_running
-# TODO: def test_log_path
-# TODO: def test_watch_list_path
-# TODO: def test_watch_list
+@pytest.mark.parametrize(
+    "flags", ["", " --timeout=3", " --timeout-check-interval=2", " --watch-interval=1"]
+)
+def test_start(mocker, flags):
+    t, tci, wi = run_flags(flags, 3, 2, 1)
+    start_spy = mocker.patch("hpcflow.sdk.helper.cli.start_helper")
+    cli(args=f"helper start{flags}")
+    start_spy.assert_called_once_with(mocker.ANY, t, tci, wi)
+
+
+@pytest.mark.parametrize(
+    "flags", ["", " --timeout=3", " --timeout-check-interval=2", " --watch-interval=1"]
+)
+def test_modify(mocker, flags):
+    t, tci, wi = run_flags(flags, 3, 2, 1)
+    modify_spy = mocker.patch("hpcflow.sdk.helper.cli.modify_helper")
+    cli(args=f"helper modify{flags}")
+    modify_spy.assert_called_once_with(mocker.ANY, t, tci, wi)
+
+
+def test_stop(mocker):
+    stop_spy = mocker.patch("hpcflow.sdk.helper.cli.clear_helper")
+    cli(args="helper clear")
+    stop_spy.assert_called_once
+
+
+@pytest.mark.parametrize(
+    "flags", ["", " --timeout=3", " --timeout-check-interval=2", " --watch-interval=1"]
+)
+def test_run(mocker, flags):
+    t, tci, wi = run_flags(flags, 3, 2, 1)
+    run_spy = mocker.patch("hpcflow.sdk.helper.cli.run_helper")
+    cli(args=f"helper run{flags}")
+    run_spy.assert_called_once_with(mocker.ANY, t, tci, wi)
+
+
+@pytest.mark.parametrize(
+    "flags", ["", " --timeout=3", " --timeout-check-interval=2", " --watch-interval=1"]
+)
+def test_restart(mocker, flags):
+    t, tci, wi = run_flags(flags, 3, 2, 1)
+    restart_spy = mocker.patch("hpcflow.sdk.helper.cli.restart_helper")
+    cli(args=f"helper restart{flags}")
+    restart_spy.assert_called_once_with(mocker.ANY, t, tci, wi)
+
+
+def test_pid(app):
+    helper.clear_helper(app)
+    pid_fp = helper.get_PID_file_path(app)
+    with pid_fp.open("wt") as fp:
+        fp.write(f"pid = {12345}\n")
+    so = cli(args="helper pid")
+    assert so == "12345"
+
+
+def test_pid_file(app):
+    helper.clear_helper(app)
+    pid_fp = helper.get_PID_file_path(app)
+    with pid_fp.open("wt") as fp:
+        fp.write(f"pid = {12345}\n")
+    so = cli(args="helper pid -f")
+    assert so == str(f"12345 ({str(pid_fp)})")
+
+
+def test_clear(mocker):
+    clear_spy = mocker.patch("hpcflow.sdk.helper.cli.clear_helper")
+    cli(args="helper clear")
+    clear_spy.assert_called_once
+
+
+def test_uptime_running(app, mocker):
+    mocker.patch(
+        "hpcflow.sdk.helper.cli.get_helper_uptime",
+        return_value=timedelta(seconds=3661),
+    )
+    so = cli(args="helper uptime")
+    assert so == "1:01:01"
+
+
+def test_uptime_not_running(app):
+    helper.clear_helper(app)
+    so = cli(args="helper uptime")
+    assert so == "Helper not running!"
+
+
+def test_log_path(app):
+    log_path = helper.get_helper_log_path(app)
+    so = cli(args="helper log-path")
+    assert so == str(log_path)
+
+
+def test_watch_list_path(app):
+    watcher_path = helper.get_watcher_file_path(app)
+    so = cli(args="helper watch-list-path")
+    assert so == str(watcher_path)
+
+
+def test_watch_list(app, mocker):
+    mocker.patch(
+        "hpcflow.sdk.helper.cli.get_helper_watch_list",
+        return_value=[{"path": Path("/mockpath1")}, {"path": Path("/mockpath2")}],
+    )
+    so = cli(args="helper watch-list")
+    assert so == "/mockpath1\n/mockpath2"
 
 
 # TODO: The test below is actually a functional test... move to another folder?
@@ -93,3 +184,18 @@ def test_modify_helper_cli(app):
 def cli(r=CliRunner(), args=""):
     so = r.invoke(hpcflow.CLI, args)
     return so.output.strip()
+
+
+def run_flags(flags, t, tci, wi):
+    t = float(t) if "--timeout=" in flags else float(helper.DEFAULT_TIMEOUT)
+    tci = (
+        float(tci)
+        if "--timeout-check-interval=" in flags
+        else float(helper.DEFAULT_TIMEOUT_CHECK)
+    )
+    wi = (
+        float(wi)
+        if "--watch-interval=" in flags
+        else float(helper.DEFAULT_WATCH_INTERVAL)
+    )
+    return t, tci, wi
