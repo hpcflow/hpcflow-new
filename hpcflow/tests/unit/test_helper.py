@@ -124,6 +124,10 @@ def test_clear_helper_no_process(app):
 
 
 def test_kill_proc_tree():
+    # fhadb\/
+    pytest_stdout = sys.stdout
+    sys.stdout = sys.__stdout__
+    # fhadb/\
     queue = Queue()
     depth = 3
     parent = Process(
@@ -142,19 +146,28 @@ def test_kill_proc_tree():
     children.append(parent.pid)
     print(f"fhadb: pids:{children}")
     try:
+        print(f"fhadb: about to call kill proc tree")
         g, a = helper.kill_proc_tree(parent.pid)
+        print(f"fhadb: asserting")
         assert len(g) == depth + 1
         assert len(a) == 0
     finally:
+        print(f"fhadb: in finally")
         sitll_running = 0
         for pid in children:
+            print(f"fhadb: in for, pid={pid}")
             try:
                 proc = psutil.Process(pid)
                 print(f"Process {proc.pid} still running!")
                 sitll_running = sitll_running + 1
             except psutil.NoSuchProcess:
+                print(f"fhadb: in except, pid={pid}")
                 pass
+        print(f"fhadb: asserting in finally")
         assert sitll_running == 0, "Some processes were not killed"
+        # fhadb\/
+        sys.stdout = pytest_stdout
+        # fhadb/\
 
 
 def test_get_helper_uptime(app):
