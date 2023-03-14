@@ -7,6 +7,7 @@ import os
 import io
 import sys
 import subprocess
+from multiprocessing import Process
 import psutil
 
 from hpcflow.sdk.helper import helper
@@ -122,7 +123,31 @@ def test_clear_helper_no_process(app):
     assert pid_fp.is_file() == False
 
 
-# TODO: test_kill_proc_tree
+def test_kill_proc_tree():
+    depth = 3
+    parent = Process(
+        target=sleeping_child,
+        args=[10, depth],
+    )
+    parent.start()
+    time.sleep(0.2)
+    children = psutil.Process(parent.pid).children(recursive=True)
+    children.append(parent)
+    pids = [child.pid for child in children]
+    try:
+        g, a = helper.kill_proc_tree(parent.pid)
+        assert len(g) == depth + 1
+        assert len(a) == 0
+    finally:
+        sitll_running = 0
+        for pid in pids:
+            try:
+                proc = psutil.Process(pid)
+                print(f"Process {proc.pid} still running!")
+                sitll_running = sitll_running + 1
+            except psutil.NoSuchProcess:
+                pass
+        assert sitll_running == 0, "Some processes were not killed"
 
 
 def test_get_helper_uptime(app):
@@ -415,8 +440,6 @@ def test_run_helper_detects_parameter_changes(app):
         assert updates == 3
 
 
-
-
 # TODO: The test below is actually a functional test... move to another folder?
 def test_modify_helper(app):
     helper.clear_helper(app)
@@ -465,3 +488,12 @@ def test_modify_helper(app):
     assert update_count == 3
     assert mod_count == 2
     helper.clear_helper(app)
+
+
+def sleeping_child(t, depth):
+    if depth > 1:
+        child = Process(target=sleeping_child, args=[t, depth - 1])
+    else:
+        child = Process(target=time.sleep, args=[t])
+    child.start()
+    child.join()
