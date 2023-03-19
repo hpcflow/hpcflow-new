@@ -116,6 +116,10 @@ class ElementResources:
         if self.num_cores is None:
             self.num_cores = 1
 
+    def __hash__(self):
+        # TODO: use __dict__?
+        return hash((("scratch", self.scratch), ("num_cores", self.num_cores)))
+
 
 class Element:
 

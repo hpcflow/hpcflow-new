@@ -280,12 +280,6 @@ class ElementAction:
         return self._outputs
 
     @property
-    def resources(self):
-        if not self._resources:
-            self._resources = self.app.ElementResources(element_action=self)
-        return self._resources
-
-    @property
     def input_files(self):
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action=self)

@@ -6,6 +6,8 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from valida.datapath import DataPath
 from valida.rules import Rule
 
+from hpcflow.sdk.core.submission import allocate_jobscripts, generate_EAR_resource_map
+
 from .json_like import ChildObjectSpec, JSONLike
 from .command_files import FileSpec, InputFile
 from .element import ElementFilter, ElementGroup
@@ -776,6 +778,14 @@ class Task(JSONLike):
                 idx += 1
 
     @property
+    def num_all_schema_actions(self) -> int:
+        num = 0
+        for schema in self.schemas:
+            for _ in schema.actions:
+                num += 1
+        return num
+
+    @property
     def all_sourced_normalised_paths(self):
         sourced_input_types = []
         for elem_set in self.element_sets:
@@ -982,6 +992,10 @@ class WorkflowTask:
     @property
     def num_elements(self):
         return self._num_elements + self._pending_num_elements
+
+    @property
+    def num_actions(self):
+        return self.template.num_all_schema_actions
 
     @property
     def name(self):
@@ -1746,6 +1760,16 @@ class WorkflowTask:
             rule = Rule(path=data_path, condition=rule.condition, cast=rule.cast)
 
             return rule.test(element_dat).is_valid
+
+    def resolve_jobscripts(self):
+        # TODO: work in progress
+        res, res_hashes, res_map = generate_EAR_resource_map(self)
+        jobscripts, js_map = allocate_jobscripts(res_map)
+        # replace resources index with resources object:
+        for idx, i in enumerate(jobscripts):
+            jobscripts[idx]["resources"] = res[jobscripts[idx]["resources"]]
+
+        return jobscripts, js_map
 
 
 class Elements:
