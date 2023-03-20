@@ -123,6 +123,9 @@ def test_clear_helper_no_process(app):
     assert pid_fp.is_file() == False
 
 
+# This test does not pass on macOs with python 3.7... does not even print first output:
+## Fatal Python error: Illegal instruction
+### potentially related to security.. multithreading restriction
 def test_kill_proc_tree():
     # fhadb\/
     pytest_stdout = sys.stdout
