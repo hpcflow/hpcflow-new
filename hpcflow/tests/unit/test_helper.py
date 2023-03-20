@@ -129,8 +129,15 @@ def test_clear_helper_no_process(app):
 ## fhadb: creating queue
 ## fhadb: creating parent
 ## fhadb: starting parent
-## fhadb: parent:3725
+## fhadb: parent:3530
+## fhadb: initializing slept
+## fhadb: receiving pids from queue
+## fhadb:  in sleeping child. depth: 3
+## fhadb:   depth > 1
+## fhadb:   starting child
 ## Fatal Python error: Illegal instruction
+## Current thread 0x00000001083ee600 (most recent call first):
+##   File "/Users/runner/hostedtoolcache/Python/3.7.15/x64/lib/python3.7/multiprocessing/popen_fork.py", line 70 in _launch
 ### no longer think its related to security...
 def test_kill_proc_tree():
     # fhadb\/
