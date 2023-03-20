@@ -123,6 +123,22 @@ def test_clear_helper_no_process(app):
     assert pid_fp.is_file() == False
 
 
+# This test does pass on centos if ran locally... not on gh actions. See output below:
+## hpcflow/tests/unit/test_helper.py::test_kill_proc_tree
+## fhadb:--------------------------------------------------------------
+## fhadb: creating queue
+## fhadb: creating parent
+## fhadb: starting parent
+## fhadb:  in sleeping child. depth: 3
+## fhadb:   depth > 1
+## fhadb:   starting child
+## fhadb:  in sleeping child. depth: 2
+## fhadb:   depth > 1
+## fhadb:   starting child
+## fhadb:  in sleeping child. depth: 1
+## fhadb:   depth <= 1
+## fhadb:   starting child
+### and gets stuck here indefinitely...
 # This test does not pass on macOs with python 3.7... inside tmate it gets here:
 ## hpcflow/tests/unit/test_helper.py::test_kill_proc_tree
 ## fhadb:--------------------------------------------------------------
@@ -145,27 +161,19 @@ def test_kill_proc_tree():
     sys.stdout = sys.__stdout__
     # fhadb/\
     print(f"\nfhadb:--------------------------------------------------------------")
-    print(f"fhadb: creating queue")
-    queue = Queue()
     depth = 3
     print(f"fhadb: creating parent")
     parent = Process(
         target=sleeping_child,
-        args=[queue, 10, depth],
+        args=[10, depth],
     )
     print(f"fhadb: starting parent")
     parent.start()
     print(f"fhadb: parent:{parent.pid}")
     children = []
-    print(f"fhadb: initializing slept")
-    fhadbslept = datetime.now()
-    print(f"fhadb: receiving pids from queue")
-    while len(children) < depth:
-        children.append(queue.get())
-        print(f"fhadb: received one... qpids:{children}")
-    print(f"fhadb: slept:{datetime.now()-fhadbslept}")
     children.append(parent.pid)
     print(f"fhadb: pids:{children}")
+    time.sleep(8)
     try:
         print(f"fhadb: about to call kill proc tree")
         g, a = helper.kill_proc_tree(parent.pid)
@@ -531,17 +539,15 @@ def test_modify_helper(app):
     helper.clear_helper(app)
 
 
-def sleeping_child(queue, t, depth):
+def sleeping_child(t, depth):
     print(f"fhadb:  in sleeping child. depth: {depth}")
     if depth > 1:
         print(f"fhadb:   depth > 1")
-        child = Process(target=sleeping_child, args=[queue, t, depth - 1])
+        child = Process(target=sleeping_child, args=[t, depth - 1])
     else:
         print(f"fhadb:   depth <= 1")
         child = Process(target=time.sleep, args=[t])
     print(f"fhadb:   starting child")
     child.start()
-    print(f"fhadb:   sending child pid to queue")
-    queue.put(child.pid)
     print(f"fhadb:   child {depth}:{child.pid}")
     child.join()
