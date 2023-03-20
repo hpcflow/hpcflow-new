@@ -52,8 +52,12 @@ jobs:
         run: |
           poetry install --without dev,pyinstaller
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      # - name: Setup tmate session
+      #   uses: mxschmitt/action-tmate@v3
+
+      - name: Run tests
+        run: |
+          poetry run python3 -m pytest hpcflow/tests/unit/test_helper.py -k 'kill_proc' --verbose --exitfirst -s
 
   test-CentOS:
     runs-on: ubuntu-latest

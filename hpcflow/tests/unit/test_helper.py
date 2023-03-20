@@ -154,26 +154,40 @@ def test_clear_helper_no_process(app):
 ## Fatal Python error: Illegal instruction
 ## Current thread 0x00000001083ee600 (most recent call first):
 ##   File "/Users/runner/hostedtoolcache/Python/3.7.15/x64/lib/python3.7/multiprocessing/popen_fork.py", line 70 in _launch
-### no longer think its related to security...
+##   ...
+### and gets stuck here indefinitely...
+#
+# In both cases, it seems like the runner is not able to properly launch the child processes, i.e. they
+# can't go past the command "child.start()". Strangely enouch, they both do go past "parent.start()", which
+# has the same configuration.
+#
 def test_kill_proc_tree():
     # fhadb\/
     pytest_stdout = sys.stdout
     sys.stdout = sys.__stdout__
     # fhadb/\
     print(f"\nfhadb:--------------------------------------------------------------")
+    print(f"fhadb: creating queue")
+    queue = Queue()
     depth = 3
     print(f"fhadb: creating parent")
     parent = Process(
         target=sleeping_child,
-        args=[10, depth],
+        args=[queue, 10, depth],
     )
     print(f"fhadb: starting parent")
     parent.start()
     print(f"fhadb: parent:{parent.pid}")
     children = []
+    print(f"fhadb: initializing slept")
+    fhadbslept = datetime.now()
+    print(f"fhadb: receiving pids from queue")
+    while len(children) < depth:
+        children.append(queue.get())
+        print(f"fhadb: received one... qpids:{children}")
+    print(f"fhadb: slept:{datetime.now()-fhadbslept}")
     children.append(parent.pid)
     print(f"fhadb: pids:{children}")
-    time.sleep(8)
     try:
         print(f"fhadb: about to call kill proc tree")
         g, a = helper.kill_proc_tree(parent.pid)
@@ -539,15 +553,17 @@ def test_modify_helper(app):
     helper.clear_helper(app)
 
 
-def sleeping_child(t, depth):
+def sleeping_child(queue, t, depth):
     print(f"fhadb:  in sleeping child. depth: {depth}")
     if depth > 1:
         print(f"fhadb:   depth > 1")
-        child = Process(target=sleeping_child, args=[t, depth - 1])
+        child = Process(target=sleeping_child, args=[queue, t, depth - 1])
     else:
         print(f"fhadb:   depth <= 1")
         child = Process(target=time.sleep, args=[t])
     print(f"fhadb:   starting child")
     child.start()
+    print(f"fhadb:   sending child pid to queue")
+    queue.put(child.pid)
     print(f"fhadb:   child {depth}:{child.pid}")
     child.join()
