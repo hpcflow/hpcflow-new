@@ -123,9 +123,15 @@ def test_clear_helper_no_process(app):
     assert pid_fp.is_file() == False
 
 
-# This test does not pass on macOs with python 3.7... does not even print first output:
+# This test does not pass on macOs with python 3.7... inside tmate it gets here:
+## hpcflow/tests/unit/test_helper.py::test_kill_proc_tree
+## fhadb:--------------------------------------------------------------
+## fhadb: creating queue
+## fhadb: creating parent
+## fhadb: starting parent
+## fhadb: parent:3725
 ## Fatal Python error: Illegal instruction
-### potentially related to security.. multithreading restriction
+### no longer think its related to security...
 def test_kill_proc_tree():
     # fhadb\/
     pytest_stdout = sys.stdout
@@ -144,7 +150,9 @@ def test_kill_proc_tree():
     parent.start()
     print(f"fhadb: parent:{parent.pid}")
     children = []
+    print(f"fhadb: initializing slept")
     fhadbslept = datetime.now()
+    print(f"fhadb: receiving pids from queue")
     while len(children) < depth:
         children.append(queue.get())
         print(f"fhadb: received one... qpids:{children}")
@@ -517,11 +525,16 @@ def test_modify_helper(app):
 
 
 def sleeping_child(queue, t, depth):
+    print(f"fhadb:  in sleeping child. depth: {depth}")
     if depth > 1:
+        print(f"fhadb:   depth > 1")
         child = Process(target=sleeping_child, args=[queue, t, depth - 1])
     else:
+        print(f"fhadb:   depth <= 1")
         child = Process(target=time.sleep, args=[t])
+    print(f"fhadb:   starting child")
     child.start()
+    print(f"fhadb:   sending child pid to queue")
     queue.put(child.pid)
     print(f"fhadb:   child {depth}:{child.pid}")
     child.join()
