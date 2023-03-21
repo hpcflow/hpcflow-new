@@ -48,7 +48,6 @@ FileSpec = hpcflow.FileSpec
 InputFile = hpcflow.InputFile
 InputFileGenerator = hpcflow.InputFileGenerator
 InputSource = hpcflow.InputSource
-InputSourceMode = hpcflow.InputSourceMode
 InputSourceType = hpcflow.InputSourceType
 InputValue = hpcflow.InputValue
 OutputFileParser = hpcflow.OutputFileParser

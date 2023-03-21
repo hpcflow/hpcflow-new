@@ -879,16 +879,6 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
-class InputSourceMode(enum.Enum):
-    """Set to MANUAL for a task if the task has input source(s) specified on creation (or
-    modification) otherwise set to AUTO, in which case input sources will be set by
-    hpcflow, and input sources may be appended to if new tasks/imports are added to the
-    workflow."""
-
-    AUTO = 0
-    MANUAL = 1
-
-
 class InputSource(JSONLike):
 
     _child_objects = (
