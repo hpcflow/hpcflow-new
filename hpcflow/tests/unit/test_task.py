@@ -20,7 +20,6 @@ from hpcflow.api import (
     Task,
     InputValue,
     InputSource,
-    InputSourceMode,
     Workflow,
     WorkflowTemplate,
 )
@@ -191,23 +190,6 @@ def schema_s5(param_p2, act_2):
     return TaskSchema(
         "ts2", actions=[act_2], inputs=[SchemaInput(param_p2, default_value=2002)]
     )
-
-
-def test_task_expected_input_source_mode_no_sources(schema_s1, param_p1):
-    t1 = Task(
-        schemas=schema_s1,
-        inputs=[InputValue(param_p1, value=101)],
-    )
-    assert t1.element_sets[0].input_source_mode == InputSourceMode.AUTO
-
-
-def test_task_expected_input_source_mode_with_sources(schema_s1, param_p1):
-    t1 = Task(
-        schemas=schema_s1,
-        inputs=[InputValue(param_p1, value=101)],
-        input_sources=[InputSource.local()],
-    )
-    assert t1.element_sets[0].input_source_mode == InputSourceMode.MANUAL
 
 
 def test_task_get_available_task_input_sources_expected_return_first_task_local_value(

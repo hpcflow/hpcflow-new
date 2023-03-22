@@ -34,7 +34,6 @@ from .core.element import (
     ElementParameter,
 )
 from .core.parameters import (
-    InputSourceMode,
     InputSourceType,
     ParameterPropagationMode,
     TaskSourceType,
@@ -185,7 +184,6 @@ class BaseApp:
             ElementActionRun,
             ElementParameter,
             ElementPropagation,
-            InputSourceMode,
             InputSourceType,
             Parameters,
             ParameterPropagationMode,
