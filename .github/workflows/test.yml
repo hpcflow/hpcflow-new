@@ -13,19 +13,59 @@ on:
     branches: [main, develop] # have to manually change these
 
 jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # PAT of user who has permission to bypass branch
+          # protection || or standard GITHUB_TOKEN if running on an external fork (won't
+          # be able to commit fixes):
+          token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN || secrets.GITHUB_TOKEN }}
+          # checkout PR source branch (head_ref) if event is pull_request:
+          ref: ${{ github.head_ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - run: |
+          git config user.name hpcflow-actions
+          git config user.email hpcflow-actions@users.noreply.github.com
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
+
+      - name: pre-commit
+        # avoid exit code 1 (which halts GH actions) from pre-commit run command by
+        # running twice:
+        run: |
+          pip install pre-commit
+          pre-commit install
+          export SKIP=no-commit-to-branch
+          pre-commit run --all-files || pre-commit run --all-files
+
+      - name: pre-commit push changes
+        run: |
+          if git diff --quiet; then
+            echo "No pre-commit changes"
+          else
+            git commit -am "pre-commit fixes [skip ci]"
+            git push
+          fi
+
   test:
+    needs: pre-commit
     strategy:
       fail-fast: false
       matrix:
         python-version:
           - "3.7"
-          # - "3.8"
-          # - "3.9"
-          # - "3.10"
+          - "3.8"
+          - "3.9"
+          - "3.10"
         os:
-          # - ubuntu-latest
+          - ubuntu-latest
           - macos-latest
-          # - windows-latest
+          - windows-latest
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -57,9 +97,10 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python3 -m pytest hpcflow/tests/unit/test_helper.py -k 'kill_proc' --verbose --exitfirst -s
+          poetry run python -m pytest --verbose --exitfirst
 
   test-CentOS:
+    needs: pre-commit
     runs-on: ubuntu-latest
     container:
       image: aplowman/centos7-poetry
@@ -82,4 +123,4 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python3 -m pytest hpcflow/tests/unit/test_helper.py -k 'kill_proc' --verbose --exitfirst -s
+          poetry run python -m pytest --verbose --exitfirst -k "not test_kill_proc_tree"
