@@ -64,10 +64,15 @@ class PersistentStore(ABC):
     def _get_pending_dct(self) -> Dict:
         return {
             "tasks": {},  # keys are new task indices
+            "loops": [],
             "template_tasks": {},  # keys are new task indices
+            "template_loops": [],
             "template_components": {},
             "element_sets": {},  # keys are task indices
+            "element_iterations": {},  # keys are (task index, task insert ID)
+            "element_iterations_idx": {},  # keys are (task index, task insert ID)
             "elements": {},  # keys are (task index, task insert ID)
+            "loop_idx": {},  # keys are (task index, task insert ID, element iteration index)
             "parameter_data": {},  # keys are parameter indices
             "parameter_sources": {},  # keys are parameter indices
             "remove_replaced_file_record": False,
@@ -162,7 +167,7 @@ class PersistentStore(ABC):
 
     def add_empty_task(self, task_idx: int, task_js: Dict) -> None:
         self._pending["template_tasks"][task_idx] = task_js
-        self._pending["tasks"][task_idx] = {"elements": []}
+        self._pending["tasks"][task_idx] = {"elements": [], "element_iterations": []}
         self.save()
 
     def add_element_set(self, task_idx: int, element_set_js: Dict) -> None:
@@ -176,11 +181,15 @@ class PersistentStore(ABC):
         task_idx: int,
         task_insert_ID: int,
         elements: List[Dict],
+        element_iterations: List[Dict],
     ) -> None:
         key = (task_idx, task_insert_ID)
         if key not in self._pending["elements"]:
             self._pending["elements"][key] = []
+        if key not in self._pending["element_iterations"]:
+            self._pending["element_iterations"][key] = []
         self._pending["elements"][key].extend(elements)
+        self._pending["element_iterations"][key].extend(element_iterations)
         self.save()
 
     def add_parameter_data(self, data: Any, source: Dict) -> int:
@@ -339,6 +348,10 @@ class PersistentStore(ABC):
 
     @abstractmethod
     def get_all_tasks_metadata(self) -> List[Dict]:
+        pass
+
+    @abstractmethod
+    def get_loops(self) -> List[Dict]:
         pass
 
     @abstractmethod

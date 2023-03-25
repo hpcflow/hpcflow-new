@@ -441,6 +441,14 @@ class WorkflowTaskList(DotAccessObjectList):
         self._reindex()
 
 
+class WorkflowLoopList(DotAccessObjectList):
+    def __init__(self, _objects):
+        super().__init__(_objects, access_attribute="name", descriptor="loop")
+
+    def _remove_object(self, index):
+        self._objects.pop(index)
+
+
 class ResourceList(ObjectList):
 
     _app_attr = "_app"

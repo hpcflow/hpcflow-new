@@ -12,7 +12,7 @@ from warnings import warn
 import numpy as np
 import zarr
 
-from hpcflow.sdk.typing import PathLike
+from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type, PathLike
 
 
 from .json_like import ChildObjectSpec, JSONLike
@@ -48,10 +48,17 @@ class WorkflowTemplate(JSONLike):
             is_multiple=True,
             parent_ref="workflow_template",
         ),
+        ChildObjectSpec(
+            name="loops",
+            class_name="Loop",
+            is_multiple=True,
+            parent_ref="workflow_template",
+        ),
     )
 
     name: str
     tasks: Optional[List[Task]] = field(default_factory=lambda: [])
+    loops: Optional[List[Loop]] = field(default_factory=lambda: [])
     workflow: Optional[Workflow] = None
 
     def __post_init__(self):
@@ -86,8 +93,24 @@ class WorkflowTemplate(JSONLike):
         task._insert_ID = insert_ID
         task._dir_name = f"task_{task.insert_ID}_{new_task_name}"
         task._element_sets = []  # element sets are added to the Task during add_elements
+
         task.workflow_template = self
         self.tasks.insert(new_index, task)
+
+    def _add_empty_loop(self, loop: Loop) -> None:
+        """Called by `Workflow._add_empty_loop`."""
+
+        if not loop.name:
+            existing = [i.name for i in self.loops]
+            new_idx = len(self.loops)
+            name = f"loop_{new_idx}"
+            while name in existing:
+                new_idx += 1
+                name = f"loop_{new_idx}"
+            loop.name = name
+
+        loop.workflow_template = self
+        self.loops.append(loop)
 
 
 class Workflow:
@@ -111,6 +134,7 @@ class Workflow:
         self._template = None
         self._template_components = None
         self._tasks = None
+        self._loops = None
 
         self._store = self._get_store_class_from_ext(self.path)(self)
 
@@ -122,7 +146,8 @@ class Workflow:
     def _get_empty_pending(self) -> Dict:
         return {
             "template_components": {k: [] for k in self.app._template_component_types},
-            "tasks": [],
+            "tasks": [],  # list of int
+            "loops": [],  # list of int
         }
 
     def _accept_pending(self) -> None:
@@ -134,18 +159,25 @@ class Workflow:
     def _reject_pending(self) -> None:
         """Revert pending changes to the in-memory representation of the workflow.
 
-        This deletes new tasks and new template component data. Element additions to
-        existing (non-pending) tasks are separately rejected/accepted by the
+        This deletes new tasks, new template component data, and new loops. Element
+        additions to existing (non-pending) tasks are separately rejected/accepted by the
         WorkflowTask object.
 
         """
         for task_idx in self._pending["tasks"][::-1]:
+            # iterate in reverse so the index references are correct
             self.tasks._remove_object(task_idx)
             self.template.tasks.pop(task_idx)
 
         for comp_type, comp_indices in self._pending["template_components"].items():
             for comp_idx in comp_indices[::-1]:
+                # iterate in reverse so the index references are correct
                 self.template_components[comp_type]._remove_object(comp_idx)
+
+        for loop_idx in self._pending["loops"][::-1]:
+            # iterate in reverse so the index references are correct
+            self.loops._remove_object(loop_idx)
+            self.template.loops.pop(loop_idx)
 
         self._reset_pending()
 
@@ -176,6 +208,8 @@ class Workflow:
             with wk.batch_update(is_workflow_creation=True):
                 for task in template.tasks:
                     wk._add_task(task)
+                for loop in template.loops:
+                    wk._add_loop(loop)
         return wk
 
     @classmethod
@@ -266,8 +300,9 @@ class Workflow:
         path = path.joinpath(name + ext)
 
         store_cls = cls._persistent_store_cls_lookup[ext]
-        template_js, template_sh = template.to_json_like(exclude=["tasks"])
+        template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
         template_js["tasks"] = []
+        template_js["loops"] = []
         store_cls.write_empty_workflow(template_js, template_sh, path, overwrite)
 
         return cls(path)
@@ -284,6 +319,10 @@ class Workflow:
     @property
     def num_elements(self) -> int:
         return sum(task.num_elements for task in self.tasks)
+
+    @property
+    def num_loops(self) -> int:
+        return len(self.loops)
 
     @property
     def template_components(self) -> Dict:
@@ -322,6 +361,19 @@ class Workflow:
                     wk_tasks.append(wk_task)
                 self._tasks = self.app.WorkflowTaskList(wk_tasks)
         return self._tasks
+
+    @property
+    def loops(self) -> WorkflowLoopList:
+        if self._loops is None:
+            with self._store.cached_load():
+                wk_loops = []
+                for idx, loop_dat in enumerate(self._store.get_loops()):
+                    wk_loop = self.app.WorkflowLoop(
+                        workflow=self, template=self.template.loops[idx]
+                    )
+                    wk_loops.append(wk_loop)
+                self._loops = self.app.WorkflowLoopList(wk_loops)
+        return self._loops
 
     def elements(self) -> Iterator[Element]:
         for task in self.tasks:
@@ -420,6 +472,39 @@ class Workflow:
 
         return self.tasks[new_index]
 
+    def _add_empty_loop(self, loop: Loop) -> WorkflowLoop:
+        """Add a new loop (zeroth iterations only) to the workflow."""
+
+        new_index = self.num_loops
+
+        # don't modify passed object:
+        loop_c = copy.deepcopy(loop)
+
+        # add to the WorkflowTemplate:
+        self.template._add_empty_loop(loop_c)
+
+        # create and insert a new WorkflowLoop:
+        self.loops.add_object(self.app.WorkflowLoop(workflow=self, template=loop_c))
+
+        # update persistent store:
+        loop_js, _ = loop_c.to_json_like()
+        task_indices = [self.tasks.get(insert_ID=i).index for i in loop_c.tasks]
+        self._store.add_new_loop(task_indices, loop_js)
+
+        self._pending["loops"].append(new_index)
+
+        return self.loops[new_index]
+
+    def _add_loop(self, loop: Loop) -> None:
+        new_wk_loop = self._add_empty_loop(loop)
+        # TODO: add N > 0 iterations?
+
+    def add_loop(self, loop: Loop) -> None:
+        """Add a loop to a subset of workflow tasks."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._add_loop(loop)
+
     def _add_task(self, task: Task, new_index: Optional[int] = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
         new_wk_task._add_elements(element_sets=task.element_sets)
@@ -511,21 +596,40 @@ class Workflow:
             yield self.app.Element(task=task, **i)
 
     def get_EARs_from_indices(
-        self, indices: List[Tuple[int, int, int, int]]
+        self, indices: List[EAR_idx_type]
     ) -> List[ElementActionRun]:
-        """Return element action run objects from a list of four-tuples, representing the
-        task insert ID, (local) element index, action index, and run index, respectively.
+        """Return element action run objects from a list of five-tuples, representing the
+        task insert ID, element index, iteration index, action index, and run index,
+        respectively.
         """
         objs = []
         for src_i in indices:
             task = self.tasks.get(insert_ID=src_i[0])
-            EAR_i = task.elements[src_i[1]].actions[src_i[2]].runs[src_i[3]]
+            EAR_i = (
+                task.elements[src_i[1]]
+                .iterations[src_i[2]]
+                .actions[src_i[3]]
+                .runs[src_i[4]]
+            )
             objs.append(EAR_i)
         return objs
 
-    def get_elements_from_indices(self, indices: List[Tuple[int, int]]) -> List[Element]:
+    def get_element_iterations_from_indices(
+        self, indices: EI_idx_type
+    ) -> List[ElementIteration]:
+        """Return element iteration objects from a list of three-tuples, representing the
+        task insert ID, element index, and iteration index, respectively.
+        """
+        objs = []
+        for src_i in indices:
+            task = self.tasks.get(insert_ID=src_i[0])
+            iter_i = task.elements[src_i[1]].iterations[src_i[2]]
+            objs.append(iter_i)
+        return objs
+
+    def get_elements_from_indices(self, indices: List[E_idx_type]) -> List[Element]:
         """Return element objects from a list of two-tuples, representing the task insert
-        ID, and (local) element index, respectively."""
+        ID, and element index, respectively."""
         return [self.tasks.get(insert_ID=idx[0]).elements[idx[1]] for idx in indices]
 
 
