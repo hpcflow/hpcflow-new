@@ -136,6 +136,8 @@ class ElementIteration:
         self,
         index: int,
         element: Element,
+        data_idx: Dict,
+        EARs_initialised: bool,
         actions: List[Dict],
         global_idx: int,
         schema_parameters: List[str],
@@ -143,6 +145,8 @@ class ElementIteration:
     ):
         self._index = index
         self._element = element
+        self._data_idx = data_idx
+        self._EARs_initialised = EARs_initialised
         self._global_idx = global_idx
         self._loop_idx = loop_idx
         self._schema_parameters = schema_parameters
@@ -161,6 +165,16 @@ class ElementIteration:
             f"element={self.element!r}, index={self.index!r}"
             f")"
         )
+
+    @property
+    def data_idx(self):
+        """The overall element iteration data index, before resolution of EARs."""
+        return self._data_idx
+
+    @property
+    def EARs_initialised(self):
+        """Whether or not the EARs have been initialised."""
+        return self._EARs_initialised
 
     @property
     def element(self):

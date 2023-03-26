@@ -1348,6 +1348,38 @@ class WorkflowTask:
 
         return element_dat_idx
 
+    def _initialise_EARs(self, element_idx, data_idx):
+        # TODO: refactor so this make persistent changes (so can be called independently)
+        data_idx = copy.deepcopy(data_idx)  # don't mutate passed dict
+        try:
+            action_runs = {}
+            EARs_init = True
+            for act_idx, action in self.template.all_schema_actions():
+                if all(self.test_action_rule(i, data_idx) for i in action.rules):
+                    param_source = {
+                        "type": "EAR_output",
+                        "task_insert_ID": self.insert_ID,
+                        "element_idx": element_idx,
+                        "iteration_idx": 0,  # TODO?
+                        "action_idx": act_idx,
+                        "run_idx": 0,
+                    }
+                    data_idx_i = action.generate_data_index(
+                        data_idx=data_idx,
+                        workflow=self.workflow,
+                        param_source=param_source,
+                    )
+                    run_0 = {"data_idx": data_idx_i}
+                    action_runs[act_idx] = [run_0]
+                    data_idx.update(data_idx_i)
+
+        except UnsetParameterDataError:
+            # (raised by `test_action_rule`) cannot yet initialise EARs
+            action_runs = {}
+            EARs_init = False
+
+        return (EARs_init, action_runs)
+
     def _add_element_set(self, element_set):
         """
         Returns
@@ -1400,31 +1432,12 @@ class WorkflowTask:
 
         element_iterations = []
         elements = []
-
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
-            data_idx_i = data_idx
-            action_runs = {}
-            for act_idx, action in self.template.all_schema_actions():
-                if all(self.test_action_rule(i, data_idx) for i in action.rules):
-
-                    param_source = {
-                        "type": "EAR_output",
-                        "task_insert_ID": self.insert_ID,
-                        "element_idx": self.num_elements + elem_idx,
-                        "iteration_idx": 0,  # TODO?
-                        "action_idx": act_idx,
-                        "run_idx": 0,
-                    }
-                    data_idx_i = action.generate_data_index(
-                        data_idx=data_idx,
-                        workflow=self.workflow,
-                        param_source=param_source,
-                    )
-                    run_0 = {"data_idx": data_idx_i}
-                    action_runs[act_idx] = [run_0]
-                    data_idx.update(data_idx_i)
-
+            EARs_init, action_runs = self._initialise_EARs(
+                element_idx=self.num_elements + elem_idx,
+                data_idx=data_idx,
+            )
             elements.append(
                 {
                     "iterations_idx": [self.num_elements + elem_idx],
@@ -1435,6 +1448,8 @@ class WorkflowTask:
             element_iterations.append(
                 {
                     "global_idx": self.workflow.num_element_iterations + elem_idx,
+                    "data_idx": data_idx,
+                    "EARs_initialised": EARs_init,
                     "actions": action_runs,
                     "schema_parameters": list(schema_params),
                     "loop_idx": {},
