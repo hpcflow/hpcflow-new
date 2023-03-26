@@ -219,7 +219,13 @@ class JSONPersistentStore(PersistentStore):
 
     def get_all_tasks_metadata(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
-        return [{"num_elements": len(i["elements"])} for i in self.load()["tasks"]]
+        return [
+            {
+                "num_elements": len(i["elements"]),
+                "num_element_iterations": len(i["element_iterations"]),
+            }
+            for i in self.load()["tasks"]
+        ]
 
     def get_task_elements(
         self,
@@ -273,6 +279,8 @@ class JSONPersistentStore(PersistentStore):
                     iter_i["loop_idx"].update(self._pending["loop_idx"][loop_idx_key])
 
                 element["iterations"].append(iter_i)
+
+            element["index"] = element_idx
 
         return elements
 

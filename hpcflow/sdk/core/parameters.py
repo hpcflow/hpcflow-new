@@ -906,7 +906,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
-        elements=None,
+        element_iters=None,
         path=None,
         where=None,
     ):
@@ -915,7 +915,7 @@ class InputSource(JSONLike):
         self.import_ref = import_ref
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
-        self.elements = elements
+        self.element_iters = element_iters
         self.where = where
         self.path = path
 
@@ -936,7 +936,7 @@ class InputSource(JSONLike):
             and self.import_ref == other.import_ref
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
-            and self.elements == other.elements
+            and self.element_iters == other.element_iters
             and self.where == other.where
             and self.path == other.path
         ):
@@ -956,8 +956,8 @@ class InputSource(JSONLike):
                 f"task_ref={self.task_ref}, "
                 f"task_source_type={self.task_source_type.name.lower()!r}"
             )
-            if self.elements:
-                args += f", elements={self.elements}"
+            if self.element_iters:
+                args += f", element_iters={self.element_iters}"
         else:
             args = ""
 
@@ -993,8 +993,8 @@ class InputSource(JSONLike):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]
-            if self.elements:
-                out += ["[" + ",".join(f"{i}" for i in self.elements) + "]"]
+            if self.element_iters:
+                out += ["[" + ",".join(f"{i}" for i in self.element_iters) + "]"]
         elif self.source_type is InputSourceType.IMPORT:
             out += [str(self.import_ref)]
         return ".".join(out)
@@ -1061,6 +1061,7 @@ class InputSource(JSONLike):
             raise ValueError(f"InputSource string not understood: {str_defn!r}.")
 
         if source_type is InputSourceType.TASK:
+            # TODO: does this include element_iters?
             task_ref = parts[1]
             try:
                 task_ref = int(task_ref)
@@ -1104,12 +1105,12 @@ class InputSource(JSONLike):
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, elements=None):
+    def task(cls, task_ref, task_source_type=None, element_iters=None):
         if not task_source_type:
             task_source_type = TaskSourceType.OUTPUT
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
-            elements=elements,
+            element_iters=element_iters,
         )

@@ -98,16 +98,16 @@ class ElementSet(JSONLike):
         input_sources: Optional[Dict[str, InputSource]] = None,
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
-        sourceable_elements: Optional[List[int]] = None,
+        sourceable_elem_iters: Optional[List[int]] = None,
         allow_non_coincident_task_sources: Optional[bool] = False,
     ):
         """
         Parameters
         ----------
-        sourceable_elements
-            If specified, a list of global element indices from which inputs for the new
-            elements associated with this element set may be sourced. If not specified,
-            all workflow elements are considered sourceable.
+        sourceable_elem_iters
+            If specified, a list of global element iteration indices from which inputs for
+            the new elements associated with this element set may be sourced. If not
+            specified, all workflow element iterations are considered sourceable.
         allow_non_coincident_task_sources
             If True, if more than one parameter is sourced from the same task, then allow
             these sources to come from distinct element sub-sets. If False (default),
@@ -132,7 +132,7 @@ class ElementSet(JSONLike):
             InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
         )  # TODO: remove?
         self.nesting_order = nesting_order or {}
-        self.sourceable_elements = sourceable_elements
+        self.sourceable_elem_iters = sourceable_elem_iters
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
 
         self._validate()
@@ -141,17 +141,14 @@ class ElementSet(JSONLike):
         self._task_template = None  # assigned by parent Task
         self._defined_input_types = None  # assigned on _task_template assignment
         self._element_local_idx_range = None  # assigned by WorkflowTask._add_element_set
-        self._element_global_idx_range = None  # assigned by WorkflowTask._add_element_set
 
     def __deepcopy__(self, memo):
         dct = self.to_dict()
         elem_local_idx_range = dct.pop("_element_local_idx_range", None)
-        elem_global_idx_range = dct.pop("_element_global_idx_range", None)
         obj = self.__class__(**copy.deepcopy(dct, memo))
         obj._task_template = self._task_template
         obj._defined_input_types = self._defined_input_types
         obj._element_local_idx_range = elem_local_idx_range
-        obj._element_global_idx_range = elem_global_idx_range
         return obj
 
     def __eq__(self, other):
@@ -167,12 +164,10 @@ class ElementSet(JSONLike):
         orig_inp = json_like.pop("original_input_sources", None)
         orig_nest = json_like.pop("original_nesting_order", None)
         elem_local_idx_range = json_like.pop("_element_local_idx_range", None)
-        elem_global_idx_range = json_like.pop("_element_global_idx_range", None)
         obj = cls(**json_like)
         obj.original_input_sources = orig_inp
         obj.original_nesting_order = orig_nest
         obj._element_local_idx_range = elem_local_idx_range
-        obj._element_global_idx_range = elem_global_idx_range
         return obj
 
     def prepare_persistent_copy(self):
@@ -204,11 +199,8 @@ class ElementSet(JSONLike):
 
     @property
     def element_local_idx_range(self):
+        """Used to retrieve elements belonging to this element set."""
         return tuple(self._element_local_idx_range)
-
-    @property
-    def element_global_idx_range(self):
-        return tuple(self._element_global_idx_range)
 
     def _validate(self):
         dup_params = get_duplicate_items(self.input_types)
@@ -267,7 +259,7 @@ class ElementSet(JSONLike):
         input_source_mode=None,
         nesting_order=None,
         element_sets=None,
-        sourceable_elements=None,
+        sourceable_elem_iters=None,
     ):
         args = (
             inputs,
@@ -287,10 +279,10 @@ class ElementSet(JSONLike):
                     "If providing an `element_set`, no other arguments are allowed."
                 )
             else:
-                element_sets = [cls(*args, sourceable_elements=sourceable_elements)]
+                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
         else:
             if element_sets is None:
-                element_sets = [cls(*args, sourceable_elements=sourceable_elements)]
+                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
 
         return element_sets
 
@@ -349,8 +341,15 @@ class ElementSet(JSONLike):
 
     @property
     def elements(self):
-        elements = self.task.get_elements_of_element_set(self.index)
-        return elements
+        return self.task.elements[slice(*self.element_local_idx_range)]
+
+    @property
+    def element_iterations(self):
+        return [j for i in self.elements for j in i.iterations]
+
+    @property
+    def elem_iter_global_indices(self):
+        return [i.global_idx for i in self.element_iterations]
 
     def get_task_dependencies(self, as_objects=False):
         """Get upstream tasks that this element set depends on."""
@@ -400,7 +399,7 @@ class Task(JSONLike):
         input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         element_sets: Optional[List[ElementSet]] = None,
-        sourceable_elements: Optional[List[int]] = None,
+        sourceable_elem_iters: Optional[List[int]] = None,
     ):
 
         """
@@ -454,7 +453,7 @@ class Task(JSONLike):
             input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
-            sourceable_elements=sourceable_elements,
+            sourceable_elem_iters=sourceable_elem_iters,
         )
 
         self._validate()
@@ -685,26 +684,28 @@ class Task(JSONLike):
                         if not es_idx:
                             continue
                         else:
-                            src_elems = []
+                            src_elem_iters = []
                             for es_idx_i in es_idx:
                                 es_i = src_task_i.element_sets[es_idx_i]
-                                src_elems += list(range(*es_i.element_global_idx_range))
+                                src_elem_iters += es_i.elem_iter_global_indices
 
-                        if element_set.sourceable_elements is not None:
-                            # can only use a subset of elements (this is the case where
-                            # this element set is generated from an upstream element set,
-                            # in which case we only want to consider newly added upstream
-                            # elements when adding elements from this element set):
-                            src_elems = list(
-                                set(element_set.sourceable_elements) & set(src_elems)
+                        if element_set.sourceable_elem_iters is not None:
+                            # can only use a subset of element iterations (this is the
+                            # case where this element set is generated from an upstream
+                            # element set, in which case we only want to consider newly
+                            # added upstream elements when adding elements from this
+                            # element set):
+                            src_elem_iters = list(
+                                set(element_set.sourceable_elem_iters)
+                                & set(src_elem_iters)
                             )
-                            if not src_elems:
+                            if not src_elem_iters:
                                 continue
 
                         task_source = self.app.InputSource.task(
                             task_ref=src_task_i.insert_ID,
                             task_source_type=param_i.input_or_output,
-                            elements=src_elems,
+                            element_iters=src_elem_iters,
                         )
                         available[inputs_path].append(task_source)
 
@@ -949,14 +950,18 @@ class WorkflowTask:
         template: Task,
         index: int,
         num_elements: int,
+        num_element_iterations: int,
     ):
         self._workflow = workflow
         self._template = template
         self._index = index
         self._num_elements = num_elements
+        self._num_element_iterations = num_element_iterations
 
-        # assigned/incremented when new elements are added and reset on dump to disk:
+        # assigned/incremented when new elements/iterations are added and reset on dump to
+        # disk:
         self._pending_num_elements = 0
+        self._pending_num_element_iterations = 0
 
         self._elements = None  # assigned on `elements` first access
 
@@ -965,9 +970,11 @@ class WorkflowTask:
 
     def _reset_pending_elements(self):
         self._pending_num_elements = 0
+        self._pending_num_element_iterations = 0
 
     def _accept_pending_elements(self):
         self._num_elements = self.num_elements
+        self._num_element_iterations = self.num_element_iterations
         self._reset_pending_elements()
 
     @classmethod
@@ -977,6 +984,7 @@ class WorkflowTask:
             template=template,
             index=index,
             num_elements=0,
+            num_element_iterations=0,
         )
         return obj
 
@@ -995,6 +1003,10 @@ class WorkflowTask:
     @property
     def num_elements(self):
         return self._num_elements + self._pending_num_elements
+
+    @property
+    def num_element_iterations(self):
+        return self._num_element_iterations + self._pending_num_element_iterations
 
     @property
     def num_actions(self):
@@ -1041,6 +1053,9 @@ class WorkflowTask:
     @property
     def _metadata(self):
         return self.workflow.metadata["tasks"][self.index]
+
+    def get_all_element_iterations(self):
+        return [j for i in self.elements[:] for j in i.iterations]
 
     def write_element_dirs(self):
         self.dir_path.mkdir(exist_ok=True, parents=True)
@@ -1094,19 +1109,23 @@ class WorkflowTask:
 
                     src_task = inp_src.get_task(self.workflow)
 
-                    src_elements = [i for i in src_task.elements]  # TODO: ??
-                    if inp_src.elements:
-                        # only include "sourceable" elements:
-                        src_elements = [
-                            i for i in src_elements if i.global_idx in inp_src.elements
+                    src_elem_iters = src_task.get_all_element_iterations()
+                    if inp_src.element_iters:
+                        # only include "sourceable" element iterations:
+                        src_elem_iters = [
+                            i
+                            for i in src_elem_iters
+                            if i.global_idx in inp_src.element_iters
                         ]
 
-                    if not src_elements:
+                    if not src_elem_iters:
                         continue
 
                     task_source_type = inp_src.task_source_type.name.lower()
                     src_key = f"{task_source_type}s.{schema_input.typ}"
-                    grp_idx = [elem.get_data_idx()[src_key] for elem in src_elements]
+                    grp_idx = [
+                        iter_i.get_data_idx()[src_key] for iter_i in src_elem_iters
+                    ]
 
                     if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
@@ -1217,16 +1236,17 @@ class WorkflowTask:
                     sources_by_task[source.task_ref][inp_type] = source
 
             # if multiple parameters are sourced from the same upstream task, only use
-            # elements for which all parameters are available (the set intersection):
+            # element iterations for which all parameters are available (the set
+            # intersection):
             for sources in sources_by_task.values():
                 first_src = next(iter(sources.values()))
-                intersect_task_i = set(first_src.elements)
+                intersect_task_i = set(first_src.element_iters)
                 for src_i in sources.values():
-                    intersect_task_i.intersection_update(src_i.elements)
+                    intersect_task_i.intersection_update(src_i.element_iters)
 
                 # now change elements for the affected input sources:
                 for inp_type in sources.keys():
-                    element_set.input_sources[inp_type][0].elements = list(
+                    element_set.input_sources[inp_type][0].element_iters = list(
                         intersect_task_i
                     )
 
@@ -1270,12 +1290,6 @@ class WorkflowTask:
     def downstream_tasks(self):
         """Get all workflow tasks that are downstream from this task."""
         return [task for task in self.workflow.tasks[self.index + 1 :]]
-
-    def get_elements_of_element_set(self, element_set_index):
-        elem_slice = slice(
-            *self.template.element_sets[element_set_index].element_local_idx_range
-        )
-        return self.elements[elem_slice]
 
     @staticmethod
     def resolve_element_data_indices(multiplicities):
@@ -1360,17 +1374,15 @@ class WorkflowTask:
 
         element_inp_data_idx = self.resolve_element_data_indices(multiplicities)
 
-        global_element_idx_range = [
-            self.workflow.num_elements,
-            self.workflow.num_elements + len(element_inp_data_idx),
+        global_element_iter_idx_range = [
+            self.workflow.num_element_iterations,
+            self.workflow.num_element_iterations + len(element_inp_data_idx),
         ]
         local_element_idx_range = [
             self.num_elements,
             self.num_elements + len(element_inp_data_idx),
         ]
 
-        # associate global element indices (as a range) with the element set:
-        element_set._element_global_idx_range = global_element_idx_range
         element_set._element_local_idx_range = local_element_idx_range
         self.template._add_element_set(element_set)
 
@@ -1415,7 +1427,6 @@ class WorkflowTask:
 
             elements.append(
                 {
-                    "index": self.num_elements + elem_idx,
                     "iterations_idx": [self.num_elements + elem_idx],
                     "es_idx": self.num_element_sets - 1,
                     "seq_idx": {k: v[elem_idx] for k, v in element_seq_idx.items()},
@@ -1423,8 +1434,7 @@ class WorkflowTask:
             )
             element_iterations.append(
                 {
-                    "global_idx": self.workflow.num_elements
-                    + elem_idx,  # TODO: `workflow.num_element_iterations` ?
+                    "global_idx": self.workflow.num_element_iterations + elem_idx,
                     "actions": action_runs,
                     "schema_parameters": list(schema_params),
                     "loop_idx": {},
@@ -1438,8 +1448,9 @@ class WorkflowTask:
             element_iterations,
         )
         self._pending_num_elements += len(elements)
+        self._pending_num_element_iterations += len(element_iterations)
 
-        return list(range(*global_element_idx_range))
+        return list(range(*global_element_iter_idx_range))
 
     def add_elements(
         self,
@@ -1453,7 +1464,7 @@ class WorkflowTask:
         input_source_mode=None,
         nesting_order=None,
         element_sets=None,
-        sourceable_elements=None,
+        sourceable_elem_iters=None,
         propagate_to=None,
         return_indices=False,
     ):
@@ -1469,7 +1480,7 @@ class WorkflowTask:
                 input_source_mode=input_source_mode,
                 nesting_order=nesting_order,
                 element_sets=element_sets,
-                sourceable_elements=sourceable_elements,
+                sourceable_elem_iters=sourceable_elem_iters,
                 propagate_to=propagate_to,
                 return_indices=return_indices,
             )
@@ -1486,7 +1497,7 @@ class WorkflowTask:
         input_source_mode=None,
         nesting_order=None,
         element_sets=None,
-        sourceable_elements=None,
+        sourceable_elem_iters=None,
         propagate_to=None,
         return_indices=False,
     ):
@@ -1494,10 +1505,10 @@ class WorkflowTask:
 
         Parameters
         ----------
-        sourceable_elements : list of int, optional
-            If specified, a list of global element indices from which inputs
-            may be sourced. If not specified, all workflow elements are considered
-            sourceable.
+        sourceable_elem_iters : list of int, optional
+            If specified, a list of global element iteration indices from which inputs
+            may be sourced. If not specified, all workflow element iterations are
+            considered sourceable.
         propagate_to : list of ElementPropagation, optional
             If specified as an empty or non-empty list, propagate the new elements
             downstream. If an `ElementPropagation` object is not specified for a given
@@ -1525,7 +1536,7 @@ class WorkflowTask:
             input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
-            sourceable_elements=sourceable_elements,
+            sourceable_elem_iters=sourceable_elem_iters,
         )
 
         elem_idx = []  # global element indices
@@ -1564,7 +1575,7 @@ class WorkflowTask:
                     resources=elem_propagate.element_set.resources,
                     repeats=elem_propagate.element_set.repeats,
                     nesting_order=elem_propagate.nesting_order,
-                    sourceable_elements=elem_idx,
+                    sourceable_elem_iters=elem_idx,
                 )
                 prop_elem_idx = task._add_elements(
                     element_sets=[elem_set_i],
@@ -1859,10 +1870,10 @@ class Elements:
         selection: Union[int, slice],
     ) -> Union[Element, List[Element]]:
 
-        selection, length = self._get_selection(selection)
-        elements = self.task.workflow.get_task_elements(self.task, selection)
+        sel_normed, _ = self._get_selection(selection)
+        elements = self.task.workflow.get_task_elements(self.task, sel_normed)
 
-        if length == 1:
+        if isinstance(selection, int):
             return elements[0]
         else:
             return elements

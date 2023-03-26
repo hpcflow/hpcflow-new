@@ -321,6 +321,10 @@ class Workflow:
         return sum(task.num_elements for task in self.tasks)
 
     @property
+    def num_element_iterations(self) -> int:
+        return sum(task.num_element_iterations for task in self.tasks)
+
+    @property
     def num_loops(self) -> int:
         return len(self.loops)
 
@@ -357,6 +361,7 @@ class Workflow:
                         template=self.template.tasks[idx],
                         index=idx,
                         num_elements=i["num_elements"],
+                        num_element_iterations=i["num_element_iterations"],
                     )
                     wk_tasks.append(wk_task)
                 self._tasks = self.app.WorkflowTaskList(wk_tasks)
