@@ -21,6 +21,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
     TaskTemplateUnexpectedSequenceInput,
+    UnsetParameterDataError,
 )
 from .parameters import (
     InputSource,
@@ -1793,33 +1794,34 @@ class WorkflowTask:
 
         return current_value
 
-    def test_action_rule(self, rule, data_idx):
-        check = rule.check_exists or rule.check_missing
+    def test_action_rule(self, act_rule: ActionRule, data_idx: Dict) -> bool:
+        check = act_rule.check_exists or act_rule.check_missing
         if check:
             param_s = check.split(".")
             if len(param_s) > 2:
-                # sub-parameter, so need to retrieve parameter data
+                # sub-parameter, so need to try to retrieve parameter data
                 try:
                     self._get_merged_parameter_data(data_idx, raise_on_missing=True)
-                    return True if rule.check_exists else False
+                    return True if act_rule.check_exists else False
                 except ValueError:
-                    return False if rule.check_exists else True
+                    return False if act_rule.check_exists else True
             else:
-                if rule.check_exists:
-                    return rule.check_exists in data_idx
-                elif rule.check_missing:
-                    return rule.check_missing not in data_idx
+                if act_rule.check_exists:
+                    return act_rule.check_exists in data_idx
+                elif act_rule.check_missing:
+                    return act_rule.check_missing not in data_idx
 
         else:
-            # retrieve parameter data
-            param_path = ".".join(
-                i.condition.callable.kwargs["value"] for i in rule.path.parts[:2]
+            rule = act_rule.rule
+            param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
+            element_dat = self._get_merged_parameter_data(
+                data_idx,
+                path=param_path,
+                raise_on_missing=True,
+                raise_on_unset=True,
             )
-            element_dat = rule.get(param_path)
-
-            data_path = DataPath(*rule.path.parts[2:])
-            rule = Rule(path=data_path, condition=rule.condition, cast=rule.cast)
-
+            # test the rule:
+            rule = Rule(path=[], condition=rule.condition, cast=rule.cast)
             return rule.test(element_dat).is_valid
 
     def resolve_jobscripts(self):
