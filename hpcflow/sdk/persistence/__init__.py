@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import copy
 import random
 import string
-from typing import Any, Dict, Generator, Iterator, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
 from pathlib import Path
 
 from reretry import retry
@@ -368,7 +368,7 @@ class PersistentStore(ABC):
         pass
 
     @abstractmethod
-    def get_parameter_data(self, index: int) -> Any:
+    def get_parameter_data(self, index: int) -> Tuple[bool, Any]:
         pass
 
     @abstractmethod

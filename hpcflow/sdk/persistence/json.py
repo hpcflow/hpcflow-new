@@ -102,12 +102,14 @@ class JSONPersistentStore(PersistentStore):
         self._pending["parameter_data"][index] = self._encode_parameter_data(data)
         self.save()
 
-    def get_parameter_data(self, index: int) -> Any:
+    def get_parameter_data(self, index: int) -> Tuple[bool, Any]:
         if index in self._pending["parameter_data"]:
             data = self._pending["parameter_data"][index]
         else:
             data = self.load()["parameter_data"][str(index)]
-        return self._decode_parameter_data(data=data)
+        is_set = False if data is None else True
+        data = self._decode_parameter_data(data=data)
+        return (is_set, data)
 
     def get_parameter_source(self, index: int) -> Dict:
         # TODO: check pending

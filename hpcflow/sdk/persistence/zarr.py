@@ -484,11 +484,14 @@ class ZarrPersistentStore(PersistentStore):
     def _get_parameter_data(self, index: int) -> Any:
         return self._get_parameter_base_array(mode="r")[index]
 
-    def get_parameter_data(self, index: int) -> Any:
-        return self._decode_parameter_data(
-            data=self._get_parameter_data(index),
+    def get_parameter_data(self, index: int) -> Tuple[bool, Any]:
+        data = self._get_parameter_data(index)
+        is_set = False if data is None else True
+        data = self._decode_parameter_data(
+            data=data,
             arr_group=self._get_parameter_data_array_group(index),
         )
+        return (is_set, data)
 
     def get_parameter_source(self, index: int) -> Dict:
         return self._get_parameter_sources_array(mode="r")[index]

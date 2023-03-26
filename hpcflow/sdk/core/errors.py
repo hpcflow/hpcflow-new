@@ -118,3 +118,7 @@ class WorkflowBatchUpdateFailedError(Exception):
 
 class WorkflowLimitsError(ValueError):
     pass
+
+
+class UnsetParameterDataError(Exception):
+    pass

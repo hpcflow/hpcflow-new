@@ -529,7 +529,7 @@ class Workflow:
         # TODO: add new downstream elements?
         pass
 
-    def _get_parameter_data(self, index: int) -> Any:
+    def _get_parameter_data(self, index: int) -> Tuple[bool, Any]:
         return self._store.get_parameter_data(index)
 
     def _get_parameter_source(self, index: int) -> Dict:

@@ -1720,6 +1720,7 @@ class WorkflowTask:
         data_index,
         path=None,
         raise_on_missing=False,
+        raise_on_unset=False,
         default: Any = None,
     ):
         """Get element data from the persistent store."""
@@ -1727,7 +1728,7 @@ class WorkflowTask:
         path = [] if not path else path.split(".")
         parameter = self._path_to_parameter(path)
         current_value = None
-        is_cur_val_set = False
+        is_cur_val_assigned = False
         for path_i, data_idx_i in data_index.items():
 
             path_i = path_i.split(".")
@@ -1745,14 +1746,18 @@ class WorkflowTask:
                     # no intersection between paths
                     continue
 
-            # TODO: test unset outputs are returned correctly
-            data = self.workflow._get_parameter_data(data_idx_i)
+            is_set, data = self.workflow._get_parameter_data(data_idx_i)
+            if raise_on_unset and not is_set:
+                raise UnsetParameterDataError(
+                    f"Element data path {path!r} resolves to unset data for (at least) "
+                    f"data index path: {path_i!r}."
+                )
 
             if is_parent:
                 # replace current value:
                 try:
                     current_value = get_in_container(data, rel_path, cast_indices=True)
-                    is_cur_val_set = True
+                    is_cur_val_assigned = True
                 except (KeyError, IndexError, ValueError):
                     continue
 
@@ -1760,11 +1765,11 @@ class WorkflowTask:
                 # update sub-part of current value
                 current_value = current_value or {}
                 set_in_container(current_value, update_path, data, ensure_path=True)
-                is_cur_val_set = True
+                is_cur_val_assigned = True
 
-        if not is_cur_val_set:
+        if not is_cur_val_assigned:
             if raise_on_missing:
-                raise ValueError(f"Path {path} does not exist in the element data.")
+                raise ValueError(f"Path {path!r} does not exist in the element data.")
             else:
                 current_value = default
 

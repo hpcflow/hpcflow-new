@@ -456,7 +456,7 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals = []
             for pg_idx_i in self._values_group_idx:
-                val = self.workflow._get_parameter_data(pg_idx_i)
+                _, val = self.workflow._get_parameter_data(pg_idx_i)
                 if self.parameter._value_class:
                     val = self.parameter._value_class(**val)
                 vals.append(val)
@@ -559,7 +559,7 @@ class AbstractInputValue(JSONLike):
     @property
     def value(self):
         if self._value_group_idx is not None:
-            val = self.workflow._get_parameter_data(self._value_group_idx)
+            _, val = self.workflow._get_parameter_data(self._value_group_idx)
             if self.parameter._value_class:
                 val = self.parameter._value_class(**val)
         else:
@@ -837,7 +837,7 @@ class ResourceSpec(JSONLike):
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
-            val = self.workflow._get_parameter_data(self._value_group_idx)
+            _, val = self.workflow._get_parameter_data(self._value_group_idx)
         else:
             val = self._get_members()
         if value_name:
