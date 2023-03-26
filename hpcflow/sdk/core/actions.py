@@ -60,16 +60,16 @@ class ElementActionRun:
         return self.element_action.action
 
     @property
+    def element_iteration(self):
+        return self.element_action.element_iteration
+
+    @property
     def element(self):
-        return self.element_action.element
+        return self.element_iteration.element
 
     @property
     def workflow(self):
-        return self.element.workflow
-
-    @property
-    def element_index(self):
-        return self.element.index
+        return self.element_iteration.workflow
 
     @property
     def index(self):
@@ -87,7 +87,7 @@ class ElementActionRun:
         return self.element_action.get_parameter_names(prefix)
 
     def get_data_idx(self, path: str = None):
-        return self.element.get_data_idx(
+        return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
@@ -100,7 +100,7 @@ class ElementActionRun:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
-        return self.element.get_parameter_sources(
+        return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
@@ -115,7 +115,7 @@ class ElementActionRun:
         default: Any = None,
         raise_on_missing: bool = False,
     ):
-        return self.element.get(
+        return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
@@ -129,7 +129,8 @@ class ElementActionRun:
         out = []
         self_EAR = (
             self.task.insert_ID,
-            self.element_index,
+            self.element.index,
+            self.element_iteration.index,
             self.element_action.action_idx,
             self.index,
         )
@@ -137,6 +138,7 @@ class ElementActionRun:
             src_i = (
                 src["task_insert_ID"],
                 src["element_idx"],
+                src["iteration_idx"],
                 src["action_idx"],
                 src["run_idx"],
             )
@@ -213,8 +215,8 @@ class ElementAction:
 
     _app_attr = "app"
 
-    def __init__(self, element, action_idx, runs):
-        self._element = element
+    def __init__(self, element_iteration, action_idx, runs):
+        self._element_iteration = element_iteration
         self._action_idx = action_idx
         self._runs = runs
 
@@ -235,12 +237,12 @@ class ElementAction:
         )
 
     @property
-    def element(self):
-        return self._element
+    def element_iteration(self):
+        return self._element_iteration
 
     @property
-    def element_index(self):
-        return self.element.index
+    def element(self):
+        return self.element_iteration.element
 
     @property
     def num_runs(self):
@@ -257,7 +259,7 @@ class ElementAction:
 
     @property
     def task(self):
-        return self.element.task
+        return self.element_iteration.task
 
     @property
     def action_idx(self):
@@ -292,7 +294,7 @@ class ElementAction:
         return self._output_files
 
     def get_data_idx(self, path: str = None, run_idx: int = -1):
-        return self.element.get_data_idx(
+        return self.element_iteration.get_data_idx(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
@@ -306,7 +308,7 @@ class ElementAction:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
-        return self.element.get_parameter_sources(
+        return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
@@ -322,7 +324,7 @@ class ElementAction:
         default: Any = None,
         raise_on_missing: bool = False,
     ):
-        return self.element.get(
+        return self.element_iteration.get(
             path=path,
             action_idx=self.action_idx,
             run_idx=run_idx,

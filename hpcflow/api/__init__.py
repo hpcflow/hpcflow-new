@@ -51,6 +51,7 @@ InputSource = hpcflow.InputSource
 InputSourceMode = hpcflow.InputSourceMode
 InputSourceType = hpcflow.InputSourceType
 InputValue = hpcflow.InputValue
+Loop = hpcflow.Loop
 OutputFileParser = hpcflow.OutputFileParser
 Parameter = hpcflow.Parameter
 ParameterValue = hpcflow.ParameterValue

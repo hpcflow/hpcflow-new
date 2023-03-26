@@ -26,6 +26,7 @@ from .core.actions import (
 )
 from .core.element import (
     Element,
+    ElementIteration,
     ElementInputFiles,
     ElementInputs,
     ElementOutputFiles,
@@ -50,6 +51,7 @@ from .core.task import (
     ElementSet,
     Elements,
 )
+from .core.loop import Loop, WorkflowLoop
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
@@ -173,6 +175,7 @@ class BaseApp:
         core_classes += [
             ActionScopeType,
             Element,
+            ElementIteration,
             Elements,
             ElementInputs,
             ElementInputs,
@@ -194,6 +197,7 @@ class BaseApp:
             TaskOutputParameters,
             Workflow,
             WorkflowTask,
+            WorkflowLoop,
             ParameterValue,
         ]
         for cls in core_classes:

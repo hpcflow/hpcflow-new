@@ -8,6 +8,8 @@ from valida.rules import Rule
 
 from hpcflow.sdk.core.submission import allocate_jobscripts, generate_EAR_resource_map
 
+from hpcflow.sdk.typing import E_idx_type
+
 from .json_like import ChildObjectSpec, JSONLike
 from .command_files import FileSpec, InputFile
 from .element import ElementFilter, ElementGroup
@@ -489,7 +491,7 @@ class Task(JSONLike):
         return obj
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(" f"name={self.name!r}" f")"
+        return f"{self.__class__.__name__}(name={self.name!r})"
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -604,6 +606,7 @@ class Task(JSONLike):
                         "type": "EAR_output",
                         "task_insert_ID": self.insert_ID,
                         "element_idx": idx,
+                        "iteration_idx": 0,  # TODO?
                         "action_idx": output_act_idx,
                         "run_idx": 0,
                     }
@@ -1260,10 +1263,12 @@ class WorkflowTask:
 
     @property
     def upstream_tasks(self):
+        """Get all workflow tasks that are upstream from this task."""
         return [task for task in self.workflow.tasks[: self.index]]
 
     @property
     def downstream_tasks(self):
+        """Get all workflow tasks that are downstream from this task."""
         return [task for task in self.workflow.tasks[self.index + 1 :]]
 
     def get_elements_of_element_set(self, element_set_index):
@@ -1276,6 +1281,8 @@ class WorkflowTask:
     def resolve_element_data_indices(multiplicities):
         """Find the index of the Zarr parameter group index list corresponding to each
         input data for all elements.
+
+        # TODO: update docstring; shouldn't reference Zarr.
 
         Parameters
         ----------
@@ -1379,6 +1386,7 @@ class WorkflowTask:
             seq_idx,
         )
 
+        element_iterations = []
         elements = []
 
         for elem_idx, data_idx in enumerate(element_data_idx):
@@ -1392,6 +1400,7 @@ class WorkflowTask:
                         "type": "EAR_output",
                         "task_insert_ID": self.insert_ID,
                         "element_idx": self.num_elements + elem_idx,
+                        "iteration_idx": 0,  # TODO?
                         "action_idx": act_idx,
                         "run_idx": 0,
                     }
@@ -1406,17 +1415,28 @@ class WorkflowTask:
 
             elements.append(
                 {
-                    "global_idx": self.workflow.num_elements + elem_idx,
                     "index": self.num_elements + elem_idx,
-                    "actions": action_runs,
-                    "schema_parameters": list(schema_params),
+                    "iterations_idx": [self.num_elements + elem_idx],
                     "es_idx": self.num_element_sets - 1,
                     "seq_idx": {k: v[elem_idx] for k, v in element_seq_idx.items()},
-                    "loop_idx": {},  # TODO
+                }
+            )
+            element_iterations.append(
+                {
+                    "global_idx": self.workflow.num_elements
+                    + elem_idx,  # TODO: `workflow.num_element_iterations` ?
+                    "actions": action_runs,
+                    "schema_parameters": list(schema_params),
+                    "loop_idx": {},
                 }
             )
 
-        self.workflow._store.add_elements(self.index, self.insert_ID, elements)
+        self.workflow._store.add_elements(
+            self.index,
+            self.insert_ID,
+            elements,
+            element_iterations,
+        )
         self._pending_num_elements += len(elements)
 
         return list(range(*global_element_idx_range))
@@ -1555,6 +1575,26 @@ class WorkflowTask:
         if return_indices:
             return elem_idx
 
+    def get_element_dependencies(
+        self,
+        as_objects: bool = False,
+    ) -> List[Union[E_idx_type, Element]]:
+        """Get elements from upstream tasks (tuples of (task_insert_ID, element idx) or
+        Element objects) that this task depends on."""
+
+        deps = []
+        for element in self.elements:
+            for iter_i in element.iterations:
+                for (ti_ID, e_idx) in iter_i.get_element_dependencies(as_objects=False):
+                    if (ti_ID, e_idx) not in deps:
+                        deps.append((ti_ID, e_idx))
+
+        deps = sorted(deps)
+        if as_objects:
+            deps = self.workflow.get_elements_from_indices(deps)
+
+        return deps
+
     def get_task_dependencies(
         self,
         as_objects: bool = False,
@@ -1563,6 +1603,10 @@ class WorkflowTask:
 
         Dependencies may come from either elements from upstream tasks, or from locally
         defined inputs/sequences/defaults from upstream tasks."""
+
+        # TODO: this method might become insufficient if/when we start considering a
+        # new "task_iteration" input source type, which may take precedence over any
+        # other input source types.
 
         deps = []
         for element_set in self.template.element_sets:
@@ -1580,11 +1624,37 @@ class WorkflowTask:
 
         return deps
 
+    def get_dependent_elements(
+        self,
+        as_objects: bool = False,
+    ) -> List[Union[E_idx_type, Element]]:
+        """Get elements from downstream tasks (tuples of (task_insert_ID, element idx) or
+        Element objects) that depend on this task."""
+        deps = []
+        for task in self.downstream_tasks:
+            for element in task.elements:
+                key = (task.insert_ID, element.index)
+                for iter_i in element.iterations:
+                    for dep_i in iter_i.get_task_dependencies(as_objects=False):
+                        if dep_i == self.insert_ID and key not in deps:
+                            deps.append(key)
+
+        deps = sorted(deps)
+        if as_objects:
+            deps = self.workflow.get_elements_from_indices(deps)
+
+        return deps
+
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
     ) -> List[Union[int, WorkflowTask]]:
         """Get tasks (insert ID or WorkflowTask objects) that depends on this task."""
+
+        # TODO: this method might become insufficient if/when we start considering a
+        # new "task_iteration" input source type, which may take precedence over any
+        # other input source types.
+
         deps = []
         for task in self.downstream_tasks:
             for element_set in task.template.element_sets:
@@ -1599,46 +1669,6 @@ class WorkflowTask:
         deps = sorted(deps)
         if as_objects:
             deps = [self.workflow.tasks.get(insert_ID=i) for i in deps]
-        return deps
-
-    def get_element_dependencies(
-        self,
-        as_objects: bool = False,
-    ) -> List[Union[Tuple[int, int], Element]]:
-        """Get elements from upstream tasks (tuples of (task_insert_ID, element idx) or
-        Element objects) that this task depends on."""
-
-        deps = []
-        for element in self.elements:
-            for (ti_ID, e_idx) in element.get_element_dependencies(as_objects=False):
-                if (ti_ID, e_idx) not in deps:
-                    deps.append((ti_ID, e_idx))
-
-        deps = sorted(deps)
-        if as_objects:
-            deps = self.workflow.get_elements_from_indices(deps)
-
-        return deps
-
-    def get_dependent_elements(
-        self,
-        as_objects: bool = False,
-    ) -> List[Union[Tuple[int, int], Element]]:
-        """Get elements from downstream tasks (tuples of (task_insert_ID, element idx) or
-        Element objects) that depend on this task."""
-        deps = []
-        for task in self.downstream_tasks:
-            for element in task.elements:
-                for dep_i in element.get_task_dependencies(as_objects=False):
-                    if dep_i == self.insert_ID:
-                        key = (task.insert_ID, element.index)
-                        if key not in deps:
-                            deps.append(key)
-
-        deps = sorted(deps)
-        if as_objects:
-            deps = self.workflow.get_elements_from_indices(deps)
-
         return deps
 
     @property
