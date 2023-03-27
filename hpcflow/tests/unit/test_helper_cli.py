@@ -181,7 +181,12 @@ def test_modify_helper_cli(app):
     so = cli(r, args="helper clear")
 
 
-def cli(r=CliRunner(), args=""):
+def cli(r=None, args="", config_dir=None):
+    if r is None:
+        r = CliRunner()
+    if not config_dir:
+        config_dir = gettempdir()
+    args = f"--config-dir {str(config_dir)} " + args
     so = r.invoke(hpcflow.CLI, args)
     return so.output.strip()
 
