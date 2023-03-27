@@ -15,6 +15,13 @@ from tempfile import gettempdir
 from hpcflow.api import hpcflow, load_config
 
 
+def get_sleep_shell_command(seconds):
+    if os.name == "posix":
+        return ["sleep", str(100)]
+    elif os.name == "nt":
+        return ["powershell", "sleep", str(seconds)]
+
+
 @pytest.fixture
 def app():
     load_config(config_dir=gettempdir())
@@ -165,7 +172,7 @@ def test_get_helper_uptime(app):
         pid_fp = helper.get_PID_file_path(app)
         t_0 = datetime.now()
         time.sleep(0.5)
-        proc = subprocess.Popen(["sleep", "100"])
+        proc = subprocess.Popen(get_sleep_shell_command(100))
         time.sleep(0.5)
         t_1 = datetime.now()
         with pid_fp.open("wt") as fp:
