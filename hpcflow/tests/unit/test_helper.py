@@ -17,7 +17,7 @@ from hpcflow.api import hpcflow, load_config
 
 def get_sleep_shell_command(seconds):
     if os.name == "posix":
-        return ["sleep", str(100)]
+        return ["sleep", str(seconds)]
     elif os.name == "nt":
         return ["powershell", "sleep", str(seconds)]
 
