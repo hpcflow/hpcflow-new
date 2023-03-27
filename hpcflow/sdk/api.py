@@ -67,12 +67,13 @@ def run_tests(app, *args):
 
     try:
         import pytest
+        import pytest_mock
     except ModuleNotFoundError:
         raise RuntimeError(f"{app.name} has not been built with testing dependencies.")
 
     test_args = (app.pytest_args or []) + list(args)
     if app.run_time_info.is_frozen:
         with importlib.resources.path(app.name, "tests") as test_dir:
-            pytest.main([str(test_dir)] + test_args)
+            pytest.main([str(test_dir)] + test_args, plugins=[pytest_mock])
     else:
         pytest.main(["--pyargs", f"{app.name}"] + test_args)
