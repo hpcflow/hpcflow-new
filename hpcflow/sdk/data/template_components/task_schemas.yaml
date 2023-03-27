@@ -1,0 +1,53 @@
+- objective: demo_task_2
+  inputs:
+    - parameter: p3
+    - parameter: orientations
+  outputs:
+    - parameter: p4
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: demo_env_1
+      commands:
+        - command: >
+            echo "hello! p3=<<parameter:p3>> orientations=<<parameter:orientations>>"
+      output_file_parsers:
+        p4:
+          from_files: [t1_outfile_1]
+
+- objective: dummy_task_1
+  inputs:
+    - parameter: p1
+    - parameter: p2
+    - parameter: p5
+  outputs:
+    - parameter: p3
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: dummy_env_1
+      commands:
+        - command: >-
+            Set-Content -Path .\test.txt -Value "hello from ${pwd}; p1=<<parameter:p1>> p2=<<parameter:p2>> p5=<<parameter:p5>>"
+      output_file_parsers:
+        p3:
+          from_files: [t1_outfile_1]
+
+- objective: dummy_task_2
+  inputs:
+    - parameter: p3
+    - parameter: orientations
+  outputs:
+    - parameter: p4
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: dummy_env_1
+      commands:
+        - command: Start-Sleep 1; echo "p3=<<parameter:p3>>; orientations=<<parameter:orientations>>"
+      output_file_parsers:
+        p4:
+          from_files: [t1_outfile_1]

@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+import copy
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
@@ -15,6 +17,14 @@ from .utils import check_valid_py_identifier
 
 @dataclass
 class TaskObjective(JSONLike):
+
+    _child_objects = (
+        ChildObjectSpec(
+            name="name",
+            is_single_attribute=True,
+        ),
+    )
+
     name: str
 
     def __post_init__(self):
@@ -23,17 +33,18 @@ class TaskObjective(JSONLike):
 
 class TaskSchema(JSONLike):
 
-    # TODO: build comprehensive test suite for TaskSchema
-    # - decide how schema inputs and outputs are linked to action inputs and outputs?
-    # - should the appearance of parameters in the actions determined schema inputs/outputs
-    #   - still need to define e.g. defaults, so makes sense to keep inputs/outputs as schema
-    #     parameters, and then verify that all action parameters are taken from schema parameters.
-    # - should command files be listed as part of the schema? probably, yes.
     _validation_schema = "task_schema_spec_schema.yaml"
     _hash_value = None
+    _validate_actions = True
+
     _child_objects = (
         ChildObjectSpec(name="objective", class_name="TaskObjective"),
-        ChildObjectSpec(name="inputs", class_name="SchemaInput", is_multiple=True),
+        ChildObjectSpec(
+            name="inputs",
+            class_name="SchemaInput",
+            is_multiple=True,
+            parent_ref="_task_schema",
+        ),
         ChildObjectSpec(name="outputs", class_name="SchemaOutput", is_multiple=True),
         ChildObjectSpec(name="actions", class_name="Action", is_multiple=True),
     )
@@ -58,7 +69,11 @@ class TaskSchema(JSONLike):
         self._hash_value = _hash_value
 
         self._validate()
+        self.actions = self._expand_actions()
         self.version = version
+        self._task_template = None  # assigned by parent Task
+
+        self._set_parent_refs()
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
@@ -93,6 +108,21 @@ class TaskSchema(JSONLike):
             return True
         return False
 
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._task_template = self._task_template
+        return obj
+
+    @classmethod
+    @contextmanager
+    def ignore_invalid_actions(cls):
+        try:
+            cls._validate_actions = False
+            yield
+        finally:
+            cls._validate_actions = True
+
     def _validate(self):
 
         if isinstance(self.objective, str):
@@ -112,6 +142,82 @@ class TaskSchema(JSONLike):
         for idx, i in enumerate(self.outputs):
             if isinstance(i, Parameter):
                 self.outputs[idx] = self.app.SchemaOutput(i)
+            elif isinstance(i, SchemaInput):
+                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
+
+        # check action input/outputs
+        if self._validate_actions:
+            all_outs = []
+            extra_ins = set(self.input_types)
+
+            act_ins_lst = [act.get_input_types() for act in self.actions]
+            act_outs_lst = [act.get_output_types() for act in self.actions]
+
+            schema_ins = set(self.input_types)
+            schema_outs = set(self.output_types)
+
+            all_act_ins = set(j for i in act_ins_lst for j in i)
+            all_act_outs = set(j for i in act_outs_lst for j in i)
+
+            non_schema_act_ins = all_act_ins - schema_ins
+            non_schema_act_outs = set(all_act_outs - schema_outs)
+
+            extra_act_outs = non_schema_act_outs
+            seen_act_outs = []
+            for act_idx in range(len(self.actions)):
+                for act_in in [
+                    i for i in act_ins_lst[act_idx] if i in non_schema_act_ins
+                ]:
+                    if act_in not in seen_act_outs:
+                        raise ValueError(
+                            f"Action {act_idx} input {act_in!r} of schema {self.name!r} "
+                            f"is not a schema input, but nor is it an action output from "
+                            f"a preceding action."
+                        )
+                seen_act_outs += [
+                    i for i in act_outs_lst[act_idx] if i not in seen_act_outs
+                ]
+                extra_act_outs = extra_act_outs - set(act_ins_lst[act_idx])
+                act_inputs = set(act_ins_lst[act_idx])
+                act_outputs = set(act_outs_lst[act_idx])
+                extra_ins = extra_ins - act_inputs
+                all_outs.extend(list(act_outputs))
+
+            if extra_act_outs:
+                raise ValueError(
+                    f"The following action outputs of schema {self.name!r} are not schema"
+                    f" outputs, but nor are they consumed by subsequent actions as "
+                    f"action inputs: {tuple(extra_act_outs)!r}."
+                )
+
+            if extra_ins:
+                # i.e. are all schema inputs "consumed" by an action?
+                raise ValueError(
+                    f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used by "
+                    f"any actions."
+                )
+
+            missing_outs = set(self.output_types) - set(all_outs)
+            if missing_outs:
+                raise ValueError(
+                    f"Schema {self.name!r} outputs {tuple(missing_outs)!r} are not "
+                    f"generated by any actions."
+                )
+
+    def _expand_actions(self):
+        """Create new actions for input file generators and output parsers in existing
+        actions."""
+        return [j for i in self.actions for j in i.expand()]
+
+    def make_persistent(self, workflow, source):
+        new_refs = []
+        for input_i in self.inputs:
+            if input_i.default_value is not None:
+                _, dat_ref, is_new = input_i.default_value.make_persistent(
+                    workflow, source
+                )
+                new_refs.extend(dat_ref) if is_new else None
+        return new_refs
 
     @property
     def name(self):
@@ -138,10 +244,14 @@ class TaskSchema(JSONLike):
             if i.propagation_mode != ParameterPropagationMode.NEVER
         )
 
+    @property
+    def task_template(self):
+        return self._task_template
+
     @classmethod
     def get_by_key(cls, key):
         """Get a config-loaded task schema from a key."""
-        return cls.app.task_schemas[key]
+        return cls.app.task_schemas.get(key)
 
     def get_parameter_dependence(self, parameter: SchemaParameter):
         """Find if/where a given parameter is used by the schema's actions."""

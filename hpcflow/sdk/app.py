@@ -1,8 +1,9 @@
 """An hpcflow application."""
 
 from functools import wraps
-from importlib import resources
+from importlib import resources, import_module
 import time
+from typing import Dict
 import warnings
 
 import click
@@ -11,23 +12,43 @@ from termcolor import colored
 
 from hpcflow import __version__
 from .core.json_like import JSONLike
-from .core.utils import read_YAML_file
+from .core.utils import read_YAML, read_YAML_file
 from . import api, SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
-from .core.actions import Action, ActionScopeType, ElementAction
-from .core.element import Element
-from .core.environment import Executable, NumCores
-from .core.zarr_io import ZarrEncodable
+from .core.actions import (
+    Action,
+    ActionScopeType,
+    ElementAction,
+    ElementAction,
+    ElementActionRun,
+)
+from .core.element import (
+    Element,
+    ElementInputFiles,
+    ElementInputs,
+    ElementOutputFiles,
+    ElementOutputs,
+    ElementResources,
+    ElementParameter,
+)
 from .core.parameters import (
-    InputSourceMode,
     InputSourceType,
     ParameterPropagationMode,
     TaskSourceType,
     ValueSequence,
+    ParameterValue,
 )
-from .core.task import WorkflowTask
+from .core.task import (
+    ElementPropagation,
+    Parameters,
+    TaskInputParameters,
+    TaskOutputParameters,
+    WorkflowTask,
+    ElementSet,
+    Elements,
+)
 from .core.task_schema import TaskObjective
 from .core.workflow import Workflow
 from .demo.cli import get_demo_software_CLI
@@ -41,12 +62,20 @@ SDK_logger = SDK_logger.getChild(__name__)
 class BaseApp:
     """Class to generate the base hpcflow application."""
 
+    _template_component_types = (
+        "parameters",
+        "command_files",
+        "environments",
+        "task_schemas",
+    )
+
     def __init__(
         self,
         name,
         version,
         description,
         config_options,
+        template_components: Dict = None,
         pytest_args=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
@@ -64,13 +93,15 @@ class BaseApp:
             self.name, self.version, self.runtime_info_logger
         )
 
-        # Set by `_load_data_files`:
+        self._builtin_template_components = template_components or {}
+
+        # Set by `_load_template_components`:
+        self._template_components = {}
         self._parameters = None
         self._command_files = None
-        self._envs = None
+        self._environments = None
         self._task_schemas = None
-        self_scripts = None
-        self._app_data = {}
+        self._scripts = None
 
         self._core_classes = self._assign_core_classes()
 
@@ -96,8 +127,28 @@ class BaseApp:
                 api_method.__doc__ = func.__doc__.format(name=name)
                 setattr(self, func.__name__, api_method)
 
+    @property
+    def _template_component_classes(self):
+        return {
+            "parameters": self.ParametersList,
+            "command_files": self.CommandFilesList,
+            "environments": self.EnvironmentsList,
+            "task_schemas": self.TaskSchemasList,
+        }
+
+    @property
+    def template_components(self):
+        if not self.is_template_components_loaded:
+            self._load_template_components()
+        return self._template_components
+
     def _get_core_JSONLike_classes(self):
-        """Get all JSONLike subclasses (recursively)."""
+        """Get all JSONLike subclasses (recursively).
+
+        If this is run after App initialisation, the returned list will include the
+        app-injected sub-classes as well.
+
+        """
 
         def all_subclasses(cls):
             return set(cls.__subclasses__()).union(
@@ -112,25 +163,36 @@ class BaseApp:
 
     def _assign_core_classes(self):
 
+        # ensure classes defined in `object_list` are included in core classes:
+        import_module("hpcflow.sdk.core.object_list")
+
         core_classes = list(self._get_core_JSONLike_classes())
 
         # Non-`JSONLike` classes:
         core_classes += [
             ActionScopeType,
-            Action,
-            Executable,
             Element,
+            Elements,
+            ElementInputs,
+            ElementInputs,
+            ElementOutputs,
+            ElementResources,
+            ElementInputFiles,
+            ElementOutputFiles,
             ElementAction,
-            InputSourceMode,
+            ElementAction,
+            ElementActionRun,
+            ElementParameter,
+            ElementPropagation,
             InputSourceType,
-            NumCores,
+            Parameters,
             ParameterPropagationMode,
-            TaskObjective,
             TaskSourceType,
-            ValueSequence,
+            TaskInputParameters,
+            TaskOutputParameters,
             Workflow,
             WorkflowTask,
-            ZarrEncodable,
+            ParameterValue,
         ]
         for cls in core_classes:
             if hasattr(cls, "_app_attr"):
@@ -140,74 +202,101 @@ class BaseApp:
 
         return tuple(
             sorted(
-                core_classes,
+                set(core_classes),
                 key=lambda x: f"{x.__module__}.{x.__qualname__}",
             )
         )
 
-    def _ensure_data_files(self):
-        if not self.is_data_files_loaded:
-            self._load_data_files()
+    def _ensure_template_components(self):
+        if not self.is_template_components_loaded:
+            self._load_template_components()
 
-    def _load_data_files(self):
-        if not self.is_config_loaded:
-            self.load_config()
+    def load_template_components(self, warn=True):
+        if warn and self.is_template_components_loaded:
+            warnings.warn("Template components already loaded; reloading now.")
+        self._load_template_components()
 
-        self._parameters = self._load_parameters()
-        self._app_data["parameters"] = self._parameters
+    def reload_template_components(self, warn=True):
+        if warn and not self.is_template_components_loaded:
+            warnings.warn("Template components not loaded; loading now.")
+        self._load_template_components()
 
-        self._command_files = self._load_command_files()
-        self._app_data["command_files"] = self._command_files
+    def _load_template_components(self):
+        """Combine any builtin template components with user-defined template components
+        and initialise list objects."""
 
-        self._envs = self._load_environments()
-        self._app_data["envs"] = self._envs
+        params = self._builtin_template_components.get("parameters", [])
+        for path in self.config.parameter_sources:
+            params.extend(read_YAML_file(path))
 
-        self._task_schemas = self._load_task_schemas()
-        self._app_data["task_schemas"] = self._task_schemas
+        cmd_files = self._builtin_template_components.get("command_files", [])
+        for path in self.config.command_file_sources:
+            cmd_files.extend(read_YAML_file(path))
+
+        envs = self._builtin_template_components.get("environments", [])
+        for path in self.config.environment_sources:
+            envs.extend(read_YAML_file(path))
+
+        schemas = self._builtin_template_components.get("task_schemas", [])
+        for path in self.config.task_schema_sources:
+            schemas.extend(read_YAML_file(path))
+
+        self_tc = self._template_components
+        self_tc["parameters"] = self.ParametersList.from_json_like(
+            params, shared_data=self_tc
+        )
+        self_tc["command_files"] = self.CommandFilesList.from_json_like(
+            cmd_files, shared_data=self_tc
+        )
+        self_tc["environments"] = self.EnvironmentsList.from_json_like(
+            envs, shared_data=self_tc
+        )
+        self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
+            schemas, shared_data=self_tc
+        )
+
+        self._parameters = self_tc["parameters"]
+        self._command_files = self_tc["command_files"]
+        self._environments = self_tc["environments"]
+        self._task_schemas = self_tc["task_schemas"]
 
         self._scripts = self._load_scripts()
-        self._app_data["scripts"] = self._scripts
 
-        self.logger.info("Data files loaded.")
+        self.logger.info("Template components loaded.")
 
-    def load_data_files(self):
-        if self.is_data_files_loaded:
-            warnings.warn("Data files already loaded; reloading.")
-        self._load_data_files()
-
-    def reload_data_files(self):
-        if not self.is_data_files_loaded:
-            warnings.warn("Data files not loaded; loading.")
-        self._load_data_files()
-
-    @property
-    def app_data(self):
-        return self._app_data
-
-    @property
-    def task_schemas(self):
-        self._ensure_data_files()
-        return self._task_schemas
+    @classmethod
+    def load_builtin_template_component_data(cls, package):
+        components = {}
+        for comp_type in cls._template_component_types:
+            with resources.open_text(package, f"{comp_type}.yaml") as fh:
+                comp_dat = fh.read()
+                components[comp_type] = read_YAML(comp_dat)
+        return components
 
     @property
     def parameters(self):
-        self._ensure_data_files()
+        self._ensure_template_components()
         return self._parameters
 
     @property
-    def envs(self):
-        self._ensure_data_files()
-        return self._envs
-
-    @property
     def command_files(self):
-        self._ensure_data_files()
+        self._ensure_template_components()
         return self._command_files
 
     @property
+    def envs(self):
+        self._ensure_template_components()
+        return self._environments
+
+    @property
     def scripts(self):
-        self._ensure_data_files()
+        self._ensure_template_components()
         return self._scripts
+
+    @property
+    def task_schemas(self):
+        self._ensure_template_components()
+        return self._task_schemas
 
     @property
     def logger(self):
@@ -234,7 +323,7 @@ class BaseApp:
         return bool(self.config)
 
     @property
-    def is_data_files_loaded(self):
+    def is_template_components_loaded(self):
         return bool(self._parameters)
 
     def _load_config(self, config_dir, **overrides):
@@ -289,10 +378,24 @@ class BaseApp:
         ]
 
         if type(self) is not BaseApp:
-            # `test_hpcflow` is the same as `test` for the BaseApp
+            # `test_hpcflow` is the same as `test` for the BaseApp so no need to add both:
             commands.append(test_hpcflow)
 
         return commands
+
+    def _make_workflow_CLI(self):
+        """Generate the CLI for interacting with existing workflows."""
+
+        @click.group()
+        @click.argument("path", type=click.Path(exists=True))
+        @click.pass_context
+        def workflow(ctx, path):
+            """"""
+            wk = self.Workflow(path)
+            ctx.ensure_object(dict)
+            ctx.obj["workflow"] = wk
+
+        return workflow
 
     def _make_CLI(self):
         """Generate the root CLI for the app."""
@@ -307,7 +410,10 @@ class BaseApp:
 
         @click.group(name=self.name)
         @click.version_option(
-            version=self.version, package_name=self.name, prog_name=self.name
+            version=self.version,
+            package_name=self.name,
+            prog_name=self.name,
+            help=f"Show the version of {self.name} and exit.",
         )
         @click.version_option(
             __version__,
@@ -345,42 +451,11 @@ class BaseApp:
         new_CLI.add_command(get_config_CLI(self))
         new_CLI.add_command(get_demo_software_CLI(self))
         new_CLI.add_command(get_helper_CLI(self))
+        new_CLI.add_command(self._make_workflow_CLI())
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 
         return new_CLI
-
-    def _load_environments(self):
-
-        all_envs = []
-        for path in self.config.environment_files:
-            all_envs.extend(read_YAML_file(path))
-
-        return self.EnvironmentsList.from_json_like(all_envs)
-
-    def _load_command_files(self):
-
-        all_files = []
-        for path in self.config.file_files:
-            all_files.extend(read_YAML_file(path))
-
-        return self.CommandFilesList.from_json_like(all_files)
-
-    def _load_parameters(self):
-
-        all_params = []
-        for path in self.config.parameter_files:
-            all_params.extend(read_YAML_file(path))
-
-        return self.ParametersList.from_json_like(all_params)
-
-    def _load_task_schemas(self):
-
-        all_ts = []
-        for path in self.config.task_schema_files:
-            all_ts.extend(read_YAML_file(path))
-
-        return self.TaskSchemasList.from_json_like(all_ts)
 
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
@@ -395,18 +470,22 @@ class BaseApp:
             scripts[i] = resources.path(pkg, i)
         return scripts
 
-    def shared_data_from_json_like(self, json_like):
+    def template_components_from_json_like(self, json_like):
         cls_lookup = {
-            "command_files": self.CommandFilesList,
-            "envs": self.EnvironmentsList,
             "parameters": self.ParametersList,
+            "command_files": self.CommandFilesList,
+            "environments": self.EnvironmentsList,
             "task_schemas": self.TaskSchemasList,
         }
-        shared_data = {}
+        tc = {}
         for k, v in cls_lookup.items():
-            shared_data[k] = v.from_json_like(json_like.get(k, {}), is_hashed=True)
-
-        return shared_data
+            tc_k = v.from_json_like(
+                json_like.get(k, {}),
+                shared_data=tc,
+                is_hashed=True,
+            )
+            tc[k] = tc_k
+        return tc
 
 
 class App(BaseApp):
