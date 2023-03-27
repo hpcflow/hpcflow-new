@@ -1785,6 +1785,7 @@ class WorkflowTask:
 
         if not is_cur_val_assigned:
             if raise_on_missing:
+                # TODO: custom exception?
                 raise ValueError(f"Path {path!r} does not exist in the element data.")
             else:
                 current_value = default
