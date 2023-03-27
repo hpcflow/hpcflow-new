@@ -11,7 +11,6 @@ from multiprocessing import Process, Queue
 import psutil
 
 from hpcflow.sdk.helper import helper
-from tempfile import gettempdir
 from hpcflow.api import hpcflow, load_config
 
 
@@ -23,8 +22,8 @@ def get_sleep_shell_command(seconds):
 
 
 @pytest.fixture
-def app():
-    load_config(config_dir=gettempdir())
+def app(tmp_path):
+    load_config(config_dir=tmp_path)
     return hpcflow
 
 

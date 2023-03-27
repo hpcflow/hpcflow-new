@@ -11,8 +11,8 @@ from hpcflow.api import hpcflow, load_config
 
 
 @pytest.fixture
-def app():
-    load_config(config_dir=gettempdir())
+def app(tmp_path):
+    load_config(config_dir=tmp_path)
     return hpcflow
 
 
