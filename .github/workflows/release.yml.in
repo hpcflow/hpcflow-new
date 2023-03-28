@@ -175,10 +175,12 @@ jobs:
           key: {% raw %}venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
-        run: python -m pip install poetry==1.2.2
+        run: python -m pip install poetry==1.4
 
       - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without dev
@@ -196,12 +198,12 @@ jobs:
       - name: Build with pyinstaller (Windows, file)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}" -LogLevel INFO -BuildType 'onefile'{% endraw %}
+        run: ./make.ps1 -ExeName '{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}' -LogLevel INFO -BuildType 'onefile'{% endraw %}
 
       - name: Build with pyinstaller (Windows, folder)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./make.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir" -LogLevel INFO -BuildType 'onedir'{% endraw %}
+        run: ./make.ps1 -ExeName '{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir' -LogLevel INFO -BuildType 'onedir'{% endraw %}
 
       - name: Version check (windows, file)
         if: contains(matrix.os, 'windows')
@@ -262,7 +264,7 @@ jobs:
       - name: Compress folder (windows, folder)
         if: contains(matrix.os, 'windows')
         working-directory: {{ pyinstaller_dir }}
-        run: ./compress.ps1 -ExeName "{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir" -BuildType 'onedir'{% endraw %}
+        run: ./compress.ps1 -ExeName '{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir' -BuildType 'onedir'{% endraw %}
 
       - name: Compress folder (non-windows, folder)
         if: "!contains(matrix.os, 'windows')" 
@@ -298,7 +300,9 @@ jobs:
           chown -R $(id -u):$(id -g) $PWD
 
       - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
         uses: actions/cache@v3
@@ -382,10 +386,12 @@ jobs:
           key: {% raw %}venv-release-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
-        run: python -m pip install poetry==1.2.2
+        run: python -m pip install poetry==1.4
 
       - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without dev,pyinstaller
@@ -490,10 +496,11 @@ jobs:
           key: {% raw %}venv-release-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install poetry
-        run: curl -sSL https://install.python-poetry.org | python3 -
+        run: python -m pip install poetry==1.4
 
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
+             poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without test,pyinstaller
