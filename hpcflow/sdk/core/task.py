@@ -923,10 +923,6 @@ class Task(JSONLike):
     def provides_parameters(self):
         return tuple(j for schema in self.schemas for j in schema.provides_parameters)
 
-    @property
-    def _metadata(self):
-        return self.workflow_template.workflow.metadata["template"]["tasks"][self.index]
-
     def get_sub_parameter_input_values(self):
         return [i for i in self.inputs if i.is_sub_value]
 
@@ -1050,10 +1046,6 @@ class WorkflowTask:
     @property
     def run_script_file_path(self):
         return self.dir_path / "run_script.ps1"
-
-    @property
-    def _metadata(self):
-        return self.workflow.metadata["tasks"][self.index]
 
     def get_all_element_iterations(self):
         return [j for i in self.elements[:] for j in i.iterations]
