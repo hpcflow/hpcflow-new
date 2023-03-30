@@ -1341,8 +1341,9 @@ class WorkflowTask:
 
         return element_dat_idx
 
-    def initialise_EARs(self) -> None:
+    def initialise_EARs(self) -> List[int]:
         """Try to initialise any uninitialised EARs of this task."""
+        initialised = []
         for element in self.elements[:]:
             # We don't yet cache Element objects, so `element`, and also it's
             # `ElementIterations, are transient. So there is no reason to update these
@@ -1353,9 +1354,11 @@ class WorkflowTask:
                 if not iter_i.EARs_initialised:
                     try:
                         self._initialise_element_iter_EARs(iter_i)
+                        initialised.append(iter_i.index)
                     except UnsetParameterDataError:
                         # (raised by `test_action_rule`) cannot yet initialise EARs
                         pass
+        return initialised
 
     def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
         data_idx = copy.deepcopy(element_iter.data_idx)  # don't mutate
