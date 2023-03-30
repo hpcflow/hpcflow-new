@@ -200,7 +200,7 @@ class JSONPersistentStore(PersistentStore):
 
         # commit new parameters:
         for param_idx, param_dat in self._pending["parameter_data"].items():
-            wk_data["parameter_data"][param_idx] = param_dat
+            wk_data["parameter_data"][str(param_idx)] = param_dat
 
         for param_idx, param_src in self._pending["parameter_sources"].items():
             wk_data["parameter_sources"][param_idx] = param_src
