@@ -186,6 +186,12 @@ class JSONPersistentStore(PersistentStore):
                 loop_idx_i
             )
 
+        # commit new element iteration EARs:
+        for (t_idx, _, iters_idx_i), actions_i in self._pending["EARs"].items():
+            iter_i = wk_data["tasks"][t_idx]["element_iterations"][iters_idx_i]
+            iter_i["actions"].update(actions_i)
+            iter_i["EARs_initialised"] = True
+
         # commit new loops:
         wk_data["template"]["loops"].extend(self._pending["template_loops"])
 
@@ -237,6 +243,8 @@ class JSONPersistentStore(PersistentStore):
         keep_iterations_idx: bool = False,
     ) -> List[Dict]:
 
+        # TODO: add tests to check correct return in various states of pending
+
         num_pers = self.workflow.tasks[task_idx]._num_elements
         pers_slice, pend_slice = bisect_slice(selection, num_pers)
         pers_range = range(pers_slice.start, pers_slice.stop, pers_slice.step)
@@ -268,13 +276,20 @@ class JSONPersistentStore(PersistentStore):
             for i in iters_idx:
                 if i + 1 > len(task_data["element_iterations"]):
                     i_pending = i - len(task_data["element_iterations"])
-                    iter_i = self._pending["element_iterations"][key][i_pending]
+                    iter_i = copy.deepcopy(
+                        self._pending["element_iterations"][key][i_pending]
+                    )
                 else:
                     iter_i = task_data["element_iterations"][i]
 
                 for act_idx_str in list(iter_i["actions"].keys()):
                     runs = iter_i["actions"].pop(act_idx_str)
                     iter_i["actions"][int(act_idx_str)] = runs
+
+                # add pending EARs:
+                EARs_key = (task_idx, task_insert_ID, i)
+                if EARs_key in self._pending["EARs"]:
+                    iter_i["actions"].update(self._pending["EARs"][EARs_key])
 
                 loop_idx_key = (task_idx, task_insert_ID, i)
                 if loop_idx_key in self._pending["loop_idx"]:

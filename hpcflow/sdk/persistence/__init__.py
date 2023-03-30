@@ -72,6 +72,7 @@ class PersistentStore(ABC):
             "element_iterations": {},  # keys are (task index, task insert ID)
             "element_iterations_idx": {},  # keys are (task index, task insert ID)
             "elements": {},  # keys are (task index, task insert ID)
+            "EARs": {},  # keys are (task index, task insert ID, element_iter idx)
             "loop_idx": {},  # keys are (task index, task insert ID, element iteration index)
             "parameter_data": {},  # keys are parameter indices
             "parameter_sources": {},  # keys are parameter indices
@@ -183,6 +184,7 @@ class PersistentStore(ABC):
         elements: List[Dict],
         element_iterations: List[Dict],
     ) -> None:
+
         key = (task_idx, task_insert_ID)
         if key not in self._pending["elements"]:
             self._pending["elements"][key] = []
@@ -190,6 +192,19 @@ class PersistentStore(ABC):
             self._pending["element_iterations"][key] = []
         self._pending["elements"][key].extend(elements)
         self._pending["element_iterations"][key].extend(element_iterations)
+        self.save()
+
+    def add_EARs(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_iter_idx,
+        EARs,
+    ):
+        key = (task_idx, task_insert_ID, element_iter_idx)
+        if key not in self._pending["EARs"]:
+            self._pending["EARs"][key] = {}
+        self._pending["EARs"][key].update(EARs)
         self.save()
 
     def add_parameter_data(self, data: Any, source: Dict) -> int:
