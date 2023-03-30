@@ -1829,8 +1829,10 @@ class WorkflowTask:
                 raise_on_unset=True,
             )
             # test the rule:
-            rule = Rule(path=[], condition=rule.condition, cast=rule.cast)
-            return rule.test(element_dat).is_valid
+            # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
+            # path to first element (see: https://github.com/hpcflow/valida/issues/9):
+            rule = Rule(path=[0], condition=rule.condition, cast=rule.cast)
+            return rule.test([element_dat]).is_valid
 
     def resolve_jobscripts(self):
         # TODO: work in progress
