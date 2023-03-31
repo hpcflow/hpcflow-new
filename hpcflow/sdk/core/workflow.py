@@ -362,6 +362,7 @@ class Workflow:
                         index=idx,
                         num_elements=i["num_elements"],
                         num_element_iterations=i["num_element_iterations"],
+                        num_EARs=i["num_EARs"],
                     )
                     wk_tasks.append(wk_task)
                 self._tasks = self.app.WorkflowTaskList(wk_tasks)

@@ -948,17 +948,20 @@ class WorkflowTask:
         index: int,
         num_elements: int,
         num_element_iterations: int,
+        num_EARs: int,
     ):
         self._workflow = workflow
         self._template = template
         self._index = index
         self._num_elements = num_elements
         self._num_element_iterations = num_element_iterations
+        self._num_EARs = num_EARs
 
-        # assigned/incremented when new elements/iterations are added and reset on dump to
-        # disk:
+        # assigned/incremented when new elements/iterations/EARs are added and reset on
+        # dump to disk:
         self._pending_num_elements = 0
         self._pending_num_element_iterations = 0
+        self._pending_num_EARs = 0
 
         self._elements = None  # assigned on `elements` first access
 
@@ -968,10 +971,12 @@ class WorkflowTask:
     def _reset_pending_elements(self):
         self._pending_num_elements = 0
         self._pending_num_element_iterations = 0
+        self._pending_num_EARs = 0
 
     def _accept_pending_elements(self):
         self._num_elements = self.num_elements
         self._num_element_iterations = self.num_element_iterations
+        self._num_EARs = self.num_EARs
         self._reset_pending_elements()
 
     @classmethod
@@ -982,6 +987,7 @@ class WorkflowTask:
             index=index,
             num_elements=0,
             num_element_iterations=0,
+            num_EARs=0,
         )
         return obj
 
@@ -1004,6 +1010,10 @@ class WorkflowTask:
     @property
     def num_element_iterations(self):
         return self._num_element_iterations + self._pending_num_element_iterations
+
+    @property
+    def num_EARs(self):
+        return self._num_EARs + self._pending_num_EARs
 
     @property
     def num_actions(self):
@@ -1363,6 +1373,7 @@ class WorkflowTask:
     def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
         data_idx = copy.deepcopy(element_iter.data_idx)  # don't mutate
         action_runs = {}
+        count = 0
         for act_idx, action in self.template.all_schema_actions():
             if all(self.test_action_rule(i, data_idx) for i in action.rules):
                 param_source = {
@@ -1378,10 +1389,21 @@ class WorkflowTask:
                     workflow=self.workflow,
                     param_source=param_source,
                 )
-                run_0 = {"data_idx": data_idx_i}
+                run_0 = {
+                    "index": self.num_EARs + count,
+                    "metadata": {
+                        "submission_group_idx": None,
+                        "success": None,
+                        "start_time": None,
+                        "end_time": None,
+                    },
+                    "data_idx": data_idx_i,
+                }
                 action_runs[act_idx] = [run_0]
                 data_idx.update(data_idx_i)
+                count += 1
 
+        self._pending_num_EARs += count
         self.workflow._store.add_EARs(
             task_idx=self.index,
             task_insert_ID=self.insert_ID,

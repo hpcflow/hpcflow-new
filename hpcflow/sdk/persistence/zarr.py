@@ -69,6 +69,7 @@ class ZarrPersistentStore(PersistentStore):
     _task_grp_name = lambda _, insert_ID: f"task_{insert_ID}"
     _task_elem_arr_name = "elements"
     _task_elem_iter_arr_name = "element_iters"
+    _task_EAR_times_arr_name = "EAR_times"
 
     _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
     _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
@@ -201,6 +202,11 @@ class ZarrPersistentStore(PersistentStore):
     def _get_task_elem_iters_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
         return self._get_task_group(insert_ID, mode=mode).get(
             self._task_elem_iter_arr_name
+        )
+
+    def _get_task_EAR_times_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
+        return self._get_task_group(insert_ID, mode=mode).get(
+            self._task_EAR_times_arr_name
         )
 
     def _get_task_element_attrs(self, task_idx: int, task_insert_ID: int) -> Dict:
@@ -345,10 +351,17 @@ class ZarrPersistentStore(PersistentStore):
                 act_idx,
                 [
                     [
-                        [ensure_in(dk, attrs["parameter_paths"]), dv]
-                        for dk, dv in r["data_idx"].items()
+                        run["index"],
+                        run["metadata"]["submission_group_idx"],
+                        -1
+                        if run["metadata"]["success"] is None
+                        else int(run["metadata"]["success"]),
+                        [
+                            [ensure_in(dk, attrs["parameter_paths"]), dv]
+                            for dk, dv in run["data_idx"].items()
+                        ],
                     ]
-                    for r in runs
+                    for run in runs
                 ],
             ]
             compressed.append(act_run_i)
@@ -384,9 +397,14 @@ class ZarrPersistentStore(PersistentStore):
         out = {
             act_idx: [
                 {
-                    "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in data_idx},
+                    "index": run[0],
+                    "metadata": {
+                        "submission_group_idx": run[1],
+                        "success": None if run[2] == -1 else bool(run[2]),
+                    },
+                    "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in run[3]},
                 }
-                for data_idx in runs
+                for run in runs
             ]
             for (act_idx, runs) in EARs
         }
@@ -454,6 +472,14 @@ class ZarrPersistentStore(PersistentStore):
                 chunks=1000,  # TODO: check this is a sensible size with many elements
             )
             element_iters_arr.attrs.update(self._get_element_iter_array_empty_attrs())
+            EAR_times_arr = task_group.create_dataset(
+                name=self._task_EAR_times_arr_name,
+                shape=(0, 2),
+                dtype="M8[us]",  # microsecond resolution
+                fill_value=np.datetime64("NaT"),
+                chunks=(1, None),  # single-chunk for multiprocess writing
+            )
+
             md["num_added_tasks"] += 1
 
         # merge new template components:
@@ -505,6 +531,10 @@ class ZarrPersistentStore(PersistentStore):
             iter_dat[2] = int(True)  # EARs_initialised
             elem_iter_arr[iters_idx_i] = iter_dat
 
+            EAR_times_arr = self._get_task_EAR_times_array(insert_ID, mode="r+")
+            new_shape = (EAR_times_arr.shape[0] + len(actions_i), EAR_times_arr.shape[1])
+            EAR_times_arr.resize(new_shape)
+
         # commit new loops:
         md["template"]["loops"].extend(self._pending["template_loops"])
 
@@ -538,8 +568,13 @@ class ZarrPersistentStore(PersistentStore):
     def get_all_tasks_metadata(self) -> List[Dict]:
         out = []
         for _, grp in self._get_element_group().groups():
-            elem_arr = grp.get(self._task_elem_arr_name)
-            out.append({"num_elements": len(elem_arr)})
+            out.append(
+                {
+                    "num_elements": len(grp.get(self._task_elem_arr_name)),
+                    "num_element_iterations": len(grp.get(self._task_elem_iter_arr_name)),
+                    "num_EARs": len(grp.get(self._task_EAR_times_arr_name)),
+                }
+            )
         return out
 
     def get_task_elements(
@@ -557,9 +592,11 @@ class ZarrPersistentStore(PersistentStore):
         pers_range = range(pers_slice.start, pers_slice.stop, pers_slice.step)
 
         elem_iter_arr = None
+        EAR_times_arr = None
         if len(pers_range):
             elem_arr = self._get_task_elements_array(task_insert_ID)
             elem_iter_arr = self._get_task_elem_iters_array(task_insert_ID)
+            EAR_times_arr = self._get_task_EAR_times_array(task_insert_ID)
             try:
                 elements = list(elem_arr[pers_slice])
             except zarr.errors.NegativeStepError:
@@ -613,10 +650,31 @@ class ZarrPersistentStore(PersistentStore):
         elem_iters = dict(zip(iters_k, iters_v))
 
         for elem_idx, elem_i in zip(sel_range, elements):
+
+            elem_i["index"] = elem_idx
+
+            # populate iterations
             elem_i["iterations"] = [elem_iters[i] for i in elem_i["iterations_idx"]]
             if not keep_iterations_idx:
                 del elem_i["iterations_idx"]
-            elem_i["index"] = elem_idx
+
+            # add EAR start/end times from separate array:
+            for iter_i in elem_i["iterations"]:
+                for act, runs in iter_i["actions"].items():
+                    for run_idx in range(len(runs)):
+                        run = iter_i["actions"][act][run_idx]
+                        EAR_idx = run["index"]
+                        start_time = None
+                        end_time = None
+                        try:
+                            EAR_times = EAR_times_arr[EAR_idx]
+                            start_time, end_time = EAR_times
+                            start_time = None if np.isnat(start_time) else start_time
+                            end_time = None if np.isnat(end_time) else end_time
+                        except TypeError:
+                            pass
+                        run["metadata"]["start_time"] = start_time
+                        run["metadata"]["end_time"] = end_time
 
         return elements
 

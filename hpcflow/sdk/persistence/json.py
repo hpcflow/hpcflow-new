@@ -229,10 +229,15 @@ class JSONPersistentStore(PersistentStore):
         # No need to consider pending; this is called once per Workflow object
         return [
             {
-                "num_elements": len(i["elements"]),
-                "num_element_iterations": len(i["element_iterations"]),
+                "num_elements": len(task["elements"]),
+                "num_element_iterations": len(task["element_iterations"]),
+                "num_EARs": sum(
+                    len(runs)
+                    for iter_i in task["element_iterations"]
+                    for runs in iter_i["actions"].values()
+                ),
             }
-            for i in self.load()["tasks"]
+            for task in self.load()["tasks"]
         ]
 
     def get_task_elements(

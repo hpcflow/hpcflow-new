@@ -36,13 +36,23 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
+class EARSubmissionStatus(enum.Enum):
+    PENDING = 0
+    SUBMITTED = 1
+    COMPLETE = 2
+
+
 class ElementActionRun:
     _app_attr = "app"
 
-    def __init__(self, element_action, index, data_idx: Dict) -> None:
+    def __init__(
+        self, element_action, run_idx: int, index: int, data_idx: Dict, metadata: Dict
+    ) -> None:
         self._element_action = element_action
-        self._index = index
+        self._run_idx = run_idx  # local index of this run with the action
+        self._index = index  # task-wide EAR index
         self._data_idx = data_idx
+        self._metadata = metadata
 
         # assigned on first access of corresponding properties:
         self._inputs = None
@@ -72,6 +82,10 @@ class ElementActionRun:
         return self.element_iteration.workflow
 
     @property
+    def run_idx(self):
+        return self._run_idx
+
+    @property
     def index(self):
         return self._index
 
@@ -80,8 +94,36 @@ class ElementActionRun:
         return self._data_idx
 
     @property
+    def metadata(self):
+        return self._metadata
+
+    @property
+    def submission_group_idx(self):
+        return self.metadata["submission_group_idx"]
+
+    @property
+    def start_time(self):
+        return self.metadata["start_time"]
+
+    @property
+    def end_time(self):
+        return self.metadata["end_time"]
+
+    @property
+    def success(self):
+        return self.metadata["success"]
+
+    @property
     def task(self):
         return self.element_action.task
+
+    @property
+    def submission_status(self):
+        if self.metadata["end_time"] is not None:
+            return EARSubmissionStatus.COMPLETE
+        elif self.metadata["start_time"] is not None:
+            return EARSubmissionStatus.SUBMITTED
+        return EARSubmissionStatus.PENDING
 
     def get_parameter_names(self, prefix):
         return self.element_action.get_parameter_names(prefix)
@@ -90,7 +132,7 @@ class ElementActionRun:
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
         )
 
     def get_parameter_sources(
@@ -103,7 +145,7 @@ class ElementActionRun:
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
             typ=typ,
             as_strings=as_strings,
             use_task_index=use_task_index,
@@ -118,7 +160,7 @@ class ElementActionRun:
         return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
         )
@@ -132,7 +174,7 @@ class ElementActionRun:
             self.element.index,
             self.element_iteration.index,
             self.element_action.action_idx,
-            self.index,
+            self.run_idx,
         )
         for src in self.get_parameter_sources(typ="EAR_output").values():
             src_i = (
@@ -252,8 +294,8 @@ class ElementAction:
     def runs(self):
         if self._run_objs is None:
             self._run_objs = [
-                self.app.ElementActionRun(self, index=idx, **i)
-                for idx, i in enumerate(self._runs)
+                self.app.ElementActionRun(self, run_idx=run_idx, **i)
+                for run_idx, i in enumerate(self._runs)
             ]
         return self._run_objs
 
