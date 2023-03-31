@@ -200,11 +200,36 @@ class PersistentStore(ABC):
         task_insert_ID: int,
         element_iter_idx,
         EARs,
-    ):
+    ) -> None:
         key = (task_idx, task_insert_ID, element_iter_idx)
         if key not in self._pending["EARs"]:
             self._pending["EARs"][key] = {}
         self._pending["EARs"][key].update(EARs)
+        self.save()
+
+    def add_loop(self, task_indices: List[int], loop_js: Dict) -> None:
+        """Initialise the zeroth iterations of a named loop across the specified task
+        subset.
+
+        Parameters
+        ----------
+        task_indices
+            List of task indices that identifies the task subset over which the new loop
+            should iterate.
+
+        """
+        self._pending["template_loops"].append(loop_js)
+        self._pending["loops"].append({})
+
+        for task_idx, task_insert_ID in zip(task_indices, loop_js["tasks"]):
+            all_elements = slice(0, self.workflow.tasks[task_idx].num_elements, 1)
+            self._init_task_loop(
+                task_idx=task_idx,
+                task_insert_ID=task_insert_ID,
+                name=loop_js["name"],
+                element_sel=all_elements,
+            )
+
         self.save()
 
     def add_parameter_data(self, data: Any, source: Dict) -> int:
@@ -408,6 +433,16 @@ class PersistentStore(ABC):
         self, indices: Union[int, List[int]]
     ) -> Union[bool, List[bool]]:
         pass
+
+    @abstractmethod
+    def _init_task_loop(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_sel: slice,
+        name: str,
+    ) -> None:
+        """Initialise the zeroth iteration of a named loop for a specified task."""
 
     @abstractmethod
     def delete_no_confirm(self) -> None:

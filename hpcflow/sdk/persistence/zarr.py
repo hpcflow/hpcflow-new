@@ -68,6 +68,7 @@ class ZarrPersistentStore(PersistentStore):
     _param_data_arr_grp_name = lambda _, param_idx: f"param_{param_idx}"
     _task_grp_name = lambda _, insert_ID: f"task_{insert_ID}"
     _task_elem_arr_name = "elements"
+    _task_elem_iter_arr_name = "element_iters"
 
     _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
     _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
@@ -91,6 +92,8 @@ class ZarrPersistentStore(PersistentStore):
     def _get_pending_dct(self) -> Dict:
         dct = super()._get_pending_dct()
         dct["element_attrs"] = {}  # keys are task indices
+        dct["element_iter_attrs"] = {}  # keys are task indices
+        dct["EAR_attrs"] = {}  # keys are task indices
         dct["parameter_data"] = 0  # keep number of pending data rather than indices
         return dct
 
@@ -114,6 +117,7 @@ class ZarrPersistentStore(PersistentStore):
             "template": template_js,
             "template_components": template_components_js,
             "num_added_tasks": 0,
+            "loops": [],
         }
         if replaced_file:
             metadata["replaced_file"] = str(replaced_file.name)
@@ -194,6 +198,11 @@ class ZarrPersistentStore(PersistentStore):
     def _get_task_elements_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
         return self._get_task_group(insert_ID, mode=mode).get(self._task_elem_arr_name)
 
+    def _get_task_elem_iters_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
+        return self._get_task_group(insert_ID, mode=mode).get(
+            self._task_elem_iter_arr_name
+        )
+
     def _get_task_element_attrs(self, task_idx: int, task_insert_ID: int) -> Dict:
         if task_idx in self._pending["element_attrs"]:
             attrs = self._pending["element_attrs"][task_idx]
@@ -201,7 +210,19 @@ class ZarrPersistentStore(PersistentStore):
             # the task is new and not yet committed
             attrs = self._get_element_array_empty_attrs()
         else:
-            attrs = self._get_task_elements_array(task_insert_ID, mode="r").attrs.asdict()
+            attrs = self._get_task_elements_array(task_insert_ID, mode="r").attrs
+            attrs = attrs.asdict()
+        return attrs
+
+    def _get_task_element_iter_attrs(self, task_idx: int, task_insert_ID: int) -> Dict:
+        if task_idx in self._pending["element_iter_attrs"]:
+            attrs = self._pending["element_iter_attrs"][task_idx]
+        elif task_idx in self._pending["tasks"]:
+            # the task is new and not yet committed
+            attrs = self._get_element_iter_array_empty_attrs()
+        else:
+            attrs = self._get_task_elem_iters_array(task_insert_ID, mode="r").attrs
+            attrs = attrs.asdict()
         return attrs
 
     def add_elements(
@@ -209,6 +230,7 @@ class ZarrPersistentStore(PersistentStore):
         task_idx: int,
         task_insert_ID: int,
         elements: List[Dict],
+        element_iterations: List[Dict],
     ) -> None:
 
         attrs_original = self._get_task_element_attrs(task_idx, task_insert_ID)
@@ -218,10 +240,40 @@ class ZarrPersistentStore(PersistentStore):
                 self._pending["element_attrs"][task_idx] = {}
             self._pending["element_attrs"][task_idx].update(attrs)
 
-        return super().add_elements(task_idx, task_insert_ID, elements)
+        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
+        element_iters, iter_attrs = self._compress_element_iters(
+            element_iterations, iter_attrs_original
+        )
+        if iter_attrs != iter_attrs_original:
+            if task_idx not in self._pending["element_iter_attrs"]:
+                self._pending["element_iter_attrs"][task_idx] = {}
+            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
+
+        return super().add_elements(task_idx, task_insert_ID, elements, element_iters)
+
+    def add_EARs(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_iter_idx,
+        EARs,
+    ) -> None:
+        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
+        EARs, iter_attrs = self._compress_EARs(EARs, iter_attrs_original)
+        if iter_attrs != iter_attrs_original:
+            if task_idx not in self._pending["element_iter_attrs"]:
+                self._pending["element_iter_attrs"][task_idx] = {}
+            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
+
+        key = (task_idx, task_insert_ID, element_iter_idx)
+        if key not in self._pending["EARs"]:
+            self._pending["EARs"][key] = []
+        self._pending["EARs"][key].extend(EARs)
+        self.save()
 
     def _compress_elements(self, elements: List, attrs: Dict) -> Tuple[List, Dict]:
-        """The great listification of election action run data.
+        """Split element data into lists of integers and lookup lists to effectively
+        compress the data.
 
         See also: `_decompress_elements` for the inverse operation.
 
@@ -233,74 +285,123 @@ class ZarrPersistentStore(PersistentStore):
             seq_idx = [
                 [ensure_in(k, attrs["sequences"]), v] for k, v in elem["seq_idx"].items()
             ]
+            compressed.append(
+                [
+                    elem["iterations_idx"],
+                    elem["es_idx"],
+                    seq_idx,
+                ]
+            )
+        return compressed, attrs
+
+    def _compress_element_iters(
+        self, element_iters: List, attrs: Dict
+    ) -> Tuple[List, Dict]:
+        """Split element iteration data into lists of integers and lookup lists to
+        effectively compress the data.
+
+        See also: `_decompress_element_iters` for the inverse operation.
+
+        """
+
+        attrs = copy.deepcopy(attrs)
+        compressed = []
+        for iter_i in element_iters:
             loop_idx = [
-                [ensure_in(k, attrs["loops"]), v] for k, v in elem["loop_idx"].items()
+                [ensure_in(k, attrs["loops"]), v] for k, v in iter_i["loop_idx"].items()
             ]
             schema_params = [
                 ensure_in(k, attrs["schema_parameters"])
-                for k in elem["schema_parameters"]
+                for k in iter_i["schema_parameters"]
             ]
-            act_runs = []
-            for act_idx, runs in elem["actions"].items():
-                act_run_i = [
-                    act_idx,
-                    [
-                        [
-                            [ensure_in(dk, attrs["parameter_paths"]), dv]
-                            for dk, dv in r["data_idx"].items()
-                        ]
-                        for r in runs
-                    ],
-                ]
-                act_runs.append(act_run_i)
+            data_idx = [
+                [ensure_in(dk, attrs["parameter_paths"]), dv]
+                for dk, dv in iter_i["data_idx"].items()
+            ]
 
+            EARs, attrs = self._compress_EARs(iter_i["actions"], attrs)
             compact = [
-                elem["global_idx"],
-                elem["index"],
-                elem["es_idx"],
-                seq_idx,
-                loop_idx,
+                iter_i["global_idx"],
+                data_idx,
+                int(iter_i["EARs_initialised"]),
                 schema_params,
-                act_runs,
+                loop_idx,
+                EARs,
             ]
             compressed.append(compact)
+        return compressed, attrs
+
+    def _compress_EARs(self, EARs: Dict, attrs: Dict) -> List:
+        """Split EAR data into lists of integers and lookup lists to effectively compress
+        the data.
+
+        See also: `_decompress_EARs` for the inverse operation.
+
+        """
+        attrs = copy.deepcopy(attrs)
+        compressed = []
+        for act_idx, runs in EARs.items():
+            act_run_i = [
+                act_idx,
+                [
+                    [
+                        [ensure_in(dk, attrs["parameter_paths"]), dv]
+                        for dk, dv in r["data_idx"].items()
+                    ]
+                    for r in runs
+                ],
+            ]
+            compressed.append(act_run_i)
         return compressed, attrs
 
     def _decompress_elements(self, elements: List, attrs: Dict) -> List:
 
         out = []
         for elem in elements:
-            actions = {}
-            for (act_idx, runs) in elem[6]:
-                actions[act_idx] = [
-                    {
-                        "data_idx": {
-                            attrs["parameter_paths"][k]: v for (k, v) in data_idx
-                        },
-                    }
-                    for data_idx in runs
-                ]
             elem_i = {
-                "global_idx": elem[0],
-                "index": elem[1],
-                "es_idx": elem[2],
-                "seq_idx": {attrs["sequences"][k]: v for (k, v) in elem[3]},
-                "loop_idx": {attrs["loops"][k]: v for (k, v) in elem[4]},
-                "schema_parameters": [attrs["schema_parameters"][k] for k in elem[5]],
-                "actions": actions,
+                "iterations_idx": elem[0],
+                "es_idx": elem[1],
+                "seq_idx": {attrs["sequences"][k]: v for (k, v) in elem[2]},
             }
             out.append(elem_i)
         return out
 
+    def _decompress_element_iters(self, element_iters: List, attrs: Dict) -> List:
+        out = []
+        for iter_i in element_iters:
+            iter_i_decomp = {
+                "global_idx": iter_i[0],
+                "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in iter_i[1]},
+                "EARs_initialised": bool(iter_i[2]),
+                "schema_parameters": [attrs["schema_parameters"][k] for k in iter_i[3]],
+                "loop_idx": {attrs["loops"][k]: v for (k, v) in iter_i[4]},
+                "actions": self._decompress_EARs(iter_i[5], attrs),
+            }
+            out.append(iter_i_decomp)
+        return out
+
+    def _decompress_EARs(self, EARs: List, attrs: Dict) -> List:
+        out = {
+            act_idx: [
+                {
+                    "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in data_idx},
+                }
+                for data_idx in runs
+            ]
+            for (act_idx, runs) in EARs
+        }
+        return out
+
     @staticmethod
     def _get_element_array_empty_attrs() -> Dict:
+        return {"sequences": []}
+
+    @staticmethod
+    def _get_element_iter_array_empty_attrs() -> Dict:
         return {
-            "sequences": [],
             "loops": [],
             "schema_parameters": [],
             "parameter_paths": [],
-            "input_source_paths": [],
-            "source_types": [],
         }
 
     def _get_zarr_store(self):
@@ -345,6 +446,14 @@ class ZarrPersistentStore(PersistentStore):
                 chunks=1000,  # TODO: check this is a sensible size with many elements
             )
             element_arr.attrs.update(self._get_element_array_empty_attrs())
+            element_iters_arr = task_group.create_dataset(
+                name=self._task_elem_iter_arr_name,
+                shape=0,
+                dtype=object,
+                object_codec=MsgPack(),
+                chunks=1000,  # TODO: check this is a sensible size with many elements
+            )
+            element_iters_arr.attrs.update(self._get_element_iter_array_empty_attrs())
             md["num_added_tasks"] += 1
 
         # merge new template components:
@@ -363,8 +472,50 @@ class ZarrPersistentStore(PersistentStore):
             if task_idx in self._pending["element_attrs"]:
                 elem_arr.attrs.put(self._pending["element_attrs"][task_idx])
 
+        for (_, insert_ID), iters_idx in self._pending["element_iterations_idx"].items():
+            elem_arr = self._get_task_elements_array(insert_ID, mode="r+")
+            for elem_idx, iters_idx_i in iters_idx.items():
+                elem_dat = elem_arr[elem_idx]
+                elem_dat[0] += iters_idx_i
+                elem_arr[elem_idx] = elem_dat
+
+        # commit new element iterations:
+        for (task_idx, insert_ID), element_iters in self._pending[
+            "element_iterations"
+        ].items():
+            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
+            elem_iter_arr_add = np.empty(len(element_iters), dtype=object)
+            elem_iter_arr_add[:] = element_iters
+            elem_iter_arr.append(elem_iter_arr_add)
+            if task_idx in self._pending["element_iter_attrs"]:
+                elem_iter_arr.attrs.put(self._pending["element_iter_attrs"][task_idx])
+
+        # commit new element iteration loop indices:
+        for (_, insert_ID, iters_idx_i), loop_idx_i in self._pending["loop_idx"].items():
+            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
+            iter_dat = elem_iter_arr[iters_idx_i]
+            iter_dat[4].extend(loop_idx_i)
+            elem_iter_arr[iters_idx_i] = iter_dat
+
+        # commit new element iteration EARs:
+        for (_, insert_ID, iters_idx_i), actions_i in self._pending["EARs"].items():
+            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
+            iter_dat = elem_iter_arr[iters_idx_i]
+            iter_dat[5].extend(actions_i)
+            iter_dat[2] = int(True)  # EARs_initialised
+            elem_iter_arr[iters_idx_i] = iter_dat
+
+        # commit new loops:
+        md["template"]["loops"].extend(self._pending["template_loops"])
+
+        # commit new workflow loops:
+        md["loops"].extend(self._pending["loops"])
+
         if self._pending["remove_replaced_file_record"]:
             del md["replaced_file"]
+
+        # TODO: maybe clear pending keys individually, so if there is an error we can
+        # retry/continue with committing?
 
         # commit updated metadata:
         self._get_root_group(mode="r+").attrs.put(md)
@@ -376,6 +527,10 @@ class ZarrPersistentStore(PersistentStore):
     def get_template(self) -> Dict:
         # No need to consider pending; this is called once per Workflow object
         return self.load_metadata()["template"]
+
+    def get_loops(self) -> List[Dict]:
+        # No need to consider pending; this is called once per Workflow object
+        return self.load_metadata()["loops"]
 
     def get_num_added_tasks(self) -> int:
         return self.load_metadata()["num_added_tasks"] + len(self._pending["tasks"])
@@ -392,14 +547,19 @@ class ZarrPersistentStore(PersistentStore):
         task_idx: int,
         task_insert_ID: int,
         selection: slice,
+        keep_iterations_idx: bool = False,
     ) -> List:
 
-        num_pers = self.workflow.tasks[task_idx]._num_elements
+        task = self.workflow.tasks[task_idx]
+        num_pers = task._num_elements
+        num_iter_pers = task._num_element_iterations
         pers_slice, pend_slice = bisect_slice(selection, num_pers)
         pers_range = range(pers_slice.start, pers_slice.stop, pers_slice.step)
 
+        elem_iter_arr = None
         if len(pers_range):
             elem_arr = self._get_task_elements_array(task_insert_ID)
+            elem_iter_arr = self._get_task_elem_iters_array(task_insert_ID)
             try:
                 elements = list(elem_arr[pers_slice])
             except zarr.errors.NegativeStepError:
@@ -411,7 +571,54 @@ class ZarrPersistentStore(PersistentStore):
         if key in self._pending["elements"]:
             elements += self._pending["elements"][key][pend_slice]
 
-        return self._decompress_elements(elements, self._get_task_element_attrs(*key))
+        # add iterations:
+        sel_range = range(selection.start, selection.stop, selection.step)
+        iterations = {}
+        for element_idx, element in zip(sel_range, elements):
+
+            # find which iterations to add:
+            iters_idx = element[0]
+
+            # include pending iterations:
+            if key in self._pending["element_iterations_idx"]:
+                iters_idx += self._pending["element_iterations_idx"][key][element_idx]
+
+            # populate new iterations list:
+            for iter_idx_i in iters_idx:
+                if iter_idx_i + 1 > num_iter_pers:
+                    i_pending = iter_idx_i - num_iter_pers
+                    iter_i = copy.deepcopy(
+                        self._pending["element_iterations"][key][i_pending]
+                    )
+                else:
+                    iter_i = elem_iter_arr[iter_idx_i]
+
+                # include pending EARs:
+                EARs_key = (task_idx, task_insert_ID, iter_idx_i)
+                if EARs_key in self._pending["EARs"]:
+                    iter_i[5].extend(self._pending["EARs"][EARs_key])
+
+                # include pending loops:
+                loop_idx_key = (task_idx, task_insert_ID, iter_idx_i)
+                if loop_idx_key in self._pending["loop_idx"]:
+                    iter_i[4].extend(self._pending["loop_idx"][loop_idx_key])
+
+                iterations[iter_idx_i] = iter_i
+
+        elements = self._decompress_elements(elements, self._get_task_element_attrs(*key))
+
+        iters_k, iters_v = zip(*iterations.items())
+        attrs = self._get_task_element_iter_attrs(*key)
+        iters_v = self._decompress_element_iters(iters_v, attrs)
+        elem_iters = dict(zip(iters_k, iters_v))
+
+        for elem_idx, elem_i in zip(sel_range, elements):
+            elem_i["iterations"] = [elem_iters[i] for i in elem_i["iterations_idx"]]
+            if not keep_iterations_idx:
+                del elem_i["iterations_idx"]
+            elem_i["index"] = elem_idx
+
+        return elements
 
     def _encode_parameter_data(
         self,
@@ -516,6 +723,43 @@ class ZarrPersistentStore(PersistentStore):
         if not is_multi:
             exists = exists[0]
         return exists
+
+    def _init_task_loop(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_sel: slice,
+        name: str,
+    ) -> None:
+        """Initialise the zeroth iteration of a named loop for a specified task."""
+
+        elements = self.get_task_elements(
+            task_idx=task_idx,
+            task_insert_ID=task_insert_ID,
+            selection=element_sel,
+            keep_iterations_idx=True,
+        )
+
+        attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
+        attrs = copy.deepcopy(attrs_original)
+        for element in elements:
+            for iter_idx, iter_i in zip(element["iterations_idx"], element["iterations"]):
+
+                if name in (attrs["loops"][k] for k in iter_i[4]):
+                    raise ValueError(f"Loop {name!r} already initialised!")
+
+                key = (task_idx, task_insert_ID, iter_idx)
+                if key not in self._pending["loop_idx"]:
+                    self._pending["loop_idx"][key] = []
+
+                self._pending["loop_idx"][key].append(
+                    [ensure_in(name, attrs["loops"]), 0]
+                )
+
+        if attrs != attrs_original:
+            if task_idx not in self._pending["element_iter_attrs"]:
+                self._pending["element_iter_attrs"][task_idx] = {}
+            self._pending["element_iter_attrs"][task_idx].update(attrs)
 
     @dropbox_permission_err_retry
     def delete_no_confirm(self) -> None:

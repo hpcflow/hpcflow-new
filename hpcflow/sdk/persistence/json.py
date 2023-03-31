@@ -177,8 +177,8 @@ class JSONPersistentStore(PersistentStore):
                 ] += iters_idx_i
 
         # commit new element iterations:
-        for (task_idx, _), elements in self._pending["element_iterations"].items():
-            wk_data["tasks"][task_idx]["element_iterations"].extend(elements)
+        for (task_idx, _), element_iters in self._pending["element_iterations"].items():
+            wk_data["tasks"][task_idx]["element_iterations"].extend(element_iters)
 
         # commit new element iteration loop indices:
         for (t_idx, _, iters_idx_i), loop_idx_i in self._pending["loop_idx"].items():
@@ -253,6 +253,7 @@ class JSONPersistentStore(PersistentStore):
             task_data = self._pending["tasks"][task_idx]
         else:
             task_data = copy.deepcopy(self.load()["tasks"][task_idx])
+
         if len(pers_range):
             elements = task_data["elements"][pers_slice]
         else:
@@ -262,36 +263,41 @@ class JSONPersistentStore(PersistentStore):
         if key in self._pending["elements"]:
             elements += copy.deepcopy(self._pending["elements"][key][pend_slice])
 
+        # add iterations:
         sel_range = range(selection.start, selection.stop, selection.step)
         for element_idx, element in zip(sel_range, elements):
 
+            # find which iterations to add:
             iters_idx = element["iterations_idx"]
             if not keep_iterations_idx:
                 del element["iterations_idx"]
 
+            # include pending iterations:
             if key in self._pending["element_iterations_idx"]:
                 iters_idx += self._pending["element_iterations_idx"][key][element_idx]
-            element["iterations"] = []
 
-            for i in iters_idx:
-                if i + 1 > len(task_data["element_iterations"]):
-                    i_pending = i - len(task_data["element_iterations"])
+            # populate new iterations list:
+            element["iterations"] = []
+            for iters_idx_i in iters_idx:
+                if iters_idx_i + 1 > len(task_data["element_iterations"]):
+                    i_pending = iters_idx_i - len(task_data["element_iterations"])
                     iter_i = copy.deepcopy(
                         self._pending["element_iterations"][key][i_pending]
                     )
                 else:
-                    iter_i = task_data["element_iterations"][i]
+                    iter_i = task_data["element_iterations"][iters_idx_i]
 
                 for act_idx_str in list(iter_i["actions"].keys()):
                     runs = iter_i["actions"].pop(act_idx_str)
                     iter_i["actions"][int(act_idx_str)] = runs
 
-                # add pending EARs:
-                EARs_key = (task_idx, task_insert_ID, i)
+                # include pending EARs:
+                EARs_key = (task_idx, task_insert_ID, iters_idx_i)
                 if EARs_key in self._pending["EARs"]:
                     iter_i["actions"].update(self._pending["EARs"][EARs_key])
 
-                loop_idx_key = (task_idx, task_insert_ID, i)
+                # include pending loops:
+                loop_idx_key = (task_idx, task_insert_ID, iters_idx_i)
                 if loop_idx_key in self._pending["loop_idx"]:
                     iter_i["loop_idx"].update(self._pending["loop_idx"][loop_idx_key])
 
@@ -300,31 +306,6 @@ class JSONPersistentStore(PersistentStore):
             element["index"] = element_idx
 
         return elements
-
-    def add_new_loop(self, task_indices: List[int], loop_js: Dict) -> None:
-        """Initialise the zeroth iterations of a named loop across the specified task
-        subset.
-
-        Parameters
-        ----------
-        task_indices
-            List of task indices that identifies the task subset over which the new loop
-            should iterate.
-
-        """
-        self._pending["template_loops"].append(loop_js)
-        self._pending["loops"].append({})
-
-        for task_idx, task_insert_ID in zip(task_indices, loop_js["tasks"]):
-            all_elements = slice(0, self.workflow.tasks[task_idx].num_elements, 1)
-            self._init_task_loop(
-                task_idx=task_idx,
-                task_insert_ID=task_insert_ID,
-                name=loop_js["name"],
-                element_sel=all_elements,
-            )
-
-        self.save()
 
     def _init_task_loop(
         self,

@@ -494,7 +494,7 @@ class Workflow:
         # update persistent store:
         loop_js, _ = loop_c.to_json_like()
         task_indices = [self.tasks.get(insert_ID=i).index for i in loop_c.tasks]
-        self._store.add_new_loop(task_indices, loop_js)
+        self._store.add_loop(task_indices, loop_js)
 
         self._pending["loops"].append(new_index)
 
