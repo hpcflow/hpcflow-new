@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 import json
 from contextlib import contextmanager
 from os import PathLike
@@ -192,6 +193,24 @@ class JSONPersistentStore(PersistentStore):
             iter_i["actions"].update(actions_i)
             iter_i["EARs_initialised"] = True
 
+        # commit new EAR start times:
+        for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
+            "EAR_start_times"
+        ].items():
+            t_idx = self.get_task_idx_from_insert_ID(ins_ID)
+            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            EAR = iter_i["actions"][str(act_idx)][rn_idx]
+            EAR["metadata"]["start_time"] = start.strftime(self.timestamp_format)
+
+        # commit new EAR end times:
+        for (ins_ID, it_idx, act_idx, rn_idx), end in self._pending[
+            "EAR_end_times"
+        ].items():
+            t_idx = self.get_task_idx_from_insert_ID(ins_ID)
+            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            EAR = iter_i["actions"][str(act_idx)][rn_idx]
+            EAR["metadata"]["end_time"] = end.strftime(self.timestamp_format)
+
         # commit new loops:
         wk_data["template"]["loops"].extend(self._pending["template_loops"])
 
@@ -310,6 +329,23 @@ class JSONPersistentStore(PersistentStore):
 
             element["index"] = element_idx
 
+        # cast EAR start/end times to datetime types:
+        for element in elements:
+            for iter_i in element["iterations"]:
+                for act, runs in iter_i["actions"].items():
+                    for run_idx in range(len(runs)):
+                        run = iter_i["actions"][act][run_idx]
+                        start_time = run["metadata"]["start_time"]
+                        end_time = run["metadata"]["end_time"]
+                        if start_time is not None:
+                            run["metadata"]["start_time"] = datetime.strptime(
+                                start_time, self.timestamp_format
+                            )
+                        if end_time is not None:
+                            run["metadata"]["end_time"] = datetime.strptime(
+                                end_time, self.timestamp_format
+                            )
+
         return elements
 
     def _init_task_loop(
@@ -367,3 +403,8 @@ class JSONPersistentStore(PersistentStore):
         else:
             # nothing to compare to
             return False
+
+    def get_task_idx_from_insert_ID(self, insert_ID):
+        for task in self.workflow.template.tasks:
+            if task.insert_ID == insert_ID:
+                return task.index

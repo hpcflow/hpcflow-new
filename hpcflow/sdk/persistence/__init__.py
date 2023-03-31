@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 import copy
+from datetime import datetime
 import random
 import string
 from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
@@ -77,6 +78,8 @@ class PersistentStore(ABC):
             "parameter_data": {},  # keys are parameter indices
             "parameter_sources": {},  # keys are parameter indices
             "remove_replaced_file_record": False,
+            "EAR_start_times": {},  # keys are (task insert ID, element_iter idx, action idx, run idx)
+            "EAR_end_times": {},  # keys are (task insert ID, element_iter idx, action idx, run idx)
         }
 
     def reject_pending(self) -> None:
@@ -471,3 +474,30 @@ class PersistentStore(ABC):
     def get_num_added_tasks(self) -> int:
         """Get the total number of tasks ever added to the workflow, regardless of whether
         any of those tasks were subsequently removed from the workflow."""
+
+    @property
+    def timestamp_format(self) -> str:
+        return self.workflow._timestamp_format
+
+    def set_EAR_start(
+        self,
+        task_insert_ID: int,
+        element_iteration_idx: int,
+        action_idx: int,
+        run_idx: int,
+    ) -> None:
+        key = (task_insert_ID, element_iteration_idx, action_idx, run_idx)
+        self._pending["EAR_start_times"][key] = datetime.utcnow()
+        self.save()
+
+    def set_EAR_end(
+        self,
+        task_insert_ID: int,
+        element_iteration_idx: int,
+        action_idx: int,
+        run_idx: int,
+    ) -> None:
+        # TODO: change EAR_idx_type to not include element idx?
+        key = (task_insert_ID, element_iteration_idx, action_idx, run_idx)
+        self._pending["EAR_end_times"][key] = datetime.utcnow()
+        self.save()

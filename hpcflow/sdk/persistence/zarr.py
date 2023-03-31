@@ -352,7 +352,9 @@ class ZarrPersistentStore(PersistentStore):
                 [
                     [
                         run["index"],
-                        run["metadata"]["submission_group_idx"],
+                        -1
+                        if run["metadata"]["submission_group_idx"] is None
+                        else run["metadata"]["submission_group_idx"],
                         -1
                         if run["metadata"]["success"] is None
                         else int(run["metadata"]["success"]),
@@ -399,7 +401,7 @@ class ZarrPersistentStore(PersistentStore):
                 {
                     "index": run[0],
                     "metadata": {
-                        "submission_group_idx": run[1],
+                        "submission_group_idx": None if run[1] == -1 else run[1],
                         "success": None if run[2] == -1 else bool(run[2]),
                     },
                     "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in run[3]},
@@ -534,6 +536,30 @@ class ZarrPersistentStore(PersistentStore):
             EAR_times_arr = self._get_task_EAR_times_array(insert_ID, mode="r+")
             new_shape = (EAR_times_arr.shape[0] + len(actions_i), EAR_times_arr.shape[1])
             EAR_times_arr.resize(new_shape)
+
+        # commit new EAR start times:
+        for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
+            "EAR_start_times"
+        ].items():
+            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
+            iter_dat = elem_iter_arr[it_idx]
+            for act_idx_i, runs in iter_dat[5]:
+                if act_idx_i == act_idx:
+                    EAR_idx = runs[rn_idx][0]
+            EAR_times_arr = self._get_task_EAR_times_array(ins_ID, mode="r+")
+            EAR_times_arr[EAR_idx, 0] = start
+
+        # commit new EAR end times:
+        for (ins_ID, it_idx, act_idx, rn_idx), end in self._pending[
+            "EAR_end_times"
+        ].items():
+            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
+            iter_dat = elem_iter_arr[it_idx]
+            for act_idx_i, runs in iter_dat[5]:
+                if act_idx_i == act_idx:
+                    EAR_idx = runs[rn_idx][0]
+            EAR_times_arr = self._get_task_EAR_times_array(ins_ID, mode="r+")
+            EAR_times_arr[EAR_idx, 1] = end
 
         # commit new loops:
         md["template"]["loops"].extend(self._pending["template_loops"])
@@ -671,6 +697,7 @@ class ZarrPersistentStore(PersistentStore):
                             start_time, end_time = EAR_times
                             start_time = None if np.isnat(start_time) else start_time
                             end_time = None if np.isnat(end_time) else end_time
+                            # TODO: cast to native datetime types
                         except TypeError:
                             pass
                         run["metadata"]["start_time"] = start_time

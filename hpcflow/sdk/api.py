@@ -1,4 +1,5 @@
 """API functions, which are dynamically added to the BaseApp class on __init__"""
+from __future__ import annotations
 
 import importlib
 
@@ -47,6 +48,40 @@ def submit_workflow(app, template_file, dir):
     wk = app.make_workflow(template_file, dir)
     wk.submit()
     return wk
+
+
+def set_EAR_start(
+    app,
+    workflow: Workflow,
+    task_insert_id: int,
+    element_iteration_idx: int,
+    action_idx: int,
+    run_idx: int,
+) -> None:
+    """Set the start time of an EAR."""
+    workflow.set_EAR_start(
+        task_insert_id,
+        element_iteration_idx,
+        action_idx,
+        run_idx,
+    )
+
+
+def set_EAR_end(
+    app,
+    workflow: Workflow,
+    task_insert_id: int,
+    element_iteration_idx: int,
+    action_idx: int,
+    run_idx: int,
+) -> None:
+    """Set the end time of an EAR."""
+    workflow.set_EAR_end(
+        task_insert_id,
+        element_iteration_idx,
+        action_idx,
+        run_idx,
+    )
 
 
 def run_hpcflow_tests(app, *args):

@@ -127,6 +127,8 @@ class Workflow:
         "": ZarrPersistentStore,
     }
 
+    _default_ts_fmt = "%Y-%m-%d %H:%M:%S.%f"
+
     def __init__(self, path: PathLike) -> None:
         self.path = Path(path)
 
@@ -278,6 +280,7 @@ class Workflow:
                         task._accept_pending_elements()
 
                     self._store.remove_replaced_file()
+                    # TODO: handle errors in commit pending?
                     self._store.commit_pending()
                     self._accept_pending()
                     self._in_batch_mode = False
@@ -380,6 +383,11 @@ class Workflow:
                     wk_loops.append(wk_loop)
                 self._loops = self.app.WorkflowLoopList(wk_loops)
         return self._loops
+
+    @property
+    def _timestamp_format(self) -> int:
+        # TODO: allow customisation on workflow creation
+        return self._default_ts_fmt
 
     def elements(self) -> Iterator[Element]:
         for task in self.tasks:
@@ -637,6 +645,40 @@ class Workflow:
         """Return element objects from a list of two-tuples, representing the task insert
         ID, and element index, respectively."""
         return [self.tasks.get(insert_ID=idx[0]).elements[idx[1]] for idx in indices]
+
+    def set_EAR_start(
+        self,
+        task_insert_ID,
+        element_iteration_idx,
+        action_idx,
+        run_idx,
+    ) -> None:
+        """Set the start time on an EAR."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_EAR_start(
+                    task_insert_ID,
+                    element_iteration_idx,
+                    action_idx,
+                    run_idx,
+                )
+
+    def set_EAR_end(
+        self,
+        task_insert_ID,
+        element_iteration_idx,
+        action_idx,
+        run_idx,
+    ) -> None:
+        """Set the end time on an EAR."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_EAR_end(
+                    task_insert_ID,
+                    element_iteration_idx,
+                    action_idx,
+                    run_idx,
+                )
 
 
 @dataclass

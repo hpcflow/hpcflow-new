@@ -39,7 +39,8 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 class EARSubmissionStatus(enum.Enum):
     PENDING = 0
     SUBMITTED = 1
-    COMPLETE = 2
+    RUNNING = 2
+    COMPLETE = 3
 
 
 class ElementActionRun:
@@ -122,6 +123,8 @@ class ElementActionRun:
         if self.metadata["end_time"] is not None:
             return EARSubmissionStatus.COMPLETE
         elif self.metadata["start_time"] is not None:
+            return EARSubmissionStatus.RUNNING
+        elif self.metadata["submission_group_idx"] is not None:
             return EARSubmissionStatus.SUBMITTED
         return EARSubmissionStatus.PENDING
 
