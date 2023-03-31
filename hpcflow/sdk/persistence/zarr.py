@@ -472,14 +472,11 @@ class ZarrPersistentStore(PersistentStore):
             raise RuntimeError(f"Parameter at index {index} is already set!")
 
         base_arr = self._get_parameter_base_array(mode="r+")
-
-        data, type_lookup = self._encode_parameter_data(
+        base_arr[index] = self._encode_parameter_data(
             obj=data,
             root_group=self._get_parameter_user_array_group(mode="r+"),
             arr_path=self._param_data_arr_grp_name(index),
         )
-
-        base_arr[index] = {"data": data, "type_lookup": type_lookup}
 
     def _get_parameter_data(self, index: int) -> Any:
         return self._get_parameter_base_array(mode="r")[index]
