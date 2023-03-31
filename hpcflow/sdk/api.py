@@ -59,7 +59,7 @@ def run_hpcflow_tests(app, *args):
 
     from hpcflow.api import hpcflow
 
-    hpcflow.run_tests(*args)
+    return hpcflow.run_tests(*args)
 
 
 def run_tests(app, *args):
@@ -73,6 +73,6 @@ def run_tests(app, *args):
     test_args = (app.pytest_args or []) + list(args)
     if app.run_time_info.is_frozen:
         with importlib.resources.path(app.name, "tests") as test_dir:
-            pytest.main([str(test_dir)] + test_args)
+            return pytest.main([str(test_dir)] + test_args)
     else:
-        pytest.main(["--pyargs", f"{app.name}"] + test_args)
+        return pytest.main(["--pyargs", f"{app.name}"] + test_args)

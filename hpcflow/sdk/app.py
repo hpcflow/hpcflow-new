@@ -369,13 +369,14 @@ class BaseApp:
             return self.submit_workflow(template_file, directory)
 
         @click.command(help=f"Run {self.name} test suite.")
-        def test():
-            self.run_tests()
-            time.sleep(10)
+        @click.pass_context
+        def test(ctx):
+            ctx.exit(self.run_tests())
 
         @click.command(help=f"Run hpcflow test suite.")
-        def test_hpcflow():
-            self.run_hpcflow_tests()
+        @click.pass_context
+        def test_hpcflow(ctx):
+            ctx.exit(self.run_hpcflow_tests())
 
         commands = [
             make_workflow,
