@@ -666,7 +666,6 @@ class ZarrPersistentStore(PersistentStore):
                 if loop_idx_key in self._pending["loop_idx"]:
                     iter_i[4].extend(self._pending["loop_idx"][loop_idx_key])
 
-                iter_i["index"] = iter_idx_i
                 iterations[iter_idx_i] = iter_i
 
         elements = self._decompress_elements(elements, self._get_task_element_attrs(*key))
@@ -682,11 +681,10 @@ class ZarrPersistentStore(PersistentStore):
 
             # populate iterations
             elem_i["iterations"] = [elem_iters[i] for i in elem_i["iterations_idx"]]
-            if not keep_iterations_idx:
-                del elem_i["iterations_idx"]
 
             # add EAR start/end times from separate array:
-            for iter_i in elem_i["iterations"]:
+            for iter_idx_i, iter_i in zip(elem_i["iterations_idx"], elem_i["iterations"]):
+                iter_i["index"] = iter_idx_i
                 for act, runs in iter_i["actions"].items():
                     for run_idx in range(len(runs)):
                         run = iter_i["actions"][act][run_idx]
@@ -703,6 +701,9 @@ class ZarrPersistentStore(PersistentStore):
                             pass
                         run["metadata"]["start_time"] = start_time
                         run["metadata"]["end_time"] = end_time
+
+            if not keep_iterations_idx:
+                del elem_i["iterations_idx"]
 
         return elements
 
