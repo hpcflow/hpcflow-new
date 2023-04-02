@@ -622,8 +622,8 @@ class Element:
     def iterations(self) -> Dict[ElementAction]:
         if self._iteration_objs is None:
             self._iteration_objs = [
-                self.app.ElementIteration(index=idx, element=self, **iter_i)
-                for idx, iter_i in enumerate(self._iterations)
+                self.app.ElementIteration(element=self, **iter_i)
+                for iter_i in self._iterations
             ]
         return self._iteration_objs
 

@@ -666,6 +666,7 @@ class ZarrPersistentStore(PersistentStore):
                 if loop_idx_key in self._pending["loop_idx"]:
                     iter_i[4].extend(self._pending["loop_idx"][loop_idx_key])
 
+                iter_i["index"] = iter_idx_i
                 iterations[iter_idx_i] = iter_i
 
         elements = self._decompress_elements(elements, self._get_task_element_attrs(*key))

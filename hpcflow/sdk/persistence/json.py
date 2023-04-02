@@ -325,6 +325,7 @@ class JSONPersistentStore(PersistentStore):
                 if loop_idx_key in self._pending["loop_idx"]:
                     iter_i["loop_idx"].update(self._pending["loop_idx"][loop_idx_key])
 
+                iter_i["index"] = iters_idx_i
                 element["iterations"].append(iter_i)
 
             element["index"] = element_idx
