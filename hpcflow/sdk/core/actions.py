@@ -979,10 +979,11 @@ class Action(JSONLike):
     def get_output_file_labels(self):
         return tuple(i.label for i in self.output_files)
 
-    def generate_data_index(self, data_idx, workflow, param_source):
-        """Generate the data index for this action of an element whose overall data index
-        is passed."""
-
+    def generate_data_index(
+        self, act_idx, EAR_idx, schema_data_idx, all_data_idx, workflow, param_source
+    ):
+        """Generate the data index for this action of an element iteration whose overall
+        data index is passed."""
         keys = [f"inputs.{i}" for i in self.get_input_types()]
         keys += [f"outputs.{i}" for i in self.get_output_types()]
         for i in self.input_files:
@@ -992,19 +993,64 @@ class Action(JSONLike):
         keys = set(keys)
 
         # keep all resources data:
-        sub_data_idx = {k: v for k, v in data_idx.items() if "resources" in k}
+        sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
+        param_src_update = []
+        for key in keys:
+            if (
+                key.startswith("input_files")
+                or key.startswith("output_files")
+                or key.startswith("inputs")
+            ):
+                # look for an index in previous data indices (where for inputs we look
+                # for *output* parameters of the same name):
+                k_idx = None
+                for prev_data_idx in all_data_idx.values():
 
-        # allocate parameter data for intermediate input/output files:
-        for k in keys:
-            if k in data_idx:
-                sub_data_idx[k] = data_idx[k]
+                    if key.startswith("inputs"):
+                        k_param = key.split("inputs.")[1]
+                        k_out = f"outputs.{k_param}"
+                        if k_out in prev_data_idx:
+                            k_idx = prev_data_idx[k_out]
+
+                    else:
+                        if key in prev_data_idx:
+                            k_idx = prev_data_idx[key]
+
+                if k_idx is None:
+                    # otherwise take from the schema_data_idx:
+                    if key in schema_data_idx:
+                        k_idx = schema_data_idx[key]
+                    else:
+                        # otherwise we need to allocate a new parameter datum:
+                        k_idx = workflow._add_unset_parameter_data(param_source)
+
             else:
-                sub_data_idx[k] = workflow._add_unset_parameter_data(param_source)
+                # outputs
+                k_idx = None
+                for (act_idx_i, EAR_idx_i), prev_data_idx in all_data_idx.items():
+                    if key in prev_data_idx:
 
-        return sub_data_idx
+                        k_idx = prev_data_idx[key]
 
-    # def test_element(self, element):
-    #     return all(i.test_element(element) for i in self.rules)
+                        # can now set the EAR/act idx in the associated parameter source
+                        param_src_update.append(k_idx)
+
+                        # allocate a new parameter datum for this intermediate output:
+                        param_source_i = copy.deepcopy(param_source)
+                        param_source_i["action_idx"] = act_idx_i
+                        param_source_i["EAR_idx"] = EAR_idx_i
+                        prev_data_idx[key] = workflow._add_unset_parameter_data(
+                            param_source_i
+                        )
+                if k_idx is None:
+                    # otherwise take from the schema_data_idx:
+                    k_idx = schema_data_idx[key]
+
+            sub_data_idx[key] = k_idx
+
+        all_data_idx[(act_idx, EAR_idx)] = sub_data_idx
+
+        return param_src_update
 
     def get_possible_scopes(self) -> Tuple[ActionScope]:
         """Get the action scopes that are inclusive of this action, ordered by decreasing
