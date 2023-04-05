@@ -101,7 +101,7 @@ jobs:
     needs: pre-commit
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/hpcflow/centos7-poetry:py3.10.9_po1.4.2
+      image: ghcr.io/hpcflow/centos7-poetry:py3.11.2_po1.4.2
     steps:
       - uses: actions/checkout@v3
         with:

@@ -189,7 +189,7 @@ jobs:
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }} INFO 'onefile'
-        
+
       - name: Build with pyinstaller (non-Windows, folder)
         if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
@@ -267,10 +267,10 @@ jobs:
         run: ./compress.ps1 -ExeName 'hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir' -BuildType 'onedir'
 
       - name: Compress folder (non-windows, folder)
-        if: "!contains(matrix.os, 'windows')" 
+        if: "!contains(matrix.os, 'windows')"
         working-directory: pyinstaller
         run: ./compress.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir 'onedir'
-          
+
       - name: Upload executable artifact (file)
         uses: actions/upload-artifact@v3
         with:
@@ -287,7 +287,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: bump-version
     container:
-      image: ghcr.io/hpcflow/centos7-poetry:py3.10.9_po1.4.2
+      image: ghcr.io/hpcflow/centos7-poetry:py3.11.2_po1.4.2
     steps:
       - uses: actions/checkout@v3
         with:
@@ -499,8 +499,9 @@ jobs:
         run: python -m pip install poetry==1.4
 
       - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-             poetry config installer.modern-installation false
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without test,pyinstaller
