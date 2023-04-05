@@ -261,8 +261,9 @@ class ZarrPersistentStore(PersistentStore):
         self,
         task_idx: int,
         task_insert_ID: int,
-        element_iter_idx,
-        EARs,
+        element_iter_idx: int,
+        EARs: Dict,
+        param_src_updates: Dict,
     ) -> None:
         iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
         EARs, iter_attrs = self._compress_EARs(EARs, iter_attrs_original)
@@ -275,6 +276,7 @@ class ZarrPersistentStore(PersistentStore):
         if key not in self._pending["EARs"]:
             self._pending["EARs"][key] = []
         self._pending["EARs"][key].extend(EARs)
+        self._pending["parameter_source_updates"].update(param_src_updates)
         self.save()
 
     def _compress_elements(self, elements: List, attrs: Dict) -> Tuple[List, Dict]:
@@ -567,6 +569,13 @@ class ZarrPersistentStore(PersistentStore):
         # commit new workflow loops:
         md["loops"].extend(self._pending["loops"])
 
+        sources = self._get_parameter_sources_array(mode="r+")
+        for param_idx, src_update in self._pending["parameter_source_updates"].items():
+            src = sources[param_idx]
+            src.update(src_update)
+            src = dict(sorted(src.items()))
+            sources[param_idx] = src
+
         if self._pending["remove_replaced_file_record"]:
             del md["replaced_file"]
 
@@ -753,7 +762,7 @@ class ZarrPersistentStore(PersistentStore):
             )
 
         base_arr.append([data])
-        sources.append([source])
+        sources.append([dict(sorted(source.items()))])
         self._pending["parameter_data"] += 1
         self.save()
 

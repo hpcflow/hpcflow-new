@@ -268,14 +268,18 @@ class ElementIteration:
         """
 
         if action_idx is None:
-            # default behaviour if no action_idx is specified: inputs should be from first
-            # action where that input is defined; outputs should include modifications
-            # from all actions. TODO: what about resources?
+            # inputs should be from first action where that input is defined, and outputs
+            # should include modifications from all actions; we can't just take
+            # `self.data_idx`, because 1) this is used for initial runs, and subsequent
+            # runs might have different parametrisations, and 2) we want to include
+            # intermediate input/output_files:
             data_idx = {}
             for action in self.actions.values():
-                data_idx.update(action.runs[run_idx].data_idx)
-                if path and "inputs" in path and path in data_idx:
-                    break
+                for k, v in action.runs[run_idx].data_idx.items():
+                    is_input = k.startswith("inputs")
+                    if (is_input and k not in data_idx) or not is_input:
+                        data_idx[k] = v
+
         else:
             elem_act = self.actions[action_idx]
             data_idx = elem_act.runs[run_idx].data_idx

@@ -77,6 +77,7 @@ class PersistentStore(ABC):
             "loop_idx": {},  # keys are (task index, task insert ID, element iteration index)
             "parameter_data": {},  # keys are parameter indices
             "parameter_sources": {},  # keys are parameter indices
+            "parameter_source_updates": {},  # keys are parameter indices
             "remove_replaced_file_record": False,
             "EAR_start_times": {},  # keys are (task insert ID, element_iter idx, action idx, run idx)
             "EAR_end_times": {},  # keys are (task insert ID, element_iter idx, action idx, run idx)
@@ -201,13 +202,15 @@ class PersistentStore(ABC):
         self,
         task_idx: int,
         task_insert_ID: int,
-        element_iter_idx,
-        EARs,
+        element_iter_idx: int,
+        EARs: Dict,
+        param_src_updates: Dict,
     ) -> None:
         key = (task_idx, task_insert_ID, element_iter_idx)
         if key not in self._pending["EARs"]:
             self._pending["EARs"][key] = {}
         self._pending["EARs"][key].update(EARs)
+        self._pending["parameter_source_updates"].update(param_src_updates)
         self.save()
 
     def add_loop(self, task_indices: List[int], loop_js: Dict) -> None:

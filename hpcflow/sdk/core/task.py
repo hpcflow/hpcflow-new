@@ -582,32 +582,25 @@ class Task(JSONLike):
 
     def _prepare_persistent_outputs(self, workflow, local_element_idx_range):
         # TODO: check that schema is present when adding task? (should this be here?)
+
+        # allocate schema-level output parameter; precise EAR index will not be known
+        # until we initialise EARs:
         output_data_indices = {}
         for schema in self.schemas:
             for output in schema.outputs:
 
                 # TODO: consider multiple schemas in action index?
 
-                # Find the last action where specified output type is an output:
-                output_act_idx = None
-                for act_idx, act in enumerate(schema.actions):
-                    if output.typ in act.get_output_types():
-                        output_act_idx = act_idx
-
-                if output_act_idx is None:
-                    raise RuntimeError(
-                        f"Output {output} does not appear in any schema actions."
-                    )
-
                 path = f"outputs.{output.typ}"
                 output_data_indices[path] = []
                 for idx in range(*local_element_idx_range):
+                    # iteration_idx, action_idx, and EAR_idx are not known until
+                    # `initialise_EARs`:
                     param_src = {
                         "type": "EAR_output",
                         "task_insert_ID": self.insert_ID,
                         "element_idx": idx,
-                        "iteration_idx": 0,  # TODO?
-                        "action_idx": output_act_idx,
+                        "iteration_idx": 0,
                         "run_idx": 0,
                     }
                     data_ref = workflow._add_unset_parameter_data(param_src)
@@ -1359,58 +1352,85 @@ class WorkflowTask:
             # `ElementIterations, are transient. So there is no reason to update these
             # objects in memory to account for the new EARs. Subsequent calls to
             # `WorkflowTask.elements` will retrieve correct element data from the store.
-            # This might need changing once we start caching Element objects.
+            # This might need changing once/if we start caching Element objects.
             for iter_i in element.iterations:
                 if not iter_i.EARs_initialised:
                     try:
                         self._initialise_element_iter_EARs(iter_i)
                         initialised.append(iter_i.index)
                     except UnsetParameterDataError:
-                        # (raised by `test_action_rule`) cannot yet initialise EARs
+                        # raised by `test_action_rule`; cannot yet initialise EARs
                         pass
         return initialised
 
     def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
-        data_idx = copy.deepcopy(element_iter.data_idx)  # don't mutate
+        schema_data_idx = element_iter.data_idx
+
+        # keys are (act_idx, EAR_idx):
+        all_data_idx = {}
         action_runs = {}
+
+        param_src_updates = {}
         count = 0
         for act_idx, action in self.template.all_schema_actions():
-            if all(self.test_action_rule(i, data_idx) for i in action.rules):
+
+            if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
+
+                EAR_idx = self.num_EARs + count
+                # note: indices below `EAR_idx` are redundant and can be derived from
+                # `EAR_idx`:
                 param_source = {
                     "type": "EAR_output",
                     "task_insert_ID": self.insert_ID,
+                    "EAR_idx": EAR_idx,
                     "element_idx": element_iter.element.index,
                     "iteration_idx": element_iter.index,
                     "action_idx": act_idx,
                     "run_idx": 0,
                 }
-                data_idx_i = action.generate_data_index(
-                    data_idx=data_idx,
-                    workflow=self.workflow,
-                    param_source=param_source,
+                psrc_update = (
+                    action.generate_data_index(  # adds an item to `all_data_idx`
+                        act_idx=act_idx,
+                        EAR_idx=EAR_idx,
+                        schema_data_idx=schema_data_idx,
+                        all_data_idx=all_data_idx,
+                        workflow=self.workflow,
+                        param_source=param_source,
+                    )
                 )
+                for i in psrc_update:
+                    param_src_updates[i] = {
+                        "action_idx": act_idx,
+                        "EAR_idx": EAR_idx,
+                    }
                 run_0 = {
-                    "index": self.num_EARs + count,
+                    "index": EAR_idx,
                     "metadata": {
                         "submission_group_idx": None,
                         "success": None,
                         "start_time": None,
                         "end_time": None,
                     },
-                    "data_idx": data_idx_i,
                 }
-                action_runs[act_idx] = [run_0]
-                data_idx.update(data_idx_i)
+                action_runs[(act_idx, EAR_idx)] = run_0
                 count += 1
+
+        # `generate_data_index` can modify data index for previous actions, so only assign
+        # this at the end:
+        EARs = {}
+        for (act_idx, EAR_idx), run in action_runs.items():
+            run["data_idx"] = all_data_idx[(act_idx, EAR_idx)]
+            EARs[act_idx] = [run]
 
         self._pending_num_EARs += count
         self.workflow._store.add_EARs(
             task_idx=self.index,
             task_insert_ID=self.insert_ID,
             element_iter_idx=element_iter.index,
-            EARs=action_runs,
+            EARs=EARs,
+            param_src_updates=param_src_updates,
         )
-        return action_runs
+        return EARs
 
     def _add_element_set(self, element_set):
         """

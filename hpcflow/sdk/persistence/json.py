@@ -91,7 +91,7 @@ class JSONPersistentStore(PersistentStore):
             data = self._encode_parameter_data(data["data"])
 
         self._pending["parameter_data"][idx] = data
-        self._pending["parameter_sources"][idx] = source
+        self._pending["parameter_sources"][idx] = dict(sorted(source.items()))
         self.save()
 
         return idx
@@ -223,6 +223,12 @@ class JSONPersistentStore(PersistentStore):
 
         for param_idx, param_src in self._pending["parameter_sources"].items():
             wk_data["parameter_sources"][param_idx] = param_src
+
+        for param_idx, src_update in self._pending["parameter_source_updates"].items():
+            src = wk_data["parameter_sources"][param_idx]
+            src.update(src_update)
+            src = dict(sorted(src.items()))
+            wk_data["parameter_sources"][param_idx] = src
 
         if self._pending["remove_replaced_file_record"]:
             del wk_data["replaced_file"]
