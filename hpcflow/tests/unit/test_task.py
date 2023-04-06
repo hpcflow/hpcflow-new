@@ -1360,3 +1360,49 @@ def test_parameters_pending_during_add_task(tmp_path, param_p3):
     with wk.batch_update():
         wk.add_task(t2)
         assert wk._store._pending["parameter_data"]
+
+
+@pytest.fixture
+def env_1():
+    return Environment(name="env_1")
+
+
+@pytest.fixture
+def act_env_1(env_1):
+    return ActionEnvironment(env_1)
+
+
+def test_parameter_two_modifying_actions_expected_data_indices(
+    tmp_path, act_env_1, param_p1
+):
+
+    act1 = Action(
+        commands=[Command("doSomething <<parameter:p1>>", stdout="<<parameter:p1>>")],
+        environments=[act_env_1],
+    )
+    act2 = Action(
+        commands=[Command("doSomething <<parameter:p1>>", stdout="<<parameter:p1>>")],
+        environments=[act_env_1],
+    )
+
+    s1 = TaskSchema("t1", actions=[act1, act2], inputs=[param_p1], outputs=[param_p1])
+    t1 = Task(schemas=[s1], inputs=[InputValue(param_p1, 101)])
+
+    wkt = WorkflowTemplate(name="w3", tasks=[t1])
+    wk = Workflow.from_template(template=wkt, path=tmp_path)
+    iter_0 = wk.tasks.t1.elements[0].iterations[0]
+    act_runs = iter_0.action_runs
+
+    p1_idx_schema_in = iter_0.data_idx["inputs.p1"]
+    p1_idx_schema_out = iter_0.data_idx["outputs.p1"]
+
+    p1_idx_0 = act_runs[0].data_idx["inputs.p1"]
+    p1_idx_1 = act_runs[0].data_idx["outputs.p1"]
+    p1_idx_2 = act_runs[1].data_idx["inputs.p1"]
+    p1_idx_3 = act_runs[1].data_idx["outputs.p1"]
+
+    assert (
+        p1_idx_schema_in == p1_idx_0
+        and p1_idx_1 == p1_idx_2
+        and p1_idx_3 == p1_idx_schema_out
+    )
