@@ -1032,9 +1032,6 @@ class Action(JSONLike):
 
                         k_idx = prev_data_idx[key]
 
-                        # can now set the EAR/act idx in the associated parameter source
-                        param_src_update.append(k_idx)
-
                         # allocate a new parameter datum for this intermediate output:
                         param_source_i = copy.deepcopy(param_source)
                         param_source_i["action_idx"] = act_idx_i
@@ -1045,6 +1042,9 @@ class Action(JSONLike):
                 if k_idx is None:
                     # otherwise take from the schema_data_idx:
                     k_idx = schema_data_idx[key]
+
+                # can now set the EAR/act idx in the associated parameter source
+                param_src_update.append(k_idx)
 
             sub_data_idx[key] = k_idx
 
