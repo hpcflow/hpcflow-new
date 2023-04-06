@@ -25,7 +25,6 @@ from .errors import (
 )
 from .parameters import (
     InputSource,
-    InputSourceMode,
     InputSourceType,
     InputValue,
     ParameterPath,
@@ -82,11 +81,6 @@ class ElementSet(JSONLike):
             is_dict_values=True,
             is_dict_values_ensure_list=True,
         ),
-        ChildObjectSpec(
-            name="input_source_mode",
-            class_name="InputSourceMode",
-            is_enum=True,
-        ),
     )
 
     def __init__(
@@ -97,7 +91,6 @@ class ElementSet(JSONLike):
         resources: Optional[Dict[str, Dict]] = None,
         repeats: Optional[Union[int, List[int]]] = 1,
         input_sources: Optional[Dict[str, InputSource]] = None,
-        input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
         allow_non_coincident_task_sources: Optional[bool] = False,
@@ -129,9 +122,6 @@ class ElementSet(JSONLike):
         self.resources = resources
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
-        self.input_source_mode = input_source_mode or (
-            InputSourceMode.MANUAL if input_sources else InputSourceMode.AUTO
-        )  # TODO: remove?
         self.nesting_order = nesting_order or {}
         self.sourceable_elem_iters = sourceable_elem_iters
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
@@ -257,7 +247,6 @@ class ElementSet(JSONLike):
         resources=None,
         repeats=None,
         input_sources=None,
-        input_source_mode=None,
         nesting_order=None,
         element_sets=None,
         sourceable_elem_iters=None,
@@ -269,7 +258,6 @@ class ElementSet(JSONLike):
             resources,
             repeats,
             input_sources,
-            input_source_mode,
             nesting_order,
         )
         args_not_none = [i is not None for i in args]
@@ -397,7 +385,6 @@ class Task(JSONLike):
         input_files: Optional[List[InputFile]] = None,
         sequences: Optional[List[ValueSequence]] = None,
         input_sources: Optional[Dict[str, InputSource]] = None,
-        input_source_mode: Optional[Union[str, InputSourceType]] = None,
         nesting_order: Optional[List] = None,
         element_sets: Optional[List[ElementSet]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
@@ -451,7 +438,6 @@ class Task(JSONLike):
             resources=resources,
             repeats=repeats,
             input_sources=input_sources,
-            input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
             sourceable_elem_iters=sourceable_elem_iters,
@@ -1528,7 +1514,6 @@ class WorkflowTask:
         resources=None,
         repeats=None,
         input_sources=None,
-        input_source_mode=None,
         nesting_order=None,
         element_sets=None,
         sourceable_elem_iters=None,
@@ -1544,7 +1529,6 @@ class WorkflowTask:
                 resources=resources,
                 repeats=repeats,
                 input_sources=input_sources,
-                input_source_mode=input_source_mode,
                 nesting_order=nesting_order,
                 element_sets=element_sets,
                 sourceable_elem_iters=sourceable_elem_iters,
@@ -1561,7 +1545,6 @@ class WorkflowTask:
         resources=None,
         repeats=None,
         input_sources=None,
-        input_source_mode=None,
         nesting_order=None,
         element_sets=None,
         sourceable_elem_iters=None,
@@ -1600,7 +1583,6 @@ class WorkflowTask:
             resources=resources,
             repeats=repeats,
             input_sources=input_sources,
-            input_source_mode=input_source_mode,
             nesting_order=nesting_order,
             element_sets=element_sets,
             sourceable_elem_iters=sourceable_elem_iters,

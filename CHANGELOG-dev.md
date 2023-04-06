@@ -1,4 +1,25 @@
 
+<a name="v0.2.0a26"></a>
+## [v0.2.0a26](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a25...v0.2.0a26) - 2023.03.28
+
+### 👷 Build changes
+
+* Update relase actions workflow.
+* Update build-exes workflow
+* Update build-exes workflow
+* Updated actions workflows
+* Updated all actions workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a25"></a>
+## [v0.2.0a25](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a24...v0.2.0a25) - 2023.03.22
+
+### ♻ Code Refactoring
+
+* removed InputSourceMode
+
+
 <a name="v0.2.0a24"></a>
 ## [v0.2.0a24](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a23...v0.2.0a24) - 2023.03.06
 
