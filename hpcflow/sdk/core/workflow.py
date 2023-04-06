@@ -609,42 +609,46 @@ class Workflow:
         ):
             yield self.app.Element(task=task, **i)
 
-    def get_EARs_from_indices(
-        self, indices: List[EAR_idx_type]
-    ) -> List[ElementActionRun]:
+    def get_EARs_from_IDs(self, indices: List[EAR_ID]) -> List[ElementActionRun]:
         """Return element action run objects from a list of five-tuples, representing the
         task insert ID, element index, iteration index, action index, and run index,
         respectively.
         """
         objs = []
-        for src_i in indices:
-            task = self.tasks.get(insert_ID=src_i[0])
+        for EAR_idx in indices:
+            task = self.tasks.get(insert_ID=EAR_idx.task_insert_ID)
             EAR_i = (
-                task.elements[src_i[1]]
-                .iterations[src_i[2]]
-                .actions[src_i[3]]
-                .runs[src_i[4]]
+                task.elements[EAR_idx.element_idx]
+                .iterations[EAR_idx.iteration_idx]
+                .actions[EAR_idx.action_idx]
+                .runs[EAR_idx.run_idx]
             )
             objs.append(EAR_i)
         return objs
 
-    def get_element_iterations_from_indices(
-        self, indices: EI_idx_type
+    def get_element_iterations_from_IDs(
+        self, indices: List[IterationID]
     ) -> List[ElementIteration]:
         """Return element iteration objects from a list of three-tuples, representing the
         task insert ID, element index, and iteration index, respectively.
         """
         objs = []
-        for src_i in indices:
-            task = self.tasks.get(insert_ID=src_i[0])
-            iter_i = task.elements[src_i[1]].iterations[src_i[2]]
+        for iter_idx in indices:
+            iter_i = (
+                self.tasks.get(insert_ID=iter_idx.task_insert_ID)
+                .elements[iter_idx.element_idx]
+                .iterations[iter_idx.iteration_idx]
+            )
             objs.append(iter_i)
         return objs
 
-    def get_elements_from_indices(self, indices: List[E_idx_type]) -> List[Element]:
+    def get_elements_from_IDs(self, indices: List[ElementID]) -> List[Element]:
         """Return element objects from a list of two-tuples, representing the task insert
         ID, and element index, respectively."""
-        return [self.tasks.get(insert_ID=idx[0]).elements[idx[1]] for idx in indices]
+        return [
+            self.tasks.get(insert_ID=idx.task_insert_ID).elements[idx.element_idx]
+            for idx in indices
+        ]
 
     def set_EAR_start(
         self,

@@ -24,6 +24,7 @@ from hpcflow.api import (
     Workflow,
     WorkflowTemplate,
 )
+from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import (
     MissingInputs,
     TaskTemplateInvalidNesting,
@@ -256,7 +257,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             )
         ]
     }
@@ -282,7 +283,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             ),
             InputSource(source_type=InputSourceType.DEFAULT),
         ]
@@ -310,7 +311,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             ),
         ]
     }
@@ -337,7 +338,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             ),
             InputSource(source_type=InputSourceType.DEFAULT),
         ]
@@ -370,13 +371,13 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             ),
             InputSource(
                 source_type=InputSourceType.TASK,
                 task_ref=1,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[1],
+                element_iters=[1],
             ),
         ]
     }
@@ -405,7 +406,7 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             )
         ],
         "p3": [
@@ -413,7 +414,7 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
                 source_type=InputSourceType.TASK,
                 task_ref=0,
                 task_source_type=TaskSourceType.OUTPUT,
-                elements=[0],
+                element_iters=[0],
             )
         ],
     }
@@ -631,7 +632,7 @@ def test_task_element_dependencies(tmp_path):
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    assert wk.tasks.t2.get_element_dependencies() == [(0, 0), (0, 1)]
+    assert wk.tasks.t2.get_element_dependencies() == [ElementID(0, 0), ElementID(0, 1)]
 
 
 def test_task_dependent_elements(tmp_path):
@@ -644,7 +645,7 @@ def test_task_dependent_elements(tmp_path):
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    assert wk.tasks.t1.get_dependent_elements() == [(1, 0), (1, 1)]
+    assert wk.tasks.t1.get_dependent_elements() == [ElementID(1, 0), ElementID(1, 1)]
 
 
 def test_task_add_elements_without_propagation_expected_workflow_num_elements(
@@ -1328,7 +1329,7 @@ def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
     param_data_new = wk.get_all_parameter_data()
 
     new_keys = set(param_data_new.keys()) - set(param_data.keys())
-    new_data = [param_data_new[k] for k in new_keys]
+    new_data = [param_data_new[k][1] for k in new_keys]
 
     # one new key for resources, one for param_p3 value
     assert new_data == [{"scratch": None, "num_cores": None}, 301]

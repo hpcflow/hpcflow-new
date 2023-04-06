@@ -1398,6 +1398,8 @@ class WorkflowTask:
                         param_source=param_source,
                     )
                 )
+                # with EARs initialised, we can update the pre-allocated schema-level
+                # parameters with the correct EAR reference:
                 for i in psrc_update:
                     param_src_updates[i] = {
                         "action_idx": act_idx,
@@ -1512,6 +1514,8 @@ class WorkflowTask:
         )
         self._pending_num_elements += len(elements)
         self._pending_num_element_iterations += len(element_iterations)
+
+        self.initialise_EARs()
 
         return list(range(*global_element_iter_idx_range))
 
@@ -1646,28 +1650,26 @@ class WorkflowTask:
                 )
                 elem_idx.extend(prop_elem_idx)
 
-        self.initialise_EARs()
-
         if return_indices:
             return elem_idx
 
     def get_element_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[E_idx_type, Element]]:
-        """Get elements from upstream tasks (tuples of (task_insert_ID, element idx) or
-        Element objects) that this task depends on."""
+    ) -> List[Union[ElementID, Element]]:
+        """Get elements from upstream tasks (ElementID or Element objects) that this task
+        depends on."""
 
         deps = []
         for element in self.elements:
             for iter_i in element.iterations:
-                for (ti_ID, e_idx) in iter_i.get_element_dependencies(as_objects=False):
-                    if (ti_ID, e_idx) not in deps:
-                        deps.append((ti_ID, e_idx))
+                for elem_ID in iter_i.get_element_dependencies(as_objects=False):
+                    if elem_ID not in deps and elem_ID.task_insert_ID != self.insert_ID:
+                        deps.append(elem_ID)
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_elements_from_indices(deps)
+            deps = self.workflow.get_elements_from_IDs(deps)
 
         return deps
 
@@ -1703,21 +1705,21 @@ class WorkflowTask:
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[E_idx_type, Element]]:
-        """Get elements from downstream tasks (tuples of (task_insert_ID, element idx) or
-        Element objects) that depend on this task."""
+    ) -> List[Union[ElementID, Element]]:
+        """Get elements from downstream tasks (ElementID or Element objects) that depend
+        on this task."""
         deps = []
         for task in self.downstream_tasks:
             for element in task.elements:
-                key = (task.insert_ID, element.index)
+                elem_ID = element.element_ID
                 for iter_i in element.iterations:
                     for dep_i in iter_i.get_task_dependencies(as_objects=False):
-                        if dep_i == self.insert_ID and key not in deps:
-                            deps.append(key)
+                        if dep_i == self.insert_ID and elem_ID not in deps:
+                            deps.append(elem_ID)
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_elements_from_indices(deps)
+            deps = self.workflow.get_elements_from_IDs(deps)
 
         return deps
 

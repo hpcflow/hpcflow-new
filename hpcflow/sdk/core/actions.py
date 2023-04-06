@@ -18,6 +18,41 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
+@dataclass(eq=True, frozen=True)
+class ElementID:
+    task_insert_ID: int
+    element_idx: int
+
+    def __lt__(self, other):
+        return tuple(self.__dict__.values()) < tuple(other.__dict__.values())
+
+
+@dataclass(eq=True, frozen=True)
+class IterationID(ElementID):
+    iteration_idx: int
+
+    def get_element_ID(self):
+        return ElementID(
+            task_insert_ID=self.task_insert_ID,
+            element_idx=self.element_idx,
+        )
+
+
+@dataclass(eq=True, frozen=True)
+class EAR_ID(IterationID):
+
+    action_idx: int
+    run_idx: int
+    EAR_idx: int
+
+    def get_iteration_ID(self):
+        return IterationID(
+            task_insert_ID=self.task_insert_ID,
+            element_idx=self.element_idx,
+            iteration_idx=self.iteration_idx,
+        )
+
+
 class ActionScopeType(enum.Enum):
 
     ANY = 0
@@ -88,7 +123,20 @@ class ElementActionRun:
 
     @property
     def index(self):
+        """Task-wide EAR index."""
         return self._index
+
+    @property
+    def EAR_ID(self):
+        """EAR index object."""
+        return EAR_ID(
+            EAR_idx=self.index,
+            task_insert_ID=self.task.insert_ID,
+            element_idx=self.element.index,
+            iteration_idx=self.element_iteration.index,
+            action_idx=self.element_action.action_idx,
+            run_idx=self.run_idx,
+        )
 
     @property
     def data_idx(self):
@@ -172,24 +220,12 @@ class ElementActionRun:
         """Get EARs that this EAR depends on."""
 
         out = []
-        self_EAR = (
-            self.task.insert_ID,
-            self.element.index,
-            self.element_iteration.index,
-            self.element_action.action_idx,
-            self.run_idx,
-        )
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            src_i = (
-                src["task_insert_ID"],
-                src["element_idx"],
-                src["iteration_idx"],
-                src["action_idx"],
-                src["run_idx"],
-            )
-            if src_i != self_EAR:
+            src.pop("type")
+            _EAR_ID = EAR_ID(**src)
+            if _EAR_ID != self.EAR_ID:
                 # don't record a self dependency!
-                out.append(src_i)
+                out.append(_EAR_ID)
 
         out = sorted(out)
 

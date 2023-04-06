@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.conditions import ConditionLike
+from hpcflow.sdk.core.actions import ElementID, IterationID
 
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type
@@ -183,6 +184,14 @@ class ElementIteration:
     @property
     def index(self):
         return self._index
+
+    @property
+    def iteration_ID(self):
+        return IterationID(
+            task_insert_ID=self.task.insert_ID,
+            element_idx=self.element.index,
+            iteration_idx=self.index,
+        )
 
     @property
     def global_idx(self) -> int:
@@ -367,49 +376,55 @@ class ElementIteration:
     def get_EAR_dependencies(
         self,
         as_objects: Optional[bool] = False,
-    ) -> List[Union[EAR_idx_type, ElementActionRun]]:
+    ) -> List[Union[EAR_ID, ElementActionRun]]:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
         out = sorted(
             set(
-                j
+                _EAR_ID
                 for i in self.action_runs
-                for j in i.get_EAR_dependencies(as_objects=False)
+                for _EAR_ID in i.get_EAR_dependencies(as_objects=False)
                 if not (
-                    j[0] == self.task.insert_ID
-                    and j[1] == self.element.index
-                    and j[2] == self.index
+                    _EAR_ID.task_insert_ID == self.task.insert_ID
+                    and _EAR_ID.element_idx == self.element.index
+                    and _EAR_ID.iteration_idx == self.index
                 )
             )
         )
         if as_objects:
-            out = self.workflow.get_EARs_from_indices(out)
+            out = self.workflow.get_EARs_from_IDs(out)
         return out
 
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[EI_idx_type, ElementIteration]]:
+    ) -> List[Union[IterationID, ElementIteration]]:
         """Get element iterations that this element iteration depends on."""
         # TODO: test this includes previous iterations of this iteration's element
         out = sorted(
-            set((i[0], i[1], i[2]) for i in self.get_EAR_dependencies(as_objects=False))
+            set(
+                _EAR_ID.get_iteration_ID()
+                for _EAR_ID in self.get_EAR_dependencies(as_objects=False)
+            )
         )
         if as_objects:
-            out = self.workflow.get_element_iterations_from_indices(out)
+            out = self.workflow.get_element_iterations_from_IDs(out)
         return out
 
     def get_element_dependencies(
         self,
         as_objects: Optional[bool] = False,
-    ) -> List[Union[E_idx_type, Element]]:
+    ) -> List[Union[ElementID, Element]]:
         """Get elements that this element iteration depends on."""
         # TODO: this will be used in viz.
         out = sorted(
-            set((i[0], i[1]) for i in self.get_EAR_dependencies(as_objects=False))
+            set(
+                _EAR_ID.get_element_ID()
+                for _EAR_ID in self.get_EAR_dependencies(as_objects=False)
+            )
         )
         if as_objects:
-            out = self.workflow.get_elements_from_indices(out)
+            out = self.workflow.get_elements_from_IDs(out)
         return out
 
     def get_input_dependencies(self) -> Dict[str, Dict]:
@@ -435,8 +450,8 @@ class ElementIteration:
         defined inputs/sequences/defaults from upstream tasks."""
 
         out = []
-        for elem_dep in self.get_element_dependencies(as_objects=False):
-            out.append(elem_dep[0])
+        for elem_id in self.get_element_dependencies(as_objects=False):
+            out.append(elem_id.task_insert_ID)
 
         for i in self.get_input_dependencies().values():
             out.append(i["task_insert_ID"])
@@ -450,7 +465,7 @@ class ElementIteration:
 
     def get_dependent_EARs(
         self, as_objects: bool = False
-    ) -> List[Union[EAR_idx_type, ElementActionRun]]:
+    ) -> List[Union[EAR_ID, ElementActionRun]]:
         """Get EARs of downstream iterations and tasks that depend on this element
         iteration."""
         # TODO: test this includes EARs of downstream iterations of this iteration's element
@@ -460,30 +475,24 @@ class ElementIteration:
                 for iter_i in element.iterations:
                     for EAR_i in iter_i.action_runs:
                         for dep_i in EAR_i.get_EAR_dependencies(as_objects=False):
-                            dependent_EAR = (
-                                task.insert_ID,
-                                element.index,
-                                iter_i.index,
-                                EAR_i.element_action.action_idx,
-                                EAR_i.index,
-                            )
+                            dependent_EAR = EAR_i.EAR_idx
                             if (
-                                dep_i[0] == self.task.insert_ID
-                                and dep_i[1] == self.element.index
-                                and dep_i[2] == self.index
+                                dep_i.task_insert_ID == self.task.insert_ID
+                                and dep_i.element_idx == self.element.index
+                                and dep_i.iteration_idx == self.index
                                 and dependent_EAR not in deps
                             ):
                                 deps.append(dependent_EAR)
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_EARs_from_indices(deps)
+            deps = self.workflow.get_EARs_from_IDs(deps)
 
         return deps
 
     def get_dependent_element_iterations(
         self, as_objects: bool = False
-    ) -> List[Union[EI_idx_type, ElementIteration]]:
+    ) -> List[Union[IterationID, ElementIteration]]:
         """Get elements iterations of downstream iterations and tasks that depend on this
         element iteration."""
         # TODO: test this includes downstream iterations of this iteration's element?
@@ -491,47 +500,45 @@ class ElementIteration:
         for task in self.task.workflow.tasks[self.task.index :]:
             for element in task.elements:
                 for iter_i in element.iterations:
-                    dependent_elem_iter = (task.insert_ID, element.index, iter_i.index)
-                    for dep_i in iter_i.get_element_iteration_dependencies(
+                    dependent_elem_iter = iter_i.iteration_ID
+                    for iter_ID in iter_i.get_element_iteration_dependencies(
                         as_objects=False
                     ):
-                        (ti_ID, e_idx, i_idx) = dep_i
                         if (
-                            ti_ID == self.task.insert_ID
-                            and e_idx == self.element.index
-                            and i_idx == self.index
+                            iter_ID.task_insert_ID == self.task.insert_ID
+                            and iter_ID.element_idx == self.element.index
+                            and iter_ID.iteration_idx == self.index
                             and dependent_elem_iter not in deps
                         ):
                             deps.append(dependent_elem_iter)
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_element_iterations_from_indices(deps)
+            deps = self.workflow.get_element_iterations_from_IDs(deps)
 
         return deps
 
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[E_idx_type, Element]]:
+    ) -> List[Union[ElementID, Element]]:
         """Get elements of downstream tasks that depend on this element iteration."""
         deps = []
         for task in self.task.downstream_tasks:
             for element in task.elements:
-                dependent_elem = (task.insert_ID, element.index)
+                dependent_elem = element.element_ID
                 for iter_i in element.iterations:
-                    for dep_i in iter_i.get_element_dependencies(as_objects=False):
-                        (ti_ID, e_idx) = dep_i
+                    for elem_ID in iter_i.get_element_dependencies(as_objects=False):
                         if (
-                            ti_ID == self.task.insert_ID
-                            and e_idx == self.element.index
+                            elem_ID.task_insert_ID == self.task.insert_ID
+                            and elem_ID.element_idx == self.element.index
                             and dependent_elem not in deps
                         ):
                             deps.append(dependent_elem)
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_elements_from_indices(deps)
+            deps = self.workflow.get_elements_from_IDs(deps)
 
         return deps
 
@@ -542,11 +549,10 @@ class ElementIteration:
         """Get downstream tasks that depend on this element iteration."""
         deps = []
         for task in self.task.downstream_tasks:
-            for dep_i in task.get_element_dependencies(as_objects=False):
-                (ti_ID, e_idx) = dep_i
+            for elem_ID in task.get_element_dependencies(as_objects=False):
                 if (
-                    ti_ID == self.task.insert_ID
-                    and e_idx == self.element.index
+                    elem_ID.task_insert_ID == self.task.insert_ID
+                    and elem_ID.element_idx == self.element.index
                     and task.insert_ID not in deps
                 ):
                     deps.append(task.insert_ID)
@@ -605,6 +611,13 @@ class Element:
         workflow, across all tasks."""
 
         return self._index
+
+    @property
+    def element_ID(self):
+        return ElementID(
+            task_insert_ID=self.task.insert_ID,
+            element_idx=self.index,
+        )
 
     @property
     def element_set_idx(self) -> int:
@@ -781,7 +794,7 @@ class Element:
         return self.latest_iteration.get_EAR_dependencies(as_objects=as_objects)
 
     def get_element_iteration_dependencies(
-        self, as_objects
+        self, as_objects: bool = False
     ) -> List[Union[EI_idx_type, ElementIteration]]:
         """Get element iterations that the most recent iteration of this element depends
         on."""
@@ -789,7 +802,9 @@ class Element:
             as_objects=as_objects
         )
 
-    def get_element_dependencies(self, as_objects) -> List[Union[E_idx_type, Element]]:
+    def get_element_dependencies(
+        self, as_objects: bool = False
+    ) -> List[Union[E_idx_type, Element]]:
         """Get elements that the most recent iteration of this element depends on."""
         return self.latest_iteration.get_element_dependencies(as_objects=as_objects)
 

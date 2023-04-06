@@ -143,6 +143,7 @@ def make_workflow(
     local_sequences=None,
     nesting_orders=None,
     name="w1",
+    overwrite=False,
     store="zarr",
 ):
     tasks = make_tasks(
@@ -152,6 +153,10 @@ def make_workflow(
         nesting_orders=nesting_orders,
     )
     wk = Workflow.from_template(
-        WorkflowTemplate(name=name, tasks=tasks), path=path, store=store
+        WorkflowTemplate(name=name, tasks=tasks),
+        path=path,
+        name=name,
+        overwrite=overwrite,
+        store=store,
     )
     return wk

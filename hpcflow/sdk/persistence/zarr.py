@@ -706,7 +706,7 @@ class ZarrPersistentStore(PersistentStore):
                             start_time = None if np.isnat(start_time) else start_time
                             end_time = None if np.isnat(end_time) else end_time
                             # TODO: cast to native datetime types
-                        except TypeError:
+                        except (TypeError, zarr.errors.BoundsCheckError):
                             pass
                         run["metadata"]["start_time"] = start_time
                         run["metadata"]["end_time"] = end_time
