@@ -11,6 +11,11 @@ from warnings import warn
 
 import numpy as np
 import zarr
+from hpcflow.sdk.core.actions import EAR_ID
+from hpcflow.sdk.core.submission import (
+    generate_EAR_resource_map,
+    group_resource_map_into_jobscripts,
+)
 
 from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type, PathLike
 
@@ -683,6 +688,113 @@ class Workflow:
                     action_idx,
                     run_idx,
                 )
+
+    def resolve_jobscripts(self):
+
+        submission_jobscripts = []
+        for task in self.tasks:
+            res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task)
+            jobscripts, _ = group_resource_map_into_jobscripts(res_map)
+
+            for js_dat in jobscripts:
+
+                js_i = {
+                    "task_insert_ID": task.insert_ID,
+                    "loop_idx": None,  # TODO
+                    "EARs": {},
+                    "elements": {},
+                    "resources": res[js_dat["resources"]],
+                    "resource_hash": res_hash[js_dat["resources"]],
+                }
+                dep_elem_map = {}
+                js_deps = {}
+                js_array_dep = True
+                for elem_idx, act_indices in js_dat["elements"].items():
+                    js_i["elements"][elem_idx] = []
+                    all_EAR_IDs = []
+                    for act_idx in act_indices:
+                        EAR_idx, run_idx, iter_idx = EAR_map[act_idx, elem_idx]
+                        # construct EAR_ID object so we can retrieve the EAR objects and
+                        # so their dependencies:
+                        EAR_id = EAR_ID(
+                            task_insert_ID=task.insert_ID,
+                            element_idx=elem_idx,
+                            iteration_idx=iter_idx,
+                            action_idx=act_idx,
+                            run_idx=run_idx,
+                            EAR_idx=EAR_idx,
+                        )
+                        all_EAR_IDs.append(EAR_id)
+                        js_i["EARs"][EAR_idx] = (
+                            task.insert_ID,
+                            iter_idx,
+                            act_idx,
+                            run_idx,
+                        )
+                        js_i["elements"][elem_idx].append(EAR_idx)
+
+                    # get indices of EARs that this element depends on:
+                    EAR_objs = self.get_EARs_from_IDs(all_EAR_IDs)
+                    EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
+                    EAR_deps_flat = [j for i in EAR_deps for j in i]
+                    EAR_deps_EAR_idx = [
+                        (i.task_insert_ID, i.element_idx, i.EAR_idx)
+                        for i in EAR_deps_flat
+                    ]
+
+                    # find jobscript dependencies:
+                    for dep_task_ID, dep_elem_idx, dep_EAR_idx in EAR_deps_EAR_idx:
+
+                        # loop over jobscripts added so far:
+                        for js_j_idx, js_j in enumerate(submission_jobscripts):
+                            if (
+                                dep_task_ID == js_j["task_insert_ID"]
+                                and dep_EAR_idx in js_j["EARs"]
+                            ):
+                                if js_j_idx not in dep_elem_map:
+                                    dep_elem_map[js_j_idx] = {}
+
+                                if js_j_idx not in js_deps:
+                                    js_deps[js_j_idx] = {
+                                        "is_array": None,
+                                        "element_map": None,
+                                    }
+
+                                if not js_array_dep:
+                                    break
+
+                                if elem_idx in dep_elem_map[js_j_idx]:
+                                    # the element of the new jobscript depends on more
+                                    # than one element of the previous jobscript
+                                    # (js_j_idx), so cannot be an array dependency:
+                                    js_array_dep = False
+                                    break
+
+                                dep_elem_map[js_j_idx][elem_idx] = dep_elem_idx
+
+                                js_deps[js_j_idx]["is_array"] = js_array_dep
+                                js_deps[js_j_idx]["element_map"] = dep_elem_map[js_j_idx]
+
+                # For array dependency, all elements of the new jobscript must be
+                # specified in the element dependency map keys, and all elements in the
+                # dependency jobscript must be specified in the element dependency map
+                # values. Together with the previous check, this ensures a one-to-one
+                # mapping.
+                for js_dep_idx, dep_info in js_deps.items():
+                    if dep_info["is_array"]:
+                        if set(js_dat["elements"].keys()) != set(
+                            dep_info["element_map"].keys()
+                        ):
+                            dep_info["is_array"] = False
+                        if set(
+                            submission_jobscripts[js_dep_idx]["elements"].keys()
+                        ) != set(dep_info["element_map"].values()):
+                            dep_info["is_array"] = False
+
+                js_i["dependencies"] = js_deps
+                submission_jobscripts.append(js_i)
+
+        return submission_jobscripts
 
 
 @dataclass

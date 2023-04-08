@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -8,28 +8,55 @@ from numpy.typing import NDArray
 
 def generate_EAR_resource_map(
     task: WorkflowTask,
-) -> Tuple[List[int], List[ElementResources], NDArray]:
+) -> Tuple[List[ElementResources], List[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
-    # TODO: work in progress
+    # TODO: assume single iteration for now; later we will loop over Loop tasks for each
+    # included task and call this func with specific loop indices
     none_val = -1
     resources = []
     resource_hashes = []
-    resource_map = np.ones((task.num_actions, task.num_elements), dtype=int) * none_val
+
+    arr_shape = (task.num_actions, task.num_elements)
+    resource_map = np.empty(arr_shape, dtype=int)
+    EAR_idx_map = np.empty(
+        shape=arr_shape,
+        dtype=[("EAR_idx", np.int32), ("run_idx", np.int32), ("iteration_idx", np.int32)],
+    )
+    resource_map[:] = none_val
+    EAR_idx_map[:] = (none_val, none_val, none_val)  # TODO: add iteration_idx as well
+
     for element in task.elements:
-        for act_idx, action in element.actions.items():
-            EAR = action.runs[-1]
-            res_hash = hash(EAR.resources)
-            if res_hash not in resource_hashes:
-                resource_hashes.append(res_hash)
-                resources.append(EAR.resources)
-            resource_map[act_idx][EAR.element_index] = resource_hashes.index(res_hash)
+        for iter_i in element.iterations:
+            if iter_i.EARs_initialised:  # not strictly needed (actions will be empty)
+                for act_idx, action in iter_i.actions.items():
+                    for run in action.runs:
+                        if run.submission_status.name == "PENDING":
+                            res_hash = hash(run.resources)
+                            if res_hash not in resource_hashes:
+                                resource_hashes.append(res_hash)
+                                resources.append(run.resources)
+                            resource_map[act_idx][element.index] = resource_hashes.index(
+                                res_hash
+                            )
+                            EAR_idx_map[act_idx, element.index] = (
+                                run.index,
+                                run.run_idx,
+                                iter_i.index,
+                            )
 
-    return resources, resource_hashes, resource_map
+    return (
+        resources,
+        resource_hashes,
+        resource_map,
+        EAR_idx_map,
+    )
 
 
-def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
-    # TODO: work in progress
+def group_resource_map_into_jobscripts(
+    resource_map: Union[List, NDArray],
+    none_val: Any = -1,
+):
     resource_map = np.asanyarray(resource_map)
     resource_idx = np.unique(resource_map)
     jobscripts = []
@@ -47,8 +74,6 @@ def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
             if res_i not in resource_map[act_idx]:
                 continue
 
-            # print(f"{act_idx=}; {res_i=}")
-
             resource_map[nones_bool] = res_i
             diff = np.cumsum(np.abs(np.diff(resource_map[act_idx:], axis=0)), axis=0)
 
@@ -59,9 +84,6 @@ def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
             act_elem_bool = np.logical_and(elem_bool, nones_bool[act_idx] == False)
             act_elem_idx = np.where(act_elem_bool)
 
-            # print(f"\t{elem_idx=}")
-            # print(f"\t{act_elem_idx=}")
-
             # add elements from downstream actions:
             ds_bool = np.logical_and(
                 diff[:, elem_idx] == 0,
@@ -70,9 +92,6 @@ def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
             ds_act_idx, ds_elem_idx = np.where(ds_bool)
             ds_act_idx += act_idx + 1
             ds_elem_idx = elem_idx[ds_elem_idx]
-
-            # print(f"\t{ds_act_idx=}")
-            # print(f"\t{ds_elem_idx=}")
 
             EARs_by_elem = {k.item(): [act_idx] for k in act_elem_idx[0]}
             for ds_a, ds_e in zip(ds_act_idx, ds_elem_idx):
@@ -83,14 +102,12 @@ def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
             EARs = np.vstack([np.ones_like(act_elem_idx) * act_idx, act_elem_idx])
             EARs = np.hstack([EARs, np.array([ds_act_idx, ds_elem_idx])])
 
-            print(f"{EARs=}")
-
             if not EARs.size:
                 continue
 
             js = {
                 "resources": res_i,
-                "EARs": dict(sorted(EARs_by_elem.items(), key=lambda x: x[0])),
+                "elements": dict(sorted(EARs_by_elem.items(), key=lambda x: x[0])),
             }
             allocated[EARs[0], EARs[1]] = True
             js_map[EARs[0], EARs[1]] = len(jobscripts)
@@ -103,85 +120,10 @@ def allocate_jobscripts(resource_map: NDArray, none_val: Any = -1):
         if stop:
             break
 
-    # jobscripts = sorted(jobscripts, key=lambda x: x["resources"])
     resource_map[nones_bool] = none_val
 
     return jobscripts, js_map
 
 
-def collate_jobscript_EARs(EAR_resource_groups: Dict[int : Dict[int:List]]) -> List[Dict]:
-    # TODO: remove this nonsense
-    def _merge_downstream_actions(
-        EAR_resource_groups,
-        act_idx,
-        elem_idx,
-        res_hash,
-        added_ears,
-        new_js,
-        depth=0,
-    ):
-        print(f"{'   ' * depth}_merge_downstream_actions: {act_idx=}; {elem_idx=}")
-        stop_search = False
-        # search for first appearance of this element in downstream actions
-        for ds_act_idx, ds_res_groups in EAR_resource_groups.items():
-            if stop_search:
-                break
-            if ds_act_idx <= act_idx:
-                continue
-
-            print(f"{'   ' * depth}  {ds_act_idx=}")
-
-            for ds_res_hash, ds_elems in ds_res_groups.items():
-                if elem_idx in ds_elems:
-                    if ds_res_hash == res_hash:
-                        if ds_act_idx in added_ears[elem_idx]:
-                            continue
-                        if elem_idx not in new_js["EARs"]:
-                            new_js["EARs"][elem_idx] = []
-                        new_js["EARs"][elem_idx].append(ds_act_idx)
-                        added_ears[elem_idx].append(ds_act_idx)
-                        print(f"{'   ' * depth}  adding act {ds_act_idx}")
-                        _merge_downstream_actions(
-                            EAR_resource_groups,
-                            ds_act_idx,
-                            elem_idx,
-                            res_hash,
-                            added_ears,
-                            new_js,
-                            depth=depth + 1,
-                        )
-                    stop_search = True
-                    break
-
-    added_ears = {}
-    jobscripts = []
-    for act_idx, res_groups in EAR_resource_groups.items():
-        for res_hash, elems in res_groups.items():
-            EARs = {}
-            for i in elems:
-                if i not in added_ears:
-                    added_ears[i] = []
-                if act_idx not in added_ears[i]:
-                    EARs[i] = [act_idx]
-                added_ears[i].append(act_idx)
-
-            if not EARs:
-                continue
-
-            new_js = {
-                "resources": res_hash,
-                "EARs": EARs,
-            }
-            # try to merge downstream action elements with this jobscript:
-            for elem_i in elems:
-                _merge_downstream_actions(
-                    EAR_resource_groups,
-                    act_idx,
-                    elem_i,
-                    res_hash,
-                    added_ears,
-                    new_js,
-                )
-
-            jobscripts.append(new_js)
-    return jobscripts
+def merge_jobscripts_across_tasks(jobscripts):
+    pass  # TODO

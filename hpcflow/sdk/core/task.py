@@ -6,9 +6,6 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from valida.datapath import DataPath
 from valida.rules import Rule
 
-from hpcflow.sdk.core.submission import allocate_jobscripts, generate_EAR_resource_map
-
-from hpcflow.sdk.typing import E_idx_type
 
 from .json_like import ChildObjectSpec, JSONLike
 from .command_files import FileSpec, InputFile
@@ -1859,16 +1856,6 @@ class WorkflowTask:
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):
             rule = Rule(path=[0], condition=rule.condition, cast=rule.cast)
             return rule.test([element_dat]).is_valid
-
-    def resolve_jobscripts(self):
-        # TODO: work in progress
-        res, res_hashes, res_map = generate_EAR_resource_map(self)
-        jobscripts, js_map = allocate_jobscripts(res_map)
-        # replace resources index with resources object:
-        for idx, i in enumerate(jobscripts):
-            jobscripts[idx]["resources"] = res[jobscripts[idx]["resources"]]
-
-        return jobscripts, js_map
 
 
 class Elements:
