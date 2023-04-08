@@ -586,7 +586,6 @@ class Task(JSONLike):
                         "type": "EAR_output",
                         "task_insert_ID": self.insert_ID,
                         "element_idx": idx,
-                        "iteration_idx": 0,
                         "run_idx": 0,
                     }
                     data_ref = workflow._add_unset_parameter_data(param_src)
@@ -1390,6 +1389,7 @@ class WorkflowTask:
                     param_src_updates[i] = {
                         "action_idx": act_idx,
                         "EAR_idx": EAR_idx,
+                        "iteration_idx": element_iter.index,
                     }
                 run_0 = {
                     "index": EAR_idx,

@@ -325,6 +325,8 @@ class JSONPersistentStore(PersistentStore):
                 EARs_key = (task_idx, task_insert_ID, iters_idx_i)
                 if EARs_key in self._pending["EARs"]:
                     iter_i["actions"].update(self._pending["EARs"][EARs_key])
+                    # if there are pending EARs then EARs must be initialised:
+                    iter_i["EARs_initialised"] = True
 
                 # include pending loops:
                 loop_idx_key = (task_idx, task_insert_ID, iters_idx_i)

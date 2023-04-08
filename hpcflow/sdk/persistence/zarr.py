@@ -669,6 +669,8 @@ class ZarrPersistentStore(PersistentStore):
                 EARs_key = (task_idx, task_insert_ID, iter_idx_i)
                 if EARs_key in self._pending["EARs"]:
                     iter_i[5].extend(self._pending["EARs"][EARs_key])
+                    # if there are pending EARs then EARs must be initialised:
+                    iter_i[2] = int(True)
 
                 # include pending loops:
                 loop_idx_key = (task_idx, task_insert_ID, iter_idx_i)

@@ -615,14 +615,14 @@ class Workflow:
         respectively.
         """
         objs = []
-        for EAR_idx in indices:
-            task = self.tasks.get(insert_ID=EAR_idx.task_insert_ID)
-            EAR_i = (
-                task.elements[EAR_idx.element_idx]
-                .iterations[EAR_idx.iteration_idx]
-                .actions[EAR_idx.action_idx]
-                .runs[EAR_idx.run_idx]
-            )
+        for _EAR_ID in indices:
+            task = self.tasks.get(insert_ID=_EAR_ID.task_insert_ID)
+            elem_iters = task.elements[_EAR_ID.element_idx].iterations
+            for i in elem_iters:
+                if i.index == _EAR_ID.iteration_idx:
+                    iter_i = i
+                    break
+            EAR_i = iter_i.actions[_EAR_ID.action_idx].runs[_EAR_ID.run_idx]
             objs.append(EAR_i)
         return objs
 

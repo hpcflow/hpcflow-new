@@ -163,7 +163,8 @@ class ElementIteration:
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
-            f"element={self.element!r}, index={self.index!r}"
+            f"element={self.element!r}, index={self.index!r}, "
+            f"EARs_initialised={self.EARs_initialised!r}"
             f")"
         )
 

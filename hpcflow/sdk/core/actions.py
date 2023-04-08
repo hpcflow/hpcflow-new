@@ -29,6 +29,14 @@ class ElementID:
 
 @dataclass(eq=True, frozen=True)
 class IterationID(ElementID):
+    """
+    Attributes
+    ----------
+    iteration_idx :
+        Index into the `element_iterations` list/array of the task. Note this is NOT the
+        index into local list of ElementIterations belong to an Element.
+    """
+
     iteration_idx: int
 
     def get_element_ID(self):
@@ -40,7 +48,6 @@ class IterationID(ElementID):
 
 @dataclass(eq=True, frozen=True)
 class EAR_ID(IterationID):
-
     action_idx: int
     run_idx: int
     EAR_idx: int
