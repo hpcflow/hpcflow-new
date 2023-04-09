@@ -1027,13 +1027,16 @@ class Action(JSONLike):
     ):
         """Generate the data index for this action of an element iteration whose overall
         data index is passed."""
-        keys = [f"inputs.{i}" for i in self.get_input_types()]
-        keys += [f"outputs.{i}" for i in self.get_output_types()]
+
+        # output keys must be processed first for this to work, since when processing an
+        # output key, we may need to update the index of an output in a previous action's
+        # data index, which could affect the data index in an input of this action.
+        keys = [f"outputs.{i}" for i in self.get_output_types()]
+        keys += [f"inputs.{i}" for i in self.get_input_types()]
         for i in self.input_files:
             keys.append(f"input_files.{i.label}")
         for i in self.output_files:
             keys.append(f"output_files.{i.label}")
-        keys = set(keys)
 
         # keep all resources data:
         sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
@@ -1065,6 +1068,7 @@ class Action(JSONLike):
                         k_idx = schema_data_idx[key]
                     else:
                         # otherwise we need to allocate a new parameter datum:
+                        # (for input/output_files keys)
                         k_idx = workflow._add_unset_parameter_data(param_source)
 
             else:
