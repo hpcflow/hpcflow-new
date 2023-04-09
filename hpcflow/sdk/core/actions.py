@@ -1042,6 +1042,7 @@ class Action(JSONLike):
         sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
         param_src_update = []
         for key in keys:
+            sub_param_idx = {}
             if (
                 key.startswith("input_files")
                 or key.startswith("output_files")
@@ -1066,6 +1067,10 @@ class Action(JSONLike):
                     # otherwise take from the schema_data_idx:
                     if key in schema_data_idx:
                         k_idx = schema_data_idx[key]
+                        # add any associated sub-parameters:
+                        for k, v in schema_data_idx.items():
+                            if k.startswith(f"{key}."):  # sub-parameter (note dot)
+                                sub_param_idx[k] = v
                     else:
                         # otherwise we need to allocate a new parameter datum:
                         # (for input/output_files keys)
@@ -1083,9 +1088,8 @@ class Action(JSONLike):
                         param_source_i = copy.deepcopy(param_source)
                         param_source_i["action_idx"] = act_idx_i
                         param_source_i["EAR_idx"] = EAR_idx_i
-                        prev_data_idx[key] = workflow._add_unset_parameter_data(
-                            param_source_i
-                        )
+                        new_k_idx = workflow._add_unset_parameter_data(param_source_i)
+                        prev_data_idx[key] = new_k_idx
                 if k_idx is None:
                     # otherwise take from the schema_data_idx:
                     k_idx = schema_data_idx[key]
@@ -1094,6 +1098,7 @@ class Action(JSONLike):
                 param_src_update.append(k_idx)
 
             sub_data_idx[key] = k_idx
+            sub_data_idx.update(sub_param_idx)
 
         all_data_idx[(act_idx, EAR_idx)] = sub_data_idx
 
