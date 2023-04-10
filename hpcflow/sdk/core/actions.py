@@ -1146,3 +1146,16 @@ class Action(JSONLike):
             )
         else:
             return self.app.ActionScope.main()
+
+    def is_input_type_required(self, typ: str, provided_files: List[FileSpec]) -> bool:
+
+        # typ is required if is appears in any command:
+        if typ in self.get_command_input_types():
+            return True
+
+        # typ is required if used in any input file generators and input file is not
+        # provided:
+        for IFG in self.input_file_generators:
+            if typ in (i.typ for i in IFG.inputs):
+                if IFG.input_file not in provided_files:
+                    return True

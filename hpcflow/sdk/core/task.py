@@ -42,6 +42,34 @@ from .utils import (
 INPUT_SOURCE_TYPES = ["local", "default", "task", "import"]
 
 
+@dataclass
+class InputStatus:
+    """Information about a given schema input and its parametrisation within an element
+    set.
+
+    Attributes
+    ----------
+    has_default
+        True if a default value is available.
+    is_required
+        True if the input is required by one or more actions. An input may not be required
+        if it is only used in the generation of inputs files, and those input files are
+        passed to the element set directly.
+    is_provided
+        True if the input is locally provided in the element set.
+
+    """
+
+    has_default: bool
+    is_required: bool
+    is_provided: bool
+
+    @property
+    def is_extra(self):
+        """Return True if the input is provided but not required."""
+        return self.is_provided and not self.is_required
+
+
 class ElementSet(JSONLike):
     """Class to represent a parametrisation of a new set of elements."""
 
@@ -350,6 +378,19 @@ class ElementSet(JSONLike):
 
         return deps
 
+    def is_input_type_provided(self, typ: str) -> bool:
+        """Check if an input is provided locally as an InputValue or a ValueSequence."""
+
+        for inp in self.inputs:
+            if typ == inp.parameter.typ:
+                return True
+
+        for seq in self.sequences:
+            if not seq.is_sub_value and typ == seq.parameter.typ:
+                return True
+
+        return False
+
 
 class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
@@ -629,7 +670,7 @@ class Task(JSONLike):
         # TODO: also search sub-parameters in the source tasks!
 
         available = {}
-        for inputs_path, inp_info in self.get_all_inputs_info(element_set).items():
+        for inputs_path, inp_status in self.get_input_statuses(element_set).items():
 
             available[inputs_path] = []
 
@@ -648,7 +689,7 @@ class Task(JSONLike):
                             # input parameter might not be provided e.g. if it only used
                             # to generate an input file, and that input file is passed
                             # directly, so consider only source task element sets that
-                            # provide the input:
+                            # provide the input locally:
                             es_idx = src_task_i.get_param_provided_element_sets(
                                 param_i.typ
                             )
@@ -685,7 +726,7 @@ class Task(JSONLike):
                         )
                         available[inputs_path].append(task_source)
 
-            if inp_info["has_default"]:
+            if inp_status.has_default:
                 available[inputs_path].append(self.app.InputSource.default())
 
         return available
@@ -777,78 +818,68 @@ class Task(JSONLike):
                     sourced_input_types.append(seq.normalised_path)
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
-    def is_input_type_required(self, typ, element_set):
+    def is_input_type_required(self, typ: str, element_set: ElementSet) -> bool:
+        """Check if an given input type must be specified in the parametrisation of this
+        element set.
+
+        A schema input need not be specified if it is only required to generate an input
+        file, and that input file is passed directly."""
 
         provided_files = [i.file for i in element_set.input_files]
-        # required if is appears in any command:
         for schema in self.schemas:
             for act in schema.actions:
-                if typ in act.get_command_input_types():
+                if act.is_input_type_required(typ, provided_files):
                     return True
-
-                # required if used in any input file generators and input file is not
-                # provided:
-                for IFG in act.input_file_generators:
-                    if typ in (i.typ for i in IFG.inputs):
-                        if IFG.input_file not in provided_files:
-                            return True
-
-        return False
-
-    def is_input_type_provided(self, typ: str, element_set: ElementSet) -> bool:
-        """Check if an input is provided as an InputValue or a ValueSequence."""
-        for inp in element_set.inputs:
-            if typ == inp.parameter.typ:
-                return True
-
-        for seq in element_set.sequences:
-            if not seq.is_sub_value and typ == seq.parameter.typ:
-                return True
 
         return False
 
     def get_param_provided_element_sets(self, typ: str) -> List[int]:
         """Get the element set indices of this task for which a specified parameter type
-        is provided."""
+        is locally provided."""
         es_idx = []
         for idx, src_es in enumerate(self.element_sets):
-            if self.is_input_type_provided(typ, src_es):
+            if src_es.is_input_type_provided(typ):
                 es_idx.append(idx)
         return es_idx
 
-    def get_all_inputs_info(self, element_set):
-        """Get a dict whose keys are the normalised paths (without the "inputs" prefix),
-        and whose values are the associated default value InputValue object, in the case
-        the input is a SchemaInput, and a default is defined.
-
-        # TODO update docstring
+    def get_input_statuses(self, elem_set: ElementSet) -> Dict[str, InputStatus]:
+        """Get a dict whose keys are normalised input paths (without the "inputs" prefix),
+        and whose values are InputStatus objects.
 
         Parameters
         ----------
-        element_set : ElementSet
-            Find inputs and sequences in this element set that have sub-parameter paths.
+        elem_set
+            The element set for which input statuses should be returned.
 
         """
 
-        info = {}
+        status = {}
         for schema_input in self.all_schema_inputs:
-            info[schema_input.parameter.typ] = {
-                "has_default": schema_input.default_value is not None
-            }
+            typ = schema_input.parameter.typ
+            status[typ] = InputStatus(
+                has_default=schema_input.default_value is not None,
+                is_provided=elem_set.is_input_type_provided(typ),
+                is_required=self.is_input_type_required(typ, elem_set),
+            )
 
-        for inp_path in element_set.get_defined_sub_parameter_types():
-            info[inp_path] = {"has_default": False}
+        for inp_path in elem_set.get_defined_sub_parameter_types():
+            root_param = ".".join(inp_path.split(".")[:-1])
+            # Sub-parameters can only be specified locally (currently), so "is_provided"
+            # is True by definition, and if the root parameter is required then the
+            # sub-parameter should also be required, otherwise there would be no point in
+            # specifying it:
+            status[inp_path] = InputStatus(
+                has_default=False,
+                is_provided=True,
+                is_required=status[root_param].is_required,
+            )
 
-        for inp in info:
-            info[inp]["is_required"] = self.is_input_type_required(inp, element_set)
-            info[inp]["is_provided"] = self.is_input_type_provided(inp, element_set)
-
-        return info
+        return status
 
     def get_all_required_schema_inputs(self, element_set):
-        info = self.get_all_inputs_info(element_set)
+        stats = self.get_input_statuses(element_set)
         return tuple(
-            i for i in self.all_schema_inputs if info[i.parameter.typ]["is_required"]
+            i for i in self.all_schema_inputs if stats[i.parameter.typ].is_required
         )
 
     @property
@@ -1148,10 +1179,10 @@ class WorkflowTask:
 
         # TODO: get available input sources from workflow imports
 
-        all_inputs_info = self.template.get_all_inputs_info(element_set)
+        all_stats = self.template.get_input_statuses(element_set)
 
         # check any specified sources are valid:
-        for inputs_path in all_inputs_info:
+        for inputs_path in all_stats:
             for specified_source in element_set.input_sources.get(inputs_path, []):
                 self.workflow._resolve_input_source_task_reference(
                     specified_source, self.unique_name
@@ -1166,14 +1197,10 @@ class WorkflowTask:
 
         # an input is not required if it is only used to generate an input file that is
         # passed directly:
-        req_types = set(k for k, v in all_inputs_info.items() if v["is_required"])
+        req_types = set(k for k, v in all_stats.items() if v.is_required)
         unsourced_inputs = req_types - set(element_set.input_sources.keys())
 
-        extra_types = set(
-            k
-            for k, v in all_inputs_info.items()
-            if not v["is_required"] and v["is_provided"]
-        )
+        extra_types = set(k for k, v in all_stats.items() if v.is_extra)
         if extra_types:
             extra_str = ", ".join(f"{i!r}" for i in extra_types)
             raise ExtraInputs(
