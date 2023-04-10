@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import enum
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -416,7 +416,7 @@ class ValueSequence(JSONLike):
         if self.input_type:
             return ".".join(self.path_split[1:])
 
-    def make_persistent(self, workflow, source):
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
@@ -515,7 +515,7 @@ class AbstractInputValue(JSONLike):
             del out["_workflow"]
         return out
 
-    def make_persistent(self, workflow, source) -> Dict:
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow.
 
         Parameters
@@ -801,7 +801,7 @@ class ResourceSpec(JSONLike):
         del out["value_group_idx"]
         return out
 
-    def make_persistent(self, workflow, source) -> Dict:
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
 
         Parameters
