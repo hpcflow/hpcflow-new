@@ -18,6 +18,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
     TaskTemplateUnexpectedSequenceInput,
+    UnrequiredInputSources,
     UnsetParameterDataError,
 )
 from .parameters import (
@@ -243,6 +244,13 @@ class ElementSet(JSONLike):
                 f"`sequences` lists: {list(inp_and_seq)!r}, but must be specified in at "
                 f"most one of these."
             )
+
+        for src_key, sources in self.input_sources.items():
+            if not sources:
+                raise ValueError(
+                    f"If specified in `input_sources`, at least one input source must be "
+                    f"provided for parameter {src_key!r}."
+                )
 
     def _validate_against_template(self):
 
@@ -1193,7 +1201,20 @@ class WorkflowTask:
         available_sources = self.template.get_available_task_input_sources(
             element_set=element_set,
             source_tasks=self.workflow.template.tasks[: self.index],
-        )  # TODO: test all parameters have a key here?
+        )
+
+        unreq_sources = set(element_set.input_sources.keys()) - set(
+            available_sources.keys()
+        )
+        if unreq_sources:
+            unreq_src_str = ", ".join(f"{i!r}" for i in unreq_sources)
+            raise UnrequiredInputSources(
+                message=(
+                    f"The following input sources are not required but have been "
+                    f"specified: {unreq_src_str}."
+                ),
+                unrequired_sources=unreq_sources,
+            )
 
         # TODO: get available input sources from workflow imports
 

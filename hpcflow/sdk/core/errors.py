@@ -30,6 +30,21 @@ class MissingInputs(Exception):
         super().__init__(message)
 
 
+class UnrequiredInputSources(ValueError):
+    def __init__(self, message, unrequired_sources) -> None:
+        self.unrequired_sources = unrequired_sources
+        for src in unrequired_sources:
+            if src.startswith("inputs."):
+                # reminder about how to specify input sources:
+                message += (
+                    f" Note that input source keys should not be specified with the "
+                    f"'inputs.' prefix. Did you mean to specify {src[len('inputs.'):]!r} "
+                    f"instead of {src!r}?"
+                )
+                break
+        super().__init__(message)
+
+
 class ExtraInputs(Exception):
     def __init__(self, message, extra_inputs) -> None:
         self.extra_inputs = extra_inputs
