@@ -1106,8 +1106,14 @@ class WorkflowTask:
     def _make_new_elements_persistent(self, element_set, element_set_idx):
         """Save parameter data to the persistent workflow."""
 
+        # TODO: rewrite. This method is a little hard to follow and results in somewhat
+        # unexpected behaviour: if a local source and task source are requested for a
+        # given input, the local source element(s) will always come first, regardless of
+        # the ordering in element_set.input_sources.
+
         input_data_idx = {}
         sequence_idx = {}
+        source_idx = {}
 
         # Assign first assuming all locally defined values are to be used:
         param_src = {
@@ -1115,6 +1121,7 @@ class WorkflowTask:
             "task_insert_ID": self.insert_ID,
             "element_set_idx": element_set_idx,
         }
+        loc_inp_src = self.app.InputSource.local()
         for res_i in element_set.resources:
             key, dat_ref, _ = res_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = dat_ref
@@ -1122,6 +1129,14 @@ class WorkflowTask:
         for inp_i in element_set.inputs:
             key, dat_ref, _ = inp_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = dat_ref
+            key_ = key.split("inputs.")[1]
+            try:
+                # TODO: wouldn't need to do this if we raise when an InputValue is
+                # provided for a parameter whose inputs sources do not include the local
+                # value.
+                source_idx[key] = [element_set.input_sources[key_].index(loc_inp_src)]
+            except ValueError:
+                pass
 
         for inp_file_i in element_set.input_files:
             key, dat_ref, _ = inp_file_i.make_persistent(self.workflow, param_src)
@@ -1131,6 +1146,16 @@ class WorkflowTask:
             key, dat_ref, _ = seq_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = dat_ref
             sequence_idx[key] = list(range(len(dat_ref)))
+            key_ = key.split("inputs.")[1]
+            try:
+                # TODO: wouldn't need to do this if we raise when an ValueSequence is
+                # provided for a parameter whose inputs sources do not include the local
+                # value.
+                source_idx[key] = [
+                    element_set.input_sources[key_].index(loc_inp_src)
+                ] * len(dat_ref)
+            except ValueError:
+                pass
 
         # Now check for task- and default-sources and overwrite or append to local sources:
         for schema_input in self.template.get_all_required_schema_inputs(element_set):
@@ -1138,7 +1163,7 @@ class WorkflowTask:
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
 
-            for inp_src in sources:
+            for inp_src_idx, inp_src in enumerate(sources):
 
                 if inp_src.source_type is InputSourceType.TASK:
 
@@ -1165,32 +1190,33 @@ class WorkflowTask:
                     if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
                         input_data_idx[key] += grp_idx
+                        source_idx[key] += [inp_src_idx] * len(grp_idx)
 
                     else:
                         # overwrite existing local source (if it exists):
                         input_data_idx[key] = grp_idx
+                        source_idx[key] = [inp_src_idx] * len(grp_idx)
                         if key in sequence_idx:
                             sequence_idx.pop(key)
                             seq = element_set.get_sequence_by_path(key)
                             seq.is_unused = True
 
-                if inp_src.source_type is InputSourceType.DEFAULT:
+                elif inp_src.source_type is InputSourceType.DEFAULT:
 
                     grp_idx = [schema_input.default_value._value_group_idx]
                     if self.app.InputSource.local() in sources:
                         input_data_idx[key] += grp_idx
+                        source_idx[key] += [inp_src_idx] * len(grp_idx)
 
                     else:
                         input_data_idx[key] = grp_idx
+                        source_idx[key] = [inp_src_idx] * len(grp_idx)
 
         # sort smallest to largest path, so more-specific items overwrite less-specific
         # items parameter retrieval:
         # TODO: is this still necessary?
-        # data_idx_paths = sorted(input_data_idx.keys(), key=lambda x: len(x.split(".")))
-        # input_data_idx = {data_idx_paths.index(k): v for k, v in input_data_idx.items()}
-        # input_sources = {data_idx_paths.index(k): v for k, v in input_sources.items()}
 
-        return (input_data_idx, sequence_idx)
+        return (input_data_idx, sequence_idx, source_idx)
 
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
@@ -1220,19 +1246,29 @@ class WorkflowTask:
 
         all_stats = self.template.get_input_statuses(element_set)
 
-        # check any specified sources are valid:
+        # check any specified sources are valid, and replace them with those computed in
+        # available_sources since this will have `element_iters` assigned:
         for inputs_path in all_stats:
-            for specified_source in element_set.input_sources.get(inputs_path, []):
+            for s_idx, specified_source in enumerate(
+                element_set.input_sources.get(inputs_path, [])
+            ):
                 self.workflow._resolve_input_source_task_reference(
                     specified_source, self.unique_name
                 )
-                if not specified_source.is_in(available_sources[inputs_path]):
+                avail_idx = specified_source.is_in(available_sources[inputs_path])
+                if avail_idx is None:
                     raise ValueError(
                         f"The input source {specified_source.to_string()!r} is not "
                         f"available for input path {inputs_path!r}. Available "
                         f"input sources are: "
                         f"{[i.to_string() for i in available_sources[inputs_path]]}"
                     )
+                else:
+                    # overwrite with the source from available_sources, since it will have
+                    # the `element_iters` attribute assigned:
+                    element_set.input_sources[inputs_path][s_idx] = available_sources[
+                        inputs_path
+                    ][avail_idx]
 
         # an input is not required if it is only used to generate an input file that is
         # passed directly:
@@ -1307,23 +1343,33 @@ class WorkflowTask:
         output_data_indices,
         element_data_indices,
         sequence_indices,
+        source_indices,
     ):
 
         new_elements = []
         element_sequence_indices = {}
+        element_src_indices = {}
         for i_idx, i in enumerate(element_data_indices):
             elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
             elem_i.update({k: v[i_idx] for k, v in output_data_indices.items()})
             new_elements.append(elem_i)
 
-            # track which sequence value indices (if any) are used for each new element:
             for k, v in i.items():
+
+                # track which sequence value indices (if any) are used for each new
+                # element:
                 if k in sequence_indices:
                     if k not in element_sequence_indices:
                         element_sequence_indices[k] = []
                     element_sequence_indices[k].append(sequence_indices[k][v])
 
-        return new_elements, element_sequence_indices
+                # track original InputSource associated with each new element:
+                if k in source_indices:
+                    if k not in element_src_indices:
+                        element_src_indices[k] = []
+                    element_src_indices[k].append(source_indices[k][v])
+
+        return new_elements, element_sequence_indices, element_src_indices
 
     @property
     def upstream_tasks(self):
@@ -1496,7 +1542,7 @@ class WorkflowTask:
 
         self.ensure_input_sources(element_set)  # may modify element_set.input_sources
 
-        (input_data_idx, seq_idx) = self._make_new_elements_persistent(
+        (input_data_idx, seq_idx, src_idx) = self._make_new_elements_persistent(
             element_set=element_set,
             element_set_idx=self.num_element_sets,
         )
@@ -1526,11 +1572,12 @@ class WorkflowTask:
             local_element_idx_range=local_element_idx_range,
         )
 
-        (element_data_idx, element_seq_idx) = self.generate_new_elements(
+        (element_data_idx, element_seq_idx, element_src_idx) = self.generate_new_elements(
             input_data_idx,
             output_data_idx,
             element_inp_data_idx,
             seq_idx,
+            src_idx,
         )
 
         element_iterations = []
@@ -1542,6 +1589,7 @@ class WorkflowTask:
                     "iterations_idx": [self.num_elements + elem_idx],
                     "es_idx": self.num_element_sets - 1,
                     "seq_idx": {k: v[elem_idx] for k, v in element_seq_idx.items()},
+                    "src_idx": {k: v[elem_idx] for k, v in element_src_idx.items()},
                 }
             )
             element_iterations.append(

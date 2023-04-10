@@ -963,11 +963,11 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
-    def is_in(self, other_input_sources):
+    def is_in(self, other_input_sources: List[InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
-        considering the `elements` attribute."""
+        considering the `element_iters` attribute."""
 
-        for other in other_input_sources:
+        for idx, other in enumerate(other_input_sources):
             if (
                 self.source_type == other.source_type
                 and self.import_ref == other.import_ref
@@ -976,8 +976,8 @@ class InputSource(JSONLike):
                 and self.where == other.where
                 and self.path == other.path
             ):
-                return True
-        return False
+                return idx
+        return None
 
     def to_string(self):
         out = [self.source_type.name.lower()]

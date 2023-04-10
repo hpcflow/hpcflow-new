@@ -579,7 +579,8 @@ class Element:
         task: WorkflowTask,
         index: int,
         es_idx: int,
-        seq_idx: Dict,
+        seq_idx: Dict[str, int],
+        src_idx: Dict[str, int],
         iterations,
     ) -> None:
 
@@ -587,6 +588,7 @@ class Element:
         self._index = index
         self._es_idx = es_idx
         self._seq_idx = seq_idx
+        self._src_idx = src_idx
 
         self._iterations = iterations
 
@@ -631,6 +633,17 @@ class Element:
     @property
     def sequence_idx(self) -> Dict[str, int]:
         return self._seq_idx
+
+    @property
+    def input_source_idx(self) -> Dict[str, int]:
+        return self._src_idx
+
+    @property
+    def input_sources(self) -> Dict[str, InputSource]:
+        return {
+            k: self.element_set.input_sources[k.split("inputs.")[1]][v]
+            for k, v in self.input_source_idx.items()
+        }
 
     @property
     def workflow(self) -> Workflow:

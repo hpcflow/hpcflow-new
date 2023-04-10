@@ -291,13 +291,17 @@ class ZarrPersistentStore(PersistentStore):
         compressed = []
         for elem in elements:
             seq_idx = [
-                [ensure_in(k, attrs["sequences"]), v] for k, v in elem["seq_idx"].items()
+                [ensure_in(k, attrs["seq_idx"]), v] for k, v in elem["seq_idx"].items()
+            ]
+            src_idx = [
+                [ensure_in(k, attrs["src_idx"]), v] for k, v in elem["src_idx"].items()
             ]
             compressed.append(
                 [
                     elem["iterations_idx"],
                     elem["es_idx"],
                     seq_idx,
+                    src_idx,
                 ]
             )
         return compressed, attrs
@@ -378,7 +382,8 @@ class ZarrPersistentStore(PersistentStore):
             elem_i = {
                 "iterations_idx": elem[0],
                 "es_idx": elem[1],
-                "seq_idx": {attrs["sequences"][k]: v for (k, v) in elem[2]},
+                "seq_idx": {attrs["seq_idx"][k]: v for (k, v) in elem[2]},
+                "src_idx": {attrs["src_idx"][k]: v for (k, v) in elem[3]},
             }
             out.append(elem_i)
         return out
@@ -416,7 +421,7 @@ class ZarrPersistentStore(PersistentStore):
 
     @staticmethod
     def _get_element_array_empty_attrs() -> Dict:
-        return {"sequences": []}
+        return {"seq_idx": [], "src_idx": []}
 
     @staticmethod
     def _get_element_iter_array_empty_attrs() -> Dict:
