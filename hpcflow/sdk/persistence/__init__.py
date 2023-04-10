@@ -213,7 +213,12 @@ class PersistentStore(ABC):
         self._pending["parameter_source_updates"].update(param_src_updates)
         self.save()
 
-    def add_loop(self, task_indices: List[int], loop_js: Dict) -> None:
+    def add_loop(
+        self,
+        task_indices: List[int],
+        loop_js: Dict,
+        iterable_parameters: Dict[str:Dict],
+    ) -> None:
         """Initialise the zeroth iterations of a named loop across the specified task
         subset.
 
@@ -225,9 +230,14 @@ class PersistentStore(ABC):
 
         """
         self._pending["template_loops"].append(loop_js)
-        self._pending["loops"].append({})
+        self._pending["loops"].append(
+            {
+                "num_added_iterations": 1,
+                "iterable_parameters": iterable_parameters,
+            }
+        )
 
-        for task_idx, task_insert_ID in zip(task_indices, loop_js["tasks"]):
+        for task_idx, task_insert_ID in zip(task_indices, loop_js["task_insert_IDs"]):
             all_elements = slice(0, self.workflow.tasks[task_idx].num_elements, 1)
             self._init_task_loop(
                 task_idx=task_idx,

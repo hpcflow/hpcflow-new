@@ -57,7 +57,7 @@ class WorkflowTemplate(JSONLike):
             name="loops",
             class_name="Loop",
             is_multiple=True,
-            parent_ref="workflow_template",
+            parent_ref="_workflow_template",
         ),
     )
 
@@ -112,9 +112,9 @@ class WorkflowTemplate(JSONLike):
             while name in existing:
                 new_idx += 1
                 name = f"loop_{new_idx}"
-            loop.name = name
+            loop._name = name
 
-        loop.workflow_template = self
+        loop._workflow_template = self
         self.loops.append(loop)
 
 
@@ -383,7 +383,10 @@ class Workflow:
                 wk_loops = []
                 for idx, loop_dat in enumerate(self._store.get_loops()):
                     wk_loop = self.app.WorkflowLoop(
-                        workflow=self, template=self.template.loops[idx]
+                        index=idx,
+                        workflow=self,
+                        template=self.template.loops[idx],
+                        **loop_dat,
                     )
                     wk_loops.append(wk_loop)
                 self._loops = self.app.WorkflowLoopList(wk_loops)
@@ -503,16 +506,27 @@ class Workflow:
         self.template._add_empty_loop(loop_c)
 
         # create and insert a new WorkflowLoop:
-        self.loops.add_object(self.app.WorkflowLoop(workflow=self, template=loop_c))
+        self.loops.add_object(
+            self.app.WorkflowLoop.new_empty_loop(
+                index=new_index,
+                workflow=self,
+                template=loop_c,
+            )
+        )
+        wk_loop = self.loops[new_index]
 
         # update persistent store:
         loop_js, _ = loop_c.to_json_like()
-        task_indices = [self.tasks.get(insert_ID=i).index for i in loop_c.tasks]
-        self._store.add_loop(task_indices, loop_js)
+        task_indices = [self.tasks.get(insert_ID=i).index for i in loop_c.task_insert_IDs]
+        self._store.add_loop(
+            task_indices=task_indices,
+            loop_js=loop_js,
+            iterable_parameters=wk_loop.iterable_parameters,
+        )
 
         self._pending["loops"].append(new_index)
 
-        return self.loops[new_index]
+        return wk_loop
 
     def _add_loop(self, loop: Loop) -> None:
         new_wk_loop = self._add_empty_loop(loop)
