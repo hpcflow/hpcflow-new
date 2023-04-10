@@ -219,11 +219,29 @@ class ElementSet(JSONLike):
         return tuple(self._element_local_idx_range)
 
     def _validate(self):
-        dup_params = get_duplicate_items(self.input_types)
-        if dup_params:
+
+        inp_paths = [i.normalised_inputs_path for i in self.inputs]
+        dup_inp_paths = get_duplicate_items(inp_paths)
+        if dup_inp_paths:
             raise TaskTemplateMultipleInputValues(
-                f"The following parameters are associated with multiple input value "
-                f"definitions: {dup_params!r}."
+                f"The following inputs parameters are associated with multiple input value "
+                f"definitions: {dup_inp_paths!r}."
+            )
+
+        inp_seq_paths = [i.normalised_inputs_path for i in self.sequences if i.input_type]
+        dup_inp_seq_paths = get_duplicate_items(inp_seq_paths)
+        if dup_inp_seq_paths:
+            raise TaskTemplateMultipleInputValues(
+                f"The following input parameters are associated with multiple sequence "
+                f"value definitions: {dup_inp_seq_paths!r}."
+            )
+
+        inp_and_seq = set(inp_paths).intersection(inp_seq_paths)
+        if inp_and_seq:
+            raise TaskTemplateMultipleInputValues(
+                f"The following input parameters are specified in both the `inputs` and "
+                f"`sequences` lists: {list(inp_and_seq)!r}, but must be specified in at "
+                f"most one of these."
             )
 
     def _validate_against_template(self):
