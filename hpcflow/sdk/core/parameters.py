@@ -276,7 +276,7 @@ class ValueSequence(JSONLike):
         self._workflow = None
         self._element_set = None  # assigned by parent ElementSet
 
-        # assigned if this is an "inputs" sequence on validation of parent element set:
+        # assigned if this is an "inputs" sequence in `WorkflowTask._add_element_set`:
         self._parameter = None
 
         self._path_split = None  # assigned by property `path_split`
@@ -413,7 +413,7 @@ class ValueSequence(JSONLike):
         """Return the normalised path without the "inputs" prefix, if the sequence is an
         inputs sequence, else return None."""
 
-        if self.parameter:
+        if self.input_type:
             return ".".join(self.path_split[1:])
 
     def make_persistent(self, workflow, source):
@@ -670,7 +670,7 @@ class InputValue(AbstractInputValue):
 
     @property
     def normalised_inputs_path(self):
-        return f"{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
+        return f"{self.parameter.typ}{f'.{self.path}' if self.path else ''}"
 
     @property
     def normalised_path(self):
