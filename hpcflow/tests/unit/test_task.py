@@ -403,6 +403,52 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
     assert available == available_exp
 
 
+def test_task_get_available_task_input_sources_input_source_excluded_if_not_local(
+    tmp_path,
+):
+    """Test an input source is excluded if it is not locally defined (meaning it comes
+    from another task)."""
+
+    t1, t2, t3 = make_tasks(
+        schemas_spec=[
+            [{"p1": None}, ("p1",), "t1"],  # sources for t3: input + output
+            [{"p1": None}, ("p1",), "t2"],  # sources fot t3: output only
+            [{"p1": None}, ("p1",), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+    )
+    wk = Workflow.from_template(
+        WorkflowTemplate(name="w1", tasks=[t1, t2]), path=tmp_path
+    )
+    available = t3.get_available_task_input_sources(
+        element_set=t3.element_sets[0],
+        source_tasks=[wk.tasks.t1.template, wk.tasks.t2.template],
+    )
+    available_exp = {
+        "p1": [
+            InputSource(
+                source_type=InputSourceType.TASK,
+                task_ref=1,
+                task_source_type=TaskSourceType.OUTPUT,
+                element_iters=[1],
+            ),
+            InputSource(
+                source_type=InputSourceType.TASK,
+                task_ref=0,
+                task_source_type=TaskSourceType.OUTPUT,
+                element_iters=[0],
+            ),
+            InputSource(
+                source_type=InputSourceType.TASK,
+                task_ref=0,
+                task_source_type=TaskSourceType.INPUT,
+                element_iters=[0],
+            ),
+        ],
+    }
+    assert available == available_exp
+
+
 def test_get_task_unique_names_two_tasks_no_repeats():
     s1 = TaskSchema("t1", actions=[])
     s2 = TaskSchema("t2", actions=[])

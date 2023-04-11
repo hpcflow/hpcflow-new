@@ -714,7 +714,14 @@ class Task(JSONLike):
             # search for task sources:
             for src_task_i in source_tasks:
 
-                for param_i in src_task_i.provides_parameters:
+                # ensure we process output types before input types, so they appear in the
+                # available sources list first, meaning they take precedence when choosing
+                # an input source:
+                for param_i in sorted(
+                    src_task_i.provides_parameters,
+                    key=lambda x: x.input_or_output,
+                    reverse=True,
+                ):
 
                     if param_i.typ == inputs_path:
 
@@ -729,7 +736,7 @@ class Task(JSONLike):
                         else:
                             # outputs are always available, so consider all source task
                             # element sets:
-                            es_idx = range(src_task_i.num_element_sets)
+                            es_idx = list(range(src_task_i.num_element_sets))
 
                         if not es_idx:
                             continue
