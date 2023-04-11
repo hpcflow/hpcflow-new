@@ -72,6 +72,7 @@ class JSONPersistentStore(PersistentStore):
             return json.load(fp)
 
     def load(self) -> Dict:
+        # TODO: can we prevent loaded data being modified? this has caused some bugs...
         return self._loaded or self._load()
 
     @staticmethod
@@ -113,8 +114,16 @@ class JSONPersistentStore(PersistentStore):
         return (is_set, data)
 
     def get_parameter_source(self, index: int) -> Dict:
-        # TODO: check pending
-        return self.load()["parameter_sources"][str(index)]
+        if index in self._pending["parameter_sources"]:
+            src = self._pending["parameter_sources"][index]
+        else:
+            src = self.load()["parameter_sources"][str(index)]
+
+        if index in self._pending["parameter_source_updates"]:
+            src.update(self._pending["parameter_source_updates"][index])
+            src = dict(sorted(src.items()))
+
+        return src
 
     def get_all_parameter_data(self) -> Dict[int, Any]:
         if self._pending["parameter_data"]:
@@ -222,13 +231,13 @@ class JSONPersistentStore(PersistentStore):
             wk_data["parameter_data"][str(param_idx)] = param_dat
 
         for param_idx, param_src in self._pending["parameter_sources"].items():
-            wk_data["parameter_sources"][param_idx] = param_src
+            wk_data["parameter_sources"][str(param_idx)] = param_src
 
         for param_idx, src_update in self._pending["parameter_source_updates"].items():
-            src = wk_data["parameter_sources"][param_idx]
+            src = wk_data["parameter_sources"][str(param_idx)]
             src.update(src_update)
             src = dict(sorted(src.items()))
-            wk_data["parameter_sources"][param_idx] = src
+            wk_data["parameter_sources"][str(param_idx)] = src
 
         if self._pending["remove_replaced_file_record"]:
             del wk_data["replaced_file"]

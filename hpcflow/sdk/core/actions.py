@@ -228,6 +228,7 @@ class ElementActionRun:
 
         out = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
+            src = copy.deepcopy(src)
             src.pop("type")
             _EAR_ID = EAR_ID(**src)
             if _EAR_ID != self.EAR_ID:
