@@ -695,6 +695,13 @@ class Task(JSONLike):
 
         # TODO: also search sub-parameters in the source tasks!
 
+        if source_tasks:
+            # ensure parameters provided by later tasks are added to the available sources
+            # list first, meaning they take precedence when choosing an input source:
+            source_tasks = sorted(source_tasks, key=lambda x: x.index, reverse=True)
+        else:
+            source_tasks = []
+
         available = {}
         for inputs_path, inp_status in self.get_input_statuses(element_set).items():
 
@@ -705,7 +712,7 @@ class Task(JSONLike):
                 available[inputs_path].append(self.app.InputSource.local())
 
             # search for task sources:
-            for src_task_i in source_tasks or []:
+            for src_task_i in source_tasks:
 
                 for param_i in src_task_i.provides_parameters:
 

@@ -351,15 +351,15 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
         "p3": [
             InputSource(
                 source_type=InputSourceType.TASK,
-                task_ref=0,
-                task_source_type=TaskSourceType.OUTPUT,
-                element_iters=[0],
-            ),
-            InputSource(
-                source_type=InputSourceType.TASK,
                 task_ref=1,
                 task_source_type=TaskSourceType.OUTPUT,
                 element_iters=[1],
+            ),
+            InputSource(
+                source_type=InputSourceType.TASK,
+                task_ref=0,
+                task_source_type=TaskSourceType.OUTPUT,
+                element_iters=[0],
             ),
         ]
     }
