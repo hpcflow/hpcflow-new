@@ -137,3 +137,7 @@ class WorkflowLimitsError(ValueError):
 
 class UnsetParameterDataError(Exception):
     pass
+
+
+class LoopAlreadyExistsError(Exception):
+    pass

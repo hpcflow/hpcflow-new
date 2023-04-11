@@ -66,12 +66,13 @@ class PersistentStore(ABC):
         return {
             "tasks": {},  # keys are new task indices
             "loops": [],
+            "loops_added_iters": {},  # keys are loop indices, values are num added iterations
             "template_tasks": {},  # keys are new task indices
             "template_loops": [],
             "template_components": {},
             "element_sets": {},  # keys are task indices
             "element_iterations": {},  # keys are (task index, task insert ID)
-            "element_iterations_idx": {},  # keys are (task index, task insert ID)
+            "element_iterations_idx": {},  # keys are (task index, task insert ID), then element_idx
             "elements": {},  # keys are (task index, task insert ID)
             "EARs": {},  # keys are (task index, task insert ID, element_iter idx)
             "loop_idx": {},  # keys are (task index, task insert ID, element iteration index)
@@ -196,6 +197,33 @@ class PersistentStore(ABC):
             self._pending["element_iterations"][key] = []
         self._pending["elements"][key].extend(elements)
         self._pending["element_iterations"][key].extend(element_iterations)
+        self.save()
+
+    def add_element_iterations(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_iterations: List[Dict],
+        element_iters_idx: Dict[int, List[int]],
+    ) -> None:
+
+        key = (task_idx, task_insert_ID)
+        if key not in self._pending["element_iterations"]:
+            self._pending["element_iterations"][key] = []
+        if key not in self._pending["element_iterations_idx"]:
+            self._pending["element_iterations_idx"][key] = {}
+
+        self._pending["element_iterations"][key].extend(element_iterations)
+
+        for elem_idx, iters_idx in element_iters_idx.items():
+            if elem_idx not in self._pending["element_iterations_idx"][key]:
+                self._pending["element_iterations_idx"][key][elem_idx] = []
+            self._pending["element_iterations_idx"][key][elem_idx].extend(iters_idx)
+
+        self.save()
+
+    def update_loop_num_added_iters(self, loop_idx: int, num_added_iters: int):
+        self._pending["loops_added_iters"][loop_idx] = num_added_iters
         self.save()
 
     def add_EARs(

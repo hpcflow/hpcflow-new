@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
+from pprint import pprint
 from typing import Dict, List, Optional, Tuple, Union
 
 from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.parameters import InputSourceType
 
 # from .parameters import Parameter
 
@@ -32,6 +34,7 @@ class Loop(JSONLike):
         tasks: List[Union[int, WorkflowTask]],
         num_iterations: int,
         name: Optional[str] = None,
+        non_iterable_parameters: Optional[List[str]] = None,
     ) -> None:
         """
 
@@ -41,6 +44,8 @@ class Loop(JSONLike):
             Loop name, optional
         tasks
             List of task insert IDs or WorkflowTask objects
+        non_iterable_parameters
+            Specify input parameters that should not iterate.
 
         """
 
@@ -59,6 +64,7 @@ class Loop(JSONLike):
         self._task_insert_IDs = _task_insert_IDs
         self._num_iterations = num_iterations
         self._name = name
+        self._non_iterable_parameters = non_iterable_parameters or []
 
         self._workflow_template = None  # assigned by parent WorkflowTemplate
 
@@ -81,6 +87,14 @@ class Loop(JSONLike):
     @property
     def name(self):
         return self._name
+
+    @property
+    def num_iterations(self):
+        return self._num_iterations
+
+    @property
+    def non_iterable_parameters(self):
+        return self._non_iterable_parameters
 
     @property
     def workflow_template(self):
@@ -127,7 +141,7 @@ class Loop(JSONLike):
 
         return (
             f"{self.__class__.__name__}("
-            f"tasks={self.tasks!r}{num_iterations_str}{name_str}"
+            f"task_insert_IDs={self.task_insert_IDs!r}{num_iterations_str}{name_str}"
             f")"
         )
 
@@ -158,6 +172,9 @@ class WorkflowLoop:
         self._num_added_iterations = num_added_iterations
         self._iterable_parameters = iterable_parameters
 
+        # incremented when a new loop iteration is added, reset on dump to disk:
+        self._pending_num_added_iterations = 0
+
         self._validate()
 
     def _validate(self):
@@ -168,7 +185,17 @@ class WorkflowLoop:
             raise ValueError(f"Loop task subset must be a contiguous range")
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(name={self.name!r})"
+        return (
+            f"{self.__class__.__name__}(template={self.template!r}, "
+            f"num_added_iterations={self.num_added_iterations!r})"
+        )
+
+    def _reset_pending_num_added_iters(self):
+        self._pending_num_added_iterations = 0
+
+    def _accept_pending_num_added_iters(self):
+        self._num_added_iterations = self.num_added_iterations
+        self._reset_pending_num_added_iters()
 
     @property
     def index(self):
@@ -209,7 +236,7 @@ class WorkflowLoop:
 
     @property
     def num_added_iterations(self):
-        return self._num_added_iterations
+        return self._num_added_iterations + self._pending_num_added_iterations
 
     @staticmethod
     def _find_iterable_parameters(loop_template: Loop):
@@ -233,6 +260,10 @@ class WorkflowLoop:
                     "input_task": first_idx,
                     "output_tasks": all_outputs_idx[typ],
                 }
+
+        for non_iter in loop_template.non_iterable_parameters:
+            if non_iter in iterable_params:
+                del iterable_params[non_iter]
 
         return iterable_params
 
@@ -265,7 +296,7 @@ class WorkflowLoop:
                 parents.append(loop_i)
         return parents
 
-    def get_child_loops(self):
+    def get_child_loops(self) -> List[WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop index is
         considered the parent."""
@@ -282,3 +313,173 @@ class WorkflowLoop:
                     continue
                 children.append(loop_i)
         return children
+
+    def add_iteration(self, parent_loop_indices=None):
+
+        parent_loop_indices = parent_loop_indices or {}
+        cur_loop_idx = self.num_added_iterations - 1
+        parent_loops = self.get_parent_loops()
+        child_loops = self.get_child_loops()
+
+        for parent_loop in parent_loops:
+            if parent_loop.name not in parent_loop_indices:
+                raise ValueError(
+                    f"Parent loop {parent_loop.name!r} must be specified in "
+                    f"`parent_loop_indices`."
+                )
+        all_new_data_idx = {}  # keys are (task.insert_ID and element.index)
+        added_iters = 0
+
+        for task in self.task_objects:
+
+            new_iters = []
+            elem_iters_idx = {}
+
+            for element in task.elements:
+
+                elem_iters_idx[element.index] = []
+                new_data_idx = {}
+
+                for inp in task.template.all_schema_inputs:
+
+                    is_inp_task = False
+                    iter_dat = self.iterable_parameters.get(inp.typ)
+                    if iter_dat:
+                        is_inp_task = task.insert_ID == iter_dat["input_task"]
+
+                    if is_inp_task:
+
+                        # source from final output task of previous iteration, with all parent
+                        # loop indices the same as previous iteration, and all child loop indices
+                        # maximised:
+
+                        # identify element(s) from which this iterable input should be
+                        # parametrised:
+                        if task.insert_ID == iter_dat["output_tasks"][-1]:
+                            src_elem = element
+                        else:
+                            src_elems = element.get_dependent_elements_recursively(
+                                task_insert_ID=iter_dat["output_tasks"][-1]
+                            )
+                            if len(src_elems) > 1:
+                                raise NotImplementedError(
+                                    f"Multiple elements found in the iterable parameter {inp!r}'s"
+                                    f" latest output task (insert ID: "
+                                    f"{iter_dat['output_tasks'][-1]}) that can be used to "
+                                    f"parametrise the next iteration."
+                                )
+                            elif not src_elems:
+                                # TODO: maybe OK?
+                                raise NotImplementedError(
+                                    f"No elements found in the iterable parameter {inp!r}'s"
+                                    f" latest output task (insert ID: "
+                                    f"{iter_dat['output_tasks'][-1]}) that can be used to "
+                                    f"parametrise the next iteration."
+                                )
+                            src_elem = src_elems[0]
+
+                        child_loop_max_iters = {
+                            i.name: i.num_added_iterations - 1 for i in child_loops
+                        }
+                        parent_loop_same_iters = {
+                            i.name: self.loop_idx[i.name] for i in parent_loops
+                        }
+                        source_iter_loop_idx = {
+                            **child_loop_max_iters,
+                            **parent_loop_same_iters,
+                            self.name: cur_loop_idx,
+                        }
+
+                        # identify the ElementIteration from which this input should be
+                        # parametrised:
+                        source_iter = None
+                        for iter_i in src_elem.iterations:
+                            if iter_i.loop_idx == source_iter_loop_idx:
+                                source_iter = iter_i
+                                break
+
+                        inp_dat_idx = source_iter.get_data_idx()[f"outputs.{inp.typ}"]
+                        new_data_idx[f"inputs.{inp.typ}"] = inp_dat_idx
+
+                    else:
+                        inp_key = f"inputs.{inp.typ}"
+                        orig_inp_src = element.input_sources[inp_key]
+                        inp_dat_idx = None
+
+                        if orig_inp_src.source_type is InputSourceType.LOCAL:
+                            # keep locally defined inputs from original element
+                            inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
+
+                        elif orig_inp_src.source_type is InputSourceType.TASK:
+                            # same task/element, but update iteration to the just-added
+                            # iteration:
+                            for (tiID, e_idx), prev_dat_idx in all_new_data_idx.items():
+                                if tiID == orig_inp_src.task_ref:
+                                    # find which element in that task `element` depends
+                                    # on:
+                                    task_i = self.workflow.tasks.get(insert_ID=tiID)
+                                    elem_i = task_i.elements[e_idx]
+                                    src_elems_i = (
+                                        elem_i.get_dependent_elements_recursively(
+                                            task_insert_ID=task.insert_ID
+                                        )
+                                    )
+                                    if (
+                                        len(src_elems_i) == 1
+                                        and src_elems_i[0].element_ID
+                                        == element.element_ID
+                                    ):
+                                        inp_dat_idx = prev_dat_idx[
+                                            f"{orig_inp_src.task_source_type.name.lower()}s.{inp.typ}"
+                                        ]
+
+                        if inp_dat_idx is None:
+                            raise RuntimeError(
+                                f"Could not find a source for parameter {inp.typ} "
+                                f"when adding a new iteration for task {task!r}."
+                            )
+
+                        new_data_idx[inp_key] = inp_dat_idx
+
+                for out in task.template.all_schema_outputs:
+                    path_i = f"outputs.{out.typ}"
+                    p_src = {
+                        "type": "EAR_output",
+                        "task_insert_ID": task.insert_ID,
+                        "element_idx": element.index,
+                        "run_idx": 0,
+                    }
+                    new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
+
+                schema_params = set(
+                    i for i in new_data_idx.keys() if len(i.split(".")) == 2
+                )
+                new_iter = {
+                    "global_idx": self.workflow.num_element_iterations + added_iters,
+                    "data_idx": new_data_idx,
+                    "EARs_initialised": False,
+                    "actions": {},
+                    "schema_parameters": list(schema_params),
+                    "loop_idx": {**parent_loop_indices, self.name: cur_loop_idx + 1},
+                }
+                all_new_data_idx[(task.insert_ID, element.index)] = new_data_idx
+                added_iters += 1
+
+                new_iters.append(new_iter)
+                elem_iters_idx[element.index].append(task.num_element_iterations)
+                task._pending_num_element_iterations += 1
+
+            self.workflow._store.add_element_iterations(
+                task_idx=task.index,
+                task_insert_ID=task.insert_ID,
+                element_iterations=new_iters,
+                element_iters_idx=elem_iters_idx,
+            )
+
+            task.initialise_EARs()
+
+        self._pending_num_added_iterations += 1
+        self.workflow._store.update_loop_num_added_iters(
+            loop_idx=self.index,
+            num_added_iters=self.num_added_iterations,
+        )

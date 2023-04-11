@@ -257,6 +257,30 @@ class ZarrPersistentStore(PersistentStore):
 
         return super().add_elements(task_idx, task_insert_ID, elements, element_iters)
 
+    def add_element_iterations(
+        self,
+        task_idx: int,
+        task_insert_ID: int,
+        element_iterations: List[Dict],
+        element_iters_idx: Dict[int, List[int]],
+    ) -> None:
+
+        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
+        element_iters, iter_attrs = self._compress_element_iters(
+            element_iterations, iter_attrs_original
+        )
+        if iter_attrs != iter_attrs_original:
+            if task_idx not in self._pending["element_iter_attrs"]:
+                self._pending["element_iter_attrs"][task_idx] = {}
+            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
+
+        return super().add_element_iterations(
+            task_idx,
+            task_insert_ID,
+            element_iters,
+            element_iters_idx,
+        )
+
     def add_EARs(
         self,
         task_idx: int,
@@ -574,6 +598,12 @@ class ZarrPersistentStore(PersistentStore):
         # commit new workflow loops:
         md["loops"].extend(self._pending["loops"])
 
+        for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
+            md["loops"][loop_idx]["num_added_iterations"] = num_added_iters
+
+        # note: parameter sources are committed immediately with parameter data, so there
+        # is no need to add elements to the parameter sources array.
+
         sources = self._get_parameter_sources_array(mode="r+")
         for param_idx, src_update in self._pending["parameter_source_updates"].items():
             src = sources[param_idx]
@@ -801,7 +831,12 @@ class ZarrPersistentStore(PersistentStore):
         return (is_set, data)
 
     def get_parameter_source(self, index: int) -> Dict:
-        return self._get_parameter_sources_array(mode="r")[index]
+        src = self._get_parameter_sources_array(mode="r")[index]
+        if index in self._pending["parameter_source_updates"]:
+            src.update(self._pending["parameter_source_updates"][index])
+            src = dict(sorted(src.items()))
+
+        return src
 
     def get_all_parameter_data(self) -> Dict[int, Any]:
         max_key = self._get_parameter_base_array(mode="r").size - 1
@@ -848,7 +883,7 @@ class ZarrPersistentStore(PersistentStore):
         for element in elements:
             for iter_idx, iter_i in zip(element["iterations_idx"], element["iterations"]):
 
-                if name in (attrs["loops"][k] for k in iter_i[4]):
+                if name in (attrs["loops"][k] for k in iter_i["loop_idx"]):
                     raise ValueError(f"Loop {name!r} already initialised!")
 
                 key = (task_idx, task_insert_ID, iter_idx)

@@ -26,6 +26,7 @@ from .task import ElementSet, Task
 from .utils import get_md5_hash, read_YAML, read_YAML_file
 from .errors import (
     InvalidInputSourceTaskReference,
+    LoopAlreadyExistsError,
     WorkflowBatchUpdateFailedError,
 )
 
@@ -113,6 +114,11 @@ class WorkflowTemplate(JSONLike):
                 new_idx += 1
                 name = f"loop_{new_idx}"
             loop._name = name
+        elif loop.name in self.workflow.loops.list_attrs():
+            raise LoopAlreadyExistsError(
+                f"A loop with the name {loop.name!r} already exists in the workflow: "
+                f"{getattr(self.workflow.loops, loop.name)!r}."
+            )
 
         loop._workflow_template = self
         self.loops.append(loop)
@@ -263,6 +269,9 @@ class Workflow:
                 for task in self.tasks:
                     task._reset_pending_elements()
 
+                for loop in self.loops:
+                    loop._reset_pending_num_added_iters()
+
                 self._reject_pending()
 
                 if is_workflow_creation:
@@ -283,6 +292,9 @@ class Workflow:
 
                     for task in self.tasks:
                         task._accept_pending_elements()
+
+                    for loop in self.loops:
+                        loop._accept_pending_num_added_iters()
 
                     self._store.remove_replaced_file()
                     # TODO: handle errors in commit pending?
@@ -530,7 +542,10 @@ class Workflow:
 
     def _add_loop(self, loop: Loop) -> None:
         new_wk_loop = self._add_empty_loop(loop)
-        # TODO: add N > 0 iterations?
+        if loop.num_iterations is not None:
+            # fixed number of iterations, so add remaining N > 0 iterations:
+            for _ in range(loop.num_iterations - 1):
+                new_wk_loop.add_iteration()
 
     def add_loop(self, loop: Loop) -> None:
         """Add a loop to a subset of workflow tasks."""

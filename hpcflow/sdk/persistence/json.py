@@ -226,6 +226,9 @@ class JSONPersistentStore(PersistentStore):
         # commit new workflow loops:
         wk_data["loops"].extend(self._pending["loops"])
 
+        for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
+            wk_data["loops"][loop_idx]["num_added_iterations"] = num_added_iters
+
         # commit new parameters:
         for param_idx, param_dat in self._pending["parameter_data"].items():
             wk_data["parameter_data"][str(param_idx)] = param_dat
