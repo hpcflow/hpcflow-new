@@ -864,6 +864,35 @@ class Element:
         """Get tasks that depend on the most recent iteration of this element."""
         return self.latest_iteration.get_dependent_tasks(as_objects=as_objects)
 
+    def get_dependent_elements_recursively(self, task_insert_ID=None):
+        """Get downstream elements that depend on this element, including recursive
+        dependencies.
+
+        Dependencies are resolved using the initial iteration only. This method is used to
+        identify from which element in the previous iteration and new iteration should be
+        parametrised.
+
+        Parameters
+        ----------
+        task_insert_ID
+            If specified, only return elements from this task.
+
+        """
+
+        def get_deps(element):
+            deps = element.iterations[0].get_dependent_elements(as_objects=False)
+            deps_objs = self.workflow.get_elements_from_IDs(deps)
+            return set(deps).union(
+                [dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)]
+            )
+
+        all_deps = get_deps(self)
+
+        if task_insert_ID is not None:
+            all_deps = [i for i in all_deps if i.task_insert_ID == task_insert_ID]
+
+        return self.workflow.get_elements_from_IDs(sorted(all_deps))
+
 
 @dataclass
 class ElementParameter:
