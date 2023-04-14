@@ -149,7 +149,7 @@ HPCFlow CLI
 *******************************
 
 Install script (v{release})
-==============
+===========================
 
 HPCFlow CLI can be installed on macOS, Linux or Windows through a terminal
 or shell prompt.
