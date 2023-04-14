@@ -857,12 +857,22 @@ class ResourceSpec(JSONLike):
     def workflow(self):
         if self._workflow:
             return self._workflow
+
         elif self.element_set:
+            # element-set-level resources
             return self.element_set.task_template.workflow_template.workflow
+
+        elif self.workflow_template:
+            # template-level resources
+            return self.workflow_template.workflow
 
     @property
     def element_set(self):
         return self._resource_list.element_set
+
+    @property
+    def workflow_template(self):
+        return self._resource_list.workflow_template
 
 
 class InputSourceType(enum.Enum):

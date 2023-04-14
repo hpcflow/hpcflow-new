@@ -116,17 +116,19 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 
 @dataclass
-class ElementResources:
-    scratch: str
-    num_cores: int
+class ElementResources(JSONLike):
+    scratch: str = None
+    num_cores: int = None
+    scheduler: str = None
+    array: bool = None
 
     def __post_init__(self):
         if self.num_cores is None:
             self.num_cores = 1
 
     def __hash__(self):
-        # TODO: use __dict__?
-        return hash((("scratch", self.scratch), ("num_cores", self.num_cores)))
+        keys, vals = zip(*self.__dict__.items())
+        return hash(tuple((keys, vals)))
 
 
 class ElementIteration:

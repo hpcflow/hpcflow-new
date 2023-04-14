@@ -466,16 +466,22 @@ class ResourceList(ObjectList):
     def __init__(self, _objects):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set = None  # assigned by parent ElementSet
+        self._workflow_template = None  # assigned by parent WorkflowTemplate
         self._set_parent_refs()
 
     def __deepcopy__(self, memo):
         obj = super().__deepcopy__(memo)
         obj._element_set = self._element_set
+        obj._workflow_template = self._workflow_template
         return obj
 
     @property
     def element_set(self):
         return self._element_set
+
+    @property
+    def workflow_template(self):
+        return self._workflow_template
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
         """Overridden to write out as a dict keyed by action scope (like as can be

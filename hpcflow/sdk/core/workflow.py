@@ -36,10 +36,24 @@ from hpcflow.sdk.persistence.zarr import ZarrPersistentStore
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
 
-@dataclass
-class BatchUpdateData:
-    """Class to store batch update instructions, ready for writing to the persistent
-    workflow at the end of the batch update."""
+class _DummyPersistentWorkflow:
+    """An object to pass to ResourceSpec.make_persistent that pretends to be a
+    Workflow object, so we can pretend to make template-level inputs/resources
+    persistent before the workflow exists."""
+
+    def __init__(self):
+        self._parameters = []
+        self._sources = []
+
+    def _add_parameter_data(self, data, source: Dict) -> int:
+        self._parameters.append(data)
+        self._sources.append(source)
+        data_ref = len(self._parameters) - 1
+        return data_ref
+
+    def make_persistent(self, workflow: Workflow):
+        for dat_i, source_i in zip(self._parameters, self._sources):
+            workflow._add_parameter_data(dat_i, source_i)
 
 
 @dataclass
@@ -60,14 +74,28 @@ class WorkflowTemplate(JSONLike):
             is_multiple=True,
             parent_ref="_workflow_template",
         ),
+        ChildObjectSpec(
+            name="resources",
+            class_name="ResourceList",
+            parent_ref="_workflow_template",
+        ),
     )
 
     name: str
     tasks: Optional[List[Task]] = field(default_factory=lambda: [])
     loops: Optional[List[Loop]] = field(default_factory=lambda: [])
     workflow: Optional[Workflow] = None
+    resources: Optional[Dict[str, Dict]] = None
 
     def __post_init__(self):
+
+        if isinstance(self.resources, dict):
+            self.resources = self.app.ResourceList.from_json_like(self.resources)
+        elif isinstance(self.resources, list):
+            self.resources = self.app.ResourceList(self.resources)
+        elif not self.resources:
+            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
+
         self._set_parent_refs()
 
     @classmethod
@@ -319,13 +347,23 @@ class Workflow:
         ext = cls._persistent_store_ext_lookup[store.lower()]
         path = path.joinpath(name + ext)
 
+        # make template-level inputs/resources think they are persistent:
+        wk_dummy = _DummyPersistentWorkflow()
+        param_src = {"type": "workflow_resources"}
+        for res_i in template.resources:
+            res_i.make_persistent(wk_dummy, param_src)
+
         store_cls = cls._persistent_store_cls_lookup[ext]
         template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
         template_js["tasks"] = []
         template_js["loops"] = []
         store_cls.write_empty_workflow(template_js, template_sh, path, overwrite)
+        wk = cls(path)
 
-        return cls(path)
+        # actually make template inputs/resources persistent, now the workflow exists:
+        wk_dummy.make_persistent(wk)
+
+        return wk
 
     @property
     def num_tasks(self) -> int:
