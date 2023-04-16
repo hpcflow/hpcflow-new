@@ -1103,6 +1103,11 @@ class WorkflowTask:
     def run_script_file_path(self):
         return self.dir_path / "run_script.ps1"
 
+    def get_dir_name(self, loop_idx: Dict[str, int] = None) -> str:
+        if not loop_idx:
+            return self.dir_name
+        return self.dir_name + "_" + "_".join((f"{k}-{v}" for k, v in loop_idx.items()))
+
     def get_all_element_iterations(self):
         return [j for i in self.elements[:] for j in i.iterations]
 

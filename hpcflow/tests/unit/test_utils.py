@@ -1,11 +1,15 @@
+from pathlib import Path
+from typing import Literal
 import pytest
 import zarr
 import numpy as np
+from numpy.typing import NDArray
 
 from hpcflow.sdk.core.utils import (
     bisect_slice,
     get_nested_indices,
     merge_into_zarr_column_array,
+    replace_items,
 )
 
 
@@ -158,7 +162,7 @@ def test_get_nest_index_raise_on_rollover():
 
 
 @pytest.fixture
-def zarr_column_array(tmp_path):
+def zarr_column_array(tmp_path: Path):
     headers = ["a", "b", "c"]
     num_rows = 2
     fill_value = -1
@@ -174,7 +178,7 @@ def zarr_column_array(tmp_path):
 
 
 @pytest.fixture
-def zarr_column_array_empty(tmp_path):
+def zarr_column_array_empty(tmp_path: Path):
     headers = ["a", "b", "c"]
     num_rows = 0
     fill_value = -1
@@ -189,7 +193,9 @@ def zarr_column_array_empty(tmp_path):
     return arr, headers, fill_value
 
 
-def test_merge_into_zarr_column_array_raise_on_headers_length_mismatch(zarr_column_array):
+def test_merge_into_zarr_column_array_raise_on_headers_length_mismatch(
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+):
     arr, headers, _ = zarr_column_array
     headers.pop(0)
     new_headers = ["a", "b", "c"]
@@ -199,7 +205,7 @@ def test_merge_into_zarr_column_array_raise_on_headers_length_mismatch(zarr_colu
 
 
 def test_merge_into_zarr_column_array_raise_on_new_headers_length_mismatch(
-    zarr_column_array,
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]],
 ):
     arr, headers, _ = zarr_column_array
     new_headers = ["a", "b", "c"]
@@ -208,7 +214,9 @@ def test_merge_into_zarr_column_array_raise_on_new_headers_length_mismatch(
         merge_into_zarr_column_array(arr, headers, new_arr, new_headers)
 
 
-def test_merge_into_zarr_column_array_initial_empty(zarr_column_array_empty):
+def test_merge_into_zarr_column_array_initial_empty(
+    zarr_column_array_empty: tuple[NDArray, list[str], Literal[-1]]
+):
     arr, headers, fill_value = zarr_column_array_empty
     np_arr = np.array(arr)
 
@@ -231,7 +239,9 @@ def test_merge_into_zarr_column_array_initial_empty(zarr_column_array_empty):
     assert np.all(arr[:] == expected) and headers == new_headers
 
 
-def test_merge_into_zarr_column_array_new_empty(zarr_column_array):
+def test_merge_into_zarr_column_array_new_empty(
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+):
     arr, headers, fill_value = zarr_column_array
     np_arr = np.array(arr)
 
@@ -254,7 +264,9 @@ def test_merge_into_zarr_column_array_new_empty(zarr_column_array):
     assert np.all(arr[:] == expected) and headers == new_headers
 
 
-def test_merge_into_zarr_column_array_with_column_reorder(zarr_column_array):
+def test_merge_into_zarr_column_array_with_column_reorder(
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+):
     arr, headers, fill_value = zarr_column_array
     np_arr = np.array(arr)
 
@@ -278,7 +290,9 @@ def test_merge_into_zarr_column_array_with_column_reorder(zarr_column_array):
     assert np.all(arr[:] == expected) and headers == header_old
 
 
-def test_merge_into_zarr_column_array_with_no_new_columns(zarr_column_array):
+def test_merge_into_zarr_column_array_with_no_new_columns(
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+):
 
     arr, headers, _ = zarr_column_array
     np_arr = np.array(arr)
@@ -293,7 +307,9 @@ def test_merge_into_zarr_column_array_with_no_new_columns(zarr_column_array):
     assert np.all(arr[:] == expected) and headers == new_headers
 
 
-def test_merge_into_zarr_column_array_with_new_column(zarr_column_array):
+def test_merge_into_zarr_column_array_with_new_column(
+    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+):
 
     arr, headers, fill_value = zarr_column_array
     np_arr = np.array(arr)
@@ -331,6 +347,18 @@ def test_bisect_slice():
                     sub_A = lst_A[slice_A]
                     sub_B = lst_B[slice_B]
                     assert sub_A + sub_B == tot_lst[selection]
+
+
+def test_replace_items():
+    lst = [0, 1, 2, 3]
+    ins = [10, 11]
+    assert replace_items(lst, start=1, end=3, repl=ins) == [0, 10, 11, 3]
+
+
+def test_replace_items_single_item():
+    lst = [0]
+    ins = [10, 11]
+    assert replace_items(lst, start=0, end=1, repl=ins) == [10, 11]
 
 
 # from hpcflow.utils import (

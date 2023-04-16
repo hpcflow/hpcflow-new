@@ -387,7 +387,7 @@ class WorkflowLoop:
                             i.name: i.num_added_iterations - 1 for i in child_loops
                         }
                         parent_loop_same_iters = {
-                            i.name: self.loop_idx[i.name] for i in parent_loops
+                            i.name: parent_loop_indices[i.name] for i in parent_loops
                         }
                         source_iter_loop_idx = {
                             **child_loop_max_iters,

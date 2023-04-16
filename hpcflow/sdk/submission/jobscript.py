@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 
 from datetime import datetime, timedelta
 import os
@@ -39,6 +40,7 @@ scheduler_cls_lookup = {
 
 def generate_EAR_resource_map(
     task: WorkflowTask,
+    loop_idx: Dict,
 ) -> Tuple[List[ElementResources], List[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
@@ -59,6 +61,8 @@ def generate_EAR_resource_map(
 
     for element in task.elements:
         for iter_i in element.iterations:
+            if iter_i.loop_idx != loop_idx:
+                continue
             if iter_i.EARs_initialised:  # not strictly needed (actions will be empty)
                 for act_idx, action in iter_i.actions.items():
                     for run in action.runs:
@@ -247,10 +251,19 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
             # can only merge if resources are the same and is array dependency:
             if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
 
+                num_loop_idx = len(js_j["task_loop_idx"])
+
                 # append task_insert_IDs
                 js_j["task_insert_IDs"].append(js["task_insert_IDs"][0])
+                js_j["task_loop_idx"].append(js["task_loop_idx"][0])
 
-                js_j["task_actions"].extend(js["task_actions"])
+                add_acts = []
+                for t_act in js["task_actions"]:
+                    t_act = copy.copy(t_act)
+                    t_act[2] += num_loop_idx
+                    add_acts.append(t_act)
+
+                js_j["task_actions"].extend(add_acts)
                 js_j["task_elements"].update(js["task_elements"])
 
                 # update EARs dict
@@ -319,19 +332,19 @@ class Jobscript(JSONLike):
         EARs: Dict[Tuple[int] : Tuple[int]],
         EAR_idx: NDArray,
         resources: ElementResources,
-        loop_idx: Dict,
+        task_loop_idx: List[Dict],
         dependencies: Dict[int:Dict],
         submit_time: Optional[datetime] = None,
         scheduler_job_ID: Optional[str] = None,
         version_info: Optional[Tuple[str]] = None,
     ):
         self._task_insert_IDs = task_insert_IDs
+        self._task_loop_idx = task_loop_idx
         self._task_actions = task_actions
         self._task_elements = task_elements
         self._EARs = EARs
         self._EAR_idx = EAR_idx
         self._resources = resources
-        self._loop_idx = loop_idx
         self._dependencies = dependencies
 
         # assigned on parent `Submission.submit` (or retrieved form persistent store):
@@ -399,8 +412,8 @@ class Jobscript(JSONLike):
         return self._resources
 
     @property
-    def loop_idx(self):
-        return self._loop_idx
+    def task_loop_idx(self):
+        return self._task_loop_idx
 
     @property
     def dependencies(self):
@@ -522,6 +535,13 @@ class Jobscript(JSONLike):
             (len(self.task_actions), 1)
         )
         return task_insert_IDs
+
+    def get_task_loop_idx_array(self):
+        loop_idx = np.empty_like(self.EAR_idx)
+        loop_idx[:] = np.array([i[2] for i in self.task_actions]).reshape(
+            (len(self.task_actions), 1)
+        )
+        return loop_idx
 
     def get_task_element_idx_array(self):
         element_idx = np.empty_like(self.EAR_idx)
@@ -645,9 +665,8 @@ class Jobscript(JSONLike):
 
     def make_artifact_dirs(self, task_artifacts_path):
 
-        # TODO: consider iteration paths - this will change the task dir?
-
         task_insert_ID_arr = self.get_task_insert_IDs_array()
+        task_loop_idx_arr = self.get_task_loop_idx_array()
         element_idx = self.get_task_element_idx_array()
         run_idx = self.get_EAR_run_idx_array()
 
@@ -658,11 +677,12 @@ class Jobscript(JSONLike):
             for js_act_idx in range(self.num_actions):
 
                 t_iID = task_insert_ID_arr[js_act_idx, js_elem_idx].item()
+                l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
                 e_idx = element_idx[js_act_idx, js_elem_idx].item()
                 r_idx = run_idx[js_act_idx, js_elem_idx].item()
 
-                task_dir = self.workflow.tasks.get(insert_ID=t_iID).dir_name
-                # .get_dir_name(loop_idx)
+                loop_idx = self.task_loop_idx[l_idx]
+                task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(loop_idx)
 
                 # TODO: don't load element, but make sure format is the same
                 element_ID = ElementID(task_insert_ID=t_iID, element_idx=e_idx)

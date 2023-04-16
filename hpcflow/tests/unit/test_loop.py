@@ -221,3 +221,22 @@ def test_wk_loop_input_sources_including_local_single_element_two_iters(tmp_path
         and t3_p2_i0_out == t1_p2_i1_in
         and t2_p1_i0_in == t2_p1_i1_in
     )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_iteration_task_pathway_single_task_single_element_three_iters(
+    tmp_path, store
+):
+    wk = make_workflow(
+        schemas_spec=[[{"p1": None}, ("p1",), "t1"]],
+        local_inputs={0: ("p1",)},
+        path=tmp_path,
+        store=store,
+    )
+    wk.add_loop(Loop(name="loop_0", tasks=[wk.tasks.t1], num_iterations=3))
+
+    assert wk.get_iteration_task_pathway() == [
+        (0, {"loop_0": 0}),
+        (0, {"loop_0": 1}),
+        (0, {"loop_0": 2}),
+    ]

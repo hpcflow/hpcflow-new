@@ -22,7 +22,7 @@ from hpcflow.sdk.typing import PathLike
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import InputSource
 from .task import ElementSet, Task
-from .utils import get_md5_hash, read_YAML, read_YAML_file
+from .utils import read_YAML, read_YAML_file, replace_items
 from .errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
@@ -678,18 +678,18 @@ class Workflow:
 
         return wk_loop
 
-    def _add_loop(self, loop: Loop) -> None:
+    def _add_loop(self, loop: Loop, parent_loop_indices: Dict = None) -> None:
         new_wk_loop = self._add_empty_loop(loop)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
             for _ in range(loop.num_iterations - 1):
-                new_wk_loop.add_iteration()
+                new_wk_loop.add_iteration(parent_loop_indices=parent_loop_indices)
 
-    def add_loop(self, loop: Loop) -> None:
+    def add_loop(self, loop: Loop, parent_loop_indices: Dict = None) -> None:
         """Add a loop to a subset of workflow tasks."""
         with self._store.cached_load():
             with self.batch_update():
-                self._add_loop(loop)
+                self._add_loop(loop, parent_loop_indices)
 
     def _add_task(self, task: Task, new_index: Optional[int] = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
@@ -896,14 +896,17 @@ class Workflow:
         submission_jobscripts = {}
         all_element_deps = {}
 
-        for task in self.tasks:
-            res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task)
+        for task_iID, loop_idx_i in self.get_iteration_task_pathway():
+
+            task = self.tasks.get(insert_ID=task_iID)
+            res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
             for js_dat in jobscripts:
 
+                # (insert ID, action_idx, index into task_loop_idx):
                 task_actions = [
-                    [task.insert_ID, i]
+                    [task.insert_ID, i, 0]
                     for i in sorted(
                         set(
                             act_idx_i
@@ -924,13 +927,13 @@ class Workflow:
 
                 js_i = {
                     "task_insert_IDs": [task.insert_ID],
+                    "task_loop_idx": [loop_idx_i],
                     "task_actions": task_actions,  # map jobscript actions to task actions
                     "task_elements": task_elements,  # map jobscript elements to task elements
                     "EARs": {},  # keys are (task insert ID, elem_idx, EAR_idx)
                     "EAR_idx": EAR_idx_arr,
                     "resources": res[js_dat["resources"]],
                     "resource_hash": res_hash[js_dat["resources"]],
-                    "loop_idx": None,  # TODO
                     "dependencies": {},
                 }
                 for elem_idx, act_indices in js_dat["elements"].items():
@@ -958,7 +961,7 @@ class Workflow:
                             run_idx,
                         )
 
-                        js_act_idx = task_actions.index([task.insert_ID, act_idx])
+                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
                         js_i["EAR_idx"][js_act_idx][js_elem_idx] = EAR_idx
 
                     # get indices of EARs that this element depends on:
@@ -985,6 +988,29 @@ class Workflow:
                 submission_jobscripts[new_js_idx] = js_i
 
         return submission_jobscripts, all_element_deps
+
+    def get_iteration_task_pathway(self):
+        pathway = []
+        for task in self.tasks:
+            loop_idx = {}
+            pathway.append((task.insert_ID, loop_idx))
+
+        for loop in self.loops:  # TODO: order by depth (inner loops first?)
+            task_subset = loop.task_insert_IDs
+            subset_idx = [idx for idx, i in enumerate(pathway) if i[0] in task_subset]
+            looped_pathway = []
+            for iter_i in range(loop.num_added_iterations):
+                for j in subset_idx:
+                    item_j = copy.deepcopy(pathway[j])
+                    item_j[1][loop.name] = iter_i
+                    looped_pathway.append(item_j)
+
+            # replaced pathway `sub_idx` items with `looped_pathway` items:
+            pathway = replace_items(
+                pathway, subset_idx[0], subset_idx[-1] + 1, looped_pathway
+            )
+
+        return pathway
 
 
 @dataclass

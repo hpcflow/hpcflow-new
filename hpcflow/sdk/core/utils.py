@@ -541,3 +541,21 @@ def bisect_slice(selection: slice, len_A: int):
     B_slice = slice(*B_idx)
 
     return A_slice, B_slice
+
+
+def replace_items(lst, start, end, repl):
+    """Replaced a range of items in a list with items in another list."""
+    if end <= start:
+        raise ValueError(
+            f"`end` ({end}) must be greater than or equal to `start` ({start})."
+        )
+    if start >= len(lst):
+        raise ValueError(f"`start` ({start}) must be less than length ({len(lst)}).")
+    if end > len(lst):
+        raise ValueError(
+            f"`end` ({end}) must be less than or equal to length ({len(lst)})."
+        )
+
+    lst_a = lst[:start]
+    lst_b = lst[end:]
+    return lst_a + repl + lst_b
