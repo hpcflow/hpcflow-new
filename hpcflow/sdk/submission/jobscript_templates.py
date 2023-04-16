@@ -1,6 +1,7 @@
 BASH_SHEBANG = """#!{shell_executable} {shell_args}"""
 
 BASH_HEADER = """
+shopt -s expand_aliases
 alias {workflow_app_alias}="{app_invoc}" # TODO: turn into a func so we can wrap venv activation
 
 WK_PATH=`pwd`
