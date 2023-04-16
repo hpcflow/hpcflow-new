@@ -161,11 +161,15 @@ class ElementSet(JSONLike):
 
     def __deepcopy__(self, memo):
         dct = self.to_dict()
+        orig_inp = dct.pop("original_input_sources", None)
+        orig_nest = dct.pop("original_nesting_order", None)
         elem_local_idx_range = dct.pop("_element_local_idx_range", None)
         obj = self.__class__(**copy.deepcopy(dct, memo))
         obj._task_template = self._task_template
         obj._defined_input_types = self._defined_input_types
-        obj._element_local_idx_range = elem_local_idx_range
+        obj.original_input_sources = copy.deepcopy(orig_inp)
+        obj.original_nesting_order = copy.deepcopy(orig_nest)
+        obj._element_local_idx_range = copy.deepcopy(elem_local_idx_range)
         return obj
 
     def __eq__(self, other):

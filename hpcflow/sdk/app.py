@@ -569,6 +569,27 @@ class BaseApp:
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
 
+        @new_CLI.command
+        @click.pass_context
+        @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
+        def make(ctx, template_path):
+            wk = self.Workflow.from_YAML_file(template_path)
+            click.echo(wk.path)
+
+        @new_CLI.command
+        @click.pass_context
+        @click.argument("workflow_path", type=click.Path(dir_okay=True, exists=True))
+        def submit(ctx, workflow_path):
+            wk = self.Workflow(workflow_path)
+            ctx.exit(wk.submit())
+
+        @new_CLI.command
+        @click.pass_context
+        @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
+        def go(ctx, template_path):
+            wk = self.Workflow.from_YAML_file(template_path)
+            ctx.exit(wk.submit())
+
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))
         new_CLI.add_command(get_demo_software_CLI(self))
