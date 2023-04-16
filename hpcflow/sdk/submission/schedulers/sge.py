@@ -89,7 +89,7 @@ class SGEPosix(Scheduler):
         cmd.append(str(js_path))
         return cmd
 
-    def parse_submission_output(self, stdout: str, stderr: str) -> str:
+    def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
         job_ID = stdout  # since we submit with "-terse"
         return job_ID

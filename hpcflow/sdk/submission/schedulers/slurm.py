@@ -99,7 +99,7 @@ class SlurmPosix(Scheduler):
 
         return cmd
 
-    def parse_submission_output(self, stdout: str, stderr: str) -> str:
+    def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
         if ";" in stdout:
             job_ID, _ = stdout.split(";")  # since we submit with "--parsable"
