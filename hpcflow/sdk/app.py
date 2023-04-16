@@ -421,45 +421,95 @@ class BaseApp:
 
         @workflow.command()
         @click.pass_context
-        @click.argument("task_insert_id", type=click.INT)
-        @click.argument("element_iteration_idx", type=click.INT)
-        @click.argument("action_idx", type=click.INT)
-        @click.argument("run_idx", type=click.INT)
-        def set_EAR_start(
+        @click.argument("submission_idx", type=click.INT)
+        @click.argument("jobscript_idx", type=click.INT)
+        @click.argument("JS_element_idx", type=click.INT)
+        @click.argument("JS_action_idx", type=click.INT)
+        def write_commands(
             ctx,
-            task_insert_id: int,
-            element_iteration_idx: int,
-            action_idx: int,
-            run_idx: int,
+            submission_idx: int,
+            jobscript_idx: int,
+            JS_element_idx: int,
+            JS_action_idx: int,
         ):
             ctx.exit(
-                ctx.obj["workflow"].set_EAR_start(
-                    task_insert_id,
-                    element_iteration_idx,
-                    action_idx,
-                    run_idx,
+                ctx.obj["workflow"].write_commands(
+                    submission_idx,
+                    jobscript_idx,
+                    JS_element_idx,
+                    JS_action_idx,
                 )
             )
 
         @workflow.command()
         @click.pass_context
-        @click.argument("task_insert_id", type=click.INT)
-        @click.argument("element_iteration_idx", type=click.INT)
-        @click.argument("action_idx", type=click.INT)
-        @click.argument("run_idx", type=click.INT)
+        @click.argument("name")
+        @click.argument("value")
+        @click.argument("submission_idx", type=click.INT)
+        @click.argument("jobscript_idx", type=click.INT)
+        @click.argument("JS_element_idx", type=click.INT)
+        @click.argument("JS_action_idx", type=click.INT)
+        def save_parameter(
+            ctx,
+            name: str,
+            value: str,
+            submission_idx: int,
+            jobscript_idx: int,
+            JS_element_idx: int,
+            JS_action_idx: int,
+        ):
+            ctx.exit(
+                ctx.obj["workflow"].save_parameter(
+                    name,
+                    value,
+                    submission_idx,
+                    jobscript_idx,
+                    JS_element_idx,
+                    JS_action_idx,
+                )
+            )
+
+        @workflow.command()
+        @click.pass_context
+        @click.argument("submission_idx", type=click.INT)
+        @click.argument("jobscript_idx", type=click.INT)
+        @click.argument("JS_element_idx", type=click.INT)
+        @click.argument("JS_action_idx", type=click.INT)
+        def set_EAR_start(
+            ctx,
+            submission_idx: int,
+            jobscript_idx: int,
+            JS_element_idx: int,
+            JS_action_idx: int,
+        ):
+            ctx.exit(
+                ctx.obj["workflow"].set_EAR_start(
+                    submission_idx,
+                    jobscript_idx,
+                    JS_element_idx,
+                    JS_action_idx,
+                )
+            )
+
+        @workflow.command()
+        @click.pass_context
+        @click.argument("submission_idx", type=click.INT)
+        @click.argument("jobscript_idx", type=click.INT)
+        @click.argument("JS_element_idx", type=click.INT)
+        @click.argument("JS_action_idx", type=click.INT)
         def set_EAR_end(
             ctx,
-            task_insert_id: int,
-            element_iteration_idx: int,
-            action_idx: int,
-            run_idx: int,
+            submission_idx: int,
+            jobscript_idx: int,
+            JS_element_idx: int,
+            JS_action_idx: int,
         ):
             ctx.exit(
                 ctx.obj["workflow"].set_EAR_end(
-                    task_insert_id,
-                    element_iteration_idx,
-                    action_idx,
-                    run_idx,
+                    submission_idx,
+                    jobscript_idx,
+                    JS_element_idx,
+                    JS_action_idx,
                 )
             )
 

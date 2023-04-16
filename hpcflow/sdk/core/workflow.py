@@ -834,37 +834,91 @@ class Workflow:
 
     def set_EAR_start(
         self,
-        task_insert_ID: int,
-        element_iteration_idx: int,
-        action_idx: int,
-        run_idx: int,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
     ) -> None:
         """Set the start time on an EAR."""
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_start(
-                    task_insert_ID,
-                    element_iteration_idx,
-                    action_idx,
-                    run_idx,
-                )
+                jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+                (t_iD, _, i_idx, a_idx, r_idx, _) = jobscript.get_EAR_ID_array()[
+                    JS_action_idx, JS_element_idx
+                ].item()
+                self._store.set_EAR_start(t_iD, i_idx, a_idx, r_idx)
 
     def set_EAR_end(
         self,
-        task_insert_ID: int,
-        element_iteration_idx: int,
-        action_idx: int,
-        run_idx: int,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
     ) -> None:
         """Set the end time on an EAR."""
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_end(
-                    task_insert_ID,
-                    element_iteration_idx,
-                    action_idx,
-                    run_idx,
+                jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+                (t_iD, _, i_idx, a_idx, r_idx, _) = jobscript.get_EAR_ID_array()[
+                    JS_action_idx, JS_element_idx
+                ].item()
+                self._store.set_EAR_end(t_iD, i_idx, a_idx, r_idx)
+
+    def _from_internal_get_EAR(
+        self,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+    ):
+        with self._store.cached_load():
+            jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+            id_args = jobscript.get_EAR_ID_array()[JS_action_idx, JS_element_idx].item()
+            EAR_id = EAR_ID(*id_args)
+            EAR = self.get_EARs_from_IDs([EAR_id], as_objects=True)[0]
+
+        return jobscript, EAR
+
+    def write_commands(
+        self,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+    ) -> None:
+        """Write run-time commands for a given EAR."""
+        with self._store.cached_load():
+            jobscript, EAR = self._from_internal_get_EAR(
+                submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
+            )
+            commands, shell_vars = EAR.compose_commands(EAR)
+            for param_name, shell_var_name in shell_vars:
+                commands += (
+                    f"{jobscript.workflow_app_alias}"
+                    f" internal save-parameter {param_name} ${shell_var_name}"
+                    f" $WK_PATH $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
+                    f"\n"
                 )
+            with jobscript.commands_file_name.open("wt") as fp:
+                # (assuming we have CD'd correctly to the element run directory)
+                fp.write(commands + "\n")
+
+    def save_parameter(
+        self,
+        name,
+        value,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+    ):
+        with self._store.cached_load():
+            with self.batch_update():
+                _, EAR = self._from_internal_get_EAR(
+                    submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
+                )
+                data_idx = EAR.data_idx[name]
+                self._store.set_parameter(data_idx, value)
 
     def resolve_jobscripts(self) -> List[Jobscript]:
 

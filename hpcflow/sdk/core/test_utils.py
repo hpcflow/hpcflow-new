@@ -46,7 +46,7 @@ def make_schemas(ins_outs, ret_list=False):
                 for out_i in outs_i[2:]
             ]
         cmd = Command(
-            " ".join(f"<<parameter:{i}>>" for i in ins_i.keys()),
+            " ".join(f"echo $((<<parameter:{i}>> + 100))" for i in ins_i.keys()),
             stdout=stdout,
             stderr=stderr,
         )

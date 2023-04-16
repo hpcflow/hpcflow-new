@@ -332,6 +332,49 @@ class ElementActionRun:
 
         return resources
 
+    def compose_commands(self) -> Tuple[str, List[str]]:
+        """
+        Returns
+        -------
+        commands
+        shell_vars
+            List of shell variable names that must be saved as workflow parameter data
+            as strings.
+        """
+
+        # TODO: this is bash-specific
+
+        vars_regex = r"(\<\<parameter:{}\>\>?)"
+        command_lns = []
+        shell_vars = []
+        for command in self.action.commands:
+
+            # substitute input parameters in command:
+            cmd_str = command.command
+            for cmd_inp in self.action.get_command_input_types():
+                inp_val = self.get(f"inputs.{cmd_inp}")
+                cmd_str = re.sub(
+                    pattern=vars_regex.format(cmd_inp),
+                    repl=str(inp_val),
+                    string=cmd_str,
+                )
+
+            out_types = command.get_output_types()
+            if out_types["stdout"]:
+                # assign stdout to a shell variable if required:
+                param_name = f"outputs.{out_types['stdout']}"
+                shell_var_name = f"parameter_{out_types['stdout']}"
+                shell_vars.append((param_name, shell_var_name))
+                cmd_str = f"{shell_var_name}=`{cmd_str}`"
+
+            # TODO: also map stderr/both if possible
+
+            command_lns.append(cmd_str)
+
+        commands = "\n".join(command_lns)
+
+        return commands, shell_vars
+
 
 class ElementAction:
 
@@ -1016,22 +1059,13 @@ class Action(JSONLike):
     def get_command_output_types(self) -> Tuple[str]:
         """Get parameter types from command stdout and stderr arguments."""
         params = []
-        # note: we use "parameter" rather than "output", because it could be a schema
-        # output or schema input.
-        vars_regex = r"\<\<parameter:(.*?)\>\>"
         for command in self.commands:
-            for i, label in zip((command.stdout, command.stderr), ("stdout", "stderr")):
-                if i:
-                    match = re.search(vars_regex, i)
-                    if match:
-                        param_typ = match.group(1)
-                        if match.span(0) != (0, len(i)):
-                            raise ValueError(
-                                f"If specified as a parameter, `{label}` must not include"
-                                f" any characters other than the parameter "
-                                f"specification, but this was given: {i!r}."
-                            )
-                        params.append(param_typ)
+            out_params = command.get_output_types()
+            if out_params["stdout"]:
+                params.append(out_params["stdout"])
+            if out_params["stderr"]:
+                params.append(out_params["stderr"])
+
         return tuple(set(params))
 
     def get_input_types(self) -> Tuple[str]:

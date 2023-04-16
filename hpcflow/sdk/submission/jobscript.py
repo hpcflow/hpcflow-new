@@ -316,6 +316,8 @@ class Jobscript(JSONLike):
 
     _app_attr = "app"
     _EAR_files_delimiter = ":"
+    _workflow_app_alias = "wkflow_app"
+    _commands_file_name = "commands.sh"  # TODO: bash-specific
 
     _child_objects = (
         ChildObjectSpec(
@@ -386,6 +388,14 @@ class Jobscript(JSONLike):
                 json_like["scheduler_version_info"]
             )
         return super().from_json_like(json_like, shared_data)
+
+    @property
+    def workflow_app_alias(self):
+        return self._workflow_app_alias
+
+    @property
+    def commands_file_name(self):
+        return self._commands_file_name
 
     @property
     def task_insert_IDs(self):
@@ -567,6 +577,40 @@ class Jobscript(JSONLike):
                 run_idx[js_act_idx, js_elem_idx] = run_idx_i
         return run_idx
 
+    def get_EAR_ID_array(self):
+        task_insert_ID_arr = self.get_task_insert_IDs_array()
+        element_idx = self.get_task_element_idx_array()
+        EAR_ID_arr = np.empty(
+            shape=self.EAR_idx.shape,
+            dtype=[
+                ("task_insert_ID", np.int32),
+                ("element_idx", np.int32),
+                ("iteration_idx", np.int32),
+                ("action_idx", np.int32),
+                ("run_idx", np.int32),
+                ("EAR_idx", np.int32),
+            ],
+        )
+
+        for js_act_idx in range(self.num_actions):
+            for js_elem_idx in range(self.num_elements):
+                EAR_idx_i = self.EAR_idx[js_act_idx, js_elem_idx]
+                task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
+                elem_idx_i = element_idx[js_act_idx, js_elem_idx]
+                (iter_idx_i, act_idx_i, run_idx_i) = self.EARs[
+                    (task_iID_i, elem_idx_i, EAR_idx_i)
+                ]
+                EAR_ID_arr[js_act_idx, js_elem_idx] = (
+                    task_iID_i,
+                    elem_idx_i,
+                    iter_idx_i,
+                    act_idx_i,
+                    run_idx_i,
+                    EAR_idx_i,
+                )
+
+        return EAR_ID_arr
+
     def write_need_EARs_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
@@ -603,6 +647,7 @@ class Jobscript(JSONLike):
             "js_idx": self.index,
             "EAR_file_name": self.need_EAR_file_name,
             "element_run_dirs_file_path": self.element_run_dir_file_name,
+            "workflow_app_alias": self.workflow_app_alias,
         }
 
         os_name = self.resources.os_name or os.name
@@ -634,6 +679,8 @@ class Jobscript(JSONLike):
             bash_main = BASH_MAIN.format(
                 num_actions=self.num_actions,
                 EAR_files_delimiter=self._EAR_files_delimiter,
+                workflow_app_alias=self.workflow_app_alias,
+                commands_file_name=self.commands_file_name,
             )
 
             out = bash_header
