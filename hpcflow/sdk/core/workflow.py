@@ -892,7 +892,7 @@ class Workflow:
             jobscript, EAR = self._from_internal_get_EAR(
                 submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
             )
-            commands, shell_vars = EAR.compose_commands(EAR)
+            commands, shell_vars = EAR.compose_commands()
             for param_name, shell_var_name in shell_vars:
                 commands += (
                     f"{jobscript.workflow_app_alias}"
