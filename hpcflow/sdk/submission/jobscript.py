@@ -779,7 +779,8 @@ class Jobscript(JSONLike):
             err_args["stderr"] = stderr
 
         except Exception as subprocess_exc:
-            err_args["message"] = f"Failed to execute submit command: {submit_cmd!r}."
+            err_args["message"] = f"Failed to execute submit command."
+            err_args["submit_cmd"] = submit_cmd
             err_args["stdout"] = None
             err_args["stderr"] = None
             err_args["subprocess_exc"] = subprocess_exc
@@ -787,6 +788,7 @@ class Jobscript(JSONLike):
 
         if stderr is not None:
             err_args["message"] = "Non-empty stderr from submit command."
+            err_args["submit_cmd"] = submit_cmd
             raise JobscriptSubmissionFailure(**err_args)
 
         try:
@@ -796,6 +798,7 @@ class Jobscript(JSONLike):
             # probably did submit fine, but the issue is just with parsing the job ID
             # (e.g. if the scheduler version was updated and it now outputs differently).
             err_args["message"] = "Failed to parse job ID from stdout."
+            err_args["submit_cmd"] = submit_cmd
             raise JobscriptSubmissionFailure(**err_args)
 
         self._set_submit_time(datetime.utcnow())

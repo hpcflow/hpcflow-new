@@ -160,6 +160,7 @@ class Submission(JSONLike):
         for sub_err in exceptions:
             msg += (
                 f"Jobscript {sub_err.js_idx} at path: {str(sub_err.js_path)!r}\n"
+                f"Submit command: {sub_err.submit_cmd!r}.\n"
                 f"Reason: {sub_err.message!r}\n"
             )
             if sub_err.subprocess_exc is not None:
