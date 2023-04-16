@@ -319,7 +319,7 @@ class JSONPersistentStore(PersistentStore):
 
     def get_submissions(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
-        subs = self.load()["submissions"]
+        subs = copy.deepcopy(self.load()["submissions"])
 
         # cast jobscript submit-times:
         for sub_idx, sub in enumerate(subs):

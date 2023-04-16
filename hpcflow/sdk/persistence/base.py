@@ -318,7 +318,7 @@ class PersistentStore(ABC):
         self.save()
 
     def set_jobscript_submit_time(
-        self, sub_idx: int, js_idx: int, submit_time: str
+        self, sub_idx: int, js_idx: int, submit_time: datetime
     ) -> None:
         if sub_idx not in self._pending["jobscript_submit_times"]:
             self._pending["jobscript_submit_times"][sub_idx] = {}
@@ -625,7 +625,6 @@ class PersistentStore(ABC):
         action_idx: int,
         run_idx: int,
     ) -> None:
-        # TODO: change EAR_idx_type to not include element idx?
         key = (task_insert_ID, element_iteration_idx, action_idx, run_idx)
         self._pending["EAR_end_times"][key] = datetime.utcnow()
         self.save()

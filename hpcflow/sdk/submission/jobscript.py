@@ -516,7 +516,7 @@ class Jobscript(JSONLike):
         return self.submission.path / self.jobscript_name
 
     def _set_submit_time(self, value: str) -> None:
-        self._scheduler_job_ID = value
+        self._submit_time = value
         self.workflow._store.set_jobscript_submit_time(
             sub_idx=self.submission.index,
             js_idx=self.index,
