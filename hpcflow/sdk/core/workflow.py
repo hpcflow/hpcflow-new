@@ -166,7 +166,7 @@ class Workflow:
 
     def __init__(self, path: PathLike) -> None:
 
-        self.path = Path(path)
+        self.path = Path(path).resolve()
         if not self.path.is_dir():
             raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
 
