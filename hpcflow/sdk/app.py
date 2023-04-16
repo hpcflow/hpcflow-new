@@ -429,15 +429,15 @@ class BaseApp:
             ctx,
             submission_idx: int,
             jobscript_idx: int,
-            JS_element_idx: int,
-            JS_action_idx: int,
+            js_element_idx: int,
+            js_action_idx: int,
         ):
             ctx.exit(
                 ctx.obj["workflow"].write_commands(
                     submission_idx,
                     jobscript_idx,
-                    JS_element_idx,
-                    JS_action_idx,
+                    js_element_idx,
+                    js_action_idx,
                 )
             )
 
@@ -455,8 +455,8 @@ class BaseApp:
             value: str,
             submission_idx: int,
             jobscript_idx: int,
-            JS_element_idx: int,
-            JS_action_idx: int,
+            js_element_idx: int,
+            js_action_idx: int,
         ):
             ctx.exit(
                 ctx.obj["workflow"].save_parameter(
@@ -464,8 +464,8 @@ class BaseApp:
                     value,
                     submission_idx,
                     jobscript_idx,
-                    JS_element_idx,
-                    JS_action_idx,
+                    js_element_idx,
+                    js_action_idx,
                 )
             )
 
@@ -479,15 +479,15 @@ class BaseApp:
             ctx,
             submission_idx: int,
             jobscript_idx: int,
-            JS_element_idx: int,
-            JS_action_idx: int,
+            js_element_idx: int,
+            js_action_idx: int,
         ):
             ctx.exit(
                 ctx.obj["workflow"].set_EAR_start(
                     submission_idx,
                     jobscript_idx,
-                    JS_element_idx,
-                    JS_action_idx,
+                    js_element_idx,
+                    js_action_idx,
                 )
             )
 
