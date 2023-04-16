@@ -785,7 +785,7 @@ class Jobscript(JSONLike):
             err_args["subprocess_exc"] = subprocess_exc
             raise JobscriptSubmissionFailure(**err_args)
 
-        if stderr:
+        if stderr is not None:
             err_args["message"] = "Non-empty stderr from submit command."
             raise JobscriptSubmissionFailure(**err_args)
 

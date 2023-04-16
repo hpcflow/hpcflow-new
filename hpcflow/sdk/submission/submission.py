@@ -162,11 +162,11 @@ class Submission(JSONLike):
                 f"Jobscript {sub_err.js_idx} at path: {str(sub_err.js_path)!r}\n"
                 f"Reason: {sub_err.message!r}\n"
             )
-            if sub_err.subprocess_exc:
+            if sub_err.subprocess_exc is not None:
                 msg += f"Subprocess exception: {sub_err.subprocess_exc}\n"
-            if sub_err.stdout:
+            if sub_err.stdout is not None:
                 f"Submission stdout:\n{indent(sub_err.stdout, '  ')}\n"
-            if sub_err.stderr:
+            if sub_err.stderr is not None:
                 f"Submission stderr:\n{indent(sub_err.stderr, '  ')}\n"
 
         raise SubmissionFailure(message=msg)
