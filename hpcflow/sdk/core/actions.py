@@ -371,7 +371,7 @@ class ElementActionRun:
 
             command_lns.append(cmd_str)
 
-        commands = "\n".join(command_lns)
+        commands = "\n".join(command_lns) + "\n"
 
         return commands, shell_vars
 
