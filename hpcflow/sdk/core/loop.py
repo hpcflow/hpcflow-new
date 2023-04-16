@@ -340,6 +340,11 @@ class WorkflowLoop:
                 elem_iters_idx[element.index] = []
                 new_data_idx = {}
 
+                # copy resources from zeroth iteration:
+                for key, val in element.iterations[0].get_data_idx().items():
+                    if key.startswith("resources."):
+                        new_data_idx[key] = val
+
                 for inp in task.template.all_schema_inputs:
 
                     is_inp_task = False
