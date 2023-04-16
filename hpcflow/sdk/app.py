@@ -582,7 +582,8 @@ class BaseApp:
         @click.argument("workflow_path", type=click.Path(dir_okay=True, exists=True))
         def submit(ctx, workflow_path):
             wk = self.Workflow(workflow_path)
-            ctx.exit(wk.submit())
+            submitted_js = wk.submit()
+            click.echo(f"Submitted jobscripts {submitted_js!r}.")
 
         @new_CLI.command
         @click.pass_context
