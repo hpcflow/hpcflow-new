@@ -876,7 +876,7 @@ class Workflow:
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             id_args = jobscript.get_EAR_ID_array()[JS_action_idx, JS_element_idx].item()
             EAR_id = EAR_ID(*id_args)
-            EAR = self.get_EARs_from_IDs([EAR_id], as_objects=True)[0]
+            EAR = self.get_EARs_from_IDs([EAR_id])[0]
 
         return jobscript, EAR
 
