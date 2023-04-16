@@ -40,11 +40,12 @@ class SGEPosix(Scheduler):
     def format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_options(self, resources, num_elements):
+    def format_options(self, resources, num_elements, is_array):
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self.format_core_request_lines(resources.num_cores, "smp.pe"))
-        opts.append(self.format_array_request(num_elements))
+        if is_array:
+            opts.append(self.format_array_request(num_elements))
         return "\n".join(opts)
 
     def get_version_info(self):

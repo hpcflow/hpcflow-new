@@ -618,8 +618,9 @@ class Jobscript(JSONLike):
                 bash_header = BASH_SCHEDULER_HEADER.format(
                     bash_shebang=bash_shebang,
                     scheduler_options=self.scheduler.format_options(
-                        self.resources,
-                        self.num_elements,
+                        resources=self.resources,
+                        num_elements=self.num_elements,
+                        is_array=self.is_array,
                     ),
                     bash_header=bash_header,
                 )
