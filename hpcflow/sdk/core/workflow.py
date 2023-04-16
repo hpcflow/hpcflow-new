@@ -896,8 +896,8 @@ class Workflow:
             for param_name, shell_var_name in shell_vars:
                 commands += (
                     f"{jobscript.workflow_app_alias}"
-                    f" internal workflow save-parameter {param_name} ${shell_var_name}"
-                    f" $WK_PATH $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
+                    f" internal workflow $WK_PATH save-parameter {param_name} ${shell_var_name}"
+                    f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
                     f"\n"
                 )
             with Path(jobscript.commands_file_name).open("wt") as fp:
