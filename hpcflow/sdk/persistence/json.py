@@ -271,7 +271,7 @@ class JSONPersistentStore(PersistentStore):
             for js_idx, vers_info in js_vers_info.items():
                 wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
                     "version_info"
-                ] = list(vers_info)
+                ] = vers_info
 
         # commit new jobscript job IDs:
         for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():

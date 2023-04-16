@@ -629,9 +629,9 @@ class ZarrPersistentStore(PersistentStore):
         # commit new jobscript version info:
         for sub_idx, js_vers_info in self._pending["jobscript_version_info"].items():
             for js_idx, vers_info in js_vers_info.items():
-                md["submissions"][sub_idx]["jobscripts"][js_idx]["version_info"] = list(
-                    vers_info
-                )
+                md["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "version_info"
+                ] = vers_info
 
         # commit new jobscript job IDs:
         for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():
