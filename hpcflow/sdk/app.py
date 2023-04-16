@@ -423,8 +423,8 @@ class BaseApp:
         @click.pass_context
         @click.argument("submission_idx", type=click.INT)
         @click.argument("jobscript_idx", type=click.INT)
-        @click.argument("JS_element_idx", type=click.INT)
-        @click.argument("JS_action_idx", type=click.INT)
+        @click.argument("js_element_idx", type=click.INT)
+        @click.argument("js_action_idx", type=click.INT)
         def write_commands(
             ctx,
             submission_idx: int,
@@ -447,8 +447,8 @@ class BaseApp:
         @click.argument("value")
         @click.argument("submission_idx", type=click.INT)
         @click.argument("jobscript_idx", type=click.INT)
-        @click.argument("JS_element_idx", type=click.INT)
-        @click.argument("JS_action_idx", type=click.INT)
+        @click.argument("js_element_idx", type=click.INT)
+        @click.argument("js_action_idx", type=click.INT)
         def save_parameter(
             ctx,
             name: str,
@@ -473,8 +473,8 @@ class BaseApp:
         @click.pass_context
         @click.argument("submission_idx", type=click.INT)
         @click.argument("jobscript_idx", type=click.INT)
-        @click.argument("JS_element_idx", type=click.INT)
-        @click.argument("JS_action_idx", type=click.INT)
+        @click.argument("js_element_idx", type=click.INT)
+        @click.argument("js_action_idx", type=click.INT)
         def set_EAR_start(
             ctx,
             submission_idx: int,
@@ -495,21 +495,21 @@ class BaseApp:
         @click.pass_context
         @click.argument("submission_idx", type=click.INT)
         @click.argument("jobscript_idx", type=click.INT)
-        @click.argument("JS_element_idx", type=click.INT)
-        @click.argument("JS_action_idx", type=click.INT)
+        @click.argument("js_element_idx", type=click.INT)
+        @click.argument("js_action_idx", type=click.INT)
         def set_EAR_end(
             ctx,
             submission_idx: int,
             jobscript_idx: int,
-            JS_element_idx: int,
-            JS_action_idx: int,
+            js_element_idx: int,
+            js_action_idx: int,
         ):
             ctx.exit(
                 ctx.obj["workflow"].set_EAR_end(
                     submission_idx,
                     jobscript_idx,
-                    JS_element_idx,
-                    JS_action_idx,
+                    js_element_idx,
+                    js_action_idx,
                 )
             )
 
