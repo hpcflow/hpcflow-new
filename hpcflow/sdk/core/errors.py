@@ -141,3 +141,32 @@ class UnsetParameterDataError(Exception):
 
 class LoopAlreadyExistsError(Exception):
     pass
+
+
+class SchedulerVersionsFailure(RuntimeError):
+    """We couldn't get the scheduler and or shell versions."""
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__(message)
+
+
+class JobscriptSubmissionFailure(RuntimeError):
+    def __init__(self, message, js_idx, js_path, stdout, stderr, subprocess_exc) -> None:
+        self.message = message
+        self.js_idx = js_idx
+        self.js_path = js_path
+        self.stdout = stdout
+        self.stderr = stderr
+        self.subprocess_exc = subprocess_exc
+        super().__init__(message)
+
+
+class SubmissionFailure(RuntimeError):
+    def __init__(self, message) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class WorkflowSubmissionFailure(RuntimeError):
+    pass

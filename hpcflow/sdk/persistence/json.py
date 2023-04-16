@@ -6,24 +6,48 @@ import json
 from contextlib import contextmanager
 from os import PathLike
 from pathlib import Path
+from pprint import pprint
 import shutil
 from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.utils import bisect_slice, get_md5_hash
 
-from hpcflow.sdk.persistence import PersistentStore, dropbox_permission_err_retry
+from hpcflow.sdk.persistence.base import (
+    PersistentStore,
+    dropbox_permission_err_retry,
+    remove_dir,
+    rename_dir,
+)
 
 
 class JSONPersistentStore(PersistentStore):
     """A verbose but inefficient storage backend, to help with understanding and
     debugging."""
 
+    _name = "json"
+    _store_path_ext = "json"
+
+    @classmethod
+    def _get_store_path(cls, workflow_path):
+        name = workflow_path.parts[-1]
+        return workflow_path.joinpath(f"{name}.{cls._store_path_ext}")
+
+    @classmethod
+    def path_has_store(cls, workflow_path):
+        return cls._get_store_path(workflow_path).is_file()
+
+    @property
+    def store_path(self):
+        return self._get_store_path(self.workflow_path)
+
     def __init__(self, workflow: Workflow) -> None:
         self._loaded = None  # cache used in `cached_load` context manager
         super().__init__(workflow)
 
     def exists(self) -> bool:
-        return self.path.is_file()
+        # TODO: check these methods
+        return self.store_path.is_file()
 
     @classmethod
     def write_empty_workflow(
@@ -31,15 +55,11 @@ class JSONPersistentStore(PersistentStore):
         template_js: Dict,
         template_components_js: Dict,
         path: Path,
-        overwrite: bool,
+        replaced_dir: Path,
     ) -> None:
 
-        replaced_file = None
-        if path.exists():
-            if overwrite:
-                replaced_file = cls._rename_existing(path)
-            else:
-                raise ValueError(f"Path already exists: {path}.")
+        path.mkdir()
+        store_path = path.joinpath(f"{path.parts[-1]}.{cls._store_path_ext}")
         dat = {
             "parameter_data": {},
             "parameter_sources": {},
@@ -48,11 +68,12 @@ class JSONPersistentStore(PersistentStore):
             "tasks": [],
             "num_added_tasks": 0,
             "loops": [],
+            "submissions": [],
         }
-        if replaced_file:
-            dat["replaced_file"] = str(replaced_file.name)
+        if replaced_dir:
+            dat["replaced_dir"] = str(replaced_dir.name)
 
-        cls._dump_to_path(path, dat)
+        cls._dump_to_path(store_path, dat)
 
     @contextmanager
     def cached_load(self) -> Iterator[Dict]:
@@ -68,7 +89,7 @@ class JSONPersistentStore(PersistentStore):
                 self._loaded = None
 
     def _load(self) -> Dict:
-        with open(self.path, "rt") as fp:
+        with open(self.store_path, "rt") as fp:
             return json.load(fp)
 
     def load(self) -> Dict:
@@ -77,12 +98,12 @@ class JSONPersistentStore(PersistentStore):
 
     @staticmethod
     @dropbox_permission_err_retry
-    def _dump_to_path(path, data: Dict) -> None:
-        with open(path, "wt", newline="") as fp:
+    def _dump_to_path(store_path, data: Dict) -> None:
+        with open(store_path, "wt", newline="") as fp:
             json.dump(data, fp, indent=4)
 
     def _dump(self, wk_data: Dict) -> None:
-        self._dump_to_path(self.path, wk_data)
+        self._dump_to_path(self.store_path, wk_data)
 
     def _add_parameter_data(self, data: Any, source: Dict) -> int:
 
@@ -202,6 +223,15 @@ class JSONPersistentStore(PersistentStore):
             iter_i["actions"].update(actions_i)
             iter_i["EARs_initialised"] = True
 
+        # commit new EAR submission indices:
+        for (ins_ID, it_idx, act_idx, rn_idx), sub_idx in self._pending[
+            "EAR_submission_idx"
+        ].items():
+            t_idx = self.get_task_idx_from_insert_ID(ins_ID)
+            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            EAR = iter_i["actions"][str(act_idx)][rn_idx]
+            EAR["metadata"]["submission_idx"] = sub_idx
+
         # commit new EAR start times:
         for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
             "EAR_start_times"
@@ -229,6 +259,34 @@ class JSONPersistentStore(PersistentStore):
         for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
             wk_data["loops"][loop_idx]["num_added_iterations"] = num_added_iters
 
+        # commit new submissions:
+        wk_data["submissions"].extend(self._pending["submissions"])
+
+        # commit new submission attempts:
+        for sub_idx, attempts_i in self._pending["submission_attempts"].items():
+            wk_data["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+
+        # commit new jobscript scheduler version info:
+        for sub_idx, js_vers_info in self._pending["jobscript_version_info"].items():
+            for js_idx, vers_info in js_vers_info.items():
+                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "version_info"
+                ] = list(vers_info)
+
+        # commit new jobscript job IDs:
+        for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():
+            for js_idx, job_ID in job_IDs.items():
+                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "scheduler_job_ID"
+                ] = job_ID
+
+        # commit new jobscript submit times:
+        for sub_idx, js_submit_times in self._pending["jobscript_submit_times"].items():
+            for js_idx, submit_time in js_submit_times.items():
+                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "submit_time"
+                ] = submit_time.strftime(self.timestamp_format)
+
         # commit new parameters:
         for param_idx, param_dat in self._pending["parameter_data"].items():
             wk_data["parameter_data"][str(param_idx)] = param_dat
@@ -242,8 +300,8 @@ class JSONPersistentStore(PersistentStore):
             src = dict(sorted(src.items()))
             wk_data["parameter_sources"][str(param_idx)] = src
 
-        if self._pending["remove_replaced_file_record"]:
-            del wk_data["replaced_file"]
+        if self._pending["remove_replaced_dir_record"]:
+            del wk_data["replaced_dir"]
 
         self._dump(wk_data)
         self.clear_pending()
@@ -258,6 +316,20 @@ class JSONPersistentStore(PersistentStore):
     def get_loops(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
         return self.load()["loops"]
+
+    def get_submissions(self) -> List[Dict]:
+        # No need to consider pending; this is called once per Workflow object
+        subs = self.load()["submissions"]
+
+        # cast jobscript submit-times:
+        for sub_idx, sub in enumerate(subs):
+            for js_idx, js in enumerate(sub["jobscripts"]):
+                if js["submit_time"]:
+                    subs[sub_idx]["jobscripts"][js_idx][
+                        "submit_time"
+                    ] = datetime.strptime(js["submit_time"], self.timestamp_format)
+
+        return subs
 
     def get_num_added_tasks(self) -> int:
         return self.load()["num_added_tasks"] + len(self._pending["tasks"])
@@ -352,10 +424,12 @@ class JSONPersistentStore(PersistentStore):
 
         # cast EAR start/end times to datetime types:
         for element in elements:
+            element_idx = element["index"]
             for iter_i in element["iterations"]:
-                for act, runs in iter_i["actions"].items():
+                iter_idx = iter_i["index"]
+                for act_idx, runs in iter_i["actions"].items():
                     for run_idx in range(len(runs)):
-                        run = iter_i["actions"][act][run_idx]
+                        run = iter_i["actions"][act_idx][run_idx]
                         start_time = run["metadata"]["start_time"]
                         end_time = run["metadata"]["end_time"]
                         if start_time is not None:
@@ -366,6 +440,12 @@ class JSONPersistentStore(PersistentStore):
                             run["metadata"]["end_time"] = datetime.strptime(
                                 end_time, self.timestamp_format
                             )
+
+                        # update pending submission indices:
+                        key = (task_insert_ID, iter_idx, act_idx, run_idx)
+                        if key in self._pending["EAR_submission_idx"]:
+                            sub_idx = self._pending["EAR_submission_idx"][key]
+                            run["metadata"]["submission_idx"] = sub_idx
 
         return elements
 
@@ -394,29 +474,23 @@ class JSONPersistentStore(PersistentStore):
                     self._pending["loop_idx"][key] = {}
                 self._pending["loop_idx"][key].update({name: 0})
 
-    @dropbox_permission_err_retry
-    def delete_no_confirm(self) -> None:
-        """Permanently delete the workflow data with no confirmation."""
-        self.path.unlink()
-
-    @dropbox_permission_err_retry
-    def remove_replaced_file(self) -> None:
+    def remove_replaced_dir(self) -> None:
         wk_data = self.load()
-        if "replaced_file" in wk_data:
-            Path(wk_data["replaced_file"]).unlink()
-            self._pending["remove_replaced_file_record"] = True
+        if "replaced_dir" in wk_data:
+            remove_dir(Path(wk_data["replaced_dir"]))
+            self._pending["remove_replaced_dir_record"] = True
             self.save()
 
-    @dropbox_permission_err_retry
-    def reinstate_replaced_file(self) -> None:
+    def reinstate_replaced_dir(self) -> None:
+        print(f"reinstate replaced directory!")
         wk_data = self.load()
-        if "replaced_file" in wk_data:
-            Path(wk_data["replaced_file"]).rename(self.path)
+        if "replaced_dir" in wk_data:
+            rename_dir(Path(wk_data["replaced_dir"]), self.workflow_path)
 
     def copy(self, path: PathLike = None) -> None:
-        shutil.copy(self.path, path)
+        shutil.copy(self.workflow_path, path)
 
-    def is_modified_on_disk(self) -> bool:
+    def is_modified_on_disk(self) -> Union[bool, Dict]:
         if self._loaded:
             on_disk = self._load()
             in_mem = self._loaded

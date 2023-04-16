@@ -79,10 +79,12 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 
 
 class EARSubmissionStatus(enum.Enum):
-    PENDING = 0
-    SUBMITTED = 1
-    RUNNING = 2
-    COMPLETE = 3
+
+    PENDING = 0  # Not yet associated with a submission
+    PREPARED = 1  # Associated with a submission that is not yet submitted
+    SUBMITTED = 2  # Submitted for execution
+    RUNNING = 3  # Executing
+    COMPLETE = 4  # Finished executing
 
 
 class ElementActionRun:
@@ -154,8 +156,8 @@ class ElementActionRun:
         return self._metadata
 
     @property
-    def submission_group_idx(self):
-        return self.metadata["submission_group_idx"]
+    def submission_idx(self):
+        return self.metadata["submission_idx"]
 
     @property
     def start_time(self):
@@ -175,12 +177,26 @@ class ElementActionRun:
 
     @property
     def submission_status(self):
+
         if self.metadata["end_time"] is not None:
             return EARSubmissionStatus.COMPLETE
+
         elif self.metadata["start_time"] is not None:
             return EARSubmissionStatus.RUNNING
-        elif self.metadata["submission_group_idx"] is not None:
-            return EARSubmissionStatus.SUBMITTED
+
+        elif self.submission_idx is not None:
+
+            wk_sub_stat = self.workflow.submissions[self.submission_idx].status
+
+            if wk_sub_stat.name == "PENDING":
+                return EARSubmissionStatus.PREPARED
+
+            elif wk_sub_stat.name == "SUBMITTED":
+                return EARSubmissionStatus.SUBMITTED
+
+            else:
+                RuntimeError(f"Workflow submission status not understood: {wk_sub_stat}.")
+
         return EARSubmissionStatus.PENDING
 
     def get_parameter_names(self, prefix):
@@ -299,8 +315,8 @@ class ElementActionRun:
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
 
-        resource_specs = self.get("resources")
-        template_resource_specs = self.get_template_resources()
+        resource_specs = copy.deepcopy(self.get("resources"))
+        template_resource_specs = copy.deepcopy(self.get_template_resources())
         resources = {}
         for scope in self.action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:

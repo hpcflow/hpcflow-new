@@ -1,4 +1,6 @@
-from hpcflow.sdk.core.submission import group_resource_map_into_jobscripts
+from datetime import timedelta
+from hpcflow.sdk.submission.jobscript import group_resource_map_into_jobscripts
+from hpcflow.sdk.submission.submission import timedelta_format, timedelta_parse
 
 
 def test_group_resource_map_into_jobscripts():
@@ -159,3 +161,9 @@ def test_group_resource_map_into_jobscripts():
     for i in examples:
         jobscripts_i, _ = group_resource_map_into_jobscripts(i["resources"])
         assert jobscripts_i == i["expected"]
+
+
+def test_timedelta_parse_format_round_trip():
+    td = timedelta(days=2, hours=25, minutes=92, seconds=77)
+    td_str = timedelta_format(td)
+    assert td_str == timedelta_format(timedelta_parse(td_str))

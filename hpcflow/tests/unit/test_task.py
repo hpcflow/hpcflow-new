@@ -8,6 +8,7 @@ from hpcflow.api import (
     Environment,
     FileSpec,
     OutputFileParser,
+    ResourceSpec,
     ValueSequence,
     hpcflow,
     InputSourceType,
@@ -1360,7 +1361,8 @@ def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
     new_data = [param_data_new[k][1] for k in new_keys]
 
     # one new key for resources, one for param_p3 value
-    assert new_data == [{"scratch": None, "num_cores": None}, 301]
+    res = {k: None for k in ResourceSpec.ALLOWED_PARAMETERS}
+    assert new_data == [res, 301]
 
 
 def test_parameters_accepted_on_add_task(tmp_path, param_p3):

@@ -1,20 +1,20 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
+from datetime import timedelta
 import enum
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
 from hpcflow.sdk.core.errors import (
-    ValuesAlreadyPersistentError,
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
-from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
+from hpcflow.sdk.submission.submission import timedelta_format
 
 
 Address = List[Union[int, float, str]]
@@ -701,6 +701,12 @@ class ResourceSpec(JSONLike):
     ALLOWED_PARAMETERS = {
         "scratch",
         "num_cores",
+        "scheduler",
+        "use_job_array",
+        "time_limit",
+        "scheduler_options",
+        "scheduler_commands",
+        "os_name",
     }
 
     _resource_list = None
@@ -712,13 +718,33 @@ class ResourceSpec(JSONLike):
         ),
     )
 
-    def __init__(self, scope=None, scratch=None, num_cores=None):
+    def __init__(
+        self,
+        scope: ActionScope = None,
+        scratch: Optional[str] = None,
+        num_cores: Optional[int] = None,
+        scheduler: Optional[str] = None,
+        use_job_array: Optional[bool] = None,
+        time_limit: Optional[Union[str, timedelta]] = None,
+        scheduler_options: Optional[Dict] = None,
+        scheduler_commands: Optional[Dict] = None,
+        os_name: Optional[str] = None,
+    ):
 
         self.scope = scope or self.app.ActionScope.any()
+
+        if isinstance(time_limit, timedelta):
+            time_limit = timedelta_format(time_limit)
 
         # user-specified resource parameters:
         self._scratch = scratch
         self._num_cores = num_cores
+        self._scheduler = scheduler
+        self._use_job_array = use_job_array
+        self._time_limit = time_limit
+        self._scheduler_options = scheduler_options
+        self._scheduler_commands = scheduler_commands
+        self._os_name = os_name
 
         # assigned by `make_persistent`
         self._workflow = None
@@ -830,8 +856,15 @@ class ResourceSpec(JSONLike):
             is_new = True
             self._value_group_idx = data_ref
             self._workflow = workflow
+
             self._num_cores = None
             self._scratch = None
+            self._scheduler = None
+            self._use_job_array = None
+            self._time_limit = None
+            self._scheduler_options = None
+            self._scheduler_commands = None
+            self._os_name = None
 
         return (self.normalised_path, [data_ref], is_new)
 
@@ -852,6 +885,30 @@ class ResourceSpec(JSONLike):
     @property
     def num_cores(self):
         return self._get_value("num_cores")
+
+    @property
+    def scheduler(self):
+        return self._get_value("scheduler")
+
+    @property
+    def use_job_array(self):
+        return self._get_value("use_job_array")
+
+    @property
+    def time_limit(self):
+        return self._get_value("time_limit")
+
+    @property
+    def scheduler_options(self):
+        return self._get_value("scheduler_options")
+
+    @property
+    def scheduler_commands(self):
+        return self._get_value("scheduler_commands")
+
+    @property
+    def os_name(self):
+        return self._get_value("os_name")
 
     @property
     def workflow(self):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from contextlib import contextmanager
 import copy
+from datetime import datetime
 from pathlib import Path
 
 import shutil
@@ -19,7 +20,11 @@ from hpcflow.sdk.core.utils import (
     get_relative_path,
     set_in_container,
 )
-from hpcflow.sdk.persistence import PersistentStore, dropbox_permission_err_retry
+from hpcflow.sdk.persistence.base import (
+    PersistentStore,
+    remove_dir,
+    rename_dir,
+)
 from hpcflow.sdk.typing import PathLike
 
 
@@ -60,6 +65,8 @@ class ZarrPersistentStore(PersistentStore):
     """An efficient storage backend using Zarr that supports parameter-setting from
     multiple processes."""
 
+    _name = "zarr"
+
     _param_grp_name = "parameter_data"
     _elem_grp_name = "element_data"
     _param_base_arr_name = "base"
@@ -73,6 +80,14 @@ class ZarrPersistentStore(PersistentStore):
 
     _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
     _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
+
+    @classmethod
+    def path_has_store(cls, path):
+        return path.joinpath(".zgroup").is_file()
+
+    @property
+    def store_path(self):
+        return self.workflow_path
 
     def __init__(self, workflow: Workflow) -> None:
         self._metadata = None  # cache used in `cached_load` context manager
@@ -104,27 +119,21 @@ class ZarrPersistentStore(PersistentStore):
         template_js: Dict,
         template_components_js: Dict,
         path: Path,
-        overwrite: bool,
+        replaced_dir: Path,
     ) -> None:
-
-        replaced_file = None
-        if path.exists():
-            if overwrite:
-                replaced_file = cls._rename_existing(path)
-            else:
-                raise ValueError(f"Path already exists: {path}.")
 
         metadata = {
             "template": template_js,
             "template_components": template_components_js,
             "num_added_tasks": 0,
             "loops": [],
+            "submissions": [],
         }
-        if replaced_file:
-            metadata["replaced_file"] = str(replaced_file.name)
+        if replaced_dir:
+            metadata["replaced_dir"] = str(replaced_dir.name)
 
         store = zarr.DirectoryStore(path)
-        root = zarr.group(store=store, overwrite=overwrite)
+        root = zarr.group(store=store, overwrite=False)
         root.attrs.update(metadata)
 
         root.create_group(name=cls._elem_grp_name)
@@ -381,10 +390,10 @@ class ZarrPersistentStore(PersistentStore):
                 act_idx,
                 [
                     [
-                        run["index"],
+                        run["index"],  # TODO: is this needed?
                         -1
-                        if run["metadata"]["submission_group_idx"] is None
-                        else run["metadata"]["submission_group_idx"],
+                        if run["metadata"]["submission_idx"] is None
+                        else run["metadata"]["submission_idx"],
                         -1
                         if run["metadata"]["success"] is None
                         else int(run["metadata"]["success"]),
@@ -432,7 +441,7 @@ class ZarrPersistentStore(PersistentStore):
                 {
                     "index": run[0],
                     "metadata": {
-                        "submission_group_idx": None if run[1] == -1 else run[1],
+                        "submission_idx": None if run[1] == -1 else run[1],
                         "success": None if run[2] == -1 else bool(run[2]),
                     },
                     "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in run[3]},
@@ -568,6 +577,15 @@ class ZarrPersistentStore(PersistentStore):
             new_shape = (EAR_times_arr.shape[0] + len(actions_i), EAR_times_arr.shape[1])
             EAR_times_arr.resize(new_shape)
 
+        # commit new EAR submission indices:
+        for (ins_ID, it_idx, act_idx, rn_idx), sub_idx in self._pending[
+            "EAR_submission_idx"
+        ].items():
+            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
+            iter_dat = elem_iter_arr[it_idx]
+            iter_dat[5][act_idx][1][rn_idx][1] = sub_idx
+            elem_iter_arr[it_idx] = iter_dat
+
         # commit new EAR start times:
         for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
             "EAR_start_times"
@@ -601,6 +619,34 @@ class ZarrPersistentStore(PersistentStore):
         for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
             md["loops"][loop_idx]["num_added_iterations"] = num_added_iters
 
+        # commit new submissions:
+        md["submissions"].extend(self._pending["submissions"])
+
+        # commit new submission attempts:
+        for sub_idx, attempts_i in self._pending["submission_attempts"].items():
+            md["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+
+        # commit new jobscript version info:
+        for sub_idx, js_vers_info in self._pending["jobscript_version_info"].items():
+            for js_idx, vers_info in js_vers_info.items():
+                md["submissions"][sub_idx]["jobscripts"][js_idx]["version_info"] = list(
+                    vers_info
+                )
+
+        # commit new jobscript job IDs:
+        for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():
+            for js_idx, job_ID in job_IDs.items():
+                md["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "scheduler_job_ID"
+                ] = job_ID
+
+        # commit new jobscript submit times:
+        for sub_idx, js_submit_times in self._pending["jobscript_submit_times"].items():
+            for js_idx, submit_time in js_submit_times.items():
+                md["submissions"][sub_idx]["jobscripts"][js_idx][
+                    "submit_time"
+                ] = submit_time.strftime(self.timestamp_format)
+
         # note: parameter sources are committed immediately with parameter data, so there
         # is no need to add elements to the parameter sources array.
 
@@ -611,8 +657,8 @@ class ZarrPersistentStore(PersistentStore):
             src = dict(sorted(src.items()))
             sources[param_idx] = src
 
-        if self._pending["remove_replaced_file_record"]:
-            del md["replaced_file"]
+        if self._pending["remove_replaced_dir_record"]:
+            del md["replaced_dir"]
 
         # TODO: maybe clear pending keys individually, so if there is an error we can
         # retry/continue with committing?
@@ -631,6 +677,20 @@ class ZarrPersistentStore(PersistentStore):
     def get_loops(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
         return self.load_metadata()["loops"]
+
+    def get_submissions(self) -> List[Dict]:
+        # No need to consider pending; this is called once per Workflow object
+        subs = self.load_metadata()["submissions"]
+
+        # cast jobscript submit-times:
+        for sub_idx, sub in enumerate(subs):
+            for js_idx, js in enumerate(sub["jobscripts"]):
+                if js["submit_time"]:
+                    subs[sub_idx]["jobscripts"][js_idx][
+                        "submit_time"
+                    ] = datetime.strptime(js["submit_time"], self.timestamp_format)
+
+        return subs
 
     def get_num_added_tasks(self) -> int:
         return self.load_metadata()["num_added_tasks"] + len(self._pending["tasks"])
@@ -731,9 +791,9 @@ class ZarrPersistentStore(PersistentStore):
             # add EAR start/end times from separate array:
             for iter_idx_i, iter_i in zip(elem_i["iterations_idx"], elem_i["iterations"]):
                 iter_i["index"] = iter_idx_i
-                for act, runs in iter_i["actions"].items():
+                for act_idx, runs in iter_i["actions"].items():
                     for run_idx in range(len(runs)):
-                        run = iter_i["actions"][act][run_idx]
+                        run = iter_i["actions"][act_idx][run_idx]
                         EAR_idx = run["index"]
                         start_time = None
                         end_time = None
@@ -747,6 +807,12 @@ class ZarrPersistentStore(PersistentStore):
                             pass
                         run["metadata"]["start_time"] = start_time
                         run["metadata"]["end_time"] = end_time
+
+                        # update pending submission indices:
+                        key = (task_insert_ID, iter_idx_i, act_idx, run_idx)
+                        if key in self._pending["EAR_submission_idx"]:
+                            sub_idx = self._pending["EAR_submission_idx"][key]
+                            run["metadata"]["submission_idx"] = sub_idx
 
             if not keep_iterations_idx:
                 del elem_i["iterations_idx"]
@@ -899,34 +965,21 @@ class ZarrPersistentStore(PersistentStore):
                 self._pending["element_iter_attrs"][task_idx] = {}
             self._pending["element_iter_attrs"][task_idx].update(attrs)
 
-    @dropbox_permission_err_retry
-    def delete_no_confirm(self) -> None:
-        """Permanently delete the workflow data with no confirmation."""
-        # Dropbox (on Windows, at least) seems to try to re-sync some of the workflow
-        # files if it is deleted soon after creation, which is the case on a failed
-        # workflow creation (e.g. missing inputs):
-        while self.workflow.path.is_dir():
-            shutil.rmtree(self.workflow.path)
-            time.sleep(0.5)
-
-    @dropbox_permission_err_retry
-    def remove_replaced_file(self) -> None:
+    def remove_replaced_dir(self) -> None:
         md = self.load_metadata()
-        if "replaced_file" in md:
-            shutil.rmtree(Path(md["replaced_file"]))
-            self._pending["remove_replaced_file_record"] = True
+        if "replaced_dir" in md:
+            remove_dir(Path(md["replaced_dir"]))
+            self._pending["remove_replaced_dir_record"] = True
             self.save()
 
-    @dropbox_permission_err_retry
-    def reinstate_replaced_file(self) -> None:
-        print(f"reinstate replaced file!")
+    def reinstate_replaced_dir(self) -> None:
+        print(f"reinstate replaced directory!")
         md = self.load_metadata()
-        if "replaced_file" in md:
-            # TODO does rename work for the dir?
-            Path(md["replaced_file"]).rename(self.path)
+        if "replaced_dir" in md:
+            rename_dir(Path(md["replaced_dir"]), self.workflow_path)
 
     def copy(self, path: PathLike = None) -> None:
-        shutil.copytree(self.path, path)
+        shutil.copytree(self.workflow_path, path)
 
     def is_modified_on_disk(self) -> bool:
         if self._metadata:

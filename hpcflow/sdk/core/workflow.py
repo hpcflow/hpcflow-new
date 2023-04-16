@@ -4,21 +4,20 @@ import copy
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-import shutil
-import time
-from typing import Dict, Iterator, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union
 from warnings import warn
 
 import numpy as np
-import zarr
+
 from hpcflow.sdk.core.actions import EAR_ID
-from hpcflow.sdk.core.submission import (
+from hpcflow.sdk.submission.jobscript import (
     generate_EAR_resource_map,
     group_resource_map_into_jobscripts,
+    jobscripts_to_list,
+    merge_jobscripts_across_tasks,
+    resolve_jobscript_dependencies,
 )
-
-from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type, PathLike
-
+from hpcflow.sdk.typing import PathLike
 
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import InputSource
@@ -27,11 +26,16 @@ from .utils import get_md5_hash, read_YAML, read_YAML_file
 from .errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
+    SubmissionFailure,
     WorkflowBatchUpdateFailedError,
+    WorkflowNotFoundError,
+    WorkflowSubmissionFailure,
 )
-
-from hpcflow.sdk.persistence.json import JSONPersistentStore
-from hpcflow.sdk.persistence.zarr import ZarrPersistentStore
+from hpcflow.sdk.persistence import (
+    store_cls_from_path,
+    store_cls_from_str,
+    temporary_workflow_rename,
+)
 
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 
@@ -94,7 +98,9 @@ class WorkflowTemplate(JSONLike):
         elif isinstance(self.resources, list):
             self.resources = self.app.ResourceList(self.resources)
         elif not self.resources:
-            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
+            self.resources = self.app.ResourceList(
+                [self.app.ResourceSpec(scheduler="direct")]
+            )
 
         self._set_parent_refs()
 
@@ -156,39 +162,40 @@ class Workflow:
 
     _app_attr = "app"
 
-    _persistent_store_ext_lookup = {
-        "json": ".json",
-        "zarr": "",
-    }
-
-    _persistent_store_cls_lookup = {
-        ".json": JSONPersistentStore,
-        "": ZarrPersistentStore,
-    }
-
     _default_ts_fmt = "%Y-%m-%d %H:%M:%S.%f"
 
     def __init__(self, path: PathLike) -> None:
+
         self.path = Path(path)
+        if not self.path.is_dir():
+            raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
 
         # assigned on first access to corresponding properties:
         self._template = None
         self._template_components = None
         self._tasks = None
         self._loops = None
+        self._submissions = None
 
-        self._store = self._get_store_class_from_ext(self.path)(self)
+        self._store = store_cls_from_path(self.path)(self)
 
         self._in_batch_mode = False  # flag to track when processing batch updates
 
         # store indices of updates during batch update, so we can revert on failure:
         self._pending = self._get_empty_pending()
 
+    @property
+    def name(self):
+        """The workflow name may be different from the template name, as it includes the
+        date-timestamp if generated."""
+        return self.path.parts[-1]
+
     def _get_empty_pending(self) -> Dict:
         return {
             "template_components": {k: [] for k in self.app._template_component_types},
             "tasks": [],  # list of int
             "loops": [],  # list of int
+            "submissions": [],  # list of int
         }
 
     def _accept_pending(self) -> None:
@@ -200,9 +207,9 @@ class Workflow:
     def _reject_pending(self) -> None:
         """Revert pending changes to the in-memory representation of the workflow.
 
-        This deletes new tasks, new template component data, and new loops. Element
-        additions to existing (non-pending) tasks are separately rejected/accepted by the
-        WorkflowTask object.
+        This deletes new tasks, new template component data, new loops, and new
+        submissions. Element additions to existing (non-pending) tasks are separately
+        rejected/accepted by the WorkflowTask object.
 
         """
         for task_idx in self._pending["tasks"][::-1]:
@@ -220,20 +227,15 @@ class Workflow:
             self.loops._remove_object(loop_idx)
             self.template.loops.pop(loop_idx)
 
-        self._reset_pending()
+        for sub_idx in self._pending["submissions"][::-1]:
+            # iterate in reverse so the index references are correct
+            self._submissions.pop(sub_idx)
 
-    @classmethod
-    def _get_store_class_from_ext(cls, path: str) -> Type:
-        return cls._persistent_store_cls_lookup[path.suffix.lower()]
+        self._reset_pending()
 
     @property
     def store_format(self):
-        # TODO: make this info cleaner to access
-        for k, v in self._persistent_store_cls_lookup.items():
-            if v == type(self._store):
-                for k2, v2 in self._persistent_store_ext_lookup.items():
-                    if v2 == k:
-                        return k2
+        return self._store.store_name
 
     @classmethod
     def from_template(
@@ -305,7 +307,7 @@ class Workflow:
                 if is_workflow_creation:
                     # creation failed, so no need to keep the newly generated workflow:
                     self._store.delete_no_confirm()
-                    self._store.reinstate_replaced_file()
+                    self._store.reinstate_replaced_dir()
 
                 raise err
 
@@ -313,9 +315,11 @@ class Workflow:
 
                 if self._store.has_pending:
 
-                    if self._store.is_modified_on_disk():
+                    diff = self._store.is_modified_on_disk()
+                    if diff:
                         raise WorkflowBatchUpdateFailedError(
-                            "Workflow modified on disk since it was loaded!"
+                            f"Workflow modified on disk since it was loaded! Diff is "
+                            f"{diff!r}."
                         )
 
                     for task in self.tasks:
@@ -324,7 +328,7 @@ class Workflow:
                     for loop in self.loops:
                         loop._accept_pending_num_added_iters()
 
-                    self._store.remove_replaced_file()
+                    self._store.remove_replaced_dir()
                     # TODO: handle errors in commit pending?
                     self._store.commit_pending()
                     self._accept_pending()
@@ -344,8 +348,14 @@ class Workflow:
 
         path = Path(path or "").resolve()
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
-        ext = cls._persistent_store_ext_lookup[store.lower()]
-        path = path.joinpath(name + ext)
+        path = path.joinpath(name)
+
+        replaced_dir = None
+        if path.exists():
+            if overwrite:
+                replaced_dir = temporary_workflow_rename(path)
+            else:
+                raise ValueError(f"Path already exists: {path}.")
 
         # make template-level inputs/resources think they are persistent:
         wk_dummy = _DummyPersistentWorkflow()
@@ -353,11 +363,17 @@ class Workflow:
         for res_i in template.resources:
             res_i.make_persistent(wk_dummy, param_src)
 
-        store_cls = cls._persistent_store_cls_lookup[ext]
         template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
         template_js["tasks"] = []
         template_js["loops"] = []
-        store_cls.write_empty_workflow(template_js, template_sh, path, overwrite)
+
+        store_cls = store_cls_from_str(store)
+        store_cls.write_empty_workflow(
+            template_js,
+            template_sh,
+            path,
+            replaced_dir,
+        )
         wk = cls(path)
 
         # actually make template inputs/resources persistent, now the workflow exists:
@@ -385,6 +401,10 @@ class Workflow:
     @property
     def num_loops(self) -> int:
         return len(self.loops)
+
+    @property
+    def num_submissions(self) -> int:
+        return len(self.submissions)
 
     @property
     def template_components(self) -> Dict:
@@ -443,6 +463,26 @@ class Workflow:
         return self._loops
 
     @property
+    def submissions(self) -> List[Submission]:
+        if self._submissions is None:
+            with self._store.cached_load():
+                subs = []
+                for idx, sub_dat in enumerate(self._store.get_submissions()):
+                    sub_js = {"index": idx, "workflow": self, **sub_dat}
+                    sub = self.app.Submission.from_json_like(sub_js)
+                    subs.append(sub)
+                self._submissions = subs
+        return self._submissions
+
+    @property
+    def submissions_path(self):
+        return self.path / "submissions"
+
+    @property
+    def task_artifacts_path(self):
+        return self.path / "tasks"
+
+    @property
     def _timestamp_format(self) -> int:
         # TODO: allow customisation on workflow creation
         return self._default_ts_fmt
@@ -470,11 +510,71 @@ class Workflow:
     def rename(self, new_name: str):
         raise NotImplementedError
 
-    def submit(self):
-        raise NotImplementedError
+    def _submit(self, ignore_errors=False):
+        """Submit outstanding EARs for execution."""
 
-    def add_submission(self, filter):
-        raise NotImplementedError
+        # generate a new submission if there are no pending submissions:
+        pending = [i for i in self.submissions if i.needs_submit]
+        if not pending:
+            new_sub = self.add_submission()
+            if not new_sub:
+                raise ValueError("No pending element action runs to submit!")
+            pending = [new_sub]
+
+        self.submissions_path.mkdir(exist_ok=True)
+        self.task_artifacts_path.mkdir(exist_ok=True)
+
+        # submit all pending submissions:
+        exceptions = []
+        submitted_js = {}
+        for sub in pending:
+            try:
+                sub_js_idx = sub.submit(
+                    self.task_artifacts_path,
+                    ignore_errors=ignore_errors,
+                )
+                submitted_js[sub.index] = sub_js_idx
+            except SubmissionFailure as exc:
+                exceptions.append(exc)
+
+        return exceptions, submitted_js
+
+    def submit(self, ignore_errors=False) -> None:
+        with self._store.cached_load():
+            with self.batch_update():
+                # commit updates before raising exception:
+                exceptions, submitted_js = self._submit(ignore_errors=ignore_errors)
+
+        if exceptions:
+            msg = "\n" + "\n\n".join([i.message for i in exceptions])
+            raise WorkflowSubmissionFailure(msg)
+
+        return submitted_js
+
+    def add_submission(self) -> Submission:
+        new_idx = self.num_submissions
+        sub_obj = self.app.Submission(
+            index=new_idx,
+            workflow=self,
+            jobscripts=self.resolve_jobscripts(),
+        )
+        EAR_indices = sub_obj.prepare_EAR_submission_idx_update()
+        if not EAR_indices:
+            print(
+                f"There are no pending element action runs, so a new submission was not "
+                f"added."
+            )
+            return
+
+        self.set_EAR_submission_indices(sub_idx=new_idx, EAR_indices=EAR_indices)
+        sub_obj_js, _ = sub_obj.to_json_like()
+        self._submissions.append(sub_obj)
+        self._pending["submissions"].append(new_idx)
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.add_submission(sub_obj_js)
+
+        return self.submissions[new_idx]
 
     def get_task_unique_names(
         self, map_to_insert_ID: bool = False
@@ -722,12 +822,22 @@ class Workflow:
             for idx in indices
         ]
 
+    def set_EAR_submission_indices(
+        self,
+        sub_idx: int,
+        EAR_indices: Tuple[int, int, int, int],
+    ) -> None:
+        """Set the submission index on an EAR."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_EAR_submission_indices(sub_idx, EAR_indices)
+
     def set_EAR_start(
         self,
-        task_insert_ID,
-        element_iteration_idx,
-        action_idx,
-        run_idx,
+        task_insert_ID: int,
+        element_iteration_idx: int,
+        action_idx: int,
+        run_idx: int,
     ) -> None:
         """Set the start time on an EAR."""
         with self._store.cached_load():
@@ -741,10 +851,10 @@ class Workflow:
 
     def set_EAR_end(
         self,
-        task_insert_ID,
-        element_iteration_idx,
-        action_idx,
-        run_idx,
+        task_insert_ID: int,
+        element_iteration_idx: int,
+        action_idx: int,
+        run_idx: int,
     ) -> None:
         """Set the end time on an EAR."""
         with self._store.cached_load():
@@ -756,31 +866,81 @@ class Workflow:
                     run_idx,
                 )
 
-    def resolve_jobscripts(self):
+    def resolve_jobscripts(self) -> List[Jobscript]:
 
-        submission_jobscripts = []
+        js, element_deps = self._resolve_singular_jobscripts()
+        js_deps = resolve_jobscript_dependencies(js, element_deps)
+
+        for js_idx in js:
+            if js_idx in js_deps:
+                js[js_idx]["dependencies"] = js_deps[js_idx]
+
+        js = merge_jobscripts_across_tasks(js)
+        js = jobscripts_to_list(js)
+        js_objs = [self.app.Jobscript(**i) for i in js]
+
+        return js_objs
+
+    def _resolve_singular_jobscripts(self) -> Tuple[Dict[int, Dict], Dict]:
+        """
+        We arrange EARs into `EARs` and `elements` so we can quickly look up membership
+        by EAR idx in the `EARs` dict.
+
+        Returns
+        -------
+        submission_jobscripts
+        all_element_deps
+
+        """
+
+        submission_jobscripts = {}
+        all_element_deps = {}
+
         for task in self.tasks:
             res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
             for js_dat in jobscripts:
 
+                task_actions = [
+                    [task.insert_ID, i]
+                    for i in sorted(
+                        set(
+                            act_idx_i
+                            for act_idx in js_dat["elements"].values()
+                            for act_idx_i in act_idx
+                        )
+                    )
+                ]
+                task_elements = {task.insert_ID: list(js_dat["elements"].keys())}
+                EAR_idx_arr_shape = (
+                    len(task_actions),
+                    len(task_elements[task.insert_ID]),
+                )
+                EAR_idx_arr = np.empty(EAR_idx_arr_shape, dtype=np.int32)
+                EAR_idx_arr[:] = -1
+
+                new_js_idx = len(submission_jobscripts)
+
                 js_i = {
-                    "task_insert_ID": task.insert_ID,
-                    "loop_idx": None,  # TODO
-                    "EARs": {},
-                    "elements": {},
+                    "task_insert_IDs": [task.insert_ID],
+                    "task_actions": task_actions,  # map jobscript actions to task actions
+                    "task_elements": task_elements,  # map jobscript elements to task elements
+                    "EARs": {},  # keys are (task insert ID, elem_idx, EAR_idx)
+                    "EAR_idx": EAR_idx_arr,
                     "resources": res[js_dat["resources"]],
                     "resource_hash": res_hash[js_dat["resources"]],
+                    "loop_idx": None,  # TODO
+                    "dependencies": {},
                 }
-                dep_elem_map = {}
-                js_deps = {}
-                js_array_dep = True
                 for elem_idx, act_indices in js_dat["elements"].items():
-                    js_i["elements"][elem_idx] = []
+
+                    js_elem_idx = task_elements[task.insert_ID].index((elem_idx))
                     all_EAR_IDs = []
                     for act_idx in act_indices:
-                        EAR_idx, run_idx, iter_idx = EAR_map[act_idx, elem_idx]
+                        EAR_idx, run_idx, iter_idx = (
+                            i.item() for i in EAR_map[act_idx, elem_idx]
+                        )
                         # construct EAR_ID object so we can retrieve the EAR objects and
                         # so their dependencies:
                         EAR_id = EAR_ID(
@@ -792,76 +952,39 @@ class Workflow:
                             EAR_idx=EAR_idx,
                         )
                         all_EAR_IDs.append(EAR_id)
-                        js_i["EARs"][EAR_idx] = (
-                            task.insert_ID,
+                        js_i["EARs"][(task.insert_ID, elem_idx, EAR_idx)] = (
                             iter_idx,
                             act_idx,
                             run_idx,
                         )
-                        js_i["elements"][elem_idx].append(EAR_idx)
+
+                        js_act_idx = task_actions.index([task.insert_ID, act_idx])
+                        js_i["EAR_idx"][js_act_idx][js_elem_idx] = EAR_idx
 
                     # get indices of EARs that this element depends on:
                     EAR_objs = self.get_EARs_from_IDs(all_EAR_IDs)
                     EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
                     EAR_deps_flat = [j for i in EAR_deps for j in i]
+
+                    # represent EAR dependencies of this jobscripts using the same key
+                    # format as in the "EARs" dict, to allow for quick lookup when
+                    # resolving dependencies between jobscripts; also, no need to include
+                    # EAR dependencies that are in this jobscript:
                     EAR_deps_EAR_idx = [
                         (i.task_insert_ID, i.element_idx, i.EAR_idx)
                         for i in EAR_deps_flat
+                        if (i.task_insert_ID, i.element_idx, i.EAR_idx)
+                        not in js_i["EARs"]
                     ]
+                    if EAR_deps_EAR_idx:
+                        if new_js_idx not in all_element_deps:
+                            all_element_deps[new_js_idx] = {}
 
-                    # find jobscript dependencies:
-                    for dep_task_ID, dep_elem_idx, dep_EAR_idx in EAR_deps_EAR_idx:
+                        all_element_deps[new_js_idx][js_elem_idx] = EAR_deps_EAR_idx
 
-                        # loop over jobscripts added so far:
-                        for js_j_idx, js_j in enumerate(submission_jobscripts):
-                            if (
-                                dep_task_ID == js_j["task_insert_ID"]
-                                and dep_EAR_idx in js_j["EARs"]
-                            ):
-                                if js_j_idx not in dep_elem_map:
-                                    dep_elem_map[js_j_idx] = {}
+                submission_jobscripts[new_js_idx] = js_i
 
-                                if js_j_idx not in js_deps:
-                                    js_deps[js_j_idx] = {
-                                        "is_array": None,
-                                        "element_map": None,
-                                    }
-
-                                if not js_array_dep:
-                                    break
-
-                                if elem_idx in dep_elem_map[js_j_idx]:
-                                    # the element of the new jobscript depends on more
-                                    # than one element of the previous jobscript
-                                    # (js_j_idx), so cannot be an array dependency:
-                                    js_array_dep = False
-                                    break
-
-                                dep_elem_map[js_j_idx][elem_idx] = dep_elem_idx
-
-                                js_deps[js_j_idx]["is_array"] = js_array_dep
-                                js_deps[js_j_idx]["element_map"] = dep_elem_map[js_j_idx]
-
-                # For array dependency, all elements of the new jobscript must be
-                # specified in the element dependency map keys, and all elements in the
-                # dependency jobscript must be specified in the element dependency map
-                # values. Together with the previous check, this ensures a one-to-one
-                # mapping.
-                for js_dep_idx, dep_info in js_deps.items():
-                    if dep_info["is_array"]:
-                        if set(js_dat["elements"].keys()) != set(
-                            dep_info["element_map"].keys()
-                        ):
-                            dep_info["is_array"] = False
-                        if set(
-                            submission_jobscripts[js_dep_idx]["elements"].keys()
-                        ) != set(dep_info["element_map"].values()):
-                            dep_info["is_array"] = False
-
-                js_i["dependencies"] = js_deps
-                submission_jobscripts.append(js_i)
-
-        return submission_jobscripts
+        return submission_jobscripts, all_element_deps
 
 
 @dataclass

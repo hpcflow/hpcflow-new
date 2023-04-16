@@ -1,9 +1,11 @@
 from __future__ import annotations
+import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
 from hpcflow.sdk.core.actions import ElementID, IterationID
+from hpcflow.sdk.core.json_like import JSONLike
 
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type
@@ -120,15 +122,37 @@ class ElementResources(JSONLike):
     scratch: str = None
     num_cores: int = None
     scheduler: str = None
-    array: bool = None
+    use_job_array: bool = None
+    time_limit: str = None
+    scheduler_options: Dict = None
+    scheduler_commands: Dict = None
+    os_name: str = None
 
     def __post_init__(self):
         if self.num_cores is None:
             self.num_cores = 1
 
+        self.scheduler_commands = self.scheduler_commands or {}
+        self.scheduler_options = self.scheduler_options or {}
+
+    def __eq__(self, other) -> bool:
+        if type(self) != type(other):
+            return False
+        else:
+            return self.__dict__ == other.__dict__
+
     def __hash__(self):
-        keys, vals = zip(*self.__dict__.items())
-        return hash(tuple((keys, vals)))
+        def _hash_dict(d):
+            if not d:
+                return -1
+            keys, vals = zip(*d.items())
+            return hash(tuple((keys, vals)))
+
+        dct = copy.deepcopy(self.__dict__)
+        dct["scheduler_commands"] = _hash_dict(dct["scheduler_commands"])
+        dct["scheduler_options"] = _hash_dict(dct["scheduler_options"])
+
+        return _hash_dict(dct)
 
 
 class ElementIteration:

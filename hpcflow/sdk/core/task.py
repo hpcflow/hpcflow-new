@@ -1517,7 +1517,7 @@ class WorkflowTask:
                 run_0 = {
                     "index": EAR_idx,
                     "metadata": {
-                        "submission_group_idx": None,
+                        "submission_idx": None,
                         "success": None,
                         "start_time": None,
                         "end_time": None,
@@ -2017,6 +2017,12 @@ class Elements:
             start = start or 0
             step = 1 if step is None else step
 
+        else:
+            raise RuntimeError(
+                f"{self.__class__.__name__} selection must be an `int` or a `slice` "
+                f"object, but received type {type(selection)}."
+            )
+
         selection = slice(start, stop, step)
         length = len(range(*selection.indices(self.task.num_elements)))
 
@@ -2079,6 +2085,12 @@ class Parameters:
             stop = self.task.num_elements if stop is None else stop
             start = start or 0
             step = 1 if step is None else step
+
+        else:
+            raise RuntimeError(
+                f"{self.__class__.__name__} selection must be an `int` or a `slice` "
+                f"object, but received type {type(selection)!r}."
+            )
 
         selection = slice(start, stop, step)
         length = len(range(*selection.indices(self.task.num_elements)))
