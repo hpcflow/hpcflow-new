@@ -900,7 +900,7 @@ class Workflow:
                     f" $WK_PATH $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
                     f"\n"
                 )
-            with jobscript.commands_file_name.open("wt") as fp:
+            with Path(jobscript.commands_file_name).open("wt") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands + "\n")
 
