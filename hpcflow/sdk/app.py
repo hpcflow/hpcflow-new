@@ -572,8 +572,9 @@ class BaseApp:
         @new_CLI.command
         @click.pass_context
         @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
-        def make(ctx, template_path):
-            wk = self.Workflow.from_YAML_file(template_path)
+        @click.option("--store", type=click.Choice(["zarr", "json"]), default="zarr")
+        def make(ctx, template_path, store="zarr"):
+            wk = self.Workflow.from_YAML_file(template_path, store=store)
             click.echo(wk.path)
 
         @new_CLI.command

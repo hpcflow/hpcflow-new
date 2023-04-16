@@ -262,9 +262,10 @@ class Workflow:
         path: Optional[str] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
+        store: Optional[str] = "zarr",
     ) -> Workflow:
         template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
-        return cls.from_template(template, path, name, overwrite)
+        return cls.from_template(template, path, name, overwrite, store)
 
     @classmethod
     def from_tasks(
