@@ -29,7 +29,7 @@ for JS_act_idx in {{1..{num_actions}}}
 do
 
   need_EAR="$(cut -d'{EAR_files_delimiter}' -f $JS_act_idx <<< $elem_need_EARs)"
-  if [ $need_act = "0" ]; then
+  if [ "$need_act" = "0" ]; then
       continue
   fi
 
