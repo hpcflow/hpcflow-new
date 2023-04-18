@@ -680,7 +680,7 @@ class ZarrPersistentStore(PersistentStore):
 
     def get_submissions(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
-        subs = self.load_metadata()["submissions"]
+        subs = copy.deepcopy(self.load_metadata()["submissions"])
 
         # cast jobscript submit-times:
         for sub_idx, sub in enumerate(subs):
