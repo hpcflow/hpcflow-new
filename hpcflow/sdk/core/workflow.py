@@ -268,6 +268,18 @@ class Workflow:
         return cls.from_template(template, path, name, overwrite, store)
 
     @classmethod
+    def from_YAML_string(
+        cls,
+        YAML_str: PathLike,
+        path: Optional[str] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = "zarr",
+    ) -> Workflow:
+        template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
+        return cls.from_template(template, path, name, overwrite, store)
+
+    @classmethod
     def from_tasks(
         cls,
         name: str,
