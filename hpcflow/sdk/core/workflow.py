@@ -189,6 +189,7 @@ class WorkflowTemplate(JSONLike):
 
 
 class Workflow:
+    """Class to represent a persistent {app_name} workflow."""
 
     _app_attr = "app"
 
