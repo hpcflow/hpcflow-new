@@ -35,6 +35,7 @@ from hpcflow.sdk.persistence import (
     store_cls_from_path,
     store_cls_from_str,
     temporary_workflow_rename,
+    DEFAULT_STORE_FORMAT,
 )
 
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
@@ -291,7 +292,7 @@ class Workflow:
         path: Optional[str] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
-        store: Optional[str] = "zarr",
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
         template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
         return cls.from_template(template, path, name, overwrite, store)
@@ -303,7 +304,7 @@ class Workflow:
         path: Optional[str] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
-        store: Optional[str] = "zarr",
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
         template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
         return cls.from_template(template, path, name, overwrite, store)
@@ -315,7 +316,7 @@ class Workflow:
         tasks: List[Task],
         path: Optional[PathLike] = None,
         overwrite: Optional[bool] = False,
-        store: Optional[str] = "zarr",
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
         raise NotImplementedError
 

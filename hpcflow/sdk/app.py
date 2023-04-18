@@ -11,6 +11,7 @@ from colorama import init as colorama_init
 from termcolor import colored
 
 from hpcflow import __version__
+from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 from .core.json_like import JSONLike
 from .core.utils import read_YAML, read_YAML_file
 from . import api, SDK_logger
@@ -574,7 +575,11 @@ class BaseApp:
         @new_CLI.command
         @click.pass_context
         @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
-        @click.option("--store", type=click.Choice(["zarr", "json"]), default="zarr")
+        @click.option(
+            "--store",
+            type=click.Choice(ALL_STORE_FORMATS),
+            default=DEFAULT_STORE_FORMAT,
+        )
         def make(ctx, template_path, store="zarr"):
             wk = self.Workflow.from_YAML_file(template_path, store=store)
             click.echo(wk.path)

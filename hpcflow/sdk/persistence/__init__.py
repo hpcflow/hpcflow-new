@@ -9,6 +9,9 @@ from .base import PersistentStore, dropbox_permission_err_retry
 from .json import JSONPersistentStore
 from .zarr import ZarrPersistentStore
 
+ALL_STORE_FORMATS = ("zarr", "json")
+DEFAULT_STORE_FORMAT = "zarr"
+
 
 def store_cls_from_path(workflow_path: Path) -> Type[PersistentStore]:
     if ZarrPersistentStore.path_has_store(workflow_path):
