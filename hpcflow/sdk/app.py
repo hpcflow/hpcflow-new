@@ -126,7 +126,7 @@ class BaseApp:
             if not hasattr(self, func.__name__):
                 api_method = get_api_method(func)
                 api_method = wraps(func)(api_method)
-                api_method.__doc__ = func.__doc__.format(name=name)
+                api_method.__doc__ = func.__doc__.format(app_name=name)
                 setattr(self, func.__name__, api_method)
 
     @property
@@ -161,6 +161,8 @@ class BaseApp:
 
     def inject_into(self, cls):
         SDK_logger.debug(f"Injecting app {self!r} into class {cls.__name__}")
+        if cls.__doc__:
+            cls.__doc__ = cls.__doc__.format(app_name=self.name)
         return type(cls.__name__, (cls,), {getattr(cls, "_app_attr"): self})
 
     def _assign_core_classes(self):

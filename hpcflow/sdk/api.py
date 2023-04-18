@@ -9,7 +9,7 @@ from hpcflow.sdk.core.utils import load_config
 
 @load_config
 def make_workflow(app, template_file, dir):
-    """Generate a new {name} workflow.
+    """Generate a new {app_name} workflow.
 
     Parameters
     ----------
@@ -31,7 +31,7 @@ def make_workflow(app, template_file, dir):
 
 @load_config
 def submit_workflow(app, template_file, dir):
-    """Generate and submit a new {name} workflow.
+    """Generate and submit a new {app_name} workflow.
 
     Parameters
     ----------
@@ -98,7 +98,7 @@ def run_hpcflow_tests(app, *args):
 
 
 def run_tests(app, *args):
-    """Run {name} test suite."""
+    """Run {app_name} test suite."""
 
     try:
         import pytest
