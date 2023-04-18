@@ -75,7 +75,10 @@ class Loop(JSONLike):
     @classmethod
     def _json_like_constructor(cls, json_like):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
-        insert_IDs = json_like.pop("task_insert_IDs")
+        if "task_insert_IDs" in json_like:
+            insert_IDs = json_like.pop("task_insert_IDs")
+        else:
+            insert_IDs = json_like.pop("tasks")
         obj = cls(tasks=insert_IDs, **json_like)
         return obj
 
