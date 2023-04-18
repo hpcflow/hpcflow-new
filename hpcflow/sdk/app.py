@@ -131,15 +131,6 @@ class BaseApp:
                 setattr(self, func.__name__, api_method)
 
     @property
-    def _template_component_classes(self):
-        return {
-            "parameters": self.ParametersList,
-            "command_files": self.CommandFilesList,
-            "environments": self.EnvironmentsList,
-            "task_schemas": self.TaskSchemasList,
-        }
-
-    @property
     def template_components(self):
         if not self.is_template_components_loaded:
             self._load_template_components()
