@@ -116,6 +116,35 @@ class WorkflowTemplate(JSONLike):
                         elem_set[chd_obj.name] = task_dat.pop(chd_obj.name)
                 data["tasks"][task_idx]["element_sets"] = [elem_set]
 
+        # extract out any template components:
+        params_dat = data.pop("parameters", [])
+        if params_dat:
+            parameters = cls.app.ParametersList.from_json_like(
+                params_dat, shared_data=cls.app.template_components
+            )
+            cls.app.parameters.add_objects(parameters, skip_duplicates=True)
+
+        cmd_files_dat = data.pop("command_files", [])
+        if cmd_files_dat:
+            cmd_files = cls.app.CommandFilesList.from_json_like(
+                cmd_files_dat, shared_data=cls.app.template_components
+            )
+            cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
+
+        envs_dat = data.pop("environments", [])
+        if envs_dat:
+            envs = cls.app.EnvironmentsList.from_json_like(
+                envs_dat, shared_data=cls.app.template_components
+            )
+            cls.app.envs.add_objects(envs, skip_duplicates=True)
+
+        ts_dat = data.pop("task_schemas", [])
+        if ts_dat:
+            task_schemas = cls.app.TaskSchemasList.from_json_like(
+                ts_dat, shared_data=cls.app.template_components
+            )
+            cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
+
         return cls.from_json_like(data, shared_data=cls.app.template_components)
 
     @classmethod

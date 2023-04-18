@@ -133,7 +133,10 @@ class ObjectList(JSONLike):
         attribute, and optionally additional keyword-argument attribute values."""
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
-    def add_object(self, obj, index=-1):
+    def add_object(self, obj, index=-1, skip_duplicates=False):
+
+        if skip_duplicates and obj in self:
+            return
 
         if index < 0:
             index += len(self) + 1
@@ -237,9 +240,16 @@ class DotAccessObjectList(ObjectList):
 
         return self._get_all_from_objs(all_objs, **kwargs)
 
-    def add_object(self, obj, index=-1):
-        index = super().add_object(obj, index)
+    def add_object(self, obj, index=-1, skip_duplicates=False):
+        index = super().add_object(obj, index, skip_duplicates)
         self._update_index()
+        return index
+
+    def add_objects(self, objs, index=-1, skip_duplicates=False):
+        for obj in objs:
+            index = self.add_object(obj, index, skip_duplicates)
+            if index is not None:
+                index += 1
         return index
 
 
