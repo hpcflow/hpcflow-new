@@ -22,7 +22,13 @@ from hpcflow.sdk.typing import PathLike
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import InputSource
 from .task import ElementSet, Task
-from .utils import read_YAML, read_YAML_file, replace_items
+from .utils import (
+    read_JSON_file,
+    read_JSON_string,
+    read_YAML,
+    read_YAML_file,
+    replace_items,
+)
 from .errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
@@ -150,11 +156,34 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     def from_YAML_string(cls, string: str) -> WorkflowTemplate:
+        """Load from a YAML string."""
         return cls._from_data(read_YAML(string))
 
     @classmethod
     def from_YAML_file(cls, path: PathLike) -> WorkflowTemplate:
+        """Load from a YAML file."""
         return cls._from_data(read_YAML_file(path))
+
+    @classmethod
+    def from_JSON_string(cls, string: str) -> WorkflowTemplate:
+        """Load from a JSON string."""
+        return cls._from_data(read_JSON_string(string))
+
+    @classmethod
+    def from_JSON_file(cls, path: PathLike) -> WorkflowTemplate:
+        """Load from a JSON file."""
+        return cls._from_data(read_JSON_file(path))
+
+    @classmethod
+    def from_file(cls, path: PathLike) -> WorkflowTemplate:
+        """Load from either a YAML or JSON file, depending on the file extension."""
+        path = Path(path)
+        if path.suffix in (".yaml", ".yml"):
+            return cls.from_YAML_file(path)
+        elif path.suffix == ".json":
+            return cls.from_JSON_file(path)
+        else:
+            raise ValueError(f"Unknown workflow template file extension {path.suffix!r}.")
 
     def _add_empty_task(self, task: Task, new_index: int, insert_ID: int) -> None:
         """Called by `Workflow._add_empty_task`."""
@@ -275,7 +304,7 @@ class Workflow:
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
-        store: Optional[str] = "zarr",
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
         wk = cls._write_empty_workflow(template, path, name, overwrite, store)
         with wk._store.cached_load():
@@ -308,6 +337,30 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
         template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
+        return cls.from_template(template, path, name, overwrite, store)
+
+    @classmethod
+    def from_JSON_file(
+        cls,
+        JSON_path: PathLike,
+        path: Optional[str] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+    ) -> Workflow:
+        template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
+        return cls.from_template(template, path, name, overwrite, store)
+
+    @classmethod
+    def from_JSON_string(
+        cls,
+        JSON_str: PathLike,
+        path: Optional[str] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+    ) -> Workflow:
+        template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
         return cls.from_template(template, path, name, overwrite, store)
 
     @classmethod

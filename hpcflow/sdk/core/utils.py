@@ -316,6 +316,10 @@ def read_YAML_file(path: PathLike):
     return read_YAML(Path(path))
 
 
+def read_JSON_string(string: str):
+    return json.loads(string)
+
+
 def read_JSON_file(path):
     with Path(path).open("rt") as fh:
         return json.load(fh)

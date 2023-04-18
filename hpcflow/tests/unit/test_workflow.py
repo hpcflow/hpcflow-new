@@ -284,3 +284,24 @@ def test_closest_task_input_source_chosen(tmp_path):
         path=tmp_path,
     )
     assert wk.tasks.t3.get_task_dependencies(as_objects=True) == [wk.tasks.t2]
+
+
+def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
+    wkt_json = dedent(
+        """
+        {
+            "name": "test_wk",
+            "tasks": [
+                {
+                    "schemas": [
+                        "test_bash_t1"
+                    ],
+                    "inputs": {
+                        "p1": 101
+                    }
+                }
+            ]
+        }
+    """
+    )
+    WorkflowTemplate.from_JSON_string(wkt_json)
