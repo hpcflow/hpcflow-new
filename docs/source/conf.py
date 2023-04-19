@@ -129,16 +129,52 @@ install_index = f"""
 Installation
 ############
 
-There are two methods to using HPCFlow: via a binary executable file or via a Python package. 
-Both methods allow the design and execution of workflows. If you want to use HPCFlow on a 
-cluster, using the binary executable file is recommended. If you want to design and explore
-your workflows using the Python API, then you need the Python package. You can use both simultaneously if you wish!
-
-********************************
-Download binaries (v{release})
-********************************
-
 Release notes: `on GitHub <https://github.com/hpcflow/hpcflow-new/releases/tag/v{release}>`_
+
+There are two ways of using HPCFlow:
+ * HPCFlow CLI (Command Line Interface)
+ * The HPCFlow Python package
+
+Both of these options allow workflows to be designed and executed. HPCFlow CLI
+is recommended for beginners and strongly recommended if you want to 
+run HPCFlow on a cluster. The HPCFlow Python package allows workflows to be
+designed and explored via the Python API and is recommended for users 
+comfortable working with Python. If you are interested in contributing to 
+the development of HPCFlow, the Python package is the place to start.
+
+HPCFlow CLI and the HPCFlow Python package can both be used simultaneously.
+
+*******************************
+HPCFlow CLI
+*******************************
+
+Install script (v{release})
+===========================
+
+HPCFlow CLI can be installed on macOS, Linux or Windows through a terminal
+or shell prompt.
+
+**macOS:** Open a terminal, paste the command shown below and press enter.
+
+```bash
+(touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
+```
+
+**Linux:** Open a shell prompt, paste the command shown below and press enter.
+
+```bash
+(touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
+```
+
+**Windows:** Open a Powershell terminal, paste the command shown below and 
+press enter.
+
+```bash
+& $([scriptblock]::Create((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.ps1'))) -PreRelease -OneFile
+```
+
+Download binaries (v{release})
+===============================
 
 Binaries are available in two formats:
 
@@ -152,8 +188,11 @@ Click below to download the HPCFlow binary for your platform (other binary relea
 {indent(get_links_table, '   ')}
 
 **************************
-Install the Python package
+The HPCFlow Python package
 **************************
+
+Using pip
+==========================
 
 Use pip to install the Python package from PyPI::
 
