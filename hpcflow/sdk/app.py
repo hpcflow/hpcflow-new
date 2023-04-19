@@ -53,7 +53,7 @@ from .core.task import (
 )
 from .core.loop import Loop, WorkflowLoop
 from .core.task_schema import TaskObjective
-from .core.workflow import Workflow
+from .core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT, Workflow
 from .demo.cli import get_demo_software_CLI
 from .helper.cli import get_helper_CLI
 from .log import AppLog
@@ -355,17 +355,157 @@ class BaseApp:
     def _make_API_CLI(self):
         """Generate the CLI for the main functionality."""
 
-        @click.command(help=f"Generate a new {self.name} workflow")
-        @click.argument("template_file")
-        @click.argument("directory")
-        def make_workflow(template_file, directory):
-            return self.make_workflow(template_file, directory)
+        @click.command(name="make")
+        @click.argument("template_file_or_str")
+        @click.option(
+            "--string",
+            is_flag=True,
+            default=False,
+            help="Determines if passing a file path or a string.",
+        )
+        @click.option(
+            "--format",
+            type=click.Choice(ALL_TEMPLATE_FORMATS),
+            default=DEFAULT_TEMPLATE_FORMAT,
+            help=(
+                'If specified, one of "json" or "yaml". This forces parsing from a '
+                "particular format."
+            ),
+        )
+        @click.option(
+            "--path",
+            type=click.Path(exists=True),
+            help="The directory path into which the new workflow will be generated.",
+        )
+        @click.option(
+            "--name",
+            help=(
+                "The name of the workflow. If specified, the workflow directory will be "
+                "`path` joined with `name`. If not specified the workflow template name "
+                "will be used, in combination with a date-timestamp."
+            ),
+        )
+        @click.option(
+            "--overwrite",
+            is_flag=True,
+            default=False,
+            help=(
+                "If True and the workflow directory (`path` + `name`) already exists, "
+                "the existing directory will be overwritten."
+            ),
+        )
+        @click.option(
+            "--store",
+            type=click.Choice(ALL_STORE_FORMATS),
+            help="The persistent store type to use.",
+            default=DEFAULT_STORE_FORMAT,
+        )
+        def make_workflow(
+            template_file_or_str,
+            string,
+            format,
+            path,
+            name,
+            overwrite,
+            store,
+        ):
+            """Generate a new {app_name} workflow.
 
-        @click.command(help=f"Generate and submit a new {self.name} workflow")
-        @click.argument("template_file")
-        @click.argument("directory")
-        def submit_workflow(template_file, directory):
-            return self.submit_workflow(template_file, directory)
+            TEMPLATE_FILE_OR_STR is either a path to a template file in YAML or JSON
+            format, or a YAML/JSON string.
+
+            """
+            wk = self.make_workflow(
+                template_file_or_str=template_file_or_str,
+                is_string=string,
+                template_format=format,
+                path=path,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+            )
+            click.echo(wk.path)
+
+        @click.command(name="go")
+        @click.argument("template_file_or_str")
+        @click.option(
+            "--string",
+            is_flag=True,
+            default=False,
+            help="Determines if passing a file path or a string.",
+        )
+        @click.option(
+            "--format",
+            type=click.Choice(ALL_TEMPLATE_FORMATS),
+            default=DEFAULT_TEMPLATE_FORMAT,
+            help=(
+                'If specified, one of "json" or "yaml". This forces parsing from a '
+                "particular format."
+            ),
+        )
+        @click.option(
+            "--path",
+            type=click.Path(exists=True),
+            help="The directory path into which the new workflow will be generated.",
+        )
+        @click.option(
+            "--name",
+            help=(
+                "The name of the workflow. If specified, the workflow directory will be "
+                "`path` joined with `name`. If not specified the workflow template name "
+                "will be used, in combination with a date-timestamp."
+            ),
+        )
+        @click.option(
+            "--overwrite",
+            is_flag=True,
+            default=False,
+            help=(
+                "If True and the workflow directory (`path` + `name`) already exists, "
+                "the existing directory will be overwritten."
+            ),
+        )
+        @click.option(
+            "--store",
+            type=click.Choice(ALL_STORE_FORMATS),
+            help="The persistent store type to use.",
+            default=DEFAULT_STORE_FORMAT,
+        )
+        def make_and_submit_workflow(
+            template_file_or_str,
+            string,
+            format,
+            path,
+            name,
+            overwrite,
+            store,
+        ):
+            """Generate and submit a new {app_name} workflow.
+
+            TEMPLATE_FILE_OR_STR is either a path to a template file in YAML or JSON
+            format, or a YAML/JSON string.
+
+            """
+            sub_out = self.make_and_submit_workflow(
+                template_file_or_str=template_file_or_str,
+                is_string=string,
+                template_format=format,
+                path=path,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+            )
+            click.echo(sub_out)
+
+        @click.command(name="submit")
+        @click.argument("workflow_path", type=click.Path(dir_okay=True, exists=True))
+        def submit_workflow(workflow_path):
+            """Submit an existing {app_name} workflow.
+
+            WORKFLOW_PATH is the path to an existing workflow.
+
+            """
+            click.echo(self.submit_workflow(workflow_path))
 
         @click.command(help=f"Run {self.name} test suite.")
         @click.pass_context
@@ -380,8 +520,12 @@ class BaseApp:
         commands = [
             make_workflow,
             submit_workflow,
+            make_and_submit_workflow,
             test,
         ]
+        for cmd in commands:
+            if cmd.help:
+                cmd.help = cmd.help.format(app_name=self.name)
 
         if type(self) is not BaseApp:
             # `test_hpcflow` is the same as `test` for the BaseApp so no need to add both:
@@ -569,33 +713,6 @@ class BaseApp:
             except ConfigError as err:
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
-
-        @new_CLI.command
-        @click.pass_context
-        @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
-        @click.option(
-            "--store",
-            type=click.Choice(ALL_STORE_FORMATS),
-            default=DEFAULT_STORE_FORMAT,
-        )
-        def make(ctx, template_path, store="zarr"):
-            wk = self.Workflow.from_YAML_file(template_path, store=store)
-            click.echo(wk.path)
-
-        @new_CLI.command
-        @click.pass_context
-        @click.argument("workflow_path", type=click.Path(dir_okay=True, exists=True))
-        def submit(ctx, workflow_path):
-            wk = self.Workflow(workflow_path)
-            submitted_js = wk.submit()
-            click.echo(f"Submitted jobscripts {submitted_js!r}.")
-
-        @new_CLI.command
-        @click.pass_context
-        @click.argument("template_path", type=click.Path(file_okay=True, exists=True))
-        def go(ctx, template_path):
-            wk = self.Workflow.from_YAML_file(template_path)
-            ctx.exit(wk.submit())
 
         new_CLI.__doc__ = self.description
         new_CLI.add_command(get_config_CLI(self))

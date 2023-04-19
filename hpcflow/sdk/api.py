@@ -2,86 +2,153 @@
 from __future__ import annotations
 
 import importlib
+from typing import Optional, Union
+from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 
 import hpcflow.sdk.scripting
 from hpcflow.sdk.core.utils import load_config
+from hpcflow.sdk.typing import PathLike
 
 
-@load_config
-def make_workflow(app, template_file, dir):
-    """Generate a new {app_name} workflow.
+def make_workflow(
+    app: App,
+    template_file_or_str: Union[PathLike, str],
+    is_string: Optional[bool] = False,
+    template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+    path: Optional[PathLike] = None,
+    name: Optional[str] = None,
+    overwrite: Optional[bool] = False,
+    store: Optional[str] = DEFAULT_STORE_FORMAT,
+) -> Workflow:
+    """Generate a new {app_name} workflow from a file or string containing a workflow
+    template parametrisation.
 
     Parameters
     ----------
-    template_file:
-        Path to YAML file workflow template.
-    dir:
-        Directory into which the workflow will be generated.
 
-    Returns
-    -------
-    Workflow
-
+    template_path_or_str
+        Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+    is_string
+        Determines if passing a file path or a string.
+    template_format
+        If specified, one of "json" or "yaml". This forces parsing from a particular
+        format.
+    path
+        The directory in which the workflow will be generated. The current directory
+        if not specified.
+    name
+        The name of the workflow. If specified, the workflow directory will be `path`
+        joined with `name`. If not specified the workflow template name will be used,
+        in combination with a date-timestamp.
+    overwrite
+        If True and the workflow directory (`path` + `name`) already exists, the
+        existing directory will be overwritten.
+    store
+        The persistent store type to use.
     """
-    app.API_logger.info("make workflow")
-    wkt = app.WorkflowTemplate.from_YAML_file(template_file)
-    wk = app.Workflow.from_template(wkt, path=dir)
+
+    app.API_logger.info("make_workflow called")
+
+    if not is_string:
+        wk = app.Workflow.from_file(
+            template_file_or_str,
+            template_format,
+            path,
+            name,
+            overwrite,
+            store,
+        )
+
+    elif template_format == "json":
+        wk = app.Workflow.from_JSON_string(
+            template_file_or_str,
+            store,
+            path,
+            name,
+            overwrite,
+        )
+
+    elif template_format == "yaml":
+        wk = app.Workflow.from_YAML_string(
+            template_file_or_str,
+            store,
+            path,
+            name,
+            overwrite,
+        )
+
+    else:
+        raise ValueError(
+            f"Template format {template_format} not understood. Available template "
+            f"formats are {ALL_TEMPLATE_FORMATS!r}."
+        )
     return wk
 
 
-@load_config
-def submit_workflow(app, template_file, dir):
-    """Generate and submit a new {app_name} workflow.
+def make_and_submit_workflow(
+    app: App,
+    template_file_or_str: Union[PathLike, str],
+    is_string: Optional[bool] = False,
+    template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+    path: Optional[PathLike] = None,
+    name: Optional[str] = None,
+    overwrite: Optional[bool] = False,
+    store: Optional[str] = DEFAULT_STORE_FORMAT,
+):
+    """Generate and submit a new {app_name} workflow from a file or string containing a
+    workflow template parametrisation.
 
     Parameters
     ----------
-    template_file:
-        Path to YAML file workflow template.
-    dir:
-        Directory into which the workflow will be generated.
 
-    Returns
-    -------
-    Workflow
+    template_path_or_str
+        Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+    is_string
+        Determines whether `template_path_or_str` is a string or a file.
+    template_format
+        If specified, one of "json" or "yaml". This forces parsing from a particular
+        format.
+    path
+        The directory in which the workflow will be generated. The current directory
+        if not specified.
+    name
+        The name of the workflow. If specified, the workflow directory will be `path`
+        joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+        in combination with a date-timestamp.
+    overwrite
+        If True and the workflow directory (`path` + `name`) already exists, the
+        existing directory will be overwritten.
+    store
+        The persistent store to use for this workflow.
     """
-    app.API_logger.info("submit workflow")
-    wk = app.make_workflow(template_file, dir)
+
+    app.API_logger.info("make_and_submit_workflow called")
+
+    wk = app.make_workflow(
+        template_file_or_str=template_file_or_str,
+        is_string=is_string,
+        template_format=template_format,
+        path=path,
+        name=name,
+        overwrite=overwrite,
+        store=store,
+    )
     wk.submit()
-    return wk
 
 
-def set_EAR_start(
-    app,
-    workflow: Workflow,
-    task_insert_id: int,
-    element_iteration_idx: int,
-    action_idx: int,
-    run_idx: int,
-) -> None:
-    """Set the start time of an EAR."""
-    workflow.set_EAR_start(
-        task_insert_id,
-        element_iteration_idx,
-        action_idx,
-        run_idx,
-    )
+def submit_workflow(app: App, workflow_path: PathLike):
+    """Submit an existing {app_name} workflow.
 
+    Parameters
+    ----------
+    workflow_path
+        Path to an existing workflow
+    """
 
-def set_EAR_end(
-    app,
-    workflow: Workflow,
-    task_insert_id: int,
-    element_iteration_idx: int,
-    action_idx: int,
-    run_idx: int,
-) -> None:
-    """Set the end time of an EAR."""
-    workflow.set_EAR_end(
-        task_insert_id,
-        element_iteration_idx,
-        action_idx,
-        run_idx,
-    )
+    app.API_logger.info("submit_workflow called")
+    wk = app.Workflow(workflow_path)
+    return wk.submit()
 
 
 def run_hpcflow_tests(app, *args):

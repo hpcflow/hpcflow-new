@@ -45,6 +45,8 @@ from hpcflow.sdk.persistence import (
 )
 
 TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
+DEFAULT_TEMPLATE_FORMAT = "yaml"
+ALL_TEMPLATE_FORMATS = ("yaml", "json")
 
 
 class _DummyPersistentWorkflow:
@@ -69,8 +71,10 @@ class _DummyPersistentWorkflow:
 
 @dataclass
 class WorkflowTemplate(JSONLike):
-    """Class to represent initial parametrisation of a workflow, with limited validation
-    logic."""
+    """Class to represent initial parametrisation of a {app_name} workflow, with limited
+    validation logic."""
+
+    _app_attr = "app"
 
     _child_objects = (
         ChildObjectSpec(
@@ -156,34 +160,80 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     def from_YAML_string(cls, string: str) -> WorkflowTemplate:
-        """Load from a YAML string."""
+        """Load from a YAML string.
+
+        Parameters
+        ----------
+        string
+            The YAML string containing the workflow template parametrisation.
+
+        """
         return cls._from_data(read_YAML(string))
 
     @classmethod
     def from_YAML_file(cls, path: PathLike) -> WorkflowTemplate:
-        """Load from a YAML file."""
+        """Load from a YAML file.
+
+        Parameters
+        ----------
+        path
+            The path to the YAML file containing the workflow template parametrisation.
+
+        """
         return cls._from_data(read_YAML_file(path))
 
     @classmethod
     def from_JSON_string(cls, string: str) -> WorkflowTemplate:
-        """Load from a JSON string."""
+        """Load from a JSON string.
+
+        Parameters
+        ----------
+        string
+            The JSON string containing the workflow template parametrisation.
+
+        """
         return cls._from_data(read_JSON_string(string))
 
     @classmethod
     def from_JSON_file(cls, path: PathLike) -> WorkflowTemplate:
-        """Load from a JSON file."""
+        """Load from a JSON file.
+
+        Parameters
+        ----------
+        path
+            The path to the JSON file containing the workflow template parametrisation.
+
+        """
         return cls._from_data(read_JSON_file(path))
 
     @classmethod
-    def from_file(cls, path: PathLike) -> WorkflowTemplate:
-        """Load from either a YAML or JSON file, depending on the file extension."""
+    def from_file(
+        cls,
+        path: PathLike,
+        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+    ) -> WorkflowTemplate:
+        """Load from either a YAML or JSON file, depending on the file extension.
+
+        Parameters
+        ----------
+        path
+            The path to the file containing the workflow template parametrisation.
+        template_format
+            The file format to expect at `path`. One of "json" or "yaml", if specified. By
+            default, "yaml".
+
+        """
         path = Path(path)
-        if path.suffix in (".yaml", ".yml"):
+        fmt = template_format.lower()
+        if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
             return cls.from_YAML_file(path)
-        elif path.suffix == ".json":
+        elif fmt == "json" or path.suffix == ".json":
             return cls.from_JSON_file(path)
         else:
-            raise ValueError(f"Unknown workflow template file extension {path.suffix!r}.")
+            raise ValueError(
+                f"Unknown workflow template file extension {path.suffix!r}. Supported "
+                f"template formats are {ALL_TEMPLATE_FORMATS!r}."
+            )
 
     def _add_empty_task(self, task: Task, new_index: int, insert_ID: int) -> None:
         """Called by `Workflow._add_empty_task`."""
@@ -247,7 +297,7 @@ class Workflow:
     @property
     def name(self):
         """The workflow name may be different from the template name, as it includes the
-        date-timestamp if generated."""
+        creation date-timestamp if generated."""
         return self.path.parts[-1]
 
     def _get_empty_pending(self) -> Dict:
@@ -306,6 +356,25 @@ class Workflow:
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+        """Generate from a `WorkflowTemplate` object.
+
+        Parameters
+        ----------
+        template
+            The WorkflowTemplate object to make persistent.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
         wk = cls._write_empty_workflow(template, path, name, overwrite, store)
         with wk._store.cached_load():
             with wk.batch_update(is_workflow_creation=True):
@@ -324,6 +393,25 @@ class Workflow:
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+        """Generate from a YAML file.
+
+        Parameters
+        ----------
+        YAML_path
+            The path to a workflow template in the YAML file format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
         template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
         return cls.from_template(template, path, name, overwrite, store)
 
@@ -336,6 +424,23 @@ class Workflow:
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+        """Generate from a YAML string.
+
+        Parameters
+        ----------
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
         template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
         return cls.from_template(template, path, name, overwrite, store)
 
@@ -348,6 +453,25 @@ class Workflow:
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+        """Generate from a JSON file.
+
+        Parameters
+        ----------
+        JSON_path
+            The path to a workflow template in the JSON file format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
         template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
         return cls.from_template(template, path, name, overwrite, store)
 
@@ -360,19 +484,109 @@ class Workflow:
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+        """Generate from a JSON string.
+
+        Parameters
+        ----------
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
         template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
         return cls.from_template(template, path, name, overwrite, store)
 
     @classmethod
-    def from_tasks(
+    def from_file(
         cls,
-        name: str,
-        tasks: List[Task],
-        path: Optional[PathLike] = None,
+        template_path: PathLike,
+        template_format: Optional[str] = None,
+        path: Optional[str] = None,
+        name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
-        raise NotImplementedError
+        """Generate from either a YAML or JSON file, depending on the file extension.
+
+        Parameters
+        ----------
+        template_path
+            The path to a template file in YAML or JSON format, and with a ".yml",
+            ".yaml", or ".json" extension.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format regardless of the file extension.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
+        template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
+        return cls.from_template(template, path, name, overwrite, store)
+
+    @classmethod
+    def from_template_data(
+        cls,
+        template_name: str,
+        tasks: Optional[List[Task]] = field(default_factory=lambda: []),
+        loops: Optional[List[Loop]] = field(default_factory=lambda: []),
+        resources: Optional[Dict[str, Dict]] = None,
+        path: Optional[PathLike] = None,
+        workflow_name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+    ) -> Workflow:
+        """Generate from the data associated with a WorkflowTemplate object.
+
+        Parameters
+        ----------
+        template_name
+            Name of the new workflow template, from which the new workflow will be
+            generated.
+        tasks
+            List of Task objects to add to the new workflow.
+        loops
+            List of Loop objects to add to the new workflow.
+        resources
+            Mapping of action scopes to resource requirements, to be applied to all
+            element sets in the workflow. `resources` specified in an element set take
+            precedence of those defined here for the whole workflow.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        workflow_name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified `template_name` will be used, in
+            combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        """
+        template = cls.app.WorkflowTemplate(
+            template_name,
+            tasks=tasks,
+            loops=loops,
+            resources=resources,
+        )
+        return cls.from_template(template, path, workflow_name, overwrite, store)
 
     @contextmanager
     def batch_update(self, is_workflow_creation: bool = False) -> Iterator[None]:
@@ -438,8 +652,26 @@ class Workflow:
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
-        store: Optional[str] = "zarr",
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
     ) -> Workflow:
+
+        """
+        Parameters
+        ----------
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the WorkflowTemplate name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+
+        """
 
         timestamp = datetime.utcnow()
 
