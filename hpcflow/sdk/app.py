@@ -91,12 +91,13 @@ class BaseApp:
 
         self.CLI = self._make_CLI()
         self.log = AppLog(self)
-        self.config = None
         self.run_time_info = RunTimeInfo(
             self.name, self.version, self.runtime_info_logger
         )
 
         self._builtin_template_components = template_components or {}
+
+        self._config = None  # assigned on first access to `config` property
 
         # Set by `_load_template_components`:
         self._template_components = {}
@@ -318,15 +319,21 @@ class BaseApp:
 
     @property
     def is_config_loaded(self):
-        return bool(self.config)
+        return bool(self._config)
 
     @property
     def is_template_components_loaded(self):
         return bool(self._parameters)
 
+    @property
+    def config(self):
+        if not self.is_config_loaded:
+            self.load_config()
+        return self._config
+
     def _load_config(self, config_dir, **overrides):
         self.logger.debug("Loading configuration.")
-        self.config = Config(
+        self._config = Config(
             app=self,
             options=self.config_options,
             config_dir=config_dir,
