@@ -7,8 +7,15 @@ from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FOR
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 
 import hpcflow.sdk.scripting
-from hpcflow.sdk.core.utils import load_config
 from hpcflow.sdk.typing import PathLike
+
+__all__ = (
+    "make_workflow",
+    "make_and_submit_workflow",
+    "submit_workflow",
+    "run_hpcflow_tests",
+    "run_tests",
+)
 
 
 def make_workflow(

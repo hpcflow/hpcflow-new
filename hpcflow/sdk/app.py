@@ -116,8 +116,7 @@ class BaseApp:
             # this function avoids scope issues
             return lambda *args, **kwargs: func(self, *args, **kwargs)
 
-        all_funcs = [func_i for func_i in api.__dict__.values() if callable(func_i)]
-        for func in all_funcs:
+        for func in (getattr(api, i) for i in api.__all__):
 
             if type(self) is BaseApp and func.__name__ == "run_hpcflow_tests":
                 # this method provides the same functionality as the `run_tests` method
