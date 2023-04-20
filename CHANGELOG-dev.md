@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a28"></a>
+## [v0.2.0a28](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a27...v0.2.0a28) - 2023.04.20
+
+### ✨ Features
+
+* Update ubuntu runners for build docs
+
+### 🐛 Bug Fixes
+
+* Correct typo in Configure Poetry in release
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a27"></a>
 ## [v0.2.0a27](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a26...v0.2.0a27) - 2023.04.19
 
