@@ -321,13 +321,18 @@ class JSONPersistentStore(PersistentStore):
         # No need to consider pending; this is called once per Workflow object
         subs = copy.deepcopy(self.load()["submissions"])
 
-        # cast jobscript submit-times:
+        # cast jobscript submit-times and jobscript `task_elements` keys:
         for sub_idx, sub in enumerate(subs):
             for js_idx, js in enumerate(sub["jobscripts"]):
                 if js["submit_time"]:
                     subs[sub_idx]["jobscripts"][js_idx][
                         "submit_time"
                     ] = datetime.strptime(js["submit_time"], self.timestamp_format)
+
+                for key in list(js["task_elements"].keys()):
+                    subs[sub_idx]["jobscripts"][js_idx]["task_elements"][int(key)] = subs[
+                        sub_idx
+                    ]["jobscripts"][js_idx]["task_elements"].pop(key)
 
         return subs
 
