@@ -8,6 +8,8 @@ import socket
 import subprocess
 import sys
 import time
+from inspect import getsourcefile
+from hpcflow import cli
 
 from platformdirs import user_data_dir
 import psutil
@@ -80,9 +82,8 @@ def start_helper(
 ):
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
-        with PID_file.open("rt") as fp:
-            helper_pid = int(fp.read().strip())
-            print(f"Helper already running, with process ID: {helper_pid}")
+        helper_pid = get_helper_PID(app)[0]
+        print(f"Helper already running, with process ID: {helper_pid}")
 
     else:
         logger = logger or get_helper_logger(app)
@@ -102,6 +103,11 @@ def start_helper(
             watch_interval = watch_interval.total_seconds()
 
         args = app.run_time_info.get_invocation_command()
+        # TODO: This is not ideal, but works for the timebeing...
+        if "pytest/__main__.py" in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + "/cli.py"
+        elif "pytest\\__main__.py" in args[-1]:
+            args[-1] = os.path.dirname(getsourcefile(cli)) + "\\cli.py"
         args += [
             "--config-dir",
             str(app.config.config_directory),
@@ -125,15 +131,85 @@ def start_helper(
 
         logger.info(f"Writing process ID {proc.pid} to file.")
         try:
-            with PID_file.open("wt") as fp:
-                fp.write(f"{proc.pid}\n")
-        except FileNotFoundError as err:
-            logger.error(
-                f"Could not write to the PID file {PID_file!r}; killing helper process. "
-                f"Exception was: {err!r}"
+            write_helper_args(
+                app, proc.pid, timeout, timeout_check_interval, watch_interval
             )
-            proc.kill()
+            # Make sure that the process is actually running.
+            try:
+                time.sleep(0.2)  # Sleep time is necessary for poll to work.
+                proc.poll()
+                logger.info(f"Process {proc.pid} successfully running.")
+            except psutil.NoSuchProcess:
+                logger.error(f"Process {proc.pid} failed to start.")
+                clear_helper(app)
+                sys.exit(1)
+            # Waits for the helper to start and write to log
+            print("Waiting for helper to start", end="")
+            try:
+                for wait_helper in range(10):
+                    log_lines = read_helper_log(app)
+                    for line in log_lines:
+                        if "Helper started" in line:
+                            print("\rHelper started successfully.")
+                            raise StopIteration
+                    time.sleep(1)
+                    wait_helper = wait_helper + 1
+                    print(".", end="")
+                logger.error(f"Helper failed to start and write to log.")
+                kill_proc_tree(proc.pid)
+                clear_helper(app)
+                sys.exit(1)
+            except StopIteration:
+                pass
+        except FileNotFoundError as err:
+            logger.error(f"Killing helper process. ")
+            kill_proc_tree(proc.pid)
             sys.exit(1)
+
+
+def modify_helper(
+    app,
+    timeout=DEFAULT_TIMEOUT,
+    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
+    watch_interval=DEFAULT_WATCH_INTERVAL,
+):
+    PID_file = get_PID_file_path(app)
+    if PID_file.is_file():
+        helper_args = read_helper_args(app)
+        if (
+            helper_args["timeout"] != timeout
+            or helper_args["timeout_check_interval"] != timeout_check_interval
+            or helper_args["watch_interval"] != watch_interval
+        ):
+            logger = get_helper_logger(app)
+            logger.info(
+                f"Modifying helper with pid={helper_args['pid']}"
+                f" to: timeout={timeout!r}, timeout_check_interval="
+                f"{timeout_check_interval!r} and watch_interval={watch_interval!r}."
+            )
+
+            if isinstance(timeout, timedelta):
+                timeout = timeout.total_seconds()
+            if isinstance(timeout_check_interval, timedelta):
+                timeout_check_interval = timeout_check_interval.total_seconds()
+            if isinstance(watch_interval, timedelta):
+                watch_interval = watch_interval.total_seconds()
+
+            try:
+                write_helper_args(
+                    app,
+                    helper_args["pid"],
+                    timeout,
+                    timeout_check_interval,
+                    watch_interval,
+                )
+            except FileNotFoundError as err:
+                sys.exit(1)
+            # TODO: should we have a wait for the parameter update?
+        else:
+            print("Helper parameters already met.")
+    else:
+        print(f"Helper not running!")
 
 
 def restart_helper(
@@ -146,6 +222,62 @@ def restart_helper(
     start_helper(app, timeout, timeout_check_interval, watch_interval, logger=logger)
 
 
+def write_helper_args(
+    app,
+    pid,
+    timeout=DEFAULT_TIMEOUT,
+    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
+    watch_interval=DEFAULT_WATCH_INTERVAL,
+):
+    PID_file = get_PID_file_path(app)
+    try:
+        with PID_file.open("wt") as fp:
+            fp.write(f"pid = {pid}\n")
+            fp.write(f"timeout = {timeout}\n")
+            fp.write(f"timeout_check_interval = {timeout_check_interval}\n")
+            fp.write(f"watch_interval = {watch_interval}\n")
+    except FileNotFoundError as err:
+        logger = get_helper_logger(app)
+        logger.error(
+            f"Could not write to the PID file {PID_file!r};" f"Exception was: {err!r}"
+        )
+        print(err)
+
+
+def read_helper_args(app):
+    PID_file = get_PID_file_path(app)
+    if not PID_file.is_file():
+        print("Helper not running!")
+        return None
+    else:
+        helper_args = {}
+        with PID_file.open("rt") as fp:
+            for line in fp:
+                (key, val) = line.split(" = ")
+                helper_args[key] = float(val)
+        helper_args["pid"] = int(helper_args["pid"])
+        return helper_args
+
+
+def read_helper_log(app, start_t=None):
+    tstart = start_t or (datetime.now() - get_helper_uptime(app))
+    log_file = get_helper_log_path(app)
+    if not log_file.is_file():
+        print("Logfile not found!")
+        return None
+    else:
+        log_lines = []
+        with log_file.open("rt") as lf:
+            for line in lf:
+                if " - INFO - " in line:
+                    (ts, m) = line.split(" - INFO - ")
+                    (t, s) = ts.split(" - ")
+                    logt = datetime.strptime(t, "%Y-%m-%d %H:%M:%S,%f")
+                    if logt > tstart:
+                        log_lines.append(line.strip())
+        return log_lines
+
+
 def get_helper_PID(app):
 
     PID_file = get_PID_file_path(app)
@@ -153,8 +285,7 @@ def get_helper_PID(app):
         print("Helper not running!")
         return None
     else:
-        with PID_file.open("rt") as fp:
-            helper_pid = int(fp.read().strip())
+        helper_pid = read_helper_args(app)["pid"]
         return helper_pid, PID_file
 
 
@@ -168,8 +299,10 @@ def stop_helper(app, return_logger=False):
         pid_file.unlink()
 
         workflow_dirs_file_path = get_watcher_file_path(app)
-        logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
-        workflow_dirs_file_path.unlink()
+        # TODO: maybe we should not be allowing for the file to be missing... check why it is missing!
+        if workflow_dirs_file_path.exists():
+            logger.info(f"Deleting watcher file: {str(workflow_dirs_file_path)}")
+            workflow_dirs_file_path.unlink()
 
     if return_logger:
         return logger
@@ -196,32 +329,31 @@ def get_helper_uptime(app):
 
 
 def get_helper_logger(app):
-
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
-    f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    f_handler.setFormatter(f_format)
-    logger.addHandler(f_handler)
+    if not len(logger.handlers):
+        logger.setLevel(logging.INFO)
+        f_handler = RotatingFileHandler(log_path, maxBytes=(5 * 2**20), backupCount=3)
+        f_format = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        f_handler.setFormatter(f_format)
+        logger.addHandler(f_handler)
 
     return logger
 
 
 def helper_timeout(app, timeout, controller, logger):
     """Kill the helper due to running duration exceeding the timeout."""
-
     logger.info(f"Helper exiting due to timeout ({timeout!r}).")
     pid_info = get_helper_PID(app)
     if pid_info:
         pid_file = pid_info[1]
         logger.info(f"Deleting PID file: {pid_file!r}.")
         pid_file.unlink()
-
     logger.info(f"Stopping all watchers.")
     controller.stop()
     controller.join()
-
     logger.info(f"Deleting watcher file: {str(controller.workflow_dirs_file_path)}")
     controller.workflow_dirs_file_path.unlink()
 
@@ -234,13 +366,24 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming
 
     # TODO: we will want to set the timeout to be slightly more than the largest allowable
     # walltime in the case of scheduler submissions.
+
+    empty_args = dict.fromkeys(["timeout", "timeout_check_interval", "watch_interval"])
+    helper_args = read_helper_args(app) or empty_args
+    helper_args["timeout"] = timeout
+    helper_args["timeout_check_interval"] = timeout_check_interval
+    helper_args["watch_interval"] = watch_interval
+
+    logger = get_helper_logger(app)
+    logger.info(
+        f"Helper started with timeout={timeout!r}, timeout_check_interval="
+        f"{timeout_check_interval!r} and watch_interval={watch_interval!r}."
+    )
 
     if isinstance(timeout, timedelta):
         timeout_s = timeout.total_seconds()
@@ -255,14 +398,38 @@ def run_helper(
         timeout_check_interval = timedelta(seconds=timeout_check_interval_s)
 
     start_time = datetime.now()
-    logger = get_helper_logger(app)
+    end_time = start_time + timeout
     controller = MonitorController(get_watcher_file_path(app), watch_interval, logger)
-    timeout_limit = timeout - timeout_check_interval
     try:
         while True:
-            if datetime.now() - start_time >= timeout_limit:
+            time_left_s = (end_time - datetime.now()).total_seconds()
+            if time_left_s <= 0:
                 helper_timeout(app, timeout, controller, logger)
-            time.sleep(timeout_check_interval_s)
+            time.sleep(min(timeout_check_interval_s, time_left_s))
+            # Reading args from PID file
+            helper_args_new = read_helper_args(app) or empty_args
+            for name, new_val in helper_args_new.items():
+                if new_val != helper_args[name]:
+                    change = f"{name} parameter from {helper_args[name]} to {new_val}."
+                    helper_args[name] = new_val
+                    if name in ["timeout", "timeout_check_interval"]:
+                        t = helper_args[name]
+                        if isinstance(t, timedelta):
+                            t_s = t.total_seconds()
+                        else:
+                            t_s = t
+                        if name == "timeout":
+                            timeout = timedelta(seconds=t_s)
+                            end_time = start_time + timeout
+                        else:  # name == "timeout_check_interval"
+                            timeout_check_interval_s = t_s
+                    else:  # name == "watch_interval"
+                        controller.stop()
+                        # TODO: we might need to consider if a workflow change could be missed during this stop
+                        controller = MonitorController(
+                            get_watcher_file_path(app), helper_args[name], logger
+                        )
+                    logger.info(f"Updated {change}")
 
     except KeyboardInterrupt:
         controller.stop()

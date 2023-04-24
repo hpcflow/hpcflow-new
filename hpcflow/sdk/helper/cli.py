@@ -11,6 +11,7 @@ from .helper import (
     get_watcher_file_path,
     get_helper_watch_list,
     start_helper,
+    modify_helper,
     stop_helper,
     restart_helper,
     clear_helper,
@@ -55,6 +56,35 @@ def get_helper_CLI(app):
     def start(timeout, timeout_check_interval, watch_interval):
         """Start the helper process."""
         start_helper(app, timeout, timeout_check_interval, watch_interval)
+
+    @helper.command()
+    @click.option(
+        "--timeout",
+        type=click.FLOAT,
+        default=DEFAULT_TIMEOUT,
+        show_default=True,
+        help="Helper timeout in seconds.",
+    )
+    @click.option(
+        "--timeout-check-interval",
+        type=click.FLOAT,
+        default=DEFAULT_TIMEOUT_CHECK,
+        show_default=True,
+        help="Interval between testing if the timeout has been exceeded in seconds.",
+    )
+    @click.option(
+        "--watch-interval",
+        type=click.FLOAT,
+        default=DEFAULT_WATCH_INTERVAL,
+        show_default=True,
+        help=(
+            "Polling interval for watching workflows (and the workflow watch list) in "
+            "seconds."
+        ),
+    )
+    def modify(timeout, timeout_check_interval, watch_interval):
+        """Modify parameters of a running helper process."""
+        modify_helper(app, timeout, timeout_check_interval, watch_interval)
 
     @helper.command()
     def stop():
