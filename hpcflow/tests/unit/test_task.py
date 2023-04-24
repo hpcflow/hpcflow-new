@@ -1374,4 +1374,3 @@ def test_add_task_before_no_ref(workflow_w0):
     new_task = Task(schemas=TaskSchema(objective="at_start", actions=[]))
     workflow_w0.add_task_before(new_task)
     assert [i.name for i in workflow_w0.tasks] == ["at_start", "t1", "t2"]
-
