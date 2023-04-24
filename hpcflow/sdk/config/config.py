@@ -48,10 +48,10 @@ DEFAULT_CONFIG_FILE = {
                 "machine": socket.gethostname(),
                 "telemetry": True,
                 "log_file_path": "logs/app.log",
-                "environment_files": [],
-                "task_schema_files": [],
-                "file_files": [],
-                "parameter_files": [],
+                "environment_sources": [],
+                "task_schema_sources": [],
+                "command_file_sources": [],
+                "parameter_sources": [],
             },
         }
     }
@@ -113,10 +113,10 @@ class Config:
 
         # Callbacks are run on get:
         self._get_callbacks = {
-            "task_schema_files": (callback_file_paths,),
-            "environment_files": (callback_file_paths,),
-            "parameter_files": (callback_file_paths,),
-            "file_files": (callback_file_paths,),
+            "task_schema_sources": (callback_file_paths,),
+            "environment_sources": (callback_file_paths,),
+            "parameter_sources": (callback_file_paths,),
+            "command_file_sources": (callback_file_paths,),
             "log_file_path": (callback_file_paths,),
             "telemetry": (callback_bool,),
             **(callbacks or {}),
@@ -124,10 +124,10 @@ class Config:
 
         # Set callbacks are run on set:
         self._set_callbacks = {
-            "task_schema_files": (set_callback_file_paths, check_load_data_files),
-            "environment_files": (set_callback_file_paths, check_load_data_files),
-            "parameter_files": (set_callback_file_paths, check_load_data_files),
-            "file_files": (set_callback_file_paths, check_load_data_files),
+            "task_schema_sources": (set_callback_file_paths, check_load_data_files),
+            "environment_sources": (set_callback_file_paths, check_load_data_files),
+            "parameter_sources": (set_callback_file_paths, check_load_data_files),
+            "command_file_sources": (set_callback_file_paths, check_load_data_files),
             "log_file_path": (set_callback_file_paths,),
         }
 
@@ -327,6 +327,7 @@ class Config:
         raise_on_missing=False,
         as_str=False,
         callback=True,
+        default_value=None,
     ):
         """Get a configuration item.
 
@@ -347,12 +348,16 @@ class Config:
             if raise_on_missing:
                 raise ValueError("Not set.")
             val = None
+            if default_value:
+                val = default_value
 
         elif name in self._modified_keys:
             val = self._modified_keys[name]
 
         elif name in self._configurable_keys:
-            val = self._file.get_config_item(name, raise_on_missing)
+            val = self._file.get_config_item(
+                name, raise_on_missing, default_value=default_value
+            )
 
         if callback:
             try:

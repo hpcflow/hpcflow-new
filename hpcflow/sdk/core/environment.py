@@ -154,6 +154,9 @@ class Environment(JSONLike):
             return True
         return False
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.name!r})"
+
     def _validate(self):
         dup_labels = get_duplicate_items(i.label for i in self.executables)
         if dup_labels:

@@ -1,4 +1,81 @@
 
+<a name="v0.2.0a28"></a>
+## [v0.2.0a28](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a27...v0.2.0a28) - 2023.04.20
+
+### ✨ Features
+
+* Update ubuntu runners for build docs
+
+### 🐛 Bug Fixes
+
+* Correct typo in Configure Poetry in release
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a27"></a>
+## [v0.2.0a27](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a26...v0.2.0a27) - 2023.04.19
+
+
+<a name="v0.2.0a26"></a>
+## [v0.2.0a26](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a25...v0.2.0a26) - 2023.03.28
+
+### 👷 Build changes
+
+* Update relase actions workflow.
+* Update build-exes workflow
+* Update build-exes workflow
+* Updated actions workflows
+* Updated all actions workflows
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a25"></a>
+## [v0.2.0a25](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a24...v0.2.0a25) - 2023.03.22
+
+### ♻ Code Refactoring
+
+* removed InputSourceMode
+
+
+<a name="v0.2.0a24"></a>
+## [v0.2.0a24](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a23...v0.2.0a24) - 2023.03.06
+
+### ✨ Features
+
+* store element meta-data in zarr array
+
+### 🐛 Bug Fixes
+
+* add missing import to pyinstsaller hook
+* Task.insert_ID is now unique!
+* get_events_of_type now considers unsaved events
+
+### 👷 Build changes
+
+* merge develop
+* merge develop
+* update binary download links file [skip ci]
+* merge develop
+* merge from remote
+
+
+<a name="v0.2.0a23"></a>
+## [v0.2.0a23](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a22...v0.2.0a23) - 2023.02.09
+
+### ✨ Features
+
+* allow passing input files (fix [#345](https://github.com/hpcflow/hpcflow-new/issues/345)); also add rules to actions
+* add Element.test_rule to test a Rule on an element's data
+
+### 👷 Build changes
+
+* bump deps + remove helper group
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a22"></a>
 ## [v0.2.0a22](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a21...v0.2.0a22) - 2023.01.26
 

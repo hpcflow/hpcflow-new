@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 from dataclasses import dataclass, field
 import enum
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -18,6 +19,16 @@ from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
 
 Address = List[Union[int, float, str]]
 Numeric = Union[int, float, np.number]
+
+
+class ParameterValue:
+    _typ = None
+
+    def to_dict(self):
+        if hasattr(self, "__dict__"):
+            return dict(self.__dict__)
+        elif hasattr(self, "__slots__"):
+            return {k: getattr(self, k) for k in self.__slots__}
 
 
 class ParameterPropagationMode(enum.Enum):
@@ -73,7 +84,7 @@ class Parameter(JSONLike):
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
-        for i in ZarrEncodable.__subclasses__():
+        for i in ParameterValue.__subclasses__():
             if i._typ == self.typ:
                 self._value_class = i
 
@@ -92,6 +103,8 @@ class SubParameter:
 @dataclass
 class SchemaParameter(JSONLike):
 
+    _app_attr = "app"
+
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -106,7 +119,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self):
         if isinstance(self.parameter, str):
-            self.parameter = Parameter(self.parameter)
+            self.parameter = self.app.Parameter(self.parameter)
 
     @property
     def name(self):
@@ -178,6 +191,17 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
+    def __deepcopy__(self, memo):
+        kwargs = {
+            "parameter": self.parameter,
+            "default_value": self.default_value,
+            "propagation_mode": self.propagation_mode,
+            "group": self.group,
+        }
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._task_schema = self._task_schema
+        return obj
+
     @property
     def task_schema(self):
         return self._task_schema
@@ -213,6 +237,15 @@ class SchemaOutput(SchemaParameter):
     def input_or_output(self):
         return "output"
 
+    def __repr__(self) -> str:
+
+        return (
+            f"{self.__class__.__name__}("
+            f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
+            f"propagation_mode={self.propagation_mode.name!r}"
+            f")"
+        )
+
 
 @dataclass
 class BuiltinSchemaParameter:
@@ -235,13 +268,16 @@ class ValueSequence(JSONLike):
     ):
         self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
-        self.is_unused = is_unused
+        self.is_unused = is_unused  # TODO: what is this for; should it be in init?
 
         self._values = values
 
         self._values_group_idx = None
         self._workflow = None
         self._element_set = None  # assigned by parent ElementSet
+
+        # assigned if this is an "inputs" sequence on validation of parent element set:
+        self._parameter = None
 
         self._path_split = None  # assigned by property `path_split`
 
@@ -260,10 +296,28 @@ class ValueSequence(JSONLike):
             f")"
         )
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        if self.to_dict() == other.to_dict():
+            return True
+        return False
+
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        kwargs["values"] = kwargs.pop("_values")
+        _values_group_idx = kwargs.pop("_values_group_idx")
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._values_group_idx = _values_group_idx
+        obj._workflow = self._workflow
+        obj._element_set = self._element_set
+        obj._path_split = self._path_split
+        obj._parameter = self._parameter
+        return obj
+
     @property
     def parameter(self):
-        if self.input_type:
-            return self.app.parameters.get(self.input_type)
+        return self._parameter
 
     @property
     def path_split(self):
@@ -344,25 +398,11 @@ class ValueSequence(JSONLike):
 
     def to_dict(self):
         out = super().to_dict()
+        del out["_parameter"]
         del out["_path_split"]
         if "_workflow" in out:
             del out["_workflow"]
         return out
-
-    def check_address_exists(self, value):
-        """Check a given nested dict/list "address" resolves to somewhere within
-        `value`."""
-        if self.address:
-            sub_val = value
-            for i in self.address:
-                try:
-                    sub_val = sub_val[i]
-                except (IndexError, KeyError, TypeError):
-                    msg = (
-                        f"Address {self.address} does not exist in the base "
-                        f"value: {value}"
-                    )
-                    raise ValueError(msg)
 
     @property
     def normalised_path(self):
@@ -376,35 +416,33 @@ class ValueSequence(JSONLike):
         if self.parameter:
             return ".".join(self.path_split[1:])
 
-    def make_persistent(self, workflow):
+    def make_persistent(self, workflow, source):
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
             is_new = False
-            param_group_idx = self._values_group_idx
-            if not all(workflow.check_parameter_group_exists(param_group_idx)):
+            data_ref = self._values_group_idx
+            if not all(workflow.check_parameters_exist(data_ref)):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
-                    f"({param_group_idx}), but does not exist in the workflow."
+                    f"({data_ref}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
 
         else:
-            param_group_idx = []
-            for i in self._values:
-                pg_idx_i = workflow._add_parameter_group(
-                    data=i,
-                    is_pending_add=workflow._in_batch_mode,
-                    is_set=True,
-                )
-                param_group_idx.append(pg_idx_i)
+            data_ref = []
+            for idx, i in enumerate(self._values):
+                source = copy.deepcopy(source)
+                source["sequence_idx"] = idx
+                pg_idx_i = workflow._add_parameter_data(i, source=source)
+                data_ref.append(pg_idx_i)
 
             is_new = True
-            self._values_group_idx = param_group_idx
+            self._values_group_idx = data_ref
             self._workflow = workflow
             self._values = None
 
-        return (self.normalised_path, param_group_idx, is_new)
+        return (self.normalised_path, data_ref, is_new)
 
     @property
     def workflow(self):
@@ -418,8 +456,10 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals = []
             for pg_idx_i in self._values_group_idx:
-                grp = self.workflow.get_zarr_parameter_group(pg_idx_i)
-                vals.append(zarr_decode(grp))
+                val = self.workflow._get_parameter_data(pg_idx_i)
+                if self.parameter._value_class:
+                    val = self.parameter._value_class(**val)
+                vals.append(val)
             return vals
         else:
             return self._values
@@ -427,6 +467,7 @@ class ValueSequence(JSONLike):
     @classmethod
     def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
         values = list(np.linspace(start, stop, num=num, **kwargs))
+        # TODO: save persistently as an array?
         return cls(values=values, path=path, nesting_order=nesting_order)
 
     @classmethod
@@ -474,7 +515,7 @@ class AbstractInputValue(JSONLike):
             del out["_workflow"]
         return out
 
-    def make_persistent(self, workflow) -> Dict:
+    def make_persistent(self, workflow, source) -> Dict:
         """Save value to a persistent workflow.
 
         Parameters
@@ -490,25 +531,21 @@ class AbstractInputValue(JSONLike):
         """
 
         if self._value_group_idx is not None:
-            param_group_idx = self._value_group_idx
+            data_ref = self._value_group_idx
             is_new = False
-            if not workflow.check_parameter_group_exists(param_group_idx):
+            if not workflow.check_parameters_exist(data_ref):
                 raise RuntimeError(
-                    f"{self.__class__.__name__} has a parameter group index "
-                    f"({param_group_idx}), but does not exist in the workflow."
+                    f"{self.__class__.__name__} has a data reference "
+                    f"({data_ref}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(
-                data=self._value,
-                is_pending_add=workflow._in_batch_mode,
-                is_set=True,
-            )
+            data_ref = workflow._add_parameter_data(self._value, source=source)
+            self._value_group_idx = data_ref
             is_new = True
-            self._value_group_idx = param_group_idx
             self._value = None
 
-        return (self.normalised_path, [param_group_idx], is_new)
+        return (self.normalised_path, [data_ref], is_new)
 
     @property
     def workflow(self):
@@ -522,8 +559,7 @@ class AbstractInputValue(JSONLike):
     @property
     def value(self):
         if self._value_group_idx is not None:
-            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
-            val = zarr_decode(grp)
+            val = self.workflow._get_parameter_data(self._value_group_idx)
             if self.parameter._value_class:
                 val = self.parameter._value_class(**val)
         else:
@@ -577,6 +613,17 @@ class InputValue(AbstractInputValue):
         # SchemaInput):
         self._schema_input = None
 
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        _value = kwargs.pop("_value")
+        _value_group_idx = kwargs.pop("_value_group_idx")
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._value = _value
+        obj._value_group_idx = _value_group_idx
+        obj._element_set = self._element_set
+        obj._schema_input = self._schema_input
+        return obj
+
     def __repr__(self):
 
         val_grp_idx = ""
@@ -600,6 +647,13 @@ class InputValue(AbstractInputValue):
             f"{val_grp_idx}"
             f")"
         )
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        if self.to_dict() == other.to_dict():
+            return True
+        return False
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -670,6 +724,14 @@ class ResourceSpec(JSONLike):
         self._workflow = None
         self._value_group_idx = None
 
+    def __deepcopy__(self, memo):
+        kwargs = copy.deepcopy(self.to_dict(), memo)
+        _value_group_idx = kwargs.pop("value_group_idx")
+        obj = self.__class__(**kwargs)
+        obj._value_group_idx = _value_group_idx
+        obj._resource_list = self._resource_list
+        return obj
+
     def __repr__(self):
         param_strs = ""
         for i in self.ALLOWED_PARAMETERS:
@@ -685,6 +747,13 @@ class ResourceSpec(JSONLike):
             param_strs += i_str
 
         return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        if self.to_dict() == other.to_dict():
+            return True
+        return False
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -732,7 +801,7 @@ class ResourceSpec(JSONLike):
         del out["value_group_idx"]
         return out
 
-    def make_persistent(self, workflow) -> Dict:
+    def make_persistent(self, workflow, source) -> Dict:
         """Save to a persistent workflow.
 
         Parameters
@@ -748,32 +817,27 @@ class ResourceSpec(JSONLike):
             stored.
         """
         if self._value_group_idx is not None:
-            param_group_idx = self._value_group_idx
+            data_ref = self._value_group_idx
             is_new = False
-            if not workflow.check_parameter_group_exists(param_group_idx):
+            if not workflow.check_parameters_exist(data_ref):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
-                    f"({param_group_idx}), but does not exist in the workflow."
+                    f"({data_ref}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
         else:
-            param_group_idx = workflow._add_parameter_group(
-                data=self._get_members(),
-                is_pending_add=workflow._in_batch_mode,
-                is_set=True,
-            )
+            data_ref = workflow._add_parameter_data(self._get_members(), source=source)
             is_new = True
-            self._value_group_idx = param_group_idx
+            self._value_group_idx = data_ref
             self._workflow = workflow
             self._num_cores = None
             self._scratch = None
 
-        return (self.normalised_path, [param_group_idx], is_new)
+        return (self.normalised_path, [data_ref], is_new)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
-            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
-            val = zarr_decode(grp)
+            val = self.workflow._get_parameter_data(self._value_group_idx)
         else:
             val = self._get_members()
         if value_name:
@@ -813,16 +877,6 @@ class TaskSourceType(enum.Enum):
     INPUT = 0
     OUTPUT = 1
     ANY = 2
-
-
-class InputSourceMode(enum.Enum):
-    """Set to MANUAL for a task if the task has input source(s) specified on creation (or
-    modification) otherwise set to AUTO, in which case input sources will be set by
-    hpcflow, and input sources may be appended to if new tasks/imports are added to the
-    workflow."""
-
-    AUTO = 0
-    MANUAL = 1
 
 
 class InputSource(JSONLike):
@@ -890,7 +944,7 @@ class InputSource(JSONLike):
         elif self.source_type is InputSourceType.TASK:
             args = (
                 f"task_ref={self.task_ref}, "
-                f"task_source_type={self.task_source_type.name.lower()}"
+                f"task_source_type={self.task_source_type.name.lower()!r}"
             )
             if self.elements:
                 args += f", elements={self.elements}"
@@ -1049,10 +1103,3 @@ class InputSource(JSONLike):
             task_source_type=cls._validate_task_source_type(task_source_type),
             elements=elements,
         )
-
-
-@dataclass
-class ParameterValue:
-    @property
-    def value(self):
-        pass
