@@ -641,7 +641,6 @@ class Jobscript(JSONLike):
         """Prepare the jobscript file string."""
         # workflows should be submitted from the workflow root directory
         env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
-        env_setup = None
         if env_setup:
             env_setup = indent(env_setup.strip(), "    ") + "\n\n    "
         else:
