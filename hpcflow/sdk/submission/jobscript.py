@@ -640,8 +640,15 @@ class Jobscript(JSONLike):
     def compose_jobscript(self) -> str:
         """Prepare the jobscript file string."""
         # workflows should be submitted from the workflow root directory
+        env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
+        env_setup = None
+        if env_setup:
+            env_setup = indent(env_setup.strip(), "    ") + "\n\n    "
+        else:
+            env_setup = "    "
         header_args = {
             "workflow_app_alias": self.workflow_app_alias,
+            "env_setup": env_setup,
             "app_invoc": " ".join(self.app.run_time_info.invocation_command),
             "config_dir": str(self.app.config.config_directory),
             "workflow_path": self.workflow.path,
