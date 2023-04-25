@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a29"></a>
+## [v0.2.0a29](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a28...v0.2.0a29) - 2023.04.25
+
+### ♻ Code Refactoring
+
+* split add_tassk_before_and_after into unit test
+
+### ✨ Features
+
+* added docstrings for add_task before and after
+* defined add_task_after and add_task_before, with test
+
+### 🐛 Bug Fixes
+
+* default task index, new task variable name and pass.
+
+
 <a name="v0.2.0a28"></a>
 ## [v0.2.0a28](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a27...v0.2.0a28) - 2023.04.20
 
