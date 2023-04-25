@@ -26,7 +26,7 @@ msgpack = "^1.0.4"
 reretry = "^0.11.8"
 psutil = "^5.9.4"
 watchdog = "^2.1.9"
-valida = "^0.5.1"
+valida = "^0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^2.12.2"
