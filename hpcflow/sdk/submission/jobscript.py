@@ -493,15 +493,15 @@ class Jobscript(JSONLike):
 
     @property
     def need_EAR_file_name(self):
-        return f"{self.index}_need_EARs.txt"
+        return f"js_{self.index}_need_EARs.txt"
 
     @property
     def element_run_dir_file_name(self):
-        return f"{self.index}_run_dirs.txt"
+        return f"js_{self.index}_run_dirs.txt"
 
     @property
     def jobscript_name(self):
-        return f"{self.index}_jobscript.sh"
+        return f"js_{self.index}.sh"
 
     @property
     def need_EAR_file_path(self):
