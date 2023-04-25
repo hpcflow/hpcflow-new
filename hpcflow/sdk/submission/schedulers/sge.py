@@ -49,7 +49,7 @@ class SGEPosix(Scheduler):
         return "\n".join(opts)
 
     def get_version_info(self):
-        vers_cmd = [self.show_cmd, "--help"]
+        vers_cmd = [self.show_cmd, "-help"]
         proc = subprocess.run(
             args=vers_cmd,
             stdout=subprocess.PIPE,
