@@ -330,26 +330,27 @@ class BaseApp:
             self.load_config()
         return self._config
 
-    def _load_config(self, config_dir, **overrides):
+    def _load_config(self, config_dir, config_invocation_key, **overrides):
         self.logger.debug("Loading configuration.")
         self._config = Config(
             app=self,
             options=self.config_options,
             config_dir=config_dir,
+            config_invocation_key=config_invocation_key,
             logger=self.config_logger,
             **overrides,
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
 
-    def load_config(self, config_dir=None, **overrides):
+    def load_config(self, config_dir=None, config_invocation_key=None, **overrides):
         if self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
-        self._load_config(config_dir, **overrides)
+        self._load_config(config_dir, config_invocation_key, **overrides)
 
-    def reload_config(self, config_dir=None, **overrides):
+    def reload_config(self, config_dir=None, config_invocation_key=None, **overrides):
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
-        self._load_config(config_dir, **overrides)
+        self._load_config(config_dir, config_invocation_key, **overrides)
 
     def _make_API_CLI(self):
         """Generate the CLI for the main functionality."""
@@ -699,16 +700,23 @@ class BaseApp:
         )
         @click.option("--config-dir", help="Set the configuration directory.")
         @click.option(
+            "--config-invocation-key", help="Set the configuration invocation key."
+        )
+        @click.option(
             "--with-config",
             help="Override a config item in the config file",
             nargs=2,
             multiple=True,
         )
         @click.pass_context
-        def new_CLI(ctx, config_dir, with_config):
+        def new_CLI(ctx, config_dir, config_invocation_key, with_config):
             overrides = {kv[0]: kv[1] for kv in with_config}
             try:
-                self.load_config(config_dir=config_dir, **overrides)
+                self.load_config(
+                    config_dir=config_dir,
+                    config_invocation_key=config_invocation_key,
+                    **overrides,
+                )
             except ConfigError as err:
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)

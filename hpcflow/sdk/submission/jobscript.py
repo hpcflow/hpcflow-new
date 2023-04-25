@@ -651,6 +651,7 @@ class Jobscript(JSONLike):
             "env_setup": env_setup,
             "app_invoc": " ".join(self.app.run_time_info.invocation_command),
             "config_dir": str(self.app.config.config_directory),
+            "config_invoc_key": self.app.config._file.invoc_key,
             "workflow_path": self.workflow.path,
             "sub_idx": self.submission.index,
             "js_idx": self.index,

@@ -5,6 +5,7 @@ BASH_HEADER = """
   (
 {env_setup}{app_invoc}\\
     --config-dir "{config_dir}"\\
+    --config-invocation-key "{config_invoc_key}"\\
     "$@"
   )
 }}
