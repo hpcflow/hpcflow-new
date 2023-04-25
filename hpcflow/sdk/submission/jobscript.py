@@ -641,13 +641,14 @@ class Jobscript(JSONLike):
         """Prepare the jobscript file string."""
         # workflows should be submitted from the workflow root directory
         header_args = {
+            "workflow_app_alias": self.workflow_app_alias,
             "app_invoc": " ".join(self.app.run_time_info.invocation_command),
+            "config_dir": str(self.app.config.config_directory),
             "workflow_path": self.workflow.path,
             "sub_idx": self.submission.index,
             "js_idx": self.index,
             "EAR_file_name": self.need_EAR_file_name,
             "element_run_dirs_file_path": self.element_run_dir_file_name,
-            "workflow_app_alias": self.workflow_app_alias,
         }
 
         os_name = self.resources.os_name or os.name
