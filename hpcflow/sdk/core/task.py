@@ -1484,19 +1484,20 @@ class WorkflowTask:
         if propagate_to is not None:
 
             # TODO: also accept a dict as func arg:
-            propagate_to = {i.task.unique_name: i for i in propagate_to}
+            propagate_to_names = {i.task.unique_name: i for i in propagate_to}
 
             for task in self.downstream_tasks:
 
-                elem_propagate = propagate_to.get(
+                elem_propagate = propagate_to_names.get(
                     task.unique_name, ElementPropagation(task=task)
                 )
-                if self.unique_name not in (
+                task_dep_names = [
                     i.unique_name
                     for i in elem_propagate.element_set.get_task_dependencies(
                         as_objects=True
                     )
-                ):
+                ]
+                if self.unique_name not in task_dep_names:
                     # TODO: why can't we just do
                     #  `if self in not elem_propagate.element_set.task_dependencies:`?
                     continue
@@ -1517,6 +1518,7 @@ class WorkflowTask:
                 prop_elem_idx = task._add_elements(
                     element_sets=[elem_set_i],
                     return_indices=True,
+                    propagate_to=propagate_to,
                 )
                 elem_idx.extend(prop_elem_idx)
 
