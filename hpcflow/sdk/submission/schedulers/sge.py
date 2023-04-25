@@ -27,7 +27,7 @@ class SGEPosix(Scheduler):
     DEFAULT_ARRAY_ITEM_VAR = "SGE_TASK_ID"
     DEFAULT_CWD_SWITCH = "-cwd"
 
-    def __init__(self, cwd_switch, *args, **kwargs):
+    def __init__(self, cwd_switch=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
