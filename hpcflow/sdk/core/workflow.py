@@ -429,15 +429,33 @@ class Workflow:
             with self.batch_update():
                 self._add_task(task, new_index=new_index)
 
-    def add_task_after(self, task_ref):
-        # TODO: find position of new task, then call add_task
-        # TODO: add new downstream elements?
-        pass
+    def add_task_after(self, new_task: Task, task_ref=None):
+        """Adds the given new_task after the task specified in task_ref.
 
-    def add_task_before(self, task_ref):
-        # TODO: find position of new task, then call add_task
+        Parameters
+        ----------
+        new_task : Task, required.
+        task_ref : Task, optional.
+            If no `task_ref` is given, the new task will be added at the end.
+
+        """
+        new_index = task_ref.index + 1 if task_ref else None
+        self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
-        pass
+
+    def add_task_before(self, new_task: Task, task_ref=None):
+        """Adds the given new_task before the task specified in task_ref.
+
+        Parameters
+        ----------
+        new_task : Task, required.
+        task_ref : Task, optional.
+            If no task_ref is given, the new task will be added at the beginning.
+
+        """
+        new_index = task_ref.index if task_ref else 0
+        self.add_task(new_task, new_index)
+        # TODO: add new downstream elements?
 
     def _get_parameter_data(self, index: int) -> Any:
         return self._store.get_parameter_data(index)
