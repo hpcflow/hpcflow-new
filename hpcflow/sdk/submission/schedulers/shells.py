@@ -42,7 +42,7 @@ def get_powershell_version_info(executable: str = "powershell.exe") -> Dict:
     if proc.returncode == 0:
         version = proc.stdout.strip()
     else:
-        raise RuntimeError("Failed to parse bash version information.")
+        raise RuntimeError("Failed to parse powershell version information.")
 
     return {
         "shell_name": "powershell",
