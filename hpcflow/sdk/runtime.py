@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import socket
 import sys
 from pathlib import Path
 import warnings
@@ -39,6 +40,7 @@ class RunTimeInfo(PrettyPrinter):
         self.is_frozen = is_frozen
         self.working_dir = os.getcwd()
         self.logger = logger
+        self.machine = socket.gethostname()
 
         path_exec = Path(sys.executable)
         path_argv = Path(sys.argv[0])
@@ -101,7 +103,13 @@ class RunTimeInfo(PrettyPrinter):
                 sentry_sdk.set_tag(f"rti.{k}", v)
 
     def _get_members(self):
-        out = {"is_frozen": self.is_frozen, "python_version": self.python_version}
+        out = {
+            "is_frozen": self.is_frozen,
+            "python_version": self.python_version,
+            "machine": self.machine,
+            "working_dir": self.working_dir,
+            "invocation_command": self.get_invocation_command(),
+        }
         if self.is_frozen:
             out.update(
                 {
@@ -126,8 +134,6 @@ class RunTimeInfo(PrettyPrinter):
                     "venv_path": self.venv_path,
                 }
             )
-        out.update({"working_dir": self.working_dir})
-        out.update({"invocation_command": self.get_invocation_command()})
         return out
 
     def __repr__(self):

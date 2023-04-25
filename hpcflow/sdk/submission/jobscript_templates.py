@@ -2,7 +2,9 @@ BASH_SHEBANG = """#!{shell_executable} {shell_args}"""
 
 BASH_HEADER = """
 {workflow_app_alias} () {{
-   {app_invoc} --config-dir "{config_dir}" "$@"
+  {app_invoc}\
+  --config-dir "{config_dir}"\
+  "$@"
 }}
 
 WK_PATH=`pwd`
