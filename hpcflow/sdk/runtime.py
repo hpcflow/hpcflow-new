@@ -166,4 +166,23 @@ class RunTimeInfo(PrettyPrinter):
         if self.is_frozen:
             return [str(self.resolved_executable_path)]
         else:
-            return [str(self.python_executable_path), str(self.resolved_script_path)]
+            in_ipython = False
+            try:
+                get_ipython
+                in_ipython = True
+            except NameError:
+                pass
+
+            if in_ipython:
+                import hpcflow
+
+                CLI_path = Path(*hpcflow.__path__, "cli", "cli.py")
+                command = [str(self.python_executable_path), str(CLI_path)]
+
+            else:
+                command = [
+                    str(self.python_executable_path),
+                    str(self.resolved_script_path),
+                ]
+
+            return command
