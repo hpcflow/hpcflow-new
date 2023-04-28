@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import importlib
+import os
 from typing import Optional, Union
 from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 
 import hpcflow.sdk.scripting
+from hpcflow.sdk.submission.shells import get_shell
+from hpcflow.sdk.submission.shells.os_version import (
+    get_OS_info_POSIX,
+    get_OS_info_windows,
+)
 from hpcflow.sdk.typing import PathLike
 
 __all__ = (
@@ -15,6 +21,8 @@ __all__ = (
     "submit_workflow",
     "run_hpcflow_tests",
     "run_tests",
+    "get_OS_info",
+    "get_shell_info",
 )
 
 
@@ -185,3 +193,33 @@ def run_tests(app, *args):
             return pytest.main([str(test_dir)] + test_args)
     else:
         return pytest.main(["--pyargs", f"{app.name}"] + test_args)
+
+
+def get_OS_info(app):
+    """Get information about the operating system."""
+    os_name = os.name
+    if os_name == "posix":
+        return get_OS_info_POSIX(linux_release_file=app.config.get("linux_release_file"))
+    elif os_name == "nt":
+        return get_OS_info_windows()
+
+
+def get_shell_info(
+    app,
+    shell_name: str,
+    exclude_os: Optional[bool] = False,
+):
+    """Get information about a given shell and the operating system.
+
+    Parameters
+    ----------
+    shell_name
+        One of the supported shell names.
+    exclude_os
+        If True, exclude operating system information.
+    """
+    shell = get_shell(
+        shell_name=shell_name,
+        os_args={"linux_release_file": app.config.linux_release_file},
+    )
+    return shell.get_version_info(exclude_os)

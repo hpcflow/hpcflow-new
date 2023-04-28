@@ -12,6 +12,7 @@ from termcolor import colored
 
 from hpcflow import __version__
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
+from hpcflow.sdk.submission.shells import ALL_SHELLS
 from .core.json_like import JSONLike
 from .core.utils import read_YAML, read_YAML_file
 from . import api, SDK_logger
@@ -497,16 +498,6 @@ class BaseApp:
             )
             click.echo(sub_out)
 
-        @click.command(name="submit")
-        @click.argument("workflow_path", type=click.Path(dir_okay=True, exists=True))
-        def submit_workflow(workflow_path):
-            """Submit an existing {app_name} workflow.
-
-            WORKFLOW_PATH is the path to an existing workflow.
-
-            """
-            click.echo(self.submit_workflow(workflow_path))
-
         @click.command(help=f"Run {self.name} test suite.")
         @click.pass_context
         def test(ctx):
@@ -519,7 +510,6 @@ class BaseApp:
 
         commands = [
             make_workflow,
-            submit_workflow,
             make_and_submit_workflow,
             test,
         ]
@@ -537,15 +527,59 @@ class BaseApp:
         """Generate the CLI for interacting with existing workflows."""
 
         @click.group()
-        @click.argument("path", type=click.Path(exists=True))
+        @click.argument("workflow_path", type=click.Path(exists=True))
         @click.pass_context
-        def workflow(ctx, path):
-            """"""
-            wk = self.Workflow(path)
+        def workflow(ctx, workflow_path):
+            """Interact with existing {app_name} workflows.
+
+            WORKFLOW_PATH is the path to an existing workflow.
+
+            """
+            wk = self.Workflow(workflow_path)
             ctx.ensure_object(dict)
             ctx.obj["workflow"] = wk
 
+        @workflow.command(name="submit")
+        @click.pass_context
+        def submit_workflow(ctx):
+            """Submit the workflow."""
+            click.echo(ctx.obj["workflow"].submit())
+
+        workflow.help = workflow.help.format(app_name=self.name)
+
         return workflow
+
+    def _make_submission_CLI(self):
+        """Generate the CLI for submission related queries."""
+
+        def OS_info_callback(ctx, param, value):
+            if not value or ctx.resilient_parsing:
+                return
+            click.echo(self.get_OS_info())
+            ctx.exit()
+
+        @click.group()
+        @click.option(
+            "--os-info",
+            help="Print information about the operating system.",
+            is_flag=True,
+            is_eager=True,
+            expose_value=False,
+            callback=OS_info_callback,
+        )
+        @click.pass_context
+        def submission(ctx):
+            """Submission-related queries."""
+
+        @submission.command("shell-info")
+        @click.argument("shell_name", type=click.Choice(ALL_SHELLS))
+        @click.option("--exclude-os", is_flag=True, default=False)
+        @click.pass_context
+        def shell_info(ctx, shell_name, exclude_os):
+            click.echo(self.get_shell_info(shell_name, exclude_os))
+            ctx.exit()
+
+        return submission
 
     def _make_internal_CLI(self):
         """Generate the CLI for internal use."""
@@ -726,6 +760,7 @@ class BaseApp:
         new_CLI.add_command(get_demo_software_CLI(self))
         new_CLI.add_command(get_helper_CLI(self))
         new_CLI.add_command(self._make_workflow_CLI())
+        new_CLI.add_command(self._make_submission_CLI())
         new_CLI.add_command(self._make_internal_CLI())
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)

@@ -153,7 +153,15 @@ class SchedulerVersionsFailure(RuntimeError):
 
 class JobscriptSubmissionFailure(RuntimeError):
     def __init__(
-        self, message, submit_cmd, js_idx, js_path, stdout, stderr, subprocess_exc
+        self,
+        message,
+        submit_cmd,
+        js_idx,
+        js_path,
+        stdout,
+        stderr,
+        subprocess_exc,
+        job_ID_parse_exc,
     ) -> None:
         self.message = message
         self.submit_cmd = submit_cmd
@@ -162,6 +170,7 @@ class JobscriptSubmissionFailure(RuntimeError):
         self.stdout = stdout
         self.stderr = stderr
         self.subprocess_exc = subprocess_exc
+        self.job_ID_parse_exc = job_ID_parse_exc
         super().__init__(message)
 
 
@@ -172,4 +181,10 @@ class SubmissionFailure(RuntimeError):
 
 
 class WorkflowSubmissionFailure(RuntimeError):
+    pass
+
+
+class UnsupportedShellError(ValueError):
+    """We don't support this shell on this OS."""
+
     pass
