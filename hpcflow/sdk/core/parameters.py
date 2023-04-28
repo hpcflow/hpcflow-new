@@ -702,10 +702,12 @@ class ResourceSpec(JSONLike):
         "scratch",
         "num_cores",
         "scheduler",
+        "shell",
         "use_job_array",
         "time_limit",
         "scheduler_options",
-        "scheduler_commands",
+        "scheduler_args",
+        "shell_args",
         "os_name",
     }
 
@@ -724,10 +726,12 @@ class ResourceSpec(JSONLike):
         scratch: Optional[str] = None,
         num_cores: Optional[int] = None,
         scheduler: Optional[str] = None,
+        shell: Optional[str] = None,
         use_job_array: Optional[bool] = None,
         time_limit: Optional[Union[str, timedelta]] = None,
         scheduler_options: Optional[Dict] = None,
-        scheduler_commands: Optional[Dict] = None,
+        scheduler_args: Optional[Dict] = None,
+        shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
     ):
 
@@ -740,10 +744,12 @@ class ResourceSpec(JSONLike):
         self._scratch = scratch
         self._num_cores = num_cores
         self._scheduler = scheduler
+        self._shell = shell
         self._use_job_array = use_job_array
         self._time_limit = time_limit
         self._scheduler_options = scheduler_options
-        self._scheduler_commands = scheduler_commands
+        self._scheduler_args = scheduler_args
+        self._shell_args = shell_args
         self._os_name = os_name
 
         # assigned by `make_persistent`
@@ -860,10 +866,12 @@ class ResourceSpec(JSONLike):
             self._num_cores = None
             self._scratch = None
             self._scheduler = None
+            self._shell = None
             self._use_job_array = None
             self._time_limit = None
             self._scheduler_options = None
-            self._scheduler_commands = None
+            self._scheduler_args = None
+            self._shell_args = None
             self._os_name = None
 
         return (self.normalised_path, [data_ref], is_new)
@@ -891,6 +899,10 @@ class ResourceSpec(JSONLike):
         return self._get_value("scheduler")
 
     @property
+    def shell(self):
+        return self._get_value("shell")
+
+    @property
     def use_job_array(self):
         return self._get_value("use_job_array")
 
@@ -903,8 +915,12 @@ class ResourceSpec(JSONLike):
         return self._get_value("scheduler_options")
 
     @property
-    def scheduler_commands(self):
-        return self._get_value("scheduler_commands")
+    def scheduler_args(self):
+        return self._get_value("scheduler_args")
+
+    @property
+    def shell_args(self):
+        return self._get_value("shell_args")
 
     @property
     def os_name(self):

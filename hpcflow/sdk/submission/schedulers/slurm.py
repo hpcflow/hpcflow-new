@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 from typing import List, Tuple
 from hpcflow.sdk.submission.schedulers import Scheduler
-from hpcflow.sdk.submission.schedulers.shells import get_bash_version_info
+from hpcflow.sdk.submission.shells.base import Shell
 
 
 class SlurmPosix(Scheduler):
@@ -12,6 +12,7 @@ class SlurmPosix(Scheduler):
     -----
     - runs in current working directory by default [2]
 
+    # TODO: consider getting memory usage like: https://stackoverflow.com/a/44143229/5042280
 
     References
     ----------
@@ -21,6 +22,7 @@ class SlurmPosix(Scheduler):
     """
 
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
+    DEFAULT_SHEBANG_ARGS = ""
     DEFAULT_SUBMIT_CMD = "sbatch"
     DEFAULT_SHOW_CMD = "squeue --me"
     DEFAULT_DEL_CMD = "scancel"
@@ -32,6 +34,10 @@ class SlurmPosix(Scheduler):
         super().__init__(*args, **kwargs)
 
     def format_core_request_lines(self, num_cores, num_nodes):
+
+        # TODO: I think these partition names are set by the sysadmins, so they should
+        # be set in the config file as a mapping between num_cores/nodes and partition
+        # names. `sinfo -s` shows a list of available partitions
 
         lns = []
         if num_cores == 1:
@@ -73,11 +79,14 @@ class SlurmPosix(Scheduler):
             "scheduler_name": name,
             "scheduler_versions": version,
         }
-        out.update(get_bash_version_info())
-
         return out
 
-    def get_submit_command(self, js_path: Path, deps: List[Tuple]) -> List[str]:
+    def get_submit_command(
+        self,
+        shell: Shell,
+        js_path: Path,
+        deps: List[Tuple],
+    ) -> List[str]:
 
         cmd = [self.submit_cmd, "--parsable"]
 

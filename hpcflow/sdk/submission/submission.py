@@ -165,6 +165,10 @@ class Submission(JSONLike):
             )
             if sub_err.subprocess_exc is not None:
                 msg += f"Subprocess exception: {sub_err.subprocess_exc}\n"
+            if sub_err.job_ID_parse_exc is not None:
+                msg += f"Subprocess job ID parse exception: {sub_err.job_ID_parse_exc}\n"
+            if sub_err.job_ID_parse_exc is not None:
+                msg += f"Job ID parse exception: {sub_err.job_ID_parse_exc}\n"
             if sub_err.stdout:
                 msg += f"Submission stdout:\n{indent(sub_err.stdout, '  ')}\n"
             if sub_err.stderr:

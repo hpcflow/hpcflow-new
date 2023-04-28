@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 from textwrap import indent
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,14 +27,15 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.direct import DirectPosix, DirectWindows
 from hpcflow.sdk.submission.schedulers.sge import SGEPosix
 from hpcflow.sdk.submission.schedulers.slurm import SlurmPosix
+from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES, get_shell
 
 
+# lookup by (scheduler, `os.name`):
 scheduler_cls_lookup = {
+    (None, "posix"): DirectPosix,
+    (None, "nt"): DirectWindows,
     ("sge", "posix"): SGEPosix,
     ("slurm", "posix"): SlurmPosix,
-    ("slurm", "nt"): SlurmPosix,  # TEMP!
-    ("direct", "posix"): DirectPosix,
-    ("direct", "nt"): DirectWindows,
 }
 
 
@@ -67,7 +68,8 @@ def generate_EAR_resource_map(
                 for act_idx, action in iter_i.actions.items():
                     for run in action.runs:
                         if run.submission_status.name == "PENDING":
-                            res_hash = hash(run.resources)
+                            # TODO: consider `time_limit`s
+                            res_hash = run.resources.get_jobscript_hash()
                             if res_hash not in resource_hashes:
                                 resource_hashes.append(res_hash)
                                 resources.append(run.resources)
@@ -317,7 +319,7 @@ class Jobscript(JSONLike):
     _app_attr = "app"
     _EAR_files_delimiter = ":"
     _workflow_app_alias = "wkflow_app"
-    _commands_file_name = "commands.sh"  # TODO: bash-specific
+    _commands_file_stem = "commands"
 
     _child_objects = (
         ChildObjectSpec(
@@ -357,6 +359,7 @@ class Jobscript(JSONLike):
         self._submission = None  # assigned by parent Submission
         self._index = None  # assigned by parent Submission
         self._scheduler_obj = None  # assigned on first access to `scheduler` property
+        self._shell_obj = None  # assigned on first access to `shell` property
 
     def __repr__(self):
         return (
@@ -372,6 +375,7 @@ class Jobscript(JSONLike):
         dct = super().to_dict()
         del dct["_index"]
         del dct["_scheduler_obj"]
+        del dct["_shell_obj"]
         dct = {k.lstrip("_"): v for k, v in dct.items()}
         dct["EAR_idx"] = dct["EAR_idx"].tolist()
         dct["EARs"] = [[list(k), list(v)] for k, v in dct["EARs"].items()]
@@ -395,7 +399,7 @@ class Jobscript(JSONLike):
 
     @property
     def commands_file_name(self):
-        return self._commands_file_name
+        return f"{self._commands_file_stem}{self.shell.JS_EXT}"
 
     @property
     def task_insert_IDs(self):
@@ -475,20 +479,43 @@ class Jobscript(JSONLike):
             return self.resources.use_job_array
 
     @property
-    def scheduler_name(self):
-        return self.resources.scheduler.lower()
+    def os_name(self):
+        return self.resources.os_name or os.name
+
+    @property
+    def shell_name(self) -> str:
+        if self.resources.shell:
+            return self.resources.shell.lower()
+        else:
+            return DEFAULT_SHELL_NAMES[self.os_name]
+
+    @property
+    def shell(self):
+        if self._shell_obj is None:
+            self._shell_obj = get_shell(
+                self.shell_name,
+                self.os_name,
+                os_args={"linux_release_file": self.app.config.linux_release_file},
+                **self.resources.shell_args,
+            )
+        return self._shell_obj
+
+    @property
+    def scheduler_name(self) -> Union[str, None]:
+        if self.resources.scheduler:
+            return self.resources.scheduler.lower()
 
     @property
     def scheduler(self):
         if self._scheduler_obj is None:
-            key = (self.scheduler_name, self.resources.os_name or os.name)
+            key = (self.scheduler_name, self.os_name)
             try:
                 scheduler_cls = scheduler_cls_lookup[key]
             except KeyError:
                 raise ValueError(
                     f"Unsupported combination of scheduler and operation system: {key!r}"
                 )
-            self._scheduler_obj = scheduler_cls(**self.resources.scheduler_commands)
+            self._scheduler_obj = scheduler_cls(**self.resources.scheduler_args)
         return self._scheduler_obj
 
     @property
@@ -501,7 +528,7 @@ class Jobscript(JSONLike):
 
     @property
     def jobscript_name(self):
-        return f"js_{self.index}.sh"
+        return f"js_{self.index}{self.shell.JS_EXT}"
 
     @property
     def need_EAR_file_path(self):
@@ -642,13 +669,16 @@ class Jobscript(JSONLike):
         # workflows should be submitted from the workflow root directory
         env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
         if env_setup:
-            env_setup = indent(env_setup.strip(), "    ") + "\n\n    "
+            env_setup = indent(env_setup.strip(), self.shell.JS_ENV_SETUP_INDENT)
+            env_setup += "\n\n" + self.shell.JS_ENV_SETUP_INDENT
         else:
-            env_setup = "    "
+            env_setup = self.shell.JS_ENV_SETUP_INDENT
+
+        app_invoc = " ".join(self.app.run_time_info.invocation_command)
         header_args = {
             "workflow_app_alias": self.workflow_app_alias,
             "env_setup": env_setup,
-            "app_invoc": " ".join(self.app.run_time_info.invocation_command),
+            "app_invoc": app_invoc,
             "config_dir": str(self.app.config.config_directory),
             "config_invoc_key": self.app.config._file.invoc_key,
             "workflow_path": self.workflow.path,
@@ -658,58 +688,51 @@ class Jobscript(JSONLike):
             "element_run_dirs_file_path": self.element_run_dir_file_name,
         }
 
-        os_name = self.resources.os_name or os.name
-        if os_name == "posix":
+        shebang = self.shell.JS_SHEBANG.format(
+            shell_executable=self.shell.executable,
+            shebang_args=self.scheduler.shebang_args,
+        )
+        header = self.shell.JS_HEADER.format(**header_args)
 
-            bash_shebang = BASH_SHEBANG.format(
-                shell_executable=self.scheduler.shell_executable,
-                shell_args=self.scheduler.shell_args,
+        if isinstance(self.scheduler, Scheduler):
+            header = self.shell.JS_SCHEDULER_HEADER.format(
+                shebang=shebang,
+                scheduler_options=self.scheduler.format_options(
+                    resources=self.resources,
+                    num_elements=self.num_elements,
+                    is_array=self.is_array,
+                ),
+                header=header,
             )
-            bash_header = BASH_HEADER.format(**header_args)
-
-            if isinstance(self.scheduler, Scheduler):
-                bash_header = BASH_SCHEDULER_HEADER.format(
-                    bash_shebang=bash_shebang,
-                    scheduler_options=self.scheduler.format_options(
-                        resources=self.resources,
-                        num_elements=self.num_elements,
-                        is_array=self.is_array,
-                    ),
-                    bash_header=bash_header,
-                )
-
-            else:
-                bash_header = BASH_DIRECT_HEADER.format(
-                    bash_shebang=bash_shebang,
-                    bash_header=bash_header,
-                )
-
-            bash_main = BASH_MAIN.format(
-                num_actions=self.num_actions,
-                EAR_files_delimiter=self._EAR_files_delimiter,
-                workflow_app_alias=self.workflow_app_alias,
-                commands_file_name=self.commands_file_name,
+        else:
+            header = self.shell.JS_DIRECT_HEADER.format(
+                shebang=shebang,
+                header=header,
             )
 
-            out = bash_header
+        main = self.shell.JS_MAIN.format(
+            num_actions=self.num_actions,
+            EAR_files_delimiter=self._EAR_files_delimiter,
+            workflow_app_alias=self.workflow_app_alias,
+            commands_file_name=self.commands_file_name,
+        )
 
-            if self.is_array:
-                out += BASH_ELEMENT_ARRAY.format(
-                    scheduler_command=self.scheduler.js_cmd,
-                    scheduler_array_switch=self.scheduler.array_switch,
-                    scheduler_array_item_var=self.scheduler.array_item_var,
-                    num_elements=self.num_elements,
-                    bash_main=bash_main,
-                )
+        out = header
 
-            else:
-                out += BASH_ELEMENT_LOOP.format(
-                    num_elements=self.num_elements,
-                    bash_main=indent(bash_main, "  "),
-                )
+        if self.is_array:
+            out += self.shell.JS_ELEMENT_ARRAY.format(
+                scheduler_command=self.scheduler.js_cmd,
+                scheduler_array_switch=self.scheduler.array_switch,
+                scheduler_array_item_var=self.scheduler.array_item_var,
+                num_elements=self.num_elements,
+                main=main,
+            )
 
-        elif os_name == "nt":
-            out = ""
+        else:
+            out += self.shell.JS_ELEMENT_LOOP.format(
+                num_elements=self.num_elements,
+                main=indent(main, self.shell.JS_INDENT),
+            )
 
         return out
 
@@ -772,9 +795,11 @@ class Jobscript(JSONLike):
             "js_idx": self.index,
             "js_path": js_path,
             "subprocess_exc": None,
+            "job_ID_parse_exc": None,
         }
         try:
-            submit_cmd = self.scheduler.get_submit_command(js_path, deps)
+            submit_cmd = self.scheduler.get_submit_command(self.shell, js_path, deps)
+            print(f"{submit_cmd=}")
             proc = subprocess.run(
                 args=submit_cmd,
                 stdout=subprocess.PIPE,
@@ -785,6 +810,8 @@ class Jobscript(JSONLike):
             stderr = proc.stderr.decode().strip()
             err_args["stdout"] = stdout
             err_args["stderr"] = stderr
+            print(stderr)
+            print(stdout)
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."
@@ -801,12 +828,13 @@ class Jobscript(JSONLike):
 
         try:
             job_ID = self.scheduler.parse_submission_output(stdout)
-        except Exception:
+        except Exception as job_ID_parse_exc:
             # TODO: maybe handle this differently. If there is no stderr, then the job
             # probably did submit fine, but the issue is just with parsing the job ID
             # (e.g. if the scheduler version was updated and it now outputs differently).
             err_args["message"] = "Failed to parse job ID from stdout."
             err_args["submit_cmd"] = submit_cmd
+            err_args["job_ID_parse_exc"] = job_ID_parse_exc
             raise JobscriptSubmissionFailure(**err_args)
 
         self._set_submit_time(datetime.utcnow())

@@ -119,20 +119,27 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 @dataclass
 class ElementResources(JSONLike):
+
+    # TODO: how to specify e.g. high-memory requirement?
+
     scratch: str = None
     num_cores: int = None
     scheduler: str = None
+    shell: str = None
     use_job_array: bool = None
     time_limit: str = None
     scheduler_options: Dict = None
-    scheduler_commands: Dict = None
+
+    scheduler_args: Dict = None
+    shell_args: Dict = None
     os_name: str = None
 
     def __post_init__(self):
         if self.num_cores is None:
             self.num_cores = 1
 
-        self.scheduler_commands = self.scheduler_commands or {}
+        self.scheduler_args = self.scheduler_args or {}
+        self.shell_args = self.shell_args or {}
         self.scheduler_options = self.scheduler_options or {}
 
     def __eq__(self, other) -> bool:
@@ -141,18 +148,32 @@ class ElementResources(JSONLike):
         else:
             return self.__dict__ == other.__dict__
 
-    def __hash__(self):
+    def get_jobscript_hash(self):
+        """Get hash from all arguments that distinguish jobscripts."""
+
         def _hash_dict(d):
             if not d:
                 return -1
             keys, vals = zip(*d.items())
             return hash(tuple((keys, vals)))
 
-        dct = copy.deepcopy(self.__dict__)
-        dct["scheduler_commands"] = _hash_dict(dct["scheduler_commands"])
-        dct["scheduler_options"] = _hash_dict(dct["scheduler_options"])
+        exclude = ("time_limit",)
+        sub_dicts = ("scheduler_options", "scheduler_args", "shell_args")
+        dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
+        for k in sub_dicts:
+            if k in dct:
+                dct[k] = _hash_dict(dct[k])
 
         return _hash_dict(dct)
+
+    # def __hash__(self):
+    #     # TODO: define this as a separate function for jobscript mergability purposes,
+
+    #     dct = copy.deepcopy(self.__dict__)
+    #     dct["scheduler_commands"] = _hash_dict(dct["scheduler_commands"])
+    #     dct["scheduler_options"] = _hash_dict(dct["scheduler_options"])
+
+    #     return _hash_dict(dct)
 
 
 class ElementIteration:

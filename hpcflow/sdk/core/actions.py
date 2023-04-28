@@ -332,7 +332,7 @@ class ElementActionRun:
 
         return resources
 
-    def compose_commands(self) -> Tuple[str, List[str]]:
+    def compose_commands(self, jobscript: Jobscript) -> Tuple[str, List[str]]:
         """
         Returns
         -------
@@ -365,7 +365,10 @@ class ElementActionRun:
                 param_name = f"outputs.{out_types['stdout']}"
                 shell_var_name = f"parameter_{out_types['stdout']}"
                 shell_vars.append((param_name, shell_var_name))
-                cmd_str = f"{shell_var_name}=`{cmd_str}`"
+                cmd_str = jobscript.shell.format_stream_assignment(
+                    shell_var_name=shell_var_name,
+                    command=cmd_str,
+                )
 
             # TODO: also map stderr/both if possible
 

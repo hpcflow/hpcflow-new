@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 from typing import List, Tuple
 from hpcflow.sdk.submission.schedulers import Scheduler
-from hpcflow.sdk.submission.schedulers.shells import get_bash_version_info
+from hpcflow.sdk.submission.shells.base import Shell
 
 
 class SGEPosix(Scheduler):
@@ -18,7 +18,7 @@ class SGEPosix(Scheduler):
 
     """
 
-    DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
+    DEFAULT_SHEBANG_ARGS = ""
     DEFAULT_SUBMIT_CMD = "qsub"
     DEFAULT_SHOW_CMD = "qstat"
     DEFAULT_DEL_CMD = "qdel"
@@ -41,6 +41,11 @@ class SGEPosix(Scheduler):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
     def format_options(self, resources, num_elements, is_array):
+
+        # TODO: I think the PEs are set by the sysadmins so they should be set in the
+        # config file as a mapping between num_cores/nodes and PE names?
+        # `qconf -spl` shows a list of PEs
+
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self.format_core_request_lines(resources.num_cores, "smp.pe"))
@@ -62,11 +67,14 @@ class SGEPosix(Scheduler):
             "scheduler_name": name,
             "scheduler_version": version,
         }
-        out.update(get_bash_version_info())
-
         return out
 
-    def get_submit_command(self, js_path: Path, deps: List[Tuple]) -> List[str]:
+    def get_submit_command(
+        self,
+        shell: Shell,
+        js_path: Path,
+        deps: List[Tuple],
+    ) -> List[str]:
 
         cmd = [self.submit_cmd, "-terse"]
 

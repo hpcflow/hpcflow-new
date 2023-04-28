@@ -1,13 +1,20 @@
+from pathlib import Path
+from typing import List, Tuple
+from hpcflow.sdk.submission.shells.base import Shell
+
+
 class NullScheduler:
 
     DEFAULT_SHELL_ARGS = ""
+    DEFAULT_SHEBANG_ARGS = ""
 
     def __init__(
         self,
-        shell_executable=None,
+        submit_cmd=None,
         shell_args=None,
+        shebang_args=None,
     ):
-        self.shell_executable = shell_executable or self.DEFAULT_SHELL_EXECUTABLE
+        self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
 
     def __eq__(self, other) -> bool:
@@ -19,6 +26,20 @@ class NullScheduler:
     def __hash__(self) -> int:
         keys, vals = zip(*self.__dict__.items())
         return hash(tuple((keys, vals)))
+
+    def get_version_info(self):
+        return {}
+
+    def parse_submission_output(self, stdout: str) -> None:
+        return None
+
+    def get_submit_command(
+        self,
+        shell: Shell,
+        js_path: Path,
+        deps: List[Tuple],
+    ) -> List[str]:
+        return shell.executable + [str(js_path)]
 
 
 class Scheduler(NullScheduler):

@@ -109,9 +109,7 @@ class WorkflowTemplate(JSONLike):
         elif isinstance(self.resources, list):
             self.resources = self.app.ResourceList(self.resources)
         elif not self.resources:
-            self.resources = self.app.ResourceList(
-                [self.app.ResourceSpec(scheduler="direct")]
-            )
+            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
 
         self._set_parent_refs()
 
@@ -1237,13 +1235,12 @@ class Workflow:
             jobscript, EAR = self._from_internal_get_EAR(
                 submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
             )
-            commands, shell_vars = EAR.compose_commands()
+            commands, shell_vars = EAR.compose_commands(jobscript)
             for param_name, shell_var_name in shell_vars:
-                commands += (
-                    f"{jobscript.workflow_app_alias}"
-                    f" internal workflow $WK_PATH save-parameter {param_name} ${shell_var_name}"
-                    f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
-                    f"\n"
+                commands += jobscript.shell.format_save_parameter(
+                    workflow_app_alias=jobscript.workflow_app_alias,
+                    param_name=param_name,
+                    shell_var_name=shell_var_name,
                 )
             with Path(jobscript.commands_file_name).open("wt") as fp:
                 # (assuming we have CD'd correctly to the element run directory)

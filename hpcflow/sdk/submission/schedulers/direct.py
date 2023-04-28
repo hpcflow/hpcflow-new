@@ -1,8 +1,6 @@
+from pathlib import Path
+from typing import List, Tuple
 from hpcflow.sdk.submission.schedulers import NullScheduler
-from hpcflow.sdk.submission.schedulers.shells import (
-    get_bash_version_info,
-    get_powershell_version_info,
-)
 
 
 class DirectPosix(NullScheduler):
@@ -12,9 +10,6 @@ class DirectPosix(NullScheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_version_info(self):
-        return get_bash_version_info(executable=self.shell_executable)
-
 
 class DirectWindows(NullScheduler):
 
@@ -22,6 +17,3 @@ class DirectWindows(NullScheduler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-    def get_version_info(self):
-        return get_powershell_version_info(executable=self.shell_executable)
