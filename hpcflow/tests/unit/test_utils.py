@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Literal
 import pytest
 import zarr
 import numpy as np
@@ -194,7 +193,7 @@ def zarr_column_array_empty(tmp_path: Path):
 
 
 def test_merge_into_zarr_column_array_raise_on_headers_length_mismatch(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array: tuple[NDArray, list[str], int]
 ):
     arr, headers, _ = zarr_column_array
     headers.pop(0)
@@ -205,7 +204,7 @@ def test_merge_into_zarr_column_array_raise_on_headers_length_mismatch(
 
 
 def test_merge_into_zarr_column_array_raise_on_new_headers_length_mismatch(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]],
+    zarr_column_array: tuple[NDArray, list[str], int],
 ):
     arr, headers, _ = zarr_column_array
     new_headers = ["a", "b", "c"]
@@ -215,7 +214,7 @@ def test_merge_into_zarr_column_array_raise_on_new_headers_length_mismatch(
 
 
 def test_merge_into_zarr_column_array_initial_empty(
-    zarr_column_array_empty: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array_empty: tuple[NDArray, list[str], int]
 ):
     arr, headers, fill_value = zarr_column_array_empty
     np_arr = np.array(arr)
@@ -240,7 +239,7 @@ def test_merge_into_zarr_column_array_initial_empty(
 
 
 def test_merge_into_zarr_column_array_new_empty(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array: tuple[NDArray, list[str], int]
 ):
     arr, headers, fill_value = zarr_column_array
     np_arr = np.array(arr)
@@ -265,7 +264,7 @@ def test_merge_into_zarr_column_array_new_empty(
 
 
 def test_merge_into_zarr_column_array_with_column_reorder(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array: tuple[NDArray, list[str], int]
 ):
     arr, headers, fill_value = zarr_column_array
     np_arr = np.array(arr)
@@ -291,7 +290,7 @@ def test_merge_into_zarr_column_array_with_column_reorder(
 
 
 def test_merge_into_zarr_column_array_with_no_new_columns(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array: tuple[NDArray, list[str], int]
 ):
 
     arr, headers, _ = zarr_column_array
@@ -308,7 +307,7 @@ def test_merge_into_zarr_column_array_with_no_new_columns(
 
 
 def test_merge_into_zarr_column_array_with_new_column(
-    zarr_column_array: tuple[NDArray, list[str], Literal[-1]]
+    zarr_column_array: tuple[NDArray, list[str], int]
 ):
 
     arr, headers, fill_value = zarr_column_array
