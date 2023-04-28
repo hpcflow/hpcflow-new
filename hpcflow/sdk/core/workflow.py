@@ -626,11 +626,10 @@ class Workflow:
 
                 if self._store.has_pending:
 
-                    diff = self._store.is_modified_on_disk()
-                    if diff:
+                    is_diff = self._store.is_modified_on_disk()
+                    if is_diff:
                         raise WorkflowBatchUpdateFailedError(
-                            f"Workflow modified on disk since it was loaded! Diff is "
-                            f"{diff!r}."
+                            f"Workflow modified on disk since it was loaded!"
                         )
 
                     for task in self.tasks:
