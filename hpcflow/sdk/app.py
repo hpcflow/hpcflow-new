@@ -498,15 +498,27 @@ class BaseApp:
             )
             click.echo(sub_out)
 
-        @click.command(help=f"Run {self.name} test suite.")
+        @click.command(context_settings={"ignore_unknown_options": True})
+        @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
         @click.pass_context
-        def test(ctx):
-            ctx.exit(self.run_tests())
+        def test(ctx, py_test_args):
+            """Run {app_name} test suite.
 
-        @click.command(help=f"Run hpcflow test suite.")
+            PY_TEST_ARGS are arguments passed on to Pytest.
+
+            """
+            ctx.exit(self.run_tests(*py_test_args))
+
+        @click.command(context_settings={"ignore_unknown_options": True})
+        @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
         @click.pass_context
-        def test_hpcflow(ctx):
-            ctx.exit(self.run_hpcflow_tests())
+        def test_hpcflow(ctx, py_test_args):
+            """Run hpcflow test suite.".
+
+            PY_TEST_ARGS are arguments passed on to Pytest.
+
+            """
+            ctx.exit(self.run_hpcflow_tests(*py_test_args))
 
         commands = [
             make_workflow,
