@@ -799,7 +799,6 @@ class Jobscript(JSONLike):
         }
         try:
             submit_cmd = self.scheduler.get_submit_command(self.shell, js_path, deps)
-            print(f"{submit_cmd=}")
             proc = subprocess.run(
                 args=submit_cmd,
                 stdout=subprocess.PIPE,
@@ -810,8 +809,6 @@ class Jobscript(JSONLike):
             stderr = proc.stderr.decode().strip()
             err_args["stdout"] = stdout
             err_args["stderr"] = stderr
-            print(stderr)
-            print(stdout)
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."
