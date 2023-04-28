@@ -497,8 +497,19 @@ class JSONPersistentStore(PersistentStore):
 
     def is_modified_on_disk(self) -> Union[bool, Dict]:
         if self._loaded:
-            on_disk = self._load()
-            in_mem = self._loaded
+            # TODO: need to separate out "metadata" as in zarr store, since this is what
+            # we mustn't change during persistent ops; just remove non metadata from the
+            # comparison for now:
+            on_disk = {
+                k: v
+                for k, v in self._load().items()
+                if k not in ("parameter_data", "tasks")
+            }
+            in_mem = {
+                k: v
+                for k, v in self._loaded.items()
+                if k not in ("parameter_data", "tasks")
+            }
             return get_md5_hash(on_disk) != get_md5_hash(in_mem)
         else:
             # nothing to compare to
