@@ -689,7 +689,7 @@ class Jobscript(JSONLike):
         }
 
         shebang = self.shell.JS_SHEBANG.format(
-            shell_executable=self.shell.executable,
+            shell_executable=" ".join(self.shell.executable),
             shebang_args=self.scheduler.shebang_args,
         )
         header = self.shell.JS_HEADER.format(**header_args)
