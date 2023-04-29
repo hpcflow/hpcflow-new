@@ -467,7 +467,7 @@ class Jobscript(JSONLike):
 
     @property
     def is_array(self):
-        if self.scheduler_name == "direct":
+        if not self.scheduler_name:
             return False
 
         if self.resources.use_job_array is None:
