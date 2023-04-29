@@ -2,7 +2,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union
 from warnings import warn
@@ -44,7 +44,6 @@ from hpcflow.sdk.persistence import (
     DEFAULT_STORE_FORMAT,
 )
 
-TS_NAME_FMT = r"%Y-%m-%d_%H%M%S"
 DEFAULT_TEMPLATE_FORMAT = "yaml"
 ALL_TEMPLATE_FORMATS = ("yaml", "json")
 
@@ -270,7 +269,8 @@ class Workflow:
 
     _app_attr = "app"
 
-    _default_ts_fmt = "%Y-%m-%d %H:%M:%S.%f"
+    _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
+    _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
 
     def __init__(self, path: PathLike) -> None:
 
@@ -279,6 +279,10 @@ class Workflow:
             raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
 
         # assigned on first access to corresponding properties:
+        self._ts_fmt = None
+        self._ts_name_fmt = None
+        self._creation_info = None
+
         self._template = None
         self._template_components = None
         self._tasks = None
@@ -353,6 +357,8 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from a `WorkflowTemplate` object.
 
@@ -372,8 +378,23 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
-        wk = cls._write_empty_workflow(template, path, name, overwrite, store)
+        wk = cls._write_empty_workflow(
+            template=template,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
         with wk._store.cached_load():
             with wk.batch_update(is_workflow_creation=True):
                 for task in template.tasks:
@@ -390,6 +411,8 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from a YAML file.
 
@@ -409,9 +432,24 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
-        return cls.from_template(template, path, name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @classmethod
     def from_YAML_string(
@@ -421,11 +459,15 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from a YAML string.
 
         Parameters
         ----------
+        YAML_str
+            The YAML string containing a workflow template parametrisation.
         path
             The directory in which the workflow will be generated. The current directory
             if not specified.
@@ -438,9 +480,24 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
-        return cls.from_template(template, path, name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @classmethod
     def from_JSON_file(
@@ -450,6 +507,8 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from a JSON file.
 
@@ -469,9 +528,24 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
-        return cls.from_template(template, path, name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @classmethod
     def from_JSON_string(
@@ -481,11 +555,15 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from a JSON string.
 
         Parameters
         ----------
+        JSON_str
+            The JSON string containing a workflow template parametrisation.
         path
             The directory in which the workflow will be generated. The current directory
             if not specified.
@@ -498,9 +576,24 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
-        return cls.from_template(template, path, name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @classmethod
     def from_file(
@@ -511,6 +604,8 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -534,9 +629,24 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
-        return cls.from_template(template, path, name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @classmethod
     def from_template_data(
@@ -549,6 +659,8 @@ class Workflow:
         workflow_name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
         """Generate from the data associated with a WorkflowTemplate object.
 
@@ -577,6 +689,13 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
         template = cls.app.WorkflowTemplate(
             template_name,
@@ -584,7 +703,15 @@ class Workflow:
             loops=loops,
             resources=resources,
         )
-        return cls.from_template(template, path, workflow_name, overwrite, store)
+        return cls.from_template(
+            template,
+            path,
+            workflow_name,
+            overwrite,
+            store,
+            ts_fmt,
+            ts_name_fmt,
+        )
 
     @contextmanager
     def batch_update(self, is_workflow_creation: bool = False) -> Iterator[None]:
@@ -650,6 +777,8 @@ class Workflow:
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
         store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
 
         """
@@ -667,13 +796,25 @@ class Workflow:
             existing directory will be overwritten.
         store
             The persistent store to use for this workflow.
-
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
         """
 
-        timestamp = datetime.utcnow()
+        ts = datetime.now()
+
+        # store all times in UTC, since Numpy doesn't support time zone info:
+        ts_utc = ts.astimezone(tz=timezone.utc)
+
+        ts_name_fmt = ts_name_fmt or cls._default_ts_name_fmt
+        ts_fmt = ts_fmt or cls._default_ts_fmt
 
         path = Path(path or "").resolve()
-        name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
+        name = name or f"{template.name}_{ts.strftime(ts_name_fmt)}"
         workflow_path = path.joinpath(name)
 
         replaced_dir = None
@@ -693,12 +834,20 @@ class Workflow:
         template_js["tasks"] = []
         template_js["loops"] = []
 
+        creation_info = {
+            "app_info": cls.app.get_info(),
+            "create_time": ts_utc.strftime(ts_fmt),
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
+        }
+
         store_cls = store_cls_from_str(store)
         store_cls.write_empty_workflow(
-            template_js,
-            template_sh,
-            workflow_path,
-            replaced_dir,
+            template_js=template_js,
+            template_components_js=template_sh,
+            workflow_path=workflow_path,
+            replaced_dir=replaced_dir,
+            creation_info=creation_info,
         )
         wk = cls(workflow_path)
 
@@ -706,6 +855,29 @@ class Workflow:
         wk_dummy.make_persistent(wk)
 
         return wk
+
+    @property
+    def ts_fmt(self):
+        if not self._ts_fmt:
+            self._ts_fmt = self._store.get_creation_info()["ts_fmt"]
+        return self._ts_fmt
+
+    @property
+    def ts_name_fmt(self):
+        if not self._ts_name_fmt:
+            self._ts_name_fmt = self._store.get_creation_info()["ts_name_fmt"]
+        return self._ts_name_fmt
+
+    @property
+    def creation_info(self):
+        if not self._creation_info:
+            with self._store.cached_load():
+                info = self._store.get_creation_info()
+                info["create_time"] = datetime.strptime(
+                    info["create_time"], info["ts_fmt"]
+                ).replace(tzinfo=timezone.utc)
+                self._creation_info = info
+        return self._creation_info
 
     @property
     def num_tasks(self) -> int:
@@ -807,11 +979,6 @@ class Workflow:
     @property
     def task_artifacts_path(self):
         return self.path / "tasks"
-
-    @property
-    def _timestamp_format(self) -> int:
-        # TODO: allow customisation on workflow creation
-        return self._default_ts_fmt
 
     def elements(self) -> Iterator[Element]:
         for task in self.tasks:

@@ -499,6 +499,10 @@ class PersistentStore(ABC):
 
         return obj
 
+    def get_creation_info(self):
+        """Get information about the app that created the workflow."""
+        return self.load_metadata()["creation_info"]
+
     @classmethod
     @abstractmethod
     def path_has_store(cls, path):
@@ -519,6 +523,7 @@ class PersistentStore(ABC):
         template_components_js: Dict,
         workflow_path: Path,
         replaced_dir: Path,
+        creation_info: Dict,
     ) -> None:
         pass
 
@@ -625,8 +630,8 @@ class PersistentStore(ABC):
         any of those tasks were subsequently removed from the workflow."""
 
     @property
-    def timestamp_format(self) -> str:
-        return self.workflow._timestamp_format
+    def ts_fmt(self) -> str:
+        return self.workflow.ts_fmt
 
     def set_EAR_submission_indices(
         self,

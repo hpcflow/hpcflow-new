@@ -127,9 +127,11 @@ class ZarrPersistentStore(PersistentStore):
         template_components_js: Dict,
         workflow_path: Path,
         replaced_dir: Path,
+        creation_info: Dict,
     ) -> None:
 
         metadata = {
+            "creation_info": creation_info,
             "template": template_js,
             "template_components": template_components_js,
             "num_added_tasks": 0,
@@ -652,7 +654,7 @@ class ZarrPersistentStore(PersistentStore):
             for js_idx, submit_time in js_submit_times.items():
                 md["submissions"][sub_idx]["jobscripts"][js_idx][
                     "submit_time"
-                ] = submit_time.strftime(self.timestamp_format)
+                ] = submit_time.strftime(self.ts_fmt)
 
         # note: parameter sources are committed immediately with parameter data, so there
         # is no need to add elements to the parameter sources array.
@@ -695,7 +697,7 @@ class ZarrPersistentStore(PersistentStore):
                 if js["submit_time"]:
                     subs[sub_idx]["jobscripts"][js_idx][
                         "submit_time"
-                    ] = datetime.strptime(js["submit_time"], self.timestamp_format)
+                    ] = datetime.strptime(js["submit_time"], self.ts_fmt)
                 for key in list(js["task_elements"].keys()):
                     subs[sub_idx]["jobscripts"][js_idx]["task_elements"][int(key)] = subs[
                         sub_idx

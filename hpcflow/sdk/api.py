@@ -35,6 +35,8 @@ def make_workflow(
     name: Optional[str] = None,
     overwrite: Optional[bool] = False,
     store: Optional[str] = DEFAULT_STORE_FORMAT,
+    ts_fmt: Optional[str] = None,
+    ts_name_fmt: Optional[str] = None,
 ) -> Workflow:
     """Generate a new {app_name} workflow from a file or string containing a workflow
     template parametrisation.
@@ -61,37 +63,36 @@ def make_workflow(
         existing directory will be overwritten.
     store
         The persistent store type to use.
+    ts_fmt
+        The datetime format to use for storing datetimes. Datetimes are always stored
+        in UTC (because Numpy does not store time zone info), so this should not
+        include a time zone name.
+    ts_name_fmt
+        The datetime format to use when generating the workflow name, where it
+        includes a timestamp.
     """
 
     app.API_logger.info("make_workflow called")
 
+    common = {
+        "path": path,
+        "name": name,
+        "overwrite": overwrite,
+        "store": store,
+        "ts_fmt": ts_fmt,
+        "ts_name_fmt": ts_name_fmt,
+    }
+
     if not is_string:
         wk = app.Workflow.from_file(
-            template_file_or_str,
-            template_format,
-            path,
-            name,
-            overwrite,
-            store,
+            template_path=template_file_or_str, template_format=template_format, **common
         )
 
     elif template_format == "json":
-        wk = app.Workflow.from_JSON_string(
-            template_file_or_str,
-            store,
-            path,
-            name,
-            overwrite,
-        )
+        wk = app.Workflow.from_JSON_string(JSON_str=template_file_or_str, **common)
 
     elif template_format == "yaml":
-        wk = app.Workflow.from_YAML_string(
-            template_file_or_str,
-            store,
-            path,
-            name,
-            overwrite,
-        )
+        wk = app.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
 
     else:
         raise ValueError(
@@ -110,6 +111,8 @@ def make_and_submit_workflow(
     name: Optional[str] = None,
     overwrite: Optional[bool] = False,
     store: Optional[str] = DEFAULT_STORE_FORMAT,
+    ts_fmt: Optional[str] = None,
+    ts_name_fmt: Optional[str] = None,
 ):
     """Generate and submit a new {app_name} workflow from a file or string containing a
     workflow template parametrisation.
@@ -136,6 +139,13 @@ def make_and_submit_workflow(
         existing directory will be overwritten.
     store
         The persistent store to use for this workflow.
+    ts_fmt
+        The datetime format to use for storing datetimes. Datetimes are always stored
+        in UTC (because Numpy does not store time zone info), so this should not
+        include a time zone name.
+    ts_name_fmt
+        The datetime format to use when generating the workflow name, where it
+        includes a timestamp.
     """
 
     app.API_logger.info("make_and_submit_workflow called")
@@ -148,6 +158,8 @@ def make_and_submit_workflow(
         name=name,
         overwrite=overwrite,
         store=store,
+        ts_fmt=ts_fmt,
+        ts_name_fmt=ts_name_fmt,
     )
     wk.submit()
 

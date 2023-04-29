@@ -99,6 +99,7 @@ class JSONPersistentStore(PersistentStore):
         template_components_js: Dict,
         workflow_path: Path,
         replaced_dir: Path,
+        creation_info: Dict,
     ) -> None:
 
         workflow_path.mkdir()
@@ -107,6 +108,7 @@ class JSONPersistentStore(PersistentStore):
         submissions = []
         parameters = {}
         metadata = {
+            "creation_info": creation_info,
             "parameter_sources": {},
             "template_components": template_components_js,
             "template": template_js,
@@ -319,7 +321,7 @@ class JSONPersistentStore(PersistentStore):
             t_idx = self.get_task_idx_from_insert_ID(ins_ID)
             iter_i = metadata["tasks"][t_idx]["element_iterations"][it_idx]
             EAR = iter_i["actions"][str(act_idx)][rn_idx]
-            EAR["metadata"]["start_time"] = start.strftime(self.timestamp_format)
+            EAR["metadata"]["start_time"] = start.strftime(self.ts_fmt)
 
         # commit new EAR end times:
         for (ins_ID, it_idx, act_idx, rn_idx), end in self._pending[
@@ -329,7 +331,7 @@ class JSONPersistentStore(PersistentStore):
             t_idx = self.get_task_idx_from_insert_ID(ins_ID)
             iter_i = metadata["tasks"][t_idx]["element_iterations"][it_idx]
             EAR = iter_i["actions"][str(act_idx)][rn_idx]
-            EAR["metadata"]["end_time"] = end.strftime(self.timestamp_format)
+            EAR["metadata"]["end_time"] = end.strftime(self.ts_fmt)
 
         # commit new loops:
         if self._pending["template_loops"]:
@@ -373,7 +375,7 @@ class JSONPersistentStore(PersistentStore):
                 dump_submissions = True
                 submissions[sub_idx]["jobscripts"][js_idx][
                     "submit_time"
-                ] = submit_time.strftime(self.timestamp_format)
+                ] = submit_time.strftime(self.ts_fmt)
 
         # commit new parameters:
         for param_idx, param_dat in self._pending["parameter_data"].items():
@@ -427,7 +429,7 @@ class JSONPersistentStore(PersistentStore):
                 if js["submit_time"]:
                     subs[sub_idx]["jobscripts"][js_idx][
                         "submit_time"
-                    ] = datetime.strptime(js["submit_time"], self.timestamp_format)
+                    ] = datetime.strptime(js["submit_time"], self.ts_fmt)
 
                 for key in list(js["task_elements"].keys()):
                     subs[sub_idx]["jobscripts"][js_idx]["task_elements"][int(key)] = subs[
@@ -539,11 +541,11 @@ class JSONPersistentStore(PersistentStore):
                         end_time = run["metadata"]["end_time"]
                         if start_time is not None:
                             run["metadata"]["start_time"] = datetime.strptime(
-                                start_time, self.timestamp_format
+                                start_time, self.ts_fmt
                             )
                         if end_time is not None:
                             run["metadata"]["end_time"] = datetime.strptime(
-                                end_time, self.timestamp_format
+                                end_time, self.ts_fmt
                             )
 
                         # update pending submission indices:

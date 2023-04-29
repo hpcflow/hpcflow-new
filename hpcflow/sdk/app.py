@@ -401,6 +401,21 @@ class BaseApp:
             help="The persistent store type to use.",
             default=DEFAULT_STORE_FORMAT,
         )
+        @click.option(
+            "--ts-fmt",
+            help=(
+                "The datetime format to use for storing datetimes. Datetimes are always "
+                "stored in UTC (because Numpy does not store time zone info), so this "
+                "should not include a time zone name."
+            ),
+        )
+        @click.option(
+            "--ts-name-fmt",
+            help=(
+                "The datetime format to use when generating the workflow name, where it "
+                "includes a timestamp."
+            ),
+        )
         def make_workflow(
             template_file_or_str,
             string,
@@ -409,6 +424,8 @@ class BaseApp:
             name,
             overwrite,
             store,
+            ts_fmt=None,
+            ts_name_fmt=None,
         ):
             """Generate a new {app_name} workflow.
 
@@ -424,6 +441,8 @@ class BaseApp:
                 name=name,
                 overwrite=overwrite,
                 store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
             )
             click.echo(wk.path)
 
@@ -472,6 +491,21 @@ class BaseApp:
             help="The persistent store type to use.",
             default=DEFAULT_STORE_FORMAT,
         )
+        @click.option(
+            "--ts-fmt",
+            help=(
+                "The datetime format to use for storing datetimes. Datetimes are always "
+                "stored in UTC (because Numpy does not store time zone info), so this "
+                "should not include a time zone name."
+            ),
+        )
+        @click.option(
+            "--ts-name-fmt",
+            help=(
+                "The datetime format to use when generating the workflow name, where it "
+                "includes a timestamp."
+            ),
+        )
         def make_and_submit_workflow(
             template_file_or_str,
             string,
@@ -480,6 +514,8 @@ class BaseApp:
             name,
             overwrite,
             store,
+            ts_fmt=None,
+            ts_name_fmt=None,
         ):
             """Generate and submit a new {app_name} workflow.
 
@@ -495,6 +531,8 @@ class BaseApp:
                 name=name,
                 overwrite=overwrite,
                 store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
             )
             click.echo(sub_out)
 
@@ -808,6 +846,14 @@ class BaseApp:
             )
             tc[k] = tc_k
         return tc
+
+    def get_info(self) -> Dict:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "python_version": self.run_time_info.python_version,
+            "is_frozen": self.run_time_info.is_frozen,
+        }
 
 
 class App(BaseApp):
