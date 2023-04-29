@@ -24,61 +24,102 @@ from hpcflow.sdk.persistence.base import (
 
 class JSONPersistentStore(PersistentStore):
     """A verbose but inefficient storage backend, to help with understanding and
-    debugging."""
+    debugging.
+
+    Notes
+    -----
+    We split the data across three JSON files to support submission to schedulers. During
+    scheduler submission, if a task is quick, parameter data might be written at the
+    same time as both submission metadata (jobscript submission time), and EAR metadata
+    (EAR start/end time).
+
+    """
 
     _name = "json"
     _store_path_ext = "json"
+
+    _metadata_file_name = "metadata.json"
+    _submissions_file_name = "submissions.json"
+    _parameters_file_name = "parameters.json"
+
     _features = PersistentStoreFeatures(
         jobscript_parallelism=False,
         EAR_parallelism=False,
+        schedulers=True,
+        submission=True,
     )
-
-    @classmethod
-    def _get_store_path(cls, workflow_path):
-        name = workflow_path.parts[-1]
-        return workflow_path.joinpath(f"{name}.{cls._store_path_ext}")
-
-    @classmethod
-    def path_has_store(cls, workflow_path):
-        return cls._get_store_path(workflow_path).is_file()
-
-    @property
-    def store_path(self):
-        return self._get_store_path(self.workflow_path)
 
     def __init__(self, workflow: Workflow) -> None:
         self._loaded = None  # cache used in `cached_load` context manager
         super().__init__(workflow)
 
+    @classmethod
+    def path_has_store(cls, path):
+        return (
+            path.joinpath(cls._metadata_file_name).is_file()
+            and path.joinpath(cls._submissions_file_name).is_file()
+            and path.joinpath(cls._parameters_file_name).is_file()
+        )
+
+    @property
+    def store_path(self):
+        return self.workflow_path
+
+    @property
+    def _metadata_file_path(self):
+        return self.store_path.joinpath(self._metadata_file_name)
+
+    @property
+    def _submissions_file_path(self):
+        return self.store_path.joinpath(self._submissions_file_name)
+
+    @property
+    def _parameters_file_path(self):
+        return self.store_path.joinpath(self._parameters_file_name)
+
     def exists(self) -> bool:
-        # TODO: check these methods
-        return self.store_path.is_file()
+        return self.path_has_store(self.store_path)
+
+    def _load_metadata_file(self) -> Dict:
+        with open(self._metadata_file_path, "rt") as fp:
+            return json.load(fp)
+
+    def _load_submissions_file(self) -> Dict:
+        with open(self._submissions_file_path, "rt") as fp:
+            return json.load(fp)
+
+    def _load_parameters_file(self) -> Dict:
+        with open(self._parameters_file_path, "rt") as fp:
+            return json.load(fp)
 
     @classmethod
     def write_empty_workflow(
         cls,
         template_js: Dict,
         template_components_js: Dict,
-        path: Path,
+        workflow_path: Path,
         replaced_dir: Path,
     ) -> None:
 
-        path.mkdir()
-        store_path = path.joinpath(f"{path.parts[-1]}.{cls._store_path_ext}")
-        dat = {
-            "parameter_data": {},
+        workflow_path.mkdir()
+        store_path = workflow_path
+
+        submissions = []
+        parameters = {}
+        metadata = {
             "parameter_sources": {},
             "template_components": template_components_js,
             "template": template_js,
             "tasks": [],
             "num_added_tasks": 0,
             "loops": [],
-            "submissions": [],
         }
         if replaced_dir:
-            dat["replaced_dir"] = str(replaced_dir.name)
+            metadata["replaced_dir"] = str(replaced_dir.name)
 
-        cls._dump_to_path(store_path, dat)
+        cls._dump_to_path(store_path.joinpath(cls._metadata_file_name), metadata)
+        cls._dump_to_path(store_path.joinpath(cls._submissions_file_name), submissions)
+        cls._dump_to_path(store_path.joinpath(cls._parameters_file_name), parameters)
 
     @contextmanager
     def cached_load(self) -> Iterator[Dict]:
@@ -94,25 +135,43 @@ class JSONPersistentStore(PersistentStore):
                 self._loaded = None
 
     def _load(self) -> Dict:
-        with open(self.store_path, "rt") as fp:
-            return json.load(fp)
+        return {
+            "metadata": self._load_metadata_file(),
+            "submissions": self._load_submissions_file(),
+            "parameter_data": self._load_parameters_file(),
+        }
 
     def load(self) -> Dict:
         # TODO: can we prevent loaded data being modified? this has caused some bugs...
         return self._loaded or self._load()
 
+    def load_metadata(self) -> Dict:
+        return self.load()["metadata"]
+
+    def load_submissions(self) -> Dict:
+        return self.load()["submissions"]
+
+    def load_parameter_data(self) -> Dict:
+        return self.load()["parameter_data"]
+
     @staticmethod
     @dropbox_permission_err_retry
-    def _dump_to_path(store_path, data: Dict) -> None:
-        with open(store_path, "wt", newline="") as fp:
+    def _dump_to_path(path: Path, data: Dict) -> None:
+        with open(path, "wt", newline="") as fp:
             json.dump(data, fp, indent=4)
 
-    def _dump(self, wk_data: Dict) -> None:
-        self._dump_to_path(self.store_path, wk_data)
+    def _dump_metadata(self, metadata: Dict) -> None:
+        self._dump_to_path(self._metadata_file_path, metadata)
+
+    def _dump_submissions(self, submissions: List) -> None:
+        self._dump_to_path(self._submissions_file_path, submissions)
+
+    def _dump_parameters(self, parameters: Dict) -> None:
+        self._dump_to_path(self._parameters_file_path, parameters)
 
     def _add_parameter_data(self, data: Any, source: Dict) -> int:
 
-        idx = len(self.load()["parameter_data"]) + len(self._pending["parameter_data"])
+        idx = len(self.load_parameter_data()) + len(self._pending["parameter_data"])
 
         if data is not None:
             data = self._encode_parameter_data(data["data"])
@@ -134,7 +193,7 @@ class JSONPersistentStore(PersistentStore):
         if index in self._pending["parameter_data"]:
             data = self._pending["parameter_data"][index]
         else:
-            data = self.load()["parameter_data"][str(index)]
+            data = self.load_parameter_data()[str(index)]
         is_set = False if data is None else True
         data = self._decode_parameter_data(data=data)
         return (is_set, data)
@@ -143,7 +202,7 @@ class JSONPersistentStore(PersistentStore):
         if index in self._pending["parameter_sources"]:
             src = self._pending["parameter_sources"][index]
         else:
-            src = self.load()["parameter_sources"][str(index)]
+            src = self.load_metadata()["parameter_sources"][str(index)]
 
         if index in self._pending["parameter_source_updates"]:
             src.update(self._pending["parameter_source_updates"][index])
@@ -155,7 +214,7 @@ class JSONPersistentStore(PersistentStore):
         if self._pending["parameter_data"]:
             max_key = max(self._pending["parameter_data"].keys())
         else:
-            max_key = int(max(self.load()["parameter_data"].keys(), key=lambda x: int(x)))
+            max_key = int(max(self.load_parameter_data().keys(), key=lambda x: int(x)))
 
         out = {}
         for idx in range(max_key + 1):
@@ -164,7 +223,7 @@ class JSONPersistentStore(PersistentStore):
         return out
 
     def is_parameter_set(self, index: int) -> bool:
-        return self.load()["parameter_data"][str(index)] is not None
+        return self.load_parameter_data()[str(index)] is not None
 
     def check_parameters_exist(
         self, indices: Union[int, List[int]]
@@ -174,8 +233,7 @@ class JSONPersistentStore(PersistentStore):
             is_multi = False
             indices = [indices]
         exists = [
-            i in self._pending["parameter_data"]
-            or str(i) in self.load()["parameter_data"]
+            i in self._pending["parameter_data"] or str(i) in self.load_parameter_data()
             for i in indices
         ]
         if not is_multi:
@@ -184,47 +242,64 @@ class JSONPersistentStore(PersistentStore):
 
     def commit_pending(self) -> None:
 
-        wk_data = self.load()
+        dump_metadata = False
+        dump_submissions = False
+        dump_parameters = False
+
+        metadata = self.load_metadata()
+        submissions = self.load_submissions()
+        parameters = self.load_parameter_data()
+
+        print(f"commit: {metadata=}")
 
         # commit new tasks:
         for new_index, task_js in self._pending["template_tasks"].items():
-            wk_data["template"]["tasks"].insert(new_index, task_js)
+            dump_metadata = True
+            metadata["template"]["tasks"].insert(new_index, task_js)
 
         # commit new workflow tasks:
         for new_index, wk_task in self._pending["tasks"].items():
-            wk_data["tasks"].insert(new_index, wk_task)
-            wk_data["num_added_tasks"] += 1
+            dump_metadata = True
+            metadata["tasks"].insert(new_index, wk_task)
+            metadata["num_added_tasks"] += 1
 
         # commit new template components:
-        self._merge_pending_template_components(wk_data["template_components"])
+        if self._merge_pending_template_components(metadata["template_components"]):
+            dump_metadata = True
 
         # commit new element sets:
         for task_idx, es_js in self._pending["element_sets"].items():
-            wk_data["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
+            dump_metadata = True
+            metadata["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
 
         # commit new elements:
         for (task_idx, _), elements in self._pending["elements"].items():
-            wk_data["tasks"][task_idx]["elements"].extend(elements)
+            dump_metadata = True
+            metadata["tasks"][task_idx]["elements"].extend(elements)
 
         for (task_idx, _), iters_idx in self._pending["element_iterations_idx"].items():
             for elem_idx, iters_idx_i in iters_idx.items():
-                wk_data["tasks"][task_idx]["elements"][elem_idx][
+                dump_metadata = True
+                metadata["tasks"][task_idx]["elements"][elem_idx][
                     "iterations_idx"
                 ] += iters_idx_i
 
         # commit new element iterations:
         for (task_idx, _), element_iters in self._pending["element_iterations"].items():
-            wk_data["tasks"][task_idx]["element_iterations"].extend(element_iters)
+            dump_metadata = True
+            metadata["tasks"][task_idx]["element_iterations"].extend(element_iters)
 
         # commit new element iteration loop indices:
         for (t_idx, _, iters_idx_i), loop_idx_i in self._pending["loop_idx"].items():
-            wk_data["tasks"][t_idx]["element_iterations"][iters_idx_i]["loop_idx"].update(
-                loop_idx_i
-            )
+            dump_metadata = True
+            metadata["tasks"][t_idx]["element_iterations"][iters_idx_i][
+                "loop_idx"
+            ].update(loop_idx_i)
 
         # commit new element iteration EARs:
         for (t_idx, _, iters_idx_i), actions_i in self._pending["EARs"].items():
-            iter_i = wk_data["tasks"][t_idx]["element_iterations"][iters_idx_i]
+            dump_metadata = True
+            iter_i = metadata["tasks"][t_idx]["element_iterations"][iters_idx_i]
             iter_i["actions"].update(actions_i)
             iter_i["EARs_initialised"] = True
 
@@ -232,8 +307,9 @@ class JSONPersistentStore(PersistentStore):
         for (ins_ID, it_idx, act_idx, rn_idx), sub_idx in self._pending[
             "EAR_submission_idx"
         ].items():
+            dump_metadata = True
             t_idx = self.get_task_idx_from_insert_ID(ins_ID)
-            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            iter_i = metadata["tasks"][t_idx]["element_iterations"][it_idx]
             EAR = iter_i["actions"][str(act_idx)][rn_idx]
             EAR["metadata"]["submission_idx"] = sub_idx
 
@@ -241,8 +317,9 @@ class JSONPersistentStore(PersistentStore):
         for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
             "EAR_start_times"
         ].items():
+            dump_metadata = True
             t_idx = self.get_task_idx_from_insert_ID(ins_ID)
-            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            iter_i = metadata["tasks"][t_idx]["element_iterations"][it_idx]
             EAR = iter_i["actions"][str(act_idx)][rn_idx]
             EAR["metadata"]["start_time"] = start.strftime(self.timestamp_format)
 
@@ -250,81 +327,101 @@ class JSONPersistentStore(PersistentStore):
         for (ins_ID, it_idx, act_idx, rn_idx), end in self._pending[
             "EAR_end_times"
         ].items():
+            dump_metadata = True
             t_idx = self.get_task_idx_from_insert_ID(ins_ID)
-            iter_i = wk_data["tasks"][t_idx]["element_iterations"][it_idx]
+            iter_i = metadata["tasks"][t_idx]["element_iterations"][it_idx]
             EAR = iter_i["actions"][str(act_idx)][rn_idx]
             EAR["metadata"]["end_time"] = end.strftime(self.timestamp_format)
 
         # commit new loops:
-        wk_data["template"]["loops"].extend(self._pending["template_loops"])
+        if self._pending["template_loops"]:
+            dump_metadata = True
+            metadata["template"]["loops"].extend(self._pending["template_loops"])
 
         # commit new workflow loops:
-        wk_data["loops"].extend(self._pending["loops"])
+        if self._pending["loops"]:
+            dump_metadata = True
+            metadata["loops"].extend(self._pending["loops"])
 
         for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
-            wk_data["loops"][loop_idx]["num_added_iterations"] = num_added_iters
+            dump_metadata = True
+            metadata["loops"][loop_idx]["num_added_iterations"] = num_added_iters
 
         # commit new submissions:
-        wk_data["submissions"].extend(self._pending["submissions"])
+        if self._pending["submissions"]:
+            dump_submissions = True
+            submissions.extend(self._pending["submissions"])
 
         # commit new submission attempts:
         for sub_idx, attempts_i in self._pending["submission_attempts"].items():
-            wk_data["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+            dump_submissions = True
+            submissions[sub_idx]["submission_attempts"].extend(attempts_i)
 
         # commit new jobscript scheduler version info:
         for sub_idx, js_vers_info in self._pending["jobscript_version_info"].items():
             for js_idx, vers_info in js_vers_info.items():
-                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
-                    "version_info"
-                ] = vers_info
+                dump_submissions = True
+                submissions[sub_idx]["jobscripts"][js_idx]["version_info"] = vers_info
 
         # commit new jobscript job IDs:
         for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():
             for js_idx, job_ID in job_IDs.items():
-                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
-                    "scheduler_job_ID"
-                ] = job_ID
+                dump_submissions = True
+                submissions[sub_idx]["jobscripts"][js_idx]["scheduler_job_ID"] = job_ID
 
         # commit new jobscript submit times:
         for sub_idx, js_submit_times in self._pending["jobscript_submit_times"].items():
             for js_idx, submit_time in js_submit_times.items():
-                wk_data["submissions"][sub_idx]["jobscripts"][js_idx][
+                dump_submissions = True
+                submissions[sub_idx]["jobscripts"][js_idx][
                     "submit_time"
                 ] = submit_time.strftime(self.timestamp_format)
 
         # commit new parameters:
         for param_idx, param_dat in self._pending["parameter_data"].items():
-            wk_data["parameter_data"][str(param_idx)] = param_dat
+            dump_parameters = True
+            parameters[str(param_idx)] = param_dat
 
         for param_idx, param_src in self._pending["parameter_sources"].items():
-            wk_data["parameter_sources"][str(param_idx)] = param_src
+            dump_metadata = True
+            metadata["parameter_sources"][str(param_idx)] = param_src
 
         for param_idx, src_update in self._pending["parameter_source_updates"].items():
-            src = wk_data["parameter_sources"][str(param_idx)]
+            dump_metadata = True
+            src = metadata["parameter_sources"][str(param_idx)]
             src.update(src_update)
             src = dict(sorted(src.items()))
-            wk_data["parameter_sources"][str(param_idx)] = src
+            metadata["parameter_sources"][str(param_idx)] = src
 
         if self._pending["remove_replaced_dir_record"]:
-            del wk_data["replaced_dir"]
+            dump_metadata = True
+            del metadata["replaced_dir"]
 
-        self._dump(wk_data)
+        if dump_metadata:
+            self._dump_metadata(metadata)
+        if dump_submissions:
+            self._dump_submissions(submissions)
+        if dump_parameters:
+            self._dump_parameters(parameters)
+
+        # TODO: return files changed? useful for testing expected changes
+
         self.clear_pending()
 
     def _get_persistent_template_components(self) -> Dict:
-        return self.load()["template_components"]
+        return self.load_metadata()["template_components"]
 
     def get_template(self) -> Dict:
         # No need to consider pending; this is called once per Workflow object
-        return self.load()["template"]
+        return self.load_metadata()["template"]
 
     def get_loops(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
-        return self.load()["loops"]
+        return self.load_metadata()["loops"]
 
     def get_submissions(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
-        subs = copy.deepcopy(self.load()["submissions"])
+        subs = copy.deepcopy(self.load_submissions())
 
         # cast jobscript submit-times and jobscript `task_elements` keys:
         for sub_idx, sub in enumerate(subs):
@@ -342,7 +439,7 @@ class JSONPersistentStore(PersistentStore):
         return subs
 
     def get_num_added_tasks(self) -> int:
-        return self.load()["num_added_tasks"] + len(self._pending["tasks"])
+        return self.load_metadata()["num_added_tasks"] + len(self._pending["tasks"])
 
     def get_all_tasks_metadata(self) -> List[Dict]:
         # No need to consider pending; this is called once per Workflow object
@@ -356,7 +453,7 @@ class JSONPersistentStore(PersistentStore):
                     for runs in iter_i["actions"].values()
                 ),
             }
-            for task in self.load()["tasks"]
+            for task in self.load_metadata()["tasks"]
         ]
 
     def get_task_elements(
@@ -376,7 +473,7 @@ class JSONPersistentStore(PersistentStore):
         if task_idx in self._pending["tasks"]:
             task_data = self._pending["tasks"][task_idx]
         else:
-            task_data = copy.deepcopy(self.load()["tasks"][task_idx])
+            task_data = copy.deepcopy(self.load_metadata()["tasks"][task_idx])
 
         if len(pers_range):
             elements = task_data["elements"][pers_slice]
@@ -485,35 +582,31 @@ class JSONPersistentStore(PersistentStore):
                 self._pending["loop_idx"][key].update({name: 0})
 
     def remove_replaced_dir(self) -> None:
-        wk_data = self.load()
-        if "replaced_dir" in wk_data:
-            remove_dir(Path(wk_data["replaced_dir"]))
+        md = self.load_metadata()
+        if "replaced_dir" in md:
+            remove_dir(Path(md["replaced_dir"]))
             self._pending["remove_replaced_dir_record"] = True
             self.save()
 
     def reinstate_replaced_dir(self) -> None:
         print(f"reinstate replaced directory!")
-        wk_data = self.load()
-        if "replaced_dir" in wk_data:
-            rename_dir(Path(wk_data["replaced_dir"]), self.workflow_path)
+        md = self.load_metadata()
+        if "replaced_dir" in md:
+            rename_dir(Path(md["replaced_dir"]), self.workflow_path)
 
     def copy(self, path: PathLike = None) -> None:
         shutil.copy(self.workflow_path, path)
 
     def is_modified_on_disk(self) -> Union[bool, Dict]:
         if self._loaded:
-            # TODO: need to separate out "metadata" as in zarr store, since this is what
-            # we mustn't change during persistent ops; just remove non metadata from the
-            # comparison for now:
+            # TODO: define "structural_metadata" as everything that defines the structure
+            # of the workflow. this will be everything in the metadata file except the EAR
+            # metadata, which includes start/end times etc.
             on_disk = {
-                k: v
-                for k, v in self._load().items()
-                if k not in ("parameter_data", "tasks")
+                k: v for k, v in self._load_metadata_file().items() if k not in ("tasks",)
             }
             in_mem = {
-                k: v
-                for k, v in self._loaded.items()
-                if k not in ("parameter_data", "tasks")
+                k: v for k, v in self._loaded["metadata"].items() if k not in ("tasks",)
             }
             return get_md5_hash(on_disk) != get_md5_hash(in_mem)
         else:

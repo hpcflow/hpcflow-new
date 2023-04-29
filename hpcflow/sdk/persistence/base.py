@@ -73,10 +73,18 @@ class PersistentStoreFeatures:
         simultaneously.
     EAR_parallelism
         If True, the store supports workflows running multiple EARs simultaneously.
+    schedulers
+        If True, the store supports submitting workflows to a scheduler
+    submission
+        If True, the store supports submission. If False, the store can be considered to
+        be an archive, which would need transforming to another store type before
+        submission.
     """
 
     jobscript_parallelism: bool = False
     EAR_parallelism: bool = False
+    schedulers: bool = False
+    submission: bool = False
 
 
 class PersistentStore(ABC):
@@ -182,13 +190,16 @@ class PersistentStore(ABC):
         """Permanently delete the workflow data with no confirmation."""
         remove_dir(self.workflow.path)
 
-    def _merge_pending_template_components(self, template_components: Dict) -> None:
+    def _merge_pending_template_components(self, template_components: Dict) -> bool:
         # assumes we have already checked for duplicates when adding to pending:
+        is_modified = False
         for name, dat in self._pending["template_components"].items():
             if name not in template_components:
                 template_components[name] = {}
             for k, v in dat.items():
                 template_components[name][k] = v
+                is_modified = True
+        return is_modified
 
     def get_template_components(self) -> Dict:
         """Get all template components, including pending."""
@@ -506,7 +517,7 @@ class PersistentStore(ABC):
         cls,
         template_js: Dict,
         template_components_js: Dict,
-        path: Path,
+        workflow_path: Path,
         replaced_dir: Path,
     ) -> None:
         pass

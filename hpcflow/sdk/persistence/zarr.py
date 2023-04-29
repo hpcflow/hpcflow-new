@@ -70,6 +70,8 @@ class ZarrPersistentStore(PersistentStore):
     _features = PersistentStoreFeatures(
         jobscript_parallelism=True,
         EAR_parallelism=True,
+        schedulers=True,
+        submission=True,
     )
 
     _param_grp_name = "parameter_data"
@@ -86,6 +88,10 @@ class ZarrPersistentStore(PersistentStore):
     _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
     _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
 
+    def __init__(self, workflow: Workflow) -> None:
+        self._metadata = None  # cache used in `cached_load` context manager
+        super().__init__(workflow)
+
     @classmethod
     def path_has_store(cls, path):
         return path.joinpath(".zgroup").is_file()
@@ -93,10 +99,6 @@ class ZarrPersistentStore(PersistentStore):
     @property
     def store_path(self):
         return self.workflow_path
-
-    def __init__(self, workflow: Workflow) -> None:
-        self._metadata = None  # cache used in `cached_load` context manager
-        super().__init__(workflow)
 
     def exists(self) -> bool:
         try:
@@ -123,7 +125,7 @@ class ZarrPersistentStore(PersistentStore):
         cls,
         template_js: Dict,
         template_components_js: Dict,
-        path: Path,
+        workflow_path: Path,
         replaced_dir: Path,
     ) -> None:
 
@@ -137,7 +139,7 @@ class ZarrPersistentStore(PersistentStore):
         if replaced_dir:
             metadata["replaced_dir"] = str(replaced_dir.name)
 
-        store = zarr.DirectoryStore(path)
+        store = zarr.DirectoryStore(workflow_path)
         root = zarr.group(store=store, overwrite=False)
         root.attrs.update(metadata)
 

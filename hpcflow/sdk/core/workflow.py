@@ -674,14 +674,14 @@ class Workflow:
 
         path = Path(path or "").resolve()
         name = name or f"{template.name}_{timestamp.strftime(TS_NAME_FMT)}"
-        path = path.joinpath(name)
+        workflow_path = path.joinpath(name)
 
         replaced_dir = None
-        if path.exists():
+        if workflow_path.exists():
             if overwrite:
-                replaced_dir = temporary_workflow_rename(path)
+                replaced_dir = temporary_workflow_rename(workflow_path)
             else:
-                raise ValueError(f"Path already exists: {path}.")
+                raise ValueError(f"Path already exists: {workflow_path}.")
 
         # make template-level inputs/resources think they are persistent:
         wk_dummy = _DummyPersistentWorkflow()
@@ -697,10 +697,10 @@ class Workflow:
         store_cls.write_empty_workflow(
             template_js,
             template_sh,
-            path,
+            workflow_path,
             replaced_dir,
         )
-        wk = cls(path)
+        wk = cls(workflow_path)
 
         # actually make template inputs/resources persistent, now the workflow exists:
         wk_dummy.make_persistent(wk)
@@ -849,6 +849,10 @@ class Workflow:
 
         self.submissions_path.mkdir(exist_ok=True)
         self.task_artifacts_path.mkdir(exist_ok=True)
+
+        # for direct execution the submission must be persistent at submit-time, because
+        # it will be read by a new instance of the app:
+        self._store.commit_pending()
 
         # submit all pending submissions:
         exceptions = []
