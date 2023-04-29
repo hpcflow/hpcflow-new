@@ -36,10 +36,10 @@ class NullScheduler:
     def get_submit_command(
         self,
         shell: Shell,
-        js_path: Path,
+        js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
-        return shell.executable + [str(js_path)]
+        return shell.executable + [js_path]
 
 
 class Scheduler(NullScheduler):

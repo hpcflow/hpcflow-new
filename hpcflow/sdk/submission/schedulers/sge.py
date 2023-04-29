@@ -72,7 +72,7 @@ class SGEPosix(Scheduler):
     def get_submit_command(
         self,
         shell: Shell,
-        js_path: Path,
+        js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
 
@@ -94,7 +94,7 @@ class SGEPosix(Scheduler):
             cmd.append("-hold_jid_ad")
             cmd.append(",".join(dep_job_IDs_arr))
 
-        cmd.append(str(js_path))
+        cmd.append(js_path)
         return cmd
 
     def parse_submission_output(self, stdout: str) -> str:

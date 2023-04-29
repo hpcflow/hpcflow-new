@@ -641,12 +641,15 @@ class Jobscript(JSONLike):
     def write_need_EARs_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
-        np.savetxt(
-            fname=self.need_EAR_file_path,
-            X=(self.EAR_idx != -1).T,
-            fmt="%.0f",
-            delimiter=self._EAR_files_delimiter,
-        )
+
+        with self.need_EAR_file_path.open(mode="wt", newline="\n") as fp:
+            # can't specify "open" newline if we pass the file name only, so pass handle:
+            np.savetxt(
+                fname=fp,
+                X=(self.EAR_idx != -1).T,
+                fmt="%.0f",
+                delimiter=self._EAR_files_delimiter,
+            )
 
     def write_element_run_dir_file(self, run_dirs: List[List[Path]]):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
@@ -657,12 +660,15 @@ class Jobscript(JSONLike):
         the directory for each jobscript-element/jobscript-action combination.
 
         """
-        np.savetxt(
-            fname=self.element_run_dir_file_path,
-            X=np.array(run_dirs).astype(str),
-            fmt="%s",
-            delimiter=":",
-        )
+        run_dirs = self.shell.prepare_element_run_dirs(run_dirs)
+        with self.element_run_dir_file_path.open(mode="wt", newline="\n") as fp:
+            # can't specify "open" newline if we pass the file name only, so pass handle:
+            np.savetxt(
+                fname=fp,
+                X=np.array(run_dirs),
+                fmt="%s",
+                delimiter=":",
+            )
 
     def compose_jobscript(self) -> str:
         """Prepare the jobscript file string."""
@@ -674,22 +680,24 @@ class Jobscript(JSONLike):
         else:
             env_setup = self.shell.JS_ENV_SETUP_INDENT
 
-        app_invoc = " ".join(self.app.run_time_info.invocation_command)
-        header_args = {
-            "workflow_app_alias": self.workflow_app_alias,
-            "env_setup": env_setup,
-            "app_invoc": app_invoc,
-            "config_dir": str(self.app.config.config_directory),
-            "config_invoc_key": self.app.config._file.invoc_key,
-            "workflow_path": self.workflow.path,
-            "sub_idx": self.submission.index,
-            "js_idx": self.index,
-            "EAR_file_name": self.need_EAR_file_name,
-            "element_run_dirs_file_path": self.element_run_dir_file_name,
-        }
+        app_invoc = self.app.run_time_info.invocation_command
+        header_args = self.shell.process_JS_header_args(
+            {
+                "workflow_app_alias": self.workflow_app_alias,
+                "env_setup": env_setup,
+                "app_invoc": app_invoc,
+                "config_dir": str(self.app.config.config_directory),
+                "config_invoc_key": self.app.config._file.invoc_key,
+                "workflow_path": self.workflow.path,
+                "sub_idx": self.submission.index,
+                "js_idx": self.index,
+                "EAR_file_name": self.need_EAR_file_name,
+                "element_run_dirs_file_path": self.element_run_dir_file_name,
+            }
+        )
 
         shebang = self.shell.JS_SHEBANG.format(
-            shell_executable=" ".join(self.shell.executable),
+            shebang_executable=" ".join(self.shell.shebang_executable),
             shebang_args=self.scheduler.shebang_args,
         )
         header = self.shell.JS_HEADER.format(**header_args)
@@ -738,7 +746,7 @@ class Jobscript(JSONLike):
 
     def write_jobscript(self):
         js_str = self.compose_jobscript()
-        with self.jobscript_path.open("wt") as fp:
+        with self.jobscript_path.open("wt", newline="\n") as fp:
             fp.write(js_str)
         return self.jobscript_path
 
@@ -785,11 +793,14 @@ class Jobscript(JSONLike):
         self.write_need_EARs_file()
         self.write_element_run_dir_file(run_dirs)
         js_path = self.write_jobscript()
+        js_path = self.shell.prepare_JS_path(js_path)
 
         deps = []
         for js_idx, deps_i in self.dependencies.items():
             dep_job_ID = scheduler_refs[js_idx]
             deps.append((dep_job_ID, deps_i["is_array"]))
+
+        # TODO: split into scheduler/direct behaviour
 
         err_args = {
             "js_idx": self.index,
@@ -809,6 +820,10 @@ class Jobscript(JSONLike):
             stderr = proc.stderr.decode().strip()
             err_args["stdout"] = stdout
             err_args["stderr"] = stderr
+            if stdout:
+                print(stdout)
+            if stderr:
+                print(stderr)
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."

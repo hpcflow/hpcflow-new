@@ -84,7 +84,7 @@ class SlurmPosix(Scheduler):
     def get_submit_command(
         self,
         shell: Shell,
-        js_path: Path,
+        js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
 
@@ -104,7 +104,7 @@ class SlurmPosix(Scheduler):
             cmd.append(f"--dependency")
             cmd.append(",".join(dep_cmd))
 
-        cmd.append(str(js_path))
+        cmd.append(js_path)
 
         return cmd
 

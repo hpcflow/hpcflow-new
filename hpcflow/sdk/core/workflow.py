@@ -973,12 +973,17 @@ class Workflow:
         return self._submissions
 
     @property
+    def artifacts_path(self):
+        # TODO: allow customisation of artifacts path at submission and resources level
+        return self.path / "artifacts"
+
+    @property
     def submissions_path(self):
-        return self.path / "submissions"
+        return self.artifacts_path / "submissions"
 
     @property
     def task_artifacts_path(self):
-        return self.path / "tasks"
+        return self.artifacts_path / "tasks"
 
     def elements(self) -> Iterator[Element]:
         for task in self.tasks:
@@ -1014,8 +1019,8 @@ class Workflow:
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
-        self.submissions_path.mkdir(exist_ok=True)
-        self.task_artifacts_path.mkdir(exist_ok=True)
+        self.submissions_path.mkdir(exist_ok=True, parents=True)
+        self.task_artifacts_path.mkdir(exist_ok=True, parents=True)
 
         # for direct execution the submission must be persistent at submit-time, because
         # it will be read by a new instance of the app:
@@ -1413,9 +1418,9 @@ class Workflow:
                     param_name=param_name,
                     shell_var_name=shell_var_name,
                 )
-            with Path(jobscript.commands_file_name).open("wt") as fp:
+            with Path(jobscript.commands_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
-                fp.write(commands + "\n")
+                fp.write(commands)
 
     def save_parameter(
         self,
