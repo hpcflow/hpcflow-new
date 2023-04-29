@@ -250,8 +250,6 @@ class JSONPersistentStore(PersistentStore):
         submissions = self.load_submissions()
         parameters = self.load_parameter_data()
 
-        print(f"commit: {metadata=}")
-
         # commit new tasks:
         for new_index, task_js in self._pending["template_tasks"].items():
             dump_metadata = True
