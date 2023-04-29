@@ -36,7 +36,6 @@ class JSONPersistentStore(PersistentStore):
     """
 
     _name = "json"
-    _store_path_ext = "json"
 
     _metadata_file_name = "metadata.json"
     _submissions_file_name = "submissions.json"
