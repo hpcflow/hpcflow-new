@@ -15,6 +15,7 @@ from hpcflow.sdk.core.utils import bisect_slice, get_md5_hash
 
 from hpcflow.sdk.persistence.base import (
     PersistentStore,
+    PersistentStoreFeatures,
     dropbox_permission_err_retry,
     remove_dir,
     rename_dir,
@@ -27,6 +28,10 @@ class JSONPersistentStore(PersistentStore):
 
     _name = "json"
     _store_path_ext = "json"
+    _features = PersistentStoreFeatures(
+        jobscript_parallelism=False,
+        EAR_parallelism=False,
+    )
 
     @classmethod
     def _get_store_path(cls, workflow_path):

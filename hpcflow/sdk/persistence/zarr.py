@@ -22,6 +22,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.persistence.base import (
     PersistentStore,
+    PersistentStoreFeatures,
     remove_dir,
     rename_dir,
 )
@@ -66,6 +67,10 @@ class ZarrPersistentStore(PersistentStore):
     multiple processes."""
 
     _name = "zarr"
+    _features = PersistentStoreFeatures(
+        jobscript_parallelism=True,
+        EAR_parallelism=True,
+    )
 
     _param_grp_name = "parameter_data"
     _elem_grp_name = "element_data"

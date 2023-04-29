@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 import copy
+from dataclasses import dataclass
 from datetime import datetime
 import random
 import shutil
@@ -16,6 +17,7 @@ from hpcflow.sdk.core.parameters import ParameterValue
 
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container
 from hpcflow.sdk.typing import PathLike
+
 
 PRIMITIVES = (
     int,
@@ -58,6 +60,23 @@ def remove_dir(dir_path: Path) -> None:
 @dropbox_permission_err_retry
 def rename_dir(replaced_dir, original_dir) -> None:
     replaced_dir.rename(original_dir)
+
+
+@dataclass
+class PersistentStoreFeatures:
+    """Class to represent the features provided by a persistent store.
+
+    Attributes
+    ----------
+    jobscript_parallelism
+        If True, the store supports workflows running multiple independent jobscripts
+        simultaneously.
+    EAR_parallelism
+        If True, the store supports workflows running multiple EARs simultaneously.
+    """
+
+    jobscript_parallelism: bool = False
+    EAR_parallelism: bool = False
 
 
 class PersistentStore(ABC):
