@@ -166,15 +166,6 @@ class ElementResources(JSONLike):
 
         return _hash_dict(dct)
 
-    # def __hash__(self):
-    #     # TODO: define this as a separate function for jobscript mergability purposes,
-
-    #     dct = copy.deepcopy(self.__dict__)
-    #     dct["scheduler_commands"] = _hash_dict(dct["scheduler_commands"])
-    #     dct["scheduler_options"] = _hash_dict(dct["scheduler_options"])
-
-    #     return _hash_dict(dct)
-
 
 class ElementIteration:
 

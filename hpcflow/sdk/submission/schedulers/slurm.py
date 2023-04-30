@@ -77,7 +77,7 @@ class SlurmPosix(Scheduler):
         name, version = stdout.split()
         out = {
             "scheduler_name": name,
-            "scheduler_versions": version,
+            "scheduler_version": version,
         }
         return out
 

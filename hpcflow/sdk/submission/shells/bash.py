@@ -169,6 +169,13 @@ class WSLBash(Bash):
         self.WSL_user = WSL_user
         super().__init__(*args, **kwargs)
 
+    def __eq__(self, other) -> bool:
+        return super().__eq__(other) and (
+            self.WSL_executable == other.WSL_executable
+            and self.WSL_distribution == other.WSL_distribution
+            and self.WSL_user == other.WSL_user
+        )
+
     def _get_WSL_command(self):
         out = [self.WSL_executable]
         if self.WSL_distribution:

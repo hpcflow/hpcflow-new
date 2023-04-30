@@ -136,15 +136,37 @@ class Submission(JSONLike):
     def path(self):
         return self.workflow.submissions_path / str(self.index)
 
-    def get_unique_schedulers(self) -> Dict[Scheduler, List[int]]:
+    def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
         """Get a unique schedulers and which jobscripts they correspond to."""
-        sched_js_idx = {}
+        js_idx = []
+        schedulers = []
+
         for js in self.jobscripts:
-            if js.scheduler not in sched_js_idx:
-                sched_js_idx[js.scheduler] = []
-            sched_js_idx[js.scheduler].append(js.index)
+            if js.scheduler not in schedulers:
+                schedulers.append(js.scheduler)
+                js_idx.append([])
+            sched_idx = schedulers.index(js.scheduler)
+            js_idx[sched_idx].append(js.index)
+
+        sched_js_idx = dict(zip((tuple(i) for i in js_idx), schedulers))
 
         return sched_js_idx
+
+    def get_unique_shells(self) -> Dict[Tuple[int], Shell]:
+        """Get unique shells and which jobscripts they correspond to."""
+        js_idx = []
+        shells = []
+
+        for js in self.jobscripts:
+            if js.shell not in shells:
+                shells.append(js.shell)
+                js_idx.append([])
+            shell_idx = shells.index(js.shell)
+            js_idx[shell_idx].append(js.index)
+
+        shell_js_idx = dict(zip((tuple(i) for i in js_idx), shells))
+
+        return shell_js_idx
 
     def prepare_EAR_submission_idx_update(self) -> List[Tuple[int, int, int, int]]:
         """For all EARs in this submission (across all jobscripts), return a tuple of indices
@@ -204,10 +226,10 @@ class Submission(JSONLike):
 
         outstanding = self.outstanding_jobscripts
 
-        # TODO: get shell version as well (via scheduler shebang...)
-        # get scheduler versions (also an opportunity to fail before trying to submit
-        # jobscripts):
-        for sched, js_indices in self.get_unique_schedulers().items():
+        # get scheduler, shell and OS version information (also an opportunity to fail
+        # before trying to submit jobscripts):
+        js_vers_info = {}
+        for js_indices, sched in self.get_unique_schedulers().items():
             try:
                 vers_info = sched.get_version_info()
             except Exception as err:
@@ -217,7 +239,28 @@ class Submission(JSONLike):
                     raise err
             for js_idx in js_indices:
                 if js_idx in outstanding:
-                    self.jobscripts[js_idx]._set_version_info(vers_info)
+                    if js_idx not in js_vers_info:
+                        js_vers_info[js_idx] = {}
+                    js_vers_info[js_idx].update(vers_info)
+
+                    # self.jobscripts[js_idx]._set_version_info(vers_info)
+
+        for js_indices, shell in self.get_unique_shells().items():
+            try:
+                vers_info = shell.get_version_info()
+            except Exception as err:
+                if ignore_errors:
+                    vers_info = {}
+                else:
+                    raise err
+            for js_idx in js_indices:
+                if js_idx in outstanding:
+                    if js_idx not in js_vers_info:
+                        js_vers_info[js_idx] = {}
+                    js_vers_info[js_idx].update(vers_info)
+
+        for js_idx, vers_info_i in js_vers_info.items():
+            self.jobscripts[js_idx]._set_version_info(vers_info_i)
 
         self.path.mkdir(exist_ok=True)
         scheduler_refs = {}  # map jobscript `index` to scheduler job IDs

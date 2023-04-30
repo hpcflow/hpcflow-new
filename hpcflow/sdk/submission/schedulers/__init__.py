@@ -23,10 +23,6 @@ class NullScheduler:
         else:
             return self.__dict__ == other.__dict__
 
-    def __hash__(self) -> int:
-        keys, vals = zip(*self.__dict__.items())
-        return hash(tuple((keys, vals)))
-
     def get_version_info(self):
         return {}
 

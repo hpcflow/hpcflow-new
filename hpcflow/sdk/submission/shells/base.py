@@ -16,6 +16,13 @@ class Shell(ABC):
         self._executable = executable or self.DEFAULT_EXE
         self.os_args = os_args
 
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        if self._executable == other._executable and self.os_args == other.os_args:
+            return True
+        return False
+
     @property
     def executable(self) -> List[str]:
         return [self._executable]
