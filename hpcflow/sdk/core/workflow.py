@@ -1008,13 +1008,17 @@ class Workflow:
     def rename(self, new_name: str):
         raise NotImplementedError
 
-    def _submit(self, ignore_errors=False):
+    def _submit(
+        self,
+        ignore_errors: Optional[bool] = False,
+        JS_parallelism: Optional[bool] = None,
+    ):
         """Submit outstanding EARs for execution."""
 
         # generate a new submission if there are no pending submissions:
         pending = [i for i in self.submissions if i.needs_submit]
         if not pending:
-            new_sub = self.add_submission()
+            new_sub = self.add_submission(JS_parallelism=JS_parallelism)
             if not new_sub:
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
@@ -1041,11 +1045,18 @@ class Workflow:
 
         return exceptions, submitted_js
 
-    def submit(self, ignore_errors=False) -> None:
+    def submit(
+        self,
+        ignore_errors: Optional[bool] = False,
+        JS_parallelism: Optional[bool] = None,
+    ) -> None:
         with self._store.cached_load():
             with self.batch_update():
                 # commit updates before raising exception:
-                exceptions, submitted_js = self._submit(ignore_errors=ignore_errors)
+                exceptions, submitted_js = self._submit(
+                    ignore_errors=ignore_errors,
+                    JS_parallelism=JS_parallelism,
+                )
 
         if exceptions:
             msg = "\n" + "\n\n".join([i.message for i in exceptions])
@@ -1053,12 +1064,13 @@ class Workflow:
 
         return submitted_js
 
-    def add_submission(self) -> Submission:
+    def add_submission(self, JS_parallelism: Optional[bool] = None) -> Submission:
         new_idx = self.num_submissions
         sub_obj = self.app.Submission(
             index=new_idx,
             workflow=self,
             jobscripts=self.resolve_jobscripts(),
+            JS_parallelism=JS_parallelism,
         )
         EAR_indices = sub_obj.prepare_EAR_submission_idx_update()
         if not EAR_indices:

@@ -113,6 +113,7 @@ def make_and_submit_workflow(
     store: Optional[str] = DEFAULT_STORE_FORMAT,
     ts_fmt: Optional[str] = None,
     ts_name_fmt: Optional[str] = None,
+    JS_parallelism: Optional[bool] = None,
 ):
     """Generate and submit a new {app_name} workflow from a file or string containing a
     workflow template parametrisation.
@@ -146,6 +147,10 @@ def make_and_submit_workflow(
     ts_name_fmt
         The datetime format to use when generating the workflow name, where it
         includes a timestamp.
+    JS_parallelism
+        If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+        True but the store type does not support the `jobscript_parallelism` feature. If
+        not set, jobscript parallelism will be used if the store type supports it.
     """
 
     app.API_logger.info("make_and_submit_workflow called")
@@ -161,21 +166,29 @@ def make_and_submit_workflow(
         ts_fmt=ts_fmt,
         ts_name_fmt=ts_name_fmt,
     )
-    wk.submit()
+    wk.submit(JS_parallelism=JS_parallelism)
 
 
-def submit_workflow(app: App, workflow_path: PathLike):
+def submit_workflow(
+    app: App,
+    workflow_path: PathLike,
+    JS_parallelism: Optional[bool] = None,
+):
     """Submit an existing {app_name} workflow.
 
     Parameters
     ----------
     workflow_path
         Path to an existing workflow
+    JS_parallelism
+        If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+        True but the store type does not support the `jobscript_parallelism` feature. If
+        not set, jobscript parallelism will be used if the store type supports it.
     """
 
     app.API_logger.info("submit_workflow called")
     wk = app.Workflow(workflow_path)
-    return wk.submit()
+    return wk.submit(JS_parallelism=JS_parallelism)
 
 
 def run_hpcflow_tests(app, *args):

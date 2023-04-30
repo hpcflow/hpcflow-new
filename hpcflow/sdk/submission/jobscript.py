@@ -806,6 +806,12 @@ class Jobscript(JSONLike):
             dep_job_ID = scheduler_refs[js_idx]
             deps.append((dep_job_ID, deps_i["is_array"]))
 
+        if not self.submission.JS_parallelism and self.index > 0:
+            # add fake dependencies to all previously submitted jobscripts to avoid
+            # simultaneous execution:
+            for job_ID, sched_ref in scheduler_refs.items():
+                deps.append((sched_ref, False))
+
         # TODO: split into scheduler/direct behaviour
 
         err_args = {

@@ -49,16 +49,29 @@ class Submission(JSONLike):
         jobscripts: List[Jobscript],
         workflow: Workflow,
         submission_attempts: Optional[List] = None,
+        JS_parallelism: Optional[bool] = None,
     ):
         self._index = index
-        self._submission_attempts = submission_attempts or []
         self._jobscripts = jobscripts
         self._workflow = workflow
+        self._submission_attempts = submission_attempts or []
+        self._JS_parallelism = JS_parallelism
 
         self._set_parent_refs()
 
         for js_idx, js in enumerate(self.jobscripts):
             js._index = js_idx
+
+        # if JS_parallelism explicitly requested but store doesn't support, raise:
+        supports_JS_para = self.workflow._store.features.jobscript_parallelism
+        if self.JS_parallelism:
+            if not supports_JS_para:
+                raise ValueError(
+                    f"Store type {self.workflow._store!r} does not support jobscript "
+                    f"parallelism."
+                )
+        elif self.JS_parallelism is None:
+            self._JS_parallelism = supports_JS_para
 
     def to_dict(self):
         dct = super().to_dict()
@@ -78,6 +91,10 @@ class Submission(JSONLike):
     @property
     def jobscripts(self) -> List:
         return self._jobscripts
+
+    @property
+    def JS_parallelism(self):
+        return self._JS_parallelism
 
     @property
     def workflow(self) -> List:

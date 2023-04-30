@@ -506,6 +506,16 @@ class BaseApp:
                 "includes a timestamp."
             ),
         )
+        @click.option(
+            "--jobscript-parallelism",
+            help=(
+                "If True, allow multiple jobscripts to execute simultaneously. Raises if "
+                "set to True but the store type does not support the "
+                "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
+                "be used if the store type supports it."
+            ),
+            type=click.BOOL,
+        )
         def make_and_submit_workflow(
             template_file_or_str,
             string,
@@ -516,6 +526,7 @@ class BaseApp:
             store,
             ts_fmt=None,
             ts_name_fmt=None,
+            js_parallelism=None,
         ):
             """Generate and submit a new {app_name} workflow.
 
@@ -533,6 +544,7 @@ class BaseApp:
                 store=store,
                 ts_fmt=ts_fmt,
                 ts_name_fmt=ts_name_fmt,
+                JS_parallelism=js_parallelism,
             )
             click.echo(sub_out)
 
@@ -590,10 +602,20 @@ class BaseApp:
             ctx.obj["workflow"] = wk
 
         @workflow.command(name="submit")
+        @click.option(
+            "--jobscript-parallelism",
+            help=(
+                "If True, allow multiple jobscripts to execute simultaneously. Raises if "
+                "set to True but the store type does not support the "
+                "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
+                "be used if the store type supports it."
+            ),
+            type=click.BOOL,
+        )
         @click.pass_context
-        def submit_workflow(ctx):
+        def submit_workflow(ctx, js_parallelism=None):
             """Submit the workflow."""
-            click.echo(ctx.obj["workflow"].submit())
+            click.echo(ctx.obj["workflow"].submit(JS_parallelism=js_parallelism))
 
         workflow.help = workflow.help.format(app_name=self.name)
 
