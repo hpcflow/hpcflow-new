@@ -14,15 +14,6 @@ from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.submission.jobscript_templates import (
-    BASH_ELEMENT_ARRAY,
-    BASH_ELEMENT_LOOP,
-    BASH_HEADER,
-    BASH_SHEBANG,
-    BASH_SCHEDULER_HEADER,
-    BASH_DIRECT_HEADER,
-    BASH_MAIN,
-)
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.direct import DirectPosix, DirectWindows
 from hpcflow.sdk.submission.schedulers.sge import SGEPosix
