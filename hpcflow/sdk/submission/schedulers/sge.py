@@ -40,7 +40,15 @@ class SGEPosix(Scheduler):
     def format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_options(self, resources, num_elements, is_array):
+    def format_std_stream_file_option_lines(self, is_array, sub_idx):
+
+        base = f"./artifacts/submissions/{sub_idx}"
+        return [
+            f"{self.js_cmd} -o {base}",
+            f"{self.js_cmd} -e {base}",
+        ]
+
+    def format_options(self, resources, num_elements, is_array, sub_idx):
 
         # TODO: I think the PEs are set by the sysadmins so they should be set in the
         # config file as a mapping between num_cores/nodes and PE names?
@@ -51,6 +59,8 @@ class SGEPosix(Scheduler):
         opts.extend(self.format_core_request_lines(resources.num_cores, "smp.pe"))
         if is_array:
             opts.append(self.format_array_request(num_elements))
+
+        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
         return "\n".join(opts)
 
     def get_version_info(self):
