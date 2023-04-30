@@ -823,10 +823,6 @@ class Jobscript(JSONLike):
             stderr = proc.stderr.decode().strip()
             err_args["stdout"] = stdout
             err_args["stderr"] = stderr
-            if stdout:
-                print(stdout)
-            if stderr:
-                print(stderr)
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."
