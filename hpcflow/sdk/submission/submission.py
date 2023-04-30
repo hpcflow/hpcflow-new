@@ -293,4 +293,7 @@ class Submission(JSONLike):
         if errs and not ignore_errors:
             self._raise_failure(submitted_js_idx, errs)
 
+        len_js = len(submitted_js_idx)
+        print(f"Submitted {len_js} jobscript{'s' if len_js > 1 else ''}.")
+
         return submitted_js_idx

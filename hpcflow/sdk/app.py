@@ -534,7 +534,7 @@ class BaseApp:
             format, or a YAML/JSON string.
 
             """
-            sub_out = self.make_and_submit_workflow(
+            self.make_and_submit_workflow(
                 template_file_or_str=template_file_or_str,
                 is_string=string,
                 template_format=format,
@@ -546,7 +546,6 @@ class BaseApp:
                 ts_name_fmt=ts_name_fmt,
                 JS_parallelism=js_parallelism,
             )
-            click.echo(sub_out)
 
         @click.command(context_settings={"ignore_unknown_options": True})
         @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
@@ -702,7 +701,7 @@ class BaseApp:
         @click.pass_context
         def submit_workflow(ctx, js_parallelism=None):
             """Submit the workflow."""
-            click.echo(ctx.obj["workflow"].submit(JS_parallelism=js_parallelism))
+            ctx.obj["workflow"].submit(JS_parallelism=js_parallelism)
 
         @workflow.command(name="get-param")
         @click.argument("index", type=click.INT)
