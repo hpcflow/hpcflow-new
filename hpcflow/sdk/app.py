@@ -507,7 +507,7 @@ class BaseApp:
             ),
         )
         @click.option(
-            "--jobscript-parallelism",
+            "--js-parallelism",
             help=(
                 "If True, allow multiple jobscripts to execute simultaneously. Raises if "
                 "set to True but the store type does not support the "
@@ -603,7 +603,7 @@ class BaseApp:
 
         @workflow.command(name="submit")
         @click.option(
-            "--jobscript-parallelism",
+            "--js-parallelism",
             help=(
                 "If True, allow multiple jobscripts to execute simultaneously. Raises if "
                 "set to True but the store type does not support the "
