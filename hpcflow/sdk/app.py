@@ -585,6 +585,93 @@ class BaseApp:
 
         return commands
 
+    def _make_workflow_submission_jobscript_CLI(self):
+        """Generate the CLI for interacting with existing workflow submission
+        jobscripts."""
+
+        @click.group(name="js")
+        @click.pass_context
+        @click.argument("js_idx", type=click.INT)
+        def jobscript(ctx, js_idx):
+            """Interact with existing {app_name} workflow submission jobscripts.
+
+            JS_IDX is the jobscript index within the submission object.
+
+            """
+            ctx.obj["jobscript"] = ctx.obj["submission"].jobscripts[js_idx]
+
+        @jobscript.command(name="res")
+        @click.pass_context
+        def resources(ctx):
+            """Get resources associated with this jobscript."""
+            click.echo(ctx.obj["jobscript"].resources.__dict__)
+
+        @jobscript.command(name="deps")
+        @click.pass_context
+        def dependencies(ctx):
+            """Get jobscript dependencies."""
+            click.echo(ctx.obj["jobscript"].dependencies)
+
+        @jobscript.command()
+        @click.pass_context
+        def path(ctx):
+            """Get the file path to the jobscript."""
+            click.echo(ctx.obj["jobscript"].jobscript_path)
+
+        @jobscript.command()
+        @click.pass_context
+        def show(ctx):
+            """Show the jobscript file."""
+            with ctx.obj["jobscript"].jobscript_path.open("rt") as fp:
+                click.echo(fp.read())
+
+        jobscript.help = jobscript.help.format(app_name=self.name)
+
+        return jobscript
+
+    def _make_workflow_submission_CLI(self):
+        """Generate the CLI for interacting with existing workflow submissions."""
+
+        @click.group(name="sub")
+        @click.pass_context
+        @click.argument("sub_idx", type=click.INT)
+        def submission(ctx, sub_idx):
+            """Interact with existing {app_name} workflow submissions.
+
+            SUB_IDX is the submission index.
+
+            """
+            ctx.obj["submission"] = ctx.obj["workflow"].submissions[sub_idx]
+
+        @submission.command("status")
+        @click.pass_context
+        def status(ctx):
+            """Get the submission status."""
+            click.echo(ctx.obj["submission"].status.name.lower())
+
+        @submission.command("submitted-js")
+        @click.pass_context
+        def submitted_JS(ctx):
+            """Get a list of jobscript indices that have been submitted."""
+            click.echo(ctx.obj["submission"].submitted_jobscripts)
+
+        @submission.command("outstanding-js")
+        @click.pass_context
+        def outstanding_JS(ctx):
+            """Get a list of jobscript indices that have not yet been submitted."""
+            click.echo(ctx.obj["submission"].outstanding_jobscripts)
+
+        @submission.command("needs-submit")
+        @click.pass_context
+        def needs_submit(ctx):
+            """Check if this submission needs submitting."""
+            click.echo(ctx.obj["submission"].needs_submit)
+
+        submission.help = submission.help.format(app_name=self.name)
+        submission.add_command(self._make_workflow_submission_jobscript_CLI())
+
+        return submission
+
     def _make_workflow_CLI(self):
         """Generate the CLI for interacting with existing workflows."""
 
@@ -645,6 +732,8 @@ class BaseApp:
             click.echo(ctx.obj["workflow"].is_parameter_set(index))
 
         workflow.help = workflow.help.format(app_name=self.name)
+
+        workflow.add_command(self._make_workflow_submission_CLI())
 
         return workflow
 
