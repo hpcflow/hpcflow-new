@@ -185,4 +185,4 @@ class RunTimeInfo(PrettyPrinter):
                     str(self.resolved_script_path),
                 ]
 
-            return command
+            return tuple(command)

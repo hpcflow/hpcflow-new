@@ -680,7 +680,7 @@ class Jobscript(JSONLike):
         else:
             env_setup = self.shell.JS_ENV_SETUP_INDENT
 
-        app_invoc = self.app.run_time_info.invocation_command
+        app_invoc = list(self.app.run_time_info.invocation_command)
         header_args = self.shell.process_JS_header_args(
             {
                 "workflow_app_alias": self.workflow_app_alias,
