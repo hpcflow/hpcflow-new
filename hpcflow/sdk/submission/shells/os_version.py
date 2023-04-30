@@ -59,12 +59,12 @@ def get_OS_info_POSIX(
         else:
             return proc.stdout
 
+    WSL_executable = WSL_executable or []
     out = {}
     if use_py:
         out.update(**get_OS_info())
 
     else:
-        WSL_executable = WSL_executable or []
         OS_name = try_subprocess_call(WSL_executable + ["uname", "-s"]).strip()
         OS_release = try_subprocess_call(WSL_executable + ["uname", "-r"]).strip()
         OS_version = try_subprocess_call(WSL_executable + ["uname", "-v"]).strip()
