@@ -470,12 +470,18 @@ class Jobscript(JSONLike):
         if not self.scheduler_name:
             return False
 
+        support_EAR_para = self.workflow._store.features.EAR_parallelism
         if self.resources.use_job_array is None:
-            if self.num_elements > 1:
+            if self.num_elements > 1 and support_EAR_para:
                 return True
             else:
                 return False
         else:
+            if self.resources.use_job_array and not support_EAR_para:
+                raise ValueError(
+                    f"Store type {self.workflow._store!r} does not support element "
+                    f"parallelism, so jobs cannot be submitted as scheduler arrays."
+                )
             return self.resources.use_job_array
 
     @property

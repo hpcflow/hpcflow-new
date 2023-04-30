@@ -91,6 +91,7 @@ class PersistentStore(ABC):
 
     _parameter_encoders = {}
     _parameter_decoders = {}
+    _features = None
 
     def __init__(self, workflow: Workflow) -> None:
         self._workflow = workflow
@@ -99,6 +100,10 @@ class PersistentStore(ABC):
             raise WorkflowNotFoundError(
                 f"No workflow found at path: {self.workflow_path}"
             )
+
+    @property
+    def features(self):
+        return self._features
 
     @property
     def store_name(self):
