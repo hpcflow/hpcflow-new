@@ -57,6 +57,16 @@ class SlurmPosix(Scheduler):
     def format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
+    def format_std_stream_file_option_lines(self, is_array):
+
+        base = r"%x_"
+        if is_array:
+            base += r"%A.%a"
+        else:
+            base += r"%j"
+
+        return [f"{self.js_cmd} -o {base}.out", f"{self.js_cmd} -e {base}.err"]
+
     def format_options(self, resources, num_elements, is_array):
         opts = []
         opts.extend(
@@ -64,6 +74,8 @@ class SlurmPosix(Scheduler):
         )
         if is_array:
             opts.append(self.format_array_request(num_elements))
+
+        opts.extend(self.format_std_stream_file_option_lines())
         return "\n".join(opts)
 
     def get_version_info(self):
