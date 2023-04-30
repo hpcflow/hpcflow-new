@@ -706,6 +706,7 @@ class Jobscript(JSONLike):
                     resources=self.resources,
                     num_elements=self.num_elements,
                     is_array=self.is_array,
+                    sub_idx=self.submission.index,
                 ),
                 header=header,
             )

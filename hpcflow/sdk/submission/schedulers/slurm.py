@@ -57,7 +57,7 @@ class SlurmPosix(Scheduler):
     def format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_std_stream_file_option_lines(self, is_array):
+    def format_std_stream_file_option_lines(self, is_array, sub_idx):
 
         base = r"%x_"
         if is_array:
@@ -65,9 +65,13 @@ class SlurmPosix(Scheduler):
         else:
             base += r"%j"
 
-        return [f"{self.js_cmd} -o {base}.out", f"{self.js_cmd} -e {base}.err"]
+        base = f"./artifacts/submissions/{sub_idx}/{base}"
+        return [
+            f"{self.js_cmd} -o {base}.out",
+            f"{self.js_cmd} -e {base}.err",
+        ]
 
-    def format_options(self, resources, num_elements, is_array):
+    def format_options(self, resources, num_elements, is_array, sub_idx):
         opts = []
         opts.extend(
             self.format_core_request_lines(num_cores=resources.num_cores, num_nodes=1)
@@ -75,7 +79,7 @@ class SlurmPosix(Scheduler):
         if is_array:
             opts.append(self.format_array_request(num_elements))
 
-        opts.extend(self.format_std_stream_file_option_lines())
+        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
         return "\n".join(opts)
 
     def get_version_info(self):
