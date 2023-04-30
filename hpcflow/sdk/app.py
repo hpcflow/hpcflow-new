@@ -617,6 +617,33 @@ class BaseApp:
             """Submit the workflow."""
             click.echo(ctx.obj["workflow"].submit(JS_parallelism=js_parallelism))
 
+        @workflow.command(name="get-param")
+        @click.argument("index", type=click.INT)
+        @click.pass_context
+        def get_parameter(ctx, index):
+            """Get a parameter value by data index."""
+            click.echo(ctx.obj["workflow"].get_parameter_data(index))
+
+        @workflow.command(name="get-param-source")
+        @click.argument("index", type=click.INT)
+        @click.pass_context
+        def get_parameter_source(ctx, index):
+            """Get a parameter source by data index."""
+            click.echo(ctx.obj["workflow"].get_parameter_source(index))
+
+        @workflow.command(name="get-all-params")
+        @click.pass_context
+        def get_all_parameters(ctx):
+            """Get all parameter values."""
+            click.echo(ctx.obj["workflow"].get_all_parameter_data())
+
+        @workflow.command(name="is-param-set")
+        @click.argument("index", type=click.INT)
+        @click.pass_context
+        def is_parameter_set(ctx, index):
+            """Check if a parameter specified by data index is set."""
+            click.echo(ctx.obj["workflow"].is_parameter_set(index))
+
         workflow.help = workflow.help.format(app_name=self.name)
 
         return workflow

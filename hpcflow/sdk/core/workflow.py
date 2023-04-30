@@ -1242,10 +1242,10 @@ class Workflow:
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
-    def _get_parameter_data(self, index: int) -> Tuple[bool, Any]:
+    def get_parameter_data(self, index: int) -> Tuple[bool, Any]:
         return self._store.get_parameter_data(index)
 
-    def _get_parameter_source(self, index: int) -> Dict:
+    def get_parameter_source(self, index: int) -> Dict:
         return self._store.get_parameter_source(index)
 
     def get_all_parameter_data(self) -> Dict[int, Any]:

@@ -1929,7 +1929,7 @@ class WorkflowTask:
                     # no intersection between paths
                     continue
 
-            is_set, data = self.workflow._get_parameter_data(data_idx_i)
+            is_set, data = self.workflow.get_parameter_data(data_idx_i)
             if raise_on_unset and not is_set:
                 raise UnsetParameterDataError(
                     f"Element data path {path!r} resolves to unset data for (at least) "

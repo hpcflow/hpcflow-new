@@ -354,7 +354,7 @@ class ElementIteration:
             ID.
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
-        out = {k: self.workflow._get_parameter_source(v) for k, v in data_idx.items()}
+        out = {k: self.workflow.get_parameter_source(v) for k, v in data_idx.items()}
         task_key = "task_insert_ID"
 
         if use_task_index:
