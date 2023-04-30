@@ -166,7 +166,7 @@ def make_and_submit_workflow(
         ts_fmt=ts_fmt,
         ts_name_fmt=ts_name_fmt,
     )
-    wk.submit(JS_parallelism=JS_parallelism)
+    return wk.submit(JS_parallelism=JS_parallelism)
 
 
 def submit_workflow(
