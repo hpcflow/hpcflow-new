@@ -42,6 +42,7 @@ class SGEPosix(Scheduler):
 
     def format_std_stream_file_option_lines(self, is_array, sub_idx):
 
+        # note: we can't modify the file names
         base = f"./artifacts/submissions/{sub_idx}"
         return [
             f"{self.js_cmd} -o {base}",

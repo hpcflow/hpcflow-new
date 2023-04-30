@@ -1597,6 +1597,22 @@ class Workflow:
 
         return pathway
 
+    def show_all_EAR_statuses(self):
+        print(
+            f"{'task':8s} {'element':8s} {'iteration':8s} {'action':8s} "
+            f"{'run':8s} {'status':8s}"
+        )
+        for task in self.tasks:
+            for element in task.elements:
+                for iter_idx, iteration in enumerate(element.iterations):
+                    for act_idx, action_runs in iteration.actions.items():
+                        for run_idx, EAR in enumerate(action_runs.runs):
+                            print(
+                                f"{task.insert_ID:^8d} {element.index:^8d} "
+                                f"{iter_idx:^8d} {act_idx:^8d} {run_idx:^8d} "
+                                f"{EAR.submission_status.name.lower():^8s}"
+                            )
+
 
 @dataclass
 class WorkflowBlueprint:

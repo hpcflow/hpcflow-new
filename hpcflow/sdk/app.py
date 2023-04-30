@@ -730,6 +730,12 @@ class BaseApp:
             """Check if a parameter specified by data index is set."""
             click.echo(ctx.obj["workflow"].is_parameter_set(index))
 
+        @workflow.command(name="show-all-status")
+        @click.pass_context
+        def show_all_EAR_statuses(ctx):
+            """Show the submission status of all workflow EARs."""
+            ctx.obj["workflow"].show_all_EAR_statuses()
+
         workflow.help = workflow.help.format(app_name=self.name)
 
         workflow.add_command(self._make_workflow_submission_CLI())
