@@ -1,4 +1,148 @@
 
+<a name="v0.2.0a31"></a>
+## [v0.2.0a31](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a30...v0.2.0a31) - 2023.05.01
+
+### Other changes
+
+* merge branch fix/examples into feat/submission
+* merge branch 'develop' into feat/submission
+* merge branch 'develop' into feat/submission
+* start work on generating jobscripts
+
+### ♻ Code Refactoring
+
+* remove unused
+* remove unused
+* remove unused var
+* remove unused functions and tests
+* load config on demand if not loaded
+* remove unused BaseApp property
+* define ALL_STORE_FORMATS and DEFAULT_STORE_FORMAT
+* define ElementID, IterationID, and EAR_ID
+* separate out EAR initialisation
+* remove unused metadata properties
+* intial extraction of EAR initialisation
+* start support for loops (JSON persistent store only)
+
+### ✨ Features
+
+* add simple EAR status printout
+* specify submission dir for sge out/err logs
+* specify submission dir for slurm out/err logs
+* specify slurm out/err file names
+* print number of jobscripts submitted
+* add workflow submission/jobscript CLI
+* add basic parameter getting to CLI
+* add shell+OS version info to jobscript submission
+* use artifacts path and get WSL submission working
+* store creation_info (app/python version) in metadata
+* add PersistentStoreFeatures class to be used on submission
+* in initialise_EARs, return indicies of iterations for which EARs were initialised
+* support powershell submission
+* add Shell classes
+* allow specifying config invocation key
+* add environment setup to JS app invocation func
+* add machine (socket.hostname) to run-time info
+* add more Workflow/Template creation class methods and reflect changes in CLI/API
+* add Workflow(Template).from_JSON_file/string and WorkflowTemplate.from_file
+* allow specifying template components in the template file; fix [#373](https://github.com/hpcflow/hpcflow-new/issues/373)
+* add Workflow.from_YAML_string
+* add initial workflow creation CLI
+* enable jobscript execution
+* support simple loops in submission
+* initial implementation of Workflow.submit()
+* support template-level resources
+* add WorkflowLoop.add_iteration
+* add Element.get_dependent_elements_recursively
+* flesh out/validate Loop object
+* track index of original input source for each element input
+* initial Workflow.resolve_jobscripts method
+* add set_EAR_start/end methods to Workflow
+* add metadata to EARs
+* add raise_on_unset bool arg to _get_merged_parameter_data
+* **CLI:** allow passing on arbitrary pytest arguments to test CLI
+
+### 🐛 Bug Fixes
+
+* tests
+* return from make_and_submit_workflow
+* get_OS_info_POSIX on linux
+* js-parallelism cli option
+* check if store type support jobscript parallelism
+* check if store type support EAR parallelism
+* don't modify run_time_info invocation command!
+* is_array should be False when no scheduler
+* remove debug prints
+* split JSONPersistentStore over three JSON files to support schedulers
+* shebang in jobscripts
+* cannot use Literal type in py3.7/8
+* remove debug prints
+* get_invocation_command when in ipython/jupyter; fix [#374](https://github.com/hpcflow/hpcflow-new/issues/374)
+* json persistent store is_modified_check should not check non-metadata
+* compose_jobscript env_setup
+* define a bash function for app invocation
+* jobscript naming for SGE (no numbers at start)
+* Submission._raise_failure exception message
+* SGE get_version_info
+* make SGE cwd_switch arg optional
+* exception message
+* PersistentStore get_submissions to cast str keys in dict
+* be explicit about API methods to add to App
+* Loop_.json_like_constructor for reading from YAML file
+* get_submissions mutates zarr metadata
+* EAR CLI click args
+* still incorrect save-parameter command in write_commands
+* incorrect save-parameter command in write_commands
+* missing newline in compose_commands
+* bug another in Workflow.write_commands
+* bug in Workflow.write_commands
+* jobscript submit time record bugs
+* get_EARs_from_IDs bad args
+* case of args in CLI
+* expand aliases in bash jobscripts
+* CLI submit return code
+* func args in parse_submission_output
+* parse_submission_output in slurm
+* None check
+* resolve Workflow path
+* add submit command to JobscriptSubmissionFailure
+* not None checks
+* jobscript version info
+* bash string comparison
+* accept store in make CLI
+* pass is_array to Scheduler.format_options
+* use resources from zeroth iteration in subsequent iterations
+* parameter source bugs in JSON store
+* default task input source: outputs take precedence
+* default task input source chosen should be nearest
+* correct make_persistent method return types
+* improve ElementSet input_sources validation
+* improve ElementSet inputs/sequences validatation
+* ValueSequence 'normalised_inputs_path' before _parameter is assigned
+* sub-parameters now appear in ElementSet.input_sources
+* sub-parameters now appear in EAR data_idx when they are in schema-level data_idx
+* keys ordering in Action.generate_data_index to ensure processing works as intended
+* EAR iteration index refers to position in element_iterations container!
+* update param source for schema outputs in generate_data_index
+* generate_data_index
+* prepare_persistent_outputs cannot know EAR idx until initialise_EARs
+* iteration index in Zarr store
+* ElementerIteration index is now correct
+* pass on pytest return code to API/CLI
+* support element iterations in Zarr store
+* Zarr store set_parameter
+* test_action_rule: workaround for custom rule testing (see https://github.com/hpcflow/valida/issues/9)
+* JSONPersistentStore: explicitly cast parameter data indices to strings on commit
+* test_action_rule for custom rule
+* various fixes for Element -> ElementIteration (JSON persistent only)
+
+### 👷 Build changes
+
+* merge branch develop into feat/submission
+* update poetry lock
+* merge branch feat/loops into feat/submission
+
+
 <a name="v0.2.0a30"></a>
 ## [v0.2.0a30](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a29...v0.2.0a30) - 2023.05.01
 
