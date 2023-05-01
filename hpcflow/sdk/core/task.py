@@ -1408,6 +1408,9 @@ class WorkflowTask:
         propagate_to=None,
         return_indices=False,
     ):
+        propagate_to = ElementPropagation._prepare_propagate_to_dict(
+            propagate_to, self.workflow
+        )
         with self.workflow.batch_update():
             return self._add_elements(
                 base_element=base_element,
@@ -1436,8 +1439,8 @@ class WorkflowTask:
         nesting_order=None,
         element_sets=None,
         sourceable_elements=None,
-        propagate_to=None,
-        return_indices=False,
+        propagate_to: Dict[str, ElementPropagation] = None,
+        return_indices: bool = False,
     ):
         """Add more elements to this task.
 
@@ -1447,10 +1450,8 @@ class WorkflowTask:
             If specified, a list of global element indices from which inputs
             may be sourced. If not specified, all workflow elements are considered
             sourceable.
-        propagate_to : list of ElementPropagation, optional
-            If specified as an empty or non-empty list, propagate the new elements
-            downstream. If an `ElementPropagation` object is not specified for a given
-            task, propagation will be attempted using default behaviour.
+        propagate_to : dict of [str, ElementPropagation]
+            Propagate the new elements downstream to the specified tasks.
         return_indices : bool, optional
             If True, return the list of indices of the newly added elements. False by
             default.
@@ -1476,49 +1477,49 @@ class WorkflowTask:
             sourceable_elements=sourceable_elements,
         )
 
-        elem_idx = []  # global element indices
+        elem_idx = []
         for elem_set_i in element_sets:
             elem_set_i = elem_set_i.prepare_persistent_copy()
             elem_idx += self._add_element_set(elem_set_i)
 
-        if propagate_to is not None:
+        for task in self.get_dependent_tasks(as_objects=True):
 
-            # TODO: also accept a dict as func arg:
-            propagate_to = {i.task.unique_name: i for i in propagate_to}
+            elem_prop = propagate_to.get(task.unique_name)
+            if elem_prop is None:
+                continue
 
-            for task in self.downstream_tasks:
+            task_dep_names = [
+                i.unique_name
+                for i in elem_prop.element_set.get_task_dependencies(as_objects=True)
+            ]
+            if self.unique_name not in task_dep_names:
+                # TODO: why can't we just do
+                #  `if self in not elem_propagate.element_set.task_dependencies:`?
+                continue
 
-                elem_propagate = propagate_to.get(
-                    task.unique_name, ElementPropagation(task=task)
-                )
-                if self.unique_name not in (
-                    i.unique_name
-                    for i in elem_propagate.element_set.get_task_dependencies(
-                        as_objects=True
-                    )
-                ):
-                    # TODO: why can't we just do
-                    #  `if self in not elem_propagate.element_set.task_dependencies:`?
-                    continue
+            # TODO: generate a new ElementSet for this task;
+            #       Assume for now we use a single base element set.
+            #       Later, allow combining multiple element sets.
+            src_elems = elem_idx + [
+                j for i in element_sets for j in i.sourceable_elements or []
+            ]
+            elem_set_i = self.app.ElementSet(
+                inputs=elem_prop.element_set.inputs,
+                input_files=elem_prop.element_set.input_files,
+                sequences=elem_prop.element_set.sequences,
+                resources=elem_prop.element_set.resources,
+                repeats=elem_prop.element_set.repeats,
+                nesting_order=elem_prop.nesting_order,
+                sourceable_elements=src_elems,
+            )
 
-                # TODO: generate a new ElementSet for this task;
-                #       Assume for now we use a single base element set.
-                #       Later, allow combining multiple element sets.
-
-                elem_set_i = self.app.ElementSet(
-                    inputs=elem_propagate.element_set.inputs,
-                    input_files=elem_propagate.element_set.input_files,
-                    sequences=elem_propagate.element_set.sequences,
-                    resources=elem_propagate.element_set.resources,
-                    repeats=elem_propagate.element_set.repeats,
-                    nesting_order=elem_propagate.nesting_order,
-                    sourceable_elements=elem_idx,
-                )
-                prop_elem_idx = task._add_elements(
-                    element_sets=[elem_set_i],
-                    return_indices=True,
-                )
-                elem_idx.extend(prop_elem_idx)
+            del propagate_to[task.unique_name]
+            prop_elem_idx = task._add_elements(
+                element_sets=[elem_set_i],
+                return_indices=True,
+                propagate_to=propagate_to,
+            )
+            elem_idx.extend(prop_elem_idx)
 
         if return_indices:
             return elem_idx
@@ -1921,10 +1922,31 @@ class ElementPropagation:
     downstream task."""
 
     task: Task
-    element_sets: Optional[Union[List[int], List[ElementSet]]] = None
     nesting_order: Optional[Dict] = None
 
     @property
     def element_set(self):
         # TEMP property; for now just use the first element set as the base:
         return self.task.template.element_sets[0]
+
+    def __deepcopy__(self, memo):
+        return self.__class__(
+            task=self.task,
+            nesting_order=copy.deepcopy(self.nesting_order, memo),
+        )
+
+    @staticmethod
+    def _prepare_propagate_to_dict(propagate_to, workflow):
+        propagate_to = copy.deepcopy(propagate_to)
+        if not propagate_to:
+            propagate_to = {}
+        elif isinstance(propagate_to, list):
+            propagate_to = {i.task.unique_name: i for i in propagate_to}
+
+        for k, v in propagate_to.items():
+            if not isinstance(v, ElementPropagation):
+                propagate_to[k] = ElementPropagation(
+                    task=workflow.tasks.get(unique_name=k),
+                    **v,
+                )
+        return propagate_to

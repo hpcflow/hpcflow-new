@@ -11,6 +11,8 @@
           num_cores: 1
           parallel_mode: null
 
+- name: null_env
+
 - name: dummy_env_1
 
 - name: lammps_parse_env
