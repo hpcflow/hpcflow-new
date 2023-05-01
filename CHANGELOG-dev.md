@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a30"></a>
+## [v0.2.0a30](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a29...v0.2.0a30) - 2023.05.01
+
+### ✨ Features
+
+* refine element propagation
+
+### 🐛 Bug Fixes
+
+* partially fix example.ipynb, add_elements won't work until feat/submission is merged
+* WorkflowTask._add_elements should pass on propagate_to
+
+
 <a name="v0.2.0a29"></a>
 ## [v0.2.0a29](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a28...v0.2.0a29) - 2023.04.25
 
