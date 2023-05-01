@@ -1746,8 +1746,8 @@ class WorkflowTask:
             # TODO: generate a new ElementSet for this task;
             #       Assume for now we use a single base element set.
             #       Later, allow combining multiple element sets.
-            src_elems = elem_idx + [
-                j for i in element_sets for j in i.sourceable_elements or []
+            src_elem_iters = elem_idx + [
+                j for i in element_sets for j in i.sourceable_elem_iters or []
             ]
             elem_set_i = self.app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
@@ -1756,7 +1756,7 @@ class WorkflowTask:
                 resources=elem_prop.element_set.resources,
                 repeats=elem_prop.element_set.repeats,
                 nesting_order=elem_prop.nesting_order,
-                sourceable_elem_iters=src_elems,
+                sourceable_elem_iters=src_elem_iters,
             )
 
             del propagate_to[task.unique_name]
