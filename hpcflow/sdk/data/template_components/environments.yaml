@@ -13,8 +13,6 @@
 
 - name: null_env
 
-- name: dummy_env_1
-
 - name: lammps_parse_env
   specifiers:
     lammps_version: 1.2

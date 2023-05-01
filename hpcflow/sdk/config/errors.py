@@ -57,6 +57,21 @@ class ConfigFileInvocationIncompatibleError(ConfigError):
         super().__init__(self.message)
 
 
+class ConfigInvocationKeyNotFoundError(ConfigError):
+    """Raised when a configuration invocation key is passed but it is not a valid key."""
+
+    def __init__(self, invoc_key, file_path, available_keys) -> None:
+        self.invoc_key = invoc_key
+        self.file_path = file_path
+        self.available_keys = available_keys
+        self.message = (
+            f"Invocation key {self.invoc_key!r} does not exist in configuration file. "
+            f"Available keys in configuration file {str(self.file_path)!r} are "
+            f"{self.available_keys!r}."
+        )
+        super().__init__(self.message)
+
+
 class ConfigValidationError(ConfigError):
     """Raised when the matching config data is invalid."""
 

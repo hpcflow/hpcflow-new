@@ -17,6 +17,7 @@ from .errors import (
     ConfigDefaultValidationError,
     ConfigFileInvocationIncompatibleError,
     ConfigFileValidationError,
+    ConfigInvocationKeyNotFoundError,
     ConfigValidationError,
 )
 
@@ -24,7 +25,7 @@ from .errors import (
 class ConfigFile:
     """Configuration file."""
 
-    def __init__(self, config, directory):
+    def __init__(self, config, directory, invoc_key=None):
 
         self.config = config
         self.logger = self.config._logger
@@ -40,21 +41,29 @@ class ConfigFile:
         self._validate(self.data)
 
         # select appropriate config data for this invocation using run-time info:
-        invoc_key = None
-        for c_name_i, c_dat_i in self.data["configs"].items():
-            is_match = True
-            for match_k, match_v in c_dat_i["invocation"]["match"].items():
-                if getattr(self.config._app.run_time_info, match_k) != match_v:
-                    is_match = False
+        if not invoc_key:
+            for c_name_i, c_dat_i in self.data["configs"].items():
+                is_match = True
+                for match_k, match_v in c_dat_i["invocation"]["match"].items():
+                    if getattr(self.config._app.run_time_info, match_k) != match_v:
+                        is_match = False
+                        break
+                if is_match:
+                    invoc_key = c_name_i
+                    self.logger.debug(
+                        f"Found matching config ({invoc_key!r}) for this invocation."
+                    )
                     break
-            if is_match:
-                invoc_key = c_name_i
-                self.logger.debug(
-                    f"Found matching config ({invoc_key!r}) for this invocation."
-                )
-                break
-        if not is_match:
-            raise ConfigFileInvocationIncompatibleError()
+
+            if not is_match:
+                raise ConfigFileInvocationIncompatibleError(invoc_key)
+
+        elif invoc_key not in self.data["configs"]:
+            raise ConfigInvocationKeyNotFoundError(
+                invoc_key,
+                self.path,
+                list(self.data["configs"].keys()),
+            )
 
         self.invoc_key = invoc_key
 

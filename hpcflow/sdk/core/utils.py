@@ -316,6 +316,10 @@ def read_YAML_file(path: PathLike):
     return read_YAML(Path(path))
 
 
+def read_JSON_string(string: str):
+    return json.loads(string)
+
+
 def read_JSON_file(path):
     with Path(path).open("rt") as fh:
         return json.load(fh)
@@ -447,80 +451,6 @@ def list_to_dict(lst, exclude=None):
     return dct
 
 
-def merge_into_zarr_column_array(
-    arr: zarr.Array,
-    headers: List[str],
-    new_arr: Union[npt.NDArray, zarr.Array],
-    new_headers: List[str],
-) -> List[str]:
-    """Append rows into a 2D array whose columns correspond to a list of string
-    headers, accounting for different/new headers corresponding to the new array."""
-
-    # TODO: support removal of columns, if a whole column is the fill value?
-
-    if arr.dtype != new_arr.dtype:
-        raise ValueError(
-            f"New array (dtype {new_arr.dtype}) must have the same dtype as the array "
-            f"into which the new array is to be merged (dtype {arr.dtype})."
-        )
-
-    if len(headers) != arr.shape[1]:
-        raise ValueError(
-            "`headers` must be a list of length equal to the number of "
-            "columns in `arr`."
-        )
-
-    if len(new_headers) != new_arr.shape[1]:
-        raise ValueError(
-            "`new_headers` must be a list of length equal to the number of "
-            "columns in `new_arr`."
-        )
-
-    length = arr.shape[0]
-
-    # add new columns:
-    add_headers = set(new_headers) - set(headers)
-    if add_headers:
-        headers += list(add_headers)
-        arr.resize(arr.shape[0], len(headers))
-
-    # add new rows:
-    arr.resize(arr.shape[0] + new_arr.shape[0], len(headers))
-
-    # get indices of new_headers in new columns:
-    head_idx = [headers.index(i) for i in new_headers]
-
-    # fill new row data:
-    for idx, i in enumerate(head_idx):
-        arr[length:, i] = new_arr[:, idx]
-
-    return headers
-
-
-def merge_into_headered_zarr_column_array(
-    arr: zarr.Array,
-    new_arr: zarr.Array,
-    header_path: List[str],
-):
-    """Like `merge_into_zarr_column_array`, but the old and new headers are expected
-    at a particular path within the array attributes."""
-
-    attrs = arr.attrs.asdict()
-    headers = get_in_container(attrs, header_path)
-
-    new_attrs = new_arr.attrs.asdict()
-    new_headers = get_in_container(new_attrs, header_path)
-
-    new_headers = merge_into_zarr_column_array(
-        arr=arr,
-        headers=headers,
-        new_arr=new_arr,
-        new_headers=new_headers,
-    )
-    set_in_container(attrs, header_path, new_headers)
-    arr.attrs.put(attrs)
-
-
 def bisect_slice(selection: slice, len_A: int):
     """Given two sequences (the first of which of known length), get the two slices that
     are equivalent to a given slice if the two sequences were combined."""
@@ -541,3 +471,21 @@ def bisect_slice(selection: slice, len_A: int):
     B_slice = slice(*B_idx)
 
     return A_slice, B_slice
+
+
+def replace_items(lst, start, end, repl):
+    """Replaced a range of items in a list with items in another list."""
+    if end <= start:
+        raise ValueError(
+            f"`end` ({end}) must be greater than or equal to `start` ({start})."
+        )
+    if start >= len(lst):
+        raise ValueError(f"`start` ({start}) must be less than length ({len(lst)}).")
+    if end > len(lst):
+        raise ValueError(
+            f"`end` ({end}) must be less than or equal to length ({len(lst)})."
+        )
+
+    lst_a = lst[:start]
+    lst_b = lst[end:]
+    return lst_a + repl + lst_b

@@ -1,3 +1,17 @@
+- objective: test_bash_t1
+  inputs:
+    - parameter: p1
+  outputs:
+    - parameter: p2
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: null_env
+      commands:
+        - command: echo "$((<<parameter:p1>> + 100))"
+          stdout: <<parameter:p2>>
+
 - objective: demo_task_2
   inputs:
     - parameter: p3
@@ -27,7 +41,7 @@
     - environments:
         - scope:
             type: any
-          environment: dummy_env_1
+          environment: null_env
       commands:
         - command: >-
             Set-Content -Path .\test.txt -Value "hello from ${pwd}; p1=<<parameter:p1>> p2=<<parameter:p2>> p5=<<parameter:p5>>"
@@ -45,7 +59,7 @@
     - environments:
         - scope:
             type: any
-          environment: dummy_env_1
+          environment: null_env
       commands:
         - command: Start-Sleep 1; echo "p3=<<parameter:p3>>; orientations=<<parameter:orientations>>"
       output_file_parsers:
