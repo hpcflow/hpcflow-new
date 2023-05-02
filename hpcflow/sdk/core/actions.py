@@ -18,6 +18,48 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
+@dataclass(eq=True, frozen=True)
+class ElementID:
+    task_insert_ID: int
+    element_idx: int
+
+    def __lt__(self, other):
+        return tuple(self.__dict__.values()) < tuple(other.__dict__.values())
+
+
+@dataclass(eq=True, frozen=True)
+class IterationID(ElementID):
+    """
+    Attributes
+    ----------
+    iteration_idx :
+        Index into the `element_iterations` list/array of the task. Note this is NOT the
+        index into local list of ElementIterations belong to an Element.
+    """
+
+    iteration_idx: int
+
+    def get_element_ID(self):
+        return ElementID(
+            task_insert_ID=self.task_insert_ID,
+            element_idx=self.element_idx,
+        )
+
+
+@dataclass(eq=True, frozen=True)
+class EAR_ID(IterationID):
+    action_idx: int
+    run_idx: int
+    EAR_idx: int
+
+    def get_iteration_ID(self):
+        return IterationID(
+            task_insert_ID=self.task_insert_ID,
+            element_idx=self.element_idx,
+            iteration_idx=self.iteration_idx,
+        )
+
+
 class ActionScopeType(enum.Enum):
 
     ANY = 0
@@ -36,13 +78,26 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
+class EARSubmissionStatus(enum.Enum):
+
+    PENDING = 0  # Not yet associated with a submission
+    PREPARED = 1  # Associated with a submission that is not yet submitted
+    SUBMITTED = 2  # Submitted for execution
+    RUNNING = 3  # Executing
+    COMPLETE = 4  # Finished executing
+
+
 class ElementActionRun:
     _app_attr = "app"
 
-    def __init__(self, element_action, index, data_idx: Dict) -> None:
+    def __init__(
+        self, element_action, run_idx: int, index: int, data_idx: Dict, metadata: Dict
+    ) -> None:
         self._element_action = element_action
-        self._index = index
+        self._run_idx = run_idx  # local index of this run with the action
+        self._index = index  # task-wide EAR index
         self._data_idx = data_idx
+        self._metadata = metadata
 
         # assigned on first access of corresponding properties:
         self._inputs = None
@@ -60,37 +115,98 @@ class ElementActionRun:
         return self.element_action.action
 
     @property
+    def element_iteration(self):
+        return self.element_action.element_iteration
+
+    @property
     def element(self):
-        return self.element_action.element
+        return self.element_iteration.element
 
     @property
     def workflow(self):
-        return self.element.workflow
+        return self.element_iteration.workflow
 
     @property
-    def element_index(self):
-        return self.element.index
+    def run_idx(self):
+        return self._run_idx
 
     @property
     def index(self):
+        """Task-wide EAR index."""
         return self._index
+
+    @property
+    def EAR_ID(self):
+        """EAR index object."""
+        return EAR_ID(
+            EAR_idx=self.index,
+            task_insert_ID=self.task.insert_ID,
+            element_idx=self.element.index,
+            iteration_idx=self.element_iteration.index,
+            action_idx=self.element_action.action_idx,
+            run_idx=self.run_idx,
+        )
 
     @property
     def data_idx(self):
         return self._data_idx
 
     @property
+    def metadata(self):
+        return self._metadata
+
+    @property
+    def submission_idx(self):
+        return self.metadata["submission_idx"]
+
+    @property
+    def start_time(self):
+        return self.metadata["start_time"]
+
+    @property
+    def end_time(self):
+        return self.metadata["end_time"]
+
+    @property
+    def success(self):
+        return self.metadata["success"]
+
+    @property
     def task(self):
         return self.element_action.task
+
+    @property
+    def submission_status(self):
+
+        if self.metadata["end_time"] is not None:
+            return EARSubmissionStatus.COMPLETE
+
+        elif self.metadata["start_time"] is not None:
+            return EARSubmissionStatus.RUNNING
+
+        elif self.submission_idx is not None:
+
+            wk_sub_stat = self.workflow.submissions[self.submission_idx].status
+
+            if wk_sub_stat.name == "PENDING":
+                return EARSubmissionStatus.PREPARED
+
+            elif wk_sub_stat.name == "SUBMITTED":
+                return EARSubmissionStatus.SUBMITTED
+
+            else:
+                RuntimeError(f"Workflow submission status not understood: {wk_sub_stat}.")
+
+        return EARSubmissionStatus.PENDING
 
     def get_parameter_names(self, prefix):
         return self.element_action.get_parameter_names(prefix)
 
     def get_data_idx(self, path: str = None):
-        return self.element.get_data_idx(
+        return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
         )
 
     def get_parameter_sources(
@@ -100,10 +216,10 @@ class ElementActionRun:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
-        return self.element.get_parameter_sources(
+        return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
             typ=typ,
             as_strings=as_strings,
             use_task_index=use_task_index,
@@ -115,10 +231,10 @@ class ElementActionRun:
         default: Any = None,
         raise_on_missing: bool = False,
     ):
-        return self.element.get(
+        return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.index,
+            run_idx=self.run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
         )
@@ -127,22 +243,13 @@ class ElementActionRun:
         """Get EARs that this EAR depends on."""
 
         out = []
-        self_EAR = (
-            self.task.insert_ID,
-            self.element_index,
-            self.element_action.action_idx,
-            self.index,
-        )
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            src_i = (
-                src["task_insert_ID"],
-                src["element_idx"],
-                src["action_idx"],
-                src["run_idx"],
-            )
-            if src_i != self_EAR:
+            src = copy.deepcopy(src)
+            src.pop("type")
+            _EAR_ID = EAR_ID(**src)
+            if _EAR_ID != self.EAR_ID:
                 # don't record a self dependency!
-                out.append(src_i)
+                out.append(_EAR_ID)
 
         out = sorted(out)
 
@@ -197,24 +304,87 @@ class ElementActionRun:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
+    def get_template_resources(self):
+        """Get template-level resources."""
+        out = {}
+        for res_i in self.workflow.template.resources:
+            out[res_i.scope.to_string()] = res_i._get_value()
+        return out
+
     def get_resources(self):
-        """"""
-        resource_specs = self.get("resources")
-        for scope in self.action.get_possible_scopes():
+        """Resolve specific resources for this EAR, considering all applicable scopes and
+        template-level resources."""
+
+        resource_specs = copy.deepcopy(self.get("resources"))
+        template_resource_specs = copy.deepcopy(self.get_template_resources())
+        resources = {}
+        for scope in self.action.get_possible_scopes()[::-1]:
+            # loop in reverse so higher-specificity scopes take precedence:
             scope_s = scope.to_string()
             if scope_s in resource_specs:
-                resources = resource_specs[scope_s]
-                break
+                scope_res = resource_specs[scope_s]
+                if scope_s in template_resource_specs:
+                    for k, v in template_resource_specs[scope_s].items():
+                        if scope_res.get(k) is None and v is not None:
+                            scope_res[k] = v
+
+                resources.update({k: v for k, v in scope_res.items() if v is not None})
 
         return resources
+
+    def compose_commands(self, jobscript: Jobscript) -> Tuple[str, List[str]]:
+        """
+        Returns
+        -------
+        commands
+        shell_vars
+            List of shell variable names that must be saved as workflow parameter data
+            as strings.
+        """
+
+        # TODO: this is bash-specific
+
+        vars_regex = r"(\<\<parameter:{}\>\>?)"
+        command_lns = []
+        shell_vars = []
+        for command in self.action.commands:
+
+            # substitute input parameters in command:
+            cmd_str = command.command
+            for cmd_inp in self.action.get_command_input_types():
+                inp_val = self.get(f"inputs.{cmd_inp}")
+                cmd_str = re.sub(
+                    pattern=vars_regex.format(cmd_inp),
+                    repl=str(inp_val),
+                    string=cmd_str,
+                )
+
+            out_types = command.get_output_types()
+            if out_types["stdout"]:
+                # assign stdout to a shell variable if required:
+                param_name = f"outputs.{out_types['stdout']}"
+                shell_var_name = f"parameter_{out_types['stdout']}"
+                shell_vars.append((param_name, shell_var_name))
+                cmd_str = jobscript.shell.format_stream_assignment(
+                    shell_var_name=shell_var_name,
+                    command=cmd_str,
+                )
+
+            # TODO: also map stderr/both if possible
+
+            command_lns.append(cmd_str)
+
+        commands = "\n".join(command_lns) + "\n"
+
+        return commands, shell_vars
 
 
 class ElementAction:
 
     _app_attr = "app"
 
-    def __init__(self, element, action_idx, runs):
-        self._element = element
+    def __init__(self, element_iteration, action_idx, runs):
+        self._element_iteration = element_iteration
         self._action_idx = action_idx
         self._runs = runs
 
@@ -235,12 +405,12 @@ class ElementAction:
         )
 
     @property
-    def element(self):
-        return self._element
+    def element_iteration(self):
+        return self._element_iteration
 
     @property
-    def element_index(self):
-        return self.element.index
+    def element(self):
+        return self.element_iteration.element
 
     @property
     def num_runs(self):
@@ -250,14 +420,14 @@ class ElementAction:
     def runs(self):
         if self._run_objs is None:
             self._run_objs = [
-                self.app.ElementActionRun(self, index=idx, **i)
-                for idx, i in enumerate(self._runs)
+                self.app.ElementActionRun(self, run_idx=run_idx, **i)
+                for run_idx, i in enumerate(self._runs)
             ]
         return self._run_objs
 
     @property
     def task(self):
-        return self.element.task
+        return self.element_iteration.task
 
     @property
     def action_idx(self):
@@ -280,12 +450,6 @@ class ElementAction:
         return self._outputs
 
     @property
-    def resources(self):
-        if not self._resources:
-            self._resources = self.app.ElementResources(element_action=self)
-        return self._resources
-
-    @property
     def input_files(self):
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action=self)
@@ -298,7 +462,7 @@ class ElementAction:
         return self._output_files
 
     def get_data_idx(self, path: str = None, run_idx: int = -1):
-        return self.element.get_data_idx(
+        return self.element_iteration.get_data_idx(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
@@ -312,7 +476,7 @@ class ElementAction:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
-        return self.element.get_parameter_sources(
+        return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
@@ -328,7 +492,7 @@ class ElementAction:
         default: Any = None,
         raise_on_missing: bool = False,
     ):
-        return self.element.get(
+        return self.element_iteration.get(
             path=path,
             action_idx=self.action_idx,
             run_idx=run_idx,
@@ -898,22 +1062,13 @@ class Action(JSONLike):
     def get_command_output_types(self) -> Tuple[str]:
         """Get parameter types from command stdout and stderr arguments."""
         params = []
-        # note: we use "parameter" rather than "output", because it could be a schema
-        # output or schema input.
-        vars_regex = r"\<\<parameter:(.*?)\>\>"
         for command in self.commands:
-            for i, label in zip((command.stdout, command.stderr), ("stdout", "stderr")):
-                if i:
-                    match = re.search(vars_regex, i)
-                    if match:
-                        param_typ = match.group(1)
-                        if match.span(0) != (0, len(i)):
-                            raise ValueError(
-                                f"If specified as a parameter, `{label}` must not include"
-                                f" any characters other than the parameter "
-                                f"specification, but this was given: {i!r}."
-                            )
-                        params.append(param_typ)
+            out_params = command.get_output_types()
+            if out_params["stdout"]:
+                params.append(out_params["stdout"])
+            if out_params["stderr"]:
+                params.append(out_params["stderr"])
+
         return tuple(set(params))
 
     def get_input_types(self) -> Tuple[str]:
@@ -938,32 +1093,87 @@ class Action(JSONLike):
     def get_output_file_labels(self):
         return tuple(i.label for i in self.output_files)
 
-    def generate_data_index(self, data_idx, workflow, param_source):
-        """Generate the data index for this action of an element whose overall data index
-        is passed."""
+    def generate_data_index(
+        self, act_idx, EAR_idx, schema_data_idx, all_data_idx, workflow, param_source
+    ):
+        """Generate the data index for this action of an element iteration whose overall
+        data index is passed."""
 
-        keys = [f"inputs.{i}" for i in self.get_input_types()]
-        keys += [f"outputs.{i}" for i in self.get_output_types()]
+        # output keys must be processed first for this to work, since when processing an
+        # output key, we may need to update the index of an output in a previous action's
+        # data index, which could affect the data index in an input of this action.
+        keys = [f"outputs.{i}" for i in self.get_output_types()]
+        keys += [f"inputs.{i}" for i in self.get_input_types()]
         for i in self.input_files:
             keys.append(f"input_files.{i.label}")
         for i in self.output_files:
             keys.append(f"output_files.{i.label}")
-        keys = set(keys)
 
         # keep all resources data:
-        sub_data_idx = {k: v for k, v in data_idx.items() if "resources" in k}
+        sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
+        param_src_update = []
+        for key in keys:
+            sub_param_idx = {}
+            if (
+                key.startswith("input_files")
+                or key.startswith("output_files")
+                or key.startswith("inputs")
+            ):
+                # look for an index in previous data indices (where for inputs we look
+                # for *output* parameters of the same name):
+                k_idx = None
+                for prev_data_idx in all_data_idx.values():
 
-        # allocate parameter data for intermediate input/output files:
-        for k in keys:
-            if k in data_idx:
-                sub_data_idx[k] = data_idx[k]
+                    if key.startswith("inputs"):
+                        k_param = key.split("inputs.")[1]
+                        k_out = f"outputs.{k_param}"
+                        if k_out in prev_data_idx:
+                            k_idx = prev_data_idx[k_out]
+
+                    else:
+                        if key in prev_data_idx:
+                            k_idx = prev_data_idx[key]
+
+                if k_idx is None:
+                    # otherwise take from the schema_data_idx:
+                    if key in schema_data_idx:
+                        k_idx = schema_data_idx[key]
+                        # add any associated sub-parameters:
+                        for k, v in schema_data_idx.items():
+                            if k.startswith(f"{key}."):  # sub-parameter (note dot)
+                                sub_param_idx[k] = v
+                    else:
+                        # otherwise we need to allocate a new parameter datum:
+                        # (for input/output_files keys)
+                        k_idx = workflow._add_unset_parameter_data(param_source)
+
             else:
-                sub_data_idx[k] = workflow._add_unset_parameter_data(param_source)
+                # outputs
+                k_idx = None
+                for (act_idx_i, EAR_idx_i), prev_data_idx in all_data_idx.items():
+                    if key in prev_data_idx:
 
-        return sub_data_idx
+                        k_idx = prev_data_idx[key]
 
-    # def test_element(self, element):
-    #     return all(i.test_element(element) for i in self.rules)
+                        # allocate a new parameter datum for this intermediate output:
+                        param_source_i = copy.deepcopy(param_source)
+                        param_source_i["action_idx"] = act_idx_i
+                        param_source_i["EAR_idx"] = EAR_idx_i
+                        new_k_idx = workflow._add_unset_parameter_data(param_source_i)
+                        prev_data_idx[key] = new_k_idx
+                if k_idx is None:
+                    # otherwise take from the schema_data_idx:
+                    k_idx = schema_data_idx[key]
+
+                # can now set the EAR/act idx in the associated parameter source
+                param_src_update.append(k_idx)
+
+            sub_data_idx[key] = k_idx
+            sub_data_idx.update(sub_param_idx)
+
+        all_data_idx[(act_idx, EAR_idx)] = sub_data_idx
+
+        return param_src_update
 
     def get_possible_scopes(self) -> Tuple[ActionScope]:
         """Get the action scopes that are inclusive of this action, ordered by decreasing
@@ -1007,3 +1217,16 @@ class Action(JSONLike):
             )
         else:
             return self.app.ActionScope.main()
+
+    def is_input_type_required(self, typ: str, provided_files: List[FileSpec]) -> bool:
+
+        # typ is required if is appears in any command:
+        if typ in self.get_command_input_types():
+            return True
+
+        # typ is required if used in any input file generators and input file is not
+        # provided:
+        for IFG in self.input_file_generators:
+            if typ in (i.typ for i in IFG.inputs):
+                if IFG.input_file not in provided_files:
+                    return True

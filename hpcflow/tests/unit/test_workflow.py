@@ -22,6 +22,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowBatchUpdateFailedError,
     WorkflowNotFoundError,
 )
+from hpcflow.sdk.core.test_utils import make_workflow
 
 
 def modify_workflow_metadata_on_disk(workflow):
@@ -270,3 +271,37 @@ def test_batch_update_abort_if_modified_on_disk(workflow_w1, schema_s2, param_p3
             with workflow_w1.batch_update():
                 workflow_w1.add_task(t2)
                 modify_workflow_metadata_on_disk(workflow_w1)
+
+
+def test_closest_task_input_source_chosen(tmp_path):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p1",), "t1"],
+            [{"p1": None}, ("p1",), "t2"],
+            [{"p1": None}, ("p1",), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        path=tmp_path,
+    )
+    assert wk.tasks.t3.get_task_dependencies(as_objects=True) == [wk.tasks.t2]
+
+
+def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
+    wkt_json = dedent(
+        """
+        {
+            "name": "test_wk",
+            "tasks": [
+                {
+                    "schemas": [
+                        "test_bash_t1"
+                    ],
+                    "inputs": {
+                        "p1": 101
+                    }
+                }
+            ]
+        }
+    """
+    )
+    WorkflowTemplate.from_JSON_string(wkt_json)

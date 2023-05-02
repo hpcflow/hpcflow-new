@@ -100,6 +100,7 @@ class Config:
         app,
         options: ConfigOptions,
         config_dir,
+        config_invocation_key,
         logger,
         uid=None,
         callbacks=None,
@@ -134,7 +135,7 @@ class Config:
         cfg_schemas, cfg_keys = self._init_schemas()
         self._schemas = cfg_schemas
 
-        self._file = ConfigFile(self, config_dir)
+        self._file = ConfigFile(self, config_dir, config_invocation_key)
 
         self._configurable_keys = cfg_keys
         self._modified_keys = {}

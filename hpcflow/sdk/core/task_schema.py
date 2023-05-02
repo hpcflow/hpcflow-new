@@ -209,7 +209,7 @@ class TaskSchema(JSONLike):
         actions."""
         return [j for i in self.actions for j in i.expand()]
 
-    def make_persistent(self, workflow, source):
+    def make_persistent(self, workflow, source) -> List[int]:
         new_refs = []
         for input_i in self.inputs:
             if input_i.default_value is not None:

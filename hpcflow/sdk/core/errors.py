@@ -30,6 +30,21 @@ class MissingInputs(Exception):
         super().__init__(message)
 
 
+class UnrequiredInputSources(ValueError):
+    def __init__(self, message, unrequired_sources) -> None:
+        self.unrequired_sources = unrequired_sources
+        for src in unrequired_sources:
+            if src.startswith("inputs."):
+                # reminder about how to specify input sources:
+                message += (
+                    f" Note that input source keys should not be specified with the "
+                    f"'inputs.' prefix. Did you mean to specify {src[len('inputs.'):]!r} "
+                    f"instead of {src!r}?"
+                )
+                break
+        super().__init__(message)
+
+
 class ExtraInputs(Exception):
     def __init__(self, message, extra_inputs) -> None:
         self.extra_inputs = extra_inputs
@@ -117,4 +132,59 @@ class WorkflowBatchUpdateFailedError(Exception):
 
 
 class WorkflowLimitsError(ValueError):
+    pass
+
+
+class UnsetParameterDataError(Exception):
+    pass
+
+
+class LoopAlreadyExistsError(Exception):
+    pass
+
+
+class SchedulerVersionsFailure(RuntimeError):
+    """We couldn't get the scheduler and or shell versions."""
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__(message)
+
+
+class JobscriptSubmissionFailure(RuntimeError):
+    def __init__(
+        self,
+        message,
+        submit_cmd,
+        js_idx,
+        js_path,
+        stdout,
+        stderr,
+        subprocess_exc,
+        job_ID_parse_exc,
+    ) -> None:
+        self.message = message
+        self.submit_cmd = submit_cmd
+        self.js_idx = js_idx
+        self.js_path = js_path
+        self.stdout = stdout
+        self.stderr = stderr
+        self.subprocess_exc = subprocess_exc
+        self.job_ID_parse_exc = job_ID_parse_exc
+        super().__init__(message)
+
+
+class SubmissionFailure(RuntimeError):
+    def __init__(self, message) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class WorkflowSubmissionFailure(RuntimeError):
+    pass
+
+
+class UnsupportedShellError(ValueError):
+    """We don't support this shell on this OS."""
+
     pass

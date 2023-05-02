@@ -46,7 +46,7 @@ def make_schemas(ins_outs, ret_list=False):
                 for out_i in outs_i[2:]
             ]
         cmd = Command(
-            " ".join(f"<<parameter:{i}>>" for i in ins_i.keys()),
+            " ".join(f"echo $((<<parameter:{i}>> + 100))" for i in ins_i.keys()),
             stdout=stdout,
             stderr=stderr,
         )
@@ -105,10 +105,12 @@ def make_tasks(
     schemas_spec,
     local_inputs=None,
     local_sequences=None,
+    local_resources=None,
     nesting_orders=None,
 ):
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
+    local_resources = local_resources or {}
     nesting_orders = nesting_orders or {}
     schemas = make_schemas(schemas_spec, ret_list=True)
     tasks = []
@@ -125,11 +127,13 @@ def make_tasks(
             )
             for i in local_sequences.get(s_idx, [])
         ]
+        res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
 
         task = Task(
             schemas=[s],
             inputs=inputs,
             sequences=seqs,
+            resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
         )
         tasks.append(task)
@@ -141,17 +145,25 @@ def make_workflow(
     path,
     local_inputs=None,
     local_sequences=None,
+    local_resources=None,
     nesting_orders=None,
+    resources=None,
     name="w1",
+    overwrite=False,
     store="zarr",
 ):
     tasks = make_tasks(
         schemas_spec,
         local_inputs=local_inputs,
         local_sequences=local_sequences,
+        local_resources=local_resources,
         nesting_orders=nesting_orders,
     )
     wk = Workflow.from_template(
-        WorkflowTemplate(name=name, tasks=tasks), path=path, store=store
+        WorkflowTemplate(name=name, tasks=tasks, resources=resources),
+        path=path,
+        name=name,
+        overwrite=overwrite,
+        store=store,
     )
     return wk

@@ -133,7 +133,10 @@ class ObjectList(JSONLike):
         attribute, and optionally additional keyword-argument attribute values."""
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
-    def add_object(self, obj, index=-1):
+    def add_object(self, obj, index=-1, skip_duplicates=False):
+
+        if skip_duplicates and obj in self:
+            return
 
         if index < 0:
             index += len(self) + 1
@@ -237,9 +240,16 @@ class DotAccessObjectList(ObjectList):
 
         return self._get_all_from_objs(all_objs, **kwargs)
 
-    def add_object(self, obj, index=-1):
-        index = super().add_object(obj, index)
+    def add_object(self, obj, index=-1, skip_duplicates=False):
+        index = super().add_object(obj, index, skip_duplicates)
         self._update_index()
+        return index
+
+    def add_objects(self, objs, index=-1, skip_duplicates=False):
+        for obj in objs:
+            index = self.add_object(obj, index, skip_duplicates)
+            if index is not None:
+                index += 1
         return index
 
 
@@ -441,6 +451,14 @@ class WorkflowTaskList(DotAccessObjectList):
         self._reindex()
 
 
+class WorkflowLoopList(DotAccessObjectList):
+    def __init__(self, _objects):
+        super().__init__(_objects, access_attribute="name", descriptor="loop")
+
+    def _remove_object(self, index):
+        self._objects.pop(index)
+
+
 class ResourceList(ObjectList):
 
     _app_attr = "_app"
@@ -458,16 +476,22 @@ class ResourceList(ObjectList):
     def __init__(self, _objects):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set = None  # assigned by parent ElementSet
+        self._workflow_template = None  # assigned by parent WorkflowTemplate
         self._set_parent_refs()
 
     def __deepcopy__(self, memo):
         obj = super().__deepcopy__(memo)
         obj._element_set = self._element_set
+        obj._workflow_template = self._workflow_template
         return obj
 
     @property
     def element_set(self):
         return self._element_set
+
+    @property
+    def workflow_template(self):
+        return self._workflow_template
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
         """Overridden to write out as a dict keyed by action scope (like as can be

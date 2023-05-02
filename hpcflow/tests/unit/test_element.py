@@ -8,6 +8,7 @@ from hpcflow.api import (
     WorkflowTemplate,
     Workflow,
 )
+from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.test_utils import make_schemas
 
 
@@ -51,8 +52,10 @@ def test_element_dependent_tasks(workflow_w1):
 def test_element_element_dependencies(workflow_w1):
     assert all(
         (
-            workflow_w1.tasks.t2.elements[0].get_element_dependencies() == [(0, 0)],
-            workflow_w1.tasks.t2.elements[1].get_element_dependencies() == [(0, 1)],
+            workflow_w1.tasks.t2.elements[0].get_element_dependencies()
+            == [ElementID(0, 0)],
+            workflow_w1.tasks.t2.elements[1].get_element_dependencies()
+            == [ElementID(0, 1)],
         )
     )
 
@@ -60,7 +63,9 @@ def test_element_element_dependencies(workflow_w1):
 def test_element_dependent_elements(workflow_w1):
     assert all(
         (
-            workflow_w1.tasks.t1.elements[0].get_dependent_elements() == [(1, 0)],
-            workflow_w1.tasks.t1.elements[1].get_dependent_elements() == [(1, 1)],
+            workflow_w1.tasks.t1.elements[0].get_dependent_elements()
+            == [ElementID(1, 0)],
+            workflow_w1.tasks.t1.elements[1].get_dependent_elements()
+            == [ElementID(1, 1)],
         )
     )

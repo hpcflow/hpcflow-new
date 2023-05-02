@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
 from valida.conditions import Value
@@ -232,7 +232,7 @@ class _FileContentsSpecifier(JSONLike):
 
         return out
 
-    def make_persistent(self, workflow, source) -> Dict:
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
 
         Parameters

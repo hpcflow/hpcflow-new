@@ -1,20 +1,20 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
+from datetime import timedelta
 import enum
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
 from hpcflow.sdk.core.errors import (
-    ValuesAlreadyPersistentError,
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
-from hpcflow.sdk.core.zarr_io import ZarrEncodable, zarr_decode
+from hpcflow.sdk.submission.submission import timedelta_format
 
 
 Address = List[Union[int, float, str]]
@@ -276,7 +276,7 @@ class ValueSequence(JSONLike):
         self._workflow = None
         self._element_set = None  # assigned by parent ElementSet
 
-        # assigned if this is an "inputs" sequence on validation of parent element set:
+        # assigned if this is an "inputs" sequence in `WorkflowTask._add_element_set`:
         self._parameter = None
 
         self._path_split = None  # assigned by property `path_split`
@@ -413,10 +413,10 @@ class ValueSequence(JSONLike):
         """Return the normalised path without the "inputs" prefix, if the sequence is an
         inputs sequence, else return None."""
 
-        if self.parameter:
+        if self.input_type:
             return ".".join(self.path_split[1:])
 
-    def make_persistent(self, workflow, source):
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
@@ -456,7 +456,7 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals = []
             for pg_idx_i in self._values_group_idx:
-                val = self.workflow._get_parameter_data(pg_idx_i)
+                _, val = self.workflow.get_parameter_data(pg_idx_i)
                 if self.parameter._value_class:
                     val = self.parameter._value_class(**val)
                 vals.append(val)
@@ -515,7 +515,7 @@ class AbstractInputValue(JSONLike):
             del out["_workflow"]
         return out
 
-    def make_persistent(self, workflow, source) -> Dict:
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow.
 
         Parameters
@@ -559,7 +559,7 @@ class AbstractInputValue(JSONLike):
     @property
     def value(self):
         if self._value_group_idx is not None:
-            val = self.workflow._get_parameter_data(self._value_group_idx)
+            _, val = self.workflow.get_parameter_data(self._value_group_idx)
             if self.parameter._value_class:
                 val = self.parameter._value_class(**val)
         else:
@@ -670,7 +670,7 @@ class InputValue(AbstractInputValue):
 
     @property
     def normalised_inputs_path(self):
-        return f"{self.parameter.typ}" f"{f'.{self.path}' if self.path else ''}"
+        return f"{self.parameter.typ}{f'.{self.path}' if self.path else ''}"
 
     @property
     def normalised_path(self):
@@ -701,6 +701,14 @@ class ResourceSpec(JSONLike):
     ALLOWED_PARAMETERS = {
         "scratch",
         "num_cores",
+        "scheduler",
+        "shell",
+        "use_job_array",
+        "time_limit",
+        "scheduler_options",
+        "scheduler_args",
+        "shell_args",
+        "os_name",
     }
 
     _resource_list = None
@@ -712,13 +720,37 @@ class ResourceSpec(JSONLike):
         ),
     )
 
-    def __init__(self, scope=None, scratch=None, num_cores=None):
+    def __init__(
+        self,
+        scope: ActionScope = None,
+        scratch: Optional[str] = None,
+        num_cores: Optional[int] = None,
+        scheduler: Optional[str] = None,
+        shell: Optional[str] = None,
+        use_job_array: Optional[bool] = None,
+        time_limit: Optional[Union[str, timedelta]] = None,
+        scheduler_options: Optional[Dict] = None,
+        scheduler_args: Optional[Dict] = None,
+        shell_args: Optional[Dict] = None,
+        os_name: Optional[str] = None,
+    ):
 
         self.scope = scope or self.app.ActionScope.any()
+
+        if isinstance(time_limit, timedelta):
+            time_limit = timedelta_format(time_limit)
 
         # user-specified resource parameters:
         self._scratch = scratch
         self._num_cores = num_cores
+        self._scheduler = scheduler
+        self._shell = shell
+        self._use_job_array = use_job_array
+        self._time_limit = time_limit
+        self._scheduler_options = scheduler_options
+        self._scheduler_args = scheduler_args
+        self._shell_args = shell_args
+        self._os_name = os_name
 
         # assigned by `make_persistent`
         self._workflow = None
@@ -801,7 +833,7 @@ class ResourceSpec(JSONLike):
         del out["value_group_idx"]
         return out
 
-    def make_persistent(self, workflow, source) -> Dict:
+    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
 
         Parameters
@@ -830,14 +862,23 @@ class ResourceSpec(JSONLike):
             is_new = True
             self._value_group_idx = data_ref
             self._workflow = workflow
+
             self._num_cores = None
             self._scratch = None
+            self._scheduler = None
+            self._shell = None
+            self._use_job_array = None
+            self._time_limit = None
+            self._scheduler_options = None
+            self._scheduler_args = None
+            self._shell_args = None
+            self._os_name = None
 
         return (self.normalised_path, [data_ref], is_new)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
-            val = self.workflow._get_parameter_data(self._value_group_idx)
+            _, val = self.workflow.get_parameter_data(self._value_group_idx)
         else:
             val = self._get_members()
         if value_name:
@@ -854,15 +895,57 @@ class ResourceSpec(JSONLike):
         return self._get_value("num_cores")
 
     @property
+    def scheduler(self):
+        return self._get_value("scheduler")
+
+    @property
+    def shell(self):
+        return self._get_value("shell")
+
+    @property
+    def use_job_array(self):
+        return self._get_value("use_job_array")
+
+    @property
+    def time_limit(self):
+        return self._get_value("time_limit")
+
+    @property
+    def scheduler_options(self):
+        return self._get_value("scheduler_options")
+
+    @property
+    def scheduler_args(self):
+        return self._get_value("scheduler_args")
+
+    @property
+    def shell_args(self):
+        return self._get_value("shell_args")
+
+    @property
+    def os_name(self):
+        return self._get_value("os_name")
+
+    @property
     def workflow(self):
         if self._workflow:
             return self._workflow
+
         elif self.element_set:
+            # element-set-level resources
             return self.element_set.task_template.workflow_template.workflow
+
+        elif self.workflow_template:
+            # template-level resources
+            return self.workflow_template.workflow
 
     @property
     def element_set(self):
         return self._resource_list.element_set
+
+    @property
+    def workflow_template(self):
+        return self._resource_list.workflow_template
 
 
 class InputSourceType(enum.Enum):
@@ -896,7 +979,7 @@ class InputSource(JSONLike):
         import_ref=None,
         task_ref=None,
         task_source_type=None,
-        elements=None,
+        element_iters=None,
         path=None,
         where=None,
     ):
@@ -905,7 +988,7 @@ class InputSource(JSONLike):
         self.import_ref = import_ref
         self.task_ref = task_ref
         self.task_source_type = self._validate_task_source_type(task_source_type)
-        self.elements = elements
+        self.element_iters = element_iters
         self.where = where
         self.path = path
 
@@ -926,7 +1009,7 @@ class InputSource(JSONLike):
             and self.import_ref == other.import_ref
             and self.task_ref == other.task_ref
             and self.task_source_type == other.task_source_type
-            and self.elements == other.elements
+            and self.element_iters == other.element_iters
             and self.where == other.where
             and self.path == other.path
         ):
@@ -946,8 +1029,8 @@ class InputSource(JSONLike):
                 f"task_ref={self.task_ref}, "
                 f"task_source_type={self.task_source_type.name.lower()!r}"
             )
-            if self.elements:
-                args += f", elements={self.elements}"
+            if self.element_iters:
+                args += f", element_iters={self.element_iters}"
         else:
             args = ""
 
@@ -963,11 +1046,11 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
-    def is_in(self, other_input_sources):
+    def is_in(self, other_input_sources: List[InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
-        considering the `elements` attribute."""
+        considering the `element_iters` attribute."""
 
-        for other in other_input_sources:
+        for idx, other in enumerate(other_input_sources):
             if (
                 self.source_type == other.source_type
                 and self.import_ref == other.import_ref
@@ -976,15 +1059,15 @@ class InputSource(JSONLike):
                 and self.where == other.where
                 and self.path == other.path
             ):
-                return True
-        return False
+                return idx
+        return None
 
     def to_string(self):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]
-            if self.elements:
-                out += ["[" + ",".join(f"{i}" for i in self.elements) + "]"]
+            if self.element_iters:
+                out += ["[" + ",".join(f"{i}" for i in self.element_iters) + "]"]
         elif self.source_type is InputSourceType.IMPORT:
             out += [str(self.import_ref)]
         return ".".join(out)
@@ -1051,6 +1134,7 @@ class InputSource(JSONLike):
             raise ValueError(f"InputSource string not understood: {str_defn!r}.")
 
         if source_type is InputSourceType.TASK:
+            # TODO: does this include element_iters?
             task_ref = parts[1]
             try:
                 task_ref = int(task_ref)
@@ -1094,12 +1178,12 @@ class InputSource(JSONLike):
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, elements=None):
+    def task(cls, task_ref, task_source_type=None, element_iters=None):
         if not task_source_type:
             task_source_type = TaskSourceType.OUTPUT
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
-            elements=elements,
+            element_iters=element_iters,
         )
