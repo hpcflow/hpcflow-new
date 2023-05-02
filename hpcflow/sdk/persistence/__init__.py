@@ -1,7 +1,7 @@
 from pathlib import Path
 import random
 import string
-from typing import Type
+from typing import Tuple, Type, Union
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 
@@ -13,15 +13,23 @@ ALL_STORE_FORMATS = ("zarr", "json")
 DEFAULT_STORE_FORMAT = "zarr"
 
 
-def store_cls_from_path(workflow_path: Path) -> Type[PersistentStore]:
+def store_cls_from_path(
+    workflow_path: str,
+) -> Tuple[Union[str, Path], Type[PersistentStore]]:
+
     if ZarrPersistentStore.path_has_store(workflow_path):
-        return ZarrPersistentStore
+        store = ZarrPersistentStore
     elif JSONPersistentStore.path_has_store(workflow_path):
-        return JSONPersistentStore
+        store = JSONPersistentStore
     else:
         raise WorkflowNotFoundError(
             f"No workflow of a known store type found at path: {workflow_path!r}."
         )
+
+    if store.path_is_local(workflow_path):
+        workflow_path = Path(workflow_path).resolve()
+
+    return workflow_path, store
 
 
 def store_cls_from_str(store_format: str) -> Type[PersistentStore]:

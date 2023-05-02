@@ -510,9 +510,13 @@ class PersistentStore(ABC):
 
     @classmethod
     @abstractmethod
-    def path_has_store(cls, path):
+    def path_has_store(cls, path: str) -> bool:
         """Is a given workflow path of this store type?"""
         pass
+
+    @classmethod
+    def path_is_local(cls, path: str) -> bool:
+        return True
 
     @property
     @abstractmethod

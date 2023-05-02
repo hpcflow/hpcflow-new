@@ -90,11 +90,16 @@ class ZarrPersistentStore(PersistentStore):
 
     def __init__(self, workflow: Workflow) -> None:
         self._metadata = None  # cache used in `cached_load` context manager
+        self._zarr_store = None
         super().__init__(workflow)
 
     @classmethod
-    def path_has_store(cls, path):
-        return path.joinpath(".zgroup").is_file()
+    def path_is_local(cls, path: str) -> bool:
+        return not path.startswith("zip::")
+
+    @classmethod
+    def path_has_store(cls, path: str) -> bool:
+        return ".zgroup" in zarr.storage.FSStore(path).listdir()
 
     @property
     def store_path(self):
@@ -181,8 +186,18 @@ class ZarrPersistentStore(PersistentStore):
             finally:
                 self._metadata = None
 
+    def _get_zarr_store(self):
+        if self._zarr_store is None:
+            if isinstance(self.workflow.path, str) and self.workflow.path.startswith(
+                "zip::"
+            ):
+                self._zarr_store = zarr.storage.FSStore(self.workflow.path)
+            else:
+                self._zarr_store = zarr.storage.DirectoryStore(self.workflow.path)
+        return self._zarr_store
+
     def _get_root_group(self, mode: str = "r") -> zarr.Group:
-        return zarr.open(self.workflow.path, mode=mode)
+        return zarr.open(store=self._get_zarr_store(), mode=mode)
 
     def _get_parameter_group(self, mode: str = "r") -> zarr.Group:
         return self._get_root_group(mode=mode).get(self._param_grp_name)
@@ -472,9 +487,6 @@ class ZarrPersistentStore(PersistentStore):
             "schema_parameters": [],
             "parameter_paths": [],
         }
-
-    def _get_zarr_store(self):
-        return self._get_root_group().store
 
     def _remove_pending_parameter_data(self) -> None:
         """Delete pending parameter data from disk."""

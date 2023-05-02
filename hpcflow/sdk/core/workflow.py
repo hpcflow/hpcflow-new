@@ -274,9 +274,9 @@ class Workflow:
 
     def __init__(self, path: PathLike) -> None:
 
-        self.path = Path(path).resolve()
-        if not self.path.is_dir():
-            raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
+        path, store_cls = store_cls_from_path(str(path))
+        self.path = path
+        self._store = store_cls(self)
 
         # assigned on first access to corresponding properties:
         self._ts_fmt = None
@@ -288,8 +288,6 @@ class Workflow:
         self._tasks = None
         self._loops = None
         self._submissions = None
-
-        self._store = store_cls_from_path(self.path)(self)
 
         self._in_batch_mode = False  # flag to track when processing batch updates
 

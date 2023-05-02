@@ -53,7 +53,8 @@ class JSONPersistentStore(PersistentStore):
         super().__init__(workflow)
 
     @classmethod
-    def path_has_store(cls, path):
+    def path_has_store(cls, path: str) -> bool:
+        path = Path(path)
         return (
             path.joinpath(cls._metadata_file_name).is_file()
             and path.joinpath(cls._submissions_file_name).is_file()
