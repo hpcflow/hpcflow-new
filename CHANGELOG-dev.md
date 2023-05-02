@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a32"></a>
+## [v0.2.0a32](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a31...v0.2.0a32) - 2023.05.02
+
+### 🐛 Bug Fixes
+
+* repair poetry.lock
+* missing [[package]] in poetry.lock
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* update deps
+* update python version constraint (3.8 to 3.11)
+
+
 <a name="v0.2.0a31"></a>
 ## [v0.2.0a31](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a30...v0.2.0a31) - 2023.05.01
 
