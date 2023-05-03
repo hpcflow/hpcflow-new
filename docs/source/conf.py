@@ -10,9 +10,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+
+# sys.path.insert(0, os.path.abspath('../..'))
 
 from pathlib import Path
 from textwrap import indent
@@ -149,29 +150,37 @@ HPCFlow CLI
 *******************************
 
 Install script (v{release})
-===========================
+============================
 
 HPCFlow CLI can be installed on macOS, Linux or Windows through a terminal
 or shell prompt.
 
 **macOS:** Open a terminal, paste the command shown below and press enter.
 
-```bash
-(touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
-```
+.. code-block:: bash
+
+    (touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
 
 **Linux:** Open a shell prompt, paste the command shown below and press enter.
 
-```bash
-(touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
-```
+.. code-block:: bash
+
+    (touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
+
+Note that if you're installing on CSF3 or CSF4 using this method, the proxy
+module should be loaded first. To do this, paste the command shown below
+into a the shell prompt and press enter.
+
+.. code-block:: bash
+
+    module load tools/env/proxy2
 
 **Windows:** Open a Powershell terminal, paste the command shown below and 
 press enter.
 
-```bash
-& $([scriptblock]::Create((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.ps1'))) -PreRelease -OneFile
-```
+.. code-block:: bash
+
+    & $([scriptblock]::Create((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.ps1'))) -PreRelease -OneFile
 
 Download binaries (v{release})
 ===============================
