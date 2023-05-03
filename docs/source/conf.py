@@ -166,6 +166,13 @@ or shell prompt.
 
     (touch tmp.sh && curl -fsSL https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.sh > tmp.sh && bash tmp.sh --prerelease --path --onefile) ; rm tmp.sh
 
+Note that if you're installing on CSF3 or CSF4 using this method, the proxy
+module should be loaded first. To do this, paste the command shown below
+into a the shell prompt and press enter.
+
+.. code-block:: bash
+
+    module load tools/env/proxy2
 
 **Windows:** Open a Powershell terminal, paste the command shown below and 
 press enter.
