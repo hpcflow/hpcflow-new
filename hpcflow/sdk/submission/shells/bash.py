@@ -57,21 +57,21 @@ class Bash(Shell):
         elem_need_EARs=`sed "${{JS_elem_idx}}q;d" $EAR_ID_FILE`
         elem_run_dirs=`sed "${{JS_elem_idx}}q;d" $ELEM_RUN_DIR_FILE`
 
-        for JS_act_idx in {{1..{num_actions}}}
+        for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
   
-          need_EAR="$(cut -d'{EAR_files_delimiter}' -f $JS_act_idx <<< $elem_need_EARs)"
+          need_EAR="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_need_EARs)"
           if [ "$need_act" = "0" ]; then
               continue
           fi
   
-          run_dir="$(cut -d'{EAR_files_delimiter}' -f $JS_act_idx <<< $elem_run_dirs)"
+          run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd $WK_PATH/$run_dir
   
-          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
+          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
           . {commands_file_name}
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
 
         done
     """
@@ -142,7 +142,7 @@ class Bash(Shell):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
+            f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx"
             f"\n"
         )
 

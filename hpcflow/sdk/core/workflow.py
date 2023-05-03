@@ -1430,7 +1430,8 @@ class Workflow:
                     param_name=param_name,
                     shell_var_name=shell_var_name,
                 )
-            with Path(jobscript.commands_file_name).open("wt", newline="\n") as fp:
+            cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
+            with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands)
 

@@ -73,7 +73,7 @@ class WindowsPowerShell(Shell):
             {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
             {workflow_app_alias} internal workflow $WK_PATH set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
-            . (Join-Path $run_dir_abs commands.ps1)
+            . (Join-Path $run_dir_abs "{commands_file_name}")
             {workflow_app_alias} internal workflow $WK_PATH set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
         }}

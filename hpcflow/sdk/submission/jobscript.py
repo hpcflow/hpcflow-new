@@ -389,8 +389,11 @@ class Jobscript(JSONLike):
         return self._workflow_app_alias
 
     @property
-    def commands_file_name(self):
+    def _commands_file_name(self):
         return f"{self._commands_file_stem}{self.shell.JS_EXT}"
+
+    def get_commands_file_name(self, js_action_idx):
+        return f"js_act_{js_action_idx}_{self._commands_file_name}"
 
     @property
     def task_insert_IDs(self):
@@ -716,11 +719,12 @@ class Jobscript(JSONLike):
                 header=header,
             )
 
+        cmd_file_name = self.get_commands_file_name(r"${JS_act_idx}")
         main = self.shell.JS_MAIN.format(
             num_actions=self.num_actions,
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
-            commands_file_name=self.commands_file_name,
+            commands_file_name=cmd_file_name,
         )
 
         out = header
@@ -777,7 +781,7 @@ class Jobscript(JSONLike):
                 run_dir = f"r_{r_idx}"
 
                 EAR_dir = Path(task_artifacts_path, task_dir, elem_dir, run_dir)
-                EAR_dir.mkdir(parents=True)
+                EAR_dir.mkdir(exist_ok=True, parents=True)
 
                 run_dirs_i.append(EAR_dir.relative_to(self.workflow.path))
 
