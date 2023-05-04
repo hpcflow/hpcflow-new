@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a34"></a>
+## [v0.2.0a34](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a33...v0.2.0a34) - 2023.05.04
+
+### 🐛 Bug Fixes
+
+* change default config dir so it does not conflict with old install
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a33"></a>
 ## [v0.2.0a33](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a32...v0.2.0a33) - 2023.05.03
 
