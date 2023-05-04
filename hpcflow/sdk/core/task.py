@@ -1095,18 +1095,6 @@ class WorkflowTask:
             self._elements = self.app.Elements(self)
         return self._elements
 
-    @property
-    def dir_path(self):
-        return self.workflow.path / "tasks" / self.dir_name
-
-    @property
-    def element_dir_list_file_path(self):
-        return self.dir_path / "element_dirs.txt"
-
-    @property
-    def run_script_file_path(self):
-        return self.dir_path / "run_script.ps1"
-
     def get_dir_name(self, loop_idx: Dict[str, int] = None) -> str:
         if not loop_idx:
             return self.dir_name
@@ -1114,17 +1102,6 @@ class WorkflowTask:
 
     def get_all_element_iterations(self):
         return [j for i in self.elements[:] for j in i.iterations]
-
-    def write_element_dirs(self):
-        self.dir_path.mkdir(exist_ok=True, parents=True)
-        elem_paths = [self.dir_path / elem.dir_name for elem in self.elements]
-        for path_i in elem_paths:
-            path_i.mkdir(exist_ok=True)
-
-        # write a text file whose lines correspond to element paths
-        with self.element_dir_list_file_path.open("wt") as fp:
-            for elem in elem_paths:
-                fp.write(f"{elem}\n")
 
     def _make_new_elements_persistent(self, element_set, element_set_idx):
         """Save parameter data to the persistent workflow."""

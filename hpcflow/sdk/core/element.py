@@ -698,11 +698,7 @@ class Element:
 
     @property
     def dir_name(self):
-        return str(self.index)
-
-    @property
-    def dir_path(self):
-        return self.task.dir_path / self.dir_name
+        return f"e_{self.index}"
 
     @property
     def latest_iteration(self):
