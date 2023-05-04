@@ -221,7 +221,12 @@ class Submission(JSONLike):
             sub_idx=self.index, submitted_js_idx=submitted_js_idx
         )
 
-    def submit(self, task_artifacts_path, ignore_errors=False) -> List[int]:
+    def submit(
+        self,
+        task_artifacts_path,
+        ignore_errors=False,
+        print_stdout=False,
+    ) -> List[int]:
         """Generate and submit the jobscripts of this submission."""
 
         outstanding = self.outstanding_jobscripts
@@ -280,7 +285,11 @@ class Submission(JSONLike):
                 continue
 
             try:
-                scheduler_refs[js.index] = js.submit(task_artifacts_path, scheduler_refs)
+                scheduler_refs[js.index] = js.submit(
+                    task_artifacts_path,
+                    scheduler_refs,
+                    print_stdout=print_stdout,
+                )
                 submitted_js_idx.append(js.index)
 
             except JobscriptSubmissionFailure as err:

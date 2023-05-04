@@ -1,6 +1,6 @@
 from pathlib import Path
 import subprocess
-from textwrap import dedent
+from textwrap import dedent, indent
 from typing import Dict, List, Optional, Union
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import (
@@ -142,9 +142,23 @@ class Bash(Shell):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx"
+            f" $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
             f"\n"
         )
+
+    def wrap_in_subshell(self, commands: str) -> str:
+        """Format commands to run within a subshell.
+
+        This assumes commands ends in a newline.
+
+        """
+        commands = indent(commands, self.JS_INDENT)
+        return dedent(
+            """\
+            (
+            {commands})
+        """
+        ).format(commands=commands)
 
 
 class WSLBash(Bash):

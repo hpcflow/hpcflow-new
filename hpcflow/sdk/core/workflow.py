@@ -1012,6 +1012,7 @@ class Workflow:
         self,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
+        print_stdout: Optional[bool] = False,
     ):
         """Submit outstanding EARs for execution."""
 
@@ -1038,6 +1039,7 @@ class Workflow:
                 sub_js_idx = sub.submit(
                     self.task_artifacts_path,
                     ignore_errors=ignore_errors,
+                    print_stdout=print_stdout,
                 )
                 submitted_js[sub.index] = sub_js_idx
             except SubmissionFailure as exc:
@@ -1049,6 +1051,7 @@ class Workflow:
         self,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
+        print_stdout: Optional[bool] = False,
     ) -> None:
         with self._store.cached_load():
             with self.batch_update():
@@ -1056,6 +1059,7 @@ class Workflow:
                 exceptions, submitted_js = self._submit(
                     ignore_errors=ignore_errors,
                     JS_parallelism=JS_parallelism,
+                    print_stdout=print_stdout,
                 )
 
         if exceptions:
@@ -1430,6 +1434,7 @@ class Workflow:
                     param_name=param_name,
                     shell_var_name=shell_var_name,
                 )
+            commands = jobscript.shell.wrap_in_subshell(commands)
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)

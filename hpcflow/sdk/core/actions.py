@@ -2,6 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 import enum
+from pathlib import Path
 import re
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -331,6 +332,41 @@ class ElementActionRun:
 
         return resources
 
+    def get_environment(self):
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot choose a single environment from this EAR because the "
+                f"associated action is not expanded, meaning multiple action "
+                f"environments might exist."
+            )
+        return self.action.environments[0].environment
+
+    def get_IFG_input_values(self) -> Dict[str, Any]:
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get input file generator inputs from this EAR because the "
+                f"associated action is not expanded, meaning multiple IFGs might exists."
+            )
+        input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
+        inputs = {}
+        for i in self.inputs:
+            typ = i.path[len("inputs.") :]
+            if typ in input_types:
+                inputs[typ] = i.value
+        return inputs
+
+    def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
+        # TODO: can this return multiple files for a given FileSpec?
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get output file parser files this from EAR because the "
+                f"associated action is not expanded, meaning multiple OFPs might exist."
+            )
+        out_files = {}
+        for file_spec in self.action.output_file_parsers[0].output_files:
+            out_files[file_spec.label] = Path(file_spec.name.value())
+        return out_files
+
     def compose_commands(self, jobscript: Jobscript) -> Tuple[str, List[str]]:
         """
         Returns
@@ -341,19 +377,50 @@ class ElementActionRun:
             as strings.
         """
 
-        # TODO: this is bash-specific
+        for ifg in self.action.input_file_generators:
+            # TODO: there should only be one at this stage if expanded?
+            ifg.write_source()
 
-        vars_regex = r"(\<\<parameter:{}\>\>?)"
+        for ofp in self.action.output_file_parsers:
+            # TODO: there should only be one at this stage if expanded?
+            ofp.write_source()
+
+        env = self.get_environment()
+
+        def exec_script_repl(match_obj):
+            typ, val = match_obj.groups()
+            if typ == "executable":
+                executable = env.executables.get(val)
+                out = executable.instances[0].command  # TODO: depends on resources
+            elif typ == "script":
+                return val  # TODO: might change later
+
+            return out
+
+        param_regex = r"(\<\<parameter:{}\>\>?)"
+        exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
+
         command_lns = []
+        if env.setup:
+            command_lns += list(env.setup)
+
         shell_vars = []
         for command in self.action.commands:
 
-            # substitute input parameters in command:
             cmd_str = command.command
+
+            # substitute executables:
+            cmd_str = re.sub(
+                pattern=exe_script_regex,
+                repl=exec_script_repl,
+                string=cmd_str,
+            )
+
+            # substitute input parameters in command:
             for cmd_inp in self.action.get_command_input_types():
                 inp_val = self.get(f"inputs.{cmd_inp}")
                 cmd_str = re.sub(
-                    pattern=vars_regex.format(cmd_inp),
+                    pattern=param_regex.format(cmd_inp),
                     repl=str(inp_val),
                     string=cmd_str,
                 )
@@ -1003,33 +1070,35 @@ class Action(JSONLike):
 
             inp_files = []
             inp_acts = []
-            for IFG_i in self.input_file_generators:
-                script = "script-name"  # TODO
-                act_i = self.app.Action(
-                    commands=[
-                        self.app.Command(f"<<executable:python>> <<script:{script}>>")
-                    ],
-                    input_file_generators=[IFG_i],
-                    environments=[self.get_input_file_generator_action_env(IFG_i)],
-                    rules=main_rules + [IFG_i.get_action_rule()],
+            for ifg in self.input_file_generators:
+                cmd = (
+                    f"<<executable:python>> <<script:{ifg.script}>> "
+                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
-                inp_files.append(IFG_i.input_file)
+                act_i = self.app.Action(
+                    commands=[self.app.Command(cmd)],
+                    input_file_generators=[ifg],
+                    environments=[self.get_input_file_generator_action_env(ifg)],
+                    rules=main_rules + [ifg.get_action_rule()],
+                )
+                inp_files.append(ifg.input_file)
                 act_i._from_expand = True
                 inp_acts.append(act_i)
 
             out_files = []
             out_acts = []
-            for OP_i in self.output_file_parsers:
-                script = "script-name"  # TODO
+            for ofp in self.output_file_parsers:
+                cmd = (
+                    f"<<executable:python>> <<script:{ofp.script}>> "
+                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+                )
                 act_i = self.app.Action(
-                    commands=[
-                        self.app.Command(f"<<executable:python>> <<script:{script}>>")
-                    ],
-                    output_file_parsers=[OP_i],
-                    environments=[self.get_output_file_parser_action_env(OP_i)],
+                    commands=[self.app.Command(cmd)],
+                    output_file_parsers=[ofp],
+                    environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
                 )
-                out_files.extend(OP_i.output_files)
+                out_files.extend(ofp.output_files)
                 act_i._from_expand = True
                 out_acts.append(act_i)
 
