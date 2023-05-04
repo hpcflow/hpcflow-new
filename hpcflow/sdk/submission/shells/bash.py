@@ -54,8 +54,8 @@ class Bash(Shell):
     )
     JS_MAIN = dedent(
         """\
-        elem_need_EARs=`sed "${{JS_elem_idx}}q;d" $EAR_ID_FILE`
-        elem_run_dirs=`sed "${{JS_elem_idx}}q;d" $ELEM_RUN_DIR_FILE`
+        elem_need_EARs=`sed "$((${{JS_elem_idx}} + 1))q;d" $EAR_ID_FILE`
+        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" $ELEM_RUN_DIR_FILE`
 
         for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
@@ -68,17 +68,17 @@ class Bash(Shell):
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd $WK_PATH/$run_dir
   
-          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
           . {commands_file_name}
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
         done
     """
     )
     JS_ELEMENT_LOOP = dedent(
         """\
-        for JS_elem_idx in {{1..{num_elements}}}
+        for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
         do
         {main}
         done
@@ -87,7 +87,7 @@ class Bash(Shell):
     )
     JS_ELEMENT_ARRAY = dedent(
         """\
-        JS_elem_idx=${scheduler_array_item_var}
+        JS_elem_idx=$(({scheduler_array_item_var} - 1))
         {main}
         cd $WK_PATH
     """
