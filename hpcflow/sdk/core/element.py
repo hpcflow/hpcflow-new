@@ -72,6 +72,10 @@ class _ElementPrefixedParameter:
     def _get_prefixed_names(self):
         return sorted(self._parent.get_parameter_names(self._prefix))
 
+    def __iter__(self):
+        for name in self._get_prefixed_names():
+            yield getattr(self, name)
+
 
 class ElementInputs(_ElementPrefixedParameter):
     def __init__(
