@@ -321,14 +321,13 @@ class ElementActionRun:
         for scope in self.action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:
             scope_s = scope.to_string()
-            if scope_s in resource_specs:
-                scope_res = resource_specs[scope_s]
-                if scope_s in template_resource_specs:
-                    for k, v in template_resource_specs[scope_s].items():
-                        if scope_res.get(k) is None and v is not None:
-                            scope_res[k] = v
+            scope_res = resource_specs.get(scope_s, {})
+            if scope_s in template_resource_specs:
+                for k, v in template_resource_specs[scope_s].items():
+                    if scope_res.get(k) is None and v is not None:
+                        scope_res[k] = v
 
-                resources.update({k: v for k, v in scope_res.items() if v is not None})
+            resources.update({k: v for k, v in scope_res.items() if v is not None})
 
         return resources
 
