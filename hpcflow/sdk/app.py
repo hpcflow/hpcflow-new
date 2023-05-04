@@ -81,10 +81,12 @@ class BaseApp:
         config_options,
         template_components: Dict = None,
         pytest_args=None,
+        package_name=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
         self.name = name
+        self.package_name = package_name or name.lower()
         self.version = version
         self.description = description
         self.config_options = config_options

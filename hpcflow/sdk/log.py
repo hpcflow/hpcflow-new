@@ -9,7 +9,7 @@ class AppLog:
 
     def __init__(self, app, log_console_level=None):
         self.app = app
-        self.logger = logging.getLogger(app.name)
+        self.logger = logging.getLogger(app.package_name)
         self.logger.setLevel(logging.DEBUG)
         self.console_handler = self._add_console_logger(
             level=log_console_level or AppLog.DEFAULT_LOG_LEVEL_CONSOLE

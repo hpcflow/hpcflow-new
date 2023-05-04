@@ -509,7 +509,7 @@ class Config:
         """Retrieve (and set if non-existent) a unique user ID that is independent of the
         config directory."""
 
-        uid_file_dir = Path(user_data_dir(appname=self._app.name))
+        uid_file_dir = Path(user_data_dir(appname=self._app.package_name))
         uid_file_path = uid_file_dir.joinpath("user_id.txt")
         if not uid_file_path.exists():
             uid_file_dir.mkdir(exist_ok=True, parents=True)
