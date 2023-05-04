@@ -232,7 +232,6 @@ class OutputFileParser(JSONLike):
             """\
             if __name__ == "__main__":
                 import sys
-                from pathlib import Path
                 from {app_package_name}.api import {app_name} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
