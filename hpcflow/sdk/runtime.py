@@ -1,3 +1,4 @@
+from importlib import import_module
 import logging
 import os
 import platform
@@ -28,14 +29,14 @@ class RunTimeInfo(PrettyPrinter):
         be equal to the virtual environment directory.
     """
 
-    def __init__(self, name, version, logger):
-
+    def __init__(self, name, package_name, version, logger):
         is_frozen = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
         bundle_dir = (
             sys._MEIPASS if is_frozen else os.path.dirname(os.path.abspath(__file__))
         )
 
-        self.name = name.split(".")[0]  # if name is given as __name__
+        self.name = name.split(".")[0]  # if name is given as __name__ # TODO: what?
+        self.package_name = package_name
         self.version = version
         self.is_frozen = is_frozen
         self.working_dir = os.getcwd()
@@ -174,9 +175,9 @@ class RunTimeInfo(PrettyPrinter):
                 pass
 
             if in_ipython:
-                import hpcflow
+                app_module = import_module(self.package_name)
 
-                CLI_path = Path(*hpcflow.__path__, "cli", "cli.py")
+                CLI_path = Path(*app_module.__path__, "cli.py")
                 command = [str(self.python_executable_path), str(CLI_path)]
 
             else:
