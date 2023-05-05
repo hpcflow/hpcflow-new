@@ -56,12 +56,16 @@ class _DummyPersistentWorkflow:
     def __init__(self):
         self._parameters = []
         self._sources = []
+        self._data_ref = []
 
     def _add_parameter_data(self, data, source: Dict) -> int:
         self._parameters.append(data)
         self._sources.append(source)
-        data_ref = len(self._parameters) - 1
-        return data_ref
+        self._data_ref.append(len(self._data_ref))
+        return self._data_ref[-1]
+
+    def get_parameter_data(self, data_idx):
+        return (True, self._parameters[self._data_ref.index(data_idx)])
 
     def make_persistent(self, workflow: Workflow):
         for dat_i, source_i in zip(self._parameters, self._sources):
