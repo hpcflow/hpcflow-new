@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a36"></a>
+## [v0.2.0a36](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a35...v0.2.0a36) - 2023.05.05
+
+### ✨ Features
+
+* dummy commit
+
+
 <a name="v0.2.0a35"></a>
 ## [v0.2.0a35](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a34...v0.2.0a35) - 2023.05.05
 
