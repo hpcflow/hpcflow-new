@@ -17,7 +17,6 @@ from .utils import check_valid_py_identifier
 
 @dataclass
 class TaskObjective(JSONLike):
-
     _child_objects = (
         ChildObjectSpec(
             name="name",
@@ -32,7 +31,6 @@ class TaskObjective(JSONLike):
 
 
 class TaskSchema(JSONLike):
-
     _validation_schema = "task_schema_spec_schema.yaml"
     _hash_value = None
     _validate_actions = True
@@ -79,8 +77,6 @@ class TaskSchema(JSONLike):
         self.actions = self._expand_actions()
         self.version = version
         self._task_template = None  # assigned by parent Task
-
-        self._set_parent_refs()
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
@@ -131,7 +127,6 @@ class TaskSchema(JSONLike):
             cls._validate_actions = True
 
     def _validate(self):
-
         if isinstance(self.objective, str):
             self.objective = self.app.TaskObjective(self.objective)
 

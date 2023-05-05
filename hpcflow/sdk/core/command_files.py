@@ -16,7 +16,6 @@ from hpcflow.sdk.core.zarr_io import zarr_decode
 
 @dataclass
 class FileSpec(JSONLike):
-
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
@@ -51,7 +50,6 @@ class FileSpec(JSONLike):
 
 
 class FileNameSpec(JSONLike):
-
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
@@ -105,7 +103,6 @@ class FileNameExt(JSONLike):
 
 @dataclass
 class InputFileGenerator(JSONLike):
-
     _app_attr = "app"
 
     _child_objects = (
@@ -294,7 +291,6 @@ class _FileContentsSpecifier(JSONLike):
         extension: Optional[str] = "",
         store_contents: Optional[bool] = True,
     ):
-
         if path is not None and contents is not None:
             raise ValueError("Specify exactly one of `path` and `contents`.")
 
@@ -436,7 +432,6 @@ class _FileContentsSpecifier(JSONLike):
 
 
 class InputFile(_FileContentsSpecifier):
-
     _child_objects = (
         ChildObjectSpec(
             name="file",
@@ -471,7 +466,6 @@ class InputFile(_FileContentsSpecifier):
         return out
 
     def __repr__(self):
-
         val_grp_idx = ""
         if self._value_group_idx is not None:
             val_grp_idx = f", value_group_idx={self._value_group_idx}"

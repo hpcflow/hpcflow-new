@@ -12,7 +12,6 @@ from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type
 
 
 class _ElementPrefixedParameter:
-
     _app_attr = "_app"
 
     def __init__(
@@ -22,7 +21,6 @@ class _ElementPrefixedParameter:
         element_action: Optional[ElementAction] = None,
         element_action_run: Optional[ElementActionRun] = None,
     ) -> None:
-
         self._prefix = prefix
         self._element_iteration = element_iteration
         self._element_action = element_action
@@ -123,7 +121,6 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 @dataclass
 class ElementResources(JSONLike):
-
     # TODO: how to specify e.g. high-memory requirement?
 
     scratch: str = None
@@ -172,7 +169,6 @@ class ElementResources(JSONLike):
 
 
 class ElementIteration:
-
     _app_attr = "app"
 
     def __init__(
@@ -608,7 +604,6 @@ class ElementIteration:
 
 
 class Element:
-
     _app_attr = "app"
 
     # TODO: use slots
@@ -625,7 +620,6 @@ class Element:
         src_idx: Dict[str, int],
         iterations,
     ) -> None:
-
         self._task = task
         self._index = index
         self._es_idx = es_idx
@@ -746,7 +740,6 @@ class Element:
         inputs = []
         resources = []
         for k, v in self.get_data_idx().items():
-
             k_s = k.split(".")
 
             if k_s[0] == "inputs":
@@ -934,7 +927,6 @@ class Element:
 
 @dataclass
 class ElementParameter:
-
     # TODO: do we need `parent` attribute?
 
     _app_attr = "app"
@@ -974,14 +966,12 @@ class ElementParameter:
 
 @dataclass
 class ElementFilter:
-
     parameter_path: ParameterPath
     condition: ConditionLike
 
 
 @dataclass
 class ElementGroup:
-
     name: str
     where: Optional[ElementFilter] = None
     group_by_distinct: Optional[ParameterPath] = None
@@ -992,6 +982,5 @@ class ElementGroup:
 
 @dataclass
 class ElementRepeats:
-
     number: int
     where: Optional[ElementFilter] = None
