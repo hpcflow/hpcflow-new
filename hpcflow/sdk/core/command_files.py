@@ -185,8 +185,9 @@ class InputFileGenerator(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self):
-        with Path(self.script).open("wt", newline="\n") as fp:
+    def write_source(self, action):
+        script_path = action.get_script_path(self.script)
+        with Path(script_path).open("wt", newline="\n") as fp:
             fp.write(self.compose_source())
 
 
@@ -276,8 +277,9 @@ class OutputFileParser(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self):
-        with Path(self.script).open("wt", newline="\n") as fp:
+    def write_source(self, action):
+        script_path = action.get_script_path(self.script)
+        with Path(script_path).open("wt", newline="\n") as fp:
             fp.write(self.compose_source())
 
 
