@@ -1,4 +1,48 @@
 
+<a name="v0.2.0a35"></a>
+## [v0.2.0a35](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a34...v0.2.0a35) - 2023.05.05
+
+### Other changes
+
+* whitespace
+* whitespace
+* whitespace
+* merge branch develop into feat/plugins
+
+### ♻ Code Refactoring
+
+* move cli.py to be consistent with matflow
+* remove unused
+* tidy task/element artifact dir names
+
+### ✨ Features
+
+* add template_components CLI and suppress runtimeinfo warning
+* support invoking ParameterValue class methods via JSON-like input value
+* support masked arrays in zarr
+* support main script in action
+* add Workflow.save_parameters
+* add scripts_dir arg to App
+* support IPG and OFPs in submission.
+* add __iter__ to _ElementPrefixedParameter
+
+### 🐛 Bug Fixes
+
+* tests
+* update pyi make files
+* update _DummyPersistentWorkflow so it can retrieve data indicies
+* run time info should use package name when in ipython
+* Zarr store _encode_numpy_array
+* EAR.get_resources to include template-level if not in EAR-level
+* distinguish app name from package name
+* use zero-indexed JS_elem_idx in bash
+* name command files by action index
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a34"></a>
 ## [v0.2.0a34](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a33...v0.2.0a34) - 2023.05.04
 
