@@ -129,7 +129,6 @@ class ZarrPersistentStore(PersistentStore):
         replaced_dir: Path,
         creation_info: Dict,
     ) -> None:
-
         metadata = {
             "creation_info": creation_info,
             "template": template_js,
@@ -256,7 +255,6 @@ class ZarrPersistentStore(PersistentStore):
         elements: List[Dict],
         element_iterations: List[Dict],
     ) -> None:
-
         attrs_original = self._get_task_element_attrs(task_idx, task_insert_ID)
         elements, attrs = self._compress_elements(elements, attrs_original)
         if attrs != attrs_original:
@@ -282,7 +280,6 @@ class ZarrPersistentStore(PersistentStore):
         element_iterations: List[Dict],
         element_iters_idx: Dict[int, List[int]],
     ) -> None:
-
         iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
         element_iters, iter_attrs = self._compress_element_iters(
             element_iterations, iter_attrs_original
@@ -418,7 +415,6 @@ class ZarrPersistentStore(PersistentStore):
         return compressed, attrs
 
     def _decompress_elements(self, elements: List, attrs: Dict) -> List:
-
         out = []
         for elem in elements:
             elem_i = {
@@ -493,7 +489,6 @@ class ZarrPersistentStore(PersistentStore):
         super().reject_pending()
 
     def commit_pending(self) -> None:
-
         md = self.load_metadata()
 
         # merge new tasks:
@@ -502,7 +497,6 @@ class ZarrPersistentStore(PersistentStore):
 
         # write new workflow tasks to disk:
         for task_idx, _ in self._pending["tasks"].items():
-
             insert_ID = self._pending["template_tasks"][task_idx]["insert_ID"]
             task_group = self._get_element_group(mode="r+").create_group(
                 self._get_task_group_path(insert_ID)
@@ -727,7 +721,6 @@ class ZarrPersistentStore(PersistentStore):
         selection: slice,
         keep_iterations_idx: bool = False,
     ) -> List:
-
         task = self.workflow.tasks[task_idx]
         num_pers = task._num_elements
         num_iter_pers = task._num_element_iterations
@@ -755,7 +748,6 @@ class ZarrPersistentStore(PersistentStore):
         sel_range = range(selection.start, selection.stop, selection.step)
         iterations = {}
         for element_idx, element in zip(sel_range, elements):
-
             # find which iterations to add:
             iters_idx = element[0]
 
@@ -795,7 +787,6 @@ class ZarrPersistentStore(PersistentStore):
         elem_iters = dict(zip(iters_k, iters_v))
 
         for elem_idx, elem_i in zip(sel_range, elements):
-
             elem_i["index"] = elem_idx
 
             # populate iterations
@@ -840,7 +831,6 @@ class ZarrPersistentStore(PersistentStore):
         path: List = None,
         type_lookup: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-
         return super()._encode_parameter_data(
             obj=obj,
             path=path,
@@ -856,7 +846,6 @@ class ZarrPersistentStore(PersistentStore):
         path: Optional[List[str]] = None,
         dataset_copy=False,
     ) -> Any:
-
         return super()._decode_parameter_data(
             data=data,
             path=path,
@@ -865,7 +854,6 @@ class ZarrPersistentStore(PersistentStore):
         )
 
     def _add_parameter_data(self, data: Any, source: Dict) -> int:
-
         base_arr = self._get_parameter_base_array(mode="r+")
         sources = self._get_parameter_sources_array(mode="r+")
         idx = base_arr.size
@@ -961,7 +949,6 @@ class ZarrPersistentStore(PersistentStore):
         attrs = copy.deepcopy(attrs_original)
         for element in elements:
             for iter_idx, iter_i in zip(element["iterations_idx"], element["iterations"]):
-
                 if name in (attrs["loops"][k] for k in iter_i["loop_idx"]):
                     raise ValueError(f"Loop {name!r} already initialised!")
 
