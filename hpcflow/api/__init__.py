@@ -21,6 +21,7 @@ hpcflow = BaseApp(
     description="Computational workflow management",
     config_options=config_options,
     template_components=template_components,
+    scripts_dir="sdk.demo.scripts",  # relative to root package
     pytest_args=[
         "--verbose",
         "--exitfirst",

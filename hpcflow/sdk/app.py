@@ -2,12 +2,14 @@
 
 from functools import wraps
 from importlib import resources, import_module
+from pathlib import Path
 import time
 from typing import Dict
 import warnings
 
 import click
 from colorama import init as colorama_init
+from setuptools import find_packages
 from termcolor import colored
 
 from hpcflow import __version__
@@ -79,6 +81,7 @@ class BaseApp:
         version,
         description,
         config_options,
+        scripts_dir,
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
@@ -91,11 +94,15 @@ class BaseApp:
         self.description = description
         self.config_options = config_options
         self.pytest_args = pytest_args
+        self.scripts_dir = scripts_dir
 
         self.CLI = self._make_CLI()
         self.log = AppLog(self)
         self.run_time_info = RunTimeInfo(
-            self.name, self.version, self.runtime_info_logger
+            self.name,
+            self.package_name,
+            self.version,
+            self.runtime_info_logger,
         )
 
         self._builtin_template_components = template_components or {}
@@ -120,7 +127,6 @@ class BaseApp:
             return lambda *args, **kwargs: func(self, *args, **kwargs)
 
         for func in (getattr(api, i) for i in api.__all__):
-
             if type(self) is BaseApp and func.__name__ == "run_hpcflow_tests":
                 # this method provides the same functionality as the `run_tests` method
                 continue
@@ -161,7 +167,6 @@ class BaseApp:
         return type(cls.__name__, (cls,), {getattr(cls, "_app_attr"): self})
 
     def _assign_core_classes(self):
-
         # ensure classes defined in `object_list` are included in core classes:
         import_module("hpcflow.sdk.core.object_list")
 
@@ -964,15 +969,28 @@ class BaseApp:
 
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
-        pkg = "hpcflow.sdk.demo.scripts"
-        script_names = (
-            name
-            for name in resources.contents(pkg)
-            if name != "__init__.py" and resources.is_resource(pkg, name)
+
+        app_module = import_module(self.package_name)
+        root_scripts_dir = self.scripts_dir
+
+        packages = find_packages(
+            where=str(Path(app_module.__path__[0], *root_scripts_dir.split(".")))
         )
+        packages = [root_scripts_dir] + [root_scripts_dir + "." + i for i in packages]
+        packages = [self.package_name + "." + i for i in packages]
+        num_root_dirs = len(root_scripts_dir.split(".")) + 1
+
         scripts = {}
-        for i in script_names:
-            scripts[i] = resources.path(pkg, i)
+        for pkg in packages:
+            script_names = (
+                name
+                for name in resources.contents(pkg)
+                if name != "__init__.py" and resources.is_resource(pkg, name)
+            )
+            for i in script_names:
+                script_key = "/".join(pkg.split(".")[num_root_dirs:] + [i])
+                scripts[script_key] = resources.path(pkg, i)
+
         return scripts
 
     def template_components_from_json_like(self, json_like):
