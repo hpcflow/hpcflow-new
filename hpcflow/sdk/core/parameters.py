@@ -592,12 +592,18 @@ class InputValue(AbstractInputValue):
         self,
         parameter: Union[Parameter, str],
         value: Optional[Any] = None,
+        value_class_method: Optional[str] = None,
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
         elif isinstance(parameter, SchemaInput):
             parameter = parameter.parameter
+
+        if value_class_method and value is not None:
+            if parameter._value_class:
+                func = getattr(parameter._value_class, value_class_method)
+                value = func(**value)
 
         self.parameter = parameter
         self.path = (path.strip(".") if path else None) or None
@@ -674,6 +680,11 @@ class InputValue(AbstractInputValue):
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
+        if "::" in json_like["parameter"]:
+            param, cls_method = json_like["parameter"].split("::")
+            json_like["parameter"] = param
+            json_like["value_class_method"] = cls_method
+
         if "path" not in json_like:
             param_spec = json_like["parameter"].split(".")
             json_like["parameter"] = param_spec[0]
