@@ -32,7 +32,7 @@ from hpcflow.sdk.typing import PathLike
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
-    names = [int(i) for i in param_arr_group.keys()]
+    names = [int(i.split("arr_")[1]) for i in param_arr_group.keys()]
     if not names:
         new_idx = 0
     else:
