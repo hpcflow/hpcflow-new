@@ -40,7 +40,7 @@ def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
     param_arr_group.create_dataset(name=f"arr_{new_idx}", data=obj)
     type_lookup["arrays"].append([path, new_idx])
 
-    return None
+    return len(type_lookup["arrays"]) - 1
 
 
 def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
@@ -53,6 +53,31 @@ def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
         dataset = arr_group.get(f"arr_{arr_idx}")
         if dataset_copy:
             dataset = dataset[:]
+
+        if rel_path:
+            set_in_container(obj, rel_path, dataset)
+        else:
+            obj = dataset
+
+    return obj
+
+
+def _encode_masked_array(obj, type_lookup, path, root_group, arr_path):
+    data_idx = _encode_numpy_array(obj.data, type_lookup, path, root_group, arr_path)
+    mask_idx = _encode_numpy_array(obj.mask, type_lookup, path, root_group, arr_path)
+    type_lookup["masked_arrays"].append([path, [data_idx, mask_idx]])
+
+
+def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
+    for arr_path, (data_idx, mask_idx) in type_lookup["masked_arrays"]:
+        try:
+            rel_path = get_relative_path(arr_path, path)
+        except ValueError:
+            continue
+
+        data = arr_group.get(f"arr_{data_idx}")
+        mask = arr_group.get(f"arr_{mask_idx}")
+        dataset = np.ma.core.MaskedArray(data=data, mask=mask)
 
         if rel_path:
             set_in_container(obj, rel_path, dataset)
@@ -85,8 +110,14 @@ class ZarrPersistentStore(PersistentStore):
     _task_elem_iter_arr_name = "element_iters"
     _task_EAR_times_arr_name = "EAR_times"
 
-    _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
-    _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
+    _parameter_encoders = {  # keys are types
+        np.ndarray: _encode_numpy_array,
+        np.ma.core.MaskedArray: _encode_masked_array,
+    }
+    _parameter_decoders = {  # keys are keys in type_lookup
+        "arrays": _decode_numpy_arrays,
+        "masked_arrays": _decode_masked_arrays,
+    }
 
     def __init__(self, workflow: Workflow) -> None:
         self._metadata = None  # cache used in `cached_load` context manager
