@@ -260,13 +260,13 @@ class BaseApp:
         self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
             schemas, shared_data=self_tc
         )
+        self_tc["scripts"] = self._load_scripts()
 
         self._parameters = self_tc["parameters"]
         self._command_files = self_tc["command_files"]
         self._environments = self_tc["environments"]
         self._task_schemas = self_tc["task_schemas"]
-
-        self._scripts = self._load_scripts()
+        self._scripts = self_tc["scripts"]
 
         self.logger.info("Template components loaded.")
 
@@ -898,6 +898,14 @@ class BaseApp:
 
         return internal
 
+    def _make_template_components_CLI(self):
+        @click.command()
+        def tc(help=True):
+            """For showing template component data."""
+            click.echo(self.template_components)
+
+        return tc
+
     def _make_CLI(self):
         """Generate the root CLI for the app."""
 
@@ -962,6 +970,7 @@ class BaseApp:
         new_CLI.add_command(self._make_workflow_CLI())
         new_CLI.add_command(self._make_submission_CLI())
         new_CLI.add_command(self._make_internal_CLI())
+        new_CLI.add_command(self._make_template_components_CLI())
         for cli_cmd in self._make_API_CLI():
             new_CLI.add_command(cli_cmd)
 

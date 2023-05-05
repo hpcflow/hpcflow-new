@@ -85,13 +85,14 @@ class RunTimeInfo(PrettyPrinter):
             f"is_conda_venv: {self.is_conda_venv!r}"
             f"{f' ({self.conda_prefix!r})' if self.is_conda_venv else ''}"
         )
-        if self.is_venv and self.is_conda_venv:
-            msg = (
-                "Running in a nested virtual environment (conda and non-conda). "
-                "Environments may not be re-activate in the same order in associated, "
-                "subsequent invocations of hpcflow."
-            )
-            warnings.warn(msg)
+        # TODO: investigate
+        # if self.is_venv and self.is_conda_venv:
+        #     msg = (
+        #         "Running in a nested virtual environment (conda and non-conda). "
+        #         "Environments may not be re-activate in the same order in associated, "
+        #         "subsequent invocations of hpcflow."
+        #     )
+        #     warnings.warn(msg)
 
         for k, v in self._get_members().items():
             if k in (
