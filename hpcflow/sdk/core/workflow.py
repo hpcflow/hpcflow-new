@@ -106,7 +106,6 @@ class WorkflowTemplate(JSONLike):
     resources: Optional[Dict[str, Dict]] = None
 
     def __post_init__(self):
-
         if isinstance(self.resources, dict):
             self.resources = self.app.ResourceList.from_json_like(self.resources)
         elif isinstance(self.resources, list):
@@ -277,7 +276,6 @@ class Workflow:
     _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
 
     def __init__(self, path: PathLike) -> None:
-
         self.path = Path(path).resolve()
         if not self.path.is_dir():
             raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
@@ -730,7 +728,6 @@ class Workflow:
                 yield
 
             except Exception as err:
-
                 print("batch update exception!")
 
                 self._in_batch_mode = False
@@ -752,9 +749,7 @@ class Workflow:
                 raise err
 
             else:
-
                 if self._store.has_pending:
-
                     is_diff = self._store.is_modified_on_disk()
                     if is_diff:
                         raise WorkflowBatchUpdateFailedError(
@@ -784,7 +779,6 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
-
         """
         Parameters
         ----------
@@ -1118,7 +1112,6 @@ class Workflow:
             return names
 
     def _get_new_task_unique_name(self, new_task: Task, new_index: int) -> str:
-
         task_templates = list(self.template.tasks)
         task_templates.insert(new_index, new_task)
         uniq_names = Task.get_task_unique_names(task_templates)
@@ -1130,7 +1123,6 @@ class Workflow:
         task: Task,
         new_index: Optional[int] = None,
     ) -> WorkflowTask:
-
         if new_index is None:
             new_index = self.num_tasks
 
@@ -1509,13 +1501,11 @@ class Workflow:
         all_element_deps = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
-
             task = self.tasks.get(insert_ID=task_iID)
             res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
             for js_dat in jobscripts:
-
                 # (insert ID, action_idx, index into task_loop_idx):
                 task_actions = [
                     [task.insert_ID, i, 0]
@@ -1549,7 +1539,6 @@ class Workflow:
                     "dependencies": {},
                 }
                 for elem_idx, act_indices in js_dat["elements"].items():
-
                     js_elem_idx = task_elements[task.insert_ID].index((elem_idx))
                     all_EAR_IDs = []
                     for act_idx in act_indices:
