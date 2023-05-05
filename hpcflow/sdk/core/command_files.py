@@ -2,6 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
+from textwrap import dedent
 from typing import Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
@@ -15,7 +16,6 @@ from hpcflow.sdk.core.zarr_io import zarr_decode
 
 @dataclass
 class FileSpec(JSONLike):
-
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
@@ -50,7 +50,6 @@ class FileSpec(JSONLike):
 
 
 class FileNameSpec(JSONLike):
-
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
@@ -104,7 +103,6 @@ class FileNameExt(JSONLike):
 
 @dataclass
 class InputFileGenerator(JSONLike):
-
     _app_attr = "app"
 
     _child_objects = (
@@ -133,6 +131,61 @@ class InputFileGenerator(JSONLike):
         """Get the rule that allows testing if this input file generator must be
         run or not for a given element."""
         return self.app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
+
+    def compose_source(self) -> str:
+        """Generate the file contents of this input file generator source."""
+
+        script_name = self.script
+        script_path = self.app.scripts.get(script_name)
+        script_main_func = Path(script_name).stem
+
+        with script_path.open("rt") as fp:
+            script_str = fp.read()
+
+        main_block = dedent(
+            """\
+            if __name__ == "__main__":
+                import sys
+                from pathlib import Path
+                from {app_package_name}.api import {app_name} as app
+                app.load_config(
+                    config_dir=r"{cfg_dir}",
+                    config_invocation_key=r"{cfg_invoc_key}",
+                )
+                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk = app.Workflow(wk_path)
+                _, EAR = wk._from_internal_get_EAR(
+                    submission_idx=int(sub_idx),
+                    jobscript_idx=int(js_idx),
+                    JS_element_idx=int(js_elem_idx),
+                    JS_action_idx=int(js_act_idx),
+                )
+                {script_main_func}(path=Path({file_path!r}), **EAR.get_IFG_input_values())
+        """
+        )
+        main_block = main_block.format(
+            app_package_name=self.app.package_name,
+            app_name=self.app.name,
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config._file.invoc_key,
+            script_main_func=script_main_func,
+            file_path=self.input_file.name.value(),
+        )
+
+        out = dedent(
+            """\
+            {script_str}
+            {main_block}
+        """
+        )
+
+        out = out.format(script_str=script_str, main_block=main_block)
+        return out
+
+    def write_source(self, action):
+        script_path = action.get_script_path(self.script)
+        with Path(script_path).open("wt", newline="\n") as fp:
+            fp.write(self.compose_source())
 
 
 @dataclass
@@ -163,6 +216,69 @@ class OutputFileParser(JSONLike):
     inputs: List[str] = None
     options: Dict = None
 
+    def compose_source(self) -> str:
+        """Generate the file contents of this output file parser source."""
+
+        script_name = self.script
+        script_path = self.app.scripts.get(script_name)
+        script_main_func = Path(script_name).stem
+
+        with script_path.open("rt") as fp:
+            script_str = fp.read()
+
+        main_block = dedent(
+            """\
+            if __name__ == "__main__":
+                import sys
+                from {app_package_name}.api import {app_name} as app
+                app.load_config(
+                    config_dir=r"{cfg_dir}",
+                    config_invocation_key=r"{cfg_invoc_key}",
+                )
+                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk = app.Workflow(wk_path)
+                _, EAR = wk._from_internal_get_EAR(
+                    submission_idx=int(sub_idx),
+                    jobscript_idx=int(js_idx),
+                    JS_element_idx=int(js_elem_idx),
+                    JS_action_idx=int(js_act_idx),
+                )
+                value = {script_main_func}(**EAR.get_OFP_output_files())
+                wk.save_parameter(
+                    name="{param_name}",
+                    value=value,
+                    submission_idx=int(sub_idx),
+                    jobscript_idx=int(js_idx),
+                    JS_element_idx=int(js_elem_idx),
+                    JS_action_idx=int(js_act_idx),
+                )
+
+        """
+        )
+        main_block = main_block.format(
+            app_package_name=self.app.package_name,
+            app_name=self.app.name,
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config._file.invoc_key,
+            script_main_func=script_main_func,
+            param_name=f"outputs.{self.output.typ}",
+        )
+
+        out = dedent(
+            """\
+            {script_str}
+            {main_block}
+        """
+        )
+
+        out = out.format(script_str=script_str, main_block=main_block)
+        return out
+
+    def write_source(self, action):
+        script_path = action.get_script_path(self.script)
+        with Path(script_path).open("wt", newline="\n") as fp:
+            fp.write(self.compose_source())
+
 
 class _FileContentsSpecifier(JSONLike):
     """Class to represent the contents of a file, either via a file-system path or
@@ -175,7 +291,6 @@ class _FileContentsSpecifier(JSONLike):
         extension: Optional[str] = "",
         store_contents: Optional[bool] = True,
     ):
-
         if path is not None and contents is not None:
             raise ValueError("Specify exactly one of `path` and `contents`.")
 
@@ -317,7 +432,6 @@ class _FileContentsSpecifier(JSONLike):
 
 
 class InputFile(_FileContentsSpecifier):
-
     _child_objects = (
         ChildObjectSpec(
             name="file",
@@ -352,7 +466,6 @@ class InputFile(_FileContentsSpecifier):
         return out
 
     def __repr__(self):
-
         val_grp_idx = ""
         if self._value_group_idx is not None:
             val_grp_idx = f", value_group_idx={self._value_group_idx}"

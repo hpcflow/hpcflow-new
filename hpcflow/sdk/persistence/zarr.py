@@ -32,7 +32,7 @@ from hpcflow.sdk.typing import PathLike
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
-    names = [int(i) for i in param_arr_group.keys()]
+    names = [int(i.split("arr_")[1]) for i in param_arr_group.keys()]
     if not names:
         new_idx = 0
     else:
@@ -40,7 +40,7 @@ def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
     param_arr_group.create_dataset(name=f"arr_{new_idx}", data=obj)
     type_lookup["arrays"].append([path, new_idx])
 
-    return None
+    return len(type_lookup["arrays"]) - 1
 
 
 def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
@@ -53,6 +53,31 @@ def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
         dataset = arr_group.get(f"arr_{arr_idx}")
         if dataset_copy:
             dataset = dataset[:]
+
+        if rel_path:
+            set_in_container(obj, rel_path, dataset)
+        else:
+            obj = dataset
+
+    return obj
+
+
+def _encode_masked_array(obj, type_lookup, path, root_group, arr_path):
+    data_idx = _encode_numpy_array(obj.data, type_lookup, path, root_group, arr_path)
+    mask_idx = _encode_numpy_array(obj.mask, type_lookup, path, root_group, arr_path)
+    type_lookup["masked_arrays"].append([path, [data_idx, mask_idx]])
+
+
+def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
+    for arr_path, (data_idx, mask_idx) in type_lookup["masked_arrays"]:
+        try:
+            rel_path = get_relative_path(arr_path, path)
+        except ValueError:
+            continue
+
+        data = arr_group.get(f"arr_{data_idx}")
+        mask = arr_group.get(f"arr_{mask_idx}")
+        dataset = np.ma.core.MaskedArray(data=data, mask=mask)
 
         if rel_path:
             set_in_container(obj, rel_path, dataset)
@@ -85,8 +110,14 @@ class ZarrPersistentStore(PersistentStore):
     _task_elem_iter_arr_name = "element_iters"
     _task_EAR_times_arr_name = "EAR_times"
 
-    _parameter_encoders = {np.ndarray: _encode_numpy_array}  # keys are types
-    _parameter_decoders = {"arrays": _decode_numpy_arrays}  # keys are keys in type_lookup
+    _parameter_encoders = {  # keys are types
+        np.ndarray: _encode_numpy_array,
+        np.ma.core.MaskedArray: _encode_masked_array,
+    }
+    _parameter_decoders = {  # keys are keys in type_lookup
+        "arrays": _decode_numpy_arrays,
+        "masked_arrays": _decode_masked_arrays,
+    }
 
     def __init__(self, workflow: Workflow) -> None:
         self._metadata = None  # cache used in `cached_load` context manager
@@ -129,7 +160,6 @@ class ZarrPersistentStore(PersistentStore):
         replaced_dir: Path,
         creation_info: Dict,
     ) -> None:
-
         metadata = {
             "creation_info": creation_info,
             "template": template_js,
@@ -256,7 +286,6 @@ class ZarrPersistentStore(PersistentStore):
         elements: List[Dict],
         element_iterations: List[Dict],
     ) -> None:
-
         attrs_original = self._get_task_element_attrs(task_idx, task_insert_ID)
         elements, attrs = self._compress_elements(elements, attrs_original)
         if attrs != attrs_original:
@@ -282,7 +311,6 @@ class ZarrPersistentStore(PersistentStore):
         element_iterations: List[Dict],
         element_iters_idx: Dict[int, List[int]],
     ) -> None:
-
         iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
         element_iters, iter_attrs = self._compress_element_iters(
             element_iterations, iter_attrs_original
@@ -418,7 +446,6 @@ class ZarrPersistentStore(PersistentStore):
         return compressed, attrs
 
     def _decompress_elements(self, elements: List, attrs: Dict) -> List:
-
         out = []
         for elem in elements:
             elem_i = {
@@ -493,7 +520,6 @@ class ZarrPersistentStore(PersistentStore):
         super().reject_pending()
 
     def commit_pending(self) -> None:
-
         md = self.load_metadata()
 
         # merge new tasks:
@@ -502,7 +528,6 @@ class ZarrPersistentStore(PersistentStore):
 
         # write new workflow tasks to disk:
         for task_idx, _ in self._pending["tasks"].items():
-
             insert_ID = self._pending["template_tasks"][task_idx]["insert_ID"]
             task_group = self._get_element_group(mode="r+").create_group(
                 self._get_task_group_path(insert_ID)
@@ -727,7 +752,6 @@ class ZarrPersistentStore(PersistentStore):
         selection: slice,
         keep_iterations_idx: bool = False,
     ) -> List:
-
         task = self.workflow.tasks[task_idx]
         num_pers = task._num_elements
         num_iter_pers = task._num_element_iterations
@@ -755,7 +779,6 @@ class ZarrPersistentStore(PersistentStore):
         sel_range = range(selection.start, selection.stop, selection.step)
         iterations = {}
         for element_idx, element in zip(sel_range, elements):
-
             # find which iterations to add:
             iters_idx = element[0]
 
@@ -795,7 +818,6 @@ class ZarrPersistentStore(PersistentStore):
         elem_iters = dict(zip(iters_k, iters_v))
 
         for elem_idx, elem_i in zip(sel_range, elements):
-
             elem_i["index"] = elem_idx
 
             # populate iterations
@@ -840,7 +862,6 @@ class ZarrPersistentStore(PersistentStore):
         path: List = None,
         type_lookup: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-
         return super()._encode_parameter_data(
             obj=obj,
             path=path,
@@ -856,7 +877,6 @@ class ZarrPersistentStore(PersistentStore):
         path: Optional[List[str]] = None,
         dataset_copy=False,
     ) -> Any:
-
         return super()._decode_parameter_data(
             data=data,
             path=path,
@@ -865,7 +885,6 @@ class ZarrPersistentStore(PersistentStore):
         )
 
     def _add_parameter_data(self, data: Any, source: Dict) -> int:
-
         base_arr = self._get_parameter_base_array(mode="r+")
         sources = self._get_parameter_sources_array(mode="r+")
         idx = base_arr.size
@@ -961,7 +980,6 @@ class ZarrPersistentStore(PersistentStore):
         attrs = copy.deepcopy(attrs_original)
         for element in elements:
             for iter_idx, iter_i in zip(element["iterations_idx"], element["iterations"]):
-
                 if name in (attrs["loops"][k] for k in iter_i["loop_idx"]):
                     raise ValueError(f"Loop {name!r} already initialised!")
 

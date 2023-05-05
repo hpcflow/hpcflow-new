@@ -2,8 +2,10 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 import enum
+from pathlib import Path
 import re
 import subprocess
+from textwrap import dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
@@ -61,7 +63,6 @@ class EAR_ID(IterationID):
 
 
 class ActionScopeType(enum.Enum):
-
     ANY = 0
     MAIN = 1
     PROCESSING = 2
@@ -79,7 +80,6 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 
 
 class EARSubmissionStatus(enum.Enum):
-
     PENDING = 0  # Not yet associated with a submission
     PREPARED = 1  # Associated with a submission that is not yet submitted
     SUBMITTED = 2  # Submitted for execution
@@ -177,7 +177,6 @@ class ElementActionRun:
 
     @property
     def submission_status(self):
-
         if self.metadata["end_time"] is not None:
             return EARSubmissionStatus.COMPLETE
 
@@ -185,7 +184,6 @@ class ElementActionRun:
             return EARSubmissionStatus.RUNNING
 
         elif self.submission_idx is not None:
-
             wk_sub_stat = self.workflow.submissions[self.submission_idx].status
 
             if wk_sub_stat.name == "PENDING":
@@ -321,16 +319,115 @@ class ElementActionRun:
         for scope in self.action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:
             scope_s = scope.to_string()
-            if scope_s in resource_specs:
-                scope_res = resource_specs[scope_s]
-                if scope_s in template_resource_specs:
-                    for k, v in template_resource_specs[scope_s].items():
-                        if scope_res.get(k) is None and v is not None:
-                            scope_res[k] = v
+            scope_res = resource_specs.get(scope_s, {})
+            if scope_s in template_resource_specs:
+                for k, v in template_resource_specs[scope_s].items():
+                    if scope_res.get(k) is None and v is not None:
+                        scope_res[k] = v
 
-                resources.update({k: v for k, v in scope_res.items() if v is not None})
+            resources.update({k: v for k, v in scope_res.items() if v is not None})
 
         return resources
+
+    def get_environment(self):
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot choose a single environment from this EAR because the "
+                f"associated action is not expanded, meaning multiple action "
+                f"environments might exist."
+            )
+        return self.action.environments[0].environment
+
+    def get_input_values(self) -> Dict[str, Any]:
+        return {i.path[len("inputs.") :]: i.value for i in self.inputs}
+
+    def get_IFG_input_values(self) -> Dict[str, Any]:
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get input file generator inputs from this EAR because the "
+                f"associated action is not expanded, meaning multiple IFGs might exists."
+            )
+        input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
+        inputs = {}
+        for i in self.inputs:
+            typ = i.path[len("inputs.") :]
+            if typ in input_types:
+                inputs[typ] = i.value
+        return inputs
+
+    def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
+        # TODO: can this return multiple files for a given FileSpec?
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get output file parser files this from EAR because the "
+                f"associated action is not expanded, meaning multiple OFPs might exist."
+            )
+        out_files = {}
+        for file_spec in self.action.output_file_parsers[0].output_files:
+            out_files[file_spec.label] = Path(file_spec.name.value())
+        return out_files
+
+    def compose_source(self) -> str:
+        """Generate the file contents of this source."""
+
+        script_name = self.action.script
+        script_path = self.app.scripts.get(script_name)
+        script_main_func = Path(script_name).stem
+
+        with script_path.open("rt") as fp:
+            script_str = fp.read()
+
+        main_block = dedent(
+            """\
+            if __name__ == "__main__":
+                import sys
+                from {app_package_name}.api import {app_name} as app
+                app.load_config(
+                    config_dir=r"{cfg_dir}",
+                    config_invocation_key=r"{cfg_invoc_key}",
+                )
+                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk = app.Workflow(wk_path)
+                _, EAR = wk._from_internal_get_EAR(
+                    submission_idx=int(sub_idx),
+                    jobscript_idx=int(js_idx),
+                    JS_element_idx=int(js_elem_idx),
+                    JS_action_idx=int(js_act_idx),
+                )
+                inputs = EAR.get_input_values()
+                outputs = {script_main_func}(**inputs)
+                outputs = {{"outputs." + k: v for k, v in outputs.items()}}
+                wk.save_parameters(
+                    values=outputs,
+                    submission_idx=int(sub_idx),
+                    jobscript_idx=int(js_idx),
+                    JS_element_idx=int(js_elem_idx),
+                    JS_action_idx=int(js_act_idx),
+                )
+
+        """
+        )
+        main_block = main_block.format(
+            app_package_name=self.app.package_name,
+            app_name=self.app.name,
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config._file.invoc_key,
+            script_main_func=script_main_func,
+        )
+
+        out = dedent(
+            """\
+            {script_str}
+            {main_block}
+        """
+        )
+        out = out.format(script_str=script_str, main_block=main_block)
+        return out
+
+    def write_source(self):
+        script_path = self.action.get_script_path(self.action.script)
+        with Path(script_path).open("wt", newline="\n") as fp:
+            fp.write(self.compose_source())
 
     def compose_commands(self, jobscript: Jobscript) -> Tuple[str, List[str]]:
         """
@@ -342,19 +439,51 @@ class ElementActionRun:
             as strings.
         """
 
-        # TODO: this is bash-specific
+        env = self.get_environment()
 
-        vars_regex = r"(\<\<parameter:{}\>\>?)"
+        def exec_script_repl(match_obj):
+            typ, val = match_obj.groups()
+            if typ == "executable":
+                executable = env.executables.get(val)
+                out = executable.instances[0].command  # TODO: depends on resources
+            elif typ == "script":
+                out = self.action.get_script_path(val)
+            return out
+
+        for ifg in self.action.input_file_generators:
+            # TODO: there should only be one at this stage if expanded?
+            ifg.write_source(self.action)
+
+        for ofp in self.action.output_file_parsers:
+            # TODO: there should only be one at this stage if expanded?
+            ofp.write_source(self.action)
+
+        if self.action.script:
+            self.write_source()
+
+        param_regex = r"(\<\<parameter:{}\>\>?)"
+        exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
+
         command_lns = []
+        if env.setup:
+            command_lns += list(env.setup)
+
         shell_vars = []
         for command in self.action.commands:
+            cmd_str = command.command
+
+            # substitute executables:
+            cmd_str = re.sub(
+                pattern=exe_script_regex,
+                repl=exec_script_repl,
+                string=cmd_str,
+            )
 
             # substitute input parameters in command:
-            cmd_str = command.command
             for cmd_inp in self.action.get_command_input_types():
                 inp_val = self.get(f"inputs.{cmd_inp}")
                 cmd_str = re.sub(
-                    pattern=vars_regex.format(cmd_inp),
+                    pattern=param_regex.format(cmd_inp),
                     repl=str(inp_val),
                     string=cmd_str,
                 )
@@ -380,7 +509,6 @@ class ElementActionRun:
 
 
 class ElementAction:
-
     _app_attr = "app"
 
     def __init__(self, element_iteration, action_idx, runs):
@@ -513,7 +641,6 @@ class ElementAction:
 
 @dataclass
 class ElementActionOLD:
-
     _app_attr = "app"
 
     element: Element
@@ -533,11 +660,9 @@ class ElementActionOLD:
         resolved_commands = []
         scripts = []
         for command in self.commands:
-
             command_resolved = command.command
             re_groups = re.findall(vars_regex, command.command)
             for typ, val in re_groups:
-
                 sub_str_original = f"<<{typ}:{val}>>"
 
                 if typ == "executable":
@@ -652,7 +777,6 @@ class ActionScope(JSONLike):
     )
 
     def __init__(self, typ: Union[ActionScopeType, str], **kwargs):
-
         if isinstance(typ, str):
             typ = getattr(self.app.ActionScopeType, typ.upper())
 
@@ -727,7 +851,6 @@ class ActionScope(JSONLike):
 
 @dataclass
 class ActionEnvironment(JSONLike):
-
     _app_attr = "app"
 
     _child_objects = (
@@ -777,7 +900,6 @@ class ActionRule(JSONLike):
             )
 
     def __repr__(self):
-
         out = f"{self.__class__.__name__}("
         if self.check_exists:
             out += f"check_exists={self.check_exists!r}"
@@ -837,15 +959,17 @@ class Action(JSONLike):
 
     def __init__(
         self,
-        commands: List[Command],
         environments: List[ActionEnvironment],
+        commands: Optional[List[Command]] = None,
+        script: Optional[str] = None,
         input_file_generators: Optional[List[InputFileGenerator]] = None,
         output_file_parsers: Optional[List[OutputFileParser]] = None,
         input_files: Optional[List[FileSpec]] = None,
         output_files: Optional[List[FileSpec]] = None,
         rules: Optional[List[ActionRule]] = None,
     ):
-        self.commands = commands
+        self.commands = commands or []
+        self.script = script
         self.environments = environments
         self.input_file_generators = input_file_generators or []
         self.output_file_parsers = output_file_parsers or []
@@ -853,7 +977,21 @@ class Action(JSONLike):
         self.output_files = self._resolve_output_files(output_files or [])
         self.rules = rules or []
 
+        self._task_schema = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
+
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        _from_expand = kwargs.pop("_from_expand")
+        _task_schema = kwargs.pop("_task_schema", None)
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj._from_expand = _from_expand
+        obj._task_schema = _task_schema
+        return obj
+
+    @property
+    def task_schema(self):
+        return self._task_schema
 
     def _resolve_input_files(self, input_files):
         in_files = input_files
@@ -883,6 +1021,8 @@ class Action(JSONLike):
         out = []
         if self.commands:
             out.append(f"commands={self.commands!r}")
+        if self.script:
+            out.append(f"script={self.script!r}")
         if self.environments:
             out.append(f"environments={self.environments!r}")
         if IFGs:
@@ -899,6 +1039,7 @@ class Action(JSONLike):
             return False
         if (
             self.commands == other.commands
+            and self.script == other.script
             and self.environments == other.environments
             and self.input_file_generators == other.input_file_generators
             and self.output_file_parsers == other.output_file_parsers
@@ -977,13 +1118,16 @@ class Action(JSONLike):
             commands=self.commands,
         )
 
+    def get_script_path(self, script_name):
+        """Return the script path, relative to the EAR directory."""
+        return Path(*script_name.split("/")).parts[-1]
+
     def expand(self):
         if self._from_expand:
             # already expanded
             return [self]
 
         else:
-
             # run main if:
             #   - one or more output files are not passed
             # run IFG if:
@@ -1004,43 +1148,58 @@ class Action(JSONLike):
 
             inp_files = []
             inp_acts = []
-            for IFG_i in self.input_file_generators:
-                script = "script-name"  # TODO
-                act_i = self.app.Action(
-                    commands=[
-                        self.app.Command(f"<<executable:python>> <<script:{script}>>")
-                    ],
-                    input_file_generators=[IFG_i],
-                    environments=[self.get_input_file_generator_action_env(IFG_i)],
-                    rules=main_rules + [IFG_i.get_action_rule()],
+            for ifg in self.input_file_generators:
+                cmd = (
+                    f"<<executable:python>> <<script:{ifg.script}>> "
+                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
-                inp_files.append(IFG_i.input_file)
+                act_i = self.app.Action(
+                    commands=[self.app.Command(cmd)],
+                    input_file_generators=[ifg],
+                    environments=[self.get_input_file_generator_action_env(ifg)],
+                    rules=main_rules + [ifg.get_action_rule()],
+                )
+                act_i._task_schema = self.task_schema
+                inp_files.append(ifg.input_file)
                 act_i._from_expand = True
                 inp_acts.append(act_i)
 
             out_files = []
             out_acts = []
-            for OP_i in self.output_file_parsers:
-                script = "script-name"  # TODO
+            for ofp in self.output_file_parsers:
+                cmd = (
+                    f"<<executable:python>> <<script:{ofp.script}>> "
+                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+                )
                 act_i = self.app.Action(
-                    commands=[
-                        self.app.Command(f"<<executable:python>> <<script:{script}>>")
-                    ],
-                    output_file_parsers=[OP_i],
-                    environments=[self.get_output_file_parser_action_env(OP_i)],
+                    commands=[self.app.Command(cmd)],
+                    output_file_parsers=[ofp],
+                    environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
                 )
-                out_files.extend(OP_i.output_files)
+                act_i._task_schema = self.task_schema
+                out_files.extend(ofp.output_files)
                 act_i._from_expand = True
                 out_acts.append(act_i)
 
+            commands = self.commands
+            if self.script:
+                commands += [
+                    self.app.Command(
+                        f"<<executable:python>> <<script:{self.script}>> "
+                        f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+                    )
+                ]
+
             main_act = self.app.Action(
-                commands=self.commands,
+                commands=commands,
+                script=self.script,
                 environments=[self.get_commands_action_env()],
                 rules=main_rules,
                 input_files=inp_files,
                 output_files=out_files,
             )
+            main_act._task_schema = self.task_schema
             main_act._from_expand = True
 
             cmd_acts = inp_acts + [main_act] + out_acts
@@ -1074,18 +1233,34 @@ class Action(JSONLike):
     def get_input_types(self) -> Tuple[str]:
         """Get the input types that are consumed by commands and input file generators of
         this action."""
-        params = list(self.get_command_input_types())
-        for i in self.input_file_generators:
-            params.extend([j.typ for j in i.inputs])
+        is_script = (
+            self.script
+            and not self.input_file_generators
+            and not self.output_file_parsers
+        )
+        if is_script:
+            params = self.task_schema.input_types
+        else:
+            params = list(self.get_command_input_types())
+            for i in self.input_file_generators:
+                params.extend([j.typ for j in i.inputs])
         return tuple(set(params))
 
     def get_output_types(self) -> Tuple[str]:
         """Get the output types that are produced by command standard outputs and errors,
         and by output file parsers of this action."""
-        params = list(self.get_command_output_types())
-        for i in self.output_file_parsers:
-            params.append(i.output.typ)
-        return tuple(params)
+        is_script = (
+            self.script
+            and not self.input_file_generators
+            and not self.output_file_parsers
+        )
+        if is_script:
+            params = self.task_schema.output_types
+        else:
+            params = list(self.get_command_output_types())
+            for i in self.output_file_parsers:
+                params.append(i.output.typ)
+        return tuple(set(params))
 
     def get_input_file_labels(self):
         return tuple(i.label for i in self.input_files)
@@ -1123,7 +1298,6 @@ class Action(JSONLike):
                 # for *output* parameters of the same name):
                 k_idx = None
                 for prev_data_idx in all_data_idx.values():
-
                     if key.startswith("inputs"):
                         k_param = key.split("inputs.")[1]
                         k_out = f"outputs.{k_param}"
@@ -1152,7 +1326,6 @@ class Action(JSONLike):
                 k_idx = None
                 for (act_idx_i, EAR_idx_i), prev_data_idx in all_data_idx.items():
                     if key in prev_data_idx:
-
                         k_idx = prev_data_idx[key]
 
                         # allocate a new parameter datum for this intermediate output:
@@ -1219,6 +1392,13 @@ class Action(JSONLike):
             return self.app.ActionScope.main()
 
     def is_input_type_required(self, typ: str, provided_files: List[FileSpec]) -> bool:
+        # TODO: for now assume a script takes all inputs
+        if (
+            self.script
+            and not self.input_file_generators
+            and not self.output_file_parsers
+        ):
+            return True
 
         # typ is required if is appears in any command:
         if typ in self.get_command_input_types():

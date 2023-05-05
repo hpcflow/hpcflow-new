@@ -310,7 +310,6 @@ class Jobscript(JSONLike):
     _app_attr = "app"
     _EAR_files_delimiter = ":"
     _workflow_app_alias = "wkflow_app"
-    _commands_file_stem = "commands"
 
     _child_objects = (
         ChildObjectSpec(
@@ -388,9 +387,8 @@ class Jobscript(JSONLike):
     def workflow_app_alias(self):
         return self._workflow_app_alias
 
-    @property
-    def commands_file_name(self):
-        return f"{self._commands_file_stem}{self.shell.JS_EXT}"
+    def get_commands_file_name(self, js_action_idx):
+        return f"js_{self.index}_act_{js_action_idx}{self.shell.JS_EXT}"
 
     @property
     def task_insert_IDs(self):
@@ -720,7 +718,7 @@ class Jobscript(JSONLike):
             num_actions=self.num_actions,
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
-            commands_file_name=self.commands_file_name,
+            commands_file_name=self.get_commands_file_name(r"${JS_act_idx}"),
         )
 
         out = header
@@ -777,7 +775,7 @@ class Jobscript(JSONLike):
                 run_dir = f"r_{r_idx}"
 
                 EAR_dir = Path(task_artifacts_path, task_dir, elem_dir, run_dir)
-                EAR_dir.mkdir(parents=True)
+                EAR_dir.mkdir(exist_ok=True, parents=True)
 
                 run_dirs_i.append(EAR_dir.relative_to(self.workflow.path))
 
@@ -785,7 +783,12 @@ class Jobscript(JSONLike):
 
         return run_dirs
 
-    def submit(self, task_artifacts_path: Path, scheduler_refs: Dict[int, str]) -> str:
+    def submit(
+        self,
+        task_artifacts_path: Path,
+        scheduler_refs: Dict[int, str],
+        print_stdout: Optional[bool] = False,
+    ) -> str:
 
         run_dirs = self.make_artifact_dirs(task_artifacts_path)
         self.write_need_EARs_file()
@@ -824,6 +827,8 @@ class Jobscript(JSONLike):
             stderr = proc.stderr.decode().strip()
             err_args["stdout"] = stdout
             err_args["stderr"] = stderr
+            if print_stdout and stdout:
+                print(stdout)
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."

@@ -56,12 +56,16 @@ class _DummyPersistentWorkflow:
     def __init__(self):
         self._parameters = []
         self._sources = []
+        self._data_ref = []
 
     def _add_parameter_data(self, data, source: Dict) -> int:
         self._parameters.append(data)
         self._sources.append(source)
-        data_ref = len(self._parameters) - 1
-        return data_ref
+        self._data_ref.append(len(self._data_ref))
+        return self._data_ref[-1]
+
+    def get_parameter_data(self, data_idx):
+        return (True, self._parameters[self._data_ref.index(data_idx)])
 
     def make_persistent(self, workflow: Workflow):
         for dat_i, source_i in zip(self._parameters, self._sources):
@@ -102,7 +106,6 @@ class WorkflowTemplate(JSONLike):
     resources: Optional[Dict[str, Dict]] = None
 
     def __post_init__(self):
-
         if isinstance(self.resources, dict):
             self.resources = self.app.ResourceList.from_json_like(self.resources)
         elif isinstance(self.resources, list):
@@ -273,7 +276,6 @@ class Workflow:
     _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
 
     def __init__(self, path: PathLike) -> None:
-
         self.path = Path(path).resolve()
         if not self.path.is_dir():
             raise WorkflowNotFoundError(f"No workflow found at path: {self.path}")
@@ -726,7 +728,6 @@ class Workflow:
                 yield
 
             except Exception as err:
-
                 print("batch update exception!")
 
                 self._in_batch_mode = False
@@ -748,9 +749,7 @@ class Workflow:
                 raise err
 
             else:
-
                 if self._store.has_pending:
-
                     is_diff = self._store.is_modified_on_disk()
                     if is_diff:
                         raise WorkflowBatchUpdateFailedError(
@@ -780,7 +779,6 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
     ) -> Workflow:
-
         """
         Parameters
         ----------
@@ -1012,6 +1010,7 @@ class Workflow:
         self,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
+        print_stdout: Optional[bool] = False,
     ):
         """Submit outstanding EARs for execution."""
 
@@ -1038,6 +1037,7 @@ class Workflow:
                 sub_js_idx = sub.submit(
                     self.task_artifacts_path,
                     ignore_errors=ignore_errors,
+                    print_stdout=print_stdout,
                 )
                 submitted_js[sub.index] = sub_js_idx
             except SubmissionFailure as exc:
@@ -1049,6 +1049,7 @@ class Workflow:
         self,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
+        print_stdout: Optional[bool] = False,
     ) -> None:
         with self._store.cached_load():
             with self.batch_update():
@@ -1056,6 +1057,7 @@ class Workflow:
                 exceptions, submitted_js = self._submit(
                     ignore_errors=ignore_errors,
                     JS_parallelism=JS_parallelism,
+                    print_stdout=print_stdout,
                 )
 
         if exceptions:
@@ -1110,7 +1112,6 @@ class Workflow:
             return names
 
     def _get_new_task_unique_name(self, new_task: Task, new_index: int) -> str:
-
         task_templates = list(self.template.tasks)
         task_templates.insert(new_index, new_task)
         uniq_names = Task.get_task_unique_names(task_templates)
@@ -1122,7 +1123,6 @@ class Workflow:
         task: Task,
         new_index: Optional[int] = None,
     ) -> WorkflowTask:
-
         if new_index is None:
             new_index = self.num_tasks
 
@@ -1430,7 +1430,9 @@ class Workflow:
                     param_name=param_name,
                     shell_var_name=shell_var_name,
                 )
-            with Path(jobscript.commands_file_name).open("wt", newline="\n") as fp:
+            commands = jobscript.shell.wrap_in_subshell(commands)
+            cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
+            with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands)
 
@@ -1451,8 +1453,25 @@ class Workflow:
                 data_idx = EAR.data_idx[name]
                 self._store.set_parameter(data_idx, value)
 
-    def resolve_jobscripts(self) -> List[Jobscript]:
+    def save_parameters(
+        self,
+        values: Dict,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+    ):
+        """Save multiple parameters to a given EAR."""
+        with self._store.cached_load():
+            with self.batch_update():
+                _, EAR = self._from_internal_get_EAR(
+                    submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
+                )
+                for name, value in values.items():
+                    data_idx = EAR.data_idx[name]
+                    self._store.set_parameter(data_idx, value)
 
+    def resolve_jobscripts(self) -> List[Jobscript]:
         js, element_deps = self._resolve_singular_jobscripts()
         js_deps = resolve_jobscript_dependencies(js, element_deps)
 
@@ -1482,13 +1501,11 @@ class Workflow:
         all_element_deps = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
-
             task = self.tasks.get(insert_ID=task_iID)
             res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
             for js_dat in jobscripts:
-
                 # (insert ID, action_idx, index into task_loop_idx):
                 task_actions = [
                     [task.insert_ID, i, 0]
@@ -1522,7 +1539,6 @@ class Workflow:
                     "dependencies": {},
                 }
                 for elem_idx, act_indices in js_dat["elements"].items():
-
                     js_elem_idx = task_elements[task.insert_ID].index((elem_idx))
                     all_EAR_IDs = []
                     for act_idx in act_indices:

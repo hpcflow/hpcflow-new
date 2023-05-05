@@ -32,7 +32,6 @@ class ParameterValue:
 
 
 class ParameterPropagationMode(enum.Enum):
-
     IMPLICIT = 0
     EXPLICIT = 1
     NEVER = 2
@@ -40,14 +39,12 @@ class ParameterPropagationMode(enum.Enum):
 
 @dataclass
 class ParameterPath(JSONLike):
-
     path: Sequence[Union[str, int, float]]
     task: Optional[Union[TaskTemplate, TaskSchema]] = None  # default is "current" task
 
 
 @dataclass
 class Parameter(JSONLike):
-
     _validation_schema = "parameters_spec_schema.yaml"
     _child_objects = (
         ChildObjectSpec(
@@ -63,7 +60,6 @@ class Parameter(JSONLike):
     _hash_value: Optional[str] = field(default=None, repr=False)
 
     def __repr__(self) -> str:
-
         is_file_str = ""
         if self.is_file:
             is_file_str = f", is_file={self.is_file!r}"
@@ -88,9 +84,15 @@ class Parameter(JSONLike):
             if i._typ == self.typ:
                 self._value_class = i
 
+    def __deepcopy__(self, memo):
+        kwargs = self.to_dict()
+        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        return obj
+
     def to_dict(self):
         dct = super().to_dict()
         del dct["_value_class"]
+        dct.pop("_task_schema", None)  # TODO: how do we have a _task_schema ref?
         return dct
 
 
@@ -102,7 +104,6 @@ class SubParameter:
 
 @dataclass
 class SchemaParameter(JSONLike):
-
     _app_attr = "app"
 
     _child_objects = (
@@ -170,7 +171,6 @@ class SchemaInput(SchemaParameter):
         self._set_parent_refs()
 
     def __repr__(self) -> str:
-
         default_str = ""
         if self.default_value is not None:
             default_str = f", default_value={self.default_value!r}"
@@ -238,7 +238,6 @@ class SchemaOutput(SchemaParameter):
         return "output"
 
     def __repr__(self) -> str:
-
         return (
             f"{self.__class__.__name__}("
             f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
@@ -362,7 +361,6 @@ class ValueSequence(JSONLike):
         return obj
 
     def _validate_parameter_path(self, path):
-
         if not isinstance(path, str):
             raise MalformedParameterPathError(
                 f"`path` must be a string, but given path has type {type(path)} with value "
@@ -581,7 +579,6 @@ class ValuePerturbation(AbstractInputValue):
 
 
 class InputValue(AbstractInputValue):
-
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -595,12 +592,18 @@ class InputValue(AbstractInputValue):
         self,
         parameter: Union[Parameter, str],
         value: Optional[Any] = None,
+        value_class_method: Optional[str] = None,
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
         elif isinstance(parameter, SchemaInput):
             parameter = parameter.parameter
+
+        if value_class_method and value is not None:
+            if parameter._value_class:
+                func = getattr(parameter._value_class, value_class_method)
+                value = func(**value)
 
         self.parameter = parameter
         self.path = (path.strip(".") if path else None) or None
@@ -625,7 +628,6 @@ class InputValue(AbstractInputValue):
         return obj
 
     def __repr__(self):
-
         val_grp_idx = ""
         if self._value_group_idx is not None:
             val_grp_idx = f", value_group_idx={self._value_group_idx}"
@@ -678,6 +680,10 @@ class InputValue(AbstractInputValue):
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
+        if "::" in json_like["parameter"]:
+            param, cls_method = json_like["parameter"].split("::")
+            json_like["parameter"] = param
+            json_like["value_class_method"] = cls_method
 
         if "path" not in json_like:
             param_spec = json_like["parameter"].split(".")
@@ -697,7 +703,6 @@ class InputValue(AbstractInputValue):
 
 
 class ResourceSpec(JSONLike):
-
     ALLOWED_PARAMETERS = {
         "scratch",
         "num_cores",
@@ -734,7 +739,6 @@ class ResourceSpec(JSONLike):
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
     ):
-
         self.scope = scope or self.app.ActionScope.any()
 
         if isinstance(time_limit, timedelta):
@@ -949,7 +953,6 @@ class ResourceSpec(JSONLike):
 
 
 class InputSourceType(enum.Enum):
-
     IMPORT = 0
     LOCAL = 1
     DEFAULT = 2
@@ -963,7 +966,6 @@ class TaskSourceType(enum.Enum):
 
 
 class InputSource(JSONLike):
-
     _child_objects = (
         ChildObjectSpec(
             name="source_type",
@@ -983,7 +985,6 @@ class InputSource(JSONLike):
         path=None,
         where=None,
     ):
-
         self.source_type = self._validate_source_type(source_type)
         self.import_ref = import_ref
         self.task_ref = task_ref

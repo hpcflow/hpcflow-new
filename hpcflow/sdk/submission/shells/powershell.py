@@ -1,5 +1,5 @@
 import subprocess
-from textwrap import dedent
+from textwrap import dedent, indent
 from typing import Dict, Optional
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
@@ -73,7 +73,7 @@ class WindowsPowerShell(Shell):
             {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
             {workflow_app_alias} internal workflow $WK_PATH set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
-            . (Join-Path $run_dir_abs commands.ps1)
+            . (Join-Path $run_dir_abs "{commands_file_name}")
             {workflow_app_alias} internal workflow $WK_PATH set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
         }}
@@ -132,3 +132,17 @@ class WindowsPowerShell(Shell):
             f" $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
             f"\n"
         )
+
+    def wrap_in_subshell(self, commands: str) -> str:
+        """Format commands to run within a child scope.
+
+        This assumes commands ends in a newline.
+
+        """
+        commands = indent(commands, self.JS_INDENT)
+        return dedent(
+            """\
+            & {{
+            {commands}}}
+        """
+        ).format(commands=commands)

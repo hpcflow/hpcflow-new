@@ -1,6 +1,6 @@
 from pathlib import Path
 import subprocess
-from textwrap import dedent
+from textwrap import dedent, indent
 from typing import Dict, List, Optional, Union
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import (
@@ -54,31 +54,31 @@ class Bash(Shell):
     )
     JS_MAIN = dedent(
         """\
-        elem_need_EARs=`sed "${{JS_elem_idx}}q;d" $EAR_ID_FILE`
-        elem_run_dirs=`sed "${{JS_elem_idx}}q;d" $ELEM_RUN_DIR_FILE`
+        elem_need_EARs=`sed "$((${{JS_elem_idx}} + 1))q;d" $EAR_ID_FILE`
+        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" $ELEM_RUN_DIR_FILE`
 
-        for JS_act_idx in {{1..{num_actions}}}
+        for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
   
-          need_EAR="$(cut -d'{EAR_files_delimiter}' -f $JS_act_idx <<< $elem_need_EARs)"
+          need_EAR="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_need_EARs)"
           if [ "$need_act" = "0" ]; then
               continue
           fi
   
-          run_dir="$(cut -d'{EAR_files_delimiter}' -f $JS_act_idx <<< $elem_run_dirs)"
+          run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd $WK_PATH/$run_dir
   
-          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
+          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
           . {commands_file_name}
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
 
         done
     """
     )
     JS_ELEMENT_LOOP = dedent(
         """\
-        for JS_elem_idx in {{1..{num_elements}}}
+        for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
         do
         {main}
         done
@@ -87,7 +87,7 @@ class Bash(Shell):
     )
     JS_ELEMENT_ARRAY = dedent(
         """\
-        JS_elem_idx=${scheduler_array_item_var}
+        JS_elem_idx=$(({scheduler_array_item_var} - 1))
         {main}
         cd $WK_PATH
     """
@@ -142,9 +142,23 @@ class Bash(Shell):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" $SUB_IDX $JS_IDX $(($JS_elem_idx - 1)) $(($JS_act_idx - 1))"
+            f" $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
             f"\n"
         )
+
+    def wrap_in_subshell(self, commands: str) -> str:
+        """Format commands to run within a subshell.
+
+        This assumes commands ends in a newline.
+
+        """
+        commands = indent(commands, self.JS_INDENT)
+        return dedent(
+            """\
+            (
+            {commands})
+        """
+        ).format(commands=commands)
 
 
 class WSLBash(Bash):

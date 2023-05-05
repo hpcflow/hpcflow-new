@@ -50,7 +50,7 @@ pyinstaller = "^5.5"
 test = ["pytest"]
 
 [tool.poetry.scripts]
-hpcflow = 'hpcflow.cli.cli:hpcflow.CLI'
+hpcflow = 'hpcflow.cli:hpcflow.CLI'
 
 [tool.poetry.plugins.pyinstaller40]
 hook-dirs = "hpcflow.__pyinstaller:get_hook_dirs"

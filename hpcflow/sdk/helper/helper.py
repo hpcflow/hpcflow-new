@@ -45,7 +45,7 @@ def kill_proc_tree(
 def get_user_data_dir(app):
     """We segregate by hostname to account for the case where multiple machines might use
     the same shared file system."""
-    return Path(user_data_dir(appname=app.name)).joinpath(socket.gethostname())
+    return Path(user_data_dir(appname=app.package_name)).joinpath(socket.gethostname())
 
 
 def get_PID_file_path(app):

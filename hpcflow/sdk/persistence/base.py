@@ -88,7 +88,6 @@ class PersistentStoreFeatures:
 
 
 class PersistentStore(ABC):
-
     _parameter_encoders = {}
     _parameter_decoders = {}
     _features = None
@@ -215,12 +214,10 @@ class PersistentStore(ABC):
         return tc
 
     def add_template_components(self, template_components: Dict) -> None:
-
         ptc = self._get_persistent_template_components()
         pending = self._pending["template_components"]
 
         for name, dat in template_components.items():
-
             if name in ptc and name in pending:
                 for hash, dat_i in dat.items():
                     if hash not in ptc[name] and hash not in pending[name]:
@@ -254,7 +251,6 @@ class PersistentStore(ABC):
         elements: List[Dict],
         element_iterations: List[Dict],
     ) -> None:
-
         key = (task_idx, task_insert_ID)
         if key not in self._pending["elements"]:
             self._pending["elements"][key] = []
@@ -271,7 +267,6 @@ class PersistentStore(ABC):
         element_iterations: List[Dict],
         element_iters_idx: Dict[int, List[int]],
     ) -> None:
-
         key = (task_idx, task_insert_ID)
         if key not in self._pending["element_iterations"]:
             self._pending["element_iterations"][key] = []
@@ -390,7 +385,6 @@ class PersistentStore(ABC):
         type_lookup: Optional[Dict] = None,
         **kwargs,
     ) -> Any:
-
         path = path or []
         if type_lookup is None:
             type_lookup = {
@@ -466,7 +460,6 @@ class PersistentStore(ABC):
         path: Optional[List[str]] = None,
         **kwargs,
     ) -> Any:
-
         if data is None:
             return None
 
