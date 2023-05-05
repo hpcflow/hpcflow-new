@@ -79,6 +79,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                 "actions": [
                     {
                         "_from_expand": False,
+                        "script": None,
                         "commands": [
                             {
                                 "command": "<<parameter:p1>>",
