@@ -1461,8 +1461,25 @@ class Workflow:
                 data_idx = EAR.data_idx[name]
                 self._store.set_parameter(data_idx, value)
 
-    def resolve_jobscripts(self) -> List[Jobscript]:
+    def save_parameters(
+        self,
+        values: Dict,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+    ):
+        """Save multiple parameters to a given EAR."""
+        with self._store.cached_load():
+            with self.batch_update():
+                _, EAR = self._from_internal_get_EAR(
+                    submission_idx, jobscript_idx, JS_element_idx, JS_action_idx
+                )
+                for name, value in values.items():
+                    data_idx = EAR.data_idx[name]
+                    self._store.set_parameter(data_idx, value)
 
+    def resolve_jobscripts(self) -> List[Jobscript]:
         js, element_deps = self._resolve_singular_jobscripts()
         js_deps = resolve_jobscript_dependencies(js, element_deps)
 
