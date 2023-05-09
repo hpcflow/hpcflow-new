@@ -140,8 +140,7 @@ class RunTimeInfo(PrettyPrinter):
 
     def __repr__(self):
         out = f"{self.__class__.__name__}("
-        for k, v in self._get_members().items():
-            out += f"{k}={v!r}"
+        out += ", ".join(f"{k}={v!r}" for k, v in self._get_members().items())
         return out
 
     def _set_venv_path(self):
