@@ -46,6 +46,8 @@ class RunTimeInfo(PrettyPrinter):
         path_exec = Path(sys.executable)
         path_argv = Path(sys.argv[0])
 
+        self.in_ipython = False
+
         if self.is_frozen:
             self.bundle_dir = Path(bundle_dir)
             self.executable_path = path_argv
@@ -56,6 +58,12 @@ class RunTimeInfo(PrettyPrinter):
             self.script_path = path_argv
             self.resolved_script_path = path_argv.absolute()
             self.python_executable_path = path_exec
+
+            try:
+                get_ipython
+                self.in_ipython = True
+            except NameError:
+                pass
 
         self.python_version = platform.python_version()
         self.is_venv = hasattr(sys, "real_prefix") or sys.base_prefix != sys.prefix
@@ -101,6 +109,7 @@ class RunTimeInfo(PrettyPrinter):
                 "is_conda_venv",
                 "executable_name",
                 "python_version",
+                "in_ipython",
             ):
                 sentry_sdk.set_tag(f"rti.{k}", v)
 
@@ -111,6 +120,7 @@ class RunTimeInfo(PrettyPrinter):
             "machine": self.machine,
             "working_dir": self.working_dir,
             "invocation_command": self.get_invocation_command(),
+            "in_ipython": self.in_ipython,
         }
         if self.is_frozen:
             out.update(
@@ -167,16 +177,8 @@ class RunTimeInfo(PrettyPrinter):
         if self.is_frozen:
             return [str(self.resolved_executable_path)]
         else:
-            in_ipython = False
-            try:
-                get_ipython
-                in_ipython = True
-            except NameError:
-                pass
-
-            if in_ipython:
+            if self.in_ipython:
                 app_module = import_module(self.package_name)
-
                 CLI_path = Path(*app_module.__path__, "cli.py")
                 command = [str(self.python_executable_path), str(CLI_path)]
 
