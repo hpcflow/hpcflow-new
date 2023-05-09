@@ -183,7 +183,7 @@ class ConfigFile:
             raise ConfigDefaultValidationError(err) from None
 
         yaml = YAML(typ="rt")
-        with config_path.open("w") as handle:
+        with config_path.open("w", newline="\n") as handle:
             yaml.dump(default_config, handle)
 
     def _load_file_data(self):
