@@ -41,7 +41,7 @@ class RunTimeInfo(PrettyPrinter):
         self.is_frozen = is_frozen
         self.working_dir = os.getcwd()
         self.logger = logger
-        self.machine = socket.gethostname()
+        self.hostname = socket.gethostname()
 
         path_exec = Path(sys.executable)
         path_argv = Path(sys.argv[0])
@@ -117,7 +117,7 @@ class RunTimeInfo(PrettyPrinter):
         out = {
             "is_frozen": self.is_frozen,
             "python_version": self.python_version,
-            "machine": self.machine,
+            "hostname": self.hostname,
             "working_dir": self.working_dir,
             "invocation_command": self.get_invocation_command(),
             "in_ipython": self.in_ipython,
