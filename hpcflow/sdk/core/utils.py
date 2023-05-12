@@ -10,10 +10,8 @@ import re
 import socket
 import string
 from datetime import datetime, timezone
-from typing import Mapping, List, Union
+from typing import Mapping
 
-import zarr
-import numpy.typing as npt
 from ruamel.yaml import YAML
 import sentry_sdk
 
@@ -116,7 +114,6 @@ def group_by_dict_key_values(lst, *keys):
     grouped = [[lst[0]]]
     for lst_item in lst[1:]:
         for group_idx, group in enumerate(grouped):
-
             try:
                 is_vals_equal = all(lst_item[k] == group[0][k] for k in keys)
 
@@ -162,7 +159,6 @@ def get_in_container(cont, path, cast_indices=False):
 
 
 def set_in_container(cont, path, value, ensure_path=False):
-
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
@@ -291,7 +287,6 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     def decorator(func):
         @wraps(func)
         def wrap(*args, **kwargs):
-
             spec = args[spec_pos]
             obj_list = args[obj_list_pos]
             if spec[spec_name] not in obj_list:
