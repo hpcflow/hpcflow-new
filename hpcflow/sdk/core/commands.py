@@ -7,7 +7,6 @@ from hpcflow.sdk.core.json_like import JSONLike
 
 @dataclass
 class Command(JSONLike):
-
     _app_attr = "app"
 
     command: str
@@ -54,7 +53,7 @@ class Command(JSONLike):
 @dataclass
 class CommandArgument:
     """
-    Attributes
+    Parameters
     ----------
     parts : list of any of str, File, Parameter
 

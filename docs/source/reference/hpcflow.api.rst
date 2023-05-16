@@ -1,25 +1,8 @@
-hpcflow.api package
-===================
+hpcflow API
+===========
 
-Submodules
-----------
+.. toctree::
+   :maxdepth: 3
 
-hpcflow.api.config module
--------------------------
-
-.. automodule:: hpcflow.api.config
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: hpcflow.api
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. autofunction:: hpcflow.api.make_workflow
-
-.. autoclass:: hpcflow.api.Task
+   hpcflow.api_methods
+   hpcflow.api_classes

@@ -62,16 +62,27 @@ exclude_patterns = []
 #
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    "logo_link": "https://hpcflow.github.io",
-    "github_url": "https://github.com/hpcflow/hpcflow-new",
     "external_links": [],
     "switcher": {
         "json_url": "https://hpcflow.github.io/docs/switcher.json",
-        "url_template": "https://hpcflow.github.io/docs/v{version}/",
+        # "url_template": "https://hpcflow.github.io/docs/v{version}/", # TODO: update switcher.json to include this url
         "version_match": __version__,
     },
-    "navbar_end": ["version-switcher", "navbar-icon-links.html"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links", "version-switcher"],
     "use_edit_page_button": True,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/hpcflow/hpcflow-new",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/hpcflow-new2",
+            "icon": "fas fa-box",  # TODO: icon is smaller than in https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html ?
+        },
+    ],
 }
 
 html_context = {
