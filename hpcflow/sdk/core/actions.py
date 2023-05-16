@@ -32,7 +32,7 @@ class ElementID:
 @dataclass(eq=True, frozen=True)
 class IterationID(ElementID):
     """
-    Attributes
+    Parameters
     ----------
     iteration_idx :
         Index into the `element_iterations` list/array of the task. Note this is NOT the

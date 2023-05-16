@@ -1,10 +1,7 @@
-hpcflow.cli package
-===================
+hpcflow CLI
+===========
 
-Module contents
----------------
+.. toctree::
+   :maxdepth: 3
 
-.. automodule:: hpcflow.cli
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Add the CLI docs here using sphinx-click(?)

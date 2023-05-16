@@ -12,7 +12,7 @@ Welcome to hpcflow's documentation!
 
    Install <install/index>
    User Guide <user/index>
-   API reference <reference/index>
+   Reference <reference/index>
    Contribute <contribute/index>
 
 

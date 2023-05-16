@@ -48,7 +48,7 @@ class InputStatus:
     """Information about a given schema input and its parametrisation within an element
     set.
 
-    Attributes
+    Parameters
     ----------
     has_default
         True if a default value is available.
@@ -224,7 +224,6 @@ class ElementSet(JSONLike):
         return tuple(self._element_local_idx_range)
 
     def _validate(self):
-
         inp_paths = [i.normalised_inputs_path for i in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)
         if dup_inp_paths:
@@ -257,7 +256,6 @@ class ElementSet(JSONLike):
                 )
 
     def _validate_against_template(self):
-
         unexpected_types = (
             set(self.input_types) - self.task_template.all_schema_input_types
         )
@@ -457,7 +455,6 @@ class Task(JSONLike):
         element_sets: Optional[List[ElementSet]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
     ):
-
         """
         Parameters
         ----------
@@ -584,7 +581,6 @@ class Task(JSONLike):
                             seq._parameter = inp_j.parameter
 
     def _validate(self):
-
         # TODO: check a nesting order specified for each sequence?
 
         names = set(i.objective.name for i in self.schemas)
@@ -642,7 +638,6 @@ class Task(JSONLike):
         output_data_indices = {}
         for schema in self.schemas:
             for output in schema.outputs:
-
                 # TODO: consider multiple schemas in action index?
 
                 path = f"outputs.{output.typ}"
@@ -662,7 +657,6 @@ class Task(JSONLike):
         return output_data_indices
 
     def prepare_element_resolution(self, element_set, input_data_indices):
-
         multiplicities = []
         for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
@@ -708,7 +702,6 @@ class Task(JSONLike):
 
         available = {}
         for inputs_path, inp_status in self.get_input_statuses(element_set).items():
-
             available[inputs_path] = []
 
             # local specification takes precedence:
@@ -717,7 +710,6 @@ class Task(JSONLike):
 
             # search for task sources:
             for src_task_i in source_tasks:
-
                 # ensure we process output types before input types, so they appear in the
                 # available sources list first, meaning they take precedence when choosing
                 # an input source:
@@ -726,9 +718,7 @@ class Task(JSONLike):
                     key=lambda x: x.input_or_output,
                     reverse=True,
                 ):
-
                     if param_i.typ == inputs_path:
-
                         if param_i.input_or_output == "input":
                             # input parameter might not be provided e.g. if it only used
                             # to generate an input file, and that input file is passed
@@ -1159,14 +1149,11 @@ class WorkflowTask:
 
         # Now check for task- and default-sources and overwrite or append to local sources:
         for schema_input in self.template.get_all_required_schema_inputs(element_set):
-
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
 
             for inp_src_idx, inp_src in enumerate(sources):
-
                 if inp_src.source_type is InputSourceType.TASK:
-
                     src_task = inp_src.get_task(self.workflow)
 
                     src_elem_iters = src_task.get_all_element_iterations()
@@ -1202,7 +1189,6 @@ class WorkflowTask:
                             seq.is_unused = True
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
-
                     grp_idx = [schema_input.default_value._value_group_idx]
                     if self.app.InputSource.local() in sources:
                         input_data_idx[key] += grp_idx
@@ -1306,7 +1292,6 @@ class WorkflowTask:
         # results in no available elements due to `allow_non_coincident_task_sources`.
 
         if not element_set.allow_non_coincident_task_sources:
-
             sources_by_task = {}
             for inp_type, sources in element_set.input_sources.items():
                 source = sources[0]
@@ -1345,7 +1330,6 @@ class WorkflowTask:
         sequence_indices,
         source_indices,
     ):
-
         new_elements = []
         element_sequence_indices = {}
         element_src_indices = {}
@@ -1355,7 +1339,6 @@ class WorkflowTask:
             new_elements.append(elem_i)
 
             for k, v in i.items():
-
                 # track which sequence value indices (if any) are used for each new
                 # element:
                 if k in sequence_indices:
@@ -1413,7 +1396,6 @@ class WorkflowTask:
 
         element_dat_idx = [{}]
         for para_sequences in multi_srt_grp:
-
             # check all equivalent nesting_orders have equivalent multiplicities
             all_multis = {i["multiplicity"] for i in para_sequences}
             if len(all_multis) > 1:
@@ -1467,9 +1449,7 @@ class WorkflowTask:
         param_src_updates = {}
         count = 0
         for act_idx, action in self.template.all_schema_actions():
-
             if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
-
                 EAR_idx = self.num_EARs + count
                 # note: indices below `EAR_idx` are redundant and can be derived from
                 # `EAR_idx`:
@@ -1706,7 +1686,6 @@ class WorkflowTask:
             elem_idx += self._add_element_set(elem_set_i)
 
         for task in self.get_dependent_tasks(as_objects=True):
-
             elem_prop = propagate_to.get(task.unique_name)
             if elem_prop is None:
                 continue
@@ -1891,7 +1870,6 @@ class WorkflowTask:
         current_value = None
         is_cur_val_assigned = False
         for path_i, data_idx_i in data_index.items():
-
             path_i = path_i.split(".")
             is_parent = False
             is_update = False
@@ -1974,11 +1952,9 @@ class WorkflowTask:
 
 
 class Elements:
-
     __slots__ = ("_task",)
 
     def __init__(self, task: WorkflowTask):
-
         self._task = task
 
         # TODO: cache Element objects
@@ -1994,7 +1970,6 @@ class Elements:
         return self._task
 
     def _get_selection(self, selection):
-
         if isinstance(selection, int):
             start, stop, step = selection, selection + 1, 1
 
@@ -2020,7 +1995,6 @@ class Elements:
         start: int = None,
         end: int = None,
     ) -> Iterator[Element]:
-
         selection, _ = self._get_selection(slice(start, end))
         for i in self.task.workflow.get_task_elements_islice(self.task, selection):
             yield i
@@ -2035,7 +2009,6 @@ class Elements:
         self,
         selection: Union[int, slice],
     ) -> Union[Element, List[Element]]:
-
         sel_normed, _ = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, sel_normed)
 
@@ -2047,7 +2020,6 @@ class Elements:
 
 @dataclass
 class Parameters:
-
     _app_attr = "_app"
 
     task: WorkflowTask
@@ -2063,7 +2035,6 @@ class Parameters:
             yield i
 
     def _get_selection(self, selection):
-
         if isinstance(selection, int):
             start, stop, step = selection, selection + 1, 1
 
@@ -2088,7 +2059,6 @@ class Parameters:
         return self.islice()
 
     def __getitem__(self, selection: Union[int, slice]) -> Union[Any, List[Any]]:
-
         selection, length = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, selection)
         if self.return_element_parameters:

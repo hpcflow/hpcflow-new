@@ -66,7 +66,7 @@ def rename_dir(replaced_dir, original_dir) -> None:
 class PersistentStoreFeatures:
     """Class to represent the features provided by a persistent store.
 
-    Attributes
+    Parameters
     ----------
     jobscript_parallelism
         If True, the store supports workflows running multiple independent jobscripts
