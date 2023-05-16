@@ -1,4 +1,36 @@
 
+<a name="v0.2.0a38"></a>
+## [v0.2.0a38](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a37...v0.2.0a38) - 2023.05.16
+
+### Other changes
+
+* merge branch fix/poetry-pre-commit into feat/config
+
+### ♻ Code Refactoring
+
+* remove unused module
+* move api.py out of sub-package
+* remove unused
+* don't use Config private methods
+* change RunTimeInfo.machine -> hostname to disambiguate from user-specified machine in config
+* write default config file using \n line endings
+
+### ✨ Features
+
+* support variables in config
+* add RunTimeInfo.in_ipython
+* config match run-time info with optional glob patterns
+
+### 🐛 Bug Fixes
+
+* logging; fix [#307](https://github.com/hpcflow/hpcflow-new/issues/307)
+* RunTimeInfo repr
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a37"></a>
 ## [v0.2.0a37](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a36...v0.2.0a37) - 2023.05.16
 
