@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a37"></a>
+## [v0.2.0a37](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a36...v0.2.0a37) - 2023.05.16
+
+### 🐛 Bug Fixes
+
+* **gha:** update poetry check pre-commit rev
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a36"></a>
 ## [v0.2.0a36](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a35...v0.2.0a36) - 2023.05.05
 
