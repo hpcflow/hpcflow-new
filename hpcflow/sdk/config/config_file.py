@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import fnmatch
 import io
 import logging
 import os
@@ -45,7 +46,9 @@ class ConfigFile:
             for c_name_i, c_dat_i in self.data["configs"].items():
                 is_match = True
                 for match_k, match_v in c_dat_i["invocation"]["match"].items():
-                    if getattr(self.config._app.run_time_info, match_k) != match_v:
+                    # test for a matching glob pattern:
+                    k_value = getattr(self.config._app.run_time_info, match_k)
+                    if not fnmatch.filter(names=[k_value], pat=match_v):
                         is_match = False
                         break
                 if is_match:
@@ -180,7 +183,7 @@ class ConfigFile:
             raise ConfigDefaultValidationError(err) from None
 
         yaml = YAML(typ="rt")
-        with config_path.open("w") as handle:
+        with config_path.open("w", newline="\n") as handle:
             yaml.dump(default_config, handle)
 
     def _load_file_data(self):

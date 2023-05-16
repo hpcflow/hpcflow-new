@@ -1,7 +1,25 @@
 """Module that defines built-in callback functions for configuration item values."""
 
 
+import re
 import fsspec
+
+
+def callback_vars(config, value):
+    """Substitute configuration variables."""
+
+    def vars_repl(match_obj):
+        var_name = match_obj.groups()[0]
+        return config._variables[var_name]
+
+    vars_join = "|".join(list(config._variables.keys()))
+    vars_regex = f"\<\<({vars_join})\>\>"
+    value = re.sub(
+        pattern=vars_regex,
+        repl=vars_repl,
+        string=value,
+    )
+    return value
 
 
 def callback_file_paths(config, file_path):

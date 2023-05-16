@@ -39,9 +39,10 @@ class ConfigFileValidationError(ConfigError):
 
 
 class ConfigItemCallbackError(ConfigError):
-    def __init__(self, name, err, message=None):
+    def __init__(self, name, callback, err, message=None):
         self.message = message or (
-            f"Callback function for configuration item {name!r} failed: \n\n{err!r}"
+            f"Callback function {callback.__name__!r} for configuration item {name!r} "
+            f"failed with exception: \n\n{err!r}"
         )
         super().__init__(self.message)
 

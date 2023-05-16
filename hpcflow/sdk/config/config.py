@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from hashlib import new
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
@@ -20,6 +20,7 @@ from hpcflow.sdk.log import AppLog
 
 from .callbacks import (
     callback_bool,
+    callback_vars,
     callback_file_paths,
     set_callback_file_paths,
     check_load_data_files,
@@ -47,7 +48,7 @@ DEFAULT_CONFIG_FILE = {
             "config": {
                 "machine": socket.gethostname(),
                 "telemetry": True,
-                "log_file_path": "logs/app.log",
+                "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
                 "environment_sources": [],
                 "task_schema_sources": [],
                 "command_file_sources": [],
@@ -104,13 +105,14 @@ class Config:
         logger,
         uid=None,
         callbacks=None,
+        variables=None,
         **overrides,
     ):
-
         self._app = app
         self._options = options
         self._overrides = overrides
         self._logger = logger
+        self._variables = variables or {}
 
         # Callbacks are run on get:
         self._get_callbacks = {
@@ -118,7 +120,10 @@ class Config:
             "environment_sources": (callback_file_paths,),
             "parameter_sources": (callback_file_paths,),
             "command_file_sources": (callback_file_paths,),
-            "log_file_path": (callback_file_paths,),
+            "log_file_path": (
+                callback_vars,
+                callback_file_paths,
+            ),
             "telemetry": (callback_bool,),
             **(callbacks or {}),
         }
@@ -318,7 +323,10 @@ class Config:
                 self._logger.debug(
                     f"Invoking `config.get` callback ({cb.__name__!r}) for item {name!r}={value!r}"
                 )
-                value = cb(self, value)
+                try:
+                    value = cb(self, value)
+                except Exception as err:
+                    raise ConfigItemCallbackError(name, cb, err)
         return value
 
     def get(
@@ -361,10 +369,7 @@ class Config:
             )
 
         if callback:
-            try:
-                val = self._get_callback_value(name, val)
-            except Exception as err:
-                raise ConfigItemCallbackError(name, err)
+            val = self._get_callback_value(name, val)
 
         if as_str:
             if isinstance(val, (list, tuple, set)):
@@ -382,7 +387,6 @@ class Config:
         return value
 
     def set(self, name, value, is_json=False, callback=True):
-
         self._logger.debug(f"Attempting to set config item {name!r} to {value!r}.")
 
         if name not in self._configurable_keys:
@@ -396,7 +400,6 @@ class Config:
             file_val = self._get_callback_value(name, file_val_raw)
 
             if callback_val != current_val:
-
                 was_in_modified = False
                 was_in_unset = False
                 prev_modified_val = None
@@ -426,7 +429,6 @@ class Config:
                             cb(self, callback_val)
 
                 except ConfigValidationError as err:
-
                     # revert:
                     if modified_updated:
                         if was_in_modified:
@@ -445,7 +447,6 @@ class Config:
                 print(f"value is already: {callback_val!r}")
 
     def unset(self, name):
-
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         if name in self._unset_keys or not self._file.is_item_set(name):

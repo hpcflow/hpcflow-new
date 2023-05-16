@@ -411,7 +411,7 @@ class ElementActionRun:
             app_package_name=self.app.package_name,
             app_name=self.app.name,
             cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config._file.invoc_key,
+            cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
         )
 

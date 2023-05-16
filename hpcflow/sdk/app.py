@@ -3,7 +3,6 @@
 from functools import wraps
 from importlib import resources, import_module
 from pathlib import Path
-import time
 from typing import Dict
 import warnings
 
@@ -17,7 +16,7 @@ from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 from .core.json_like import JSONLike
 from .core.utils import read_YAML, read_YAML_file
-from . import api, SDK_logger
+from . import api, get_SDK_logger
 from .config import Config
 from .config.cli import get_config_CLI
 from .config.errors import ConfigError
@@ -62,7 +61,7 @@ from .helper.cli import get_helper_CLI
 from .log import AppLog
 from .runtime import RunTimeInfo
 
-SDK_logger = SDK_logger.getChild(__name__)
+SDK_logger = get_SDK_logger(__name__)
 
 
 class BaseApp:
@@ -138,6 +137,9 @@ class BaseApp:
                 api_method = wraps(func)(api_method)
                 api_method.__doc__ = func.__doc__.format(app_name=name)
                 setattr(self, func.__name__, api_method)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(name={self.name}, version={self.version})"
 
     @property
     def template_components(self):
@@ -339,14 +341,20 @@ class BaseApp:
         return self._config
 
     def _load_config(self, config_dir, config_invocation_key, **overrides):
-        self.logger.debug("Loading configuration.")
+        self.logger.info("Loading configuration.")
         self._config = Config(
             app=self,
             options=self.config_options,
             config_dir=config_dir,
             config_invocation_key=config_invocation_key,
             logger=self.config_logger,
+            variables={"app_name": self.name, "app_version": self.version},
             **overrides,
+        )
+        self.log.update_console_level(self.config.get("log_console_level"))
+        self.log.add_file_logger(
+            path=self.config.get("log_file_path"),
+            level=self.config.get("log_file_level"),
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
 
