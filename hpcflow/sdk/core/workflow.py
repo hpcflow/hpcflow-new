@@ -121,11 +121,11 @@ class WorkflowTemplate(JSONLike):
         for task_idx, task_dat in enumerate(data["tasks"]):
             if "element_sets" not in task_dat:
                 # add a single element set:
-                elem_set = {}
-                for chd_obj in ElementSet._child_objects:
-                    if chd_obj.name in task_dat:
-                        elem_set[chd_obj.name] = task_dat.pop(chd_obj.name)
-                data["tasks"][task_idx]["element_sets"] = [elem_set]
+                schemas = task_dat.pop("schemas")
+                data["tasks"][task_idx] = {
+                    "schemas": schemas,
+                    "element_sets": [task_dat],
+                }
 
         # extract out any template components:
         params_dat = data.pop("parameters", [])
