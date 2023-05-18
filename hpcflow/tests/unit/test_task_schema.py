@@ -1,6 +1,6 @@
 import pytest
 
-from hpcflow.api import (
+from hpcflow.app import (
     Action,
     ActionEnvironment,
     Command,

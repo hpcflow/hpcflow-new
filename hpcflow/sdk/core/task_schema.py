@@ -3,15 +3,9 @@ import copy
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
-from .actions import Action
+from hpcflow.sdk import app
 from .json_like import ChildObjectSpec, JSONLike
-from .parameters import (
-    Parameter,
-    ParameterPropagationMode,
-    SchemaInput,
-    SchemaOutput,
-    SchemaParameter,
-)
+from .parameters import ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 
 
@@ -54,12 +48,12 @@ class TaskSchema(JSONLike):
 
     def __init__(
         self,
-        objective: Union[TaskObjective, str],
-        actions: List[Action],
+        objective: Union[app.TaskObjective, str],
+        actions: List[app.Action],
         method: Optional[str] = None,
         implementation: Optional[str] = None,
-        inputs: Optional[List[Union[Parameter, SchemaInput]]] = None,
-        outputs: Optional[List[Union[Parameter, SchemaOutput]]] = None,
+        inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
+        outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
         version: Optional[str] = None,
         _hash_value: Optional[str] = None,
     ):
@@ -81,8 +75,8 @@ class TaskSchema(JSONLike):
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
         #         version=version,
-        #         app_data_obj_list=self.app.task_schemas
-        #         if self.app.is_data_files_loaded
+        #         app_data_obj_list=app.task_schemas
+        #         if app.is_data_files_loaded
         #         else [],
         #     )
 
@@ -128,7 +122,7 @@ class TaskSchema(JSONLike):
 
     def _validate(self):
         if isinstance(self.objective, str):
-            self.objective = self.app.TaskObjective(self.objective)
+            self.objective = app.TaskObjective(self.objective)
 
         if self.method:
             self.method = check_valid_py_identifier(self.method)
@@ -137,15 +131,15 @@ class TaskSchema(JSONLike):
 
         # coerce Parameters to SchemaInputs
         for idx, i in enumerate(self.inputs):
-            if isinstance(i, Parameter):
-                self.inputs[idx] = self.app.SchemaInput(i)
+            if isinstance(i, app.Parameter):
+                self.inputs[idx] = app.SchemaInput(i)
 
         # coerce Parameters to SchemaOutputs
         for idx, i in enumerate(self.outputs):
-            if isinstance(i, Parameter):
-                self.outputs[idx] = self.app.SchemaOutput(i)
+            if isinstance(i, app.Parameter):
+                self.outputs[idx] = app.SchemaOutput(i)
             elif isinstance(i, SchemaInput):
-                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
+                self.outputs[idx] = app.SchemaOutput(i.parameter)
 
         # check action input/outputs
         if self._validate_actions:
@@ -260,9 +254,9 @@ class TaskSchema(JSONLike):
     @classmethod
     def get_by_key(cls, key):
         """Get a config-loaded task schema from a key."""
-        return cls.app.task_schemas.get(key)
+        return app.task_schemas.get(key)
 
-    def get_parameter_dependence(self, parameter: SchemaParameter):
+    def get_parameter_dependence(self, parameter: app.SchemaParameter):
         """Find if/where a given parameter is used by the schema's actions."""
         out = {"input_file_writers": [], "commands": []}
         for act_idx, action in enumerate(self.actions):

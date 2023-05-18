@@ -48,15 +48,3 @@ class Command(JSONLike):
                         )
                     out[label] = param_typ
         return out
-
-
-@dataclass
-class CommandArgument:
-    """
-    Parameters
-    ----------
-    parts : list of any of str, File, Parameter
-
-    """
-
-    parts: List[Any]

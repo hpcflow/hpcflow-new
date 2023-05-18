@@ -1,8 +1,11 @@
-from dataclasses import dataclass, field
-from typing import List, Any, Optional, Sequence
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List, Any
 
 from textwrap import dedent
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
@@ -44,8 +47,8 @@ class ExecutableInstance(JSONLike):
     def __post_init__(self):
         if not isinstance(self.num_cores, dict):
             self.num_cores = {"start": self.num_cores, "stop": self.num_cores}
-        if not isinstance(self.num_cores, self.app.NumCores):
-            self.num_cores = self.app.NumCores(**self.num_cores)
+        if not isinstance(self.num_cores, app.NumCores):
+            self.num_cores = app.NumCores(**self.num_cores)
 
     def __eq__(self, other):
         if (
@@ -63,7 +66,6 @@ class ExecutableInstance(JSONLike):
 
 
 class Executable(JSONLike):
-
     _child_objects = (
         ChildObjectSpec(
             name="instances",
@@ -72,8 +74,7 @@ class Executable(JSONLike):
         ),
     )
 
-    def __init__(self, label: str, instances: List[ExecutableInstance]):
-
+    def __init__(self, label: str, instances: List[app.ExecutableInstance]):
         self.label = check_valid_py_identifier(label)
         self.instances = instances
 
@@ -111,7 +112,6 @@ class Executable(JSONLike):
 
 
 class Environment(JSONLike):
-
     _hash_value = None
     _validation_schema = "environments_spec_schema.yaml"
     _child_objects = (
@@ -130,8 +130,8 @@ class Environment(JSONLike):
         self.specifiers = specifiers or {}
         self.executables = (
             executables
-            if isinstance(executables, self.app.ExecutablesList)
-            else self.app.ExecutablesList(executables or [])
+            if isinstance(executables, app.ExecutablesList)
+            else app.ExecutablesList(executables or [])
         )
         self._hash_value = _hash_value
         if self.setup:

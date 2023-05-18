@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
@@ -39,8 +40,11 @@ class ParameterPropagationMode(enum.Enum):
 
 @dataclass
 class ParameterPath(JSONLike):
+    # TODO: unused?
     path: Sequence[Union[str, int, float]]
-    task: Optional[Union[TaskTemplate, TaskSchema]] = None  # default is "current" task
+    task: Optional[
+        Union[app.TaskTemplate, app.TaskSchema]
+    ] = None  # default is "current" task
 
 
 @dataclass
@@ -55,7 +59,7 @@ class Parameter(JSONLike):
 
     typ: str
     is_file: bool = False
-    sub_parameters: List[SubParameter] = field(default_factory=lambda: [])
+    sub_parameters: List[app.SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
 
@@ -80,7 +84,7 @@ class Parameter(JSONLike):
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
-        for i in ParameterValue.__subclasses__():
+        for i in app.ParameterValue.__subclasses__():
             if i._typ == self.typ:
                 self._value_class = i
 
@@ -99,7 +103,7 @@ class Parameter(JSONLike):
 @dataclass
 class SubParameter:
     address: Address
-    parameter: Parameter
+    parameter: app.Parameter
 
 
 @dataclass
@@ -120,7 +124,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self):
         if isinstance(self.parameter, str):
-            self.parameter = self.app.Parameter(self.parameter)
+            self.parameter = app.Parameter(self.parameter)
 
     @property
     def name(self):
@@ -157,14 +161,14 @@ class SchemaInput(SchemaParameter):
         ),
     )
 
-    parameter: Parameter
-    default_value: Optional[InputValue] = None
+    parameter: app.Parameter
+    default_value: Optional[app.InputValue] = None
     propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
 
     # can we define elements groups on local inputs as well, or should these be just for
     # elements from other tasks?
     group: Optional[str] = None
-    where: Optional[ElementFilter] = None
+    where: Optional[app.ElementFilter] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -209,8 +213,8 @@ class SchemaInput(SchemaParameter):
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
-            if not isinstance(self.default_value, self.app.InputValue):
-                self.default_value = self.app.InputValue(
+            if not isinstance(self.default_value, app.InputValue):
+                self.default_value = app.InputValue(
                     parameter=self.parameter,
                     value=self.default_value,
                 )
@@ -375,7 +379,7 @@ class ValueSequence(JSONLike):
             )
         if path_split[0] == "resources":
             try:
-                self.app.ActionScope.from_json_like(path_split[1])
+                app.ActionScope.from_json_like(path_split[1])
             except Exception as err:
                 raise MalformedParameterPathError(
                     f"Cannot parse a resource action scope from the second component of the "
@@ -590,14 +594,14 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Union[Parameter, str],
+        parameter: Union[app.Parameter, str],
         value: Optional[Any] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
-            parameter = self.app.parameters.get(parameter)
-        elif isinstance(parameter, SchemaInput):
+            parameter = app.parameters.get(parameter)
+        elif isinstance(parameter, app.SchemaInput):
             parameter = parameter.parameter
 
         if value_class_method and value is not None:
@@ -727,7 +731,7 @@ class ResourceSpec(JSONLike):
 
     def __init__(
         self,
-        scope: ActionScope = None,
+        scope: app.ActionScope = None,
         scratch: Optional[str] = None,
         num_cores: Optional[int] = None,
         scheduler: Optional[str] = None,
@@ -739,7 +743,7 @@ class ResourceSpec(JSONLike):
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
     ):
-        self.scope = scope or self.app.ActionScope.any()
+        self.scope = scope or app.ActionScope.any()
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
@@ -1047,7 +1051,7 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
-    def is_in(self, other_input_sources: List[InputSource]) -> Union[None, int]:
+    def is_in(self, other_input_sources: List[app.InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
         considering the `element_iters` attribute."""
 

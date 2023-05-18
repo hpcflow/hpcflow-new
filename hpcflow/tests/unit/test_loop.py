@@ -1,5 +1,5 @@
 import pytest
-from hpcflow.api import Loop
+from hpcflow.app import Loop
 from hpcflow.sdk.core.errors import LoopAlreadyExistsError
 from hpcflow.sdk.core.test_utils import make_workflow
 
@@ -72,7 +72,6 @@ def test_wk_loop_EARs_initialised_single_task_single_element_single_parameter_th
 def test_wk_loop_data_idx_single_task_multi_element_single_parameter_three_iters(
     tmp_path, store
 ):
-
     wk = make_workflow(
         schemas_spec=[[{"p1": None}, ("p1",), "t1"]],
         local_sequences={0: [("inputs.p1", 2, 0)]},

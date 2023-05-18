@@ -7,27 +7,16 @@ from typing import Optional, Union
 from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 
-import hpcflow.sdk.scripting
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
 )
 from hpcflow.sdk.typing import PathLike
-
-__all__ = (
-    "make_workflow",
-    "make_and_submit_workflow",
-    "submit_workflow",
-    "run_hpcflow_tests",
-    "run_tests",
-    "get_OS_info",
-    "get_shell_info",
-)
+from hpcflow.sdk import app
 
 
 def make_workflow(
-    app: App,
     template_file_or_str: Union[PathLike, str],
     is_string: Optional[bool] = False,
     template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
@@ -37,7 +26,7 @@ def make_workflow(
     store: Optional[str] = DEFAULT_STORE_FORMAT,
     ts_fmt: Optional[str] = None,
     ts_name_fmt: Optional[str] = None,
-) -> Workflow:
+) -> app.Workflow:
     """Generate a new {app_name} workflow from a file or string containing a workflow
     template parametrisation.
 
@@ -103,7 +92,6 @@ def make_workflow(
 
 
 def make_and_submit_workflow(
-    app: App,
     template_file_or_str: Union[PathLike, str],
     is_string: Optional[bool] = False,
     template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
@@ -169,11 +157,7 @@ def make_and_submit_workflow(
     return wk.submit(JS_parallelism=JS_parallelism)
 
 
-def submit_workflow(
-    app: App,
-    workflow_path: PathLike,
-    JS_parallelism: Optional[bool] = None,
-):
+def submit_workflow(workflow_path: PathLike, JS_parallelism: Optional[bool] = None):
     """Submit an existing {app_name} workflow.
 
     Parameters
@@ -191,7 +175,7 @@ def submit_workflow(
     return wk.submit(JS_parallelism=JS_parallelism)
 
 
-def run_hpcflow_tests(app, *args):
+def run_hpcflow_tests(*args):
     """Run hpcflow test suite. This function is only available from derived apps.
 
     Notes
@@ -199,12 +183,13 @@ def run_hpcflow_tests(app, *args):
     It may not be possible to run hpcflow tests after/before running tests of the derived
     app within the same process, due to caching."""
 
-    from hpcflow.api import hpcflow
+    # TODO: can we run these tests without the app? e.g. if in matflow?
+    from hpcflow import app
 
-    return hpcflow.run_tests(*args)
+    return app.run_tests(*args)
 
 
-def run_tests(app, *args):
+def run_tests(*args):
     """Run {app_name} test suite."""
 
     try:
@@ -220,7 +205,7 @@ def run_tests(app, *args):
         return pytest.main(["--pyargs", f"{app.package_name}"] + test_args)
 
 
-def get_OS_info(app):
+def get_OS_info():
     """Get information about the operating system."""
     os_name = os.name
     if os_name == "posix":
@@ -229,11 +214,7 @@ def get_OS_info(app):
         return get_OS_info_windows()
 
 
-def get_shell_info(
-    app,
-    shell_name: str,
-    exclude_os: Optional[bool] = False,
-):
+def get_shell_info(shell_name: str, exclude_os: Optional[bool] = False):
     """Get information about a given shell and the operating system.
 
     Parameters

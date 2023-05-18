@@ -1,5 +1,4 @@
-import copy
-from typing import Any, Callable, Dict, Union
+from typing import Any, Dict, Union
 
 import zarr
 import numpy as np
@@ -16,7 +15,6 @@ PRIMITIVES = (
 
 
 def _zarr_encode(obj, zarr_group, path=None, encoded=None):
-
     path = path or []
     encoded = encoded or []
 
@@ -70,7 +68,6 @@ def _zarr_encode(obj, zarr_group, path=None, encoded=None):
 
 
 def zarr_encode(data, zarr_group, is_pending_add, is_set):
-
     data, encoded = _zarr_encode(data, zarr_group)
     zarr_group.attrs["encoded"] = encoded
     zarr_group.attrs["data"] = data
@@ -179,7 +176,6 @@ def zarr_decode(
     path=None,
     dataset_copy=False,
 ):
-
     if param_data is None:
         return None
 
@@ -208,7 +204,6 @@ def zarr_decode(
 
 
 class ZarrEncodable:
-
     _typ = None
 
     def to_dict(self):

@@ -5,9 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Dict, List, Optional, Tuple, Union
 
-from valida.rules import Rule
-from valida.conditions import Value
-
+from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
@@ -27,7 +25,7 @@ class FileSpec(JSONLike):
 
     def __post_init__(self):
         self.name = (
-            self.app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
+            app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
         )
 
     def value(self, directory=None):
@@ -68,11 +66,11 @@ class FileNameSpec(JSONLike):
 
     @property
     def stem(self):
-        return self.app.FileNameStem(self)
+        return app.FileNameStem(self)
 
     @property
     def ext(self):
-        return self.app.FileNameExt(self)
+        return app.FileNameExt(self)
 
     def value(self, directory=None):
         format_args = [i.value(directory) for i in self.args or []]
@@ -87,7 +85,7 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
-    file_name: FileNameSpec
+    file_name: app.FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).stem
@@ -95,7 +93,7 @@ class FileNameStem(JSONLike):
 
 @dataclass
 class FileNameExt(JSONLike):
-    file_name: FileNameSpec
+    file_name: app.FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).suffix
@@ -122,32 +120,33 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
-    input_file: FileSpec
-    inputs: List[Parameter]
+    input_file: app.FileSpec
+    inputs: List[app.Parameter]
     script: str = None
-    environment: Environment = None
+    environment: app.Environment = None
 
     def get_action_rule(self):
         """Get the rule that allows testing if this input file generator must be
         run or not for a given element."""
-        return self.app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
+        return app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
 
     def compose_source(self) -> str:
         """Generate the file contents of this input file generator source."""
 
         script_name = self.script
-        script_path = self.app.scripts.get(script_name)
+        script_path = app.scripts.get(script_name)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
+        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
                 import sys
                 from pathlib import Path
-                from {app_package_name}.api import {app_name} as app
+                import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
@@ -164,10 +163,10 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_name=self.app.name,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_invocation_key,
+            app_package_name=app.module,
+            app_name=app.name,
+            cfg_dir=app.config.config_directory,
+            cfg_invoc_key=app.config.config_invocation_key,
             script_main_func=script_main_func,
             file_path=self.input_file.name.value(),
         )
@@ -209,8 +208,8 @@ class OutputFileParser(JSONLike):
         ),
     )
 
-    output: Parameter
-    output_files: List[FileSpec]
+    output: app.Parameter
+    output_files: List[app.FileSpec]
     script: str = None
     environment: Environment = None
     inputs: List[str] = None
@@ -220,17 +219,18 @@ class OutputFileParser(JSONLike):
         """Generate the file contents of this output file parser source."""
 
         script_name = self.script
-        script_path = self.app.scripts.get(script_name)
+        script_path = app.scripts.get(script_name)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
+        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
-                import sys
-                from {app_package_name}.api import {app_name} as app
+                import sys                
+                import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
@@ -256,10 +256,10 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_name=self.app.name,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_invocation_key,
+            app_package_name=app.package_name,
+            app_name=app.name,
+            cfg_dir=app.config.config_directory,
+            cfg_invoc_key=app.config.config_invocation_key,
             script_main_func=script_main_func,
             param_name=f"outputs.{self.output.typ}",
         )
@@ -443,7 +443,7 @@ class InputFile(_FileContentsSpecifier):
 
     def __init__(
         self,
-        file: Union[FileSpec, str],
+        file: Union[app.FileSpec, str],
         path: Optional[Union[Path, str]] = None,
         contents: Optional[str] = None,
         extension: Optional[str] = "",
@@ -451,7 +451,7 @@ class InputFile(_FileContentsSpecifier):
     ):
         self.file = file
         if not isinstance(self.file, FileSpec):
-            self.file = self.app.command_files.get(self.file.label)
+            self.file = app.command_files.get(self.file.label)
 
         super().__init__(path, contents, extension, store_contents)
 
@@ -494,7 +494,7 @@ class InputFile(_FileContentsSpecifier):
 class InputFileGeneratorSource(_FileContentsSpecifier):
     def __init__(
         self,
-        generator: InputFileGenerator,
+        generator: app.InputFileGenerator,
         path: Union[Path, str] = None,
         contents: str = None,
         extension: str = "",
@@ -506,7 +506,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
 class OutputFileParserSource(_FileContentsSpecifier):
     def __init__(
         self,
-        parser: OutputFileParser,
+        parser: app.OutputFileParser,
         path: Union[Path, str] = None,
         contents: str = None,
         extension: str = "",
