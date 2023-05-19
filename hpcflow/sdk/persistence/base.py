@@ -4,17 +4,14 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from datetime import datetime
-import random
 import shutil
-import string
 import time
-from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from pathlib import Path
 
 from reretry import retry
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
-from hpcflow.sdk.core.parameters import ParameterValue
-
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container
 from hpcflow.sdk.typing import PathLike
 
@@ -396,7 +393,7 @@ class PersistentStore(ABC):
         if len(path) > 50:
             raise RuntimeError("I'm in too deep!")
 
-        if isinstance(obj, ParameterValue):
+        if isinstance(obj, app.ParameterValue):
             encoded = self._encode_parameter_data(
                 obj=obj.to_dict(),
                 path=path,

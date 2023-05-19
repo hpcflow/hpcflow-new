@@ -19,7 +19,7 @@ config_options = ConfigOptions(
     sentry_env="main" if "a" in __version__ else "develop",
 )
 
-# built in template components (in this case, for demonstration purposes):
+# load built in template components (in this case, for demonstration purposes):
 template_components = sdk_app.App.load_builtin_template_component_data(
     "hpcflow.sdk.data.template_components"
 )

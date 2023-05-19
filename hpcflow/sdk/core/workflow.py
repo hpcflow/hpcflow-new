@@ -22,8 +22,6 @@ from hpcflow.sdk.submission.submission import Submission
 from hpcflow.sdk.typing import PathLike
 
 from .json_like import ChildObjectSpec, JSONLike
-from .parameters import InputSourceType, TaskSourceType
-from .task import Task
 from .utils import (
     read_JSON_file,
     read_JSON_string,
@@ -1107,7 +1105,7 @@ class Workflow:
             list.
 
         """
-        names = Task.get_task_unique_names(self.template.tasks)
+        names = app.Task.get_task_unique_names(self.template.tasks)
         if map_to_insert_ID:
             insert_IDs = (i.insert_ID for i in self.template.tasks)
             return dict(zip(names, insert_IDs))
@@ -1278,7 +1276,7 @@ class Workflow:
 
         if isinstance(input_source.task_ref, str):
             if input_source.task_ref == new_task_name:
-                if input_source.task_source_type is TaskSourceType.OUTPUT:
+                if input_source.task_source_type is app.TaskSourceType.OUTPUT:
                     raise InvalidInputSourceTaskReference(
                         f"Input source {input_source.to_string()!r} cannot refer to the "
                         f"outputs of its own task!"
@@ -1291,7 +1289,7 @@ class Workflow:
                     )
                     # TODO: add an InputSource source_type setter to reset
                     # task_ref/source_type?
-                    input_source.source_type = InputSourceType.LOCAL
+                    input_source.source_type = app.InputSourceType.LOCAL
                     input_source.task_ref = None
                     input_source.task_source_type = None
             else:
