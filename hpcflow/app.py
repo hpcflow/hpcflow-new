@@ -37,4 +37,4 @@ app = sdk_app.BaseApp(
         "--verbose",
         "--exitfirst",
     ],
-)
+)  #: |app|

@@ -7,7 +7,7 @@
 Installation
 ############
 
-Release notes: `on GitHub <https://github.com/hpcflow/hpcflow-new/releases/tag/v0.2.0a38>`_
+Release notes: `on GitHub <https://github.com/hpcflow/hpcflow-new/releases/tag/v0.2.0a40>`_
 
 There are two ways of using HPCFlow:
  * HPCFlow CLI (Command Line Interface)
@@ -26,7 +26,7 @@ HPCFlow CLI and the HPCFlow Python package can both be used simultaneously.
 HPCFlow CLI
 *******************************
 
-Install script (v0.2.0a38)
+Install script (v0.2.0a40)
 ============================
 
 HPCFlow CLI can be installed on macOS, Linux or Windows through a terminal
@@ -59,7 +59,7 @@ press enter.
 
     & $([scriptblock]::Create((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-hpcflow.ps1'))) -PreRelease -OneFile
 
-Download binaries (v0.2.0a38)
+Download binaries (v0.2.0a40)
 ===============================
 
 Binaries are available in two formats:
@@ -72,12 +72,12 @@ Click below to download the HPCFlow binary for your platform (other binary relea
 .. raw:: html
 
    <table class="binary-downloads-table">
-     <tr><td>Linux executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-linux">hpcflow-v0.2.0a38-linux</a></td></tr>
-     <tr><td>Linux folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-linux-dir.zip">hpcflow-v0.2.0a38-linux-dir.zip</a></td></tr>
-     <tr><td>macOS executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-macOS">hpcflow-v0.2.0a38-macOS</a></td></tr>
-     <tr><td>macOS folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-macOS-dir.zip">hpcflow-v0.2.0a38-macOS-dir.zip</a></td></tr>
-     <tr><td>Windows folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-win-dir.zip">hpcflow-v0.2.0a38-win-dir.zip</a></td></tr>
-     <tr><td>Windows executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a38/hpcflow-v0.2.0a38-win.exe">hpcflow-v0.2.0a38-win.exe</a></td></tr>
+     <tr><td>Linux executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-linux">hpcflow-v0.2.0a40-linux</a></td></tr>
+     <tr><td>Linux folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-linux-dir.zip">hpcflow-v0.2.0a40-linux-dir.zip</a></td></tr>
+     <tr><td>macOS executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-macOS">hpcflow-v0.2.0a40-macOS</a></td></tr>
+     <tr><td>macOS folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-macOS-dir.zip">hpcflow-v0.2.0a40-macOS-dir.zip</a></td></tr>
+     <tr><td>Windows folder</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-win-dir.zip">hpcflow-v0.2.0a40-win-dir.zip</a></td></tr>
+     <tr><td>Windows executable</td><td><a href="https://github.com/hpcflow/hpcflow-new/releases/download/v0.2.0a40/hpcflow-v0.2.0a40-win.exe">hpcflow-v0.2.0a40-win.exe</a></td></tr>
    </table>
 
 **************************
@@ -89,4 +89,4 @@ Using pip
 
 Use pip to install the Python package from PyPI::
 
-  pip install hpcflow==0.2.0a38
+  pip install hpcflow==0.2.0a40
