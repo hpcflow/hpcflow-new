@@ -20,8 +20,7 @@ from hpcflow.sdk.submission.jobscript import (
 )
 from hpcflow.sdk.submission.submission import Submission
 from hpcflow.sdk.typing import PathLike
-
-from .json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
     read_JSON_file,
     read_JSON_string,
@@ -29,7 +28,7 @@ from .utils import (
     read_YAML_file,
     replace_items,
 )
-from .errors import (
+from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
     SubmissionFailure,
@@ -108,11 +107,11 @@ class WorkflowTemplate(JSONLike):
 
     def __post_init__(self):
         if isinstance(self.resources, dict):
-            self.resources = app.ResourceList.from_json_like(self.resources)
+            self.resources = self.app.ResourceList.from_json_like(self.resources)
         elif isinstance(self.resources, list):
-            self.resources = app.ResourceList(self.resources)
+            self.resources = self.app.ResourceList(self.resources)
         elif not self.resources:
-            self.resources = app.ResourceList([app.ResourceSpec()])
+            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
 
         self._set_parent_refs()
 
@@ -131,33 +130,33 @@ class WorkflowTemplate(JSONLike):
         # extract out any template components:
         params_dat = data.pop("parameters", [])
         if params_dat:
-            parameters = app.ParametersList.from_json_like(
-                params_dat, shared_data=app.template_components
+            parameters = cls.app.ParametersList.from_json_like(
+                params_dat, shared_data=cls.app.template_components
             )
-            app.parameters.add_objects(parameters, skip_duplicates=True)
+            cls.app.parameters.add_objects(parameters, skip_duplicates=True)
 
         cmd_files_dat = data.pop("command_files", [])
         if cmd_files_dat:
-            cmd_files = app.CommandFilesList.from_json_like(
-                cmd_files_dat, shared_data=app.template_components
+            cmd_files = cls.app.CommandFilesList.from_json_like(
+                cmd_files_dat, shared_data=cls.app.template_components
             )
-            app.command_files.add_objects(cmd_files, skip_duplicates=True)
+            cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
         envs_dat = data.pop("environments", [])
         if envs_dat:
-            envs = app.EnvironmentsList.from_json_like(
-                envs_dat, shared_data=app.template_components
+            envs = cls.app.EnvironmentsList.from_json_like(
+                envs_dat, shared_data=cls.app.template_components
             )
-            app.envs.add_objects(envs, skip_duplicates=True)
+            cls.app.envs.add_objects(envs, skip_duplicates=True)
 
         ts_dat = data.pop("task_schemas", [])
         if ts_dat:
-            task_schemas = app.TaskSchemasList.from_json_like(
-                ts_dat, shared_data=app.template_components
+            task_schemas = cls.app.TaskSchemasList.from_json_like(
+                ts_dat, shared_data=cls.app.template_components
             )
-            app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
+            cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=app.template_components)
+        return cls.from_json_like(data, shared_data=cls.app.template_components)
 
     @classmethod
     def from_YAML_string(cls, string: str) -> app.WorkflowTemplate:
@@ -307,7 +306,7 @@ class Workflow:
 
     def _get_empty_pending(self) -> Dict:
         return {
-            "template_components": {k: [] for k in app._template_component_types},
+            "template_components": {k: [] for k in self.app._template_component_types},
             "tasks": [],  # list of int
             "loops": [],  # list of int
             "submissions": [],  # list of int
@@ -443,7 +442,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate.from_YAML_file(YAML_path)
+        template = self.app.WorkflowTemplate.from_YAML_file(YAML_path)
         return cls.from_template(
             template,
             path,
@@ -491,7 +490,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate.from_YAML_string(YAML_str)
+        template = self.app.WorkflowTemplate.from_YAML_string(YAML_str)
         return cls.from_template(
             template,
             path,
@@ -539,7 +538,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate.from_JSON_file(JSON_path)
+        template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
         return cls.from_template(
             template,
             path,
@@ -587,7 +586,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate.from_JSON_string(JSON_str)
+        template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
         return cls.from_template(
             template,
             path,
@@ -640,7 +639,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate.from_file(template_path, template_format)
+        template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
         return cls.from_template(
             template,
             path,
@@ -700,7 +699,7 @@ class Workflow:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
         """
-        template = app.WorkflowTemplate(
+        template = cls.app.WorkflowTemplate(
             template_name,
             tasks=tasks,
             loops=loops,
@@ -834,7 +833,7 @@ class Workflow:
         template_js["loops"] = []
 
         creation_info = {
-            "app_info": app.get_info(),
+            "app_info": cls.app.get_info(),
             "create_time": ts_utc.strftime(ts_fmt),
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
@@ -908,7 +907,7 @@ class Workflow:
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
-            self._template_components = app.template_components_from_json_like(tc_js)
+            self._template_components = self.app.template_components_from_json_like(tc_js)
         return self._template_components
 
     @property
@@ -916,7 +915,7 @@ class Workflow:
         if self._template is None:
             with self._store.cached_load():
                 temp_js = self._store.get_template()
-                template = app.WorkflowTemplate.from_json_like(
+                template = self.app.WorkflowTemplate.from_json_like(
                     temp_js, self.template_components
                 )
                 template.workflow = self
@@ -931,7 +930,7 @@ class Workflow:
                 tasks_meta = self._store.get_all_tasks_metadata()
                 wk_tasks = []
                 for idx, i in enumerate(tasks_meta):
-                    wk_task = app.WorkflowTask(
+                    wk_task = self.app.WorkflowTask(
                         workflow=self,
                         template=self.template.tasks[idx],
                         index=idx,
@@ -940,7 +939,7 @@ class Workflow:
                         num_EARs=i["num_EARs"],
                     )
                     wk_tasks.append(wk_task)
-                self._tasks = app.WorkflowTaskList(wk_tasks)
+                self._tasks = self.app.WorkflowTaskList(wk_tasks)
         return self._tasks
 
     @property
@@ -949,14 +948,14 @@ class Workflow:
             with self._store.cached_load():
                 wk_loops = []
                 for idx, loop_dat in enumerate(self._store.get_loops()):
-                    wk_loop = app.WorkflowLoop(
+                    wk_loop = self.app.WorkflowLoop(
                         index=idx,
                         workflow=self,
                         template=self.template.loops[idx],
                         **loop_dat,
                     )
                     wk_loops.append(wk_loop)
-                self._loops = app.WorkflowLoopList(wk_loops)
+                self._loops = self.app.WorkflowLoopList(wk_loops)
         return self._loops
 
     @property
@@ -996,7 +995,7 @@ class Workflow:
         if path.exists():
             raise ValueError(f"Path already exists: {path}.")
         self._store.copy(path=path)
-        return app.Workflow(path=path)
+        return self.app.Workflow(path=path)
 
     def delete(self):
         self._store.delete()
@@ -1105,7 +1104,7 @@ class Workflow:
             list.
 
         """
-        names = app.Task.get_task_unique_names(self.template.tasks)
+        names = self.app.Task.get_task_unique_names(self.template.tasks)
         if map_to_insert_ID:
             insert_IDs = (i.insert_ID for i in self.template.tasks)
             return dict(zip(names, insert_IDs))
@@ -1115,7 +1114,7 @@ class Workflow:
     def _get_new_task_unique_name(self, new_task: app.Task, new_index: int) -> str:
         task_templates = list(self.template.tasks)
         task_templates.insert(new_index, new_task)
-        uniq_names = app.Task.get_task_unique_names(task_templates)
+        uniq_names = self.app.Task.get_task_unique_names(task_templates)
 
         return uniq_names[new_index]
 
@@ -1137,7 +1136,7 @@ class Workflow:
 
         # create and insert a new WorkflowTask:
         self.tasks.add_object(
-            app.WorkflowTask.new_empty_task(self, task_c, new_index),
+            self.app.WorkflowTask.new_empty_task(self, task_c, new_index),
             index=new_index,
         )
 
@@ -1147,7 +1146,7 @@ class Workflow:
         self._store.add_empty_task(new_index, task_js)
 
         # update in-memory workflow template components:
-        temp_comps = app.template_components_from_json_like(temp_comps_js)
+        temp_comps = self.app.template_components_from_json_like(temp_comps_js)
         for comp_type, comps in temp_comps.items():
             for comp in comps:
                 comp._set_hash()
@@ -1172,7 +1171,7 @@ class Workflow:
 
         # create and insert a new WorkflowLoop:
         self.loops.add_object(
-            app.WorkflowLoop.new_empty_loop(
+            self.app.WorkflowLoop.new_empty_loop(
                 index=new_index,
                 workflow=self,
                 template=loop_c,
@@ -1276,7 +1275,7 @@ class Workflow:
 
         if isinstance(input_source.task_ref, str):
             if input_source.task_ref == new_task_name:
-                if input_source.task_source_type is app.TaskSourceType.OUTPUT:
+                if input_source.task_source_type is self.app.TaskSourceType.OUTPUT:
                     raise InvalidInputSourceTaskReference(
                         f"Input source {input_source.to_string()!r} cannot refer to the "
                         f"outputs of its own task!"
@@ -1289,7 +1288,7 @@ class Workflow:
                     )
                     # TODO: add an InputSource source_type setter to reset
                     # task_ref/source_type?
-                    input_source.source_type = app.InputSourceType.LOCAL
+                    input_source.source_type = self.app.InputSourceType.LOCAL
                     input_source.task_ref = None
                     input_source.task_source_type = None
             else:
@@ -1304,7 +1303,7 @@ class Workflow:
 
     def get_task_elements(self, task: app.Task, selection: slice) -> List[app.Element]:
         return [
-            app.Element(task=task, **i)
+            self.app.Element(task=task, **i)
             for i in self._store.get_task_elements(task.index, task.insert_ID, selection)
         ]
 
@@ -1314,7 +1313,7 @@ class Workflow:
         for i in self._store.get_task_elements_islice(
             task.index, task.insert_ID, selection
         ):
-            yield app.Element(task=task, **i)
+            yield self.app.Element(task=task, **i)
 
     def get_EARs_from_IDs(self, indices: List[EAR_ID]) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of five-tuples, representing the
@@ -1484,7 +1483,7 @@ class Workflow:
 
         js = merge_jobscripts_across_tasks(js)
         js = jobscripts_to_list(js)
-        js_objs = [app.Jobscript(**i) for i in js]
+        js_objs = [self.app.Jobscript(**i) for i in js]
 
         return js_objs
 

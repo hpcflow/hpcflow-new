@@ -1,6 +1,6 @@
 import pytest
 
-import hpcflow.app as hf
+from hpcflow.app import app as hf
 
 
 @pytest.fixture

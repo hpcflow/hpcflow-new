@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
+from hpcflow.sdk.core.task import WorkflowTask
 
 # from .parameters import Parameter
 
@@ -50,7 +51,7 @@ class Loop(JSONLike):
 
         _task_insert_IDs = []
         for task in tasks:
-            if isinstance(task, app.WorkflowTask):
+            if isinstance(task, WorkflowTask):
                 _task_insert_IDs.append(task.insert_ID)
             elif isinstance(task, int):
                 _task_insert_IDs.append(task)

@@ -35,7 +35,7 @@ class _ElementPrefixedParameter:
             )
 
         data_idx = self._parent.get_data_idx(path=f"{self._prefix}.{name}")
-        param = app.ElementParameter(
+        param = self.app.ElementParameter(
             path=f"{self._prefix}.{name}",
             task=self._task,
             data_idx=data_idx,
@@ -257,7 +257,7 @@ class ElementIteration:
     def actions(self) -> Dict[app.ElementAction]:
         if self._action_objs is None:
             self._action_objs = {
-                act_idx: app.ElementAction(
+                act_idx: self.app.ElementAction(
                     element_iteration=self,
                     action_idx=act_idx,
                     runs=runs,
@@ -275,25 +275,25 @@ class ElementIteration:
     @property
     def inputs(self) -> app.ElementInputs:
         if not self._inputs:
-            self._inputs = app.ElementInputs(element_iteration=self)
+            self._inputs = self.app.ElementInputs(element_iteration=self)
         return self._inputs
 
     @property
     def outputs(self) -> app.ElementOutputs:
         if not self._outputs:
-            self._outputs = app.ElementOutputs(element_iteration=self)
+            self._outputs = self.app.ElementOutputs(element_iteration=self)
         return self._outputs
 
     @property
     def input_files(self) -> app.ElementInputFiles:
         if not self._input_files:
-            self._input_files = app.ElementInputFiles(element_iteration=self)
+            self._input_files = self.app.ElementInputFiles(element_iteration=self)
         return self._input_files
 
     @property
     def output_files(self) -> app.ElementOutputFiles:
         if not self._output_files:
-            self._output_files = app.ElementOutputFiles(element_iteration=self)
+            self._output_files = self.app.ElementOutputFiles(element_iteration=self)
         return self._output_files
 
     def get_parameter_names(self, prefix: str) -> List[str]:
@@ -690,7 +690,7 @@ class Element:
     def iterations(self) -> Dict[app.ElementAction]:
         if self._iteration_objs is None:
             self._iteration_objs = [
-                app.ElementIteration(element=self, **iter_i)
+                self.app.ElementIteration(element=self, **iter_i)
                 for iter_i in self._iterations
             ]
         return self._iteration_objs
@@ -744,7 +744,7 @@ class Element:
             k_s = k.split(".")
 
             if k_s[0] == "inputs":
-                inp_val = app.InputValue(
+                inp_val = self.app.InputValue(
                     parameter=k_s[1],
                     path=k_s[2:] or None,
                     value=None,
@@ -754,8 +754,8 @@ class Element:
                 inputs.append(inp_val)
 
             elif k_s[0] == "resources":
-                scope = app.ActionScope.from_json_like(k_s[1])
-                res = app.ResourceSpec(scope=scope)
+                scope = self.app.ActionScope.from_json_like(k_s[1])
+                res = self.app.ResourceSpec(scope=scope)
                 res._value_group_idx = v
                 res._workflow = self.workflow
                 resources.append(res)

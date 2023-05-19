@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import enum
 from types import SimpleNamespace
 from typing import Optional, Any
-import py
 import pytest
 
 from hpcflow.sdk.core.json_like import BaseJSONLike, ChildObjectSpec
@@ -61,7 +60,6 @@ def test_BaseJSONLike_child_object_class_namespace_via_obj():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -91,7 +89,6 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_dict_namespace(
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -123,7 +120,6 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_func_locals(
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -155,7 +151,6 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_SimpleNamespace(
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -184,7 +179,6 @@ def obj_and_child_obj_and_json_like_1():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -234,7 +228,6 @@ def obj_and_child_obj_with_json_like_name_and_json_like():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -288,7 +281,6 @@ def obj_and_child_obj_with_list_and_json_like():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -341,7 +333,6 @@ def obj_and_child_obj_with_dict_key_only_and_json_like_and_json_like_normed():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b", class_obj=ObjB, is_multiple=True, dict_key_attr="name"
@@ -411,7 +402,6 @@ def obj_and_child_obj_with_dict_key_val_and_json_like_and_json_like_normed():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -479,7 +469,6 @@ def test_to_json_like_expected_json_like_with_child_obj_dict_key_dict_val(
 def test_from_json_like_raise_on_is_multiple_with_dict_but_no_dict_key_attr():
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -504,7 +493,6 @@ def test_from_json_like_raise_on_is_multiple_with_dict_but_no_dict_key_attr():
 def test_from_json_like_raise_on_is_multiple_with_dict_key_no_dict_val_but_non_dict_vals():
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -529,7 +517,6 @@ def test_from_json_like_raise_on_is_multiple_with_dict_key_no_dict_val_but_non_d
 def test_from_json_like_raise_on_is_multiple_not_list_or_dict():
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -550,7 +537,6 @@ def test_from_json_like_raise_on_is_multiple_not_list_or_dict():
 def test_from_json_like_with_parent_ref():
     @dataclass
     class ObjB(BaseJSONLike):
-
         name: str
         c: int
         obj_A: Optional[Any] = None
@@ -562,7 +548,6 @@ def test_from_json_like_with_parent_ref():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -603,7 +588,6 @@ def test_from_json_like_with_parent_ref():
 def test_json_like_round_trip_with_parent_ref():
     @dataclass
     class ObjB(BaseJSONLike):
-
         name: str
         c: int
         obj_A: Optional[Any] = None
@@ -615,7 +599,6 @@ def test_json_like_round_trip_with_parent_ref():
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -649,7 +632,6 @@ def test_json_like_round_trip_with_parent_ref():
 
 
 def test_from_json_like_optional_attr():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -659,7 +641,6 @@ def test_from_json_like_optional_attr():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -684,7 +665,6 @@ def test_from_json_like_optional_attr_with_is_multiple_both_none():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -704,7 +684,6 @@ def test_from_json_like_optional_attr_with_is_multiple_both_none():
 
 
 def test_from_json_like_optional_attr_with_is_multiple_one_none():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -714,7 +693,6 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -734,7 +712,6 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none():
 
 
 def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_name():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -744,7 +721,6 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -773,7 +749,6 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_
 
 
 def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_name():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -783,7 +758,6 @@ def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -822,7 +796,6 @@ def test_from_json_like_optional_attr_with_shared_data_name():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -853,14 +826,12 @@ def test_from_json_like_optional_attr_with_enum():
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     class MyEnum(enum.Enum):
-
         A = 0
         B = 1
         C = 2
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (ChildObjectSpec(name="b", class_obj=MyEnum, is_enum=True),)
         a: int
         b: Optional[Any] = None
@@ -883,7 +854,6 @@ def test_from_json_like_with_is_multiple():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (ChildObjectSpec(name="b", class_obj=ObjB, is_multiple=True),)
         a: int
         b: Any
@@ -908,7 +878,6 @@ def test_from_json_like_with_is_multiple_dict_values():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -946,7 +915,6 @@ def test_from_json_like_with_is_multiple_dict_values_ensure_list():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -990,7 +958,6 @@ def test_from_json_like_round_trip_with_is_multiple_dict_values():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -1025,7 +992,6 @@ def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -1054,7 +1020,6 @@ def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list():
 
 
 def test_from_json_like_with_is_multiple_and_shared_data():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -1064,7 +1029,6 @@ def test_from_json_like_with_is_multiple_and_shared_data():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -1095,7 +1059,6 @@ def test_from_json_like_with_is_multiple_and_shared_data():
 
 
 def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup():
-
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -1106,7 +1069,6 @@ def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup():
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -1145,14 +1107,12 @@ def test_from_json_like_enum():
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     class MyEnum(enum.Enum):
-
         A = 0
         B = 1
         C = 2
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (ChildObjectSpec(name="b", class_obj=MyEnum, is_enum=True),)
         a: int
         b: Any
@@ -1170,14 +1130,12 @@ def test_from_to_json_round_trip_enum():
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     class MyEnum(enum.Enum):
-
         A = 0
         B = 1
         C = 2
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (ChildObjectSpec(name="b", class_obj=MyEnum, is_enum=True),)
         a: int
         b: Any
@@ -1191,19 +1149,16 @@ def test_from_to_json_round_trip_enum():
 
 
 def test_from_json_like_round_trip_enum_case_insensitivity():
-
     # test enum from_json_like case-insensitivity
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     class MyEnum(enum.Enum):
-
         A = 0
         B = 1
         C = 2
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
-
         _child_objects = (ChildObjectSpec(name="b", class_obj=MyEnum, is_enum=True),)
         a: int
         b: Any
@@ -1234,14 +1189,12 @@ def test_to_json_like_with_child_ref():
 
     @dataclass
     class ObjB(BaseJSONLike):
-
         name: str
         c: int
         obj_A: Optional[Any] = None
 
     @dataclass
     class ObjA(BaseJSONLike):
-
         _child_objects = (
             ChildObjectSpec(
                 name="b",

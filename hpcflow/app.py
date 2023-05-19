@@ -20,12 +20,12 @@ config_options = ConfigOptions(
 )
 
 # load built in template components (in this case, for demonstration purposes):
-template_components = sdk_app.App.load_builtin_template_component_data(
+template_components = sdk_app.BaseApp.load_builtin_template_component_data(
     "hpcflow.sdk.data.template_components"
 )
 
 # initialise the App object:
-app = sdk_app.App(
+app = sdk_app.BaseApp(
     name="hpcflow",
     version=__version__,
     module=__name__,

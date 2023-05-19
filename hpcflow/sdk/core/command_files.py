@@ -25,7 +25,7 @@ class FileSpec(JSONLike):
 
     def __post_init__(self):
         self.name = (
-            app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
+            self.app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
         )
 
     def value(self, directory=None):
@@ -66,11 +66,11 @@ class FileNameSpec(JSONLike):
 
     @property
     def stem(self):
-        return app.FileNameStem(self)
+        return self.app.FileNameStem(self)
 
     @property
     def ext(self):
-        return app.FileNameExt(self)
+        return self.app.FileNameExt(self)
 
     def value(self, directory=None):
         format_args = [i.value(directory) for i in self.args or []]
@@ -128,13 +128,13 @@ class InputFileGenerator(JSONLike):
     def get_action_rule(self):
         """Get the rule that allows testing if this input file generator must be
         run or not for a given element."""
-        return app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
+        return self.app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
 
     def compose_source(self) -> str:
         """Generate the file contents of this input file generator source."""
 
         script_name = self.script
-        script_path = app.scripts.get(script_name)
+        script_path = self.app.scripts.get(script_name)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
@@ -219,7 +219,7 @@ class OutputFileParser(JSONLike):
         """Generate the file contents of this output file parser source."""
 
         script_name = self.script
-        script_path = app.scripts.get(script_name)
+        script_path = self.app.scripts.get(script_name)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
@@ -451,7 +451,7 @@ class InputFile(_FileContentsSpecifier):
     ):
         self.file = file
         if not isinstance(self.file, FileSpec):
-            self.file = app.command_files.get(self.file.label)
+            self.file = self.app.command_files.get(self.file.label)
 
         super().__init__(path, contents, extension, store_contents)
 

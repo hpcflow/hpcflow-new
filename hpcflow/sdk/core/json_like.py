@@ -479,10 +479,10 @@ class JSONLike(BaseJSONLike):
             if hasattr(cls, "_child_objects"):
                 for chd in cls._child_objects or []:
                     if chd.parent_ref:
-                        _SDK_logger.debug(
-                            f"removing parent reference {chd.parent_ref!r} from child "
-                            f"object {chd!r}."
-                        )
+                        # _SDK_logger.debug(
+                        #     f"removing parent reference {chd.parent_ref!r} from child "
+                        #     f"object {chd!r}."
+                        # )
                         if (
                             self.__class__.__name__ == chd.class_name
                             or self.__class__ is chd.class_obj

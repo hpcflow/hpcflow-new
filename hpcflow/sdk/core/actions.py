@@ -276,31 +276,31 @@ class ElementActionRun:
     @property
     def inputs(self):
         if not self._inputs:
-            self._inputs = app.ElementInputs(element_action_run=self)
+            self._inputs = self.app.ElementInputs(element_action_run=self)
         return self._inputs
 
     @property
     def outputs(self):
         if not self._outputs:
-            self._outputs = app.ElementOutputs(element_action_run=self)
+            self._outputs = self.app.ElementOutputs(element_action_run=self)
         return self._outputs
 
     @property
     def resources(self):
         if not self._resources:
-            self._resources = app.ElementResources(**self.get_resources())
+            self._resources = self.app.ElementResources(**self.get_resources())
         return self._resources
 
     @property
     def input_files(self):
         if not self._input_files:
-            self._input_files = app.ElementInputFiles(element_action_run=self)
+            self._input_files = self.app.ElementInputFiles(element_action_run=self)
         return self._input_files
 
     @property
     def output_files(self):
         if not self._output_files:
-            self._output_files = app.ElementOutputFiles(element_action_run=self)
+            self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
     def get_template_resources(self):
@@ -372,7 +372,7 @@ class ElementActionRun:
         """Generate the file contents of this source."""
 
         script_name = self.action.script
-        script_path = app.scripts.get(script_name)
+        script_path = self.app.scripts.get(script_name)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
@@ -549,7 +549,7 @@ class ElementAction:
     def runs(self):
         if self._run_objs is None:
             self._run_objs = [
-                app.ElementActionRun(self, run_idx=run_idx, **i)
+                self.app.ElementActionRun(self, run_idx=run_idx, **i)
                 for run_idx, i in enumerate(self._runs)
             ]
         return self._run_objs
@@ -569,25 +569,25 @@ class ElementAction:
     @property
     def inputs(self):
         if not self._inputs:
-            self._inputs = app.ElementInputs(element_action=self)
+            self._inputs = self.app.ElementInputs(element_action=self)
         return self._inputs
 
     @property
     def outputs(self):
         if not self._outputs:
-            self._outputs = app.ElementOutputs(element_action=self)
+            self._outputs = self.app.ElementOutputs(element_action=self)
         return self._outputs
 
     @property
     def input_files(self):
         if not self._input_files:
-            self._input_files = app.ElementInputFiles(element_action=self)
+            self._input_files = self.app.ElementInputFiles(element_action=self)
         return self._input_files
 
     @property
     def output_files(self):
         if not self._output_files:
-            self._output_files = app.ElementOutputFiles(element_action=self)
+            self._output_files = self.app.ElementOutputFiles(element_action=self)
         return self._output_files
 
     def get_data_idx(self, path: str = None, run_idx: int = -1):
@@ -682,7 +682,7 @@ class ElementActionOLD:
                     scripts.append(script_name)
 
                 elif typ == "file":
-                    sub_str_new = app.command_files.get(val).value()
+                    sub_str_new = self.app.command_files.get(val).value()
 
                 command_resolved = command_resolved.replace(sub_str_original, sub_str_new)
 
@@ -691,7 +691,7 @@ class ElementActionOLD:
         # generate scripts:
         for script in scripts:
             script_path = self.element.dir_path / script
-            snippet_path = app.scripts.get(script)
+            snippet_path = self.app.scripts.get(script)
             with snippet_path.open("rt") as fp:
                 script_body = fp.readlines()
 
@@ -779,7 +779,7 @@ class ActionScope(JSONLike):
 
     def __init__(self, typ: Union[app.ActionScopeType, str], **kwargs):
         if isinstance(typ, str):
-            typ = getattr(app.ActionScopeType, typ.upper())
+            typ = getattr(self.app.ActionScopeType, typ.upper())
 
         self.typ = typ
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
@@ -872,7 +872,7 @@ class ActionEnvironment(JSONLike):
 
     def __post_init__(self):
         if self.scope is None:
-            self.scope = app.ActionScope.any()
+            self.scope = self.app.ActionScope.any()
 
 
 @dataclass
@@ -1137,7 +1137,7 @@ class Action(JSONLike):
             # always run OPs, for now
 
             out_file_rules = [
-                app.ActionRule(check_missing=f"output_files.{j.label}")
+                self.app.ActionRule(check_missing=f"output_files.{j.label}")
                 for i in self.output_file_parsers
                 for j in i.output_files
             ]
@@ -1154,7 +1154,7 @@ class Action(JSONLike):
                     f"<<executable:python>> <<script:{ifg.script}>> "
                     f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
-                act_i = app.Action(
+                act_i = self.app.Action(
                     commands=[app.Command(cmd)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
@@ -1172,7 +1172,7 @@ class Action(JSONLike):
                     f"<<executable:python>> <<script:{ofp.script}>> "
                     f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
-                act_i = app.Action(
+                act_i = self.app.Action(
                     commands=[app.Command(cmd)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
@@ -1186,13 +1186,13 @@ class Action(JSONLike):
             commands = self.commands
             if self.script:
                 commands += [
-                    app.Command(
+                    self.app.Command(
                         f"<<executable:python>> <<script:{self.script}>> "
                         f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                     )
                 ]
 
-            main_act = app.Action(
+            main_act = self.app.Action(
                 commands=commands,
                 script=self.script,
                 environments=[self.get_commands_action_env()],
@@ -1358,19 +1358,19 @@ class Action(JSONLike):
         if self.input_file_generators:
             scopes = (
                 scope,
-                app.ActionScope.input_file_generator(),
-                app.ActionScope.processing(),
-                app.ActionScope.any(),
+                self.app.ActionScope.input_file_generator(),
+                self.app.ActionScope.processing(),
+                self.app.ActionScope.any(),
             )
         elif self.output_file_parsers:
             scopes = (
                 scope,
-                app.ActionScope.output_file_parser(),
-                app.ActionScope.processing(),
-                app.ActionScope.any(),
+                self.app.ActionScope.output_file_parser(),
+                self.app.ActionScope.processing(),
+                self.app.ActionScope.any(),
             )
         else:
-            scopes = (scope, app.ActionScope.any())
+            scopes = (scope, self.app.ActionScope.any())
 
         return scopes
 
@@ -1382,15 +1382,15 @@ class Action(JSONLike):
             )
 
         if self.input_file_generators:
-            return app.ActionScope.input_file_generator(
+            return self.app.ActionScope.input_file_generator(
                 file=self.input_file_generators[0].input_file.label
             )
         elif self.output_file_parsers:
-            return app.ActionScope.output_file_parser(
+            return self.app.ActionScope.output_file_parser(
                 output=self.output_file_parsers[0].output.typ
             )
         else:
-            return app.ActionScope.main()
+            return self.app.ActionScope.main()
 
     def is_input_type_required(
         self, typ: str, provided_files: List[app.FileSpec]

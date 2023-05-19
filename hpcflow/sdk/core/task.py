@@ -7,6 +7,7 @@ from valida.rules import Rule
 
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.task_schema import TaskSchema
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
@@ -127,11 +128,11 @@ class ElementSet(JSONLike):
         """
 
         if isinstance(resources, dict):
-            resources = app.ResourceList.from_json_like(resources)
+            resources = self.app.ResourceList.from_json_like(resources)
         elif isinstance(resources, list):
-            resources = app.ResourceList(resources)
+            resources = self.app.ResourceList(resources)
         elif not resources:
-            resources = app.ResourceList([app.ResourceSpec()])
+            resources = self.app.ResourceList([self.app.ResourceSpec()])
 
         self.inputs = inputs or []
         self.input_files = input_files or []
@@ -478,16 +479,18 @@ class Task(JSONLike):
         for i in schemas:
             if isinstance(i, str):
                 try:
-                    i = app.TaskSchema.get_by_key(i)
+                    i = self.app.TaskSchema.get_by_key(
+                        i
+                    )  # TODO: document that we need to use the actual app instance here?
                 except KeyError:
                     raise KeyError(f"TaskSchema {i!r} not found.")
-            elif not isinstance(i, app.TaskSchema):
+            elif not isinstance(i, TaskSchema):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
         self._schemas = _schemas
 
-        self._element_sets = app.ElementSet.ensure_element_sets(
+        self._element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -697,7 +700,7 @@ class Task(JSONLike):
 
             # local specification takes precedence:
             if inputs_path in element_set.get_locally_defined_inputs():
-                available[inputs_path].append(app.InputSource.local())
+                available[inputs_path].append(self.app.InputSource.local())
 
             # search for task sources:
             for src_task_i in source_tasks:
@@ -744,7 +747,7 @@ class Task(JSONLike):
                             if not src_elem_iters:
                                 continue
 
-                        task_source = app.InputSource.task(
+                        task_source = self.app.InputSource.task(
                             task_ref=src_task_i.insert_ID,
                             task_source_type=param_i.input_or_output,
                             element_iters=src_elem_iters,
@@ -752,7 +755,7 @@ class Task(JSONLike):
                         available[inputs_path].append(task_source)
 
             if inp_status.has_default:
-                available[inputs_path].append(app.InputSource.default())
+                available[inputs_path].append(self.app.InputSource.default())
 
         return available
 
@@ -1073,7 +1076,7 @@ class WorkflowTask:
     @property
     def elements(self):
         if self._elements is None:
-            self._elements = app.Elements(self)
+            self._elements = self.app.Elements(self)
         return self._elements
 
     def get_dir_name(self, loop_idx: Dict[str, int] = None) -> str:
@@ -1102,7 +1105,7 @@ class WorkflowTask:
             "task_insert_ID": self.insert_ID,
             "element_set_idx": element_set_idx,
         }
-        loc_inp_src = app.InputSource.local()
+        loc_inp_src = self.app.InputSource.local()
         for res_i in element_set.resources:
             key, dat_ref, _ = res_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = dat_ref
@@ -1165,7 +1168,7 @@ class WorkflowTask:
                         iter_i.get_data_idx()[src_key] for iter_i in src_elem_iters
                     ]
 
-                    if app.InputSource.local() in sources:
+                    if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
@@ -1181,7 +1184,7 @@ class WorkflowTask:
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     grp_idx = [schema_input.default_value._value_group_idx]
-                    if app.InputSource.local() in sources:
+                    if self.app.InputSource.local() in sources:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
 
@@ -1602,7 +1605,7 @@ class WorkflowTask:
         propagate_to=None,
         return_indices=False,
     ):
-        propagate_to = app.ElementPropagation._prepare_propagate_to_dict(
+        propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
@@ -1659,7 +1662,7 @@ class WorkflowTask:
             inputs = inputs or b_inputs
             resources = resources or b_resources
 
-        element_sets = app.ElementSet.ensure_element_sets(
+        element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -1696,7 +1699,7 @@ class WorkflowTask:
             src_elem_iters = elem_idx + [
                 j for i in element_sets for j in i.sourceable_elem_iters or []
             ]
-            elem_set_i = app.ElementSet(
+            elem_set_i = self.app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,
@@ -1815,14 +1818,14 @@ class WorkflowTask:
 
     @property
     def inputs(self):
-        return app.TaskInputParameters(self)
+        return self.app.TaskInputParameters(self)
 
     @property
     def outputs(self):
-        return app.TaskOutputParameters(self)
+        return self.app.TaskOutputParameters(self)
 
     def get(self, path, raise_on_missing=False, default=None):
-        return app.Parameters(
+        return self.app.Parameters(
             self,
             path=path,
             return_element_parameters=False,
@@ -2136,6 +2139,8 @@ class ElementPropagation:
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""
 
+    _app_attr = "app"
+
     task: app.Task
     nesting_order: Optional[Dict] = None
 
@@ -2150,8 +2155,8 @@ class ElementPropagation:
             nesting_order=copy.deepcopy(self.nesting_order, memo),
         )
 
-    @staticmethod
-    def _prepare_propagate_to_dict(propagate_to, workflow):
+    @classmethod
+    def _prepare_propagate_to_dict(cls, propagate_to, workflow):
         propagate_to = copy.deepcopy(propagate_to)
         if not propagate_to:
             propagate_to = {}
@@ -2159,8 +2164,8 @@ class ElementPropagation:
             propagate_to = {i.task.unique_name: i for i in propagate_to}
 
         for k, v in propagate_to.items():
-            if not isinstance(v, app.ElementPropagation):
-                propagate_to[k] = app.ElementPropagation(
+            if not isinstance(v, ElementPropagation):
+                propagate_to[k] = cls.app.ElementPropagation(
                     task=workflow.tasks.get(unique_name=k),
                     **v,
                 )

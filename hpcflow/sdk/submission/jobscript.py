@@ -478,7 +478,7 @@ class Jobscript(JSONLike):
             self._shell_obj = get_shell(
                 self.shell_name,
                 self.os_name,
-                os_args={"linux_release_file": app.config.linux_release_file},
+                os_args={"linux_release_file": self.app.config.linux_release_file},
                 **self.resources.shell_args,
             )
         return self._shell_obj
@@ -656,21 +656,21 @@ class Jobscript(JSONLike):
     def compose_jobscript(self) -> str:
         """Prepare the jobscript file string."""
         # workflows should be submitted from the workflow root directory
-        env_setup = app.config._file.invoc_data["invocation"]["environment_setup"]
+        env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
         if env_setup:
             env_setup = indent(env_setup.strip(), self.shell.JS_ENV_SETUP_INDENT)
             env_setup += "\n\n" + self.shell.JS_ENV_SETUP_INDENT
         else:
             env_setup = self.shell.JS_ENV_SETUP_INDENT
 
-        app_invoc = list(app.run_time_info.invocation_command)
+        app_invoc = list(self.app.run_time_info.invocation_command)
         header_args = self.shell.process_JS_header_args(
             {
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
                 "app_invoc": app_invoc,
-                "config_dir": str(app.config.config_directory),
-                "config_invoc_key": app.config.config_invocation_key,
+                "config_dir": str(self.app.config.config_directory),
+                "config_invoc_key": self.app.config.config_invocation_key,
                 "workflow_path": self.workflow.path,
                 "sub_idx": self.submission.index,
                 "js_idx": self.index,

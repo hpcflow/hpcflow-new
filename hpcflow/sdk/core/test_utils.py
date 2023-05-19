@@ -1,5 +1,5 @@
 from typing import List, Tuple, Union
-import hpcflow.app as hf
+from hpcflow.app import app as hf
 
 
 def make_schemas(ins_outs, ret_list=False):

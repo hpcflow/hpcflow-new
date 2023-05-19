@@ -1,10 +1,13 @@
 """An hpcflow application."""
+from __future__ import annotations
 
 import enum
-from functools import wraps
+from functools import partial, wraps
 from importlib import resources, import_module
+import importlib
+import os
 from pathlib import Path
-from typing import Callable, Dict, Type
+from typing import Callable, Dict, Optional, Type, Union
 import warnings
 
 from setuptools import find_packages
@@ -13,9 +16,17 @@ from hpcflow import __version__
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
 from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config
+from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.log import AppLog
+from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
+from hpcflow.sdk.submission.shells import get_shell
+from hpcflow.sdk.submission.shells.os_version import (
+    get_OS_info_POSIX,
+    get_OS_info_windows,
+)
+from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
 
@@ -30,7 +41,10 @@ def __getattr__(name):
 
 def get_app_attribute(name):
     """A function to assign to an app module `__getattr__` to access app attributes."""
-    app_obj = App.get_instance()
+    try:
+        app_obj = App.get_instance()
+    except RuntimeError:
+        app_obj = BaseApp.get_instance()
     try:
         return getattr(app_obj, name)
     except AttributeError:
@@ -49,7 +63,9 @@ class Singleton(type):
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
+        SDK_logger.info(f"App metaclass __call__ with {args=} {kwargs=}")
         if cls not in cls._instances:
+            SDK_logger.info(f"App metaclass initialising new object {kwargs['name']!r}.")
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
@@ -61,7 +77,7 @@ class Singleton(type):
             raise RuntimeError(f"{cls.__name__!r} object has not be instantiated!")
 
 
-class App(metaclass=Singleton):
+class BaseApp(metaclass=Singleton):
     """Class to generate the hpcflow application.
 
     Parameters
@@ -71,7 +87,6 @@ class App(metaclass=Singleton):
 
     """
 
-    _app_attr_cache = {}
     _template_component_types = (
         "parameters",
         "command_files",
@@ -124,6 +139,8 @@ class App(metaclass=Singleton):
         self._task_schemas = None
         self._scripts = None
 
+        self._app_attr_cache = {}
+
     def __getattr__(self, name):
         if name in sdk_classes:
             return self._get_app_core_class(name)
@@ -157,18 +174,22 @@ class App(metaclass=Singleton):
         return self._app_attr_cache[name]
 
     def _get_app_func(self, name) -> Callable:
-        def wrap_func(func):
-            # this function avoids scope issues
-            return lambda *args, **kwargs: func(*args, **kwargs)
-
         if name not in self._app_attr_cache:
-            sdk_func = self._get_app_attribute(name)
+
+            def wrap_func(func):
+                # this function avoids scope issues
+                return lambda *args, **kwargs: func(*args, **kwargs)
+
+            # retrieve the "private" function:
+            sdk_func = getattr(self, f"_{name}")
+
             func = wrap_func(sdk_func)
             func = wraps(sdk_func)(func)
             if func.__doc__:
                 func.__doc__ = func.__doc__.format(app_name=self.name)
             func.__module__ = self.module
             self._app_attr_cache[name] = func
+
         return self._app_attr_cache[name]
 
     @property
@@ -236,11 +257,16 @@ class App(metaclass=Singleton):
 
     @classmethod
     def load_builtin_template_component_data(cls, package):
+        SDK_logger.info(
+            f"Loading built-in template component data for package: {package!r}."
+        )
         components = {}
         for comp_type in cls._template_component_types:
             with resources.open_text(package, f"{comp_type}.yaml") as fh:
                 comp_dat = fh.read()
+                SDK_logger.info(f"Loading file: {comp_dat!r}")
                 components[comp_type] = read_YAML(comp_dat)
+        SDK_logger.info(f"Loaded task_schemas: {components['task_schemas']}")
         return components
 
     @property
@@ -380,3 +406,227 @@ class App(metaclass=Singleton):
             "python_version": self.run_time_info.python_version,
             "is_frozen": self.run_time_info.is_frozen,
         }
+
+    def _make_workflow(
+        self,
+        template_file_or_str: Union[PathLike, str],
+        is_string: Optional[bool] = False,
+        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+    ) -> get_app_attribute("Workflow"):
+        """Generate a new {app_name} workflow from a file or string containing a workflow
+        template parametrisation.
+
+        Parameters
+        ----------
+        template_path_or_str
+            Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+        is_string
+            Determines if passing a file path or a string.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the workflow template name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store type to use.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        """
+
+        self.API_logger.info("make_workflow called")
+
+        common = {
+            "path": path,
+            "name": name,
+            "overwrite": overwrite,
+            "store": store,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
+        }
+
+        if not is_string:
+            wk = self.Workflow.from_file(
+                template_path=template_file_or_str,
+                template_format=template_format,
+                **common,
+            )
+
+        elif template_format == "json":
+            wk = self.Workflow.from_JSON_string(JSON_str=template_file_or_str, **common)
+
+        elif template_format == "yaml":
+            wk = self.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
+
+        else:
+            raise ValueError(
+                f"Template format {template_format} not understood. Available template "
+                f"formats are {ALL_TEMPLATE_FORMATS!r}."
+            )
+        return wk
+
+    def _make_and_submit_workflow(
+        self,
+        template_file_or_str: Union[PathLike, str],
+        is_string: Optional[bool] = False,
+        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+        JS_parallelism: Optional[bool] = None,
+    ):
+        """Generate and submit a new {app_name} workflow from a file or string containing a
+        workflow template parametrisation.
+
+        Parameters
+        ----------
+
+        template_path_or_str
+            Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+        is_string
+            Determines whether `template_path_or_str` is a string or a file.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        JS_parallelism
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        """
+
+        self.API_logger.info("make_and_submit_workflow called")
+
+        wk = self.make_workflow(
+            template_file_or_str=template_file_or_str,
+            is_string=is_string,
+            template_format=template_format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
+        return wk.submit(JS_parallelism=JS_parallelism)
+
+    def _submit_workflow(
+        self, workflow_path: PathLike, JS_parallelism: Optional[bool] = None
+    ):
+        """Submit an existing {app_name} workflow.
+
+        Parameters
+        ----------
+        workflow_path
+            Path to an existing workflow
+        JS_parallelism
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        """
+
+        self.API_logger.info("submit_workflow called")
+        wk = self.Workflow(workflow_path)
+        return wk.submit(JS_parallelism=JS_parallelism)
+
+    def _run_hpcflow_tests(self, clear_cache: bool = False, *args):
+        """Run hpcflow test suite. This function is only available from derived apps.
+
+        Notes
+        -----
+        It may not be possible to run hpcflow tests after/before running tests of the derived
+        app within the same process, due to caching."""
+
+        from hpcflow import app as hf
+
+        return hf.app.run_tests(*args)
+
+    def _run_tests(self, clear_cache: bool = False, *args):
+        """Run {app_name} test suite."""
+
+        try:
+            import pytest
+        except ModuleNotFoundError:
+            raise RuntimeError(
+                f"{self.name} has not been built with testing dependencies."
+            )
+
+        test_args = (self.pytest_args or []) + list(args)
+        if self.run_time_info.is_frozen:
+            with importlib.resources.path(self.package_name, "tests") as test_dir:
+                return pytest.main([str(test_dir)] + test_args)
+        else:
+            ret_code = pytest.main(["--pyargs", f"{self.package_name}"] + test_args)
+            if ret_code is not pytest.ExitCode.OK:
+                raise RuntimeError(f"Tests failed with exit code: {str(ret_code)}")
+            else:
+                return ret_code
+
+    def _get_OS_info(self):
+        """Get information about the operating system."""
+        os_name = os.name
+        if os_name == "posix":
+            return get_OS_info_POSIX(
+                linux_release_file=self.config.get("linux_release_file")
+            )
+        elif os_name == "nt":
+            return get_OS_info_windows()
+
+    def _get_shell_info(self, shell_name: str, exclude_os: Optional[bool] = False):
+        """Get information about a given shell and the operating system.
+
+        Parameters
+        ----------
+        shell_name
+            One of the supported shell names.
+        exclude_os
+            If True, exclude operating system information.
+        """
+        shell = get_shell(
+            shell_name=shell_name,
+            os_args={"linux_release_file": self.config.linux_release_file},
+        )
+        return shell.get_version_info(exclude_os)
+
+
+class App(BaseApp):
+    pass

@@ -126,7 +126,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self):
         if isinstance(self.parameter, str):
-            self.parameter = app.Parameter(self.parameter)
+            self.parameter = self.app.Parameter(self.parameter)
 
     @property
     def name(self):
@@ -215,8 +215,8 @@ class SchemaInput(SchemaParameter):
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
-            if not isinstance(self.default_value, app.InputValue):
-                self.default_value = app.InputValue(
+            if not isinstance(self.default_value, InputValue):
+                self.default_value = self.app.InputValue(
                     parameter=self.parameter,
                     value=self.default_value,
                 )
@@ -381,7 +381,7 @@ class ValueSequence(JSONLike):
             )
         if path_split[0] == "resources":
             try:
-                app.ActionScope.from_json_like(path_split[1])
+                self.app.ActionScope.from_json_like(path_split[1])
             except Exception as err:
                 raise MalformedParameterPathError(
                     f"Cannot parse a resource action scope from the second component of the "
@@ -602,8 +602,8 @@ class InputValue(AbstractInputValue):
         path: Optional[str] = None,
     ):
         if isinstance(parameter, str):
-            parameter = app.parameters.get(parameter)
-        elif isinstance(parameter, app.SchemaInput):
+            parameter = self.app.parameters.get(parameter)
+        elif isinstance(parameter, SchemaInput):
             parameter = parameter.parameter
 
         if value_class_method and value is not None:
@@ -745,7 +745,7 @@ class ResourceSpec(JSONLike):
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
     ):
-        self.scope = scope or app.ActionScope.any()
+        self.scope = scope or self.app.ActionScope.any()
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
@@ -1094,14 +1094,14 @@ class InputSource(JSONLike):
             )
         return src_type
 
-    @staticmethod
-    def _validate_task_source_type(task_src_type):
+    @classmethod
+    def _validate_task_source_type(cls, task_src_type):
         if task_src_type is None:
             return None
         if isinstance(task_src_type, TaskSourceType):
             return task_src_type
         try:
-            task_source_type = getattr(TaskSourceType, task_src_type.upper())
+            task_source_type = getattr(cls.app.TaskSourceType, task_src_type.upper())
         except AttributeError:
             raise ValueError(
                 f"InputSource `task_source_type` specified as {task_src_type!r}, but "
@@ -1132,15 +1132,16 @@ class InputSource(JSONLike):
         import_ref = None
         if (
             (
-                source_type in (InputSourceType.LOCAL, InputSourceType.DEFAULT)
+                source_type
+                in (cls.app.InputSourceType.LOCAL, cls.app.InputSourceType.DEFAULT)
                 and len(parts) > 1
             )
-            or (source_type is InputSourceType.TASK and len(parts) > 3)
-            or (source_type is InputSourceType.IMPORT and len(parts) > 2)
+            or (source_type is cls.app.InputSourceType.TASK and len(parts) > 3)
+            or (source_type is cls.app.InputSourceType.IMPORT and len(parts) > 2)
         ):
             raise ValueError(f"InputSource string not understood: {str_defn!r}.")
 
-        if source_type is InputSourceType.TASK:
+        if source_type is cls.app.InputSourceType.TASK:
             # TODO: does this include element_iters?
             task_ref = parts[1]
             try:
@@ -1150,9 +1151,9 @@ class InputSource(JSONLike):
             try:
                 task_source_type_str = parts[2]
             except IndexError:
-                task_source_type_str = TaskSourceType.OUTPUT
+                task_source_type_str = cls.app.TaskSourceType.OUTPUT
             task_source_type = cls._validate_task_source_type(task_source_type_str)
-        elif source_type is InputSourceType.IMPORT:
+        elif source_type is cls.app.InputSourceType.IMPORT:
             import_ref = parts[1]
             try:
                 import_ref = int(import_ref)
@@ -1174,22 +1175,22 @@ class InputSource(JSONLike):
 
     @classmethod
     def import_(cls, import_ref):
-        return cls(source_type=InputSourceType.IMPORT, import_ref=import_ref)
+        return cls(source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref)
 
     @classmethod
     def local(cls):
-        return cls(source_type=InputSourceType.LOCAL)
+        return cls(source_type=cls.app.InputSourceType.LOCAL)
 
     @classmethod
     def default(cls):
-        return cls(source_type=InputSourceType.DEFAULT)
+        return cls(source_type=cls.app.InputSourceType.DEFAULT)
 
     @classmethod
     def task(cls, task_ref, task_source_type=None, element_iters=None):
         if not task_source_type:
-            task_source_type = TaskSourceType.OUTPUT
+            task_source_type = cls.app.TaskSourceType.OUTPUT
         return cls(
-            source_type=InputSourceType.TASK,
+            source_type=cls.app.InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
             element_iters=element_iters,

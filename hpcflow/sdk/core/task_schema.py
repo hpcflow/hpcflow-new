@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
@@ -122,7 +123,7 @@ class TaskSchema(JSONLike):
 
     def _validate(self):
         if isinstance(self.objective, str):
-            self.objective = app.TaskObjective(self.objective)
+            self.objective = self.app.TaskObjective(self.objective)
 
         if self.method:
             self.method = check_valid_py_identifier(self.method)
@@ -131,15 +132,17 @@ class TaskSchema(JSONLike):
 
         # coerce Parameters to SchemaInputs
         for idx, i in enumerate(self.inputs):
-            if isinstance(i, app.Parameter):
-                self.inputs[idx] = app.SchemaInput(i)
+            if isinstance(
+                i, Parameter
+            ):  # TODO: doc. that we should use the sdk class for type checking!
+                self.inputs[idx] = self.app.SchemaInput(i)
 
         # coerce Parameters to SchemaOutputs
         for idx, i in enumerate(self.outputs):
-            if isinstance(i, app.Parameter):
-                self.outputs[idx] = app.SchemaOutput(i)
+            if isinstance(i, Parameter):
+                self.outputs[idx] = self.app.SchemaOutput(i)
             elif isinstance(i, SchemaInput):
-                self.outputs[idx] = app.SchemaOutput(i.parameter)
+                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
 
         # check action input/outputs
         if self._validate_actions:
@@ -254,7 +257,7 @@ class TaskSchema(JSONLike):
     @classmethod
     def get_by_key(cls, key):
         """Get a config-loaded task schema from a key."""
-        return app.task_schemas.get(key)
+        return cls.app.task_schemas.get(key)
 
     def get_parameter_dependence(self, parameter: app.SchemaParameter):
         """Find if/where a given parameter is used by the schema's actions."""

@@ -1,5 +1,5 @@
 import pytest
-from hpcflow.app import Loop
+from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import LoopAlreadyExistsError
 from hpcflow.sdk.core.test_utils import make_workflow
 
@@ -12,8 +12,8 @@ def test_loop_tasks_obj_insert_ID_equivalence(tmp_path, store):
         path=tmp_path,
         store=store,
     )
-    lp_0 = Loop(tasks=[wk_1.tasks.t1], num_iterations=2)
-    lp_1 = Loop(tasks=[0], num_iterations=2)
+    lp_0 = hf.Loop(tasks=[wk_1.tasks.t1], num_iterations=2)
+    lp_1 = hf.Loop(tasks=[0], num_iterations=2)
     assert lp_0.task_insert_IDs == lp_1.task_insert_IDs
 
 
@@ -24,8 +24,8 @@ def test_raise_on_add_loop_same_name(tmp_path):
         path=tmp_path,
         store="json",
     )
-    lp_0 = Loop(name="my_loop", tasks=[0], num_iterations=2)
-    lp_1 = Loop(name="my_loop", tasks=[1], num_iterations=2)
+    lp_0 = hf.Loop(name="my_loop", tasks=[0], num_iterations=2)
+    lp_1 = hf.Loop(name="my_loop", tasks=[1], num_iterations=2)
 
     wk.add_loop(lp_0)
     with pytest.raises(LoopAlreadyExistsError):
@@ -42,7 +42,7 @@ def test_wk_loop_data_idx_single_task_single_element_single_parameter_three_iter
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[wk.tasks.t1], num_iterations=3))
+    wk.add_loop(hf.Loop(tasks=[wk.tasks.t1], num_iterations=3))
     iter_0, iter_1, iter_2 = wk.tasks.t1.elements[0].iterations
 
     p1_idx_i0_out = iter_0.get_data_idx()["outputs.p1"]
@@ -63,7 +63,7 @@ def test_wk_loop_EARs_initialised_single_task_single_element_single_parameter_th
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[wk.tasks.t1], num_iterations=3))
+    wk.add_loop(hf.Loop(tasks=[wk.tasks.t1], num_iterations=3))
     iter_0, iter_1, iter_2 = wk.tasks.t1.elements[0].iterations
     assert iter_0.EARs_initialised and iter_1.EARs_initialised and iter_2.EARs_initialised
 
@@ -78,7 +78,7 @@ def test_wk_loop_data_idx_single_task_multi_element_single_parameter_three_iters
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[wk.tasks.t1], num_iterations=3))
+    wk.add_loop(hf.Loop(tasks=[wk.tasks.t1], num_iterations=3))
     e0_iter_0, e0_iter_1, e0_iter_2 = wk.tasks.t1.elements[0].iterations
     e1_iter_0, e1_iter_1, e1_iter_2 = wk.tasks.t1.elements[1].iterations
 
@@ -114,7 +114,7 @@ def test_wk_loop_data_idx_multi_task_single_element_single_parameter_two_iters(
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[0, 1, 2], num_iterations=2))
+    wk.add_loop(hf.Loop(tasks=[0, 1, 2], num_iterations=2))
     t1_iter_0, t1_iter_1 = wk.tasks.t1.elements[0].iterations
     t2_iter_0, t2_iter_1 = wk.tasks.t2.elements[0].iterations
     t3_iter_0, t3_iter_1 = wk.tasks.t3.elements[0].iterations
@@ -154,7 +154,7 @@ def test_wk_loop_data_idx_single_task_single_element_single_parameter_three_iter
         store=store,
     )
     wk.add_loop(
-        Loop(tasks=[wk.tasks.t1], num_iterations=3, non_iterable_parameters=["p1"])
+        hf.Loop(tasks=[wk.tasks.t1], num_iterations=3, non_iterable_parameters=["p1"])
     )
     iter_0, iter_1, iter_2 = wk.tasks.t1.elements[0].iterations
 
@@ -178,7 +178,7 @@ def test_wk_loop_iterable_parameters(tmp_path, store):
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[0, 1, 2], num_iterations=2))
+    wk.add_loop(hf.Loop(tasks=[0, 1, 2], num_iterations=2))
     assert dict(sorted(wk.loops[0].iterable_parameters.items(), key=lambda x: x[0])) == {
         "p1": {"input_task": 0, "output_tasks": [0, 1, 2]},
         "p2": {"input_task": 0, "output_tasks": [0, 2]},
@@ -197,7 +197,7 @@ def test_wk_loop_input_sources_including_local_single_element_two_iters(tmp_path
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(tasks=[0, 1, 2], num_iterations=2))
+    wk.add_loop(hf.Loop(tasks=[0, 1, 2], num_iterations=2))
 
     t2_iter_0 = wk.tasks.t2.elements[0].iterations[0]
     t3_iter_0 = wk.tasks.t3.elements[0].iterations[0]
@@ -232,7 +232,7 @@ def test_get_iteration_task_pathway_single_task_single_element_three_iters(
         path=tmp_path,
         store=store,
     )
-    wk.add_loop(Loop(name="loop_0", tasks=[wk.tasks.t1], num_iterations=3))
+    wk.add_loop(hf.Loop(name="loop_0", tasks=[wk.tasks.t1], num_iterations=3))
 
     assert wk.get_iteration_task_pathway() == [
         (0, {"loop_0": 0}),

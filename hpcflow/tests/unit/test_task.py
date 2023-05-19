@@ -1,6 +1,6 @@
 import copy
 import pytest
-import hpcflow.app as hf
+from hpcflow.app import app as hf
 from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import (
     MissingInputs,

@@ -8,6 +8,7 @@ from textwrap import dedent
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.object_list import ExecutablesList
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
 
 
@@ -47,8 +48,8 @@ class ExecutableInstance(JSONLike):
     def __post_init__(self):
         if not isinstance(self.num_cores, dict):
             self.num_cores = {"start": self.num_cores, "stop": self.num_cores}
-        if not isinstance(self.num_cores, app.NumCores):
-            self.num_cores = app.NumCores(**self.num_cores)
+        if not isinstance(self.num_cores, NumCores):
+            self.num_cores = self.app.NumCores(**self.num_cores)
 
     def __eq__(self, other):
         if (
@@ -130,8 +131,8 @@ class Environment(JSONLike):
         self.specifiers = specifiers or {}
         self.executables = (
             executables
-            if isinstance(executables, app.ExecutablesList)
-            else app.ExecutablesList(executables or [])
+            if isinstance(executables, ExecutablesList)
+            else self.app.ExecutablesList(executables or [])
         )
         self._hash_value = _hash_value
         if self.setup:
