@@ -76,7 +76,7 @@ class TaskSchema(JSONLike):
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
         #         version=version,
-        #         app_data_obj_list=app.task_schemas
+        #         app_data_obj_list=self.app.task_schemas
         #         if app.is_data_files_loaded
         #         else [],
         #     )

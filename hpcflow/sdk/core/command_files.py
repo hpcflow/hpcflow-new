@@ -163,10 +163,10 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=app.module,
-            app_name=app.name,
-            cfg_dir=app.config.config_directory,
-            cfg_invoc_key=app.config.config_invocation_key,
+            app_package_name=self.app.module,
+            app_name=self.app.name,
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
             file_path=self.input_file.name.value(),
         )
@@ -256,10 +256,10 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=app.package_name,
-            app_name=app.name,
-            cfg_dir=app.config.config_directory,
-            cfg_invoc_key=app.config.config_invocation_key,
+            app_package_name=self.app.package_name,
+            app_name=self.app.name,
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
             param_name=f"outputs.{self.output.typ}",
         )
