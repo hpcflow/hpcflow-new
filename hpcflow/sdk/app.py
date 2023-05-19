@@ -11,15 +11,13 @@ from setuptools import find_packages
 
 from hpcflow import __version__
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
-from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
+from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config
 from hpcflow.sdk.log import AppLog
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
 
 SDK_logger = get_SDK_logger(__name__)
-
-_sdk_objs = {**sdk_classes, **sdk_funcs}
 
 
 def __getattr__(name):
@@ -40,7 +38,7 @@ def get_app_attribute(name):
 
 
 def get_app_module_all():
-    return ["app"] + list(_sdk_objs.keys())
+    return ["app"] + list(sdk_objs.keys())
 
 
 def get_app_module_dir():
@@ -138,7 +136,7 @@ class App(metaclass=Singleton):
         return f"{self.__class__.__name__}(name={self.name}, version={self.version})"
 
     def _get_app_attribute(self, name: str) -> Type:
-        obj_mod = import_module(_sdk_objs[name])
+        obj_mod = import_module(sdk_objs[name])
         return getattr(obj_mod, name)
 
     def _get_app_core_class(self, name: str) -> Type:

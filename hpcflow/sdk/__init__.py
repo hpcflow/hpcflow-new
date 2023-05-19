@@ -95,6 +95,8 @@ sdk_funcs = {
     "get_shell_info": "hpcflow.sdk.api",
 }
 
+sdk_objs = {**sdk_classes, **sdk_funcs}
+
 _SDK_CONSOLE_LOG_LEVEL = os.environ.get("HPCFLOW_SDK_CONSOLE_LOG_LEVEL", "WARNING")
 
 
