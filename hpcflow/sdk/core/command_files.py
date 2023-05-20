@@ -140,7 +140,6 @@ class InputFileGenerator(JSONLike):
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
-        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
@@ -188,8 +187,6 @@ class InputFileGenerator(JSONLike):
 
 @dataclass
 class OutputFileParser(JSONLike):
-    # TODO: Rename output parser
-
     _child_objects = (
         ChildObjectSpec(
             name="output",
@@ -224,7 +221,6 @@ class OutputFileParser(JSONLike):
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
-        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
