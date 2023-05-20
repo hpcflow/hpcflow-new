@@ -35,7 +35,7 @@ class _ElementPrefixedParameter:
             )
 
         data_idx = self._parent.get_data_idx(path=f"{self._prefix}.{name}")
-        param = self.app.ElementParameter(
+        param = self._app.ElementParameter(
             path=f"{self._prefix}.{name}",
             task=self._task,
             data_idx=data_idx,
