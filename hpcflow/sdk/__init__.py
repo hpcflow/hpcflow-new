@@ -83,6 +83,7 @@ sdk_classes = {
     "Workflow": "hpcflow.sdk.core.workflow",
     "WorkflowBlueprint": "hpcflow.sdk.core.workflow",
     "Jobscript": "hpcflow.sdk.submission.jobscript",
+    "Submission": "hpcflow.sdk.submission.submission",
 }
 
 sdk_funcs = {
