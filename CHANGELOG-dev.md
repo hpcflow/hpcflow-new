@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a41"></a>
+## [v0.2.0a41](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a40...v0.2.0a41) - 2023.05.20
+
+### ♻ Code Refactoring
+
+* initial refactor of app structure; load attrs dynamically
+
+### 🐛 Bug Fixes
+
+* more fixes to support the downstream app
+* fixes to support the downstream app
+* ParameterValue subclass check
+* **pyi:** add hidden imports
+
+### 👷 Build changes
+
+* update deps
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a40"></a>
 ## [v0.2.0a40](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a39...v0.2.0a40) - 2023.05.17
 
