@@ -4,17 +4,15 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from datetime import datetime
-import random
 import shutil
-import string
 import time
-from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from pathlib import Path
 
 from reretry import retry
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.parameters import ParameterValue
-
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container
 from hpcflow.sdk.typing import PathLike
 
@@ -92,7 +90,7 @@ class PersistentStore(ABC):
     _parameter_decoders = {}
     _features = None
 
-    def __init__(self, workflow: Workflow) -> None:
+    def __init__(self, workflow: app.Workflow) -> None:
         self._workflow = workflow
         self._pending = self._get_pending_dct()
         if not self.exists():
@@ -101,15 +99,15 @@ class PersistentStore(ABC):
             )
 
     @property
-    def features(self):
+    def features(self) -> PersistentStoreFeatures:
         return self._features
 
     @property
-    def store_name(self):
+    def store_name(self) -> str:
         return self._name
 
     @property
-    def workflow(self) -> Workflow:
+    def workflow(self) -> app.Workflow:
         return self._workflow
 
     @property

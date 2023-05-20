@@ -1,17 +1,9 @@
-:orphan:
-
-.. _reference:
-
-#########
 Reference
-#########
-
-This guide is an overview and explains the important features;
-details are found in :ref:`reference`.
+=========
 
 .. toctree::
-   :maxdepth: 1
-   
-   hpcflow.api
-   hpcflow.cli
-   hpcflow.sdk
+   :maxdepth: 2
+
+   API <api>
+   CLI <cli>   
+   SDK <sdk>   

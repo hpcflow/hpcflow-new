@@ -24,7 +24,7 @@ def get_OS_info_POSIX(
     WSL_executable: Optional[List[str]] = None,
     use_py: Optional[bool] = True,
     linux_release_file: Optional[str] = None,
-):
+) -> Dict:
     """
     Parameters
     ----------
@@ -74,7 +74,6 @@ def get_OS_info_POSIX(
         out["OS_version"] = OS_version
 
     if out["OS_name"] == "Linux":
-
         # get linux distribution name and version:
         linux_release_file = linux_release_file or DEFAULT_LINUX_RELEASE_FILE
         release_out = try_subprocess_call(WSL_executable + ["cat", linux_release_file])

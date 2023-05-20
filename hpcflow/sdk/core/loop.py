@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
-from pprint import pprint
 from typing import Dict, List, Optional, Tuple, Union
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
+from hpcflow.sdk.core.task import WorkflowTask
 
 # from .parameters import Parameter
 
@@ -31,7 +31,7 @@ class Loop(JSONLike):
 
     def __init__(
         self,
-        tasks: List[Union[int, WorkflowTask]],
+        tasks: List[Union[int, app.WorkflowTask]],
         num_iterations: int,
         name: Optional[str] = None,
         non_iterable_parameters: Optional[List[str]] = None,
@@ -51,7 +51,7 @@ class Loop(JSONLike):
 
         _task_insert_IDs = []
         for task in tasks:
-            if isinstance(task, self.app.WorkflowTask):
+            if isinstance(task, WorkflowTask):
                 _task_insert_IDs.append(task.insert_ID)
             elif isinstance(task, int):
                 _task_insert_IDs.append(task)
@@ -104,12 +104,12 @@ class Loop(JSONLike):
         return self._workflow_template
 
     @workflow_template.setter
-    def workflow_template(self, template: WorkflowTemplate):
+    def workflow_template(self, template: app.WorkflowTemplate):
         self._workflow_template = template
         self._validate_against_template()
 
     @property
-    def task_objects(self) -> Tuple[WorkflowTask]:
+    def task_objects(self) -> Tuple[app.WorkflowTask]:
         if not self.workflow_template:
             raise RuntimeError(
                 "Workflow template must be assigned to retrieve task objects of the loop."
@@ -133,7 +133,6 @@ class Loop(JSONLike):
                 )
 
     def __repr__(self):
-
         num_iterations_str = ""
         if self.num_iterations is not None:
             num_iterations_str = f", num_iterations={self.num_iterations!r}"
@@ -164,8 +163,8 @@ class WorkflowLoop:
     def __init__(
         self,
         index: int,
-        workflow: Workflow,
-        template: Loop,
+        workflow: app.Workflow,
+        template: app.Loop,
         num_added_iterations: int,
         iterable_parameters: Dict[int : List[int, List[int]]],
     ):
@@ -242,7 +241,7 @@ class WorkflowLoop:
         return self._num_added_iterations + self._pending_num_added_iterations
 
     @staticmethod
-    def _find_iterable_parameters(loop_template: Loop):
+    def _find_iterable_parameters(loop_template: app.Loop):
         all_inputs_first_idx = {}
         all_outputs_idx = {}
         for task in loop_template.task_objects:
@@ -271,7 +270,7 @@ class WorkflowLoop:
         return iterable_params
 
     @classmethod
-    def new_empty_loop(cls, index: int, workflow: Workflow, template: Loop):
+    def new_empty_loop(cls, index: int, workflow: app.Workflow, template: app.Loop):
         obj = cls(
             index=index,
             workflow=workflow,
@@ -281,7 +280,7 @@ class WorkflowLoop:
         )
         return obj
 
-    def get_parent_loops(self) -> List[WorkflowLoop]:
+    def get_parent_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a superset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop index is
         considered the parent."""
@@ -299,7 +298,7 @@ class WorkflowLoop:
                 parents.append(loop_i)
         return parents
 
-    def get_child_loops(self) -> List[WorkflowLoop]:
+    def get_child_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop index is
         considered the parent."""
@@ -318,7 +317,6 @@ class WorkflowLoop:
         return children
 
     def add_iteration(self, parent_loop_indices=None):
-
         parent_loop_indices = parent_loop_indices or {}
         cur_loop_idx = self.num_added_iterations - 1
         parent_loops = self.get_parent_loops()
@@ -334,12 +332,10 @@ class WorkflowLoop:
         added_iters = 0
 
         for task in self.task_objects:
-
             new_iters = []
             elem_iters_idx = {}
 
             for element in task.elements:
-
                 elem_iters_idx[element.index] = []
                 new_data_idx = {}
 
@@ -349,14 +345,12 @@ class WorkflowLoop:
                         new_data_idx[key] = val
 
                 for inp in task.template.all_schema_inputs:
-
                     is_inp_task = False
                     iter_dat = self.iterable_parameters.get(inp.typ)
                     if iter_dat:
                         is_inp_task = task.insert_ID == iter_dat["input_task"]
 
                     if is_inp_task:
-
                         # source from final output task of previous iteration, with all parent
                         # loop indices the same as previous iteration, and all child loop indices
                         # maximised:

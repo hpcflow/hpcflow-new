@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
@@ -39,8 +40,11 @@ class ParameterPropagationMode(enum.Enum):
 
 @dataclass
 class ParameterPath(JSONLike):
+    # TODO: unused?
     path: Sequence[Union[str, int, float]]
-    task: Optional[Union[TaskTemplate, TaskSchema]] = None  # default is "current" task
+    task: Optional[
+        Union[app.TaskTemplate, app.TaskSchema]
+    ] = None  # default is "current" task
 
 
 @dataclass
@@ -55,7 +59,7 @@ class Parameter(JSONLike):
 
     typ: str
     is_file: bool = False
-    sub_parameters: List[SubParameter] = field(default_factory=lambda: [])
+    sub_parameters: List[app.SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
 
@@ -80,6 +84,8 @@ class Parameter(JSONLike):
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
+        # custom parameter classes must inherit from `ParameterValue` not the app
+        # subclass:
         for i in ParameterValue.__subclasses__():
             if i._typ == self.typ:
                 self._value_class = i
@@ -99,7 +105,7 @@ class Parameter(JSONLike):
 @dataclass
 class SubParameter:
     address: Address
-    parameter: Parameter
+    parameter: app.Parameter
 
 
 @dataclass
@@ -157,14 +163,14 @@ class SchemaInput(SchemaParameter):
         ),
     )
 
-    parameter: Parameter
-    default_value: Optional[InputValue] = None
+    parameter: app.Parameter
+    default_value: Optional[app.InputValue] = None
     propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
 
     # can we define elements groups on local inputs as well, or should these be just for
     # elements from other tasks?
     group: Optional[str] = None
-    where: Optional[ElementFilter] = None
+    where: Optional[app.ElementFilter] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -209,7 +215,7 @@ class SchemaInput(SchemaParameter):
     def _validate(self):
         super()._validate()
         if self.default_value is not None:
-            if not isinstance(self.default_value, self.app.InputValue):
+            if not isinstance(self.default_value, InputValue):
                 self.default_value = self.app.InputValue(
                     parameter=self.parameter,
                     value=self.default_value,
@@ -414,7 +420,9 @@ class ValueSequence(JSONLike):
         if self.input_type:
             return ".".join(self.path_split[1:])
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
@@ -513,19 +521,17 @@ class AbstractInputValue(JSONLike):
             del out["_workflow"]
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
-        (str, list of int)
-            String is the data path for this task input and single item integer list
-            contains the index of the parameter data Zarr group where the data is
-            stored.
+        String is the data path for this task input and single item integer list
+        contains the index of the parameter data Zarr group where the data is
+        stored.
+
         """
 
         if self._value_group_idx is not None:
@@ -590,7 +596,7 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Union[Parameter, str],
+        parameter: Union[app.Parameter, str],
         value: Optional[Any] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
@@ -727,7 +733,7 @@ class ResourceSpec(JSONLike):
 
     def __init__(
         self,
-        scope: ActionScope = None,
+        scope: app.ActionScope = None,
         scratch: Optional[str] = None,
         num_cores: Optional[int] = None,
         scheduler: Optional[str] = None,
@@ -837,21 +843,19 @@ class ResourceSpec(JSONLike):
         del out["value_group_idx"]
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
+        String is the data path for this task input and integer list
+        contains the indices of the parameter data Zarr groups where the data is
+        stored.
 
-        (str, list of int)
-            String is the data path for this task input and integer list
-            contains the indices of the parameter data Zarr groups where the data is
-            stored.
         """
+
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False
@@ -1047,7 +1051,7 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
-    def is_in(self, other_input_sources: List[InputSource]) -> Union[None, int]:
+    def is_in(self, other_input_sources: List[app.InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
         considering the `element_iters` attribute."""
 
@@ -1088,14 +1092,14 @@ class InputSource(JSONLike):
             )
         return src_type
 
-    @staticmethod
-    def _validate_task_source_type(task_src_type):
+    @classmethod
+    def _validate_task_source_type(cls, task_src_type):
         if task_src_type is None:
             return None
         if isinstance(task_src_type, TaskSourceType):
             return task_src_type
         try:
-            task_source_type = getattr(TaskSourceType, task_src_type.upper())
+            task_source_type = getattr(cls.app.TaskSourceType, task_src_type.upper())
         except AttributeError:
             raise ValueError(
                 f"InputSource `task_source_type` specified as {task_src_type!r}, but "
@@ -1126,15 +1130,16 @@ class InputSource(JSONLike):
         import_ref = None
         if (
             (
-                source_type in (InputSourceType.LOCAL, InputSourceType.DEFAULT)
+                source_type
+                in (cls.app.InputSourceType.LOCAL, cls.app.InputSourceType.DEFAULT)
                 and len(parts) > 1
             )
-            or (source_type is InputSourceType.TASK and len(parts) > 3)
-            or (source_type is InputSourceType.IMPORT and len(parts) > 2)
+            or (source_type is cls.app.InputSourceType.TASK and len(parts) > 3)
+            or (source_type is cls.app.InputSourceType.IMPORT and len(parts) > 2)
         ):
             raise ValueError(f"InputSource string not understood: {str_defn!r}.")
 
-        if source_type is InputSourceType.TASK:
+        if source_type is cls.app.InputSourceType.TASK:
             # TODO: does this include element_iters?
             task_ref = parts[1]
             try:
@@ -1144,9 +1149,9 @@ class InputSource(JSONLike):
             try:
                 task_source_type_str = parts[2]
             except IndexError:
-                task_source_type_str = TaskSourceType.OUTPUT
+                task_source_type_str = cls.app.TaskSourceType.OUTPUT
             task_source_type = cls._validate_task_source_type(task_source_type_str)
-        elif source_type is InputSourceType.IMPORT:
+        elif source_type is cls.app.InputSourceType.IMPORT:
             import_ref = parts[1]
             try:
                 import_ref = int(import_ref)
@@ -1168,22 +1173,22 @@ class InputSource(JSONLike):
 
     @classmethod
     def import_(cls, import_ref):
-        return cls(source_type=InputSourceType.IMPORT, import_ref=import_ref)
+        return cls(source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref)
 
     @classmethod
     def local(cls):
-        return cls(source_type=InputSourceType.LOCAL)
+        return cls(source_type=cls.app.InputSourceType.LOCAL)
 
     @classmethod
     def default(cls):
-        return cls(source_type=InputSourceType.DEFAULT)
+        return cls(source_type=cls.app.InputSourceType.DEFAULT)
 
     @classmethod
     def task(cls, task_ref, task_source_type=None, element_iters=None):
         if not task_source_type:
-            task_source_type = TaskSourceType.OUTPUT
+            task_source_type = cls.app.TaskSourceType.OUTPUT
         return cls(
-            source_type=InputSourceType.TASK,
+            source_type=cls.app.InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
             element_iters=element_iters,

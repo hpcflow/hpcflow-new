@@ -1,15 +1,16 @@
 from __future__ import annotations
 import copy
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 from pathlib import Path
 import subprocess
 from textwrap import indent
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
+from hpcflow.sdk import app
 from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure
 
@@ -31,9 +32,9 @@ scheduler_cls_lookup = {
 
 
 def generate_EAR_resource_map(
-    task: WorkflowTask,
+    task: app.WorkflowTask,
     loop_idx: Dict,
-) -> Tuple[List[ElementResources], List[int], NDArray, NDArray]:
+) -> Tuple[List[app.ElementResources], List[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
     # TODO: assume single iteration for now; later we will loop over Loop tasks for each
@@ -93,9 +94,7 @@ def group_resource_map_into_jobscripts(
     nones_bool = resource_map == none_val
     stop = False
     for act_idx in range(resource_map.shape[0]):
-
         for res_i in resource_idx:
-
             if res_i == none_val:
                 continue
 
@@ -155,27 +154,21 @@ def group_resource_map_into_jobscripts(
 
 
 def resolve_jobscript_dependencies(jobscripts, element_deps):
-
     # first pass is to find the mappings between jobscript elements:
     jobscript_deps = {}
     for js_idx, elem_deps in element_deps.items():
-
         # keys of new dict are other jobscript indices on which this jobscript (js_idx)
         # depends:
         jobscript_deps[js_idx] = {}
 
         for js_elem_idx_i, EAR_deps_i in elem_deps.items():
-
             for EAR_dep_j in EAR_deps_i:
-
                 # locate which jobscript(s) this element depends on:
                 for js_k_idx, js_k in jobscripts.items():
-
                     if js_k_idx == js_idx:
                         break
 
                     if EAR_dep_j in js_k["EARs"]:
-
                         if js_k_idx not in jobscript_deps[js_idx]:
                             jobscript_deps[js_idx][js_k_idx] = {"js_element_mapping": {}}
 
@@ -199,7 +192,6 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
     # next we can determine if two jobscripts have a one-to-one element mapping, which
     # means they can be submitted with a "job array" dependency relationship:
     for js_i_idx, deps_i in jobscript_deps.items():
-
         for js_k_idx, deps_j in deps_i.items():
             # is this an array dependency?
 
@@ -233,17 +225,14 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
     """
 
     for js_idx, js in jobscripts.items():
-
         # for now only attempt to merge a jobscript with a single dependency:
         if len(js["dependencies"]) == 1:
-
             js_j_idx = next(iter(js["dependencies"]))
             dep_info = js["dependencies"][js_j_idx]
             js_j = jobscripts[js_j_idx]  # the jobscript we are merging `js` into
 
             # can only merge if resources are the same and is array dependency:
             if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
-
                 num_loop_idx = len(js_j["task_loop_idx"])
 
                 # append task_insert_IDs
@@ -306,7 +295,6 @@ def jobscripts_to_list(jobscripts: Dict[int, Dict]) -> List[Dict]:
 
 
 class Jobscript(JSONLike):
-
     _app_attr = "app"
     _EAR_files_delimiter = ":"
     _workflow_app_alias = "wkflow_app"
@@ -325,7 +313,7 @@ class Jobscript(JSONLike):
         task_elements: Dict[int, List[int]],
         EARs: Dict[Tuple[int] : Tuple[int]],
         EAR_idx: NDArray,
-        resources: ElementResources,
+        resources: app.ElementResources,
         task_loop_idx: List[Dict],
         dependencies: Dict[int:Dict],
         submit_time: Optional[datetime] = None,
@@ -747,7 +735,6 @@ class Jobscript(JSONLike):
         return self.jobscript_path
 
     def make_artifact_dirs(self, task_artifacts_path):
-
         task_insert_ID_arr = self.get_task_insert_IDs_array()
         task_loop_idx_arr = self.get_task_loop_idx_array()
         element_idx = self.get_task_element_idx_array()
@@ -755,10 +742,8 @@ class Jobscript(JSONLike):
 
         run_dirs = []
         for js_elem_idx in range(self.num_elements):
-
             run_dirs_i = []
             for js_act_idx in range(self.num_actions):
-
                 t_iID = task_insert_ID_arr[js_act_idx, js_elem_idx].item()
                 l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
                 e_idx = element_idx[js_act_idx, js_elem_idx].item()
@@ -789,7 +774,6 @@ class Jobscript(JSONLike):
         scheduler_refs: Dict[int, str],
         print_stdout: Optional[bool] = False,
     ) -> str:
-
         run_dirs = self.make_artifact_dirs(task_artifacts_path)
         self.write_need_EARs_file()
         self.write_element_run_dir_file(run_dirs)

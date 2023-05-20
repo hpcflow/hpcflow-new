@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
-from hpcflow.sdk.core.actions import ElementID, IterationID
-from hpcflow.sdk.core.json_like import JSONLike
 
+from hpcflow.sdk import app
+from hpcflow.sdk.core.actions import EAR_ID, ElementID, IterationID
+from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 from hpcflow.sdk.typing import E_idx_type, EAR_idx_type, EI_idx_type
 
@@ -17,9 +18,9 @@ class _ElementPrefixedParameter:
     def __init__(
         self,
         prefix: str,
-        element_iteration: Optional[Element] = None,
-        element_action: Optional[ElementAction] = None,
-        element_action_run: Optional[ElementActionRun] = None,
+        element_iteration: Optional[app.Element] = None,
+        element_action: Optional[app.ElementAction] = None,
+        element_action_run: Optional[app.ElementActionRun] = None,
     ) -> None:
         self._prefix = prefix
         self._element_iteration = element_iteration
@@ -34,7 +35,7 @@ class _ElementPrefixedParameter:
             )
 
         data_idx = self._parent.get_data_idx(path=f"{self._prefix}.{name}")
-        param = self._app.ElementParameter(
+        param = self.app.ElementParameter(
             path=f"{self._prefix}.{name}",
             task=self._task,
             data_idx=data_idx,
@@ -78,9 +79,9 @@ class _ElementPrefixedParameter:
 class ElementInputs(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[ElementIteration] = None,
-        element_action: Optional[ElementAction] = None,
-        element_action_run: Optional[ElementActionRun] = None,
+        element_iteration: Optional[app.ElementIteration] = None,
+        element_action: Optional[app.ElementAction] = None,
+        element_action_run: Optional[app.ElementActionRun] = None,
     ) -> None:
         super().__init__("inputs", element_iteration, element_action, element_action_run)
 
@@ -88,9 +89,9 @@ class ElementInputs(_ElementPrefixedParameter):
 class ElementOutputs(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[ElementIteration] = None,
-        element_action: Optional[ElementAction] = None,
-        element_action_run: Optional[ElementActionRun] = None,
+        element_iteration: Optional[app.ElementIteration] = None,
+        element_action: Optional[app.ElementAction] = None,
+        element_action_run: Optional[app.ElementActionRun] = None,
     ) -> None:
         super().__init__("outputs", element_iteration, element_action, element_action_run)
 
@@ -98,9 +99,9 @@ class ElementOutputs(_ElementPrefixedParameter):
 class ElementInputFiles(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[ElementIteration] = None,
-        element_action: Optional[ElementAction] = None,
-        element_action_run: Optional[ElementActionRun] = None,
+        element_iteration: Optional[app.ElementIteration] = None,
+        element_action: Optional[app.ElementAction] = None,
+        element_action_run: Optional[app.ElementActionRun] = None,
     ) -> None:
         super().__init__(
             "input_files", element_iteration, element_action, element_action_run
@@ -110,9 +111,9 @@ class ElementInputFiles(_ElementPrefixedParameter):
 class ElementOutputFiles(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[ElementIteration] = None,
-        element_action: Optional[ElementAction] = None,
-        element_action_run: Optional[ElementActionRun] = None,
+        element_iteration: Optional[app.ElementIteration] = None,
+        element_action: Optional[app.ElementAction] = None,
+        element_action_run: Optional[app.ElementActionRun] = None,
     ) -> None:
         super().__init__(
             "output_files", element_iteration, element_action, element_action_run
@@ -174,7 +175,7 @@ class ElementIteration:
     def __init__(
         self,
         index: int,
-        element: Element,
+        element: app.Element,
         data_idx: Dict,
         EARs_initialised: bool,
         actions: List[Dict],
@@ -253,7 +254,7 @@ class ElementIteration:
         return self._schema_parameters
 
     @property
-    def actions(self) -> Dict[ElementAction]:
+    def actions(self) -> Dict[app.ElementAction]:
         if self._action_objs is None:
             self._action_objs = {
                 act_idx: self.app.ElementAction(
@@ -266,31 +267,31 @@ class ElementIteration:
         return self._action_objs
 
     @property
-    def action_runs(self) -> List[ElementActionRun]:
+    def action_runs(self) -> List[app.ElementActionRun]:
         """Get a list of element action runs, where only the final run is taken for each
         element action."""
         return [i.runs[-1] for i in self.actions.values()]
 
     @property
-    def inputs(self) -> ElementInputs:
+    def inputs(self) -> app.ElementInputs:
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_iteration=self)
         return self._inputs
 
     @property
-    def outputs(self) -> ElementOutputs:
+    def outputs(self) -> app.ElementOutputs:
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_iteration=self)
         return self._outputs
 
     @property
-    def input_files(self) -> ElementInputFiles:
+    def input_files(self) -> app.ElementInputFiles:
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_iteration=self)
         return self._input_files
 
     @property
-    def output_files(self) -> ElementOutputFiles:
+    def output_files(self) -> app.ElementOutputFiles:
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_iteration=self)
         return self._output_files
@@ -415,7 +416,7 @@ class ElementIteration:
     def get_EAR_dependencies(
         self,
         as_objects: Optional[bool] = False,
-    ) -> List[Union[EAR_ID, ElementActionRun]]:
+    ) -> List[Union[EAR_ID, app.ElementActionRun]]:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
@@ -437,7 +438,7 @@ class ElementIteration:
 
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[IterationID, ElementIteration]]:
+    ) -> List[Union[IterationID, app.ElementIteration]]:
         """Get element iterations that this element iteration depends on."""
         # TODO: test this includes previous iterations of this iteration's element
         out = sorted(
@@ -453,7 +454,7 @@ class ElementIteration:
     def get_element_dependencies(
         self,
         as_objects: Optional[bool] = False,
-    ) -> List[Union[ElementID, Element]]:
+    ) -> List[Union[ElementID, app.Element]]:
         """Get elements that this element iteration depends on."""
         # TODO: this will be used in viz.
         out = sorted(
@@ -481,7 +482,7 @@ class ElementIteration:
 
     def get_task_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get tasks (insert ID or WorkflowTask objects) that this element iteration
         depends on.
 
@@ -504,7 +505,7 @@ class ElementIteration:
 
     def get_dependent_EARs(
         self, as_objects: bool = False
-    ) -> List[Union[EAR_ID, ElementActionRun]]:
+    ) -> List[Union[EAR_ID, app.ElementActionRun]]:
         """Get EARs of downstream iterations and tasks that depend on this element
         iteration."""
         # TODO: test this includes EARs of downstream iterations of this iteration's element
@@ -531,7 +532,7 @@ class ElementIteration:
 
     def get_dependent_element_iterations(
         self, as_objects: bool = False
-    ) -> List[Union[IterationID, ElementIteration]]:
+    ) -> List[Union[IterationID, app.ElementIteration]]:
         """Get elements iterations of downstream iterations and tasks that depend on this
         element iteration."""
         # TODO: test this includes downstream iterations of this iteration's element?
@@ -560,7 +561,7 @@ class ElementIteration:
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[ElementID, Element]]:
+    ) -> List[Union[ElementID, app.Element]]:
         """Get elements of downstream tasks that depend on this element iteration."""
         deps = []
         for task in self.task.downstream_tasks:
@@ -584,7 +585,7 @@ class ElementIteration:
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get downstream tasks that depend on this element iteration."""
         deps = []
         for task in self.task.downstream_tasks:
@@ -613,7 +614,7 @@ class Element:
 
     def __init__(
         self,
-        task: WorkflowTask,
+        task: app.WorkflowTask,
         index: int,
         es_idx: int,
         seq_idx: Dict[str, int],
@@ -639,7 +640,7 @@ class Element:
         )
 
     @property
-    def task(self) -> WorkflowTask:
+    def task(self) -> app.WorkflowTask:
         return self._task
 
     @property
@@ -675,18 +676,18 @@ class Element:
         return self._src_idx
 
     @property
-    def input_sources(self) -> Dict[str, InputSource]:
+    def input_sources(self) -> Dict[str, app.InputSource]:
         return {
             k: self.element_set.input_sources[k.split("inputs.")[1]][v]
             for k, v in self.input_source_idx.items()
         }
 
     @property
-    def workflow(self) -> Workflow:
+    def workflow(self) -> app.Workflow:
         return self.task.workflow
 
     @property
-    def iterations(self) -> Dict[ElementAction]:
+    def iterations(self) -> Dict[app.ElementAction]:
         if self._iteration_objs is None:
             self._iteration_objs = [
                 self.app.ElementIteration(element=self, **iter_i)
@@ -703,19 +704,19 @@ class Element:
         return self.iterations[-1]
 
     @property
-    def inputs(self) -> ElementInputs:
+    def inputs(self) -> app.ElementInputs:
         return self.latest_iteration.inputs
 
     @property
-    def outputs(self) -> ElementOutputs:
+    def outputs(self) -> app.ElementOutputs:
         return self.latest_iteration.outputs
 
     @property
-    def input_files(self) -> ElementInputFiles:
+    def input_files(self) -> app.ElementInputFiles:
         return self.latest_iteration.input_files
 
     @property
-    def output_files(self) -> ElementOutputFiles:
+    def output_files(self) -> app.ElementOutputFiles:
         return self.latest_iteration.output_files
 
     @property
@@ -723,11 +724,11 @@ class Element:
         return self.latest_iteration.schema_parameters
 
     @property
-    def actions(self) -> Dict[ElementAction]:
+    def actions(self) -> Dict[app.ElementAction]:
         return self.latest_iteration.actions
 
     @property
-    def action_runs(self) -> List[ElementActionRun]:
+    def action_runs(self) -> List[app.ElementActionRun]:
         """Get a list of element action runs from the latest iteration, where only the
         final run is taken for each element action."""
         return self.latest_iteration.action_runs
@@ -834,13 +835,13 @@ class Element:
 
     def get_EAR_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[EAR_idx_type, ElementActionRun]]:
+    ) -> List[Union[EAR_idx_type, app.ElementActionRun]]:
         """Get EARs that the most recent iteration of this element depends on."""
         return self.latest_iteration.get_EAR_dependencies(as_objects=as_objects)
 
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[EI_idx_type, ElementIteration]]:
+    ) -> List[Union[EI_idx_type, app.ElementIteration]]:
         """Get element iterations that the most recent iteration of this element depends
         on."""
         return self.latest_iteration.get_element_iteration_dependencies(
@@ -849,7 +850,7 @@ class Element:
 
     def get_element_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[E_idx_type, Element]]:
+    ) -> List[Union[E_idx_type, app.Element]]:
         """Get elements that the most recent iteration of this element depends on."""
         return self.latest_iteration.get_element_dependencies(as_objects=as_objects)
 
@@ -860,7 +861,7 @@ class Element:
 
     def get_task_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get tasks (insert ID or WorkflowTask objects) that the most recent iteration of
         this element depends on.
 
@@ -870,13 +871,13 @@ class Element:
 
     def get_dependent_EARs(
         self, as_objects: bool = False
-    ) -> List[Union[EAR_idx_type, ElementActionRun]]:
+    ) -> List[Union[EAR_idx_type, app.ElementActionRun]]:
         """Get EARs that depend on the most recent iteration of this element."""
         return self.latest_iteration.get_dependent_EARs(as_objects=as_objects)
 
     def get_dependent_element_iterations(
         self, as_objects: bool = False
-    ) -> List[Union[EI_idx_type, ElementIteration]]:
+    ) -> List[Union[EI_idx_type, app.ElementIteration]]:
         """Get element iterations that depend on the most recent iteration of this
         element."""
         return self.latest_iteration.get_dependent_element_iterations(
@@ -885,13 +886,13 @@ class Element:
 
     def get_dependent_elements(
         self, as_objects: bool = False
-    ) -> List[Union[E_idx_type, Element]]:
+    ) -> List[Union[E_idx_type, app.Element]]:
         """Get elements that depend on the most recent iteration of this element."""
         return self.latest_iteration.get_dependent_elements(as_objects=as_objects)
 
     def get_dependent_tasks(
         self, as_objects: bool = False
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get tasks that depend on the most recent iteration of this element."""
         return self.latest_iteration.get_dependent_tasks(as_objects=as_objects)
 
@@ -931,9 +932,9 @@ class ElementParameter:
 
     _app_attr = "app"
 
-    task: WorkflowTask
+    task: app.WorkflowTask
     path: str
-    parent: Union[Element, ElementAction, ElementActionRun, Parameters]
+    parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
     element: Element
     data_idx: Dict[str, int]
 
@@ -966,7 +967,7 @@ class ElementParameter:
 
 @dataclass
 class ElementFilter:
-    parameter_path: ParameterPath
+    parameter_path: app.ParameterPath
     condition: ConditionLike
 
 
@@ -974,7 +975,7 @@ class ElementFilter:
 class ElementGroup:
     name: str
     where: Optional[ElementFilter] = None
-    group_by_distinct: Optional[ParameterPath] = None
+    group_by_distinct: Optional[app.ParameterPath] = None
 
     def __post_init__(self):
         self.name = check_valid_py_identifier(self.name)

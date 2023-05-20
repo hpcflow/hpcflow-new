@@ -5,9 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Dict, List, Optional, Tuple, Union
 
-from valida.rules import Rule
-from valida.conditions import Value
-
+from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
@@ -87,7 +85,7 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
-    file_name: FileNameSpec
+    file_name: app.FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).stem
@@ -95,7 +93,7 @@ class FileNameStem(JSONLike):
 
 @dataclass
 class FileNameExt(JSONLike):
-    file_name: FileNameSpec
+    file_name: app.FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).suffix
@@ -122,10 +120,10 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
-    input_file: FileSpec
-    inputs: List[Parameter]
+    input_file: app.FileSpec
+    inputs: List[app.Parameter]
     script: str = None
-    environment: Environment = None
+    environment: app.Environment = None
 
     def get_action_rule(self):
         """Get the rule that allows testing if this input file generator must be
@@ -142,12 +140,13 @@ class InputFileGenerator(JSONLike):
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
+        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
                 import sys
                 from pathlib import Path
-                from {app_package_name}.api import {app_name} as app
+                import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
@@ -164,7 +163,7 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.package_name,
+            app_package_name=self.app.module,
             app_name=self.app.name,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
@@ -209,8 +208,8 @@ class OutputFileParser(JSONLike):
         ),
     )
 
-    output: Parameter
-    output_files: List[FileSpec]
+    output: app.Parameter
+    output_files: List[app.FileSpec]
     script: str = None
     environment: Environment = None
     inputs: List[str] = None
@@ -226,11 +225,12 @@ class OutputFileParser(JSONLike):
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
+        # TODO: test app_module import works
         main_block = dedent(
             """\
             if __name__ == "__main__":
-                import sys
-                from {app_package_name}.api import {app_name} as app
+                import sys                
+                import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
@@ -347,21 +347,21 @@ class _FileContentsSpecifier(JSONLike):
 
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self,
+        workflow: app.Workflow,
+        source: Dict,
+    ) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
+        String is the data path for this task input and integer list
+        contains the indices of the parameter data Zarr groups where the data is
+        stored.
 
-        (str, list of int)
-            String is the data path for this task input and integer list
-            contains the indices of the parameter data Zarr groups where the data is
-            stored.
         """
+
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False
@@ -424,7 +424,7 @@ class _FileContentsSpecifier(JSONLike):
         return self._get_value("extension")
 
     @property
-    def workflow(self):
+    def workflow(self) -> app.Workflow:
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -443,7 +443,7 @@ class InputFile(_FileContentsSpecifier):
 
     def __init__(
         self,
-        file: Union[FileSpec, str],
+        file: Union[app.FileSpec, str],
         path: Optional[Union[Path, str]] = None,
         contents: Optional[str] = None,
         extension: Optional[str] = "",
@@ -494,7 +494,7 @@ class InputFile(_FileContentsSpecifier):
 class InputFileGeneratorSource(_FileContentsSpecifier):
     def __init__(
         self,
-        generator: InputFileGenerator,
+        generator: app.InputFileGenerator,
         path: Union[Path, str] = None,
         contents: str = None,
         extension: str = "",
@@ -506,7 +506,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
 class OutputFileParserSource(_FileContentsSpecifier):
     def __init__(
         self,
-        parser: OutputFileParser,
+        parser: app.OutputFileParser,
         path: Union[Path, str] = None,
         contents: str = None,
         extension: str = "",

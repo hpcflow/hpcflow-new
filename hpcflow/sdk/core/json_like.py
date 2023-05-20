@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import copy
 from dataclasses import dataclass
 import enum
-import hashlib
-import json
-from typing import Optional, Type
+from typing import Dict, List, Optional, Type, Union
 
+from hpcflow.sdk import app, get_SDK_logger
 from .utils import classproperty, get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
@@ -17,9 +18,10 @@ PRIMITIVES = (
     type(None),
 )
 
+_SDK_logger = get_SDK_logger(__name__)
+
 
 def to_json_like(obj, shared_data=None, parent_refs=None, path=None):
-
     path = path or []
 
     if len(path) > 50:
@@ -109,7 +111,6 @@ class ChildObjectSpec:
     # shared_data_secondary_keys: Optional[Tuple[str]] = None # TODO: what's the point?
 
     def __post_init__(self):
-
         if self.class_name is not None and self.class_obj is not None:
             raise ValueError(f"Specify at most one of `class_name` and `class_obj`.")
 
@@ -154,7 +155,7 @@ class ChildObjectSpec:
 
 class BaseJSONLike:
     """
-    Attributes
+    Parameters
     ----------
     _class_namespace : namespace
         Namespace whose attributes include the class definitions that might be
@@ -194,17 +195,12 @@ class BaseJSONLike:
             return None
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
-        """
-        Parameters
-        ----------
-        json_like
-        shared_data : dict of (str: ObjectList)
-
-        """
-
+    def from_json_like(
+        cls,
+        json_like: Union[Dict, List],
+        shared_data: Optional[Dict[str, ObjectList]] = None,
+    ):
         def _from_json_like_item(child_obj_spec, json_like_i):
-
             if not (
                 child_obj_spec.class_name
                 or child_obj_spec.class_obj
@@ -225,7 +221,6 @@ class BaseJSONLike:
                     if child_obj_spec.is_dict_values:
                         # keep as a dict
                         for k, v in json_like_i.items():
-
                             if child_obj_spec.is_dict_values_ensure_list:
                                 if not isinstance(v, list):
                                     v = [v]
@@ -278,7 +273,6 @@ class BaseJSONLike:
             out = []
             if chd.shared_data_name:
                 for i in multi_chd_objs:
-
                     if i is None:
                         out.append(i)
                         continue
@@ -344,7 +338,6 @@ class BaseJSONLike:
         json_like = copy.deepcopy(json_like)
 
         for chd in cls._child_objects or []:
-
             if chd.is_single_attribute:
                 if len(cls._child_objects) > 1:
                     raise TypeError(
@@ -415,13 +408,11 @@ class BaseJSONLike:
             return {k: getattr(self, k) for k in self.__slots__}
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
-
         if dct is None:
             dct = {k: v for k, v in self.to_dict().items() if k not in (exclude or [])}
 
         parent_refs = {}
         for chd in self._child_objects or []:
-
             if chd.is_single_attribute:
                 if len(self._child_objects) > 1:
                     raise TypeError(
@@ -439,7 +430,6 @@ class BaseJSONLike:
         shared_data = shared_data or {}
 
         for chd in self._child_objects or []:
-
             if chd.name in json_like:
                 json_like[chd.json_like_name] = json_like.pop(chd.name)
 
@@ -454,7 +444,6 @@ class BaseJSONLike:
 
                 shared_keys = []
                 for i in chd_obj_js:
-
                     i.pop("_hash_value", None)
                     hash_i = self._get_hash_from_json_like(i)
                     shared_keys.append(f"hash:{hash_i}")
@@ -480,15 +469,18 @@ class JSONLike(BaseJSONLike):
         return getattr(cls, cls._app_attr)
 
     def to_dict(self):
-
         out = super().to_dict()
 
         # remove parent references:
-        app = self._class_namespace
-        for sub_cls in app._core_classes:
-            if hasattr(sub_cls, "_child_objects"):
-                for chd in sub_cls._child_objects or []:
+        for cls_name in app.sdk_classes:
+            cls = getattr(app, cls_name)
+            if hasattr(cls, "_child_objects"):
+                for chd in cls._child_objects or []:
                     if chd.parent_ref:
+                        # _SDK_logger.debug(
+                        #     f"removing parent reference {chd.parent_ref!r} from child "
+                        #     f"object {chd!r}."
+                        # )
                         if (
                             self.__class__.__name__ == chd.class_name
                             or self.__class__ is chd.class_obj

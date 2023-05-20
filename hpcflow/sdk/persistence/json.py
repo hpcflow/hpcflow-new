@@ -9,6 +9,7 @@ from pathlib import Path
 from pprint import pprint
 import shutil
 from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+from hpcflow.sdk import app
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.utils import bisect_slice, get_md5_hash
@@ -48,7 +49,7 @@ class JSONPersistentStore(PersistentStore):
         submission=True,
     )
 
-    def __init__(self, workflow: Workflow) -> None:
+    def __init__(self, workflow: app.Workflow) -> None:
         self._loaded = None  # cache used in `cached_load` context manager
         super().__init__(workflow)
 
@@ -100,7 +101,6 @@ class JSONPersistentStore(PersistentStore):
         replaced_dir: Path,
         creation_info: Dict,
     ) -> None:
-
         workflow_path.mkdir()
         store_path = workflow_path
 
@@ -171,7 +171,6 @@ class JSONPersistentStore(PersistentStore):
         self._dump_to_path(self._parameters_file_path, parameters)
 
     def _add_parameter_data(self, data: Any, source: Dict) -> int:
-
         idx = len(self.load_parameter_data()) + len(self._pending["parameter_data"])
 
         if data is not None:
@@ -242,7 +241,6 @@ class JSONPersistentStore(PersistentStore):
         return exists
 
     def commit_pending(self) -> None:
-
         dump_metadata = False
         dump_submissions = False
         dump_parameters = False
@@ -462,7 +460,6 @@ class JSONPersistentStore(PersistentStore):
         selection: slice,
         keep_iterations_idx: bool = False,
     ) -> List[Dict]:
-
         # TODO: add tests to check correct return in various states of pending
 
         num_pers = self.workflow.tasks[task_idx]._num_elements
@@ -486,7 +483,6 @@ class JSONPersistentStore(PersistentStore):
         # add iterations:
         sel_range = range(selection.start, selection.stop, selection.step)
         for element_idx, element in zip(sel_range, elements):
-
             # find which iterations to add:
             iters_idx = element["iterations_idx"]
             if not keep_iterations_idx:

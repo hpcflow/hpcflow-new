@@ -1,4 +1,4 @@
-from hpcflow.api import hpcflow
+from hpcflow.app import cli
 
 if __name__ == "__main__":
-    hpcflow.CLI()
+    cli()

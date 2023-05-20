@@ -17,6 +17,7 @@ from valida.schema import Schema
 
 from hpcflow.sdk.core.validation import get_schema
 from hpcflow.sdk.log import AppLog
+from hpcflow.sdk.typing import PathLike
 
 from .callbacks import (
     callback_bool,
@@ -77,17 +78,6 @@ class ConfigOptions:
 class Config:
     """Application configuration as defined in one or more config files.
 
-    Methods
-    -------
-    to_string : get a formatted string
-    get_configurable : list all configurable items
-    get : get a configuration item
-    set_value : set a configuration item
-    unset_value : unset a configuration item
-    append_value : append a value to a list configuration item
-    prepend_value : prepend a value to a list configuration item
-    pop_value : pop a value from a list configuration item
-
     Notes
     -----
     On modifying/setting existing values, modifications are not automatically copied
@@ -98,11 +88,11 @@ class Config:
 
     def __init__(
         self,
-        app,
+        app: BaseApp,
         options: ConfigOptions,
-        config_dir,
-        config_invocation_key,
-        logger,
+        logger: logging.Logger,
+        config_dir: Optional[PathLike],
+        config_invocation_key: Optional[str],
         uid=None,
         callbacks=None,
         variables=None,
@@ -338,12 +328,8 @@ class Config:
         callback=True,
         default_value=None,
     ):
-        """Get a configuration item.
+        """Get a configuration item."""
 
-        Notes
-        -----
-
-        """
         if name not in self._all_keys:
             raise ConfigUnknownItemError(name=name)
 
@@ -387,6 +373,7 @@ class Config:
         return value
 
     def set(self, name, value, is_json=False, callback=True):
+        """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {name!r} to {value!r}.")
 
         if name not in self._configurable_keys:
@@ -447,6 +434,7 @@ class Config:
                 print(f"value is already: {callback_val!r}")
 
     def unset(self, name):
+        """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         if name in self._unset_keys or not self._file.is_item_set(name):
@@ -460,6 +448,7 @@ class Config:
             raise ConfigChangeValidationError(name, validation_err=err) from None
 
     def append(self, name, value, is_json=False):
+        """Append a value to a list-like configuration item."""
         existing = self.get(name, callback=False)
         if is_json:
             value = self._parse_JSON(name, value)
@@ -471,6 +460,7 @@ class Config:
         self.set(name, new)
 
     def prepend(self, name, value, is_json=False):
+        """Prepend a value to a list-like configuration item."""
         existing = self.get(name, callback=False)
         if is_json:
             value = self._parse_JSON(name, value)
@@ -482,6 +472,7 @@ class Config:
         self.set(name, new)
 
     def pop(self, name, index):
+        """Remove a value from a specified index of a list-like configuration item."""
         existing = self.get(name, callback=False)
         try:
             new = copy.deepcopy(existing)

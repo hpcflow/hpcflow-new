@@ -1,25 +1,16 @@
 import pytest
-from hpcflow.api import (
-    ValueSequence,
-    hpcflow,
-    Parameter,
-    TaskSchema,
-    Task,
-    WorkflowTemplate,
-    Workflow,
-)
+from hpcflow.app import app as hf
 from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.test_utils import make_schemas
 
 
 @pytest.fixture
 def null_config(tmp_path):
-    hpcflow.load_config(config_dir=tmp_path)
+    hf.load_config(config_dir=tmp_path)
 
 
 @pytest.fixture
 def workflow_w1(null_config, tmp_path):
-
     s1, s2 = make_schemas(
         [
             [{"p1": None}, ("p2",), "t1"],
@@ -27,14 +18,14 @@ def workflow_w1(null_config, tmp_path):
         ]
     )
 
-    t1 = Task(
+    t1 = hf.Task(
         schemas=s1,
-        sequences=[ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
+        sequences=[hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
     )
-    t2 = Task(schemas=s2, nesting_order={"inputs.p2": 1})
+    t2 = hf.Task(schemas=s2, nesting_order={"inputs.p2": 1})
 
-    wkt = WorkflowTemplate(name="w1", tasks=[t1, t2])
-    return Workflow.from_template(wkt, path=tmp_path)
+    wkt = hf.WorkflowTemplate(name="w1", tasks=[t1, t2])
+    return hf.Workflow.from_template(wkt, path=tmp_path)
 
 
 def test_element_task_dependencies(workflow_w1):

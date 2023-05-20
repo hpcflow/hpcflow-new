@@ -3,13 +3,13 @@ import copy
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-from valida.datapath import DataPath
 from valida.rules import Rule
 
 
+from hpcflow.sdk import app
+from hpcflow.sdk.core.task_schema import TaskSchema
 from .json_like import ChildObjectSpec, JSONLike
-from .command_files import FileSpec, InputFile
-from .element import ElementFilter, ElementGroup
+from .element import ElementGroup
 from .errors import (
     ExtraInputs,
     MissingInputs,
@@ -21,15 +21,7 @@ from .errors import (
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
-from .parameters import (
-    InputSource,
-    InputSourceType,
-    InputValue,
-    ParameterPath,
-    SchemaInput,
-    SchemaOutput,
-    ValueSequence,
-)
+from .parameters import InputSourceType
 from .utils import (
     get_duplicate_items,
     get_in_container,
@@ -111,12 +103,12 @@ class ElementSet(JSONLike):
 
     def __init__(
         self,
-        inputs: Optional[List[InputValue]] = None,
-        input_files: Optional[List[InputFile]] = None,
-        sequences: Optional[List[ValueSequence]] = None,
+        inputs: Optional[List[app.InputValue]] = None,
+        input_files: Optional[List[app.InputFile]] = None,
+        sequences: Optional[List[app.ValueSequence]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         repeats: Optional[Union[int, List[int]]] = 1,
-        input_sources: Optional[Dict[str, InputSource]] = None,
+        input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
         allow_non_coincident_task_sources: Optional[bool] = False,
@@ -444,15 +436,15 @@ class Task(JSONLike):
 
     def __init__(
         self,
-        schemas: Union[TaskSchema, str, List[TaskSchema], List[str]],
+        schemas: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
         repeats: Optional[Union[int, List[int]]] = None,
         resources: Optional[Dict[str, Dict]] = None,
-        inputs: Optional[List[InputValue]] = None,
-        input_files: Optional[List[InputFile]] = None,
-        sequences: Optional[List[ValueSequence]] = None,
-        input_sources: Optional[Dict[str, InputSource]] = None,
+        inputs: Optional[List[app.InputValue]] = None,
+        input_files: Optional[List[app.InputFile]] = None,
+        sequences: Optional[List[app.ValueSequence]] = None,
+        input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
-        element_sets: Optional[List[ElementSet]] = None,
+        element_sets: Optional[List[app.ElementSet]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
     ):
         """
@@ -487,10 +479,12 @@ class Task(JSONLike):
         for i in schemas:
             if isinstance(i, str):
                 try:
-                    i = self.app.TaskSchema.get_by_key(i)
+                    i = self.app.TaskSchema.get_by_key(
+                        i
+                    )  # TODO: document that we need to use the actual app instance here?
                 except KeyError:
                     raise KeyError(f"TaskSchema {i!r} not found.")
-            elif not isinstance(i, self.app.TaskSchema):
+            elif not isinstance(i, TaskSchema):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
@@ -524,7 +518,7 @@ class Task(JSONLike):
             return True
         return False
 
-    def _add_element_set(self, element_set: ElementSet):
+    def _add_element_set(self, element_set: app.ElementSet):
         """Invoked by WorkflowTask._add_element_set."""
         self._element_sets.append(element_set)
         self.workflow_template.workflow._store.add_element_set(
@@ -604,7 +598,7 @@ class Task(JSONLike):
         return out
 
     @staticmethod
-    def get_task_unique_names(tasks: List[Task]):
+    def get_task_unique_names(tasks: List[app.Task]):
         """Get the unique name of each in a list of tasks.
 
         Returns
@@ -682,9 +676,9 @@ class Task(JSONLike):
 
     def get_available_task_input_sources(
         self,
-        element_set: ElementSet,
-        source_tasks: Optional[List[Task]] = None,
-    ) -> List[InputSource]:
+        element_set: app.ElementSet,
+        source_tasks: Optional[List[app.Task]] = None,
+    ) -> List[app.InputSource]:
         """For each input parameter of this task, generate a list of possible input sources
         that derive from inputs or outputs of this and other provided tasks.
 
@@ -795,11 +789,11 @@ class Task(JSONLike):
         return self.schemas[0].objective
 
     @property
-    def all_schema_inputs(self) -> Tuple[SchemaInput]:
+    def all_schema_inputs(self) -> Tuple[app.SchemaInput]:
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.inputs)
 
     @property
-    def all_schema_outputs(self) -> Tuple[SchemaOutput]:
+    def all_schema_outputs(self) -> Tuple[app.SchemaOutput]:
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
 
     @property
@@ -825,7 +819,7 @@ class Task(JSONLike):
                 _idx += 1
         raise ValueError(f"No action in task {self.name!r} with index {idx!r}.")
 
-    def all_schema_actions(self) -> Iterator[Tuple[int, Action]]:
+    def all_schema_actions(self) -> Iterator[Tuple[int, app.Action]]:
         idx = 0
         for schema in self.schemas:
             for action in schema.actions:
@@ -852,7 +846,7 @@ class Task(JSONLike):
                     sourced_input_types.append(seq.normalised_path)
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
-    def is_input_type_required(self, typ: str, element_set: ElementSet) -> bool:
+    def is_input_type_required(self, typ: str, element_set: app.ElementSet) -> bool:
         """Check if an given input type must be specified in the parametrisation of this
         element set.
 
@@ -876,7 +870,7 @@ class Task(JSONLike):
                 es_idx.append(idx)
         return es_idx
 
-    def get_input_statuses(self, elem_set: ElementSet) -> Dict[str, InputStatus]:
+    def get_input_statuses(self, elem_set: app.ElementSet) -> Dict[str, InputStatus]:
         """Get a dict whose keys are normalised input paths (without the "inputs" prefix),
         and whose values are InputStatus objects.
 
@@ -970,7 +964,7 @@ class Task(JSONLike):
         return [i for i in self.inputs if not i.is_sub_value]
 
     def add_group(
-        self, name: str, where: ElementFilter, group_by_distinct: ParameterPath
+        self, name: str, where: app.ElementFilter, group_by_distinct: app.ParameterPath
     ):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
@@ -983,8 +977,8 @@ class WorkflowTask:
 
     def __init__(
         self,
-        workflow: Workflow,
-        template: Task,
+        workflow: app.Workflow,
+        template: app.Task,
         index: int,
         num_elements: int,
         num_element_iterations: int,
@@ -1020,7 +1014,7 @@ class WorkflowTask:
         self._reset_pending_elements()
 
     @classmethod
-    def new_empty_task(cls, workflow: Workflow, template: Task, index: int):
+    def new_empty_task(cls, workflow: app.Workflow, template: app.Task, index: int):
         obj = cls(
             workflow=workflow,
             template=template,
@@ -1439,7 +1433,7 @@ class WorkflowTask:
                         pass
         return initialised
 
-    def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
+    def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
         schema_data_idx = element_iter.data_idx
 
         # keys are (act_idx, EAR_idx):
@@ -1611,7 +1605,7 @@ class WorkflowTask:
         propagate_to=None,
         return_indices=False,
     ):
-        propagate_to = ElementPropagation._prepare_propagate_to_dict(
+        propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
@@ -1642,7 +1636,7 @@ class WorkflowTask:
         nesting_order=None,
         element_sets=None,
         sourceable_elem_iters=None,
-        propagate_to: Dict[str, ElementPropagation] = None,
+        propagate_to: Dict[str, app.ElementPropagation] = None,
         return_indices: bool = False,
     ):
         """Add more elements to this task.
@@ -1729,7 +1723,7 @@ class WorkflowTask:
     def get_element_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[ElementID, Element]]:
+    ) -> List[Union[ElementID, app.Element]]:
         """Get elements from upstream tasks (ElementID or Element objects) that this task
         depends on."""
 
@@ -1749,7 +1743,7 @@ class WorkflowTask:
     def get_task_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get tasks (insert ID or WorkflowTask objects) that this task depends on.
 
         Dependencies may come from either elements from upstream tasks, or from locally
@@ -1778,7 +1772,7 @@ class WorkflowTask:
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[ElementID, Element]]:
+    ) -> List[Union[ElementID, app.Element]]:
         """Get elements from downstream tasks (ElementID or Element objects) that depend
         on this task."""
         deps = []
@@ -1799,7 +1793,7 @@ class WorkflowTask:
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, WorkflowTask]]:
+    ) -> List[Union[int, app.WorkflowTask]]:
         """Get tasks (insert ID or WorkflowTask objects) that depends on this task."""
 
         # TODO: this method might become insufficient if/when we start considering a
@@ -1918,7 +1912,7 @@ class WorkflowTask:
 
         return current_value
 
-    def test_action_rule(self, act_rule: ActionRule, data_idx: Dict) -> bool:
+    def test_action_rule(self, act_rule: app.ActionRule, data_idx: Dict) -> bool:
         check = act_rule.check_exists or act_rule.check_missing
         if check:
             param_s = check.split(".")
@@ -1954,7 +1948,7 @@ class WorkflowTask:
 class Elements:
     __slots__ = ("_task",)
 
-    def __init__(self, task: WorkflowTask):
+    def __init__(self, task: app.WorkflowTask):
         self._task = task
 
         # TODO: cache Element objects
@@ -1994,7 +1988,7 @@ class Elements:
         self,
         start: int = None,
         end: int = None,
-    ) -> Iterator[Element]:
+    ) -> Iterator[app.Element]:
         selection, _ = self._get_selection(slice(start, end))
         for i in self.task.workflow.get_task_elements_islice(self.task, selection):
             yield i
@@ -2008,7 +2002,7 @@ class Elements:
     def __getitem__(
         self,
         selection: Union[int, slice],
-    ) -> Union[Element, List[Element]]:
+    ) -> Union[app.Element, List[app.Element]]:
         sel_normed, _ = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, sel_normed)
 
@@ -2022,7 +2016,7 @@ class Elements:
 class Parameters:
     _app_attr = "_app"
 
-    task: WorkflowTask
+    task: app.WorkflowTask
     path: str
     return_element_parameters: bool
     raise_on_missing: Optional[bool] = False
@@ -2094,7 +2088,7 @@ class TaskInputParameters:
 
     _app_attr = "_app"
 
-    task: WorkflowTask
+    task: app.WorkflowTask
 
     def __getattr__(self, name):
         if name not in self._get_input_names():
@@ -2120,7 +2114,7 @@ class TaskOutputParameters:
 
     _app_attr = "_app"
 
-    task: WorkflowTask
+    task: app.WorkflowTask
 
     def __getattr__(self, name):
         if name not in self._get_output_names():
@@ -2145,7 +2139,9 @@ class ElementPropagation:
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""
 
-    task: Task
+    _app_attr = "app"
+
+    task: app.Task
     nesting_order: Optional[Dict] = None
 
     @property
@@ -2159,8 +2155,8 @@ class ElementPropagation:
             nesting_order=copy.deepcopy(self.nesting_order, memo),
         )
 
-    @staticmethod
-    def _prepare_propagate_to_dict(propagate_to, workflow):
+    @classmethod
+    def _prepare_propagate_to_dict(cls, propagate_to, workflow):
         propagate_to = copy.deepcopy(propagate_to)
         if not propagate_to:
             propagate_to = {}
@@ -2169,7 +2165,7 @@ class ElementPropagation:
 
         for k, v in propagate_to.items():
             if not isinstance(v, ElementPropagation):
-                propagate_to[k] = ElementPropagation(
+                propagate_to[k] = cls.app.ElementPropagation(
                     task=workflow.tasks.get(unique_name=k),
                     **v,
                 )

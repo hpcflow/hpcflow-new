@@ -1,27 +1,10 @@
 from typing import List, Tuple, Union
-from hpcflow.api import (
-    Action,
-    ActionEnvironment,
-    Command,
-    Environment,
-    FileSpec,
-    InputValue,
-    OutputFileParser,
-    Parameter,
-    SchemaInput,
-    SchemaOutput,
-    Task,
-    TaskSchema,
-    ValueSequence,
-    Workflow,
-    WorkflowTemplate,
-)
+from hpcflow.app import app as hf
 
 
 def make_schemas(ins_outs, ret_list=False):
     out = []
     for idx, info in enumerate(ins_outs):
-
         if len(info) == 2:
             (ins_i, outs_i) = info
             obj = f"t{idx}"
@@ -39,29 +22,29 @@ def make_schemas(ins_outs, ret_list=False):
             stderr = f"<<parameter:{outs_i[1]}>>"
         if len(outs_i) > 2:
             out_file_parsers = [
-                OutputFileParser(
-                    output=Parameter(out_i),
-                    output_files=[FileSpec(label="file1", name="file1.txt")],
+                hf.OutputFileParser(
+                    output=hf.Parameter(out_i),
+                    output_files=[hf.FileSpec(label="file1", name="file1.txt")],
                 )
                 for out_i in outs_i[2:]
             ]
-        cmd = Command(
+        cmd = hf.Command(
             " ".join(f"echo $((<<parameter:{i}>> + 100))" for i in ins_i.keys()),
             stdout=stdout,
             stderr=stderr,
         )
 
-        act_i = Action(
+        act_i = hf.Action(
             commands=[cmd],
             output_file_parsers=out_file_parsers,
-            environments=[ActionEnvironment(Environment(name="env_1"))],
+            environments=[hf.ActionEnvironment(hf.Environment(name="env_1"))],
         )
         out.append(
-            TaskSchema(
+            hf.TaskSchema(
                 objective=obj,
                 actions=[act_i],
-                inputs=[SchemaInput(k, default_value=v) for k, v in ins_i.items()],
-                outputs=[SchemaOutput(k) for k in outs_i],
+                inputs=[hf.SchemaInput(k, default_value=v) for k, v in ins_i.items()],
+                outputs=[hf.SchemaOutput(k) for k in outs_i],
             )
         )
     if len(ins_outs) == 1 and not ret_list:
@@ -70,13 +53,12 @@ def make_schemas(ins_outs, ret_list=False):
 
 
 def make_parameters(num):
-    return [Parameter(f"p{i + 1}") for i in range(num)]
+    return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
-def make_actions(ins_outs: List[Tuple[Union[Tuple, str], str]]) -> List[Action]:
-
-    env = Environment("env1")
-    act_env = ActionEnvironment(environment=env)
+def make_actions(ins_outs: List[Tuple[Union[Tuple, str], str]]) -> List[hf.Action]:
+    env = hf.Environment("env1")
+    act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
         if len(ins_outs_i) == 2:
@@ -93,8 +75,8 @@ def make_actions(ins_outs: List[Tuple[Union[Tuple, str], str]]) -> List[Action]:
         stderr = None
         if err:
             stderr = f"<<parameter:{err}>>"
-        act = Action(
-            commands=[Command(cmd_str, stdout=stdout, stderr=stderr)],
+        act = hf.Action(
+            commands=[hf.Command(cmd_str, stdout=stdout, stderr=stderr)],
             environments=[act_env],
         )
         actions.append(act)
@@ -116,11 +98,11 @@ def make_tasks(
     tasks = []
     for s_idx, s in enumerate(schemas):
         inputs = [
-            InputValue(Parameter(i), value=int(i[1:]) * 100)
+            hf.InputValue(hf.Parameter(i), value=int(i[1:]) * 100)
             for i in local_inputs.get(s_idx, [])
         ]
         seqs = [
-            ValueSequence(
+            hf.ValueSequence(
                 path=i[0],
                 values=[(int(i[0].split(".")[1][1:]) * 100) + j for j in range(i[1])],
                 nesting_order=i[2],
@@ -129,7 +111,7 @@ def make_tasks(
         ]
         res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
 
-        task = Task(
+        task = hf.Task(
             schemas=[s],
             inputs=inputs,
             sequences=seqs,
@@ -159,8 +141,8 @@ def make_workflow(
         local_resources=local_resources,
         nesting_orders=nesting_orders,
     )
-    wk = Workflow.from_template(
-        WorkflowTemplate(name=name, tasks=tasks, resources=resources),
+    wk = hf.Workflow.from_template(
+        hf.WorkflowTemplate(name=name, tasks=tasks, resources=resources),
         path=path,
         name=name,
         overwrite=overwrite,

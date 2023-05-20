@@ -1,30 +1,22 @@
 import pytest
 
-from hpcflow.api import (
-    Action,
-    ActionEnvironment,
-    Command,
-    Environment,
-    TaskSchema,
-    hpcflow,
-    Parameter,
-)
+from hpcflow.app import app as hf
 
 
 @pytest.fixture
 def env_1():
-    return Environment(name="env_1")
+    return hf.Environment(name="env_1")
 
 
 @pytest.fixture
 def act_env_1(env_1):
-    return ActionEnvironment(env_1)
+    return hf.ActionEnvironment(env_1)
 
 
 @pytest.fixture
 def act_1(act_env_1):
-    return Action(
-        commands=[Command("<<parameter:p1>>")],
+    return hf.Action(
+        commands=[hf.Command("<<parameter:p1>>")],
         environments=[act_env_1],
     )
 
@@ -32,11 +24,11 @@ def act_1(act_env_1):
 def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
     """Check we can generate some shared data objects where one depends on another."""
 
-    p1 = Parameter("p1")
+    p1 = hf.Parameter("p1")
     p1._set_hash()
     p1_hash = p1._hash_value
 
-    ts1 = TaskSchema(objective="ts1", actions=[act_1], inputs=[p1])
+    ts1 = hf.TaskSchema(objective="ts1", actions=[act_1], inputs=[p1])
     ts1._set_hash()
     ts1_hash = ts1._hash_value
 
@@ -106,8 +98,8 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
         },
     }
 
-    sh = hpcflow.template_components_from_json_like(shared_data_json)
+    sh = hf.template_components_from_json_like(shared_data_json)
 
-    assert sh["parameters"] == hpcflow.ParametersList([p1]) and sh[
+    assert sh["parameters"] == hf.ParametersList([p1]) and sh[
         "task_schemas"
-    ] == hpcflow.TaskSchemasList([ts1])
+    ] == hf.TaskSchemasList([ts1])

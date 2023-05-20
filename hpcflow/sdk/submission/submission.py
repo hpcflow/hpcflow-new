@@ -6,6 +6,7 @@ from pathlib import Path
 from textwrap import indent
 from typing import Dict, List, Optional, Tuple
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, SubmissionFailure
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
@@ -33,7 +34,6 @@ class SubmissionStatus(enum.Enum):
 
 
 class Submission(JSONLike):
-
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",
@@ -46,8 +46,8 @@ class Submission(JSONLike):
     def __init__(
         self,
         index: int,
-        jobscripts: List[Jobscript],
-        workflow: Workflow,
+        jobscripts: List[app.Jobscript],
+        workflow: app.Workflow,
         submission_attempts: Optional[List] = None,
         JS_parallelism: Optional[bool] = None,
     ):
@@ -272,7 +272,6 @@ class Submission(JSONLike):
         submitted_js_idx = []
         errs = []
         for js in self.jobscripts:
-
             # check not previously submitted:
             if js.index not in outstanding:
                 continue

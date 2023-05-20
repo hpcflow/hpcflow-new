@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.command_files import FileSpec, InputFileGenerator, OutputFileParser
 from hpcflow.sdk.core.commands import Command
 from hpcflow.sdk.core.environment import Environment
@@ -429,7 +430,7 @@ class ElementActionRun:
         with Path(script_path).open("wt", newline="\n") as fp:
             fp.write(self.compose_source())
 
-    def compose_commands(self, jobscript: Jobscript) -> Tuple[str, List[str]]:
+    def compose_commands(self, jobscript: app.Jobscript) -> Tuple[str, List[str]]:
         """
         Returns
         -------
@@ -643,12 +644,12 @@ class ElementAction:
 class ElementActionOLD:
     _app_attr = "app"
 
-    element: Element
-    root_action: Action
-    commands: List[Command]
+    element: app.Element
+    root_action: app.Action
+    commands: List[app.Command]
 
-    input_file_generator: Optional[InputFileGenerator] = None
-    output_parser: Optional[OutputFileParser] = None
+    input_file_generator: Optional[app.InputFileGenerator] = None
+    output_parser: Optional[app.OutputFileParser] = None
 
     def get_environment(self):
         # TODO: select correct environment according to scope:
@@ -776,7 +777,7 @@ class ActionScope(JSONLike):
         ),
     )
 
-    def __init__(self, typ: Union[ActionScopeType, str], **kwargs):
+    def __init__(self, typ: Union[app.ActionScopeType, str], **kwargs):
         if isinstance(typ, str):
             typ = getattr(self.app.ActionScopeType, typ.upper())
 
@@ -866,8 +867,8 @@ class ActionEnvironment(JSONLike):
         ),
     )
 
-    environment: Environment
-    scope: Optional[ActionScope] = None
+    environment: app.Environment
+    scope: Optional[app.ActionScope] = None
 
     def __post_init__(self):
         if self.scope is None:
@@ -959,14 +960,14 @@ class Action(JSONLike):
 
     def __init__(
         self,
-        environments: List[ActionEnvironment],
-        commands: Optional[List[Command]] = None,
+        environments: List[app.ActionEnvironment],
+        commands: Optional[List[app.Command]] = None,
         script: Optional[str] = None,
-        input_file_generators: Optional[List[InputFileGenerator]] = None,
-        output_file_parsers: Optional[List[OutputFileParser]] = None,
-        input_files: Optional[List[FileSpec]] = None,
-        output_files: Optional[List[FileSpec]] = None,
-        rules: Optional[List[ActionRule]] = None,
+        input_file_generators: Optional[List[app.InputFileGenerator]] = None,
+        output_file_parsers: Optional[List[app.OutputFileParser]] = None,
+        input_files: Optional[List[app.FileSpec]] = None,
+        output_files: Optional[List[app.FileSpec]] = None,
+        rules: Optional[List[app.ActionRule]] = None,
     ):
         self.commands = commands or []
         self.script = script
@@ -1056,7 +1057,7 @@ class Action(JSONLike):
         obj._from_expand = _from_expand
         return obj
 
-    def get_parameter_dependence(self, parameter: SchemaParameter):
+    def get_parameter_dependence(self, parameter: app.SchemaParameter):
         """Find if/where a given parameter is used by the action."""
         writer_files = [
             i.input_file
@@ -1069,10 +1070,10 @@ class Action(JSONLike):
 
     def get_resolved_action_env(
         self,
-        relevant_scopes: Tuple[ActionScopeType],
-        input_file_generator: InputFileGenerator = None,
-        output_file_parser: OutputFileParser = None,
-        commands: List[Command] = None,
+        relevant_scopes: Tuple[app.ActionScopeType],
+        input_file_generator: app.InputFileGenerator = None,
+        output_file_parser: app.OutputFileParser = None,
+        commands: List[app.Command] = None,
     ):
         possible = [i for i in self.environments if i.scope.typ in relevant_scopes]
         if not possible:
@@ -1091,7 +1092,7 @@ class Action(JSONLike):
         return possible_srt[0]
 
     def get_input_file_generator_action_env(
-        self, input_file_generator: InputFileGenerator
+        self, input_file_generator: app.InputFileGenerator
     ):
         return self.get_resolved_action_env(
             relevant_scopes=(
@@ -1102,7 +1103,7 @@ class Action(JSONLike):
             input_file_generator=input_file_generator,
         )
 
-    def get_output_file_parser_action_env(self, output_file_parser: OutputFileParser):
+    def get_output_file_parser_action_env(self, output_file_parser: app.OutputFileParser):
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1154,7 +1155,7 @@ class Action(JSONLike):
                     f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
                 act_i = self.app.Action(
-                    commands=[self.app.Command(cmd)],
+                    commands=[app.Command(cmd)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + [ifg.get_action_rule()],
@@ -1172,7 +1173,7 @@ class Action(JSONLike):
                     f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
                 )
                 act_i = self.app.Action(
-                    commands=[self.app.Command(cmd)],
+                    commands=[app.Command(cmd)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
@@ -1348,7 +1349,7 @@ class Action(JSONLike):
 
         return param_src_update
 
-    def get_possible_scopes(self) -> Tuple[ActionScope]:
+    def get_possible_scopes(self) -> Tuple[app.ActionScope]:
         """Get the action scopes that are inclusive of this action, ordered by decreasing
         specificity."""
 
@@ -1373,7 +1374,7 @@ class Action(JSONLike):
 
         return scopes
 
-    def get_precise_scope(self) -> ActionScope:
+    def get_precise_scope(self) -> app.ActionScope:
         if not self._from_expand:
             raise RuntimeError(
                 "Precise scope cannot be unambiguously defined until the Action has been "
@@ -1391,7 +1392,9 @@ class Action(JSONLike):
         else:
             return self.app.ActionScope.main()
 
-    def is_input_type_required(self, typ: str, provided_files: List[FileSpec]) -> bool:
+    def is_input_type_required(
+        self, typ: str, provided_files: List[app.FileSpec]
+    ) -> bool:
         # TODO: for now assume a script takes all inputs
         if (
             self.script
