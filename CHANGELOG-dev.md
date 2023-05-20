@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a42"></a>
+## [v0.2.0a42](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a41...v0.2.0a42) - 2023.05.20
+
+### Other changes
+
+* merge branch develop into refactor/app
+
+### 🐛 Bug Fixes
+
+* ElementPrefixedParameter app access attr
+* InputFileGenerate/OutputFileParser.compose_source
+* Submission must be an app class as well - parent ref in jobscript
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a41"></a>
 ## [v0.2.0a41](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a40...v0.2.0a41) - 2023.05.20
 
