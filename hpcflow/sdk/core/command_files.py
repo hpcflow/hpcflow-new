@@ -163,8 +163,7 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.module,
-            app_name=self.app.name,
+            app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
@@ -229,7 +228,7 @@ class OutputFileParser(JSONLike):
         main_block = dedent(
             """\
             if __name__ == "__main__":
-                import sys                
+                import sys
                 import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
@@ -256,8 +255,7 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_name=self.app.name,
+            app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
