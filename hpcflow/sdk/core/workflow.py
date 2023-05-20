@@ -18,7 +18,6 @@ from hpcflow.sdk.submission.jobscript import (
     merge_jobscripts_across_tasks,
     resolve_jobscript_dependencies,
 )
-from hpcflow.sdk.submission.submission import Submission
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
@@ -959,13 +958,13 @@ class Workflow:
         return self._loops
 
     @property
-    def submissions(self) -> List[Submission]:
+    def submissions(self) -> List[app.Submission]:
         if self._submissions is None:
             with self._store.cached_load():
                 subs = []
                 for idx, sub_dat in enumerate(self._store.get_submissions()):
                     sub_js = {"index": idx, "workflow": self, **sub_dat}
-                    sub = Submission.from_json_like(sub_js)
+                    sub = self.app.Submission.from_json_like(sub_js)
                     subs.append(sub)
                 self._submissions = subs
         return self._submissions
@@ -1066,9 +1065,9 @@ class Workflow:
 
         return submitted_js
 
-    def add_submission(self, JS_parallelism: Optional[bool] = None) -> Submission:
+    def add_submission(self, JS_parallelism: Optional[bool] = None) -> app.Submission:
         new_idx = self.num_submissions
-        sub_obj = Submission(
+        sub_obj = self.app.Submission(
             index=new_idx,
             workflow=self,
             jobscripts=self.resolve_jobscripts(),
