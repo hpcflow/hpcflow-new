@@ -10,6 +10,7 @@ from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
 import numpy as np
 import zarr
 from numcodecs import MsgPack
+from hpcflow.sdk import app
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.utils import (
@@ -119,7 +120,7 @@ class ZarrPersistentStore(PersistentStore):
         "masked_arrays": _decode_masked_arrays,
     }
 
-    def __init__(self, workflow: Workflow) -> None:
+    def __init__(self, workflow: app.Workflow) -> None:
         self._metadata = None  # cache used in `cached_load` context manager
         super().__init__(workflow)
 

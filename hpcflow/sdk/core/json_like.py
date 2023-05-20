@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import copy
 from dataclasses import dataclass
 import enum
-from typing import Optional, Type
+from typing import Dict, List, Optional, Type, Union
 
 from hpcflow.sdk import app, get_SDK_logger
 from .utils import classproperty, get_md5_hash
@@ -153,7 +155,7 @@ class ChildObjectSpec:
 
 class BaseJSONLike:
     """
-    Attributes
+    Parameters
     ----------
     _class_namespace : namespace
         Namespace whose attributes include the class definitions that might be
@@ -193,15 +195,11 @@ class BaseJSONLike:
             return None
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
-        """
-        Parameters
-        ----------
-        json_like
-        shared_data : dict of (str: ObjectList)
-
-        """
-
+    def from_json_like(
+        cls,
+        json_like: Union[Dict, List],
+        shared_data: Optional[Dict[str, ObjectList]] = None,
+    ):
         def _from_json_like_item(child_obj_spec, json_like_i):
             if not (
                 child_obj_spec.class_name

@@ -654,8 +654,8 @@ class Workflow:
     def from_template_data(
         cls,
         template_name: str,
-        tasks: Optional[List[app.Task]] = field(default_factory=lambda: []),
-        loops: Optional[List[app.Loop]] = field(default_factory=lambda: []),
+        tasks: Optional[List[app.Task]] = None,
+        loops: Optional[List[app.Loop]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         path: Optional[PathLike] = None,
         workflow_name: Optional[str] = None,
@@ -701,8 +701,8 @@ class Workflow:
         """
         template = cls.app.WorkflowTemplate(
             template_name,
-            tasks=tasks,
-            loops=loops,
+            tasks=tasks or [],
+            loops=loops or [],
             resources=resources,
         )
         return cls.from_template(
@@ -1011,7 +1011,7 @@ class Workflow:
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
-    ):
+    ) -> Tuple[List[Exception], Dict[int, int]]:
         """Submit outstanding EARs for execution."""
 
         # generate a new submission if there are no pending submissions:
@@ -1050,7 +1050,7 @@ class Workflow:
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
-    ) -> None:
+    ) -> Dict[int, int]:
         with self._store.cached_load():
             with self.batch_update():
                 # commit updates before raising exception:
@@ -1214,28 +1214,26 @@ class Workflow:
             with self.batch_update():
                 self._add_task(task, new_index=new_index)
 
-    def add_task_after(self, new_task: app.Task, task_ref=None):
-        """Adds the given new_task after the task specified in task_ref.
+    def add_task_after(self, new_task: app.Task, task_ref: app.Task = None) -> None:
+        """Add a new task after the specified task.
 
         Parameters
         ----------
-        new_task : Task, required.
-        task_ref : Task, optional.
-            If no `task_ref` is given, the new task will be added at the end.
+        task_ref
+            If not given, the new task will be added at the end of the workflow.
 
         """
         new_index = task_ref.index + 1 if task_ref else None
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
-    def add_task_before(self, new_task: app.Task, task_ref=None):
-        """Adds the given new_task before the task specified in task_ref.
+    def add_task_before(self, new_task: app.Task, task_ref: app.Task = None) -> None:
+        """Add a new task before the specified task.
 
         Parameters
         ----------
-        new_task : Task, required.
-        task_ref : Task, optional.
-            If no task_ref is given, the new task will be added at the beginning.
+        task_ref
+            If not given, the new task will be added at the beginning of the workflow.
 
         """
         new_index = task_ref.index if task_ref else 0

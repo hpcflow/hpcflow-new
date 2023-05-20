@@ -932,9 +932,9 @@ class ElementParameter:
 
     _app_attr = "app"
 
-    task: WorkflowTask
+    task: app.WorkflowTask
     path: str
-    parent: Union[Element, ElementAction, ElementActionRun, Parameters]
+    parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
     element: Element
     data_idx: Dict[str, int]
 
@@ -967,7 +967,7 @@ class ElementParameter:
 
 @dataclass
 class ElementFilter:
-    parameter_path: ParameterPath
+    parameter_path: app.ParameterPath
     condition: ConditionLike
 
 
@@ -975,7 +975,7 @@ class ElementFilter:
 class ElementGroup:
     name: str
     where: Optional[ElementFilter] = None
-    group_by_distinct: Optional[ParameterPath] = None
+    group_by_distinct: Optional[app.ParameterPath] = None
 
     def __post_init__(self):
         self.name = check_valid_py_identifier(self.name)

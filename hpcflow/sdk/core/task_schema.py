@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.parameters import Parameter
@@ -215,7 +215,7 @@ class TaskSchema(JSONLike):
         actions."""
         return [j for i in self.actions for j in i.expand()]
 
-    def make_persistent(self, workflow, source) -> List[int]:
+    def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
         new_refs = []
         for input_i in self.inputs:
             if input_i.default_value is not None:

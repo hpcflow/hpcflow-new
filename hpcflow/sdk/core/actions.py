@@ -644,12 +644,12 @@ class ElementAction:
 class ElementActionOLD:
     _app_attr = "app"
 
-    element: Element
-    root_action: Action
-    commands: List[Command]
+    element: app.Element
+    root_action: app.Action
+    commands: List[app.Command]
 
-    input_file_generator: Optional[InputFileGenerator] = None
-    output_parser: Optional[OutputFileParser] = None
+    input_file_generator: Optional[app.InputFileGenerator] = None
+    output_parser: Optional[app.OutputFileParser] = None
 
     def get_environment(self):
         # TODO: select correct environment according to scope:

@@ -38,7 +38,6 @@ class ObjectList(JSONLike):
 
     def _validate(self):
         for idx, obj in enumerate(self._objects):
-
             if isinstance(obj, dict):
                 obj = SimpleNamespace(**obj)
                 self._object_is_dict = True
@@ -87,7 +86,6 @@ class ObjectList(JSONLike):
         return getattr(obj, attr)
 
     def _get_all_from_objs(self, objs, **kwargs):
-
         # narrow down according to kwargs:
         specified_objs = []
         for obj in objs:
@@ -134,7 +132,6 @@ class ObjectList(JSONLike):
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
     def add_object(self, obj, index=-1, skip_duplicates=False):
-
         if skip_duplicates and obj in self:
             return
 
@@ -185,7 +182,6 @@ class DotAccessObjectList(ObjectList):
         self._index = _index
 
     def __getattr__(self, attribute):
-
         if attribute in self._index:
             idx = self._index[attribute]
             if len(idx) > 1:
@@ -212,7 +208,6 @@ class DotAccessObjectList(ObjectList):
         ]
 
     def get(self, access_attribute_value=None, **kwargs):
-
         vld_get_kwargs = kwargs
         if access_attribute_value:
             vld_get_kwargs = {self._access_attribute: access_attribute_value, **kwargs}
@@ -223,7 +218,6 @@ class DotAccessObjectList(ObjectList):
         )
 
     def get_all(self, access_attribute_value=None, **kwargs):
-
         # use the index to narrow down the search first:
         if access_attribute_value:
             try:
@@ -254,18 +248,17 @@ class DotAccessObjectList(ObjectList):
 
 
 class AppDataList(DotAccessObjectList):
-
     _app_attr = "_app"
 
     def to_dict(self):
         return {"_objects": super().to_dict()["_objects"]}
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None, is_hashed=False):
+    def from_json_like(cls, json_like, shared_data=None, is_hashed: bool = False):
         """
         Parameters
         ----------
-        is_hashed: bool, optional
+        is_hashed
             If True, accept a dict whose keys are hashes of the dict values.
 
         """
@@ -460,7 +453,6 @@ class WorkflowLoopList(DotAccessObjectList):
 
 
 class ResourceList(ObjectList):
-
     _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(

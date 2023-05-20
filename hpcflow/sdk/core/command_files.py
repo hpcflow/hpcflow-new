@@ -347,21 +347,21 @@ class _FileContentsSpecifier(JSONLike):
 
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self,
+        workflow: app.Workflow,
+        source: Dict,
+    ) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
+        String is the data path for this task input and integer list
+        contains the indices of the parameter data Zarr groups where the data is
+        stored.
 
-        (str, list of int)
-            String is the data path for this task input and integer list
-            contains the indices of the parameter data Zarr groups where the data is
-            stored.
         """
+
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False
@@ -424,7 +424,7 @@ class _FileContentsSpecifier(JSONLike):
         return self._get_value("extension")
 
     @property
-    def workflow(self):
+    def workflow(self) -> app.Workflow:
         if self._workflow:
             return self._workflow
         elif self._element_set:

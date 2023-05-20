@@ -5,14 +5,16 @@ import enum
 from functools import partial, wraps
 from importlib import resources, import_module
 import importlib
+from logging import Logger
 import os
 from pathlib import Path
-from typing import Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 import warnings
 
 from setuptools import find_packages
 
 from hpcflow import __version__
+from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
 from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config
@@ -119,8 +121,8 @@ class BaseApp(metaclass=Singleton):
 
         self.cli = make_cli(self)
 
-        self.log = AppLog(self)
-        self.run_time_info = RunTimeInfo(
+        self._log = AppLog(self)
+        self._run_time_info: RunTimeInfo = RunTimeInfo(
             self.name,
             self.package_name,
             self.version,
@@ -150,7 +152,7 @@ class BaseApp(metaclass=Singleton):
             raise AttributeError(f"module {__name__!r} has no attribute {name!r}.")
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(name={self.name}, version={self.version})"
+        return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
     def _get_app_attribute(self, name: str) -> Type:
         obj_mod = import_module(sdk_objs[name])
@@ -193,26 +195,34 @@ class BaseApp(metaclass=Singleton):
         return self._app_attr_cache[name]
 
     @property
-    def template_components(self):
+    def run_time_info(self) -> RunTimeInfo:
+        return self._run_time_info
+
+    @property
+    def log(self) -> AppLog:
+        return self._log
+
+    @property
+    def template_components(self) -> Dict[str, ObjectList]:
         if not self.is_template_components_loaded:
             self._load_template_components()
         return self._template_components
 
-    def _ensure_template_components(self):
+    def _ensure_template_components(self) -> None:
         if not self.is_template_components_loaded:
             self._load_template_components()
 
-    def load_template_components(self, warn=True):
+    def load_template_components(self, warn=True) -> None:
         if warn and self.is_template_components_loaded:
             warnings.warn("Template components already loaded; reloading now.")
         self._load_template_components()
 
-    def reload_template_components(self, warn=True):
+    def reload_template_components(self, warn=True) -> None:
         if warn and not self.is_template_components_loaded:
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
-    def _load_template_components(self):
+    def _load_template_components(self) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
 
@@ -256,31 +266,32 @@ class BaseApp(metaclass=Singleton):
         self.logger.info("Template components loaded.")
 
     @classmethod
-    def load_builtin_template_component_data(cls, package):
+    def load_builtin_template_component_data(
+        cls, package
+    ) -> Dict[str, Union[List, Dict]]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
         components = {}
         for comp_type in cls._template_component_types:
             with resources.open_text(package, f"{comp_type}.yaml") as fh:
+                SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
                 comp_dat = fh.read()
-                SDK_logger.info(f"Loading file: {comp_dat!r}")
                 components[comp_type] = read_YAML(comp_dat)
-        SDK_logger.info(f"Loaded task_schemas: {components['task_schemas']}")
         return components
 
     @property
-    def parameters(self):
+    def parameters(self) -> get_app_attribute("ParametersList"):
         self._ensure_template_components()
         return self._parameters
 
     @property
-    def command_files(self):
+    def command_files(self) -> get_app_attribute("CommandFilesList"):
         self._ensure_template_components()
         return self._command_files
 
     @property
-    def envs(self):
+    def envs(self) -> get_app_attribute("EnvironmentsList"):
         self._ensure_template_components()
         return self._environments
 
@@ -290,45 +301,45 @@ class BaseApp(metaclass=Singleton):
         return self._scripts
 
     @property
-    def task_schemas(self):
+    def task_schemas(self) -> get_app_attribute("TaskSchemasList"):
         self._ensure_template_components()
         return self._task_schemas
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self.log.logger
 
     @property
-    def API_logger(self):
+    def API_logger(self) -> Logger:
         return self.logger.getChild("api")
 
     @property
-    def CLI_logger(self):
+    def CLI_logger(self) -> Logger:
         return self.logger.getChild("cli")
 
     @property
-    def config_logger(self):
+    def config_logger(self) -> Logger:
         return self.logger.getChild("config")
 
     @property
-    def runtime_info_logger(self):
+    def runtime_info_logger(self) -> Logger:
         return self.logger.getChild("runtime")
 
     @property
-    def is_config_loaded(self):
+    def is_config_loaded(self) -> bool:
         return bool(self._config)
 
     @property
-    def is_template_components_loaded(self):
+    def is_template_components_loaded(self) -> bool:
         return bool(self._parameters)
 
     @property
-    def config(self):
+    def config(self) -> Config:
         if not self.is_config_loaded:
             self.load_config()
         return self._config
 
-    def _load_config(self, config_dir, config_invocation_key, **overrides):
+    def _load_config(self, config_dir, config_invocation_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._config = Config(
             app=self,
@@ -346,12 +357,22 @@ class BaseApp(metaclass=Singleton):
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
 
-    def load_config(self, config_dir=None, config_invocation_key=None, **overrides):
+    def load_config(
+        self,
+        config_dir=None,
+        config_invocation_key=None,
+        **overrides,
+    ) -> None:
         if self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_invocation_key, **overrides)
 
-    def reload_config(self, config_dir=None, config_invocation_key=None, **overrides):
+    def reload_config(
+        self,
+        config_dir=None,
+        config_invocation_key=None,
+        **overrides,
+    ) -> None:
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
         self._load_config(config_dir, config_invocation_key, **overrides)
@@ -382,7 +403,7 @@ class BaseApp(metaclass=Singleton):
 
         return scripts
 
-    def template_components_from_json_like(self, json_like):
+    def template_components_from_json_like(self, json_like) -> None:
         cls_lookup = {
             "parameters": self.ParametersList,
             "command_files": self.CommandFilesList,
@@ -399,7 +420,7 @@ class BaseApp(metaclass=Singleton):
             tc[k] = tc_k
         return tc
 
-    def get_info(self) -> Dict:
+    def get_info(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
@@ -495,7 +516,7 @@ class BaseApp(metaclass=Singleton):
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         JS_parallelism: Optional[bool] = None,
-    ):
+    ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -551,7 +572,7 @@ class BaseApp(metaclass=Singleton):
 
     def _submit_workflow(
         self, workflow_path: PathLike, JS_parallelism: Optional[bool] = None
-    ):
+    ) -> Dict[int, int]:
         """Submit an existing {app_name} workflow.
 
         Parameters
@@ -568,19 +589,14 @@ class BaseApp(metaclass=Singleton):
         wk = self.Workflow(workflow_path)
         return wk.submit(JS_parallelism=JS_parallelism)
 
-    def _run_hpcflow_tests(self, clear_cache: bool = False, *args):
-        """Run hpcflow test suite. This function is only available from derived apps.
-
-        Notes
-        -----
-        It may not be possible to run hpcflow tests after/before running tests of the derived
-        app within the same process, due to caching."""
+    def _run_hpcflow_tests(self, *args):
+        """Run hpcflow test suite. This function is only available from derived apps."""
 
         from hpcflow import app as hf
 
         return hf.app.run_tests(*args)
 
-    def _run_tests(self, clear_cache: bool = False, *args):
+    def _run_tests(self, *args):
         """Run {app_name} test suite."""
 
         try:
@@ -601,7 +617,7 @@ class BaseApp(metaclass=Singleton):
             else:
                 return ret_code
 
-    def _get_OS_info(self):
+    def _get_OS_info(self) -> Dict:
         """Get information about the operating system."""
         os_name = os.name
         if os_name == "posix":
@@ -611,7 +627,11 @@ class BaseApp(metaclass=Singleton):
         elif os_name == "nt":
             return get_OS_info_windows()
 
-    def _get_shell_info(self, shell_name: str, exclude_os: Optional[bool] = False):
+    def _get_shell_info(
+        self,
+        shell_name: str,
+        exclude_os: Optional[bool] = False,
+    ) -> Dict:
         """Get information about a given shell and the operating system.
 
         Parameters
@@ -629,4 +649,6 @@ class BaseApp(metaclass=Singleton):
 
 
 class App(BaseApp):
+    """Class from which to instantiate downstream app objects (e.g. MatFlow)."""
+
     pass

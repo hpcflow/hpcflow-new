@@ -420,7 +420,9 @@ class ValueSequence(JSONLike):
         if self.input_type:
             return ".".join(self.path_split[1:])
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
@@ -519,19 +521,17 @@ class AbstractInputValue(JSONLike):
             del out["_workflow"]
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save value to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
-        (str, list of int)
-            String is the data path for this task input and single item integer list
-            contains the index of the parameter data Zarr group where the data is
-            stored.
+        String is the data path for this task input and single item integer list
+        contains the index of the parameter data Zarr group where the data is
+        stored.
+
         """
 
         if self._value_group_idx is not None:
@@ -843,21 +843,19 @@ class ResourceSpec(JSONLike):
         del out["value_group_idx"]
         return out
 
-    def make_persistent(self, workflow, source) -> Tuple[str, List[int], bool]:
+    def make_persistent(
+        self, workflow: app.Workflow, source: Dict
+    ) -> Tuple[str, List[int], bool]:
         """Save to a persistent workflow.
-
-        Parameters
-        ----------
-        workflow : Workflow
 
         Returns
         -------
+        String is the data path for this task input and integer list
+        contains the indices of the parameter data Zarr groups where the data is
+        stored.
 
-        (str, list of int)
-            String is the data path for this task input and integer list
-            contains the indices of the parameter data Zarr groups where the data is
-            stored.
         """
+
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False

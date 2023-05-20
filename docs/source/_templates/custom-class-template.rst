@@ -3,7 +3,11 @@
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
-
+   :members:
+   :show-inheritance:
+   :undoc-members:
+   :inherited-members:
+   
    {% block methods %}
    {% if methods %}
    .. rubric:: {{ _('Methods') }}
