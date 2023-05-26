@@ -57,6 +57,9 @@ rules:
       value.type.equal_to: bool
 
   - path: [machine]
+    doc: >
+      A label that references the current machine. By default, this uses the return from
+      the Python function `socket.gethostname()`.
     condition:
       value.type.equal_to: str
 
@@ -77,6 +80,16 @@ rules:
       value.type.equal_to: str
 
   - path: [log_file_path]
+    doc:
+      - >
+        File path to the app log file. The variables `<<app_name>>` and `<<app_version>>`
+        are available to be used in this option, which resolve to the app name and version,
+        respectively.
+      - >
+        The file path may be nested in non-existent directories, in which case
+        those directories will be generated. If specified as a relative path, the path will
+        be resolved relative to the config directory (the directory that contains the config
+        file).
     condition:
       value.is_instance: [str, path]
 
@@ -86,7 +99,9 @@ rules:
 
   - path: [log_console_level]
     condition:
-      value.in: [notset, debug, info, warning, error, critical]
+      and:
+        - value.type.equal_to: str
+        - value.in: [notset, debug, info, warning, error, critical]
 
   - path: [task_schema_sources]
     condition:
