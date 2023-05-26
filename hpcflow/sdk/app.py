@@ -420,6 +420,23 @@ class BaseApp(metaclass=Singleton):
             tc[k] = tc_k
         return tc
 
+    def get_parameter_task_schema_map(self) -> Dict[str, List[List]]:
+        """Get a dict mapping parameter types to task schemas that input/output each
+        parameter."""
+
+        param_map = {}
+        for ts in self.task_schemas:
+            for inp in ts.inputs:
+                if inp.parameter.typ not in param_map:
+                    param_map[inp.parameter.typ] = [[], []]
+                param_map[inp.parameter.typ][0].append(ts.objective.name)
+            for out in ts.outputs:
+                if out.parameter.typ not in param_map:
+                    param_map[out.parameter.typ] = [[], []]
+                param_map[out.parameter.typ][1].append(ts.objective.name)
+
+        return param_map
+
     def get_info(self) -> Dict[str, Any]:
         return {
             "name": self.name,
