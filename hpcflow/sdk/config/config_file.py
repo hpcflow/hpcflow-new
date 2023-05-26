@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 from tkinter import E
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 from ruamel.yaml import YAML
 
@@ -27,7 +27,6 @@ class ConfigFile:
     """Configuration file."""
 
     def __init__(self, config, directory, invoc_key=None):
-
         self.config = config
         self.logger = self.config._logger
         self.directory = self._resolve_config_dir(directory)
@@ -39,7 +38,7 @@ class ConfigFile:
         self.data_rt = None
 
         self._load_file_data()
-        self._validate(self.data)
+        self.file_schema = self._validate(self.data)
 
         # select appropriate config data for this invocation using run-time info:
         if not invoc_key:
@@ -75,13 +74,13 @@ class ConfigFile:
         file_validated = file_schema.validate(data)
         if not file_validated.is_valid:
             raise ConfigFileValidationError(file_validated.get_failures_string())
+        return file_schema
 
     @property
     def invoc_data(self):
         return self.data["configs"][self.invoc_key]
 
     def save(self):
-
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
         new_contents = ""
@@ -163,6 +162,13 @@ class ConfigFile:
 
         return directory.resolve()
 
+    def _dump_config(self, config_data: Dict, path: Path) -> None:
+        """Dump the specified config data to the specified config file path."""
+
+        yaml = YAML(typ="rt")
+        with path.open("w", newline="\n") as handle:
+            yaml.dump(config_data, handle)
+
     def _setup_default_config(self, config_path):
         self.config._logger.info(
             "No config.yaml found in the configuration directory. Generating "
@@ -182,9 +188,7 @@ class ConfigFile:
         except (ConfigFileValidationError, ConfigValidationError) as err:
             raise ConfigDefaultValidationError(err) from None
 
-        yaml = YAML(typ="rt")
-        with config_path.open("w", newline="\n") as handle:
-            yaml.dump(default_config, handle)
+        self._dump_config(default_config, config_path)
 
     def _load_file_data(self):
         """Load data from the configuration file (config.yaml or config.yml)."""
