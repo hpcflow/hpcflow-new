@@ -1,4 +1,28 @@
 
+<a name="v0.2.0a43"></a>
+## [v0.2.0a43](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a42...v0.2.0a43) - 2023.05.28
+
+### ♻ Code Refactoring
+
+* add file_schema attribute to ConfigFile, add _dump_config
+
+### ✨ Features
+
+* add docs_import_conv to BaseApp
+* add _validation attribute to Parameter to assign a valida Schema
+* support sorting Parameter
+* add App.get_parameter_task_schema_map func to map param types to task schemas
+
+### 🐛 Bug Fixes
+
+* pip install dist name
+
+### 👷 Build changes
+
+* update deps
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a42"></a>
 ## [v0.2.0a42](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a41...v0.2.0a42) - 2023.05.20
 
