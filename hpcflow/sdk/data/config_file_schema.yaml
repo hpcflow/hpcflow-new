@@ -14,9 +14,11 @@ rules:
 
   - path: [configs, { type: map_value }]
     condition:
-      value.required_keys:
-        - invocation
-        - config
+      and:
+        - value.type.equal_to: dict
+        - value.required_keys:
+            - invocation
+            - config
 
   - path: [configs, { type: map_value }, invocation]
     condition:

@@ -1,7 +1,10 @@
-{{ fullname | escape | underline}}
+{{ fullname | underline}}
+
+.. toctree::
+   :includehidden:
 
 .. automodule:: {{ fullname }}
-   
+
    {% block attributes %}
    {% if attributes %}
    .. rubric:: Module attributes
@@ -60,7 +63,9 @@
    :template: custom-module-template.rst
    :recursive:
 {% for item in modules %}
+   {% if not item.startswith('matflow.data') %}
    {{ item }}
+   {% endif %}
 {%- endfor %}
 {% endif %}
 {% endblock %}

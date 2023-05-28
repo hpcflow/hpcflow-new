@@ -95,7 +95,9 @@ rules:
 
   - path: [log_file_level]
     condition:
-      value.in: [notset, debug, info, warning, error, critical]
+      and:
+        - value.type.equal_to: str
+        - value.in: [notset, debug, info, warning, error, critical]
 
   - path: [log_console_level]
     condition:
