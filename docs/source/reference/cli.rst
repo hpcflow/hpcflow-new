@@ -1,7 +1,7 @@
 Command-line interface
 ======================
 
-Command line interface reference documentation.
+CLI reference documentation.
 
 .. click:: hpcflow.cli:cli
   :prog: hpcflow
