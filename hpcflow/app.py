@@ -1,4 +1,4 @@
-from hpcflow import __version__
+from hpcflow import __version__, _app_name
 from hpcflow.sdk import app as sdk_app
 from hpcflow.sdk.config import ConfigOptions
 
@@ -26,7 +26,7 @@ template_components = sdk_app.BaseApp.load_builtin_template_component_data(
 
 # initialise the App object:
 app: sdk_app.BaseApp = sdk_app.BaseApp(
-    name="hpcFlow",
+    name=_app_name,
     version=__version__,
     module=__name__,
     docs_import_conv="hf",

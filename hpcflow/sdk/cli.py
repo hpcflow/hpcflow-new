@@ -2,7 +2,7 @@ import click
 from colorama import init as colorama_init
 from termcolor import colored
 
-from hpcflow import __version__
+from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
 from hpcflow.sdk.config.errors import ConfigError
 from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
@@ -588,7 +588,7 @@ def make_cli(app):
         "--hpcflow-version",
         help="Show the version of hpcflow and exit.",
         package_name="hpcflow",
-        prog_name="hpcflow",
+        prog_name=_app_name,
     )
     @click.help_option()
     @click.option(
