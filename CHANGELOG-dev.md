@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a44"></a>
+## [v0.2.0a44](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a43...v0.2.0a44) - 2023.05.28
+
+### 👷 Build changes
+
+* merge from develop
+
+
 <a name="v0.2.0a43"></a>
 ## [v0.2.0a43](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a42...v0.2.0a43) - 2023.05.28
 
