@@ -26,9 +26,10 @@ template_components = sdk_app.BaseApp.load_builtin_template_component_data(
 
 # initialise the App object:
 app: sdk_app.BaseApp = sdk_app.BaseApp(
-    name="hpcflow",
+    name="hpcFlow",
     version=__version__,
     module=__name__,
+    docs_import_conv="hf",
     description="Computational workflow management",
     config_options=config_options,
     template_components=template_components,

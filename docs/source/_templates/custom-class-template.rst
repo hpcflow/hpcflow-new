@@ -1,4 +1,4 @@
-{{ fullname | escape | underline}}
+{{ fullname | underline}}
 
 .. currentmodule:: {{ module }}
 
@@ -6,8 +6,8 @@
    :members:
    :show-inheritance:
    :undoc-members:
-   :inherited-members:
-   
+   :inherited-members:   
+
    {% block methods %}
    {% if methods %}
    .. rubric:: {{ _('Methods') }}

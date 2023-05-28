@@ -6,6 +6,7 @@ import enum
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import valida
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import (
@@ -55,6 +56,10 @@ class Parameter(JSONLike):
             name="typ",
             json_like_name="type",
         ),
+        ChildObjectSpec(
+            name="_validation",
+            class_obj=valida.Schema,
+        ),
     )
 
     typ: str
@@ -62,6 +67,7 @@ class Parameter(JSONLike):
     sub_parameters: List[app.SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
+    _validation: Optional[valida.Schema] = None
 
     def __repr__(self) -> str:
         is_file_str = ""
@@ -89,6 +95,9 @@ class Parameter(JSONLike):
         for i in ParameterValue.__subclasses__():
             if i._typ == self.typ:
                 self._value_class = i
+
+    def __lt__(self, other):
+        return self.typ < other.typ
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()

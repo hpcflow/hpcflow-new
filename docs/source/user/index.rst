@@ -1,15 +1,10 @@
-:orphan:
+User Guide
+##########
 
-.. _user:
-
-##################
-HPCFlow user guide
-##################
-
-This guide is an overview and explains the important features;
-details are found in :ref:`reference`.
+hpcFlow is a computational workflow management package.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 3
 
-   whatishpcflow
+   How-to guides <how_to>
+   Tutorials <tutorials>

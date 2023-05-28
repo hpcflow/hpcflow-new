@@ -1,5 +1,5 @@
-CLI
-===
+Command-line interface
+======================
 
 Command line interface reference documentation.
 

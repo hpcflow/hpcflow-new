@@ -86,6 +86,12 @@ class BaseApp(metaclass=Singleton):
     ----------
     module:
         The module name in which the app object is defined.
+    docs_import_conv:
+        The convention for the app alias used in import statements in the documentation.
+        E.g. for the `hpcflow` base app, this is `hf`. This is combined with `module` to
+        form the complete import statement. E.g. for the `hpcflow` base app, the complete
+        import statement is: `import hpcflow.app as hf`, where `hpcflow.app` is the
+        `module` argument and `hf` is the `docs_import_conv` argument.
 
     """
 
@@ -107,6 +113,7 @@ class BaseApp(metaclass=Singleton):
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
+        docs_import_conv=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
@@ -118,6 +125,7 @@ class BaseApp(metaclass=Singleton):
         self.config_options = config_options
         self.pytest_args = pytest_args
         self.scripts_dir = scripts_dir
+        self.docs_import_conv = docs_import_conv
 
         self.cli = make_cli(self)
 
@@ -419,6 +427,23 @@ class BaseApp(metaclass=Singleton):
             )
             tc[k] = tc_k
         return tc
+
+    def get_parameter_task_schema_map(self) -> Dict[str, List[List]]:
+        """Get a dict mapping parameter types to task schemas that input/output each
+        parameter."""
+
+        param_map = {}
+        for ts in self.task_schemas:
+            for inp in ts.inputs:
+                if inp.parameter.typ not in param_map:
+                    param_map[inp.parameter.typ] = [[], []]
+                param_map[inp.parameter.typ][0].append(ts.objective.name)
+            for out in ts.outputs:
+                if out.parameter.typ not in param_map:
+                    param_map[out.parameter.typ] = [[], []]
+                param_map[out.parameter.typ][1].append(ts.objective.name)
+
+        return param_map
 
     def get_info(self) -> Dict[str, Any]:
         return {
