@@ -29,6 +29,7 @@ app: sdk_app.BaseApp = sdk_app.BaseApp(
     name="hpcflow",
     version=__version__,
     module=__name__,
+    docs_import_conv="hf",
     description="Computational workflow management",
     config_options=config_options,
     template_components=template_components,
