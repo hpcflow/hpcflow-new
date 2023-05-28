@@ -163,6 +163,8 @@ additional_intersphinx = {}
 # -------- ...the remaining content can be identical for hpcflow and downstream apps -----
 
 
+Path("./reference/_generated").mkdir(exist_ok=True)
+
 # distribution name (i.e. name on PyPI):
 with open("../../pyproject.toml") as fp:
     dist_name = tomlkit.load(fp)["tool"]["poetry"]["name"]
