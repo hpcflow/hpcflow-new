@@ -9,4 +9,4 @@ from hpcflow.app import app as hf
 def test_version():
     runner = CliRunner()
     result = runner.invoke(hf.cli, args="--version")
-    assert result.output.strip() == f"hpcflow, version {__version__}"
+    assert result.output.strip() == f"hpcFlow, version {__version__}"
