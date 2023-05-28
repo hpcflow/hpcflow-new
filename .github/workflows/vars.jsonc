@@ -1,6 +1,7 @@
 {
     "org": "hpcflow",
     "repo": "hpcflow-new",
+    "app_name": "hpcFlow",
     "version_file": "hpcflow/_version.py",
     "release_branch": "main",
     "pre_release_branch": "develop",
