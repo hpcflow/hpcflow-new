@@ -211,7 +211,7 @@ jobs:
           $tag = "${{ needs.bump-version.outputs.new_tag_name }}"
           $tagNoV = $tag.trim('v')
           $hpcflow_vers = pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version
-          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
+          $hpcflow_vers_expected = "hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
           if ($hpcflow_vers -ne $hpcflow_vers_expected) {
@@ -224,7 +224,7 @@ jobs:
           $tag = "${{ needs.bump-version.outputs.new_tag_name }}"
           $tagNoV = $tag.trim('v')
           $hpcflow_vers = pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}  --version
-          $hpcflow_vers_expected = "hpcflow, version $tagNoV"
+          $hpcflow_vers_expected = "hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo "$hpcflow_vers_expected"
           if ($hpcflow_vers -ne $hpcflow_vers_expected) {
@@ -237,7 +237,7 @@ jobs:
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
           hpcflow_vers=$(pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          hpcflow_vers_expected="hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
@@ -248,7 +248,7 @@ jobs:
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
           hpcflow_vers=$(pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          hpcflow_vers_expected="hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
@@ -302,6 +302,7 @@ jobs:
       - name: Configure poetry
         run: |
           poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
         uses: actions/cache@v3
@@ -325,7 +326,7 @@ jobs:
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
           hpcflow_vers=$(pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          hpcflow_vers_expected="hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
@@ -335,7 +336,7 @@ jobs:
           tag=${{ needs.bump-version.outputs.new_tag_name }}
           tagNoV=${tag:1}
           hpcflow_vers=$(pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir --version)
-          hpcflow_vers_expected="hpcflow, version $tagNoV"
+          hpcflow_vers_expected="hpcFlow, version $tagNoV"
           echo $hpcflow_vers
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
