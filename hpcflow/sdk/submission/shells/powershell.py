@@ -55,7 +55,7 @@ class WindowsPowerShell(Shell):
     """
     )
     JS_MAIN = dedent(
-        """
+        """\
         $elem_need_EARs = get_nth_line $EAR_ID_FILE $JS_elem_idx
         $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
 
