@@ -9,3 +9,4 @@
 - type: atoms
 - type: empirical_potential
 - type: optimised_atoms
+- type: test_UPPER_case
