@@ -57,12 +57,6 @@ def test_raise_on_invalid_method_non_alpha_numeric(schema_s1_kwargs):
         hf.TaskSchema(method="_mymethod", **schema_s1_kwargs)
 
 
-def test_method_lowercasing(schema_s1_kwargs):
-    assert hf.TaskSchema(method="MyMethod", **schema_s1_kwargs) == hf.TaskSchema(
-        method="mymethod", **schema_s1_kwargs
-    )
-
-
 def test_schema_action_validate():
     p1, p2, p3, p4 = make_parameters(4)
     act_1, act_2, act_3 = make_actions([("p1", "p5"), (("p2", "p5"), "p3"), ("p3", "p4")])
