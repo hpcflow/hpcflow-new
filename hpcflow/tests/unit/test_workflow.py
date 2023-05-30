@@ -1,4 +1,5 @@
 import copy
+import os
 from textwrap import dedent
 import pytest
 
@@ -328,7 +329,7 @@ def test_WorkflowTemplate_to_YAML_round_trip(null_config):
     wkt_yml = wkt_yml_name + wkt_yml_command_files + wkt_yml_task_schemas + wkt_yml_tasks
     wkt_1 = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
 
-    yaml_file_path = "to_yaml_test2.yml"
+    yaml_file_path = "to_yaml_test.yml"
     wkt_1.to_yaml_file(yaml_file_path)
 
     saved_yaml = ""
@@ -341,6 +342,7 @@ def test_WorkflowTemplate_to_YAML_round_trip(null_config):
             + wkt_yml_task_schemas
             + saved_yaml.replace(wkt_yml_name.strip("\n"), "")
         )
+    os.remove(yaml_file_path)
     wkt_2 = hf.WorkflowTemplate.from_YAML_string(saved_yaml)
 
     assert wkt_1 == wkt_2
