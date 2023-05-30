@@ -67,14 +67,14 @@ def check_valid_py_identifier(name):
 
     Notes
     -----
-    Will be used for:
-      - task objective name
-      - task method
-      - task implementation
-      - parameter type
-      - parameter name
-      - loop name
-      - element group name
+    The following attributes are passed through this function on object initialisation:
+     - `ElementGroup.name`
+     - `Executable.label`
+     - `Parameter.typ`
+     - `TaskSchema.name`
+     - `TaskSchema.method`
+     - `TaskSchema.implementation`
+     - `Loop.name`
 
     """
     trial_name = name[1:].replace("_", "")  # "internal" underscores are allowed
@@ -82,7 +82,6 @@ def check_valid_py_identifier(name):
         not name
         or not (name[0].isalpha() and ((trial_name[1:] or "a").isalnum()))
         or keyword.iskeyword(name)
-        or name == "add_object"  # method of `DotAccessObjectList`
     ):
         raise InvalidIdentifier(f"Invalid string for identifier: {name!r}")
 

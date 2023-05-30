@@ -110,3 +110,11 @@ def test_schema_action_validate_raise_on_extra_action_output():
         hf.TaskSchema(
             "t1", actions=[act_1, act_2, act_3], inputs=[p1, p2], outputs=[p3, p4]
         )
+
+
+def test_dot_access_object_list_raise_on_bad_access_attr_name():
+    """Check we can't name a DotAccessObjectList item with a name that collides with a
+    method name."""
+    ts = hf.TaskSchema("add_object", actions=[])
+    with pytest.raises(ValueError):
+        hf.TaskSchemasList([ts])

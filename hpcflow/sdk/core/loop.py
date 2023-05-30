@@ -7,6 +7,7 @@ from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
+from hpcflow.sdk.core.utils import check_valid_py_identifier
 
 # from .parameters import Parameter
 
@@ -63,7 +64,7 @@ class Loop(JSONLike):
 
         self._task_insert_IDs = _task_insert_IDs
         self._num_iterations = num_iterations
-        self._name = name
+        self._name = check_valid_py_identifier(name)
         self._non_iterable_parameters = non_iterable_parameters or []
 
         self._workflow_template = None  # assigned by parent WorkflowTemplate
