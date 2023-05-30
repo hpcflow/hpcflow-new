@@ -67,7 +67,7 @@ class WindowsPowerShell(Shell):
             }}
 
             $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$JS_act_idx]
-            $run_dir_abs = "$WK_PATH\$run_dir"
+            $run_dir_abs = "$WK_PATH\\$run_dir"
             Set-Location $run_dir_abs
 
             {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
