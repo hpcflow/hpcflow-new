@@ -190,7 +190,8 @@ def param_p3():
 
 @pytest.fixture
 def null_config(tmp_path):
-    hf.load_config(config_dir=tmp_path)
+    if not hf.is_config_loaded:
+        hf.load_config(config_dir=tmp_path)
 
 
 @pytest.mark.skip(reason="Need to add e.g. parameters of the workflow to the app data.")

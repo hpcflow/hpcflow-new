@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import time
 from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+import warnings
 import numpy as np
 import zarr
 from numcodecs import MsgPack
@@ -549,13 +550,20 @@ class ZarrPersistentStore(PersistentStore):
                 chunks=1000,  # TODO: check this is a sensible size with many elements
             )
             element_iters_arr.attrs.update(self._get_element_iter_array_empty_attrs())
-            EAR_times_arr = task_group.create_dataset(
-                name=self._task_EAR_times_arr_name,
-                shape=(0, 2),
-                dtype="M8[us]",  # microsecond resolution
-                fill_value=np.datetime64("NaT"),
-                chunks=(1, None),  # single-chunk for multiprocess writing
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                # zarr (2.14.2, at least) compares the fill value to zero, which, due to
+                # this numpy bug https://github.com/numpy/numpy/issues/13548, issues a
+                # DeprecationWarning. This bug is fixed in numpy 1.25
+                # (https://github.com/numpy/numpy/pull/22707), which has a minimum python
+                # version of 3.9. So for now, we will suppress it.
+                EAR_times_arr = task_group.create_dataset(
+                    name=self._task_EAR_times_arr_name,
+                    shape=(0, 2),
+                    dtype="M8[us]",  # microsecond resolution
+                    fill_value=np.datetime64("NaT"),
+                    chunks=(1, None),  # single-chunk for multiprocess writing
+                )
 
             md["num_added_tasks"] += 1
 

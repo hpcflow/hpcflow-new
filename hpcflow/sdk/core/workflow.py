@@ -57,7 +57,6 @@ class _DummyPersistentWorkflow:
         self._data_ref = []
 
     def _add_parameter_data(self, data, source: Dict) -> int:
-        print(f"_D._add_parameter_data: {data=}, {source=}")
         self._parameters.append(data)
         self._sources.append(source)
         self._data_ref.append(len(self._data_ref))

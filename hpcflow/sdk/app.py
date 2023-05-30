@@ -282,10 +282,17 @@ class BaseApp(metaclass=Singleton):
         )
         components = {}
         for comp_type in cls._template_component_types:
-            with resources.open_text(package, f"{comp_type}.yaml") as fh:
-                SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
-                comp_dat = fh.read()
-                components[comp_type] = read_YAML(comp_dat)
+            resource = f"{comp_type}.yaml"
+            try:
+                fh = resources.files(package).joinpath(resource).open("rt")
+            except AttributeError:
+                # < python 3.8; `resource.open_text` deprecated since 3.11
+                fh = resources.open_text(package, resource)
+            SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
+            comp_dat = fh.read()
+            components[comp_type] = read_YAML(comp_dat)
+            fh.close()
+
         return components
 
     @property
@@ -391,6 +398,7 @@ class BaseApp(metaclass=Singleton):
         app_module = import_module(self.package_name)
         root_scripts_dir = self.scripts_dir
 
+        # TODO: setuptools.find_packages takes a long time to import
         packages = find_packages(
             where=str(Path(app_module.__path__[0], *root_scripts_dir.split(".")))
         )
@@ -400,14 +408,33 @@ class BaseApp(metaclass=Singleton):
 
         scripts = {}
         for pkg in packages:
+            try:
+                contents = (
+                    resource.name
+                    for resource in resources.files(pkg).iterdir()
+                    if resource.is_file()
+                )
+                _is_rsrc = lambda pkg, name: resources.files(pkg).joinpath(name).is_file()
+
+            except AttributeError:
+                # < python 3.8; `resource.contents` deprecated since 3.11
+                contents = resources.contents(pkg)
+                _is_rsrc = lambda pkg, name: resources.is_resource(pkg, name)
+
             script_names = (
-                name
-                for name in resources.contents(pkg)
-                if name != "__init__.py" and resources.is_resource(pkg, name)
+                name for name in contents if name != "__init__.py" and _is_rsrc(pkg, name)
             )
+
             for i in script_names:
                 script_key = "/".join(pkg.split(".")[num_root_dirs:] + [i])
-                scripts[script_key] = resources.path(pkg, i)
+                try:
+                    script_ctx = resources.as_file(resources.files(pkg).joinpath(i))
+                except AttributeError:
+                    # < python 3.8; `resource.path` deprecated since 3.11
+                    script_ctx = resources.path(pkg, i)
+
+                with script_ctx as script:
+                    scripts[script_key] = script
 
         return scripts
 
@@ -633,7 +660,15 @@ class BaseApp(metaclass=Singleton):
 
         test_args = (self.pytest_args or []) + list(args)
         if self.run_time_info.is_frozen:
-            with importlib.resources.path(self.package_name, "tests") as test_dir:
+            pkg = self.package_name
+            res = "tests"
+            try:
+                test_dir_ctx = resources.as_file(resources.files(pkg).joinpath(res))
+            except AttributeError:
+                # < python 3.8; `resource.path` deprecated since 3.11
+                test_dir_ctx = resources.path(pkg, res)
+
+            with test_dir_ctx as test_dir:
                 return pytest.main([str(test_dir)] + test_args)
         else:
             ret_code = pytest.main(["--pyargs", f"{self.package_name}"] + test_args)

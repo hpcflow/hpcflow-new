@@ -13,7 +13,7 @@ def callback_vars(config, value):
         return config._variables[var_name]
 
     vars_join = "|".join(list(config._variables.keys()))
-    vars_regex = f"\<\<({vars_join})\>\>"
+    vars_regex = r"\<\<(" + vars_join + r")\>\>"
     value = re.sub(
         pattern=vars_regex,
         repl=vars_repl,
