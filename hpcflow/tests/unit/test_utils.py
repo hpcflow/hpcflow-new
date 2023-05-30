@@ -3,11 +3,13 @@ import pytest
 import zarr
 import numpy as np
 from numpy.typing import NDArray
+from hpcflow.sdk.core.errors import InvalidIdentifier
 
 from hpcflow.sdk.core.utils import (
     bisect_slice,
     get_nested_indices,
     replace_items,
+    check_valid_py_identifier,
 )
 
 
@@ -203,6 +205,56 @@ def test_replace_items_single_item():
     assert replace_items(lst, start=0, end=1, repl=ins) == [10, 11]
 
 
+def test_raise_check_valid_py_identifier_empty_str():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier("")
+
+
+def test_raise_check_valid_py_identifier_start_digit():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier("9sdj")
+
+
+def test_raise_check_valid_py_identifier_single_digit():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier("9")
+
+
+def test_raise_check_valid_py_identifier_py_keyword():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier("if")
+
+
+def test_raise_check_valid_py_identifier_non_str():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier(0.123)
+
+
+def test_raise_check_valid_py_identifier_starts_underscore():
+    with pytest.raises(InvalidIdentifier):
+        check_valid_py_identifier("_test")
+
+
+def test_expected_return_check_valid_py_identifier_internal_underscore():
+    assert check_valid_py_identifier("test_ok") == "test_ok"
+
+
+def test_expected_return_check_valid_py_identifier_end_underscore():
+    assert check_valid_py_identifier("test_ok_") == "test_ok_"
+
+
+def test_expected_return_check_valid_py_identifier_all_latin_alpha():
+    assert check_valid_py_identifier("abc") == "abc"
+
+
+def test_expected_return_check_valid_py_identifier_all_latin_alphanumeric():
+    assert check_valid_py_identifier("abc123") == "abc123"
+
+
+def test_expected_return_check_valid_py_identifier_all_greek_alpha():
+    assert check_valid_py_identifier("αβγ") == "αβγ"
+
+
 # from hpcflow.utils import (
 #     get_duplicate_items,
 #     check_valid_py_identifier,
@@ -223,47 +275,6 @@ def test_replace_items_single_item():
 # def test_get_list_duplicate_items_all_duplicates():
 #     lst = [1, 1, 1]
 #     assert get_duplicate_items(lst) == [1]
-
-
-# def test_raise_check_valid_py_identifier_empty_str():
-#     with pytest.raises(ValueError):
-#         check_valid_py_identifier("")
-
-
-# def test_raise_check_valid_py_identifier_start_digit():
-#     with pytest.raises(ValueError):
-#         check_valid_py_identifier("9sdj")
-
-
-# def test_raise_check_valid_py_identifier_single_digit():
-#     with pytest.raises(ValueError):
-#         check_valid_py_identifier("9")
-
-
-# def test_raise_check_valid_py_identifier_py_keyword():
-#     with pytest.raises(ValueError):
-#         check_valid_py_identifier("if")
-
-
-# def test_expected_return_check_valid_py_identifier_all_latin_alpha():
-#     assert check_valid_py_identifier("abc") == "abc"
-
-
-# def test_expected_return_check_valid_py_identifier_all_latin_alphanumeric():
-#     assert check_valid_py_identifier("abc123") == "abc123"
-
-
-# def test_expected_return_check_valid_py_identifier_all_greek_alpha():
-#     assert check_valid_py_identifier("αβγ") == "αβγ"
-
-
-# def test_check_valid_py_identifier_case_insensitivity():
-#     assert (
-#         check_valid_py_identifier("abc012")
-#         == check_valid_py_identifier("ABC012")
-#         == check_valid_py_identifier("aBc012")
-#         == "abc012"
-#     )
 
 
 # def test_expected_return_group_by_dict_key_values_single_key_items_single_key_passed():

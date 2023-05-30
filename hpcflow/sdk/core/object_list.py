@@ -150,6 +150,9 @@ class DotAccessObjectList(ObjectList):
     """Provide dot-notation access via an access attribute for the case where the access
     attribute uniquely identifies a single object."""
 
+    # access attributes must not be named after any "public" methods, to avoid confusion!
+    _pub_methods = ("get", "get_all", "add_object", "add_objects")
+
     def __init__(self, _objects, access_attribute, descriptor=None):
         self._access_attribute = access_attribute
         super().__init__(_objects, descriptor=descriptor)
@@ -160,6 +163,13 @@ class DotAccessObjectList(ObjectList):
             if not hasattr(obj, self._access_attribute):
                 raise TypeError(
                     f"Object {idx} does not have attribute {self._access_attribute!r}."
+                )
+            value = getattr(obj, self._access_attribute)
+            if value in self._pub_methods:
+                raise ValueError(
+                    f"Access attribute {self._access_attribute!r} for object index {idx} "
+                    f"cannot be the same as any of the methods of "
+                    f"{self.__class__.__name__!r}, which are: {self._pub_methods!r}."
                 )
 
         return super()._validate()

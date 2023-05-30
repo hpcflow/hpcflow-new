@@ -61,32 +61,40 @@ def get_duplicate_items(lst):
     return list(set(x for x in lst if x in seen or seen.append(x)))
 
 
-def check_valid_py_identifier(name):
-    """Check a string is (roughly) a valid Python variable identifier and if so return it
-    in lower-case.
+def check_valid_py_identifier(name: str) -> str:
+    """Check a string is (roughly) a valid Python variable identifier and return it.
+
+    The rules are:
+        1. `name` must not be empty
+        2. `name` must not be a Python keyword
+        3. `name` must begin with an alphabetic character, and all remaining characters
+           must be alphanumeric.
 
     Notes
     -----
-    Will be used for:
-      - task objective name
-      - task method
-      - task implementation
-      - parameter type
-      - parameter name
-      - loop name
-      - element group name
+    The following attributes are passed through this function on object initialisation:
+        - `ElementGroup.name`
+        - `Executable.label`
+        - `Parameter.typ`
+        - `TaskObjective.name`
+        - `TaskSchema.method`
+        - `TaskSchema.implementation`
+        - `Loop.name`
 
     """
-    trial_name = name[1:].replace("_", "")  # "internal" underscores are allowed
+    exc = InvalidIdentifier(f"Invalid string for identifier: {name!r}")
+    try:
+        trial_name = name[1:].replace("_", "")  # "internal" underscores are allowed
+    except TypeError:
+        raise exc
     if (
         not name
         or not (name[0].isalpha() and ((trial_name[1:] or "a").isalnum()))
         or keyword.iskeyword(name)
-        or name == "add_object"  # method of `DotAccessObjectList`
     ):
-        raise InvalidIdentifier(f"Invalid string for identifier: {name!r}")
+        raise exc
 
-    return name.lower()
+    return name
 
 
 def group_by_dict_key_values(lst, *keys):
