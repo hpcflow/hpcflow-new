@@ -25,8 +25,10 @@ from .utils import (
     read_JSON_string,
     read_YAML,
     read_YAML_file,
+    FSlist,
     replace_items,
 )
+from ruamel.yaml import YAML
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
@@ -180,6 +182,85 @@ class WorkflowTemplate(JSONLike):
 
         """
         return cls._from_data(read_YAML_file(path))
+
+    @classmethod
+    def to_yaml(cls, dumper, data):
+        d_workflow = {"name": data.name}
+
+        # Task_Schemas
+
+        # Tasks
+        l_tasks = []
+        for task in data.tasks:
+            d_task = {}
+            # Schemas
+            l_schemas = []
+            for schema in task.schemas:
+                l_schemas.append(schema.name)
+            d_task["schemas"] = FSlist(l_schemas)
+
+            # Element sets
+            l_element_sets = []
+            for element_set in task.element_sets:
+                d_element_set = {}
+
+                # Inputs
+                d_inputs = {}
+                for input in element_set.inputs:
+                    if isinstance(input.value, list):
+                        d_inputs[input.parameter.typ] = FSlist(input.value)
+                    else:
+                        d_inputs[input.parameter.typ] = input.value
+                if d_inputs:
+                    d_element_set["inputs"] = d_inputs
+
+                # Sequences
+                l_sequences = []
+                for sequence in element_set.sequences:
+                    l_sequences.extend(
+                        [
+                            {
+                                "path": sequence.path,
+                                "values": FSlist(sequence.values),
+                                "nesting_order": sequence.nesting_order,
+                            }
+                        ]
+                    )
+                if l_sequences:
+                    d_element_set["sequences"] = l_sequences
+
+                # Resources
+                l_resources = {}
+                for resource in element_set.resources:
+                    if resource.num_cores:
+                        l_resources[resource.normalised_resources_path] = {
+                            "num_cores": resource.num_cores
+                        }
+                if l_resources:
+                    d_element_set["resources"] = l_resources
+
+                # Input files
+                l_input_files = []
+                for input_file in element_set.input_files:
+                    l_input_files.extend(
+                        [
+                            {
+                                "file": input_file.file.label,
+                                "path": input_file._path,
+                            }
+                        ]
+                    )
+                if l_input_files:
+                    d_element_set["input_files"] = l_input_files
+
+                l_element_sets.append(d_element_set)
+            d_task["element_sets"] = l_element_sets
+
+            l_tasks.append(d_task)
+        if l_tasks:
+            d_workflow["tasks"] = l_tasks
+
+        return dumper.represent_mapping("tag:yaml.org,2002:map", d_workflow)
 
     @classmethod
     def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
@@ -451,6 +532,10 @@ class Workflow:
             ts_fmt,
             ts_name_fmt,
         )
+
+    @classmethod
+    def to_yaml(cls, dumper, data):
+        return data.template.to_yaml(dumper, data.template)
 
     @classmethod
     def from_YAML_string(

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Mapping
 
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedSeq
 import sentry_sdk
 
 from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
@@ -309,6 +310,12 @@ def read_YAML(loadable_yaml):
 
 def read_YAML_file(path: PathLike):
     return read_YAML(Path(path))
+
+
+def FSlist(l):
+    cs = CommentedSeq(l)
+    cs.fa.set_flow_style()
+    return cs
 
 
 def read_JSON_string(string: str):
