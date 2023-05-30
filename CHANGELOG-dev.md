@@ -1,4 +1,28 @@
 
+<a name="v0.2.0a46"></a>
+## [v0.2.0a46](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a45...v0.2.0a46) - 2023.05.30
+
+### ♻ Code Refactoring
+
+* remove debug print
+
+### 🐛 Bug Fixes
+
+* numpy DeprecationWarning
+* invalid escape sequence
+* revert "fix: see if removing line-cont. backslash fixes invalid escape seq."
+* see if removing line-cont. backslash fixes invalid escape seq.
+* try to remove invalid escape sequence warning in config
+* importlib.resources deprecation warnings on 3.11
+* load_config warnings in tests
+
+### 👷 Build changes
+
+* bump colorama
+* bump zarr
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a45"></a>
 ## [v0.2.0a45](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a44...v0.2.0a45) - 2023.05.28
 
