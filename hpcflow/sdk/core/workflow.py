@@ -543,10 +543,6 @@ class Workflow:
         )
 
     @classmethod
-    def to_yaml(cls, dumper, data):
-        return data.template.to_yaml(dumper, data.template)
-
-    @classmethod
     def from_YAML_string(
         cls,
         YAML_str: PathLike,
