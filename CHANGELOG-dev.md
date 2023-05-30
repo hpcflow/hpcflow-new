@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a47"></a>
+## [v0.2.0a47](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a46...v0.2.0a47) - 2023.05.30
+
+### 🐛 Bug Fixes
+
+* remove failing test due to recent change
+* check_valid_py_identifier does not lower-case; improve docstring; add sphinx docs; add tests
+* check_valid_py_identifier in Loop init
+* check for bad DotAccessObjectList access attr name and tidy check_valid_py_identifier docstring
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a46"></a>
 ## [v0.2.0a46](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a45...v0.2.0a46) - 2023.05.30
 
