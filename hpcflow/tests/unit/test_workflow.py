@@ -348,11 +348,9 @@ def test_WorkflowTemplate_to_YAML(null_config):
     """
     )
 
-    wk_yaml = YAML()
-    wk_yaml.register_class(hf.WorkflowTemplate)
-    yaml_file_path = "to_yaml_test.yml"
-    with open(yaml_file_path, "w") as output_file:
-        wk_yaml.dump(wkt, output_file)
+    yaml_file_path = "to_yaml_test1.yml"
+
+    wkt.to_yaml_file(yaml_file_path)
 
     with open(yaml_file_path, "r") as output_file:
         for expected_line in expected_yml.splitlines():
@@ -457,11 +455,8 @@ def test_WorkflowTemplate_to_YAML(null_config):
 #     wkt_yml = wkt_yml_name + wkt_yml_command_files + wkt_yml_task_schemas + wkt_yml_tasks
 #     wkt_1 = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
 
-#     wk_yaml = YAML()
-#     wk_yaml.register_class(hf.WorkflowTemplate)
-#     yaml_file_path = "to_yaml_test.yml"
-#     with open(yaml_file_path, "w") as output_file:
-#         wk_yaml.dump(wkt_1, output_file)
+#     yaml_file_path = "to_yaml_test2.yml"
+#     wkt_1.to_yaml_file(yaml_file_path)
 
 #     saved_yaml = ""
 #     with open(yaml_file_path, "r") as output_file:

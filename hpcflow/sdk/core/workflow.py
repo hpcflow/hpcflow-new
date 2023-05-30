@@ -262,6 +262,15 @@ class WorkflowTemplate(JSONLike):
 
         return dumper.represent_mapping("tag:yaml.org,2002:map", d_workflow)
 
+    def to_yaml_file(self, yaml_file_path):
+        if not any(x in yaml_file_path for x in [".yml", ".yaml"]):
+            yaml_file_path = yaml_file_path + ".yml"
+
+        wt_yaml = YAML()
+        wt_yaml.register_class(type(self))
+        with open(yaml_file_path, "w") as output_file:
+            wt_yaml.dump(self, output_file)
+
     @classmethod
     def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
         """Load from a JSON string.
