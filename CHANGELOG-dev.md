@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a48"></a>
+## [v0.2.0a48](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a47...v0.2.0a48) - 2023.05.31
+
+### ♻ Code Refactoring
+
+* removed duplicate declaration of click options
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a47"></a>
 ## [v0.2.0a47](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a46...v0.2.0a47) - 2023.05.30
 
