@@ -19,6 +19,31 @@ from .helper import (
     get_helper_uptime,
 )
 
+timeout_option = click.option(
+    "--timeout",
+    type=click.FLOAT,
+    default=DEFAULT_TIMEOUT,
+    show_default=True,
+    help="Helper timeout in seconds.",
+)
+timeout_check_interval_option = click.option(
+    "--timeout-check-interval",
+    type=click.FLOAT,
+    default=DEFAULT_TIMEOUT_CHECK,
+    show_default=True,
+    help="Interval between testing if the timeout has been exceeded in seconds.",
+)
+watch_interval_option = click.option(
+    "--watch-interval",
+    type=click.FLOAT,
+    default=DEFAULT_WATCH_INTERVAL,
+    show_default=True,
+    help=(
+        "Polling interval for watching workflows (and the workflow watch list) in "
+        "seconds."
+    ),
+)
+
 
 def get_helper_CLI(app):
     """Generate the CLI to provide some server-like functionality."""
@@ -28,30 +53,9 @@ def get_helper_CLI(app):
         pass
 
     @helper.command()
-    @click.option(
-        "--timeout",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT,
-        show_default=True,
-        help="Helper timeout in seconds.",
-    )
-    @click.option(
-        "--timeout-check-interval",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT_CHECK,
-        show_default=True,
-        help="Interval between testing if the timeout has been exceeded in seconds.",
-    )
-    @click.option(
-        "--watch-interval",
-        type=click.FLOAT,
-        default=DEFAULT_WATCH_INTERVAL,
-        show_default=True,
-        help=(
-            "Polling interval for watching workflows (and the workflow watch list) in "
-            "seconds."
-        ),
-    )
+    @timeout_option
+    @timeout_check_interval_option
+    @watch_interval_option
     def start(timeout, timeout_check_interval, watch_interval):
         """Start the helper process."""
         start_helper(app, timeout, timeout_check_interval, watch_interval)
@@ -62,59 +66,17 @@ def get_helper_CLI(app):
         stop_helper(app)
 
     @helper.command()
-    @click.option(
-        "--timeout",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT,
-        show_default=True,
-        help="Helper timeout in seconds.",
-    )
-    @click.option(
-        "--timeout-check-interval",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT_CHECK,
-        show_default=True,
-        help="Interval between testing if the timeout has been exceeded in seconds.",
-    )
-    @click.option(
-        "--watch-interval",
-        type=click.FLOAT,
-        default=DEFAULT_WATCH_INTERVAL,
-        show_default=True,
-        help=(
-            "Polling interval for watching workflows (and the workflow watch list) in "
-            "seconds."
-        ),
-    )
+    @timeout_option
+    @timeout_check_interval_option
+    @watch_interval_option
     def run(timeout, timeout_check_interval, watch_interval):
         """Run the helper functionality."""
         run_helper(app, timeout, timeout_check_interval, watch_interval)
 
     @helper.command()
-    @click.option(
-        "--timeout",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT,
-        show_default=True,
-        help="Helper timeout in seconds.",
-    )
-    @click.option(
-        "--timeout-check-interval",
-        type=click.FLOAT,
-        default=DEFAULT_TIMEOUT_CHECK,
-        show_default=True,
-        help="Interval between testing if the timeout has been exceeded in seconds.",
-    )
-    @click.option(
-        "--watch-interval",
-        type=click.FLOAT,
-        default=DEFAULT_WATCH_INTERVAL,
-        show_default=True,
-        help=(
-            "Polling interval for watching workflows (and the workflow watch list) in "
-            "seconds."
-        ),
-    )
+    @timeout_option
+    @timeout_check_interval_option
+    @watch_interval_option
     def restart(timeout, timeout_check_interval, watch_interval):
         """Restart (or start) the helper process."""
         restart_helper(app, timeout, timeout_check_interval, watch_interval)
