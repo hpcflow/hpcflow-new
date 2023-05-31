@@ -11,70 +11,89 @@ from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
+string_option = click.option(
+    "--string",
+    is_flag=True,
+    default=False,
+    help="Determines if passing a file path or a string.",
+)
+format_option = click.option(
+    "--format",
+    type=click.Choice(ALL_TEMPLATE_FORMATS),
+    default=DEFAULT_TEMPLATE_FORMAT,
+    help=(
+        'If specified, one of "json" or "yaml". This forces parsing from a '
+        "particular format."
+    ),
+)
+path_option = click.option(
+    "--path",
+    type=click.Path(exists=True),
+    help="The directory path into which the new workflow will be generated.",
+)
+name_option = click.option(
+    "--name",
+    help=(
+        "The name of the workflow. If specified, the workflow directory will be "
+        "`path` joined with `name`. If not specified the workflow template name "
+        "will be used, in combination with a date-timestamp."
+    ),
+)
+overwrite_option = click.option(
+    "--overwrite",
+    is_flag=True,
+    default=False,
+    help=(
+        "If True and the workflow directory (`path` + `name`) already exists, "
+        "the existing directory will be overwritten."
+    ),
+)
+store_option = click.option(
+    "--store",
+    type=click.Choice(ALL_STORE_FORMATS),
+    help="The persistent store type to use.",
+    default=DEFAULT_STORE_FORMAT,
+)
+ts_fmt_option = click.option(
+    "--ts-fmt",
+    help=(
+        "The datetime format to use for storing datetimes. Datetimes are always "
+        "stored in UTC (because Numpy does not store time zone info), so this "
+        "should not include a time zone name."
+    ),
+)
+ts_name_fmt_option = click.option(
+    "--ts-name-fmt",
+    help=(
+        "The datetime format to use when generating the workflow name, where it "
+        "includes a timestamp."
+    ),
+)
+js_parallelism_option = click.option(
+    "--js-parallelism",
+    help=(
+        "If True, allow multiple jobscripts to execute simultaneously. Raises if "
+        "set to True but the store type does not support the "
+        "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
+        "be used if the store type supports it."
+    ),
+    type=click.BOOL,
+)
+
 
 def _make_API_CLI(app):
     """Generate the CLI for the main functionality."""
 
     @click.command(name="make")
     @click.argument("template_file_or_str")
-    @click.option(
-        "--string",
-        is_flag=True,
-        default=False,
-        help="Determines if passing a file path or a string.",
-    )
-    @click.option(
-        "--format",
-        type=click.Choice(ALL_TEMPLATE_FORMATS),
-        default=DEFAULT_TEMPLATE_FORMAT,
-        help=(
-            'If specified, one of "json" or "yaml". This forces parsing from a '
-            "particular format."
-        ),
-    )
-    @click.option(
-        "--path",
-        type=click.Path(exists=True),
-        help="The directory path into which the new workflow will be generated.",
-    )
-    @click.option(
-        "--name",
-        help=(
-            "The name of the workflow. If specified, the workflow directory will be "
-            "`path` joined with `name`. If not specified the workflow template name "
-            "will be used, in combination with a date-timestamp."
-        ),
-    )
-    @click.option(
-        "--overwrite",
-        is_flag=True,
-        default=False,
-        help=(
-            "If True and the workflow directory (`path` + `name`) already exists, "
-            "the existing directory will be overwritten."
-        ),
-    )
-    @click.option(
-        "--store",
-        type=click.Choice(ALL_STORE_FORMATS),
-        help="The persistent store type to use.",
-        default=DEFAULT_STORE_FORMAT,
-    )
-    @click.option(
-        "--ts-fmt",
-        help=(
-            "The datetime format to use for storing datetimes. Datetimes are always "
-            "stored in UTC (because Numpy does not store time zone info), so this "
-            "should not include a time zone name."
-        ),
-    )
-    @click.option(
-        "--ts-name-fmt",
-        help=(
-            "The datetime format to use when generating the workflow name, where it "
-            "includes a timestamp."
-        ),
-    )
+    @string_option
+    @format_option
+    @path_option
+    @name_option
+    @overwrite_option
+    @store_option
+    @ts_fmt_option
+    @ts_name_fmt_option
     def make_workflow(
         template_file_or_str,
         string,
@@ -107,74 +126,15 @@ def _make_API_CLI(app):
 
     @click.command(name="go")
     @click.argument("template_file_or_str")
-    @click.option(
-        "--string",
-        is_flag=True,
-        default=False,
-        help="Determines if passing a file path or a string.",
-    )
-    @click.option(
-        "--format",
-        type=click.Choice(ALL_TEMPLATE_FORMATS),
-        default=DEFAULT_TEMPLATE_FORMAT,
-        help=(
-            'If specified, one of "json" or "yaml". This forces parsing from a '
-            "particular format."
-        ),
-    )
-    @click.option(
-        "--path",
-        type=click.Path(exists=True),
-        help="The directory path into which the new workflow will be generated.",
-    )
-    @click.option(
-        "--name",
-        help=(
-            "The name of the workflow. If specified, the workflow directory will be "
-            "`path` joined with `name`. If not specified the workflow template name "
-            "will be used, in combination with a date-timestamp."
-        ),
-    )
-    @click.option(
-        "--overwrite",
-        is_flag=True,
-        default=False,
-        help=(
-            "If True and the workflow directory (`path` + `name`) already exists, "
-            "the existing directory will be overwritten."
-        ),
-    )
-    @click.option(
-        "--store",
-        type=click.Choice(ALL_STORE_FORMATS),
-        help="The persistent store type to use.",
-        default=DEFAULT_STORE_FORMAT,
-    )
-    @click.option(
-        "--ts-fmt",
-        help=(
-            "The datetime format to use for storing datetimes. Datetimes are always "
-            "stored in UTC (because Numpy does not store time zone info), so this "
-            "should not include a time zone name."
-        ),
-    )
-    @click.option(
-        "--ts-name-fmt",
-        help=(
-            "The datetime format to use when generating the workflow name, where it "
-            "includes a timestamp."
-        ),
-    )
-    @click.option(
-        "--js-parallelism",
-        help=(
-            "If True, allow multiple jobscripts to execute simultaneously. Raises if "
-            "set to True but the store type does not support the "
-            "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
-            "be used if the store type supports it."
-        ),
-        type=click.BOOL,
-    )
+    @string_option
+    @format_option
+    @path_option
+    @name_option
+    @overwrite_option
+    @store_option
+    @ts_fmt_option
+    @ts_name_fmt_option
+    @js_parallelism_option
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -350,16 +310,7 @@ def _make_workflow_CLI(app):
         ctx.obj["workflow"] = wk
 
     @workflow.command(name="submit")
-    @click.option(
-        "--js-parallelism",
-        help=(
-            "If True, allow multiple jobscripts to execute simultaneously. Raises if "
-            "set to True but the store type does not support the "
-            "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
-            "be used if the store type supports it."
-        ),
-        type=click.BOOL,
-    )
+    @js_parallelism_option
     @click.pass_context
     def submit_workflow(ctx, js_parallelism=None):
         """Submit the workflow."""
