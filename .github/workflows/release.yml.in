@@ -91,7 +91,7 @@ jobs:
           NEW_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "NEW_TAG is: $NEW_TAG"
           echo "new_tag=$NEW_TAG" >> $GITHUB_ENV
-          echo "::set-output name=new_tag_name::$NEW_TAG"
+          echo "new_tag_name=$NEW_TAG" >> $GITHUB_OUTPUT
 
       - name: Generate CHANGELOG (stable release)
         if: github.event.pull_request.base.ref == '{{ release_branch }}'
@@ -441,7 +441,7 @@ jobs:
           binaryYaml="${binaryYaml//'%'/'%25'}"
           binaryYaml="${binaryYaml//$'\n'/'%0A'}"
           binaryYaml="${binaryYaml//$'\r'/'%0D'}"
-          echo "::set-output name=binary_download_links::$binaryYaml"
+          echo "binary_download_links=$binaryYaml" >> $GITHUB_OUTPUT
 
       - name: Publish (to {{ PYPI_URL }})
         run: |
