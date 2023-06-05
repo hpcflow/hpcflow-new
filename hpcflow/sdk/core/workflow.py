@@ -184,7 +184,7 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_YAML_file(path))
 
     @classmethod
-    def to_yaml(cls, dumper, data):
+    def to_input_dict(cls, data):
         d_workflow = {"name": data.name}
 
         # Task_Schemas
@@ -197,7 +197,7 @@ class WorkflowTemplate(JSONLike):
             l_schemas = []
             for schema in task.schemas:
                 l_schemas.append(schema.name)
-            d_task["schemas"] = FSlist(l_schemas)
+            d_task["schemas"] = l_schemas
 
             # Element sets
             l_element_sets = []
@@ -208,7 +208,7 @@ class WorkflowTemplate(JSONLike):
                 d_inputs = {}
                 for input in element_set.inputs:
                     if isinstance(input.value, list):
-                        d_inputs[input.parameter.typ] = FSlist(input.value)
+                        d_inputs[input.parameter.typ] = input.value
                     else:
                         d_inputs[input.parameter.typ] = input.value
                 if d_inputs:
@@ -221,7 +221,7 @@ class WorkflowTemplate(JSONLike):
                         [
                             {
                                 "path": sequence.path,
-                                "values": FSlist(sequence.values),
+                                "values": sequence.values,
                                 "nesting_order": sequence.nesting_order,
                             }
                         ]
@@ -259,6 +259,29 @@ class WorkflowTemplate(JSONLike):
             l_tasks.append(d_task)
         if l_tasks:
             d_workflow["tasks"] = l_tasks
+
+        return d_workflow
+
+    @classmethod
+    def to_yaml(cls, dumper, data):
+        d_workflow = cls.to_input_dict(data)
+
+        for i, task in enumerate(d_workflow["tasks"]):
+            d_workflow["tasks"][i]["schemas"] = FSlist(task["schemas"])
+
+            for j, element_set in enumerate(task["element_sets"]):
+                if "inputs" in element_set:
+                    for name, values in element_set["inputs"].items():
+                        if isinstance(values, list):
+                            d_workflow["tasks"][i]["element_sets"][j]["inputs"][
+                                name
+                            ] = FSlist(values)
+
+                if "sequences" in element_set:
+                    for k, sequence in enumerate(element_set["sequences"]):
+                        d_workflow["tasks"][i]["element_sets"][j]["sequences"][k][
+                            "values"
+                        ] = FSlist(sequence["values"])
 
         return dumper.represent_mapping("tag:yaml.org,2002:map", d_workflow)
 
