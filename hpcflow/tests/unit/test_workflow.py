@@ -119,6 +119,69 @@ def workflow_w1(null_config, tmp_path, schema_s3, param_p1):
     return hf.Workflow.from_template(wkt, path=tmp_path)
 
 
+@pytest.fixture
+def wkt_yml():
+    return dedent(
+        """
+        name: simple_workflow
+        tasks:
+        - schemas: [dummy_task_1]
+          element_sets:
+          - inputs:
+              p2: 201
+              p5: 501
+            sequences:
+            - path: inputs.p1
+              values: [101, 102]
+              nesting_order: 0
+            resources:
+              any:
+                num_cores: 8
+    """
+    )
+
+
+@pytest.fixture
+def wkt_json():
+    return dedent(
+        """
+            {
+                "name": "simple_workflow",
+                "tasks": [
+                    {
+                        "schemas": [
+                            "dummy_task_1"
+                        ],
+                        "element_sets": [
+                            {
+                                "inputs": {
+                                    "p2": 201,
+                                    "p5": 501
+                                },
+                                "sequences": [
+                                    {
+                                        "path": "inputs.p1",
+                                        "values": [
+                                            101,
+                                            102
+                                        ],
+                                        "nesting_order": 0
+                                    }
+                                ],
+                                "resources": {
+                                    "any": {
+                                        "num_cores": 8
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+    """
+    )
+
+
 def test_make_empty_workflow(empty_workflow):
     assert empty_workflow.path is not None
 
@@ -233,7 +296,32 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
     assert wkt_1 == wkt_2
 
 
-def test_WorkflowTemplate_to_YAML_round_trip(null_config):
+def test_WorkflowTemplate_to_YAML_string_format(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_string = wkt.to_yaml_string()
+    assert wkt_yml == "\n" + yaml_string
+
+
+def test_WorkflowTemplate_to_YAML_string_functional(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_string = wkt.to_yaml_string()
+    wkt_2 = hf.WorkflowTemplate.from_YAML_string(yaml_string)
+    assert wkt == wkt_2
+
+
+def test_WorkflowTemplate_to_YAML_file_functional(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_file_path = "to_yaml_test.yml"
+    wkt.to_yaml_file(yaml_file_path)
+    saved_yaml = ""
+    with open(yaml_file_path, "r") as output_file:
+        saved_yaml = output_file.read()
+    os.remove(yaml_file_path)
+    wkt_3 = hf.WorkflowTemplate.from_YAML_string(saved_yaml)
+    assert wkt == wkt_3
+
+
+def test_WorkflowTemplate_to_YAML_complex(null_config):
     wkt_yml_name = dedent(
         """
     name: test_wk
@@ -408,3 +496,28 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
     """
     )
     hf.WorkflowTemplate.from_JSON_string(wkt_json)
+
+
+def test_WorkflowTemplate_to_JSON_string_format(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_string = wkt.to_json_string()
+    assert wkt_json == "\n" + json_string + "\n"
+
+
+def test_WorkflowTemplate_to_JSON_string_functional(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_string = wkt.to_json_string()
+    wkt_2 = hf.WorkflowTemplate.from_JSON_string(json_string)
+    assert wkt == wkt_2
+
+
+def test_WorkflowTemplate_to_JSON_file_functional(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_file_path = "to_json_test.json"
+    wkt.to_json_file(json_file_path)
+    saved_json = ""
+    with open(json_file_path, "r") as output_file:
+        saved_json = output_file.read()
+    os.remove(json_file_path)
+    wkt_3 = hf.WorkflowTemplate.from_YAML_string(saved_json)
+    assert wkt == wkt_3

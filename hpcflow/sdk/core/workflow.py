@@ -29,6 +29,8 @@ from .utils import (
     replace_items,
 )
 from ruamel.yaml import YAML
+from io import StringIO
+from json import dumps
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
@@ -185,6 +187,8 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     def to_input_dict(cls, data):
+        """Called by to_yaml and to_json.
+        Returns a python dict with only the necessary elements to save the template."""
         d_workflow = {"name": data.name}
 
         # Task_Schemas
@@ -264,6 +268,7 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     def to_yaml(cls, dumper, data):
+        """Called by to_yaml_string."""
         d_workflow = cls.to_input_dict(data)
 
         for i, task in enumerate(d_workflow["tasks"]):
@@ -285,10 +290,25 @@ class WorkflowTemplate(JSONLike):
 
         return dumper.represent_mapping("tag:yaml.org,2002:map", d_workflow)
 
+    def to_yaml_string(self):
+        """Get templeate as a formatted YAML string."""
+        wt_yaml = YAML()
+        yaml_string = StringIO()
+        wt_yaml.register_class(type(self))
+        wt_yaml.dump(self, yaml_string)
+        return yaml_string.getvalue()
+
     def to_yaml_file(self, yaml_file_path):
+        """Save to a YAML file.
+
+        Parameters
+        ----------
+        string
+            The path to the yaml file in which the template will be saved.
+
+        """
         if not any(x in yaml_file_path for x in [".yml", ".yaml"]):
             yaml_file_path = yaml_file_path + ".yml"
-
         wt_yaml = YAML()
         wt_yaml.register_class(type(self))
         with open(yaml_file_path, "w") as output_file:
@@ -317,6 +337,26 @@ class WorkflowTemplate(JSONLike):
 
         """
         return cls._from_data(read_JSON_file(path))
+
+    def to_json_string(self):
+        """Get templeate as a formatted JSON string."""
+        d_workflow = self.to_input_dict(self)
+        json_string = dumps(d_workflow, indent=4)
+        return json_string
+
+    def to_json_file(self, json_file_path):
+        """Save to a JSON file.
+
+        Parameters
+        ----------
+        string
+            The path to the json file in which the template will be saved.
+
+        """
+        if not ".json" in json_file_path:
+            json_file_path = json_file_path + ".json"
+        with open(json_file_path, "w") as output_file:
+            output_file.write(self.to_json_string())
 
     @classmethod
     def from_file(
