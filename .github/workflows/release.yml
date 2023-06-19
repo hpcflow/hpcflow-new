@@ -437,11 +437,11 @@ jobs:
             out_yaml += exe_name + ': ' + url + '\n'
           print(out_yaml)
           ")
-          # escape new lines:
-          binaryYaml="${binaryYaml//'%'/'%25'}"
-          binaryYaml="${binaryYaml//$'\n'/'%0A'}"
-          binaryYaml="${binaryYaml//$'\r'/'%0D'}"
-          echo "binary_download_links=$binaryYaml" >> $GITHUB_OUTPUT
+          # Save multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "binary_download_links<<$EOF" >> $GITHUB_OUTPUT
+          $binaryYaml >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Publish (to https://upload.pypi.org/legacy/)
         run: |
