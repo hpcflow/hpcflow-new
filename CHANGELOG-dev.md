@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a50"></a>
+## [v0.2.0a50](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a49...v0.2.0a50) - 2023.06.19
+
+### 🐛 Bug Fixes
+
+* Deprecation warnings - Multiline outputs
+* multiline output with GITHUB_OUTPUT method
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a49"></a>
 ## [v0.2.0a49](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a48...v0.2.0a49) - 2023.06.06
 
