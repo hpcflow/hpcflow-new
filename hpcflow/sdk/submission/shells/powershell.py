@@ -1,6 +1,7 @@
 import subprocess
 from textwrap import dedent, indent
 from typing import Dict, Optional
+from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
 
@@ -21,6 +22,7 @@ class WindowsPowerShell(Shell):
         function {workflow_app_alias} {{
             & {{
         {env_setup}{app_invoc} `
+                    --with-config log_file_path "$pwd/{app_package_name}.log" `
                     --config-dir "{config_dir}" `
                     --config-invocation-key "{config_invoc_key}" `
                     $args
@@ -40,6 +42,16 @@ class WindowsPowerShell(Shell):
             return $path
         }}
 
+        function StartJobHere($block) {{
+            $jobInitBlock = [scriptblock]::Create(@"
+                Function wkflow_app {{ $function:wkflow_app }}
+                Function get_nth_line {{ $function:get_nth_line }}
+                Function JoinMultiPath {{ $function:JoinMultiPath }}
+                Set-Location '$pwd'
+        "@)
+            Start-Job -InitializationScript $jobInitBlock -Script $block
+        }}
+
         $WK_PATH = $(Get-Location)
         $SUB_IDX = {sub_idx}
         $JS_IDX = {js_idx}
@@ -56,13 +68,13 @@ class WindowsPowerShell(Shell):
     )
     JS_MAIN = dedent(
         """\
-        $elem_need_EARs = get_nth_line $EAR_ID_FILE $JS_elem_idx
+        $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
         $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
 
         for ($JS_act_idx = 0; $JS_act_idx -lt {num_actions}; $JS_act_idx += 1) {{
 
-            $need_EAR = ($elem_need_EARs -split "{EAR_files_delimiter}")[$JS_act_idx]
-            if ($need_EAR -eq 0) {{
+            $EAR_ID = ($elem_EAR_IDs -split "{EAR_files_delimiter}")[$JS_act_idx]
+            if ($EAR_ID -eq -1) {{
                 continue
             }}
 
@@ -70,11 +82,20 @@ class WindowsPowerShell(Shell):
             $run_dir_abs = "$WK_PATH\\$run_dir"
             Set-Location $run_dir_abs
 
-            {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+            $skip = {workflow_app_alias} internal workflow $WK_PATH get-ear-skipped $EAR_ID
+            if ($skip -eq "1") {{
+                continue
+            }}
+
+            {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID
+            {workflow_app_alias} internal workflow $WK_PATH set-ear-start $EAR_ID
 
             . (Join-Path $run_dir_abs "{commands_file_name}")
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+            
+            $exit_code = $LASTEXITCODE
+            $global:LASTEXITCODE = $null
+
+            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $EAR_ID $exit_code
 
         }}
     """
@@ -125,24 +146,74 @@ class WindowsPowerShell(Shell):
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
 
-    def format_save_parameter(self, workflow_app_alias, param_name, shell_var_name):
+    def format_save_parameter(
+        self, workflow_app_alias, param_name, shell_var_name, EAR_ID
+    ):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH save-parameter {param_name} ${shell_var_name}"
-            f" $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+            f" {EAR_ID}"
             f"\n"
         )
 
-    def wrap_in_subshell(self, commands: str) -> str:
+    def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a child scope.
 
-        This assumes commands ends in a newline.
+        This assumes `commands` ends in a newline.
 
         """
         commands = indent(commands, self.JS_INDENT)
-        return dedent(
-            """\
-            & {{
-            {commands}}}
-        """
-        ).format(commands=commands)
+        if abortable:
+            # run commands as a background job, and poll a file to check for abort
+            # requests:
+            return dedent(
+                """\
+                $job = StartJobHere {{
+                    $WK_PATH = $using:WK_PATH
+                    $SUB_IDX = $using:SUB_IDX
+                    $JS_IDX = $using:JS_IDX
+                    $EAR_ID = $using:EAR_ID
+
+                {commands}
+                    if ($LASTEXITCODE -ne 0) {{
+                        throw
+                    }}
+                }}
+
+                $is_abort = $null
+                while ($true) {{
+                    $abort_file = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX abort_EARs.txt
+                    $is_abort = get_nth_line $abort_file $EAR_ID
+                    if ($job.State -ne "Running") {{
+                        break
+                    }}
+                    elseif ($is_abort -eq "1") {{
+                        Stop-Job -Job $job
+                        Wait-Job -Job $job
+                        break
+                    }}
+                    else {{
+                        Start-Sleep 1 # TODO: TEMP: increase for production
+                    }}
+                }}
+                $result = Receive-Job -job $job
+                Write-Host $result
+                if ($job.state -eq "Completed") {{
+                    exit 0
+                }}
+                elseif ($is_abort -eq "1") {{
+                    exit {abort_exit_code}
+                }}
+                else {{
+                    exit 1
+                }}
+            """
+            ).format(commands=commands, abort_exit_code=ABORT_EXIT_CODE)
+        else:
+            # run commands in "foreground":
+            return dedent(
+                """\
+                & {{
+                {commands}}}
+            """
+            ).format(commands=commands)

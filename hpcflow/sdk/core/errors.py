@@ -1,3 +1,6 @@
+from typing import Iterable
+
+
 class InputValueDuplicateSequenceAddress(ValueError):
     pass
 
@@ -188,3 +191,57 @@ class UnsupportedShellError(ValueError):
     """We don't support this shell on this OS."""
 
     pass
+
+
+class _MissingStoreItemError(ValueError):
+    def __init__(self, id_lst: Iterable[int], item_type: str) -> None:
+        message = (
+            f"Store {item_type}s with the following IDs do not all exist: {id_lst!r}"
+        )
+        super().__init__(message)
+        self.id_lst = id_lst
+
+
+class MissingStoreTaskError(_MissingStoreItemError):
+    """Some task IDs do not exist."""
+
+    _item_type = "task"
+
+    def __init__(self, id_lst: Iterable[int]) -> None:
+        super().__init__(id_lst, self._item_type)
+
+
+class MissingStoreElementError(_MissingStoreItemError):
+    """Some element IDs do not exist."""
+
+    _item_type = "element"
+
+    def __init__(self, id_lst: Iterable[int]) -> None:
+        super().__init__(id_lst, self._item_type)
+
+
+class MissingStoreElementIterationError(_MissingStoreItemError):
+    """Some element iteration IDs do not exist."""
+
+    _item_type = "element iteration"
+
+    def __init__(self, id_lst: Iterable[int]) -> None:
+        super().__init__(id_lst, self._item_type)
+
+
+class MissingStoreEARError(_MissingStoreItemError):
+    """Some EAR IDs do not exist."""
+
+    _item_type = "EAR"
+
+    def __init__(self, id_lst: Iterable[int]) -> None:
+        super().__init__(id_lst, self._item_type)
+
+
+class MissingParameterData(_MissingStoreItemError):
+    """Some parameter IDs do not exist"""
+
+    _item_type = "parameter"
+
+    def __init__(self, id_lst: Iterable[int]) -> None:
+        super().__init__(id_lst, self._item_type)

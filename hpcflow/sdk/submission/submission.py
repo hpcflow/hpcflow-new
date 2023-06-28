@@ -47,31 +47,22 @@ class Submission(JSONLike):
         self,
         index: int,
         jobscripts: List[app.Jobscript],
-        workflow: app.Workflow,
+        workflow: Optional[app.Workflow] = None,
         submission_attempts: Optional[List] = None,
         JS_parallelism: Optional[bool] = None,
     ):
         self._index = index
         self._jobscripts = jobscripts
-        self._workflow = workflow
         self._submission_attempts = submission_attempts or []
         self._JS_parallelism = JS_parallelism
+
+        if workflow:
+            self.workflow = workflow
 
         self._set_parent_refs()
 
         for js_idx, js in enumerate(self.jobscripts):
             js._index = js_idx
-
-        # if JS_parallelism explicitly requested but store doesn't support, raise:
-        supports_JS_para = self.workflow._store.features.jobscript_parallelism
-        if self.JS_parallelism:
-            if not supports_JS_para:
-                raise ValueError(
-                    f"Store type {self.workflow._store!r} does not support jobscript "
-                    f"parallelism."
-                )
-        elif self.JS_parallelism is None:
-            self._JS_parallelism = supports_JS_para
 
     def to_dict(self):
         dct = super().to_dict()
@@ -99,6 +90,20 @@ class Submission(JSONLike):
     @property
     def workflow(self) -> List:
         return self._workflow
+
+    @workflow.setter
+    def workflow(self, wk):
+        self._workflow = wk
+        # if JS_parallelism explicitly requested but store doesn't support, raise:
+        supports_JS_para = self.workflow._store._features.jobscript_parallelism
+        if self.JS_parallelism:
+            if not supports_JS_para:
+                raise ValueError(
+                    f"Store type {self.workflow._store!r} does not support jobscript "
+                    f"parallelism."
+                )
+        elif self.JS_parallelism is None:
+            self._JS_parallelism = supports_JS_para
 
     @property
     def jobscript_indices(self) -> Tuple[int]:
@@ -136,6 +141,23 @@ class Submission(JSONLike):
     def path(self):
         return self.workflow.submissions_path / str(self.index)
 
+    @property
+    def all_EAR_IDs(self):
+        return [i for js in self.jobscripts for i in js.EAR_ID.flatten()]
+
+    @property
+    def abort_EARs_file_name(self):
+        return f"abort_EARs.txt"
+
+    @property
+    def abort_EARs_file_path(self):
+        return self.path / self.abort_EARs_file_name
+
+    def _write_abort_EARs_file(self):
+        with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
+            # write a single line for each EAR currently in the workflow:
+            fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
+
     def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
         """Get a unique schedulers and which jobscripts they correspond to."""
         js_idx = []
@@ -168,23 +190,23 @@ class Submission(JSONLike):
 
         return shell_js_idx
 
-    def prepare_EAR_submission_idx_update(self) -> List[Tuple[int, int, int, int]]:
-        """For all EARs in this submission (across all jobscripts), return a tuple of indices
-        that can be passed to `Workflow.set_EAR_submission_index`."""
-        indices = []
-        for js in self.jobscripts:
-            for ear_idx_i, ear_idx_j in js.EARs.items():
-                # task insert ID, iteration idx, action idx, run idx:
-                indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
-        return indices
+    # def prepare_EAR_submission_idx_update(self) -> List[Tuple[int, int, int, int]]:
+    #     """For all EARs in this submission (across all jobscripts), return a tuple of indices
+    #     that can be passed to `Workflow.set_EAR_submission_index`."""
+    #     indices = []
+    #     for js in self.jobscripts:
+    #         for ear_idx_i, ear_idx_j in js.EARs.items():
+    #             # task insert ID, iteration idx, action idx, run idx:
+    #             indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
+    #     return indices
 
-    def get_EAR_run_dirs(self) -> Dict[Tuple(int, int, int), Path]:
-        indices = []
-        for js in self.jobscripts:
-            for ear_idx_i, ear_idx_j in js.EARs.items():
-                # task insert ID, iteration idx, action idx, run idx:
-                indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
-        return indices
+    # def get_EAR_run_dirs(self) -> Dict[Tuple(int, int, int), Path]:
+    #     indices = []
+    #     for js in self.jobscripts:
+    #         for ear_idx_i, ear_idx_j in js.EARs.items():
+    #             # task insert ID, iteration idx, action idx, run idx:
+    #             indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
+    #     return indices
 
     def _raise_failure(self, submitted_js_idx, exceptions):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
@@ -217,13 +239,12 @@ class Submission(JSONLike):
 
     def _append_submission_attempt(self, submitted_js_idx: List[int]):
         self._submission_attempts.append(submitted_js_idx)
-        self.workflow._store.append_submission_attempt(
+        self.workflow._store.add_submission_attempt(
             sub_idx=self.index, submitted_js_idx=submitted_js_idx
         )
 
     def submit(
         self,
-        task_artifacts_path,
         ignore_errors=False,
         print_stdout=False,
     ) -> List[int]:
@@ -248,8 +269,6 @@ class Submission(JSONLike):
                         js_vers_info[js_idx] = {}
                     js_vers_info[js_idx].update(vers_info)
 
-                    # self.jobscripts[js_idx]._set_version_info(vers_info)
-
         for js_indices, shell in self.get_unique_shells().items():
             try:
                 vers_info = shell.get_version_info()
@@ -267,7 +286,11 @@ class Submission(JSONLike):
         for js_idx, vers_info_i in js_vers_info.items():
             self.jobscripts[js_idx]._set_version_info(vers_info_i)
 
+        # TODO: a submission should only be "submitted" once shouldn't it?
         self.path.mkdir(exist_ok=True)
+        if not self.abort_EARs_file_path.is_file():
+            self._write_abort_EARs_file()
+
         scheduler_refs = {}  # map jobscript `index` to scheduler job IDs
         submitted_js_idx = []
         errs = []
@@ -285,10 +308,11 @@ class Submission(JSONLike):
 
             try:
                 scheduler_refs[js.index] = js.submit(
-                    task_artifacts_path,
                     scheduler_refs,
                     print_stdout=print_stdout,
                 )
+                # note: currently for direct exec, this is not reached, so submission_status
+                # stays as pending.
                 submitted_js_idx.append(js.index)
 
             except JobscriptSubmissionFailure as err:

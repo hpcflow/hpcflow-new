@@ -124,6 +124,7 @@ class InputFileGenerator(JSONLike):
     inputs: List[app.Parameter]
     script: str = None
     environment: app.Environment = None
+    abortable: Optional[bool] = False
 
     def get_action_rule(self):
         """Get the rule that allows testing if this input file generator must be
@@ -150,14 +151,10 @@ class InputFileGenerator(JSONLike):
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
-                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk_path, EAR_ID = sys.argv[1:]
+                EAR_ID = int(EAR_ID)
                 wk = app.Workflow(wk_path)
-                _, EAR = wk._from_internal_get_EAR(
-                    submission_idx=int(sub_idx),
-                    jobscript_idx=int(js_idx),
-                    JS_element_idx=int(js_elem_idx),
-                    JS_action_idx=int(js_act_idx),
-                )
+                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
                 {script_main_func}(path=Path({file_path!r}), **EAR.get_IFG_input_values())
         """
         )
@@ -210,6 +207,16 @@ class OutputFileParser(JSONLike):
     environment: Environment = None
     inputs: List[str] = None
     options: Dict = None
+    abortable: Optional[bool] = False
+    save_files: Union[List[str], bool] = True
+
+    def __post_init__(self):
+        if not self.save_files:
+            # save no files
+            self.save_files = []
+        elif self.save_files is True:
+            # save all files
+            self.save_files = [i.label for i in self.output_files]
 
     def compose_source(self) -> str:
         """Generate the file contents of this output file parser source."""
@@ -230,23 +237,15 @@ class OutputFileParser(JSONLike):
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
-                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk_path, EAR_ID = sys.argv[1:]
+                EAR_ID = int(EAR_ID)
                 wk = app.Workflow(wk_path)
-                _, EAR = wk._from_internal_get_EAR(
-                    submission_idx=int(sub_idx),
-                    jobscript_idx=int(js_idx),
-                    JS_element_idx=int(js_elem_idx),
-                    JS_action_idx=int(js_act_idx),
+                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                value = {script_main_func}(
+                    **EAR.get_OFP_output_files(),
+                    **EAR.get_OFP_inputs(),
                 )
-                value = {script_main_func}(**EAR.get_OFP_output_files())
-                wk.save_parameter(
-                    name="{param_name}",
-                    value=value,
-                    submission_idx=int(sub_idx),
-                    jobscript_idx=int(js_idx),
-                    JS_element_idx=int(js_elem_idx),
-                    JS_action_idx=int(js_act_idx),
-                )
+                wk.save_parameter(name="{param_name}", value=value, EAR_ID=EAR_ID)
 
         """
         )
@@ -366,10 +365,18 @@ class _FileContentsSpecifier(JSONLike):
                 )
             # TODO: log if already persistent.
         else:
-            data_ref = workflow._add_parameter_data(
-                data=self._get_members(ensure_contents=True, use_file_label=True),
+            data_ref = workflow._add_file(
+                store_contents=self.store_contents,
+                is_input=True,
                 source=source,
+                path=self.path,
+                contents=self.contents,
+                filename=self.file.name.name,
             )
+            # data_ref = workflow._add_parameter_data(
+            #     data=self._get_members(ensure_contents=True, use_file_label=True),
+            #     source=source,
+            # )
             is_new = True
             self._value_group_idx = data_ref
             self._workflow = workflow
@@ -381,6 +388,7 @@ class _FileContentsSpecifier(JSONLike):
         return (self.normalised_path, [data_ref], is_new)
 
     def _get_value(self, value_name=None):
+        # TODO: fix
         if self._value_group_idx is not None:
             grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
             val = zarr_decode(grp)

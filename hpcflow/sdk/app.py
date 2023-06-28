@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import enum
-from functools import partial, wraps
+from functools import wraps
 from importlib import resources, import_module
-import importlib
 from logging import Logger
 import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 import warnings
+from reretry import retry
 
 from setuptools import find_packages
 
@@ -18,9 +18,10 @@ from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
 from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config
-from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.log import AppLog
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
 from hpcflow.sdk.submission.shells import get_shell
@@ -94,13 +95,6 @@ class BaseApp(metaclass=Singleton):
         `module` argument and `hf` is the `docs_import_conv` argument.
 
     """
-
-    _template_component_types = (
-        "parameters",
-        "command_files",
-        "environments",
-        "task_schemas",
-    )
 
     def __init__(
         self,
@@ -281,7 +275,7 @@ class BaseApp(metaclass=Singleton):
             f"Loading built-in template component data for package: {package!r}."
         )
         components = {}
-        for comp_type in cls._template_component_types:
+        for comp_type in TEMPLATE_COMP_TYPES:
             resource = f"{comp_type}.yaml"
             try:
                 fh = resources.files(package).joinpath(resource).open("rt")
@@ -337,6 +331,10 @@ class BaseApp(metaclass=Singleton):
         return self.logger.getChild("config")
 
     @property
+    def persistence_logger(self) -> Logger:
+        return self.logger.getChild("persistence")
+
+    @property
     def runtime_info_logger(self) -> Logger:
         return self.logger.getChild("runtime")
 
@@ -353,6 +351,17 @@ class BaseApp(metaclass=Singleton):
         if not self.is_config_loaded:
             self.load_config()
         return self._config
+
+    def perm_error_retry(self):
+        """Return a decorator for retrying functions on permission and OS errors that
+        might be associated with cloud-storage desktop sync. engine operations."""
+        return retry(
+            (PermissionError, OSError),
+            tries=10,
+            delay=1,
+            backoff=2,
+            logger=self.persistence_logger,
+        )
 
     def _load_config(self, config_dir, config_invocation_key, **overrides) -> None:
         self.logger.info("Loading configuration.")

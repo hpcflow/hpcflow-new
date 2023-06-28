@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
 from typing import Dict, List, Optional, Union
+from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
@@ -23,6 +24,7 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
+            --with-config log_file_path "`pwd`/{app_package_name}.log"\\
             --config-dir "{config_dir}"\\
             --config-invocation-key "{config_invoc_key}"\\
             "$@"
@@ -54,24 +56,33 @@ class Bash(Shell):
     )
     JS_MAIN = dedent(
         """\
-        elem_need_EARs=`sed "$((${{JS_elem_idx}} + 1))q;d" $EAR_ID_FILE`
+        elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" $EAR_ID_FILE`
         elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" $ELEM_RUN_DIR_FILE`
 
         for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
   
-          need_EAR="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_need_EARs)"
-          if [ "$need_act" = "0" ]; then
+          EAR_ID="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_EAR_IDs)"
+          if [ "$EAR_ID" = "-1" ]; then
               continue
           fi
   
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd $WK_PATH/$run_dir
+
+          skip=`{workflow_app_alias} internal workflow $WK_PATH_ARG get-ear-skipped $EAR_ID`
+          if [ "$skip" = "1" ]; then
+              continue
+          fi
   
-          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $EAR_ID
+
           . {commands_file_name}
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx
+          
+          exit_code=$?
+
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $EAR_ID $exit_code
 
         done
     """
@@ -138,36 +149,71 @@ class Bash(Shell):
     def format_stream_assignment(self, shell_var_name, command):
         return f"{shell_var_name}=`{command}`"
 
-    def format_save_parameter(self, workflow_app_alias, param_name, shell_var_name):
+    def format_save_parameter(
+        self, workflow_app_alias, param_name, shell_var_name, EAR_ID
+    ):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+            f" {EAR_ID}"
             f"\n"
         )
 
-    def wrap_in_subshell(self, commands: str) -> str:
+    def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a subshell.
 
         This assumes commands ends in a newline.
 
         """
         commands = indent(commands, self.JS_INDENT)
-        return dedent(
-            """\
-            (
-            {commands})
-        """
-        ).format(commands=commands)
+        if abortable:
+            # run commands in the background, and poll a file to check for abort requests:
+            return dedent(
+                """\
+                (
+                {commands}) &
+
+                pid=$!
+                while true
+                do
+                    abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
+                    is_abort=`sed "$(($EAR_ID + 1))q;d" $abort_file`
+                    ps -p $pid > /dev/null
+                    if [ $? == 1 ]; then
+                        wait $pid
+                        exitcode=$?
+                        break
+                    elif [ "$is_abort" = "1" ]; then
+                        kill $pid
+                        wait $pid 2>/dev/null
+                        exitcode={abort_exit_code}
+                        break
+                    else
+                        sleep 1 # TODO: TEMP: increase for production
+                    fi
+                done
+                return $exitcode
+                """
+            ).format(commands=commands, abort_exit_code=ABORT_EXIT_CODE)
+        else:
+            # run commands in "foreground":
+            return dedent(
+                """\
+                (
+                {commands})
+            """
+            ).format(commands=commands)
 
 
 class WSLBash(Bash):
-
     DEFAULT_WSL_EXE = "wsl"
 
     JS_HEADER = Bash.JS_HEADER.replace(
         "WK_PATH_ARG=$WK_PATH",
         "WK_PATH_ARG=`wslpath -m $WK_PATH`",
+    ).replace(
+        '--with-config log_file_path "`pwd`',
+        '--with-config log_file_path "$(wslpath -m `pwd`)',
     )
 
     def __init__(

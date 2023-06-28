@@ -330,14 +330,12 @@ class WorkflowLoop:
                     f"`parent_loop_indices`."
                 )
         all_new_data_idx = {}  # keys are (task.insert_ID and element.index)
-        added_iters = 0
 
         for task in self.task_objects:
-            new_iters = []
-            elem_iters_idx = {}
+            for elem_idx in range(task.num_elements):
+                # element needs to take into account changes made in this code
+                element = task.elements[elem_idx]
 
-            for element in task.elements:
-                elem_iters_idx[element.index] = []
                 new_data_idx = {}
 
                 # copy resources from zeroth iteration:
@@ -406,6 +404,7 @@ class WorkflowLoop:
 
                     else:
                         inp_key = f"inputs.{inp.typ}"
+
                         orig_inp_src = element.input_sources[inp_key]
                         inp_dat_idx = None
 
@@ -429,8 +428,7 @@ class WorkflowLoop:
                                     )
                                     if (
                                         len(src_elems_i) == 1
-                                        and src_elems_i[0].element_ID
-                                        == element.element_ID
+                                        and src_elems_i[0].id_ == element.id_
                                     ):
                                         inp_dat_idx = prev_dat_idx[
                                             f"{orig_inp_src.task_source_type.name.lower()}s.{inp.typ}"
@@ -448,41 +446,27 @@ class WorkflowLoop:
                     path_i = f"outputs.{out.typ}"
                     p_src = {
                         "type": "EAR_output",
-                        "task_insert_ID": task.insert_ID,
-                        "element_idx": element.index,
-                        "run_idx": 0,
+                        # "task_insert_ID": task.insert_ID,
+                        # "element_idx": element.index,
+                        # "run_idx": 0,
                     }
                     new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
 
                 schema_params = set(
                     i for i in new_data_idx.keys() if len(i.split(".")) == 2
                 )
-                new_iter = {
-                    "global_idx": self.workflow.num_element_iterations + added_iters,
-                    "data_idx": new_data_idx,
-                    "EARs_initialised": False,
-                    "actions": {},
-                    "schema_parameters": list(schema_params),
-                    "loop_idx": {**parent_loop_indices, self.name: cur_loop_idx + 1},
-                }
                 all_new_data_idx[(task.insert_ID, element.index)] = new_data_idx
-                added_iters += 1
+                iter_ID_i = self.workflow._store.add_element_iteration(
+                    element_ID=element.id_,
+                    data_idx=new_data_idx,
+                    schema_parameters=list(schema_params),
+                    loop_idx={**parent_loop_indices, self.name: cur_loop_idx + 1},
+                )
 
-                new_iters.append(new_iter)
-                elem_iters_idx[element.index].append(task.num_element_iterations)
-                task._pending_num_element_iterations += 1
-
-            self.workflow._store.add_element_iterations(
-                task_idx=task.index,
-                task_insert_ID=task.insert_ID,
-                element_iterations=new_iters,
-                element_iters_idx=elem_iters_idx,
-            )
-
-            task.initialise_EARs()
+                task.initialise_EARs()
 
         self._pending_num_added_iterations += 1
-        self.workflow._store.update_loop_num_added_iters(
-            loop_idx=self.index,
-            num_added_iters=self.num_added_iterations,
+        self.workflow._store.update_loop_num_iters(
+            index=self.index,
+            num_iters=self.num_added_iterations,
         )

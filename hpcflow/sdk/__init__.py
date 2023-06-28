@@ -98,7 +98,7 @@ sdk_funcs = {
 
 sdk_objs = {**sdk_classes, **sdk_funcs}
 
-_SDK_CONSOLE_LOG_LEVEL = os.environ.get("HPCFLOW_SDK_CONSOLE_LOG_LEVEL", "WARNING")
+_SDK_CONSOLE_LOG_LEVEL = os.environ.get("HPCFLOW_SDK_CONSOLE_LOG_LEVEL", "ERROR")
 
 
 def get_SDK_logger(name=None):

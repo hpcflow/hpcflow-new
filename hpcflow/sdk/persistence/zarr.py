@@ -1,34 +1,39 @@
 from __future__ import annotations
 from contextlib import contextmanager
+
 import copy
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-
-import shutil
-import time
-from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import warnings
-import numpy as np
-import zarr
-from numcodecs import MsgPack
-from hpcflow.sdk import app
 
-from hpcflow.sdk.core.errors import WorkflowNotFoundError
-from hpcflow.sdk.core.utils import (
-    bisect_slice,
-    ensure_in,
-    get_in_container,
-    get_md5_hash,
-    get_relative_path,
-    set_in_container,
+from fsspec.implementations.zip import ZipFileSystem
+import numpy as np
+from hpcflow.sdk.core.errors import (
+    MissingParameterData,
+    MissingStoreEARError,
+    MissingStoreElementError,
+    MissingStoreElementIterationError,
+    MissingStoreTaskError,
 )
+from hpcflow.sdk.core.utils import ensure_in, get_relative_path, set_in_container
 from hpcflow.sdk.persistence.base import (
-    PersistentStore,
     PersistentStoreFeatures,
-    remove_dir,
-    rename_dir,
+    PersistentStore,
+    StoreEAR,
+    StoreElement,
+    StoreElementIter,
+    StoreParameter,
+    StoreTask,
 )
-from hpcflow.sdk.typing import PathLike
+from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
+from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
+from hpcflow.sdk.persistence.pending import CommitResourceMap
+
+from numcodecs import MsgPack, VLenArray
+
+import zarr
 
 
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
@@ -89,95 +94,316 @@ def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
     return obj
 
 
-class ZarrPersistentStore(PersistentStore):
-    """An efficient storage backend using Zarr that supports parameter-setting from
-    multiple processes."""
+def append_items_to_ragged_array(arr, items):
+    """Append an array to a Zarr ragged array.
 
+    I think `arr.append([item])` should work, but does not for some reason, so we do it
+    here by resizing and assignment."""
+    num = len(items)
+    arr.resize((len(arr) + num))
+    for idx, i in enumerate(items):
+        arr[-(num - idx)] = i
+
+
+@dataclass
+class ZarrStoreTask(StoreTask):
+    def encode(self) -> Tuple[int, np.ndarray, Dict]:
+        """Prepare store task data for the persistent store."""
+        wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
+        task = {"id_": self.id_, **self.task_template}
+        return self.index, wk_task, task
+
+    @classmethod
+    def decode(cls, task_dat: Dict) -> ZarrStoreTask:
+        """Initialise a `StoreTask` from persistent task data"""
+        task_dat["element_IDs"] = task_dat["element_IDs"].tolist()
+        return super().decode(task_dat)
+
+
+@dataclass
+class ZarrStoreElement(StoreElement):
+    def encode(self, attrs: Dict) -> List:
+        """Prepare store elements data for the persistent store.
+
+        This method mutates `attrs`.
+        """
+        elem_enc = [
+            self.id_,
+            self.index,
+            self.es_idx,
+            [[ensure_in(k, attrs["seq_idx"]), v] for k, v in self.seq_idx.items()],
+            [[ensure_in(k, attrs["src_idx"]), v] for k, v in self.src_idx.items()],
+            self.task_ID,
+            self.iteration_IDs,
+        ]
+        return elem_enc
+
+    @classmethod
+    def decode(cls, elem_dat: List, attrs: Dict) -> ZarrStoreElement:
+        """Initialise a `StoreElement` from persistent element data"""
+        obj_dat = {
+            "id_": elem_dat[0],
+            "index": elem_dat[1],
+            "es_idx": elem_dat[2],
+            "seq_idx": {attrs["seq_idx"][k]: v for (k, v) in elem_dat[3]},
+            "src_idx": {attrs["src_idx"][k]: v for (k, v) in elem_dat[4]},
+            "task_ID": elem_dat[5],
+            "iteration_IDs": elem_dat[6],
+        }
+        return cls(is_pending=False, **obj_dat)
+
+
+@dataclass
+class ZarrStoreElementIter(StoreElementIter):
+    def encode(self, attrs: Dict) -> List:
+        """Prepare store element iteration data for the persistent store.
+
+        This method mutates `attrs`.
+        """
+        iter_enc = [
+            self.id_,
+            self.element_ID,
+            [[k, v] for k, v in self.EAR_IDs.items()] if self.EAR_IDs else None,
+            [
+                [ensure_in(dk, attrs["parameter_paths"]), dv]
+                for dk, dv in self.data_idx.items()
+            ],
+            [ensure_in(i, attrs["schema_parameters"]) for i in self.schema_parameters],
+            [[ensure_in(dk, attrs["loops"]), dv] for dk, dv in self.loop_idx.items()],
+        ]
+        return iter_enc
+
+    @classmethod
+    def decode(cls, iter_dat: List, attrs: Dict) -> StoreElementIter:
+        """Initialise a `StoreElementIter` from persistent element iteration data"""
+        obj_dat = {
+            "id_": iter_dat[0],
+            "element_ID": iter_dat[1],
+            "EAR_IDs": {i[0]: i[1] for i in iter_dat[2]} if iter_dat[2] else None,
+            "data_idx": {attrs["parameter_paths"][i[0]]: i[1] for i in iter_dat[3]},
+            "schema_parameters": [attrs["schema_parameters"][i] for i in iter_dat[4]],
+            "loop_idx": {i[0]: i[1] for i in iter_dat[5]},
+        }
+        return cls(is_pending=False, **obj_dat)
+
+
+@dataclass
+class ZarrStoreEAR(StoreEAR):
+    def encode(self, attrs: Dict, ts_fmt: str) -> Tuple[List, Tuple[np.datetime64]]:
+        """Prepare store EAR data for the persistent store.
+
+        This method mutates `attrs`.
+        """
+        EAR_enc = [
+            self.id_,
+            self.elem_iter_ID,
+            self.action_idx,
+            [
+                [ensure_in(dk, attrs["parameter_paths"]), dv]
+                for dk, dv in self.data_idx.items()
+            ],
+            self.submission_idx,
+            self.skip,
+            self.success,
+            self._encode_datetime(self.start_time, ts_fmt),
+            self._encode_datetime(self.end_time, ts_fmt),
+            self.snapshot_start,
+            self.snapshot_end,
+            self.exit_code,
+            self.metadata,
+        ]
+        return EAR_enc
+
+    @classmethod
+    def decode(cls, EAR_dat: List, attrs: Dict, ts_fmt: str) -> ZarrStoreEAR:
+        """Initialise a `ZarrStoreEAR` from persistent EAR data"""
+        obj_dat = {
+            "id_": EAR_dat[0],
+            "elem_iter_ID": EAR_dat[1],
+            "action_idx": EAR_dat[2],
+            "data_idx": {attrs["parameter_paths"][i[0]]: i[1] for i in EAR_dat[3]},
+            "submission_idx": EAR_dat[4],
+            "skip": EAR_dat[5],
+            "success": EAR_dat[6],
+            "start_time": cls._decode_datetime(EAR_dat[7], ts_fmt),
+            "end_time": cls._decode_datetime(EAR_dat[8], ts_fmt),
+            "snapshot_start": EAR_dat[9],
+            "snapshot_end": EAR_dat[10],
+            "exit_code": EAR_dat[11],
+            "metadata": EAR_dat[12],
+        }
+        return cls(is_pending=False, **obj_dat)
+
+
+@dataclass
+class ZarrStoreParameter(StoreParameter):
+    _encoders = {  # keys are types
+        np.ndarray: _encode_numpy_array,
+        np.ma.core.MaskedArray: _encode_masked_array,
+    }
+    _decoders = {  # keys are keys in type_lookup
+        "arrays": _decode_numpy_arrays,
+        "masked_arrays": _decode_masked_arrays,
+    }
+
+    def encode(self, root_group: zarr.Group, arr_path: str) -> Dict[str, Any]:
+        return super().encode(root_group=root_group, arr_path=arr_path)
+
+    @classmethod
+    def decode(
+        cls,
+        id_: int,
+        data: Union[None, Dict],
+        source: Dict,
+        arr_group: zarr.Group,
+        path: Optional[List[str]] = None,
+        dataset_copy: bool = False,
+    ) -> Any:
+        return super().decode(
+            id_=id_,
+            data=data,
+            source=source,
+            path=path,
+            arr_group=arr_group,
+            dataset_copy=dataset_copy,
+        )
+
+
+class ZarrPersistentStore(PersistentStore):
     _name = "zarr"
     _features = PersistentStoreFeatures(
+        create=True,
+        edit=True,
         jobscript_parallelism=True,
         EAR_parallelism=True,
         schedulers=True,
         submission=True,
     )
 
-    _param_grp_name = "parameter_data"
-    _elem_grp_name = "element_data"
+    _store_task_cls = ZarrStoreTask
+    _store_elem_cls = ZarrStoreElement
+    _store_iter_cls = ZarrStoreElementIter
+    _store_EAR_cls = ZarrStoreEAR
+    _store_param_cls = ZarrStoreParameter
+
+    _param_grp_name = "parameters"
     _param_base_arr_name = "base"
     _param_sources_arr_name = "sources"
     _param_user_arr_grp_name = "arrays"
     _param_data_arr_grp_name = lambda _, param_idx: f"param_{param_idx}"
-    _task_grp_name = lambda _, insert_ID: f"task_{insert_ID}"
-    _task_elem_arr_name = "elements"
-    _task_elem_iter_arr_name = "element_iters"
-    _task_EAR_times_arr_name = "EAR_times"
+    _task_arr_name = "tasks"
+    _elem_arr_name = "elements"
+    _iter_arr_name = "iters"
+    _EAR_arr_name = "runs"
+    _time_res = "us"  # microseconds; must not be smaller than micro!
 
-    _parameter_encoders = {  # keys are types
-        np.ndarray: _encode_numpy_array,
-        np.ma.core.MaskedArray: _encode_masked_array,
-    }
-    _parameter_decoders = {  # keys are keys in type_lookup
-        "arrays": _decode_numpy_arrays,
-        "masked_arrays": _decode_masked_arrays,
-    }
+    _res_map = CommitResourceMap(commit_template_components=("attrs",))
 
-    def __init__(self, workflow: app.Workflow) -> None:
-        self._metadata = None  # cache used in `cached_load` context manager
-        super().__init__(workflow)
+    def __init__(self, app, workflow, path, fs) -> None:
+        self._zarr_store = None  # assigned on first access to `zarr_store`
+        self._resources = {
+            "attrs": ZarrAttrsStoreResource(
+                app, name="attrs", open_call=self._get_root_group
+            ),
+        }
+        super().__init__(app, workflow, path, fs)
 
-    @classmethod
-    def path_has_store(cls, path):
-        return path.joinpath(".zgroup").is_file()
+    @contextmanager
+    def cached_load(self) -> Iterator[Dict]:
+        """Context manager to cache the root attributes."""
+        with self.using_resource("attrs", "read") as attrs:
+            yield attrs
 
-    @property
-    def store_path(self):
-        return self.workflow_path
+    def remove_replaced_dir(self) -> None:
+        with self.using_resource("attrs", "update") as md:
+            if "replaced_workflow" in md:
+                self.logger.debug("removing temporarily renamed pre-existing workflow.")
+                self.remove_path(md["replaced_workflow"], self.fs)
+                md["replaced_workflow"] = None
 
-    def exists(self) -> bool:
-        try:
-            self._get_root_group()
-        except zarr.errors.PathNotFoundError:
-            return False
-        return True
+    def reinstate_replaced_dir(self) -> None:
+        with self.using_resource("attrs", "read") as md:
+            if "replaced_workflow" in md:
+                self.logger.debug(
+                    "reinstating temporarily renamed pre-existing workflow."
+                )
+                self.rename_path(md["replaced_workflow"], self.path, self.fs)
 
-    @property
-    def has_pending(self) -> bool:
-        """Returns True if there are pending changes that are not yet committed."""
-        return any(bool(v) for k, v in self._pending.items() if k != "element_attrs")
-
-    def _get_pending_dct(self) -> Dict:
-        dct = super()._get_pending_dct()
-        dct["element_attrs"] = {}  # keys are task indices
-        dct["element_iter_attrs"] = {}  # keys are task indices
-        dct["EAR_attrs"] = {}  # keys are task indices
-        dct["parameter_data"] = 0  # keep number of pending data rather than indices
-        return dct
+    @staticmethod
+    def _get_zarr_store(path: str, fs) -> zarr.storage.Store:
+        return zarr.storage.FSStore(url=path, fs=fs)
 
     @classmethod
     def write_empty_workflow(
         cls,
+        app,
         template_js: Dict,
         template_components_js: Dict,
-        workflow_path: Path,
-        replaced_dir: Path,
+        wk_path: str,
+        fs,
+        fs_path: str,
+        replaced_wk: str,
         creation_info: Dict,
     ) -> None:
-        metadata = {
+        attrs = {
+            "fs_path": fs_path,
             "creation_info": creation_info,
             "template": template_js,
             "template_components": template_components_js,
             "num_added_tasks": 0,
+            "tasks": [],
             "loops": [],
             "submissions": [],
         }
-        if replaced_dir:
-            metadata["replaced_dir"] = str(replaced_dir.name)
+        if replaced_wk:
+            attrs["replaced_workflow"] = replaced_wk
 
-        store = zarr.DirectoryStore(workflow_path)
+        store = cls._get_zarr_store(wk_path, fs)
         root = zarr.group(store=store, overwrite=False)
-        root.attrs.update(metadata)
+        root.attrs.update(attrs)
 
-        root.create_group(name=cls._elem_grp_name)
+        md = root.create_group("metadata")
+
+        tasks_arr = md.create_dataset(
+            name=cls._task_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=VLenArray(int),
+        )
+
+        elems_arr = md.create_dataset(
+            name=cls._elem_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1000,
+        )
+        elems_arr.attrs.update({"seq_idx": [], "src_idx": []})
+
+        elem_iters_arr = md.create_dataset(
+            name=cls._iter_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1000,
+        )
+        elem_iters_arr.attrs.update(
+            {
+                "loops": [],
+                "schema_parameters": [],
+                "parameter_paths": [],
+            }
+        )
+
+        EARs_arr = md.create_dataset(
+            name=cls._EAR_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1,  # single-chunk rows for multiprocess writing
+        )
+        EARs_arr.attrs.update({"parameter_paths": []})
+
         parameter_data = root.create_group(name=cls._param_grp_name)
         parameter_data.create_dataset(
             name=cls._param_base_arr_name,
@@ -195,26 +421,288 @@ class ZarrPersistentStore(PersistentStore):
         )
         parameter_data.create_group(name=cls._param_user_arr_grp_name)
 
-    def load_metadata(self):
-        return self._metadata or self._load_metadata()
+    def _append_tasks(self, tasks: List[ZarrStoreTask]):
+        elem_IDs_arr = self._get_tasks_arr(mode="r+")
+        elem_IDs = []
+        with self.using_resource("attrs", "update") as attrs:
+            for i_idx, i in enumerate(tasks):
+                idx, wk_task_i, task_i = i.encode()
+                elem_IDs.append(wk_task_i.pop("element_IDs"))
+                wk_task_i["element_IDs_idx"] = len(elem_IDs_arr) + i_idx
 
-    def _load_metadata(self):
-        return self._get_root_group(mode="r").attrs.asdict()
+                attrs["tasks"].insert(idx, wk_task_i)
+                attrs["template"]["tasks"].insert(idx, task_i)
+                attrs["num_added_tasks"] += 1
 
-    @contextmanager
-    def cached_load(self) -> Iterator[Dict]:
-        """Context manager to cache the root attributes (i.e. metadata)."""
-        if self._metadata:
-            yield
+        # tasks array rows correspond to task IDs, and we assume `tasks` have sequentially
+        # increasing IDs.
+        append_items_to_ragged_array(arr=elem_IDs_arr, items=elem_IDs)
+
+    def _append_loops(self, loops: Dict[int, Dict]):
+        with self.using_resource("attrs", action="update") as attrs:
+            for loop_idx, loop in loops.items():
+                attrs["loops"].append(
+                    {
+                        "num_added_iterations": loop["num_added_iterations"],
+                        "iterable_parameters": loop["iterable_parameters"],
+                    }
+                )
+                attrs["template"]["loops"].append(loop["loop_template"])
+
+    def _append_submissions(self, subs: Dict[int, Dict]):
+        with self.using_resource("attrs", action="update") as attrs:
+            for sub_idx, sub_i in subs.items():
+                attrs["submissions"].append(sub_i)
+
+    def _append_task_element_IDs(self, task_ID: int, elem_IDs: List[int]):
+        # I don't think there's a way to "append" to an existing array in a zarr ragged
+        # array? So we have to build a new array from existing + new.
+        arr = self._get_tasks_arr(mode="r+")
+        elem_IDs_cur = arr[task_ID]
+        elem_IDs_new = np.concatenate((elem_IDs_cur, elem_IDs))
+        arr[task_ID] = elem_IDs_new
+
+    def _append_elements(self, elems: List[ZarrStoreElement]):
+        arr = self._get_elements_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+        arr_add = np.empty((len(elems)), dtype=object)
+        arr_add[:] = [i.encode(attrs) for i in elems]
+        arr.append(arr_add)
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _append_element_sets(self, task_id: int, es_js: List[Dict]):
+        task_idx = task_idx = self._get_task_id_to_idx_map()[task_id]
+        with self.using_resource("attrs", "update") as attrs:
+            attrs["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
+
+    def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: List[int]):
+        arr = self._get_elements_arr(mode="r+")
+        attrs = arr.attrs.asdict()
+        elem_dat = arr[elem_ID]
+        store_elem = ZarrStoreElement.decode(elem_dat, attrs)
+        store_elem = store_elem.append_iteration_IDs(iter_IDs)
+        arr[elem_ID] = store_elem.encode(
+            attrs
+        )  # attrs shouldn't be mutated (TODO: test!)
+
+    def _append_elem_iters(self, iters: List[ZarrStoreElementIter]):
+        arr = self._get_iters_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+        arr_add = np.empty((len(iters)), dtype=object)
+        arr_add[:] = [i.encode(attrs) for i in iters]
+        arr.append(arr_add)
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: List[int]):
+        arr = self._get_iters_arr(mode="r+")
+        attrs = arr.attrs.asdict()
+        iter_dat = arr[iter_ID]
+        store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
+        store_iter = store_iter.append_EAR_IDs(pend_IDs={act_idx: EAR_IDs})
+        arr[iter_ID] = store_iter.encode(
+            attrs
+        )  # attrs shouldn't be mutated (TODO: test!)
+
+    def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
+        with self.using_resource("attrs", action="update") as attrs:
+            for sub_idx, attempts_i in sub_attempts.items():
+                attrs["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+
+    def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
+        arr = self._get_iters_arr(mode="r+")
+        attrs = arr.attrs.asdict()
+        iter_dat = arr[iter_ID]
+        store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
+        store_iter = store_iter.update_loop_idx(loop_idx)
+        arr[iter_ID] = store_iter.encode(attrs)
+
+    def _update_loop_num_iters(self, index: int, num_iters: int):
+        with self.using_resource("attrs", action="update") as attrs:
+            attrs["loops"][index]["num_added_iterations"] = num_iters
+
+    def _append_EARs(self, EARs: List[ZarrStoreEAR]):
+        arr = self._get_EARs_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+        arr_add = np.empty((len(EARs)), dtype=object)
+        arr_add[:] = [i.encode(attrs, self.ts_fmt) for i in EARs]
+        arr.append(arr_add)
+
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _update_EAR_submission_index(self, EAR_id: int, sub_idx: int):
+        arr = self._get_EARs_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+
+        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+        EAR_i = EAR_i.update(submission_idx=sub_idx)
+        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict):
+        arr = self._get_EARs_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+
+        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+        EAR_i = EAR_i.update(
+            start_time=s_time,
+            snapshot_start=s_snap,
+        )
+        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _update_EAR_end(
+        self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool
+    ):
+        arr = self._get_EARs_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+
+        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+        EAR_i = EAR_i.update(
+            end_time=e_time,
+            snapshot_end=e_snap,
+            exit_code=ext_code,
+            success=success,
+        )
+        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _update_EAR_skip(self, EAR_id: int):
+        arr = self._get_EARs_arr(mode="r+")
+        attrs_orig = arr.attrs.asdict()
+        attrs = copy.deepcopy(attrs_orig)
+
+        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+        EAR_i = EAR_i.update(skip=True)
+        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+
+        if attrs != attrs_orig:
+            arr.attrs.put(attrs)
+
+    def _update_jobscript_version_info(self, vers_info: Dict):
+        with self.using_resource("attrs", action="update") as attrs:
+            for sub_idx, js_vers_info in vers_info.items():
+                for js_idx, vers_info_i in js_vers_info.items():
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
+                        "version_info"
+                    ] = vers_info_i
+
+    def _update_jobscript_submit_time(self, sub_times: Dict):
+        with self.using_resource("attrs", action="update") as attrs:
+            for sub_idx, js_sub_times in sub_times.items():
+                for js_idx, sub_time_i in js_sub_times.items():
+                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
+                        "submit_time"
+                    ] = sub_time_fmt
+
+    def _update_jobscript_job_ID(self, job_IDs: Dict):
+        with self.using_resource("attrs", action="update") as attrs:
+            for sub_idx, js_job_IDs in job_IDs.items():
+                for js_idx, job_ID_i in js_job_IDs.items():
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
+                        "scheduler_job_ID"
+                    ] = job_ID_i
+
+    def _append_parameters(self, params: List[ZarrStoreParameter]):
+        """Add new persistent parameters."""
+        base_arr = self._get_parameter_base_array(mode="r+")
+        src_arr = self._get_parameter_sources_array(mode="r+")
+        for param_i in params:
+            dat_i = param_i.encode(
+                root_group=self._get_parameter_user_array_group(mode="r+"),
+                arr_path=self._param_data_arr_grp_name(param_i.id_),
+            )
+            base_arr.append([dat_i])
+            src_arr.append([dict(sorted(param_i.source.items()))])
+
+    def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
+        """Set an unset persistent parameter."""
+
+        # the `decode` call in `_get_persistent_parameters` should be quick:
+        param_i = self._get_persistent_parameters([param_id])[param_id]
+        if is_file:
+            param_i = param_i.set_file(value)
         else:
-            try:
-                self._metadata = self._load_metadata()
-                yield
-            finally:
-                self._metadata = None
+            param_i = param_i.set_data(value)
+        dat_i = param_i.encode(
+            root_group=self._get_parameter_user_array_group(mode="r+"),
+            arr_path=self._param_data_arr_grp_name(param_i.id_),
+        )
+
+        # no need to update sources array:
+        base_arr = self._get_parameter_base_array(mode="r+")
+        base_arr[param_id] = dat_i
+
+    def _update_parameter_source(self, param_id: int, src: Dict):
+        """Update the source of a persistent parameter."""
+
+        param_i = self._get_persistent_parameters([param_id])[param_id]
+        param_i = param_i.update_source(src)
+
+        # no need to update base array:
+        src_arr = self._get_parameter_sources_array(mode="r+")
+        src_arr[param_id] = param_i.source
+
+    def _update_template_components(self, tc: Dict):
+        with self.using_resource("attrs", "update") as md:
+            md["template_components"] = tc
+
+    def _get_num_persistent_tasks(self) -> int:
+        """Get the number of persistent elements."""
+        return len(self._get_tasks_arr())
+
+    def _get_num_persistent_loops(self) -> int:
+        """Get the number of persistent loops."""
+        with self.using_resource("attrs", "read") as attrs:
+            return len(attrs["loops"])
+
+    def _get_num_persistent_submissions(self) -> int:
+        """Get the number of persistent submissions."""
+        with self.using_resource("attrs", "read") as attrs:
+            return len(attrs["submissions"])
+
+    def _get_num_persistent_elements(self) -> int:
+        """Get the number of persistent elements."""
+        return len(self._get_elements_arr())
+
+    def _get_num_persistent_elem_iters(self) -> int:
+        """Get the number of persistent element iterations."""
+        return len(self._get_iters_arr())
+
+    def _get_num_persistent_EARs(self) -> int:
+        """Get the number of persistent EARs."""
+        return len(self._get_EARs_arr())
+
+    def _get_num_persistent_parameters(self):
+        return len(self._get_parameter_base_array())
+
+    def _get_num_persistent_added_tasks(self):
+        with self.using_resource("attrs", "read") as attrs:
+            return attrs["num_added_tasks"]
+
+    @property
+    def zarr_store(self) -> zarr.storage.Store:
+        if self._zarr_store is None:
+            self._zarr_store = self._get_zarr_store(self.path, self.fs)
+        return self._zarr_store
 
     def _get_root_group(self, mode: str = "r") -> zarr.Group:
-        return zarr.open(self.workflow.path, mode=mode)
+        return zarr.open(self.zarr_store, mode=mode)
 
     def _get_parameter_group(self, mode: str = "r") -> zarr.Group:
         return self._get_root_group(mode=mode).get(self._param_grp_name)
@@ -237,793 +725,316 @@ class ZarrPersistentStore(PersistentStore):
             self._param_data_arr_grp_name(parameter_idx)
         )
 
-    def _get_element_group(self, mode: str = "r") -> zarr.Group:
-        return self._get_root_group(mode=mode).get(self._elem_grp_name)
+    def _get_metadata_group(self, mode: str = "r") -> zarr.Group:
+        return self._get_root_group(mode=mode).get("metadata")
 
-    def _get_task_group_path(self, insert_ID: int) -> str:
-        return self._task_grp_name(insert_ID)
+    def _get_tasks_arr(self, mode: str = "r") -> zarr.Array:
+        return self._get_metadata_group(mode=mode).get(self._task_arr_name)
 
-    def _get_task_group(self, insert_ID: int, mode: str = "r") -> zarr.Group:
-        return self._get_element_group(mode=mode).get(self._task_grp_name(insert_ID))
+    def _get_elements_arr(self, mode: str = "r") -> zarr.Array:
+        return self._get_metadata_group(mode=mode).get(self._elem_arr_name)
 
-    def _get_task_elements_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
-        return self._get_task_group(insert_ID, mode=mode).get(self._task_elem_arr_name)
+    def _get_iters_arr(self, mode: str = "r") -> zarr.Array:
+        return self._get_metadata_group(mode=mode).get(self._iter_arr_name)
 
-    def _get_task_elem_iters_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
-        return self._get_task_group(insert_ID, mode=mode).get(
-            self._task_elem_iter_arr_name
+    def _get_EARs_arr(self, mode: str = "r") -> zarr.Array:
+        return self._get_metadata_group(mode=mode).get(self._EAR_arr_name)
+
+    @classmethod
+    def make_test_store_from_spec(
+        cls,
+        spec,
+        dir=None,
+        path="test_store",
+        overwrite=False,
+    ):
+        """Generate an store for testing purposes."""
+
+        path = Path(dir or "", path)
+        store = zarr.DirectoryStore(path)
+        root = zarr.group(store=store, overwrite=overwrite)
+        md = root.create_group("metadata")
+
+        tasks_arr = md.create_dataset(
+            name=cls._task_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=VLenArray(int),
         )
 
-    def _get_task_EAR_times_array(self, insert_ID: int, mode: str = "r") -> zarr.Array:
-        return self._get_task_group(insert_ID, mode=mode).get(
-            self._task_EAR_times_arr_name
+        elems_arr = md.create_dataset(
+            name=cls._elem_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1000,
         )
+        elems_arr.attrs.update({"seq_idx": [], "src_idx": []})
 
-    def _get_task_element_attrs(self, task_idx: int, task_insert_ID: int) -> Dict:
-        if task_idx in self._pending["element_attrs"]:
-            attrs = self._pending["element_attrs"][task_idx]
-        elif task_idx in self._pending["tasks"]:
-            # the task is new and not yet committed
-            attrs = self._get_element_array_empty_attrs()
-        else:
-            attrs = self._get_task_elements_array(task_insert_ID, mode="r").attrs
-            attrs = attrs.asdict()
-        return attrs
-
-    def _get_task_element_iter_attrs(self, task_idx: int, task_insert_ID: int) -> Dict:
-        if task_idx in self._pending["element_iter_attrs"]:
-            attrs = self._pending["element_iter_attrs"][task_idx]
-        elif task_idx in self._pending["tasks"]:
-            # the task is new and not yet committed
-            attrs = self._get_element_iter_array_empty_attrs()
-        else:
-            attrs = self._get_task_elem_iters_array(task_insert_ID, mode="r").attrs
-            attrs = attrs.asdict()
-        return attrs
-
-    def add_elements(
-        self,
-        task_idx: int,
-        task_insert_ID: int,
-        elements: List[Dict],
-        element_iterations: List[Dict],
-    ) -> None:
-        attrs_original = self._get_task_element_attrs(task_idx, task_insert_ID)
-        elements, attrs = self._compress_elements(elements, attrs_original)
-        if attrs != attrs_original:
-            if task_idx not in self._pending["element_attrs"]:
-                self._pending["element_attrs"][task_idx] = {}
-            self._pending["element_attrs"][task_idx].update(attrs)
-
-        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
-        element_iters, iter_attrs = self._compress_element_iters(
-            element_iterations, iter_attrs_original
+        elem_iters_arr = md.create_dataset(
+            name=cls._iter_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1000,
         )
-        if iter_attrs != iter_attrs_original:
-            if task_idx not in self._pending["element_iter_attrs"]:
-                self._pending["element_iter_attrs"][task_idx] = {}
-            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
-
-        return super().add_elements(task_idx, task_insert_ID, elements, element_iters)
-
-    def add_element_iterations(
-        self,
-        task_idx: int,
-        task_insert_ID: int,
-        element_iterations: List[Dict],
-        element_iters_idx: Dict[int, List[int]],
-    ) -> None:
-        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
-        element_iters, iter_attrs = self._compress_element_iters(
-            element_iterations, iter_attrs_original
-        )
-        if iter_attrs != iter_attrs_original:
-            if task_idx not in self._pending["element_iter_attrs"]:
-                self._pending["element_iter_attrs"][task_idx] = {}
-            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
-
-        return super().add_element_iterations(
-            task_idx,
-            task_insert_ID,
-            element_iters,
-            element_iters_idx,
-        )
-
-    def add_EARs(
-        self,
-        task_idx: int,
-        task_insert_ID: int,
-        element_iter_idx: int,
-        EARs: Dict,
-        param_src_updates: Dict,
-    ) -> None:
-        iter_attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
-        EARs, iter_attrs = self._compress_EARs(EARs, iter_attrs_original)
-        if iter_attrs != iter_attrs_original:
-            if task_idx not in self._pending["element_iter_attrs"]:
-                self._pending["element_iter_attrs"][task_idx] = {}
-            self._pending["element_iter_attrs"][task_idx].update(iter_attrs)
-
-        key = (task_idx, task_insert_ID, element_iter_idx)
-        if key not in self._pending["EARs"]:
-            self._pending["EARs"][key] = []
-        self._pending["EARs"][key].extend(EARs)
-        self._pending["parameter_source_updates"].update(param_src_updates)
-        self.save()
-
-    def _compress_elements(self, elements: List, attrs: Dict) -> Tuple[List, Dict]:
-        """Split element data into lists of integers and lookup lists to effectively
-        compress the data.
-
-        See also: `_decompress_elements` for the inverse operation.
-
-        """
-
-        attrs = copy.deepcopy(attrs)
-        compressed = []
-        for elem in elements:
-            seq_idx = [
-                [ensure_in(k, attrs["seq_idx"]), v] for k, v in elem["seq_idx"].items()
-            ]
-            src_idx = [
-                [ensure_in(k, attrs["src_idx"]), v] for k, v in elem["src_idx"].items()
-            ]
-            compressed.append(
-                [
-                    elem["iterations_idx"],
-                    elem["es_idx"],
-                    seq_idx,
-                    src_idx,
-                ]
-            )
-        return compressed, attrs
-
-    def _compress_element_iters(
-        self, element_iters: List, attrs: Dict
-    ) -> Tuple[List, Dict]:
-        """Split element iteration data into lists of integers and lookup lists to
-        effectively compress the data.
-
-        See also: `_decompress_element_iters` for the inverse operation.
-
-        """
-
-        attrs = copy.deepcopy(attrs)
-        compressed = []
-        for iter_i in element_iters:
-            loop_idx = [
-                [ensure_in(k, attrs["loops"]), v] for k, v in iter_i["loop_idx"].items()
-            ]
-            schema_params = [
-                ensure_in(k, attrs["schema_parameters"])
-                for k in iter_i["schema_parameters"]
-            ]
-            data_idx = [
-                [ensure_in(dk, attrs["parameter_paths"]), dv]
-                for dk, dv in iter_i["data_idx"].items()
-            ]
-
-            EARs, attrs = self._compress_EARs(iter_i["actions"], attrs)
-            compact = [
-                iter_i["global_idx"],
-                data_idx,
-                int(iter_i["EARs_initialised"]),
-                schema_params,
-                loop_idx,
-                EARs,
-            ]
-            compressed.append(compact)
-        return compressed, attrs
-
-    def _compress_EARs(self, EARs: Dict, attrs: Dict) -> List:
-        """Split EAR data into lists of integers and lookup lists to effectively compress
-        the data.
-
-        See also: `_decompress_EARs` for the inverse operation.
-
-        """
-        attrs = copy.deepcopy(attrs)
-        compressed = []
-        for act_idx, runs in EARs.items():
-            act_run_i = [
-                act_idx,
-                [
-                    [
-                        run["index"],  # TODO: is this needed?
-                        -1
-                        if run["metadata"]["submission_idx"] is None
-                        else run["metadata"]["submission_idx"],
-                        -1
-                        if run["metadata"]["success"] is None
-                        else int(run["metadata"]["success"]),
-                        [
-                            [ensure_in(dk, attrs["parameter_paths"]), dv]
-                            for dk, dv in run["data_idx"].items()
-                        ],
-                    ]
-                    for run in runs
-                ],
-            ]
-            compressed.append(act_run_i)
-        return compressed, attrs
-
-    def _decompress_elements(self, elements: List, attrs: Dict) -> List:
-        out = []
-        for elem in elements:
-            elem_i = {
-                "iterations_idx": elem[0],
-                "es_idx": elem[1],
-                "seq_idx": {attrs["seq_idx"][k]: v for (k, v) in elem[2]},
-                "src_idx": {attrs["src_idx"][k]: v for (k, v) in elem[3]},
+        elem_iters_arr.attrs.update(
+            {
+                "loops": [],
+                "schema_parameters": [],
+                "parameter_paths": [],
             }
-            out.append(elem_i)
-        return out
+        )
 
-    def _decompress_element_iters(self, element_iters: List, attrs: Dict) -> List:
-        out = []
-        for iter_i in element_iters:
-            iter_i_decomp = {
-                "global_idx": iter_i[0],
-                "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in iter_i[1]},
-                "EARs_initialised": bool(iter_i[2]),
-                "schema_parameters": [attrs["schema_parameters"][k] for k in iter_i[3]],
-                "loop_idx": {attrs["loops"][k]: v for (k, v) in iter_i[4]},
-                "actions": self._decompress_EARs(iter_i[5], attrs),
-            }
-            out.append(iter_i_decomp)
-        return out
+        EARs_arr = md.create_dataset(
+            name=cls._EAR_arr_name,
+            shape=0,
+            dtype=object,
+            object_codec=MsgPack(),
+            chunks=1000,
+        )
+        EARs_arr.attrs.update({"parameter_paths": []})
 
-    def _decompress_EARs(self, EARs: List, attrs: Dict) -> List:
-        out = {
-            act_idx: [
-                {
-                    "index": run[0],
-                    "metadata": {
-                        "submission_idx": None if run[1] == -1 else run[1],
-                        "success": None if run[2] == -1 else bool(run[2]),
-                    },
-                    "data_idx": {attrs["parameter_paths"][k]: v for (k, v) in run[3]},
-                }
-                for run in runs
-            ]
-            for (act_idx, runs) in EARs
-        }
-        return out
+        tasks, elems, elem_iters, EARs = super().prepare_test_store_from_spec(spec)
 
-    @staticmethod
-    def _get_element_array_empty_attrs() -> Dict:
-        return {"seq_idx": [], "src_idx": []}
+        path = Path(path).resolve()
+        tasks = [ZarrStoreTask(**i).encode() for i in tasks]
+        elements = [ZarrStoreElement(**i).encode(elems_arr.attrs.asdict()) for i in elems]
+        elem_iters = [
+            ZarrStoreElementIter(**i).encode(elem_iters_arr.attrs.asdict())
+            for i in elem_iters
+        ]
+        EARs = [ZarrStoreEAR(**i).encode(EARs_arr.attrs.asdict()) for i in EARs]
 
-    @staticmethod
-    def _get_element_iter_array_empty_attrs() -> Dict:
-        return {
-            "loops": [],
-            "schema_parameters": [],
-            "parameter_paths": [],
-        }
+        append_items_to_ragged_array(tasks_arr, tasks)
 
-    def _get_zarr_store(self):
-        return self._get_root_group().store
+        elem_arr_add = np.empty((len(elements)), dtype=object)
+        elem_arr_add[:] = elements
+        elems_arr.append(elem_arr_add)
 
-    def _remove_pending_parameter_data(self) -> None:
-        """Delete pending parameter data from disk."""
-        base = self._get_parameter_base_array(mode="r+")
-        sources = self._get_parameter_sources_array(mode="r+")
-        for param_idx in range(self._pending["parameter_data"], 0, -1):
-            grp = self._get_parameter_data_array_group(param_idx - 1)
-            if grp:
-                zarr.storage.rmdir(store=self._get_zarr_store(), path=grp.path)
-        base.resize(base.size - self._pending["parameter_data"])
-        sources.resize(sources.size - self._pending["parameter_data"])
+        iter_arr_add = np.empty((len(elem_iters)), dtype=object)
+        iter_arr_add[:] = elem_iters
+        elem_iters_arr.append(iter_arr_add)
 
-    def reject_pending(self) -> None:
-        if self._pending["parameter_data"]:
-            self._remove_pending_parameter_data()
-        super().reject_pending()
+        EAR_arr_add = np.empty((len(EARs)), dtype=object)
+        EAR_arr_add[:] = EARs
+        EARs_arr.append(EAR_arr_add)
 
-    def commit_pending(self) -> None:
-        md = self.load_metadata()
+        return cls(path)
 
-        # merge new tasks:
-        for task_idx, task_js in self._pending["template_tasks"].items():
-            md["template"]["tasks"].insert(task_idx, task_js)  # TODO should be index?
+    def _get_persistent_template_components(self):
+        with self.using_resource("attrs", "read") as attrs:
+            return attrs["template_components"]
 
-        # write new workflow tasks to disk:
-        for task_idx, _ in self._pending["tasks"].items():
-            insert_ID = self._pending["template_tasks"][task_idx]["insert_ID"]
-            task_group = self._get_element_group(mode="r+").create_group(
-                self._get_task_group_path(insert_ID)
-            )
-            element_arr = task_group.create_dataset(
-                name=self._task_elem_arr_name,
-                shape=0,
-                dtype=object,
-                object_codec=MsgPack(),
-                chunks=1000,  # TODO: check this is a sensible size with many elements
-            )
-            element_arr.attrs.update(self._get_element_array_empty_attrs())
-            element_iters_arr = task_group.create_dataset(
-                name=self._task_elem_iter_arr_name,
-                shape=0,
-                dtype=object,
-                object_codec=MsgPack(),
-                chunks=1000,  # TODO: check this is a sensible size with many elements
-            )
-            element_iters_arr.attrs.update(self._get_element_iter_array_empty_attrs())
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                # zarr (2.14.2, at least) compares the fill value to zero, which, due to
-                # this numpy bug https://github.com/numpy/numpy/issues/13548, issues a
-                # DeprecationWarning. This bug is fixed in numpy 1.25
-                # (https://github.com/numpy/numpy/pull/22707), which has a minimum python
-                # version of 3.9. So for now, we will suppress it.
-                EAR_times_arr = task_group.create_dataset(
-                    name=self._task_EAR_times_arr_name,
-                    shape=(0, 2),
-                    dtype="M8[us]",  # microsecond resolution
-                    fill_value=np.datetime64("NaT"),
-                    chunks=(1, None),  # single-chunk for multiprocess writing
-                )
+    def _get_persistent_template(self):
+        with self.using_resource("attrs", "read") as attrs:
+            return attrs["template"]
 
-            md["num_added_tasks"] += 1
-
-        # merge new template components:
-        self._merge_pending_template_components(md["template_components"])
-
-        # merge new element sets:
-        for task_idx, es_js in self._pending["element_sets"].items():
-            md["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
-
-        # write new elements to disk:
-        for (task_idx, insert_ID), elements in self._pending["elements"].items():
-            elem_arr = self._get_task_elements_array(insert_ID, mode="r+")
-            elem_arr_add = np.empty((len(elements)), dtype=object)
-            elem_arr_add[:] = elements
-            elem_arr.append(elem_arr_add)
-            if task_idx in self._pending["element_attrs"]:
-                elem_arr.attrs.put(self._pending["element_attrs"][task_idx])
-
-        for (_, insert_ID), iters_idx in self._pending["element_iterations_idx"].items():
-            elem_arr = self._get_task_elements_array(insert_ID, mode="r+")
-            for elem_idx, iters_idx_i in iters_idx.items():
-                elem_dat = elem_arr[elem_idx]
-                elem_dat[0] += iters_idx_i
-                elem_arr[elem_idx] = elem_dat
-
-        # commit new element iterations:
-        for (task_idx, insert_ID), element_iters in self._pending[
-            "element_iterations"
-        ].items():
-            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
-            elem_iter_arr_add = np.empty(len(element_iters), dtype=object)
-            elem_iter_arr_add[:] = element_iters
-            elem_iter_arr.append(elem_iter_arr_add)
-            if task_idx in self._pending["element_iter_attrs"]:
-                elem_iter_arr.attrs.put(self._pending["element_iter_attrs"][task_idx])
-
-        # commit new element iteration loop indices:
-        for (_, insert_ID, iters_idx_i), loop_idx_i in self._pending["loop_idx"].items():
-            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
-            iter_dat = elem_iter_arr[iters_idx_i]
-            iter_dat[4].extend(loop_idx_i)
-            elem_iter_arr[iters_idx_i] = iter_dat
-
-        # commit new element iteration EARs:
-        for (_, insert_ID, iters_idx_i), actions_i in self._pending["EARs"].items():
-            elem_iter_arr = self._get_task_elem_iters_array(insert_ID, mode="r+")
-            iter_dat = elem_iter_arr[iters_idx_i]
-            iter_dat[5].extend(actions_i)
-            iter_dat[2] = int(True)  # EARs_initialised
-            elem_iter_arr[iters_idx_i] = iter_dat
-
-            EAR_times_arr = self._get_task_EAR_times_array(insert_ID, mode="r+")
-            new_shape = (EAR_times_arr.shape[0] + len(actions_i), EAR_times_arr.shape[1])
-            EAR_times_arr.resize(new_shape)
-
-        # commit new EAR submission indices:
-        for (ins_ID, it_idx, act_idx, rn_idx), sub_idx in self._pending[
-            "EAR_submission_idx"
-        ].items():
-            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
-            iter_dat = elem_iter_arr[it_idx]
-            iter_dat[5][act_idx][1][rn_idx][1] = sub_idx
-            elem_iter_arr[it_idx] = iter_dat
-
-        # commit new EAR start times:
-        for (ins_ID, it_idx, act_idx, rn_idx), start in self._pending[
-            "EAR_start_times"
-        ].items():
-            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
-            iter_dat = elem_iter_arr[it_idx]
-            for act_idx_i, runs in iter_dat[5]:
-                if act_idx_i == act_idx:
-                    EAR_idx = runs[rn_idx][0]
-            EAR_times_arr = self._get_task_EAR_times_array(ins_ID, mode="r+")
-            EAR_times_arr[EAR_idx, 0] = start
-
-        # commit new EAR end times:
-        for (ins_ID, it_idx, act_idx, rn_idx), end in self._pending[
-            "EAR_end_times"
-        ].items():
-            elem_iter_arr = self._get_task_elem_iters_array(ins_ID, mode="r+")
-            iter_dat = elem_iter_arr[it_idx]
-            for act_idx_i, runs in iter_dat[5]:
-                if act_idx_i == act_idx:
-                    EAR_idx = runs[rn_idx][0]
-            EAR_times_arr = self._get_task_EAR_times_array(ins_ID, mode="r+")
-            EAR_times_arr[EAR_idx, 1] = end
-
-        # commit new loops:
-        md["template"]["loops"].extend(self._pending["template_loops"])
-
-        # commit new workflow loops:
-        md["loops"].extend(self._pending["loops"])
-
-        for loop_idx, num_added_iters in self._pending["loops_added_iters"].items():
-            md["loops"][loop_idx]["num_added_iterations"] = num_added_iters
-
-        # commit new submissions:
-        md["submissions"].extend(self._pending["submissions"])
-
-        # commit new submission attempts:
-        for sub_idx, attempts_i in self._pending["submission_attempts"].items():
-            md["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
-
-        # commit new jobscript version info:
-        for sub_idx, js_vers_info in self._pending["jobscript_version_info"].items():
-            for js_idx, vers_info in js_vers_info.items():
-                md["submissions"][sub_idx]["jobscripts"][js_idx][
-                    "version_info"
-                ] = vers_info
-
-        # commit new jobscript job IDs:
-        for sub_idx, job_IDs in self._pending["jobscript_job_IDs"].items():
-            for js_idx, job_ID in job_IDs.items():
-                md["submissions"][sub_idx]["jobscripts"][js_idx][
-                    "scheduler_job_ID"
-                ] = job_ID
-
-        # commit new jobscript submit times:
-        for sub_idx, js_submit_times in self._pending["jobscript_submit_times"].items():
-            for js_idx, submit_time in js_submit_times.items():
-                md["submissions"][sub_idx]["jobscripts"][js_idx][
-                    "submit_time"
-                ] = submit_time.strftime(self.ts_fmt)
-
-        # note: parameter sources are committed immediately with parameter data, so there
-        # is no need to add elements to the parameter sources array.
-
-        sources = self._get_parameter_sources_array(mode="r+")
-        for param_idx, src_update in self._pending["parameter_source_updates"].items():
-            src = sources[param_idx]
-            src.update(src_update)
-            src = dict(sorted(src.items()))
-            sources[param_idx] = src
-
-        if self._pending["remove_replaced_dir_record"]:
-            del md["replaced_dir"]
-
-        # TODO: maybe clear pending keys individually, so if there is an error we can
-        # retry/continue with committing?
-
-        # commit updated metadata:
-        self._get_root_group(mode="r+").attrs.put(md)
-        self.clear_pending()
-
-    def _get_persistent_template_components(self) -> Dict:
-        return self.load_metadata()["template_components"]
-
-    def get_template(self) -> Dict:
-        # No need to consider pending; this is called once per Workflow object
-        return self.load_metadata()["template"]
-
-    def get_loops(self) -> List[Dict]:
-        # No need to consider pending; this is called once per Workflow object
-        return self.load_metadata()["loops"]
-
-    def get_submissions(self) -> List[Dict]:
-        # No need to consider pending; this is called once per Workflow object
-        subs = copy.deepcopy(self.load_metadata()["submissions"])
-
-        # cast jobscript submit-times and jobscript `task_elements` keys:
-        for sub_idx, sub in enumerate(subs):
-            for js_idx, js in enumerate(sub["jobscripts"]):
-                if js["submit_time"]:
-                    subs[sub_idx]["jobscripts"][js_idx][
-                        "submit_time"
-                    ] = datetime.strptime(js["submit_time"], self.ts_fmt)
-                for key in list(js["task_elements"].keys()):
-                    subs[sub_idx]["jobscripts"][js_idx]["task_elements"][int(key)] = subs[
-                        sub_idx
-                    ]["jobscripts"][js_idx]["task_elements"].pop(key)
-
-        return subs
-
-    def get_num_added_tasks(self) -> int:
-        return self.load_metadata()["num_added_tasks"] + len(self._pending["tasks"])
-
-    def get_all_tasks_metadata(self) -> List[Dict]:
-        out = []
-        for _, grp in self._get_element_group().groups():
-            out.append(
-                {
-                    "num_elements": len(grp.get(self._task_elem_arr_name)),
-                    "num_element_iterations": len(grp.get(self._task_elem_iter_arr_name)),
-                    "num_EARs": len(grp.get(self._task_EAR_times_arr_name)),
-                }
-            )
-        return out
-
-    def get_task_elements(
-        self,
-        task_idx: int,
-        task_insert_ID: int,
-        selection: slice,
-        keep_iterations_idx: bool = False,
-    ) -> List:
-        task = self.workflow.tasks[task_idx]
-        num_pers = task._num_elements
-        num_iter_pers = task._num_element_iterations
-        pers_slice, pend_slice = bisect_slice(selection, num_pers)
-        pers_range = range(pers_slice.start, pers_slice.stop, pers_slice.step)
-
-        elem_iter_arr = None
-        EAR_times_arr = None
-        if len(pers_range):
-            elem_arr = self._get_task_elements_array(task_insert_ID)
-            elem_iter_arr = self._get_task_elem_iters_array(task_insert_ID)
-            EAR_times_arr = self._get_task_EAR_times_array(task_insert_ID)
+    def _get_persistent_tasks(
+        self, id_lst: Optional[Iterable[int]] = None
+    ) -> Dict[int, ZarrStoreTask]:
+        with self.using_resource("attrs", action="read") as attrs:
+            task_dat = {}
+            elem_IDs = []
+            for idx, i in enumerate(attrs["tasks"]):
+                i = copy.deepcopy(i)
+                elem_IDs.append(i.pop("element_IDs_idx"))
+                if id_lst is None or i["id_"] in id_lst:
+                    task_dat[i["id_"]] = {**i, "index": idx}
+        if task_dat:
             try:
-                elements = list(elem_arr[pers_slice])
-            except zarr.errors.NegativeStepError:
-                elements = [elem_arr[idx] for idx in pers_range]
-        else:
-            elements = []
-
-        key = (task_idx, task_insert_ID)
-        if key in self._pending["elements"]:
-            elements += self._pending["elements"][key][pend_slice]
-
-        # add iterations:
-        sel_range = range(selection.start, selection.stop, selection.step)
-        iterations = {}
-        for element_idx, element in zip(sel_range, elements):
-            # find which iterations to add:
-            iters_idx = element[0]
-
-            # include pending iterations:
-            if key in self._pending["element_iterations_idx"]:
-                iters_idx += self._pending["element_iterations_idx"][key][element_idx]
-
-            # populate new iterations list:
-            for iter_idx_i in iters_idx:
-                if iter_idx_i + 1 > num_iter_pers:
-                    i_pending = iter_idx_i - num_iter_pers
-                    iter_i = copy.deepcopy(
-                        self._pending["element_iterations"][key][i_pending]
-                    )
-                else:
-                    iter_i = elem_iter_arr[iter_idx_i]
-
-                # include pending EARs:
-                EARs_key = (task_idx, task_insert_ID, iter_idx_i)
-                if EARs_key in self._pending["EARs"]:
-                    iter_i[5].extend(self._pending["EARs"][EARs_key])
-                    # if there are pending EARs then EARs must be initialised:
-                    iter_i[2] = int(True)
-
-                # include pending loops:
-                loop_idx_key = (task_idx, task_insert_ID, iter_idx_i)
-                if loop_idx_key in self._pending["loop_idx"]:
-                    iter_i[4].extend(self._pending["loop_idx"][loop_idx_key])
-
-                iterations[iter_idx_i] = iter_i
-
-        elements = self._decompress_elements(elements, self._get_task_element_attrs(*key))
-
-        iters_k, iters_v = zip(*iterations.items())
-        attrs = self._get_task_element_iter_attrs(*key)
-        iters_v = self._decompress_element_iters(iters_v, attrs)
-        elem_iters = dict(zip(iters_k, iters_v))
-
-        for elem_idx, elem_i in zip(sel_range, elements):
-            elem_i["index"] = elem_idx
-
-            # populate iterations
-            elem_i["iterations"] = [elem_iters[i] for i in elem_i["iterations_idx"]]
-
-            # add EAR start/end times from separate array:
-            for iter_idx_i, iter_i in zip(elem_i["iterations_idx"], elem_i["iterations"]):
-                iter_i["index"] = iter_idx_i
-                for act_idx, runs in iter_i["actions"].items():
-                    for run_idx in range(len(runs)):
-                        run = iter_i["actions"][act_idx][run_idx]
-                        EAR_idx = run["index"]
-                        start_time = None
-                        end_time = None
-                        try:
-                            EAR_times = EAR_times_arr[EAR_idx]
-                            start_time, end_time = EAR_times
-                            start_time = None if np.isnat(start_time) else start_time
-                            end_time = None if np.isnat(end_time) else end_time
-                            # TODO: cast to native datetime types
-                        except (TypeError, zarr.errors.BoundsCheckError):
-                            pass
-                        run["metadata"]["start_time"] = start_time
-                        run["metadata"]["end_time"] = end_time
-
-                        # update pending submission indices:
-                        key = (task_insert_ID, iter_idx_i, act_idx, run_idx)
-                        if key in self._pending["EAR_submission_idx"]:
-                            sub_idx = self._pending["EAR_submission_idx"][key]
-                            run["metadata"]["submission_idx"] = sub_idx
-
-            if not keep_iterations_idx:
-                del elem_i["iterations_idx"]
-
-        return elements
-
-    def _encode_parameter_data(
-        self,
-        obj: Any,
-        root_group: zarr.Group,
-        arr_path: str,
-        path: List = None,
-        type_lookup: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
-        return super()._encode_parameter_data(
-            obj=obj,
-            path=path,
-            type_lookup=type_lookup,
-            root_group=root_group,
-            arr_path=arr_path,
-        )
-
-    def _decode_parameter_data(
-        self,
-        data: Union[None, Dict],
-        arr_group: zarr.Group,
-        path: Optional[List[str]] = None,
-        dataset_copy=False,
-    ) -> Any:
-        return super()._decode_parameter_data(
-            data=data,
-            path=path,
-            arr_group=arr_group,
-            dataset_copy=dataset_copy,
-        )
-
-    def _add_parameter_data(self, data: Any, source: Dict) -> int:
-        base_arr = self._get_parameter_base_array(mode="r+")
-        sources = self._get_parameter_sources_array(mode="r+")
-        idx = base_arr.size
-
-        if data is not None:
-            data = self._encode_parameter_data(
-                obj=data["data"],
-                root_group=self._get_parameter_user_array_group(mode="r+"),
-                arr_path=self._param_data_arr_grp_name(idx),
-            )
-
-        base_arr.append([data])
-        sources.append([dict(sorted(source.items()))])
-        self._pending["parameter_data"] += 1
-        self.save()
-
-        return idx
-
-    def set_parameter(self, index: int, data: Any) -> None:
-        """Set the value of a pre-allocated parameter."""
-
-        if self.is_parameter_set(index):
-            raise RuntimeError(f"Parameter at index {index} is already set!")
-
-        base_arr = self._get_parameter_base_array(mode="r+")
-        base_arr[index] = self._encode_parameter_data(
-            obj=data,
-            root_group=self._get_parameter_user_array_group(mode="r+"),
-            arr_path=self._param_data_arr_grp_name(index),
-        )
-
-    def _get_parameter_data(self, index: int) -> Any:
-        return self._get_parameter_base_array(mode="r")[index]
-
-    def get_parameter_data(self, index: int) -> Tuple[bool, Any]:
-        data = self._get_parameter_data(index)
-        is_set = False if data is None else True
-        data = self._decode_parameter_data(
-            data=data,
-            arr_group=self._get_parameter_data_array_group(index),
-        )
-        return (is_set, data)
-
-    def get_parameter_source(self, index: int) -> Dict:
-        src = self._get_parameter_sources_array(mode="r")[index]
-        if index in self._pending["parameter_source_updates"]:
-            src.update(self._pending["parameter_source_updates"][index])
-            src = dict(sorted(src.items()))
-
-        return src
-
-    def get_all_parameter_data(self) -> Dict[int, Any]:
-        max_key = self._get_parameter_base_array(mode="r").size - 1
-        out = {}
-        for idx in range(max_key + 1):
-            out[idx] = self.get_parameter_data(idx)
-        return out
-
-    def is_parameter_set(self, index: int) -> bool:
-        return self._get_parameter_data(index) is not None
-
-    def check_parameters_exist(
-        self, indices: Union[int, List[int]]
-    ) -> Union[bool, List[bool]]:
-        is_multi = True
-        if not isinstance(indices, (list, tuple)):
-            is_multi = False
-            indices = [indices]
-        base = self._get_parameter_base_array(mode="r")
-        idx_range = range(base.size)
-        exists = [i in idx_range for i in indices]
-        if not is_multi:
-            exists = exists[0]
-        return exists
-
-    def _init_task_loop(
-        self,
-        task_idx: int,
-        task_insert_ID: int,
-        element_sel: slice,
-        name: str,
-    ) -> None:
-        """Initialise the zeroth iteration of a named loop for a specified task."""
-
-        elements = self.get_task_elements(
-            task_idx=task_idx,
-            task_insert_ID=task_insert_ID,
-            selection=element_sel,
-            keep_iterations_idx=True,
-        )
-
-        attrs_original = self._get_task_element_iter_attrs(task_idx, task_insert_ID)
-        attrs = copy.deepcopy(attrs_original)
-        for element in elements:
-            for iter_idx, iter_i in zip(element["iterations_idx"], element["iterations"]):
-                if name in (attrs["loops"][k] for k in iter_i["loop_idx"]):
-                    raise ValueError(f"Loop {name!r} already initialised!")
-
-                key = (task_idx, task_insert_ID, iter_idx)
-                if key not in self._pending["loop_idx"]:
-                    self._pending["loop_idx"][key] = []
-
-                self._pending["loop_idx"][key].append(
-                    [ensure_in(name, attrs["loops"]), 0]
+                elem_IDs_arr_dat = self._get_tasks_arr().get_coordinate_selection(
+                    elem_IDs
                 )
+            except zarr.errors.BoundsCheckError:
+                raise MissingStoreTaskError(elem_IDs) from None  # TODO: not an ID list
 
-        if attrs != attrs_original:
-            if task_idx not in self._pending["element_iter_attrs"]:
-                self._pending["element_iter_attrs"][task_idx] = {}
-            self._pending["element_iter_attrs"][task_idx].update(attrs)
-
-    def remove_replaced_dir(self) -> None:
-        md = self.load_metadata()
-        if "replaced_dir" in md:
-            remove_dir(Path(md["replaced_dir"]))
-            self._pending["remove_replaced_dir_record"] = True
-            self.save()
-
-    def reinstate_replaced_dir(self) -> None:
-        print(f"reinstate replaced directory!")
-        md = self.load_metadata()
-        if "replaced_dir" in md:
-            rename_dir(Path(md["replaced_dir"]), self.workflow_path)
-
-    def copy(self, path: PathLike = None) -> None:
-        shutil.copytree(self.workflow_path, path)
-
-    def is_modified_on_disk(self) -> bool:
-        if self._metadata:
-            return get_md5_hash(self._load_metadata()) != get_md5_hash(self._metadata)
+            return {
+                id_: ZarrStoreTask.decode({**i, "element_IDs": elem_IDs_arr_dat[id_]})
+                for idx, (id_, i) in enumerate(task_dat.items())
+            }
         else:
-            # nothing to compare to
-            return False
+            return {}
+
+    def _get_persistent_loops(self, id_lst: Optional[Iterable[int]] = None):
+        with self.using_resource("attrs", "read") as attrs:
+            loop_dat = {
+                idx: i
+                for idx, i in enumerate(attrs["loops"])
+                if id_lst is None or idx in id_lst
+            }
+        return loop_dat
+
+    def _get_persistent_submissions(self, id_lst: Optional[Iterable[int]] = None):
+        with self.using_resource("attrs", "read") as attrs:
+            subs_dat = copy.deepcopy(
+                {
+                    idx: i
+                    for idx, i in enumerate(attrs["submissions"])
+                    if id_lst is None or idx in id_lst
+                }
+            )
+            # cast jobscript submit-times and jobscript `task_elements` keys:
+            for sub_idx, sub in subs_dat.items():
+                for js_idx, js in enumerate(sub["jobscripts"]):
+                    if js["submit_time"]:
+                        subs_dat[sub_idx]["jobscripts"][js_idx][
+                            "submit_time"
+                        ] = datetime.strptime(js["submit_time"], self.ts_fmt)
+
+                    for key in list(js["task_elements"].keys()):
+                        subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
+                            int(key)
+                        ] = subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"].pop(
+                            key
+                        )
+
+        return subs_dat
+
+    def _get_persistent_elements(
+        self, id_lst: Iterable[int]
+    ) -> Dict[int, ZarrStoreElement]:
+        arr = self._get_elements_arr()
+        attrs = arr.attrs.asdict()
+        try:
+            elem_arr_dat = arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingStoreElementError(id_lst) from None
+        elem_dat = dict(zip(id_lst, elem_arr_dat))
+        return {k: ZarrStoreElement.decode(v, attrs) for k, v in elem_dat.items()}
+
+    def _get_persistent_element_iters(
+        self, id_lst: Iterable[int]
+    ) -> Dict[int, StoreElementIter]:
+        arr = self._get_iters_arr()
+        attrs = arr.attrs.asdict()
+        try:
+            iter_arr_dat = arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingStoreElementIterationError(id_lst) from None
+        iter_dat = dict(zip(id_lst, iter_arr_dat))
+        return {k: ZarrStoreElementIter.decode(v, attrs) for k, v in iter_dat.items()}
+
+    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreEAR]:
+        arr = self._get_EARs_arr()
+        attrs = arr.attrs.asdict()
+
+        try:
+            EAR_arr_dat = arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingStoreEARError(id_lst) from None
+
+        EAR_dat = dict(zip(id_lst, EAR_arr_dat))
+
+        iters = {
+            k: ZarrStoreEAR.decode(EAR_dat=v, attrs=attrs, ts_fmt=self.ts_fmt)
+            for k, v in EAR_dat.items()
+        }
+        return iters
+
+    def _get_persistent_parameters(
+        self,
+        id_lst: Iterable[int],
+        dataset_copy: Optional[bool] = False,
+    ) -> Dict[int, ZarrStoreParameter]:
+        base_arr = self._get_parameter_base_array(mode="r")
+        src_arr = self._get_parameter_sources_array(mode="r")
+
+        try:
+            param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
+            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingParameterData(id_lst) from None
+
+        param_dat = dict(zip(id_lst, param_arr_dat))
+        src_dat = dict(zip(id_lst, src_arr_dat))
+
+        params = {
+            k: ZarrStoreParameter.decode(
+                id_=k,
+                data=v,
+                source=src_dat[k],
+                arr_group=self._get_parameter_data_array_group(k),
+                dataset_copy=dataset_copy,
+            )
+            for k, v in param_dat.items()
+        }
+
+        return params
+
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
+        src_arr = self._get_parameter_sources_array(mode="r")
+        try:
+            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingParameterData(id_lst) from None
+
+        return dict(zip(id_lst, src_arr_dat))
+
+    def _get_persistent_parameter_set_status(
+        self, id_lst: Iterable[int]
+    ) -> Dict[int, bool]:
+        base_arr = self._get_parameter_base_array(mode="r")
+        try:
+            param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
+        except zarr.errors.BoundsCheckError:
+            raise MissingParameterData(id_lst) from None
+
+        return dict(zip(id_lst, [i is not None for i in param_arr_dat]))
+
+    def _get_persistent_parameter_IDs(self) -> List[int]:
+        # we assume the row index is equivalent to ID, might need to revisit in future
+        base_arr = self._get_parameter_base_array(mode="r")
+        return list(range(len(base_arr)))
+
+    def get_creation_info(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["creation_info"]
+
+    def get_fs_path(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["fs_path"]
+
+    def to_zip(self):
+        # TODO: need to update `fs_path` in the new store (because this used to get
+        # `Workflow.name`), but can't seem to open `dst_zarr_store` below:
+        src_zarr_store = self.zarr_store
+        new_fs_path = f"{self.workflow.fs_path}.zip"
+        zfs, _ = ask_pw_on_auth_exc(
+            ZipFileSystem,
+            fo=new_fs_path,
+            mode="w",
+            target_options={},
+            add_pw_to="target_options",
+        )
+        dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
+        zarr.convenience.copy_store(src_zarr_store, dst_zarr_store)
+        del zfs  # ZipFileSystem remains open for instance lifetime
+        return new_fs_path
+
+
+class ZarrZipPersistentStore(ZarrPersistentStore):
+    """A store designed mainly as an archive format that can be uploaded to e.g. Zenodo."""
+
+    _name = "zip"
+    _features = PersistentStoreFeatures(
+        create=False,
+        edit=False,
+        jobscript_parallelism=False,
+        EAR_parallelism=False,
+        schedulers=False,
+        submission=False,
+    )
+
+    # TODO: enforce read-only nature
+
+    def to_zip(self):
+        raise NotImplementedError("Already a zip store!")
+
+    def copy(self, path=None) -> str:
+        # not sure how to do this.
+        raise NotImplementedError()
+
+    def delete_no_confirm(self) -> None:
+        # `ZipFileSystem.rm()` does not seem to be implemented.
+        raise NotImplementedError()

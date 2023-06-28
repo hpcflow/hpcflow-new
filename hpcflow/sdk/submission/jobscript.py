@@ -4,6 +4,7 @@ import copy
 from datetime import datetime
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from textwrap import indent
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -11,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 from hpcflow.sdk import app
-from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -45,14 +45,16 @@ def generate_EAR_resource_map(
 
     arr_shape = (task.num_actions, task.num_elements)
     resource_map = np.empty(arr_shape, dtype=int)
-    EAR_idx_map = np.empty(
-        shape=arr_shape,
-        dtype=[("EAR_idx", np.int32), ("run_idx", np.int32), ("iteration_idx", np.int32)],
-    )
+    EAR_ID_map = np.empty(arr_shape, dtype=int)
+    # EAR_idx_map = np.empty(
+    #     shape=arr_shape,
+    #     dtype=[("EAR_idx", np.int32), ("run_idx", np.int32), ("iteration_idx", np.int32)],
+    # )
     resource_map[:] = none_val
-    EAR_idx_map[:] = (none_val, none_val, none_val)  # TODO: add iteration_idx as well
+    EAR_ID_map[:] = none_val
+    # EAR_idx_map[:] = (none_val, none_val, none_val)  # TODO: add iteration_idx as well
 
-    for element in task.elements:
+    for element in task.elements[:]:
         for iter_i in element.iterations:
             if iter_i.loop_idx != loop_idx:
                 continue
@@ -68,17 +70,18 @@ def generate_EAR_resource_map(
                             resource_map[act_idx][element.index] = resource_hashes.index(
                                 res_hash
                             )
-                            EAR_idx_map[act_idx, element.index] = (
-                                run.index,
-                                run.run_idx,
-                                iter_i.index,
-                            )
+                            EAR_ID_map[act_idx, element.index] = run.id_
+                            # EAR_idx_map[act_idx, element.index] = (
+                            #     run.index,
+                            #     run.run_idx,
+                            #     iter_i.index,
+                            # )
 
     return (
         resources,
         resource_hashes,
         resource_map,
-        EAR_idx_map,
+        EAR_ID_map,
     )
 
 
@@ -162,13 +165,13 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
         jobscript_deps[js_idx] = {}
 
         for js_elem_idx_i, EAR_deps_i in elem_deps.items():
+            # locate which jobscript elements this jobscript element depends on:
             for EAR_dep_j in EAR_deps_i:
-                # locate which jobscript(s) this element depends on:
                 for js_k_idx, js_k in jobscripts.items():
                     if js_k_idx == js_idx:
                         break
 
-                    if EAR_dep_j in js_k["EARs"]:
+                    if EAR_dep_j in js_k["EAR_ID"]:
                         if js_k_idx not in jobscript_deps[js_idx]:
                             jobscript_deps[js_idx][js_k_idx] = {"js_element_mapping": {}}
 
@@ -180,14 +183,21 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
                                 js_elem_idx_i
                             ] = []
 
-                        dep_j_task_iID = EAR_dep_j[0]
-                        dep_j_elem_idx = EAR_dep_j[1]
-                        js_elem_idx_k = js_k["task_elements"][dep_j_task_iID].index(
-                            dep_j_elem_idx
-                        )
-                        jobscript_deps[js_idx][js_k_idx]["js_element_mapping"][
-                            js_elem_idx_i
-                        ].append(js_elem_idx_k)
+                        # retrieve column index, which is the JS-element index:
+                        js_elem_idx_k = np.where(
+                            np.any(js_k["EAR_ID"] == EAR_dep_j, axis=0)
+                        )[0][0].item()
+
+                        # add js dependency element-mapping:
+                        if (
+                            js_elem_idx_k
+                            not in jobscript_deps[js_idx][js_k_idx]["js_element_mapping"][
+                                js_elem_idx_i
+                            ]
+                        ):
+                            jobscript_deps[js_idx][js_k_idx]["js_element_mapping"][
+                                js_elem_idx_i
+                            ].append(js_elem_idx_k)
 
     # next we can determine if two jobscripts have a one-to-one element mapping, which
     # means they can be submitted with a "job array" dependency relationship:
@@ -195,8 +205,8 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
         for js_k_idx, deps_j in deps_i.items():
             # is this an array dependency?
 
-            js_i_num_js_elements = jobscripts[js_i_idx]["EAR_idx"].shape[1]
-            js_k_num_js_elements = jobscripts[js_k_idx]["EAR_idx"].shape[1]
+            js_i_num_js_elements = jobscripts[js_i_idx]["EAR_ID"].shape[1]
+            js_k_num_js_elements = jobscripts[js_k_idx]["EAR_ID"].shape[1]
 
             is_all_i_elems = list(
                 sorted(set(deps_j["js_element_mapping"].keys()))
@@ -207,7 +217,7 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
             ) == {1}
 
             is_all_k_elems = list(
-                sorted(set(i[0] for i in deps_j["js_element_mapping"].values()))
+                sorted(i[0] for i in deps_j["js_element_mapping"].values())
             ) == list(range(js_k_num_js_elements))
 
             is_arr = is_all_i_elems and is_all_k_single and is_all_k_elems
@@ -233,7 +243,9 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
 
             # can only merge if resources are the same and is array dependency:
             if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
-                num_loop_idx = len(js_j["task_loop_idx"])
+                num_loop_idx = len(
+                    js_j["task_loop_idx"]
+                )  # TODO: should this be: `js_j["task_loop_idx"][0]`?
 
                 # append task_insert_IDs
                 js_j["task_insert_IDs"].append(js["task_insert_IDs"][0])
@@ -249,10 +261,10 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
                 js_j["task_elements"].update(js["task_elements"])
 
                 # update EARs dict
-                js_j["EARs"].update(js["EARs"])
+                # js_j["EARs"].update(js["EARs"])
 
                 # append to elements and elements_idx list
-                js_j["EAR_idx"] = np.vstack((js_j["EAR_idx"], js["EAR_idx"]))
+                js_j["EAR_ID"] = np.vstack((js_j["EAR_ID"], js["EAR_ID"]))
 
                 # mark this js as defunct
                 js["is_merged"] = True
@@ -311,8 +323,8 @@ class Jobscript(JSONLike):
         task_insert_IDs: List[int],
         task_actions: List[Tuple],
         task_elements: Dict[int, List[int]],
-        EARs: Dict[Tuple[int] : Tuple[int]],
-        EAR_idx: NDArray,
+        # EARs: Dict[Tuple[int] : Tuple[int]],
+        EAR_ID: NDArray,
         resources: app.ElementResources,
         task_loop_idx: List[Dict],
         dependencies: Dict[int:Dict],
@@ -324,8 +336,8 @@ class Jobscript(JSONLike):
         self._task_loop_idx = task_loop_idx
         self._task_actions = task_actions
         self._task_elements = task_elements
-        self._EARs = EARs
-        self._EAR_idx = EAR_idx
+        # self._EARs = EARs
+        self._EAR_ID = EAR_ID
         self._resources = resources
         self._dependencies = dependencies
 
@@ -355,20 +367,22 @@ class Jobscript(JSONLike):
         del dct["_scheduler_obj"]
         del dct["_shell_obj"]
         dct = {k.lstrip("_"): v for k, v in dct.items()}
-        dct["EAR_idx"] = dct["EAR_idx"].tolist()
-        dct["EARs"] = [[list(k), list(v)] for k, v in dct["EARs"].items()]
-        if dct.get("scheduler_version_info"):
-            dct["scheduler_version_info"] = list(dct["scheduler_version_info"])
+        dct["EAR_ID"] = dct["EAR_ID"].tolist()
+        # dct["EARs"] = [[list(k), list(v)] for k, v in dct["EARs"].items()]
+        # TODO: this needed?
+        # if dct.get("scheduler_version_info"):
+        #     dct["scheduler_version_info"] = list(dct["scheduler_version_info"])
         return dct
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
-        json_like["EAR_idx"] = np.array(json_like["EAR_idx"])
-        json_like["EARs"] = {tuple(i[0]): tuple(i[1]) for i in json_like["EARs"]}
-        if json_like.get("scheduler_version_info"):
-            json_like["scheduler_version_info"] = tuple(
-                json_like["scheduler_version_info"]
-            )
+        json_like["EAR_ID"] = np.array(json_like["EAR_ID"])
+        # json_like["EARs"] = {tuple(i[0]): tuple(i[1]) for i in json_like["EARs"]}
+        # TODO: this needed?
+        # if json_like.get("scheduler_version_info"):
+        #     json_like["scheduler_version_info"] = tuple(
+        #         json_like["scheduler_version_info"]
+        #     )
         return super().from_json_like(json_like, shared_data)
 
     @property
@@ -390,13 +404,13 @@ class Jobscript(JSONLike):
     def task_elements(self):
         return self._task_elements
 
-    @property
-    def EARs(self):
-        return self._EARs
+    # @property
+    # def EARs(self):
+    #     return self._EARs
 
     @property
-    def EAR_idx(self):
-        return self._EAR_idx
+    def EAR_ID(self):
+        return self._EAR_ID
 
     @property
     def resources(self):
@@ -419,7 +433,7 @@ class Jobscript(JSONLike):
         return self._scheduler_job_ID
 
     @property
-    def scheduler_version_info(self):
+    def version_info(self):
         return self._version_info
 
     @property
@@ -436,11 +450,11 @@ class Jobscript(JSONLike):
 
     @property
     def num_actions(self):
-        return self.EAR_idx.shape[0]
+        return self.EAR_ID.shape[0]
 
     @property
     def num_elements(self):
-        return self.EAR_idx.shape[1]
+        return self.EAR_ID.shape[1]
 
     @property
     def is_array(self):
@@ -502,8 +516,8 @@ class Jobscript(JSONLike):
         return self._scheduler_obj
 
     @property
-    def need_EAR_file_name(self):
-        return f"js_{self.index}_need_EARs.txt"
+    def EAR_ID_file_name(self):
+        return f"js_{self.index}_EAR_IDs.txt"
 
     @property
     def element_run_dir_file_name(self):
@@ -514,8 +528,8 @@ class Jobscript(JSONLike):
         return f"js_{self.index}{self.shell.JS_EXT}"
 
     @property
-    def need_EAR_file_path(self):
-        return self.submission.path / self.need_EAR_file_name
+    def EAR_ID_file_path(self):
+        return self.submission.path / self.EAR_ID_file_name
 
     @property
     def element_run_dir_file_path(self):
@@ -549,49 +563,51 @@ class Jobscript(JSONLike):
             vers_info=vers_info,
         )
 
-    def get_task_insert_IDs_array(self):
-        task_insert_IDs = np.empty_like(self.EAR_idx)
-        task_insert_IDs[:] = np.array([i[0] for i in self.task_actions]).reshape(
-            (len(self.task_actions), 1)
-        )
-        return task_insert_IDs
+    # def get_task_insert_IDs_array(self):
+    #     # TODO: probably won't need this.
+    #     task_insert_IDs = np.empty_like(self.EAR_ID)
+    #     task_insert_IDs[:] = np.array([i[0] for i in self.task_actions]).reshape(
+    #         (len(self.task_actions), 1)
+    #     )
+    #     return task_insert_IDs
 
     def get_task_loop_idx_array(self):
-        loop_idx = np.empty_like(self.EAR_idx)
+        loop_idx = np.empty_like(self.EAR_ID)
         loop_idx[:] = np.array([i[2] for i in self.task_actions]).reshape(
             (len(self.task_actions), 1)
         )
         return loop_idx
 
-    def get_task_element_idx_array(self):
-        element_idx = np.empty_like(self.EAR_idx)
-        for task_iID, elem_idx in self.task_elements.items():
-            rows_idx = [
-                idx for idx, i in enumerate(self.task_actions) if i[0] == task_iID
-            ]
-            element_idx[rows_idx] = elem_idx
-        return element_idx
+    # def get_task_element_idx_array(self):
+    #     # TODO: probably won't need this.
+    #     element_idx = np.empty_like(self.EAR_ID)
+    #     for task_iID, elem_idx in self.task_elements.items():
+    #         rows_idx = [
+    #             idx for idx, i in enumerate(self.task_actions) if i[0] == task_iID
+    #         ]
+    #         element_idx[rows_idx] = elem_idx
+    #     return element_idx
 
-    def get_EAR_run_idx_array(self):
-        task_insert_ID_arr = self.get_task_insert_IDs_array()
-        element_idx = self.get_task_element_idx_array()
-        run_idx = np.empty_like(self.EAR_idx)
-        for js_act_idx in range(self.num_actions):
-            for js_elem_idx in range(self.num_elements):
-                EAR_idx_i = self.EAR_idx[js_act_idx, js_elem_idx]
-                task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
-                elem_idx_i = element_idx[js_act_idx, js_elem_idx]
-                (iter_idx_i, act_idx_i, run_idx_i) = self.EARs[
-                    (task_iID_i, elem_idx_i, EAR_idx_i)
-                ]
-                run_idx[js_act_idx, js_elem_idx] = run_idx_i
-        return run_idx
+    # def get_EAR_run_idx_array(self):
+    #     # TODO: probably won't need this.
+    #     task_insert_ID_arr = self.get_task_insert_IDs_array()
+    #     element_idx = self.get_task_element_idx_array()
+    #     run_idx = np.empty_like(self.EAR_ID)
+    #     for js_act_idx in range(self.num_actions):
+    #         for js_elem_idx in range(self.num_elements):
+    #             EAR_idx_i = self.EAR_ID[js_act_idx, js_elem_idx]
+    #             task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
+    #             elem_idx_i = element_idx[js_act_idx, js_elem_idx]
+    #             (_, _, run_idx_i) = self.EARs[(task_iID_i, elem_idx_i, EAR_idx_i)]
+    #             run_idx[js_act_idx, js_elem_idx] = run_idx_i
+    #     return run_idx
 
     def get_EAR_ID_array(self):
+        # TODO: probably won't need this.
         task_insert_ID_arr = self.get_task_insert_IDs_array()
         element_idx = self.get_task_element_idx_array()
         EAR_ID_arr = np.empty(
-            shape=self.EAR_idx.shape,
+            shape=self.EAR_ID.shape,
             dtype=[
                 ("task_insert_ID", np.int32),
                 ("element_idx", np.int32),
@@ -604,7 +620,7 @@ class Jobscript(JSONLike):
 
         for js_act_idx in range(self.num_actions):
             for js_elem_idx in range(self.num_elements):
-                EAR_idx_i = self.EAR_idx[js_act_idx, js_elem_idx]
+                EAR_idx_i = self.EAR_ID[js_act_idx, js_elem_idx]
                 task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
                 elem_idx_i = element_idx[js_act_idx, js_elem_idx]
                 (iter_idx_i, act_idx_i, run_idx_i) = self.EARs[
@@ -621,15 +637,15 @@ class Jobscript(JSONLike):
 
         return EAR_ID_arr
 
-    def write_need_EARs_file(self):
+    def write_EAR_ID_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
 
-        with self.need_EAR_file_path.open(mode="wt", newline="\n") as fp:
+        with self.EAR_ID_file_path.open(mode="wt", newline="\n") as fp:
             # can't specify "open" newline if we pass the file name only, so pass handle:
             np.savetxt(
                 fname=fp,
-                X=(self.EAR_idx != -1).T,
+                X=(self.EAR_ID).T,
                 fmt="%.0f",
                 delimiter=self._EAR_files_delimiter,
             )
@@ -650,7 +666,7 @@ class Jobscript(JSONLike):
                 fname=fp,
                 X=np.array(run_dirs),
                 fmt="%s",
-                delimiter=":",
+                delimiter=self._EAR_files_delimiter,
             )
 
     def compose_jobscript(self) -> str:
@@ -669,12 +685,13 @@ class Jobscript(JSONLike):
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
                 "app_invoc": app_invoc,
+                "app_package_name": self.app.package_name,
                 "config_dir": str(self.app.config.config_directory),
                 "config_invoc_key": self.app.config.config_invocation_key,
                 "workflow_path": self.workflow.path,
                 "sub_idx": self.submission.index,
                 "js_idx": self.index,
-                "EAR_file_name": self.need_EAR_file_name,
+                "EAR_file_name": self.EAR_ID_file_name,
                 "element_run_dirs_file_path": self.element_run_dir_file_name,
             }
         )
@@ -734,33 +751,38 @@ class Jobscript(JSONLike):
             fp.write(js_str)
         return self.jobscript_path
 
-    def make_artifact_dirs(self, task_artifacts_path):
-        task_insert_ID_arr = self.get_task_insert_IDs_array()
+    def _get_EARs_arr(self):
+        EARs_flat = self.workflow.get_EARs_from_IDs(self.EAR_ID.flatten())
+        EARs_arr = np.array(EARs_flat).reshape(self.EAR_ID.shape)
+        return EARs_arr
+
+    def make_artifact_dirs(self):
+        EARs_arr = self._get_EARs_arr()
         task_loop_idx_arr = self.get_task_loop_idx_array()
-        element_idx = self.get_task_element_idx_array()
-        run_idx = self.get_EAR_run_idx_array()
 
         run_dirs = []
         for js_elem_idx in range(self.num_elements):
             run_dirs_i = []
             for js_act_idx in range(self.num_actions):
-                t_iID = task_insert_ID_arr[js_act_idx, js_elem_idx].item()
+                EAR_i = EARs_arr[js_act_idx, js_elem_idx]
+                t_iID = EAR_i.task.insert_ID
                 l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
-                e_idx = element_idx[js_act_idx, js_elem_idx].item()
-                r_idx = run_idx[js_act_idx, js_elem_idx].item()
+                r_idx = EAR_i.index
 
-                loop_idx = self.task_loop_idx[l_idx]
-                task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(loop_idx)
-
-                # TODO: don't load element, but make sure format is the same
-                element_ID = ElementID(task_insert_ID=t_iID, element_idx=e_idx)
-                element = self.workflow.get_elements_from_IDs([element_ID])[0]
-                elem_dir = element.dir_name
-
+                loop_idx_i = self.task_loop_idx[l_idx]
+                task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(
+                    loop_idx_i
+                )
+                elem_dir = EAR_i.element.dir_name
                 run_dir = f"r_{r_idx}"
 
-                EAR_dir = Path(task_artifacts_path, task_dir, elem_dir, run_dir)
+                EAR_dir = Path(self.workflow.execution_path, task_dir, elem_dir, run_dir)
                 EAR_dir.mkdir(exist_ok=True, parents=True)
+
+                # copy (TODO: optionally symlink) any input files:
+                for name, path in EAR_i.get("input_files", {}).items():
+                    if path:
+                        shutil.copy(path, EAR_dir)
 
                 run_dirs_i.append(EAR_dir.relative_to(self.workflow.path))
 
@@ -770,12 +792,11 @@ class Jobscript(JSONLike):
 
     def submit(
         self,
-        task_artifacts_path: Path,
         scheduler_refs: Dict[int, str],
         print_stdout: Optional[bool] = False,
     ) -> str:
-        run_dirs = self.make_artifact_dirs(task_artifacts_path)
-        self.write_need_EARs_file()
+        run_dirs = self.make_artifact_dirs()
+        self.write_EAR_ID_file()
         self.write_element_run_dir_file(run_dirs)
         js_path = self.write_jobscript()
         js_path = self.shell.prepare_JS_path(js_path)
