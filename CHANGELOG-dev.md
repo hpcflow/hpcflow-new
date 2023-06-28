@@ -1,4 +1,35 @@
 
+<a name="v0.2.0a50"></a>
+## [v0.2.0a50](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a49...v0.2.0a50) - 2023.06.20
+
+### 🐛 Bug Fixes
+
+* Multiline output
+* Multiline output
+* update pyinstaller to prevent error "pyimod02_importers is NULL!"
+* update pyinstaller to prevent errowr "pyimod02_importers is NULL!"
+* Deprecation warnings - Multiline outputs
+* multiline output with GITHUB_OUTPUT method
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a49"></a>
+## [v0.2.0a49](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a48...v0.2.0a49) - 2023.06.06
+
+### 🐛 Bug Fixes
+
+* deprecation warnings & GHA python version bump
+* bumped python version in GHA environment variables.
+* replaced deprecated set-output
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a48"></a>
 ## [v0.2.0a48](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a47...v0.2.0a48) - 2023.05.31
 
