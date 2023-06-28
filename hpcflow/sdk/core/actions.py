@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+from datetime import datetime
 import enum
 from pathlib import Path
 import re
@@ -9,58 +10,15 @@ from textwrap import dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
+from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.command_files import FileSpec, InputFileGenerator, OutputFileParser
-from hpcflow.sdk.core.commands import Command
-from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.errors import MissingCompatibleActionEnvironment
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
-
-
-@dataclass(eq=True, frozen=True)
-class ElementID:
-    task_insert_ID: int
-    element_idx: int
-
-    def __lt__(self, other):
-        return tuple(self.__dict__.values()) < tuple(other.__dict__.values())
-
-
-@dataclass(eq=True, frozen=True)
-class IterationID(ElementID):
-    """
-    Parameters
-    ----------
-    iteration_idx :
-        Index into the `element_iterations` list/array of the task. Note this is NOT the
-        index into local list of ElementIterations belong to an Element.
-    """
-
-    iteration_idx: int
-
-    def get_element_ID(self):
-        return ElementID(
-            task_insert_ID=self.task_insert_ID,
-            element_idx=self.element_idx,
-        )
-
-
-@dataclass(eq=True, frozen=True)
-class EAR_ID(IterationID):
-    action_idx: int
-    run_idx: int
-    EAR_idx: int
-
-    def get_iteration_ID(self):
-        return IterationID(
-            task_insert_ID=self.task_insert_ID,
-            element_idx=self.element_idx,
-            iteration_idx=self.iteration_idx,
-        )
 
 
 class ActionScopeType(enum.Enum):
@@ -82,22 +40,46 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 
 class EARSubmissionStatus(enum.Enum):
     PENDING = 0  # Not yet associated with a submission
-    PREPARED = 1  # Associated with a submission that is not yet submitted
+    PREPARED = 1  # Associated with a prepared submission that is not yet submitted
     SUBMITTED = 2  # Submitted for execution
     RUNNING = 3  # Executing
     COMPLETE = 4  # Finished executing
+    SKIPPED = 5  # Not attempted due to a failure of an upstream EAR on which this depends
 
 
 class ElementActionRun:
     _app_attr = "app"
 
     def __init__(
-        self, element_action, run_idx: int, index: int, data_idx: Dict, metadata: Dict
+        self,
+        id_: int,
+        is_pending: bool,
+        element_action,
+        index: int,
+        data_idx: Dict,
+        start_time: Union[datetime, None],
+        end_time: Union[datetime, None],
+        snapshot_start: Union[Dict, None],
+        snapshot_end: Union[Dict, None],
+        submission_idx: Union[int, None],
+        success: Union[bool, None],
+        skip: bool,
+        exit_code: Union[int, None],
+        metadata: Dict,
     ) -> None:
+        self._id = id_
+        self._is_pending = is_pending
         self._element_action = element_action
-        self._run_idx = run_idx  # local index of this run with the action
-        self._index = index  # task-wide EAR index
+        self._index = index  # local index of this run with the action
         self._data_idx = data_idx
+        self._start_time = start_time
+        self._end_time = end_time
+        self._submission_idx = submission_idx
+        self._success = success
+        self._skip = skip
+        self._snapshot_start = snapshot_start
+        self._snapshot_end = snapshot_end
+        self._exit_code = exit_code
         self._metadata = metadata
 
         # assigned on first access of corresponding properties:
@@ -106,10 +88,33 @@ class ElementActionRun:
         self._resources = None
         self._input_files = None
         self._output_files = None
+        self._ss_start_obj = None
+        self._ss_end_obj = None
+        self._ss_diff_obj = None
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"id={self.id_!r}, index={self.index!r}, "
+            f"element_action={self.element_action!r})"
+        )
+
+    @property
+    def id_(self) -> int:
+        return self._id
+
+    @property
+    def is_pending(self) -> bool:
+        return self._is_pending
 
     @property
     def element_action(self):
         return self._element_action
+
+    @property
+    def index(self):
+        """Run index."""
+        return self._index
 
     @property
     def action(self):
@@ -127,26 +132,17 @@ class ElementActionRun:
     def workflow(self):
         return self.element_iteration.workflow
 
-    @property
-    def run_idx(self):
-        return self._run_idx
-
-    @property
-    def index(self):
-        """Task-wide EAR index."""
-        return self._index
-
-    @property
-    def EAR_ID(self):
-        """EAR index object."""
-        return EAR_ID(
-            EAR_idx=self.index,
-            task_insert_ID=self.task.insert_ID,
-            element_idx=self.element.index,
-            iteration_idx=self.element_iteration.index,
-            action_idx=self.element_action.action_idx,
-            run_idx=self.run_idx,
-        )
+    # @property
+    # def EAR_ID(self):
+    #     """EAR index object."""
+    #     return EAR_ID(
+    #         EAR_idx=self.index,
+    #         task_insert_ID=self.task.insert_ID,
+    #         element_idx=self.element.index,
+    #         iteration_idx=self.element_iteration.index,
+    #         action_idx=self.element_action.action_idx,
+    #         run_idx=self.run_idx,
+    #     )
 
     @property
     def data_idx(self):
@@ -157,20 +153,50 @@ class ElementActionRun:
         return self._metadata
 
     @property
-    def submission_idx(self):
-        return self.metadata["submission_idx"]
-
-    @property
     def start_time(self):
-        return self.metadata["start_time"]
+        return self._start_time
 
     @property
     def end_time(self):
-        return self.metadata["end_time"]
+        return self._end_time
+
+    @property
+    def submission_idx(self):
+        return self._submission_idx
 
     @property
     def success(self):
-        return self.metadata["success"]
+        return self._success
+
+    @property
+    def skip(self):
+        return self._skip
+
+    @property
+    def snapshot_start(self):
+        if self._ss_start_obj is None and self._snapshot_start:
+            self._ss_start_obj = JSONLikeDirSnapShot(**self._snapshot_start)
+        return self._ss_start_obj
+
+    @property
+    def snapshot_end(self):
+        if self._ss_end_obj is None and self._snapshot_end:
+            self._ss_end_obj = JSONLikeDirSnapShot(**self._snapshot_end)
+        return self._ss_end_obj
+
+    @property
+    def dir_diff(self) -> DirectorySnapshotDiff:
+        """Get the changes to the EAR working directory due to the execution of this
+        EAR."""
+        if self._ss_diff_obj is None and self.snapshot_end:
+            self._ss_diff_obj = DirectorySnapshotDiff(
+                self.snapshot_start, self.snapshot_end
+            )
+        return self._ss_diff_obj
+
+    @property
+    def exit_code(self):
+        return self._exit_code
 
     @property
     def task(self):
@@ -178,10 +204,20 @@ class ElementActionRun:
 
     @property
     def submission_status(self):
-        if self.metadata["end_time"] is not None:
+        """Return the submission status of this EAR.
+
+        Note: the submission status does not provide any information about whether the EAR
+        execution itself can be considered successful or not.
+
+        """
+
+        if self.skip:
+            return EARSubmissionStatus.SKIPPED
+
+        elif self.end_time is not None:
             return EARSubmissionStatus.COMPLETE
 
-        elif self.metadata["start_time"] is not None:
+        elif self.start_time is not None:
             return EARSubmissionStatus.RUNNING
 
         elif self.submission_idx is not None:
@@ -205,7 +241,7 @@ class ElementActionRun:
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.run_idx,
+            run_idx=self.index,
         )
 
     def get_parameter_sources(
@@ -218,7 +254,7 @@ class ElementActionRun:
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.run_idx,
+            run_idx=self.index,
             typ=typ,
             as_strings=as_strings,
             use_task_index=use_task_index,
@@ -233,7 +269,7 @@ class ElementActionRun:
         return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
-            run_idx=self.run_idx,
+            run_idx=self.index,
             default=default,
             raise_on_missing=raise_on_missing,
         )
@@ -243,17 +279,15 @@ class ElementActionRun:
 
         out = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            src = copy.deepcopy(src)
-            src.pop("type")
-            _EAR_ID = EAR_ID(**src)
-            if _EAR_ID != self.EAR_ID:
+            EAR_ID_i = src["EAR_ID"]
+            if EAR_ID_i != self.id_:
                 # don't record a self dependency!
-                out.append(_EAR_ID)
+                out.append(EAR_ID_i)
 
         out = sorted(out)
 
         if as_objects:
-            out = self.workflow.get_EARs_from_indices(out)
+            out = self.workflow.get_EARs_from_IDs(out)
 
         return out
 
@@ -272,6 +306,25 @@ class ElementActionRun:
                 out[k] = v
 
         return out
+
+    def get_dependent_EARs(
+        self, as_objects=False
+    ) -> List[Union[int, app.ElementActionRun]]:
+        """Get downstream EARs that depend on this EAR."""
+        deps = []
+        for task in self.workflow.tasks[self.task.index :]:
+            for elem in task.elements[:]:
+                for iter_ in elem.iterations:
+                    for run in iter_.action_runs:
+                        for dep_EAR_i in run.get_EAR_dependencies(as_objects=True):
+                            # does dep_EAR_i belong to self?
+                            if dep_EAR_i.id_ == self._id:
+                                deps.append(run.id_)
+        deps = sorted(deps)
+        if as_objects:
+            deps = self.workflow.get_EARs_from_IDs(deps)
+
+        return deps
 
     @property
     def inputs(self):
@@ -360,13 +413,24 @@ class ElementActionRun:
         # TODO: can this return multiple files for a given FileSpec?
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser files this from EAR because the "
+                f"Cannot get output file parser files from this from EAR because the "
                 f"associated action is not expanded, meaning multiple OFPs might exist."
             )
         out_files = {}
         for file_spec in self.action.output_file_parsers[0].output_files:
             out_files[file_spec.label] = Path(file_spec.name.value())
         return out_files
+
+    def get_OFP_inputs(self) -> Dict[str, Union[str, List[str]]]:
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get output file parser inputs from this from EAR because the "
+                f"associated action is not expanded, meaning multiple OFPs might exist."
+            )
+        inputs = {}
+        for inp_typ in self.action.output_file_parsers[0].inputs or []:
+            inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
+        return inputs
 
     def compose_source(self) -> str:
         """Generate the file contents of this source."""
@@ -382,35 +446,25 @@ class ElementActionRun:
             """\
             if __name__ == "__main__":
                 import sys
-                from {app_package_name}.api import {app_name} as app
+                import {app_module} as app
                 app.load_config(
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
-                wk_path, sub_idx, js_idx, js_elem_idx, js_act_idx = sys.argv[1:]
+                wk_path, EAR_ID = sys.argv[1:]
+                EAR_ID = int(EAR_ID)
                 wk = app.Workflow(wk_path)
-                _, EAR = wk._from_internal_get_EAR(
-                    submission_idx=int(sub_idx),
-                    jobscript_idx=int(js_idx),
-                    JS_element_idx=int(js_elem_idx),
-                    JS_action_idx=int(js_act_idx),
-                )
+                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
                 inputs = EAR.get_input_values()
                 outputs = {script_main_func}(**inputs)
                 outputs = {{"outputs." + k: v for k, v in outputs.items()}}
-                wk.save_parameters(
-                    values=outputs,
-                    submission_idx=int(sub_idx),
-                    jobscript_idx=int(js_idx),
-                    JS_element_idx=int(js_elem_idx),
-                    JS_action_idx=int(js_act_idx),
-                )
+                for name_i, out_i in outputs.items():
+                    wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
 
         """
         )
         main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_name=self.app.name,
+            app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
             script_main_func=script_main_func,
@@ -463,6 +517,7 @@ class ElementActionRun:
             self.write_source()
 
         param_regex = r"(\<\<parameter:{}\>\>?)"
+        file_regex = r"(\<\<file:{}\>\>?)"
         exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
 
         command_lns = []
@@ -482,15 +537,28 @@ class ElementActionRun:
 
             # substitute input parameters in command:
             for cmd_inp in self.action.get_command_input_types():
-                inp_val = self.get(f"inputs.{cmd_inp}")
+                inp_val = self.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
                 cmd_str = re.sub(
                     pattern=param_regex.format(cmd_inp),
                     repl=str(inp_val),
                     string=cmd_str,
                 )
 
+            # substitute input files in command:
+            for cmd_file in self.action.get_command_input_file_labels():
+                file_path = self.get(f"input_files.{cmd_file}")  # TODO: what if out file?
+                # assuming we have copied this file to the EAR directory, then we just
+                # need the file name:
+                file_name = Path(file_path).name
+                cmd_str = re.sub(
+                    pattern=file_regex.format(cmd_file),
+                    repl=file_name,
+                    string=cmd_str,
+                )
+
             out_types = command.get_output_types()
             if out_types["stdout"]:
+                # TODO: also map stderr/both if possible
                 # assign stdout to a shell variable if required:
                 param_name = f"outputs.{out_types['stdout']}"
                 shell_var_name = f"parameter_{out_types['stdout']}"
@@ -499,8 +567,11 @@ class ElementActionRun:
                     shell_var_name=shell_var_name,
                     command=cmd_str,
                 )
+            elif command.stdout:
+                cmd_str += f" 1>> {command.stdout}"
 
-            # TODO: also map stderr/both if possible
+            if command.stderr:
+                cmd_str += f" 2>> {command.stderr}"
 
             command_lns.append(cmd_str)
 
@@ -528,6 +599,7 @@ class ElementAction:
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
+            f"iter_ID={self.element_iteration.id_}, "
             f"scope={self.action.get_precise_scope().to_string()!r}, "
             f"action_idx={self.action_idx}, num_runs={self.num_runs}"
             f")"
@@ -549,8 +621,16 @@ class ElementAction:
     def runs(self):
         if self._run_objs is None:
             self._run_objs = [
-                self.app.ElementActionRun(self, run_idx=run_idx, **i)
-                for run_idx, i in enumerate(self._runs)
+                self.app.ElementActionRun(
+                    element_action=self,
+                    index=idx,
+                    **{
+                        k: v
+                        for k, v in i.items()
+                        if k not in ("elem_iter_ID", "action_idx")
+                    },
+                )
+                for idx, i in enumerate(self._runs)
             ]
         return self._run_objs
 
@@ -963,6 +1043,7 @@ class Action(JSONLike):
         environments: List[app.ActionEnvironment],
         commands: Optional[List[app.Command]] = None,
         script: Optional[str] = None,
+        abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
         output_file_parsers: Optional[List[app.OutputFileParser]] = None,
         input_files: Optional[List[app.FileSpec]] = None,
@@ -972,6 +1053,7 @@ class Action(JSONLike):
         self.commands = commands or []
         self.script = script
         self.environments = environments
+        self.abortable = abortable
         self.input_file_generators = input_file_generators or []
         self.output_file_parsers = output_file_parsers or []
         self.input_files = self._resolve_input_files(input_files or [])
@@ -1042,6 +1124,7 @@ class Action(JSONLike):
             self.commands == other.commands
             and self.script == other.script
             and self.environments == other.environments
+            and self.abortable == other.abortable
             and self.input_file_generators == other.input_file_generators
             and self.output_file_parsers == other.output_file_parsers
             and self.rules == other.rules
@@ -1150,15 +1233,13 @@ class Action(JSONLike):
             inp_files = []
             inp_acts = []
             for ifg in self.input_file_generators:
-                cmd = (
-                    f"<<executable:python>> <<script:{ifg.script}>> "
-                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
-                )
+                cmd = f"<<executable:python>> <<script:{ifg.script}>> $WK_PATH $EAR_ID"
                 act_i = self.app.Action(
                     commands=[app.Command(cmd)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + [ifg.get_action_rule()],
+                    abortable=ifg.abortable,
                 )
                 act_i._task_schema = self.task_schema
                 inp_files.append(ifg.input_file)
@@ -1168,15 +1249,13 @@ class Action(JSONLike):
             out_files = []
             out_acts = []
             for ofp in self.output_file_parsers:
-                cmd = (
-                    f"<<executable:python>> <<script:{ofp.script}>> "
-                    f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
-                )
+                cmd = f"<<executable:python>> <<script:{ofp.script}>> $WK_PATH $EAR_ID"
                 act_i = self.app.Action(
                     commands=[app.Command(cmd)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
+                    abortable=ofp.abortable,
                 )
                 act_i._task_schema = self.task_schema
                 out_files.extend(ofp.output_files)
@@ -1187,8 +1266,7 @@ class Action(JSONLike):
             if self.script:
                 commands += [
                     self.app.Command(
-                        f"<<executable:python>> <<script:{self.script}>> "
-                        f"$WK_PATH $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx"
+                        f"<<executable:python>> <<script:{self.script}>> $WK_PATH $EAR_ID"
                     )
                 ]
 
@@ -1196,6 +1274,7 @@ class Action(JSONLike):
                 commands=commands,
                 script=self.script,
                 environments=[self.get_commands_action_env()],
+                abortable=self.abortable,
                 rules=main_rules,
                 input_files=inp_files,
                 output_files=out_files,
@@ -1218,6 +1297,16 @@ class Action(JSONLike):
                 params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
+
+    def get_command_input_file_labels(self) -> Tuple[str]:
+        """Get input files types from commands."""
+        files = []
+        vars_regex = r"\<\<file:(.*?)\>\>"
+        for command in self.commands:
+            for val in re.findall(vars_regex, command.command):
+                files.append(val)
+            # TODO: consider stdin?
+        return tuple(set(files))
 
     def get_command_output_types(self) -> Tuple[str]:
         """Get parameter types from command stdout and stderr arguments."""
@@ -1245,6 +1334,8 @@ class Action(JSONLike):
             params = list(self.get_command_input_types())
             for i in self.input_file_generators:
                 params.extend([j.typ for j in i.inputs])
+            for i in self.output_file_parsers:
+                params.extend([j for j in i.inputs or []])
         return tuple(set(params))
 
     def get_output_types(self) -> Tuple[str]:
@@ -1270,10 +1361,20 @@ class Action(JSONLike):
         return tuple(i.label for i in self.output_files)
 
     def generate_data_index(
-        self, act_idx, EAR_idx, schema_data_idx, all_data_idx, workflow, param_source
-    ):
+        self,
+        act_idx,
+        EAR_ID,
+        schema_data_idx,
+        all_data_idx,
+        workflow,
+        param_source,
+    ) -> List[int]:
         """Generate the data index for this action of an element iteration whose overall
-        data index is passed."""
+        data index is passed.
+
+        This mutates `all_data_idx`.
+
+        """
 
         # output keys must be processed first for this to work, since when processing an
         # output key, we may need to update the index of an output in a previous action's
@@ -1325,16 +1426,19 @@ class Action(JSONLike):
             else:
                 # outputs
                 k_idx = None
-                for (act_idx_i, EAR_idx_i), prev_data_idx in all_data_idx.items():
+                for (act_idx_i, EAR_ID_i), prev_data_idx in all_data_idx.items():
                     if key in prev_data_idx:
                         k_idx = prev_data_idx[key]
 
                         # allocate a new parameter datum for this intermediate output:
                         param_source_i = copy.deepcopy(param_source)
-                        param_source_i["action_idx"] = act_idx_i
-                        param_source_i["EAR_idx"] = EAR_idx_i
+                        # param_source_i["action_idx"] = act_idx_i
+                        param_source_i["EAR_ID"] = EAR_ID_i
                         new_k_idx = workflow._add_unset_parameter_data(param_source_i)
+
+                        # mutate `all_data_idx`:
                         prev_data_idx[key] = new_k_idx
+
                 if k_idx is None:
                     # otherwise take from the schema_data_idx:
                     k_idx = schema_data_idx[key]
@@ -1345,7 +1449,7 @@ class Action(JSONLike):
             sub_data_idx[key] = k_idx
             sub_data_idx.update(sub_param_idx)
 
-        all_data_idx[(act_idx, EAR_idx)] = sub_data_idx
+        all_data_idx[(act_idx, EAR_ID)] = sub_data_idx
 
         return param_src_update
 
@@ -1413,3 +1517,8 @@ class Action(JSONLike):
             if typ in (i.typ for i in IFG.inputs):
                 if IFG.input_file not in provided_files:
                     return True
+
+        # typ is required if used in any output file parser
+        for OFP in self.output_file_parsers:
+            if typ in (OFP.inputs or []):
+                return True

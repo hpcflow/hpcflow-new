@@ -9,3 +9,4 @@ Reference
    Template components <template_components>
    Configuration file <config_file>
    SDK <sdk>
+   Glossary <glossary>

@@ -1,7 +1,6 @@
 import copy
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.actions import ElementID
 from hpcflow.sdk.core.errors import (
     MissingInputs,
     TaskTemplateInvalidNesting,
@@ -644,7 +643,7 @@ def test_task_element_dependencies(tmp_path):
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    assert wk.tasks.t2.get_element_dependencies() == [ElementID(0, 0), ElementID(0, 1)]
+    assert wk.tasks.t2.get_element_dependencies() == [0, 1]
 
 
 def test_task_dependent_elements(tmp_path):
@@ -657,7 +656,7 @@ def test_task_dependent_elements(tmp_path):
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    assert wk.tasks.t1.get_dependent_elements() == [ElementID(1, 0), ElementID(1, 1)]
+    assert wk.tasks.t1.get_dependent_elements() == [2, 3]
 
 
 def test_task_add_elements_without_propagation_expected_workflow_num_elements(
@@ -708,9 +707,9 @@ def test_task_add_elements_without_propagation_expected_new_data_index(
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    data_index = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements]
+    data_index = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements[:]]
     wk.tasks.t1.add_elements(inputs=[hf.InputValue(param_p1, 103)])
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements]
+    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements[:]]
     new_elems = data_index_new[len(data_index) :]
     assert new_elems == [["inputs.p1", "outputs.p2", "resources.any"]]
 
@@ -1281,14 +1280,14 @@ def test_no_change_to_tasks_metadata_on_add_task_failure(tmp_path):
         local_inputs={0: ("p1",)},
         path=tmp_path,
     )
-    tasks_meta = copy.deepcopy(wk._store.get_all_tasks_metadata())
+    tasks_meta = copy.deepcopy(wk._store.get_tasks())
 
     s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = hf.Task(schemas=s2)
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
 
-    assert wk._store.get_all_tasks_metadata() == tasks_meta
+    assert wk._store.get_tasks() == tasks_meta
 
 
 def test_no_change_to_parameter_data_on_add_task_failure(tmp_path, param_p2, param_p3):
@@ -1297,13 +1296,13 @@ def test_no_change_to_parameter_data_on_add_task_failure(tmp_path, param_p2, par
         local_inputs={0: ("p1",)},
         path=tmp_path,
     )
-    param_data = copy.deepcopy(wk.get_all_parameter_data())
+    param_data = copy.deepcopy(wk.get_all_parameters())
     s2 = make_schemas([[{"p1": None, "p2": None, "p3": None}, ()]])
     t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p2, 201)])
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
 
-    assert wk.get_all_parameter_data() == param_data
+    assert wk.get_all_parameters() == param_data
 
 
 def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
@@ -1321,7 +1320,7 @@ def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
     param_data_new = wk.get_all_parameter_data()
 
     new_keys = set(param_data_new.keys()) - set(param_data.keys())
-    new_data = [param_data_new[k][1] for k in new_keys]
+    new_data = [param_data_new[k] for k in new_keys]
 
     # one new key for resources, one for param_p3 value
     res = {k: None for k in hf.ResourceSpec.ALLOWED_PARAMETERS}
@@ -1337,7 +1336,7 @@ def test_parameters_accepted_on_add_task(tmp_path, param_p3):
     s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
     t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
     wk.add_task(t2)
-    assert not wk._store._pending["parameter_data"]
+    assert not wk._store._pending.add_parameters
 
 
 def test_parameters_pending_during_add_task(tmp_path, param_p3):
@@ -1350,7 +1349,7 @@ def test_parameters_pending_during_add_task(tmp_path, param_p3):
     t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
     with wk.batch_update():
         wk.add_task(t2)
-        assert wk._store._pending["parameter_data"]
+        assert wk._store._pending.add_parameters
 
 
 def test_add_task_after(workflow_w0):

@@ -4,7 +4,7 @@ from __future__ import annotations
 import importlib
 import os
 from typing import Optional, TypeVar, Union
-from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 
 from hpcflow.sdk.submission.shells import get_shell

@@ -1,43 +1,31 @@
+import copy
 from pathlib import Path
 import random
 import string
-from typing import Type
+import time
+from typing import Type, Union
 
-from hpcflow.sdk.core.errors import WorkflowNotFoundError
+from reretry import retry
 
-from .base import PersistentStore, dropbox_permission_err_retry
-from .json import JSONPersistentStore
-from .zarr import ZarrPersistentStore
+from hpcflow.sdk.persistence.base import PersistentStore
+from hpcflow.sdk.persistence.json import JSONPersistentStore
+from hpcflow.sdk.persistence.zarr import ZarrPersistentStore, ZarrZipPersistentStore
 
-ALL_STORE_FORMATS = ("zarr", "json")
+ALL_STORE_CLS = {
+    "zarr": ZarrPersistentStore,
+    "zip": ZarrZipPersistentStore,
+    "json": JSONPersistentStore,
+    # "json-single": JSONPersistentStore,  # TODO
+}
 DEFAULT_STORE_FORMAT = "zarr"
+ALL_STORE_FORMATS = tuple(ALL_STORE_CLS.keys())
+ALL_CREATE_STORE_FORMATS = tuple(
+    k for k, v in ALL_STORE_CLS.items() if v._features.create
+)
 
 
-def store_cls_from_path(workflow_path: Path) -> Type[PersistentStore]:
-    if ZarrPersistentStore.path_has_store(workflow_path):
-        return ZarrPersistentStore
-    elif JSONPersistentStore.path_has_store(workflow_path):
-        return JSONPersistentStore
-    else:
-        raise WorkflowNotFoundError(
-            f"No workflow of a known store type found at path: {workflow_path!r}."
-        )
-
-
-def store_cls_from_str(store_format: str) -> Type[PersistentStore]:
-    if store_format == "zarr":
-        return ZarrPersistentStore
-    elif store_format == "json":
-        return JSONPersistentStore
-    else:
+def store_cls_from_str_NEW(store_format: str) -> Type[PersistentStore]:
+    try:
+        return ALL_STORE_CLS[store_format]
+    except KeyError:
         raise ValueError(f"Store format {store_format!r} not known.")
-
-
-@dropbox_permission_err_retry
-def temporary_workflow_rename(path):
-    """Rename an existing same-path workflow directory so we can restore it if workflow
-    creation fails"""
-    temp_ext = "".join(random.choices(string.ascii_letters, k=10))
-    replaced_dir = path.with_suffix(f"{path.suffix}.{temp_ext}")
-    path.rename(replaced_dir)
-    return replaced_dir

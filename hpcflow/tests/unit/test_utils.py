@@ -6,10 +6,14 @@ from numpy.typing import NDArray
 from hpcflow.sdk.core.errors import InvalidIdentifier
 
 from hpcflow.sdk.core.utils import (
+    JSONLikeDirSnapShot,
     bisect_slice,
+    flatten,
     get_nested_indices,
+    is_fsspec_url,
     replace_items,
     check_valid_py_identifier,
+    reshape,
 )
 
 
@@ -253,6 +257,84 @@ def test_expected_return_check_valid_py_identifier_all_latin_alphanumeric():
 
 def test_expected_return_check_valid_py_identifier_all_greek_alpha():
     assert check_valid_py_identifier("αβγ") == "αβγ"
+
+
+def test_flatten_reshape_round_trip_depth_2():
+    lst = [[[1, 2], [3]], [[4, 5, 6], [7, 8], [9, 10]]]
+    lst_flat, lens = flatten(lst)
+    assert lst_flat == list(range(1, 11)) and reshape(lst_flat, lens) == lst
+
+
+def test_flatten_reshape_round_trip_depth_0():
+    lst = [1, 2, 3]
+    lst_flat, lens = flatten(lst)
+    assert lst_flat == list(range(1, 4)) and reshape(lst_flat, lens) == lst
+
+
+def test_flatten_reshape_round_trip_depth_1():
+    lst = [[4, 5, 6], [7, 8], [9, 10]]
+    lst_flat, lens = flatten(lst)
+    assert lst_flat == list(range(4, 11)) and reshape(lst_flat, lens) == lst
+
+
+def test_flatten_expected_return_first_item_empty_list():
+    lst = [[], [1]]
+    flt = flatten(lst)
+    assert flt == ([1], ([0, 1],))
+
+
+def test_flatten_expected_return_second_item_empty_list():
+    lst = [[1], []]
+    flt = flatten(lst)
+    assert flt == ([1], ([1, 0],))
+
+
+def test_is_fsspec_url_simple():
+    assert is_fsspec_url("github://dask:fastparquet@main/test-data/nation.csv")
+
+
+def test_is_fsspec_url_compound():
+    assert is_fsspec_url("dask::s3://bucket/key")
+
+
+def test_is_fsspec_url_compound_complex():
+    assert is_fsspec_url("simplecache::zip://*.csv::gcs://bucket/afile.zip")
+
+
+def test_is_fsspec_url_false_cwd():
+    assert not is_fsspec_url(".")
+
+
+def test_is_fsspec_url_false_local_win_abs_path():
+    assert not is_fsspec_url("C:\\my_files")
+
+
+def test_is_fsspec_url_false_local_win_rel_path():
+    assert not is_fsspec_url(".\\a\\b\\c")
+
+
+def test_is_fsspec_url_false_local_win_rel_up_path():
+    assert not is_fsspec_url("..\\a\\b\\c")
+
+
+def test_is_fsspec_url_false_local_nix_abs_path():
+    assert not is_fsspec_url("/mnt/c/my_files")
+
+
+def test_is_fsspec_url_false_local_nix_rel_path():
+    assert not is_fsspec_url("./a/b/c")
+
+
+def test_is_fsspec_url_false_local_nix_rel_up_path():
+    assert not is_fsspec_url("../a/b/c")
+
+
+def test_JSONLikeDirSnapShot_round_trip(tmpdir):
+    snap_0 = JSONLikeDirSnapShot()
+    snap_0.take(str(tmpdir))
+    js_0 = snap_0.to_json_like()
+    snap_0_rl = JSONLikeDirSnapShot(**js_0)
+    assert snap_0._stat_info == snap_0_rl._stat_info
 
 
 # from hpcflow.utils import (

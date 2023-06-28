@@ -1,10 +1,12 @@
+import copy
 from functools import wraps
 import contextlib
 import hashlib
+from itertools import accumulate
 import json
 import keyword
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 import random
 import re
 import socket
@@ -14,6 +16,7 @@ from typing import Mapping
 
 from ruamel.yaml import YAML
 import sentry_sdk
+from watchdog.utils.dirsnapshot import DirectorySnapshot
 
 from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
 from hpcflow.sdk.typing import PathLike
@@ -430,7 +433,7 @@ def get_nested_indices(idx, size, nest_levels, raise_on_rollover=False):
     return [(idx // (size ** (nest_levels - (i + 1)))) % size for i in range(nest_levels)]
 
 
-def ensure_in(item, lst):
+def ensure_in(item, lst) -> int:
     """Get the index of an item in a list and append the item if it is not in the
     list."""
     # TODO: add tests
@@ -492,3 +495,108 @@ def replace_items(lst, start, end, repl):
     lst_a = lst[:start]
     lst_b = lst[end:]
     return lst_a + repl + lst_b
+
+
+def flatten(lst):
+    """Flatten an arbitrarily (but of uniform depth) nested list and return shape
+    information to enable un-flattening.
+
+    Un-flattening can be performed with the `reshape` function.
+
+    lst
+        List to be flattened. Each element must contain all lists or otherwise all items
+        that are considered to be at the "bottom" of the nested structure (e.g. integers).
+        For example, `[[1, 2], [3]]` is permitted and flattens to `[1, 2, 3]`, but
+        `[[1, 2], 3]` is not permitted because the first element is a list, but the second
+        is not.
+
+    """
+
+    def _flatten(lst, _depth=0):
+        out = []
+        for i in lst:
+            if isinstance(i, list):
+                out += _flatten(i, _depth=_depth + 1)
+                all_lens[_depth].append(len(i))
+            else:
+                out.append(i)
+        return out
+
+    def _get_max_depth(lst):
+        lst = lst[:]
+        max_depth = 0
+        while isinstance(lst, list):
+            max_depth += 1
+            try:
+                lst = lst[0]
+            except IndexError:
+                # empty list, assume this is max depth
+                break
+        return max_depth
+
+    max_depth = _get_max_depth(lst) - 1
+    all_lens = tuple([] for _ in range(max_depth))
+
+    return _flatten(lst), all_lens
+
+
+def reshape(lst, lens):
+    def _reshape(lst, lens):
+        lens_acc = [0] + list(accumulate(lens))
+        lst_rs = [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
+        return lst_rs
+
+    for lens_i in lens[::-1]:
+        lst = _reshape(lst, lens_i)
+
+    return lst
+
+
+def is_fsspec_url(url: str) -> bool:
+    return bool(re.match(r"(?:[a-z0-9]+:{1,2})+\/\/", url))
+
+
+class JSONLikeDirSnapShot(DirectorySnapshot):
+    """Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON."""
+
+    def __init__(self, root_path=None, data=None):
+        """Create an empty snapshot or load from JSON-like data."""
+
+        self.root_path = root_path
+        self._stat_info = {}
+        self._inode_to_path = {}
+
+        if data:
+            for k in list((data or {}).keys()):
+                # add root path
+                full_k = str(PurePath(root_path) / PurePath(k))
+                stat_dat, inode_key = data[k][:-2], data[k][-2:]
+                self._stat_info[full_k] = os.stat_result(stat_dat)
+                self._inode_to_path[tuple(inode_key)] = full_k
+
+    def take(self, *args, **kwargs):
+        """Take the snapshot."""
+        super().__init__(*args, **kwargs)
+
+    def to_json_like(self):
+        """Export to a dict that is JSON-compatible and can be later reloaded.
+
+        The last two integers in `data` for each path are the keys in
+        `self._inode_to_path`.
+
+        """
+
+        # first key is the root path:
+        root_path = next(iter(self._stat_info.keys()))
+
+        # store efficiently:
+        inode_invert = {v: k for k, v in self._inode_to_path.items()}
+        data = {}
+        for k, v in self._stat_info.items():
+            k_rel = str(PurePath(k).relative_to(root_path))
+            data[k_rel] = list(v) + list(inode_invert[k])
+
+        return {
+            "root_path": root_path,
+            "data": data,
+        }

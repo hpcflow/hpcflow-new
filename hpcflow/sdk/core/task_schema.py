@@ -197,10 +197,17 @@ class TaskSchema(JSONLike):
             if extra_ins and not has_script:
                 # TODO: bit of a hack, need to consider script ins/outs later
                 # i.e. are all schema inputs "consumed" by an action?
-                raise ValueError(
-                    f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used by "
-                    f"any actions."
-                )
+
+                # consider OFP inputs:
+                for act_i in self.actions:
+                    for OFP_j in act_i.output_file_parsers:
+                        extra_ins = extra_ins - set(OFP_j.inputs or [])
+
+                if extra_ins:
+                    raise ValueError(
+                        f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used by "
+                        f"any actions."
+                    )
 
             missing_outs = set(self.output_types) - set(all_outs)
             if missing_outs and not has_script:

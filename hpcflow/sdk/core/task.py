@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from valida.rules import Rule
@@ -382,8 +383,8 @@ class ElementSet(JSONLike):
         return [j for i in self.elements for j in i.iterations]
 
     @property
-    def elem_iter_global_indices(self):
-        return [i.global_idx for i in self.element_iterations]
+    def elem_iter_IDs(self):
+        return [i.id_ for i in self.element_iterations]
 
     def get_task_dependencies(self, as_objects=False):
         """Get upstream tasks that this element set depends on."""
@@ -502,6 +503,9 @@ class Task(JSONLike):
             sourceable_elem_iters=sourceable_elem_iters,
         )
 
+        # appended to when new element sets are added and reset on dump to disk:
+        self._pending_element_sets = []
+
         self._validate()
         self._name = self._get_name()
 
@@ -510,6 +514,13 @@ class Task(JSONLike):
         self._dir_name = None
 
         self._set_parent_refs()
+
+    def _reset_pending_element_sets(self):
+        self._pending_element_sets = []
+
+    def _accept_pending_element_sets(self):
+        self._element_sets += self._pending_element_sets
+        self._reset_pending_element_sets()
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -520,9 +531,9 @@ class Task(JSONLike):
 
     def _add_element_set(self, element_set: app.ElementSet):
         """Invoked by WorkflowTask._add_element_set."""
-        self._element_sets.append(element_set)
+        self._pending_element_sets.append(element_set)
         self.workflow_template.workflow._store.add_element_set(
-            self.index, element_set.to_json_like()[0]
+            self.insert_ID, element_set.to_json_like()[0]
         )
 
     @classmethod
@@ -542,11 +553,13 @@ class Task(JSONLike):
         kwargs = self.to_dict()
         _insert_ID = kwargs.pop("insert_ID")
         _dir_name = kwargs.pop("dir_name")
+        # _pending_element_sets = kwargs.pop("pending_element_sets")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._insert_ID = _insert_ID
         obj._dir_name = _dir_name
         obj._name = self._name
         obj.workflow_template = self.workflow_template
+        obj._pending_element_sets = self._pending_element_sets
         return obj
 
     def to_persistent(self, workflow, insert_ID):
@@ -563,7 +576,11 @@ class Task(JSONLike):
 
     def to_dict(self):
         out = super().to_dict()
-        return {k.lstrip("_"): v for k, v in out.items() if k != "_name"}
+        return {
+            k.lstrip("_"): v
+            for k, v in out.items()
+            if k not in ("_name", "_pending_element_sets")
+        }
 
     def set_sequence_parameters(self, element_set):
         # set ValueSequence Parameter objects:
@@ -641,9 +658,9 @@ class Task(JSONLike):
                     # `initialise_EARs`:
                     param_src = {
                         "type": "EAR_output",
-                        "task_insert_ID": self.insert_ID,
-                        "element_idx": idx,
-                        "run_idx": 0,
+                        # "task_insert_ID": self.insert_ID,
+                        # "element_idx": idx,
+                        # "run_idx": 0,
                     }
                     data_ref = workflow._add_unset_parameter_data(param_src)
                     output_data_indices[path].append(data_ref)
@@ -732,7 +749,7 @@ class Task(JSONLike):
                             src_elem_iters = []
                             for es_idx_i in es_idx:
                                 es_i = src_task_i.element_sets[es_idx_i]
-                                src_elem_iters += es_i.elem_iter_global_indices
+                                src_elem_iters += es_i.elem_iter_IDs
 
                         if element_set.sourceable_elem_iters is not None:
                             # can only use a subset of element iterations (this is the
@@ -765,11 +782,11 @@ class Task(JSONLike):
 
     @property
     def element_sets(self):
-        return self._element_sets
+        return self._element_sets + self._pending_element_sets
 
     @property
     def num_element_sets(self):
-        return len(self._element_sets)
+        return len(self.element_sets)
 
     @property
     def insert_ID(self):
@@ -980,38 +997,27 @@ class WorkflowTask:
         workflow: app.Workflow,
         template: app.Task,
         index: int,
-        num_elements: int,
-        num_element_iterations: int,
-        num_EARs: int,
+        element_IDs: List[int],
     ):
         self._workflow = workflow
         self._template = template
         self._index = index
-        self._num_elements = num_elements
-        self._num_element_iterations = num_element_iterations
-        self._num_EARs = num_EARs
+        self._element_IDs = element_IDs
 
-        # assigned/incremented when new elements/iterations/EARs are added and reset on
-        # dump to disk:
-        self._pending_num_elements = 0
-        self._pending_num_element_iterations = 0
-        self._pending_num_EARs = 0
+        # appended to when new elements are added and reset on dump to disk:
+        self._pending_element_IDs = []
 
         self._elements = None  # assigned on `elements` first access
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.unique_name!r})"
 
-    def _reset_pending_elements(self):
-        self._pending_num_elements = 0
-        self._pending_num_element_iterations = 0
-        self._pending_num_EARs = 0
+    def _reset_pending_element_IDs(self):
+        self._pending_element_IDs = []
 
-    def _accept_pending_elements(self):
-        self._num_elements = self.num_elements
-        self._num_element_iterations = self.num_element_iterations
-        self._num_EARs = self.num_EARs
-        self._reset_pending_elements()
+    def _accept_pending_element_IDs(self):
+        self._element_IDs += self._pending_element_IDs
+        self._reset_pending_element_IDs()
 
     @classmethod
     def new_empty_task(cls, workflow: app.Workflow, template: app.Task, index: int):
@@ -1019,9 +1025,7 @@ class WorkflowTask:
             workflow=workflow,
             template=template,
             index=index,
-            num_elements=0,
-            num_element_iterations=0,
-            num_EARs=0,
+            element_IDs=[],
         )
         return obj
 
@@ -1038,16 +1042,12 @@ class WorkflowTask:
         return self._index
 
     @property
+    def element_IDs(self):
+        return self._element_IDs + self._pending_element_IDs
+
+    @property
     def num_elements(self):
-        return self._num_elements + self._pending_num_elements
-
-    @property
-    def num_element_iterations(self):
-        return self._num_element_iterations + self._pending_num_element_iterations
-
-    @property
-    def num_EARs(self):
-        return self._num_EARs + self._pending_num_EARs
+        return len(self.element_IDs)
 
     @property
     def num_actions(self):
@@ -1154,9 +1154,7 @@ class WorkflowTask:
                     if inp_src.element_iters:
                         # only include "sourceable" element iterations:
                         src_elem_iters = [
-                            i
-                            for i in src_elem_iters
-                            if i.global_idx in inp_src.element_iters
+                            i for i in src_elem_iters if i.id_ in inp_src.element_iters
                         ]
 
                     if not src_elem_iters:
@@ -1427,7 +1425,7 @@ class WorkflowTask:
                 if not iter_i.EARs_initialised:
                     try:
                         self._initialise_element_iter_EARs(iter_i)
-                        initialised.append(iter_i.index)
+                        initialised.append(iter_i.id_)
                     except UnsetParameterDataError:
                         # raised by `test_action_rule`; cannot yet initialise EARs
                         pass
@@ -1440,26 +1438,21 @@ class WorkflowTask:
         all_data_idx = {}
         action_runs = {}
 
+        # keys are parameter indices, values are EAR_IDs to update those sources to
         param_src_updates = {}
+
         count = 0
         for act_idx, action in self.template.all_schema_actions():
             if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
-                EAR_idx = self.num_EARs + count
-                # note: indices below `EAR_idx` are redundant and can be derived from
-                # `EAR_idx`:
+                EAR_ID = self.workflow.num_EARs + count
                 param_source = {
                     "type": "EAR_output",
-                    "task_insert_ID": self.insert_ID,
-                    "EAR_idx": EAR_idx,
-                    "element_idx": element_iter.element.index,
-                    "iteration_idx": element_iter.index,
-                    "action_idx": act_idx,
-                    "run_idx": 0,
+                    "EAR_ID": EAR_ID,
                 }
                 psrc_update = (
                     action.generate_data_index(  # adds an item to `all_data_idx`
                         act_idx=act_idx,
-                        EAR_idx=EAR_idx,
+                        EAR_ID=EAR_ID,
                         schema_data_idx=schema_data_idx,
                         all_data_idx=all_data_idx,
                         workflow=self.workflow,
@@ -1469,39 +1462,27 @@ class WorkflowTask:
                 # with EARs initialised, we can update the pre-allocated schema-level
                 # parameters with the correct EAR reference:
                 for i in psrc_update:
-                    param_src_updates[i] = {
-                        "action_idx": act_idx,
-                        "EAR_idx": EAR_idx,
-                        "iteration_idx": element_iter.index,
-                    }
+                    param_src_updates[i] = {"EAR_ID": EAR_ID}
                 run_0 = {
-                    "index": EAR_idx,
-                    "metadata": {
-                        "submission_idx": None,
-                        "success": None,
-                        "start_time": None,
-                        "end_time": None,
-                    },
+                    "elem_iter_ID": element_iter.id_,
+                    "action_idx": act_idx,
+                    "metadata": {},
                 }
-                action_runs[(act_idx, EAR_idx)] = run_0
+                action_runs[(act_idx, EAR_ID)] = run_0
                 count += 1
 
         # `generate_data_index` can modify data index for previous actions, so only assign
         # this at the end:
-        EARs = {}
-        for (act_idx, EAR_idx), run in action_runs.items():
-            run["data_idx"] = all_data_idx[(act_idx, EAR_idx)]
-            EARs[act_idx] = [run]
+        for (act_idx, EAR_ID_i), run in action_runs.items():
+            self.workflow._store.add_EAR(
+                elem_iter_ID=element_iter.id_,
+                action_idx=act_idx,
+                data_idx=all_data_idx[(act_idx, EAR_ID_i)],
+                metadata={},
+            )
 
-        self._pending_num_EARs += count
-        self.workflow._store.add_EARs(
-            task_idx=self.index,
-            task_insert_ID=self.insert_ID,
-            element_iter_idx=element_iter.index,
-            EARs=EARs,
-            param_src_updates=param_src_updates,
-        )
-        return EARs
+        for pid, src in param_src_updates.items():
+            self.workflow._store.update_param_source(pid, src)
 
     def _add_element_set(self, element_set):
         """
@@ -1529,10 +1510,10 @@ class WorkflowTask:
 
         element_inp_data_idx = self.resolve_element_data_indices(multiplicities)
 
-        global_element_iter_idx_range = [
-            self.workflow.num_element_iterations,
-            self.workflow.num_element_iterations + len(element_inp_data_idx),
-        ]
+        # global_element_iter_idx_range = [
+        #     self.workflow.num_element_iterations,
+        #     self.workflow.num_element_iterations + len(element_inp_data_idx),
+        # ]
         local_element_idx_range = [
             self.num_elements,
             self.num_elements + len(element_inp_data_idx),
@@ -1554,41 +1535,56 @@ class WorkflowTask:
             src_idx,
         )
 
-        element_iterations = []
-        elements = []
+        iter_IDs = []
+        elem_IDs = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
-            elements.append(
-                {
-                    "iterations_idx": [self.num_elements + elem_idx],
-                    "es_idx": self.num_element_sets - 1,
-                    "seq_idx": {k: v[elem_idx] for k, v in element_seq_idx.items()},
-                    "src_idx": {k: v[elem_idx] for k, v in element_src_idx.items()},
-                }
+            # elements.append(
+            #     {
+            #         "iterations_idx": [self.num_elements + elem_idx],
+            #         "es_idx": self.num_element_sets - 1,
+            #         "seq_idx": ,
+            #         "src_idx": ,
+            #     }
+            # )
+            elem_ID_i = self.workflow._store.add_element(
+                task_ID=self.insert_ID,
+                es_idx=self.num_element_sets - 1,
+                seq_idx={k: v[elem_idx] for k, v in element_seq_idx.items()},
+                src_idx={k: v[elem_idx] for k, v in element_src_idx.items()},
             )
-            element_iterations.append(
-                {
-                    "global_idx": self.workflow.num_element_iterations + elem_idx,
-                    "data_idx": data_idx,
-                    "EARs_initialised": False,
-                    "actions": {},
-                    "schema_parameters": list(schema_params),
-                    "loop_idx": {},
-                }
+            iter_ID_i = self.workflow._store.add_element_iteration(
+                element_ID=elem_ID_i,
+                data_idx=data_idx,
+                schema_parameters=list(schema_params),
             )
+            iter_IDs.append(iter_ID_i)
+            elem_IDs.append(elem_ID_i)
 
-        self.workflow._store.add_elements(
-            self.index,
-            self.insert_ID,
-            elements,
-            element_iterations,
-        )
-        self._pending_num_elements += len(elements)
-        self._pending_num_element_iterations += len(element_iterations)
+            # element_iterations.append(
+            #     {
+            #         "global_idx": self.workflow.num_element_iterations + elem_idx,
+            #         "data_idx": data_idx,
+            #         "EARs_initialised": False,
+            #         "actions": {},
+            #         "schema_parameters": list(schema_params),
+            #         "loop_idx": {},
+            #     }
+            # )
+
+        # self.workflow._store.add_elements(
+        #     self.index,
+        #     self.insert_ID,
+        #     elements,
+        #     element_iterations,
+        # )
+        self._pending_element_IDs += elem_IDs
+        # self._pending_num_elements += len(element_data_idx)
+        # self._pending_num_element_iterations += len(element_data_idx)
 
         self.initialise_EARs()
 
-        return list(range(*global_element_iter_idx_range))
+        return iter_IDs
 
     def add_elements(
         self,
@@ -1723,16 +1719,18 @@ class WorkflowTask:
     def get_element_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[ElementID, app.Element]]:
-        """Get elements from upstream tasks (ElementID or Element objects) that this task
-        depends on."""
+    ) -> List[Union[int, app.Element]]:
+        """Get elements from upstream tasks that this task depends on."""
 
         deps = []
-        for element in self.elements:
+        for element in self.elements[:]:
             for iter_i in element.iterations:
-                for elem_ID in iter_i.get_element_dependencies(as_objects=False):
-                    if elem_ID not in deps and elem_ID.task_insert_ID != self.insert_ID:
-                        deps.append(elem_ID)
+                for dep_elem_i in iter_i.get_element_dependencies(as_objects=True):
+                    if (
+                        dep_elem_i.task.insert_ID != self.insert_ID
+                        and dep_elem_i not in deps
+                    ):
+                        deps.append(dep_elem_i.id_)
 
         deps = sorted(deps)
         if as_objects:
@@ -1772,17 +1770,15 @@ class WorkflowTask:
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[ElementID, app.Element]]:
-        """Get elements from downstream tasks (ElementID or Element objects) that depend
-        on this task."""
+    ) -> List[Union[int, app.Element]]:
+        """Get elements from downstream tasks that depend on this task."""
         deps = []
         for task in self.downstream_tasks:
-            for element in task.elements:
-                elem_ID = element.element_ID
+            for element in task.elements[:]:
                 for iter_i in element.iterations:
                     for dep_i in iter_i.get_task_dependencies(as_objects=False):
-                        if dep_i == self.insert_ID and elem_ID not in deps:
-                            deps.append(elem_ID)
+                        if dep_i == self.insert_ID and element.id_ not in deps:
+                            deps.append(element.id_)
 
         deps = sorted(deps)
         if as_objects:
@@ -1879,8 +1875,16 @@ class WorkflowTask:
                     # no intersection between paths
                     continue
 
-            is_set, data = self.workflow.get_parameter_data(data_idx_i)
-            if raise_on_unset and not is_set:
+            param = self.workflow.get_parameter(data_idx_i)
+            if param.file:
+                if param.file["store_contents"]:
+                    data = Path(self.workflow.path) / param.file["path"]
+                else:
+                    data = Path(param.file["path"])
+                data = data.as_posix()
+            else:
+                data = param.data
+            if raise_on_unset and not param.is_set:
                 raise UnsetParameterDataError(
                     f"Element data path {path!r} resolves to unset data for (at least) "
                     f"data index path: {path_i!r}."

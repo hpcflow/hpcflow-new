@@ -5,7 +5,7 @@ from termcolor import colored
 from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
 from hpcflow.sdk.config.errors import ConfigError
-from hpcflow.sdk.core.workflow import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
 from hpcflow.sdk.demo.cli import get_demo_software_CLI
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
@@ -410,21 +410,22 @@ def _make_internal_CLI(app):
     @click.pass_context
     @click.argument("submission_idx", type=click.INT)
     @click.argument("jobscript_idx", type=click.INT)
-    @click.argument("js_element_idx", type=click.INT)
     @click.argument("js_action_idx", type=click.INT)
+    @click.argument("ear_id", type=click.INT)
     def write_commands(
         ctx,
         submission_idx: int,
         jobscript_idx: int,
-        js_element_idx: int,
         js_action_idx: int,
+        ear_id: int,
     ):
+        app.CLI_logger.info(f"write commands for EAR ID {ear_id!r}.")
         ctx.exit(
             ctx.obj["workflow"].write_commands(
                 submission_idx,
                 jobscript_idx,
-                js_element_idx,
                 js_action_idx,
+                ear_id,
             )
         )
 
@@ -432,73 +433,47 @@ def _make_internal_CLI(app):
     @click.pass_context
     @click.argument("name")
     @click.argument("value")
-    @click.argument("submission_idx", type=click.INT)
-    @click.argument("jobscript_idx", type=click.INT)
-    @click.argument("js_element_idx", type=click.INT)
-    @click.argument("js_action_idx", type=click.INT)
+    @click.argument("ear_id", type=click.INT)
     def save_parameter(
         ctx,
         name: str,
         value: str,
-        submission_idx: int,
-        jobscript_idx: int,
-        js_element_idx: int,
-        js_action_idx: int,
+        ear_id: int,
     ):
-        ctx.exit(
-            ctx.obj["workflow"].save_parameter(
-                name,
-                value,
-                submission_idx,
-                jobscript_idx,
-                js_element_idx,
-                js_action_idx,
-            )
-        )
+        app.CLI_logger.info(f"save parameter {name!r} for EAR ID {ear_id!r}.")
+        ctx.exit(ctx.obj["workflow"].save_parameter(name, value, ear_id))
 
     @workflow.command()
     @click.pass_context
-    @click.argument("submission_idx", type=click.INT)
-    @click.argument("jobscript_idx", type=click.INT)
-    @click.argument("js_element_idx", type=click.INT)
-    @click.argument("js_action_idx", type=click.INT)
-    def set_EAR_start(
-        ctx,
-        submission_idx: int,
-        jobscript_idx: int,
-        js_element_idx: int,
-        js_action_idx: int,
-    ):
-        ctx.exit(
-            ctx.obj["workflow"].set_EAR_start(
-                submission_idx,
-                jobscript_idx,
-                js_element_idx,
-                js_action_idx,
-            )
-        )
+    @click.argument("ear_id", type=click.INT)
+    def set_EAR_start(ctx, ear_id: int):
+        app.CLI_logger.info(f"set EAR start for EAR ID {ear_id!r}.")
+        ctx.exit(ctx.obj["workflow"].set_EAR_start(ear_id))
 
     @workflow.command()
     @click.pass_context
-    @click.argument("submission_idx", type=click.INT)
-    @click.argument("jobscript_idx", type=click.INT)
-    @click.argument("js_element_idx", type=click.INT)
-    @click.argument("js_action_idx", type=click.INT)
-    def set_EAR_end(
-        ctx,
-        submission_idx: int,
-        jobscript_idx: int,
-        js_element_idx: int,
-        js_action_idx: int,
-    ):
-        ctx.exit(
-            ctx.obj["workflow"].set_EAR_end(
-                submission_idx,
-                jobscript_idx,
-                js_element_idx,
-                js_action_idx,
-            )
+    @click.argument("ear_id", type=click.INT)
+    @click.argument("exit_code", type=click.INT)
+    def set_EAR_end(ctx, ear_id: int, exit_code: int):
+        app.CLI_logger.info(
+            f"set EAR end for EAR ID {ear_id!r} with exit code {exit_code!r}."
         )
+        ctx.exit(ctx.obj["workflow"].set_EAR_end(ear_id, exit_code))
+
+    @workflow.command()
+    @click.pass_context
+    @click.argument("ear_id", type=click.INT)
+    def set_EAR_skip(ctx, ear_id: int):
+        app.CLI_logger.info(f"set EAR skip for EAR ID {ear_id!r}.")
+        ctx.exit(ctx.obj["workflow"].set_EAR_skip(ear_id))
+
+    @workflow.command()
+    @click.pass_context
+    @click.argument("ear_id", type=click.INT)
+    def get_EAR_skipped(ctx, ear_id: int):
+        """Return 1 if the given EAR is to be skipped, else return 0."""
+        app.CLI_logger.info(f"get EAR skip for EAR ID {ear_id!r}.")
+        click.echo(int(ctx.obj["workflow"].get_EAR_skipped(ear_id)))
 
     # TODO: in general, maybe the workflow command group can expose the simple Workflow
     # properties; maybe use a decorator on the Workflow property object to signify

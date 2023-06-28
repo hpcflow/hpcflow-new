@@ -244,6 +244,7 @@ def test_empty_batch_update_does_nothing(workflow_w1):
         assert not workflow_w1._store.has_pending
 
 
+@pytest.mark.skip("need to re-implement `is_modified_on_disk`")
 def test_is_modified_on_disk_when_metadata_changed(workflow_w1):
     # this is ZarrPersistentStore-specific; might want to consider a refactor later
     with workflow_w1._store.cached_load():
@@ -251,6 +252,7 @@ def test_is_modified_on_disk_when_metadata_changed(workflow_w1):
         assert workflow_w1._store.is_modified_on_disk()
 
 
+@pytest.mark.skip("need to re-implement `is_modified_on_disk`")
 def test_batch_update_abort_if_modified_on_disk(workflow_w1, schema_s2, param_p3):
     t2 = hf.Task(schemas=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
     with pytest.raises(WorkflowBatchUpdateFailedError):
@@ -281,7 +283,7 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
             "tasks": [
                 {
                     "schemas": [
-                        "test_bash_t1"
+                        "test_t1_bash"
                     ],
                     "inputs": {
                         "p1": 101

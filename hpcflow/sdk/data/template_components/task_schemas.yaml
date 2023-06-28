@@ -1,4 +1,4 @@
-- objective: test_bash_t1
+- objective: test_t1_bash
   inputs:
     - parameter: p1
   outputs:
@@ -12,23 +12,65 @@
         - command: echo "$((<<parameter:p1>> + 100))"
           stdout: <<parameter:p2>>
 
-- objective: demo_task_2
+- objective: test_t1_ps
   inputs:
-    - parameter: p3
-    - parameter: orientations
+    - parameter: p1
   outputs:
-    - parameter: p4
+    - parameter: p2
   actions:
     - environments:
         - scope:
             type: any
-          environment: demo_env_1
+          environment: null_env
       commands:
-        - command: >
-            echo "hello! p3=<<parameter:p3>> orientations=<<parameter:orientations>>"
-      output_file_parsers:
-        p4:
-          from_files: [t1_outfile_1]
+        - command: Write-Output ((<<parameter:p1>> + 100))
+          stdout: <<parameter:p2>>
+
+- objective: test_t2_bash
+  inputs:
+    - parameter: p2
+  outputs:
+    - parameter: p3
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: null_env
+      commands:
+        - command: echo "$((<<parameter:p2>> + 100))"
+          stdout: <<parameter:p3>>
+
+- objective: test_t2_ps
+  inputs:
+    - parameter: p2
+  outputs:
+    - parameter: p3
+  actions:
+    - environments:
+        - scope:
+            type: any
+          environment: null_env
+      commands:
+        - command: Write-Output ((<<parameter:p2>> + 100))
+          stdout: <<parameter:p3>>
+
+# - objective: demo_task_2
+#   inputs:
+#     - parameter: p3
+#     - parameter: orientations
+#   outputs:
+#     - parameter: p4
+#   actions:
+#     - environments:
+#         - scope:
+#             type: any
+#           environment: demo_env_1
+#       commands:
+#         - command: >
+#             echo "hello! p3=<<parameter:p3>> orientations=<<parameter:orientations>>"
+#       output_file_parsers:
+#         p4:
+#           from_files: [t1_outfile_1]
 
 - objective: dummy_task_1
   inputs:
