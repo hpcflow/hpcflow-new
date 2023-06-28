@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a51"></a>
+## [v0.2.0a51](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a50...v0.2.0a51) - 2023.06.28
+
+### ♻ Code Refactoring
+
+* use flat global lists for elements, iter, runs
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a50"></a>
 ## [v0.2.0a50](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a49...v0.2.0a50) - 2023.06.20
 
