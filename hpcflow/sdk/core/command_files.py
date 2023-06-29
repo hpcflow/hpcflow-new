@@ -148,6 +148,7 @@ class InputFileGenerator(JSONLike):
                 from pathlib import Path
                 import {app_module} as app
                 app.load_config(
+                    log_file_path=Path("{app_package_name}.log").resolve(),
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
@@ -159,6 +160,7 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
+            app_package_name=self.app.package_name,
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
@@ -232,8 +234,10 @@ class OutputFileParser(JSONLike):
             """\
             if __name__ == "__main__":
                 import sys
+                from pathlib import Path
                 import {app_module} as app
                 app.load_config(
+                    log_file_path=Path("{app_package_name}.log").resolve(),
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
@@ -250,6 +254,7 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
+            app_package_name=self.app.package_name,
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
