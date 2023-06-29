@@ -12,9 +12,11 @@ class NullScheduler:
         submit_cmd=None,
         shell_args=None,
         shebang_args=None,
+        options=None,
     ):
         self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
+        self.options = options or []
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
@@ -46,7 +48,6 @@ class Scheduler(NullScheduler):
         js_cmd=None,
         array_switch=None,
         array_item_var=None,
-        options=None,
         *args,
         **kwargs,
     ):
@@ -58,7 +59,6 @@ class Scheduler(NullScheduler):
         self.js_cmd = js_cmd or self.DEFAULT_JS_CMD
         self.array_switch = array_switch or self.DEFAULT_ARRAY_SWITCH
         self.array_item_var = array_item_var or self.DEFAULT_ARRAY_ITEM_VAR
-        self.options = options or []
 
     def format_switch(self, switch):
         return f"{self.js_cmd} {switch}"
