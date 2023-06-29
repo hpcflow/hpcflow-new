@@ -500,8 +500,8 @@ jobs:
 
       - name: Configure poetry
         run: |
-             poetry config virtualenvs.in-project true
-             poetry config installer.modern-installation false
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without test,pyinstaller
