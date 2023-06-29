@@ -1,4 +1,23 @@
 
+<a name="v0.2.0a54"></a>
+## [v0.2.0a54](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a53...v0.2.0a54) - 2023.06.29
+
+### ✨ Features
+
+* add scheduler options
+
+### 🐛 Bug Fixes
+
+* jobscript hash
+* get jobscript hash
+* do not submit with array dep for single element dependencies
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a53"></a>
 ## [v0.2.0a53](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a52...v0.2.0a53) - 2023.06.29
 
