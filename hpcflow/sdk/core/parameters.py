@@ -383,8 +383,7 @@ class ValueSequence(JSONLike):
                 f"`path` must be a string, but given path has type {type(path)} with value "
                 f"{path!r}."
             )
-        path = path.lower()
-        path_split = path.split(".")
+        path_split = path.lower().split(".")
         if not path_split[0] in ("inputs", "resources"):
             raise MalformedParameterPathError(
                 f'`path` must start with "inputs", "outputs", or "resources", but given path '
