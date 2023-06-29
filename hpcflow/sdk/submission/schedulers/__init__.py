@@ -4,7 +4,6 @@ from hpcflow.sdk.submission.shells.base import Shell
 
 
 class NullScheduler:
-
     DEFAULT_SHELL_ARGS = ""
     DEFAULT_SHEBANG_ARGS = ""
 
@@ -47,6 +46,7 @@ class Scheduler(NullScheduler):
         js_cmd=None,
         array_switch=None,
         array_item_var=None,
+        options=None,
         *args,
         **kwargs,
     ):
@@ -58,6 +58,7 @@ class Scheduler(NullScheduler):
         self.js_cmd = js_cmd or self.DEFAULT_JS_CMD
         self.array_switch = array_switch or self.DEFAULT_ARRAY_SWITCH
         self.array_item_var = array_item_var or self.DEFAULT_ARRAY_ITEM_VAR
+        self.options = options or []
 
     def format_switch(self, switch):
         return f"{self.js_cmd} {switch}"

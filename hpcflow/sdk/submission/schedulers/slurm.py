@@ -34,7 +34,6 @@ class SlurmPosix(Scheduler):
         super().__init__(*args, **kwargs)
 
     def format_core_request_lines(self, num_cores, num_nodes):
-
         # TODO: I think these partition names are set by the sysadmins, so they should
         # be set in the config file as a mapping between num_cores/nodes and partition
         # names. `sinfo -s` shows a list of available partitions
@@ -58,7 +57,6 @@ class SlurmPosix(Scheduler):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
     def format_std_stream_file_option_lines(self, is_array, sub_idx):
-
         base = r"%x_"
         if is_array:
             base += r"%A.%a"
@@ -80,6 +78,7 @@ class SlurmPosix(Scheduler):
             opts.append(self.format_array_request(num_elements))
 
         opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
+        opts.extend([f"{self.js_cmd} {opt}" for opt in self.options])
         return "\n".join(opts)
 
     def get_version_info(self):
@@ -103,7 +102,6 @@ class SlurmPosix(Scheduler):
         js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
-
         cmd = [self.submit_cmd, "--parsable"]
 
         dep_cmd = []
