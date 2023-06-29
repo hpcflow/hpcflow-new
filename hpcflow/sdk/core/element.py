@@ -164,6 +164,9 @@ class ElementResources(JSONLike):
             if k in dct:
                 dct[k] = _hash_dict(dct[k])
 
+        if "options" in dct.get("scheduler_args", []):
+            dct["scheduler_args"]["options"] = tuple(dct["scheduler_args"]["options"])
+
         return _hash_dict(dct)
 
 
