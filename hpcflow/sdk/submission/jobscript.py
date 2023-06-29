@@ -461,7 +461,7 @@ class Jobscript(JSONLike):
         if not self.scheduler_name:
             return False
 
-        support_EAR_para = self.workflow._store.features.EAR_parallelism
+        support_EAR_para = self.workflow._store._features.EAR_parallelism
         if self.resources.use_job_array is None:
             if self.num_elements > 1 and support_EAR_para:
                 return True
