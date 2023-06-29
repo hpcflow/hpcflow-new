@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a52"></a>
+## [v0.2.0a52](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a51...v0.2.0a52) - 2023.06.29
+
+### 🐛 Bug Fixes
+
+* changed store.features to _features
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a51"></a>
 ## [v0.2.0a51](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a50...v0.2.0a51) - 2023.06.28
 
