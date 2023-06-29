@@ -291,7 +291,7 @@ class Submission(JSONLike):
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
 
-        scheduler_refs = {}  # map jobscript `index` to scheduler job IDs
+        scheduler_refs = {}  # map jobscript `index` to (scheduler job ID, is_array)
         submitted_js_idx = []
         errs = []
         for js in self.jobscripts:
@@ -307,10 +307,8 @@ class Submission(JSONLike):
                 continue
 
             try:
-                scheduler_refs[js.index] = js.submit(
-                    scheduler_refs,
-                    print_stdout=print_stdout,
-                )
+                job_ID_i = js.submit(scheduler_refs, print_stdout=print_stdout)
+                scheduler_refs[js.index] = (job_ID_i, js.is_array)
                 # note: currently for direct exec, this is not reached, so submission_status
                 # stays as pending.
                 submitted_js_idx.append(js.index)

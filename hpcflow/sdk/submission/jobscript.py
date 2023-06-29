@@ -792,7 +792,7 @@ class Jobscript(JSONLike):
 
     def submit(
         self,
-        scheduler_refs: Dict[int, str],
+        scheduler_refs: Dict[int, (str, bool)],
         print_stdout: Optional[bool] = False,
     ) -> str:
         run_dirs = self.make_artifact_dirs()
@@ -803,13 +803,16 @@ class Jobscript(JSONLike):
 
         deps = []
         for js_idx, deps_i in self.dependencies.items():
-            dep_job_ID = scheduler_refs[js_idx]
-            deps.append((dep_job_ID, deps_i["is_array"]))
+            dep_job_ID, dep_js_is_arr = scheduler_refs[js_idx]
+            # only submit an array dependency if both this jobscript and the dependency
+            # are array jobs:
+            dep_is_arr = deps_i["is_array"] and self.is_array and dep_js_is_arr
+            deps.append((dep_job_ID, dep_is_arr))
 
         if not self.submission.JS_parallelism and self.index > 0:
             # add fake dependencies to all previously submitted jobscripts to avoid
             # simultaneous execution:
-            for job_ID, sched_ref in scheduler_refs.items():
+            for job_ID, (sched_ref, _) in scheduler_refs.items():
                 deps.append((sched_ref, False))
 
         # TODO: split into scheduler/direct behaviour
@@ -822,6 +825,9 @@ class Jobscript(JSONLike):
         }
         try:
             submit_cmd = self.scheduler.get_submit_command(self.shell, js_path, deps)
+            self.app.submission_logger.info(
+                f"submitting jobscript {self.index!r} with command: {submit_cmd!r}"
+            )
             proc = subprocess.run(
                 args=submit_cmd,
                 stdout=subprocess.PIPE,

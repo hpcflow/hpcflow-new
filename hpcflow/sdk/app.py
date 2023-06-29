@@ -335,6 +335,10 @@ class BaseApp(metaclass=Singleton):
         return self.logger.getChild("persistence")
 
     @property
+    def submission_logger(self) -> Logger:
+        return self.logger.getChild("submission")
+
+    @property
     def runtime_info_logger(self) -> Logger:
         return self.logger.getChild("runtime")
 

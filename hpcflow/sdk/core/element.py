@@ -160,6 +160,9 @@ class ElementResources(JSONLike):
         exclude = ("time_limit",)
         sub_dicts = ("scheduler_options", "scheduler_args", "shell_args")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
+        if "options" in dct.get("scheduler_args", []):
+            dct["scheduler_args"]["options"] = tuple(dct["scheduler_args"]["options"])
+
         for k in sub_dicts:
             if k in dct:
                 dct[k] = _hash_dict(dct[k])

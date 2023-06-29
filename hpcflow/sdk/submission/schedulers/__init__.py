@@ -4,7 +4,6 @@ from hpcflow.sdk.submission.shells.base import Shell
 
 
 class NullScheduler:
-
     DEFAULT_SHELL_ARGS = ""
     DEFAULT_SHEBANG_ARGS = ""
 
@@ -13,9 +12,11 @@ class NullScheduler:
         submit_cmd=None,
         shell_args=None,
         shebang_args=None,
+        options=None,
     ):
         self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
+        self.options = options or []
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
