@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import subprocess
 from typing import List, Tuple
 from hpcflow.sdk.submission.schedulers import Scheduler
@@ -41,7 +42,6 @@ class SGEPosix(Scheduler):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
     def format_std_stream_file_option_lines(self, is_array, sub_idx):
-
         # note: we can't modify the file names
         base = f"./artifacts/submissions/{sub_idx}"
         return [
@@ -50,7 +50,6 @@ class SGEPosix(Scheduler):
         ]
 
     def format_options(self, resources, num_elements, is_array, sub_idx):
-
         # TODO: I think the PEs are set by the sysadmins so they should be set in the
         # config file as a mapping between num_cores/nodes and PE names?
         # `qconf -spl` shows a list of PEs
@@ -86,7 +85,6 @@ class SGEPosix(Scheduler):
         js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
-
         cmd = [self.submit_cmd, "-terse"]
 
         dep_job_IDs = []
@@ -110,5 +108,9 @@ class SGEPosix(Scheduler):
 
     def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
-        job_ID = stdout  # since we submit with "-terse"
+        match = re.search("^\d+", stdout)
+        if match:
+            job_ID = match.group()
+        else:
+            raise RuntimeError(f"Could not parse Job ID from scheduler output {stdout!r}")
         return job_ID
