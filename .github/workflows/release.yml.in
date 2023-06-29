@@ -437,11 +437,11 @@ jobs:
             out_yaml += exe_name + ': ' + url + '\n'
           print(out_yaml)
           ")
-          # escape new lines:
-          binaryYaml="${binaryYaml//'%'/'%25'}"
-          binaryYaml="${binaryYaml//$'\n'/'%0A'}"
-          binaryYaml="${binaryYaml//$'\r'/'%0D'}"
-          echo "binary_download_links=$binaryYaml" >> $GITHUB_OUTPUT
+          # Save multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "binary_download_links<<$EOF" >> $GITHUB_OUTPUT
+          echo "$binaryYaml" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Publish (to {{ PYPI_URL }})
         run: |
@@ -500,8 +500,8 @@ jobs:
 
       - name: Configure poetry
         run: |
-             poetry config virtualenvs.in-project true
-             poetry config installer.modern-installation false
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
       - name: Install dependencies
         run: poetry install --without test,pyinstaller
