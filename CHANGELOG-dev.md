@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a53"></a>
+## [v0.2.0a53](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a52...v0.2.0a53) - 2023.06.29
+
+### 🐛 Bug Fixes
+
+* SGE stdout job ID parsing for job arrays
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a52"></a>
 ## [v0.2.0a52](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a51...v0.2.0a52) - 2023.06.29
 
