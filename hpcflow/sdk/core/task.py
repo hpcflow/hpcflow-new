@@ -407,8 +407,10 @@ class ElementSet(JSONLike):
                 return True
 
         for seq in self.sequences:
-            if not seq.is_sub_value and typ == seq.parameter.typ:
-                return True
+            if seq.parameter:
+                # i.e. not a resource:
+                if not seq.is_sub_value and typ == seq.parameter.typ:
+                    return True
 
         return False
 
@@ -1130,7 +1132,10 @@ class WorkflowTask:
             key, dat_ref, _ = seq_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = dat_ref
             sequence_idx[key] = list(range(len(dat_ref)))
-            key_ = key.split("inputs.")[1]
+            try:
+                key_ = key.split("inputs.")[1]
+            except IndexError:
+                pass
             try:
                 # TODO: wouldn't need to do this if we raise when an ValueSequence is
                 # provided for a parameter whose inputs sources do not include the local
