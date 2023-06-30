@@ -432,6 +432,17 @@ class ElementActionRun:
             inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
         return inputs
 
+    def get_OFP_outputs(self) -> Dict[str, Union[str, List[str]]]:
+        if not self.action._from_expand:
+            raise RuntimeError(
+                f"Cannot get output file parser outputs from this from EAR because the "
+                f"associated action is not expanded, meaning multiple OFPs might exist."
+            )
+        outputs = {}
+        for out_typ in self.action.output_file_parsers[0].outputs or []:
+            outputs[out_typ] = self.get(f"outputs.{out_typ}")
+        return outputs
+
     def compose_source(self) -> str:
         """Generate the file contents of this source."""
 
@@ -1245,7 +1256,8 @@ class Action(JSONLike):
                     abortable=ifg.abortable,
                 )
                 act_i._task_schema = self.task_schema
-                inp_files.append(ifg.input_file)
+                if ifg.input_file not in inp_files:
+                    inp_files.append(ifg.input_file)
                 act_i._from_expand = True
                 inp_acts.append(act_i)
 
@@ -1261,7 +1273,9 @@ class Action(JSONLike):
                     abortable=ofp.abortable,
                 )
                 act_i._task_schema = self.task_schema
-                out_files.extend(ofp.output_files)
+                for j in ofp.output_files:
+                    if j not in out_files:
+                        out_files.append(j)
                 act_i._from_expand = True
                 out_acts.append(act_i)
 
@@ -1355,6 +1369,7 @@ class Action(JSONLike):
             params = list(self.get_command_output_types())
             for i in self.output_file_parsers:
                 params.append(i.output.typ)
+                params.extend([j for j in i.outputs or []])
         return tuple(set(params))
 
     def get_input_file_labels(self):
@@ -1389,6 +1404,9 @@ class Action(JSONLike):
         for i in self.output_files:
             keys.append(f"output_files.{i.label}")
 
+        # these are consumed by the OFP, so should not be considered to generate new data:
+        OFP_outs = [j for i in self.output_file_parsers for j in i.outputs or []]
+
         # keep all resources data:
         sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
         param_src_update = []
@@ -1398,6 +1416,7 @@ class Action(JSONLike):
                 key.startswith("input_files")
                 or key.startswith("output_files")
                 or key.startswith("inputs")
+                or (key.startswith("outputs") and key.split("outputs.")[1] in OFP_outs)
             ):
                 # look for an index in previous data indices (where for inputs we look
                 # for *output* parameters of the same name):

@@ -1381,6 +1381,7 @@ class Workflow:
         path=None,
         contents=None,
         filename: str = None,
+        clean_up: bool = False,
     ) -> int:
         self._store.set_file(
             param_id=param_id,
@@ -1389,6 +1390,7 @@ class Workflow:
             path=path,
             contents=contents,
             filename=filename,
+            clean_up=clean_up,
         )
 
     def get_task_unique_names(
@@ -1546,31 +1548,49 @@ class Workflow:
                 for IFG_i in EAR.action.input_file_generators:
                     inp_file = IFG_i.input_file
                     self.app.logger.debug(
-                        f"Saving EAR input file: {inp_file.label} for EAR ID {EAR_ID!r}."
+                        f"Saving EAR input file: {inp_file.label!r} for EAR ID "
+                        f"{EAR_ID!r}."
                     )
                     param_id = EAR.data_idx[f"input_files.{inp_file.label}"]
-                    self._set_file(
-                        param_id=param_id,
-                        store_contents=True,  # TODO: make optional according to IFG
-                        is_input=False,
-                        path=Path(inp_file.value()).resolve(),
-                    )
 
-                for OFP_i in EAR.action.output_file_parsers:
-                    for out_file_j in OFP_i.output_files:
-                        if out_file_j.label not in OFP_i.save_files:
-                            continue
-                        self.app.logger.debug(
-                            f"Saving EAR output file: {out_file_j.label} for EAR ID "
-                            f"{EAR_ID!r}."
-                        )
-                        param_id = EAR.data_idx[f"output_files.{out_file_j.label}"]
+                    file_paths = inp_file.value()
+                    if not isinstance(file_paths, list):
+                        file_paths = [file_paths]
+
+                    for path_i in file_paths:
                         self._set_file(
                             param_id=param_id,
-                            store_contents=True,  # TODO: make optional according to OFP
+                            store_contents=True,  # TODO: make optional according to IFG
                             is_input=False,
-                            path=Path(out_file_j.value()).resolve(),
+                            path=Path(path_i).resolve(),
                         )
+
+                for OFP_i in EAR.action.output_file_parsers:
+                    for save_file_j in OFP_i.save_files:
+                        self.app.logger.debug(
+                            f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
+                            f"{EAR_ID!r}."
+                        )
+                        try:
+                            param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
+                        except KeyError:
+                            # We might be saving a file that is not a defined
+                            # "output file"; this will avoid saving a reference in the
+                            # parameter data:
+                            param_id = None
+
+                        file_paths = save_file_j.value()
+                        if not isinstance(file_paths, list):
+                            file_paths = [file_paths]
+
+                        for path_i in file_paths:
+                            self._set_file(
+                                param_id=param_id,
+                                store_contents=True,  # TODO: make optional according to OFP
+                                is_input=False,
+                                path=Path(path_i).resolve(),
+                                clean_up=(save_file_j in OFP_i.clean_up),
+                            )
 
                 if exit_code != 0:
                     for EAR_dep_ID in EAR.get_dependent_EARs(as_objects=False):
