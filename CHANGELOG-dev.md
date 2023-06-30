@@ -1,4 +1,15 @@
 
+<a name="v0.2.0a57"></a>
+## [v0.2.0a57](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a56...v0.2.0a57) - 2023.06.30
+
+### 👷 Build changes
+
+* Updates GH actions workflows and adds test-pre-python.
+* update binary download links file [skip ci]
+* update GH Actions workflows
+* sync-updates GH Actions workflow templates
+
+
 <a name="v0.2.0a56"></a>
 ## [v0.2.0a56](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a55...v0.2.0a56) - 2023.06.30
 
