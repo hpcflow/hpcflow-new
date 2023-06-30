@@ -473,7 +473,7 @@ class ValueSequence(JSONLike):
             vals = []
             for pg_idx_i in self._values_group_idx:
                 val = self.workflow.get_parameter_data(pg_idx_i)
-                if self.parameter._value_class:
+                if self.parameter and self.parameter._value_class:
                     val = self.parameter._value_class(**val)
                 vals.append(val)
             return vals
