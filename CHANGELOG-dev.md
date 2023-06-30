@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a55"></a>
+## [v0.2.0a55](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a54...v0.2.0a55) - 2023.06.30
+
+### ✨ Features
+
+* improve support for keeping artifact files
+
+### 🐛 Bug Fixes
+
+* log file path in sources
+* ValueSequence path validation; do not modify path
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a54"></a>
 ## [v0.2.0a54](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a53...v0.2.0a54) - 2023.06.29
 
