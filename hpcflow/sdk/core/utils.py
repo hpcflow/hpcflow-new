@@ -12,7 +12,7 @@ import re
 import socket
 import string
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import List, Mapping
 
 from ruamel.yaml import YAML
 import sentry_sdk
@@ -229,15 +229,17 @@ def get_relative_path(path1, path2):
     return path1[len_path2:]
 
 
-def search_dir_files_by_regex(pattern, group=0, directory="."):
+def search_dir_files_by_regex(pattern, group=0, directory=".") -> List[str]:
+    """Search recursively for files in a directory by a regex pattern and return matching
+    file paths, relative to the given directory."""
     vals = []
-    for i in Path(directory).iterdir():
+    for i in Path(directory).rglob("*"):
         match = re.search(pattern, i.name)
         if match:
             match_groups = match.groups()
             if match_groups:
                 match = match_groups[group]
-                vals.append(match)
+                vals.append(str(i.relative_to(directory)))
     return vals
 
 

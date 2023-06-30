@@ -17,7 +17,7 @@ def callback_vars(config, value):
     value = re.sub(
         pattern=vars_regex,
         repl=vars_repl,
-        string=value,
+        string=str(value),
     )
     return value
 

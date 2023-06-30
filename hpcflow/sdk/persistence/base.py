@@ -6,6 +6,7 @@ import contextlib
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import shutil
 import time
@@ -1006,6 +1007,7 @@ class PersistentStore(ABC):
         path=None,
         contents: str = None,
         filename: str = None,
+        clean_up: bool = False,
     ):
         if filename is None:
             filename = Path(path).name
@@ -1039,6 +1041,7 @@ class PersistentStore(ABC):
                 "dst_path": str(dst_path),
                 "path": str(path),
                 "contents": contents,
+                "clean_up": clean_up,
             }
         )
 
@@ -1046,12 +1049,13 @@ class PersistentStore(ABC):
 
     def set_file(
         self,
-        param_id: int,
         store_contents: bool,
         is_input: bool,
+        param_id: int = None,
         path=None,
         contents: str = None,
         filename: str = None,
+        clean_up: bool = False,
         save: bool = True,
     ):
         self.logger.debug(f"Setting new file")
@@ -1061,8 +1065,12 @@ class PersistentStore(ABC):
             path=path,
             contents=contents,
             filename=filename,
+            clean_up=clean_up,
         )
-        self.set_parameter_value(param_id, value=file_param_dat, is_file=True, save=save)
+        if param_id is not None:
+            self.set_parameter_value(
+                param_id, value=file_param_dat, is_file=True, save=save
+            )
         if save:
             self.save()
 
@@ -1103,6 +1111,9 @@ class PersistentStore(ABC):
                 if dat["path"] is not None:
                     # copy from source path to destination:
                     shutil.copy(dat["path"], dst_path)
+                    if dat["clean_up"]:
+                        self.logger.info(f"deleting file {dat['path']}")
+                        os.remove(dat["path"])
                 else:
                     # write out text file:
                     with dst_path.open("wt") as fp:
@@ -1117,7 +1128,9 @@ class PersistentStore(ABC):
     def set_parameter_value(
         self, param_id: int, value: Any, is_file: bool = False, save: bool = True
     ):
-        self.logger.debug(f"Setting store parameter ID {param_id} value to {value!r}.")
+        self.logger.debug(
+            f"Setting store parameter ID {param_id} value with type: {type(value)!r})."
+        )
         self._pending.set_parameters[param_id] = (value, is_file)
         if save:
             self.save()

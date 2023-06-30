@@ -3,7 +3,7 @@ import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -28,7 +28,7 @@ class FileSpec(JSONLike):
             self.app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
         )
 
-    def value(self, directory=None):
+    def value(self, directory="."):
         return self.name.value(directory)
 
     def __eq__(self, other: object) -> bool:
@@ -72,7 +72,7 @@ class FileNameSpec(JSONLike):
     def ext(self):
         return self.app.FileNameExt(self)
 
-    def value(self, directory=None):
+    def value(self, directory="."):
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
@@ -148,6 +148,7 @@ class InputFileGenerator(JSONLike):
                 from pathlib import Path
                 import {app_module} as app
                 app.load_config(
+                    log_file_path=Path("{app_package_name}.log").resolve(),
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
@@ -159,6 +160,7 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
+            app_package_name=self.app.package_name,
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
@@ -184,6 +186,16 @@ class InputFileGenerator(JSONLike):
 
 @dataclass
 class OutputFileParser(JSONLike):
+    """
+    Parameters
+    ----------
+    output
+        The singular output parsed by this parser. Not to be confused with `outputs` (plural).
+    outputs
+        Optional multiple outputs from the upstream actions of the schema that are
+        required to parametrise this parser.
+    """
+
     _child_objects = (
         ChildObjectSpec(
             name="output",
@@ -199,6 +211,20 @@ class OutputFileParser(JSONLike):
             shared_data_primary_key="label",
             shared_data_name="command_files",
         ),
+        ChildObjectSpec(
+            name="save_files",
+            class_name="FileSpec",
+            is_multiple=True,
+            shared_data_primary_key="label",
+            shared_data_name="command_files",
+        ),
+        ChildObjectSpec(
+            name="clean_up",
+            class_name="FileSpec",
+            is_multiple=True,
+            shared_data_primary_key="label",
+            shared_data_name="command_files",
+        ),
     )
 
     output: app.Parameter
@@ -206,17 +232,30 @@ class OutputFileParser(JSONLike):
     script: str = None
     environment: Environment = None
     inputs: List[str] = None
+    outputs: List[str] = None
     options: Dict = None
     abortable: Optional[bool] = False
     save_files: Union[List[str], bool] = True
+    clean_up: Optional[List[str]] = None
 
     def __post_init__(self):
         if not self.save_files:
             # save no files
             self.save_files = []
         elif self.save_files is True:
-            # save all files
-            self.save_files = [i.label for i in self.output_files]
+            # save all output files
+            self.save_files = [i for i in self.output_files]
+        if self.clean_up is None:
+            self.clean_up = []
+
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        if "save_files" in json_like:
+            if not json_like["save_files"]:
+                json_like["save_files"] = []
+            elif json_like["save_files"] is True:
+                json_like["save_files"] = [i for i in json_like["output_files"]]
+        return super().from_json_like(json_like, shared_data)
 
     def compose_source(self) -> str:
         """Generate the file contents of this output file parser source."""
@@ -232,8 +271,10 @@ class OutputFileParser(JSONLike):
             """\
             if __name__ == "__main__":
                 import sys
+                from pathlib import Path
                 import {app_module} as app
                 app.load_config(
+                    log_file_path=Path("{app_package_name}.log").resolve(),
                     config_dir=r"{cfg_dir}",
                     config_invocation_key=r"{cfg_invoc_key}",
                 )
@@ -244,12 +285,14 @@ class OutputFileParser(JSONLike):
                 value = {script_main_func}(
                     **EAR.get_OFP_output_files(),
                     **EAR.get_OFP_inputs(),
+                    **EAR.get_OFP_outputs(),
                 )
                 wk.save_parameter(name="{param_name}", value=value, EAR_ID=EAR_ID)
 
         """
         )
         main_block = main_block.format(
+            app_package_name=self.app.package_name,
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_invocation_key,
