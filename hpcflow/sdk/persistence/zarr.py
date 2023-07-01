@@ -510,7 +510,7 @@ class ZarrPersistentStore(PersistentStore):
     def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, attempts_i in sub_attempts.items():
-                attrs["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+                attrs["submissions"][sub_idx]["submission_attempts"].append(attempts_i)
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         arr = self._get_iters_arr(mode="r+")

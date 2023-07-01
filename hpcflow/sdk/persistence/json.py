@@ -206,7 +206,7 @@ class JSONPersistentStore(PersistentStore):
     def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
         with self.using_resource("submissions", action="update") as subs_res:
             for sub_idx, attempts_i in sub_attempts.items():
-                subs_res[sub_idx]["submission_attempts"].extend(attempts_i)
+                subs_res[sub_idx]["submission_attempts"].append(attempts_i)
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         with self.using_resource("metadata", action="update") as md:
