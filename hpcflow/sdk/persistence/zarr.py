@@ -593,30 +593,13 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_jobscript_version_info(self, vers_info: Dict):
+    def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_vers_info in vers_info.items():
-                for js_idx, vers_info_i in js_vers_info.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "version_info"
-                    ] = vers_info_i
-
-    def _update_jobscript_submit_time(self, sub_times: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_sub_times in sub_times.items():
-                for js_idx, sub_time_i in js_sub_times.items():
-                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "submit_time"
-                    ] = sub_time_fmt
-
-    def _update_jobscript_job_ID(self, job_IDs: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_job_IDs in job_IDs.items():
-                for js_idx, job_ID_i in js_job_IDs.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "scheduler_job_ID"
-                    ] = job_ID_i
+            for sub_idx, all_js_md in js_meta.items():
+                for js_idx, js_meta_i in all_js_md.items():
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx].update(
+                        **js_meta_i
+                    )
 
     def _append_parameters(self, params: List[ZarrStoreParameter]):
         """Add new persistent parameters."""

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import copy
 
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
@@ -323,7 +323,6 @@ class Jobscript(JSONLike):
         task_insert_IDs: List[int],
         task_actions: List[Tuple],
         task_elements: Dict[int, List[int]],
-        # EARs: Dict[Tuple[int] : Tuple[int]],
         EAR_ID: NDArray,
         resources: app.ElementResources,
         task_loop_idx: List[Dict],
@@ -331,25 +330,34 @@ class Jobscript(JSONLike):
         submit_time: Optional[datetime] = None,
         scheduler_job_ID: Optional[str] = None,
         version_info: Optional[Tuple[str]] = None,
+        os_name: Optional[str] = None,
+        shell_name: Optional[str] = None,
+        scheduler_name: Optional[str] = None,
     ):
         self._task_insert_IDs = task_insert_IDs
         self._task_loop_idx = task_loop_idx
         self._task_actions = task_actions
         self._task_elements = task_elements
-        # self._EARs = EARs
         self._EAR_ID = EAR_ID
         self._resources = resources
         self._dependencies = dependencies
 
         # assigned on parent `Submission.submit` (or retrieved form persistent store):
         self._submit_time = submit_time
+
         self._scheduler_job_ID = scheduler_job_ID
         self._version_info = version_info
+
+        # assigned as submit-time:
+        self._os_name = os_name
+        self._shell_name = shell_name
+        self._scheduler_name = scheduler_name
 
         self._submission = None  # assigned by parent Submission
         self._index = None  # assigned by parent Submission
         self._scheduler_obj = None  # assigned on first access to `scheduler` property
         self._shell_obj = None  # assigned on first access to `shell` property
+        self._submit_time_obj = None  # assigned on first access to `submit_time` property
 
     def __repr__(self):
         return (
@@ -366,31 +374,23 @@ class Jobscript(JSONLike):
         del dct["_index"]
         del dct["_scheduler_obj"]
         del dct["_shell_obj"]
+        del dct["_submit_time_obj"]
         dct = {k.lstrip("_"): v for k, v in dct.items()}
         dct["EAR_ID"] = dct["EAR_ID"].tolist()
-        # dct["EARs"] = [[list(k), list(v)] for k, v in dct["EARs"].items()]
-        # TODO: this needed?
-        # if dct.get("scheduler_version_info"):
-        #     dct["scheduler_version_info"] = list(dct["scheduler_version_info"])
         return dct
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
         json_like["EAR_ID"] = np.array(json_like["EAR_ID"])
-        # json_like["EARs"] = {tuple(i[0]): tuple(i[1]) for i in json_like["EARs"]}
-        # TODO: this needed?
-        # if json_like.get("scheduler_version_info"):
-        #     json_like["scheduler_version_info"] = tuple(
-        #         json_like["scheduler_version_info"]
-        #     )
         return super().from_json_like(json_like, shared_data)
 
     @property
     def workflow_app_alias(self):
         return self._workflow_app_alias
 
-    def get_commands_file_name(self, js_action_idx):
-        return f"js_{self.index}_act_{js_action_idx}{self.shell.JS_EXT}"
+    def get_commands_file_name(self, js_action_idx, shell=None):
+        shell = shell or self.shell
+        return f"js_{self.index}_act_{js_action_idx}{shell.JS_EXT}"
 
     @property
     def task_insert_IDs(self):
@@ -403,10 +403,6 @@ class Jobscript(JSONLike):
     @property
     def task_elements(self):
         return self._task_elements
-
-    # @property
-    # def EARs(self):
-    #     return self._EARs
 
     @property
     def EAR_ID(self):
@@ -426,7 +422,13 @@ class Jobscript(JSONLike):
 
     @property
     def submit_time(self):
-        return self._submit_time
+        if self._submit_time_obj is None and self._submit_time:
+            self._submit_time_obj = (
+                datetime.strptime(self._submit_time, self.workflow.ts_fmt)
+                .replace(tzinfo=timezone.utc)
+                .astimezone()
+            )
+        return self._submit_time_obj
 
     @property
     def scheduler_job_ID(self):
@@ -476,43 +478,70 @@ class Jobscript(JSONLike):
             return self.resources.use_job_array
 
     @property
-    def os_name(self):
-        return self.resources.os_name or os.name
+    def os_name(self) -> Union[str, None]:
+        return self._os_name or self.resources.os_name
 
     @property
-    def shell_name(self) -> str:
-        if self.resources.shell:
-            return self.resources.shell.lower()
-        else:
-            return DEFAULT_SHELL_NAMES[self.os_name]
+    def shell_name(self) -> Union[str, None]:
+        return self._shell_name or self.resources.shell
+
+    @property
+    def scheduler_name(self) -> Union[str, None]:
+        return self._scheduler_name or self.resources.scheduler
+
+    def _get_submission_os_args(self):
+        return {"linux_release_file": self.app.config.linux_release_file}
+
+    def _get_submission_shell_args(self):
+        return self.resources.shell_args
+
+    def _get_submission_scheduler_args(self):
+        return self.resources.scheduler_args
+
+    def _get_shell(self, os_name, shell_name, os_args=None, shell_args=None):
+        """Get an arbitrary shell, not necessarily associated with submission."""
+        os_args = os_args or {}
+        shell_args = shell_args or {}
+        return get_shell(
+            shell_name=shell_name,
+            os_name=os_name,
+            os_args=os_args,
+            **shell_args,
+        )
+
+    def _get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
+        """Get an arbitrary scheduler, not necessarily associated with submission."""
+        scheduler_args = scheduler_args or {}
+        key = (scheduler_name.lower() if scheduler_name else None, os_name.lower())
+        try:
+            scheduler_cls = scheduler_cls_lookup[key]
+        except KeyError:
+            raise ValueError(
+                f"Unsupported combination of scheduler and operation system: {key!r}"
+            )
+        return scheduler_cls(**scheduler_args)
 
     @property
     def shell(self):
+        """Retrieve the shell object for submission."""
         if self._shell_obj is None:
-            self._shell_obj = get_shell(
-                self.shell_name,
-                self.os_name,
-                os_args={"linux_release_file": self.app.config.linux_release_file},
-                **self.resources.shell_args,
+            self._shell_obj = self._get_shell(
+                os_name=self.os_name,
+                shell_name=self.shell_name,
+                os_args=self._get_submission_os_args(),
+                shell_args=self._get_submission_shell_args(),
             )
         return self._shell_obj
 
     @property
-    def scheduler_name(self) -> Union[str, None]:
-        if self.resources.scheduler:
-            return self.resources.scheduler.lower()
-
-    @property
     def scheduler(self):
+        """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
-            key = (self.scheduler_name, self.os_name)
-            try:
-                scheduler_cls = scheduler_cls_lookup[key]
-            except KeyError:
-                raise ValueError(
-                    f"Unsupported combination of scheduler and operation system: {key!r}"
-                )
-            self._scheduler_obj = scheduler_cls(**self.resources.scheduler_args)
+            self._scheduler_obj = self._get_scheduler(
+                scheduler_name=self.scheduler_name,
+                os_name=self.os_name,
+                scheduler_args=self._get_submission_scheduler_args(),
+            )
         return self._scheduler_obj
 
     @property
@@ -539,37 +568,58 @@ class Jobscript(JSONLike):
     def jobscript_path(self):
         return self.submission.path / self.jobscript_name
 
-    def _set_submit_time(self, value: str) -> None:
-        self._submit_time = value
-        self.workflow._store.set_jobscript_submit_time(
+    def _set_submit_time(self, submit_time: datetime) -> None:
+        submit_time = submit_time.strftime(self.workflow.ts_fmt)
+        self._submit_time = submit_time
+        self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
-            submit_time=value,
+            submit_time=submit_time,
         )
 
-    def _set_scheduler_job_ID(self, value: str) -> None:
-        self._scheduler_job_ID = value
-        self.workflow._store.set_jobscript_job_ID(
+    def _set_scheduler_job_ID(self, job_ID: str) -> None:
+        self._scheduler_job_ID = job_ID
+        self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
-            job_ID=value,
+            scheduler_job_ID=job_ID,
         )
 
-    def _set_version_info(self, vers_info):
-        self._version_info = vers_info
-        self.workflow._store.set_jobscript_version_info(
+    def _set_version_info(self, version_info: Dict) -> None:
+        self._version_info = version_info
+        self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
-            vers_info=vers_info,
+            version_info=version_info,
         )
 
-    # def get_task_insert_IDs_array(self):
-    #     # TODO: probably won't need this.
-    #     task_insert_IDs = np.empty_like(self.EAR_ID)
-    #     task_insert_IDs[:] = np.array([i[0] for i in self.task_actions]).reshape(
-    #         (len(self.task_actions), 1)
-    #     )
-    #     return task_insert_IDs
+    def _set_os_name(self) -> None:
+        """Set the OS name for this jobscript. This is invoked at submit-time."""
+        self._os_name = self.resources.os_name or os.name
+        self.workflow._store.set_jobscript_metadata(
+            sub_idx=self.submission.index,
+            js_idx=self.index,
+            os_name=self._os_name,
+        )
+
+    def _set_shell_name(self) -> None:
+        """Set the shell name for this jobscript. This is invoked at submit-time."""
+        self._shell_name = self.resources.shell or DEFAULT_SHELL_NAMES[self.os_name]
+        self.workflow._store.set_jobscript_metadata(
+            sub_idx=self.submission.index,
+            js_idx=self.index,
+            shell_name=self._shell_name,
+        )
+
+    def _set_scheduler_name(self) -> None:
+        """Set the scheduler name for this jobscript. This is invoked at submit-time."""
+        self._scheduler_name = self.resources.scheduler or None
+        if self._scheduler_name:
+            self.workflow._store.set_jobscript_metadata(
+                sub_idx=self.submission.index,
+                js_idx=self.index,
+                scheduler_name=self._scheduler_name,
+            )
 
     def get_task_loop_idx_array(self):
         loop_idx = np.empty_like(self.EAR_ID)
@@ -577,65 +627,6 @@ class Jobscript(JSONLike):
             (len(self.task_actions), 1)
         )
         return loop_idx
-
-    # def get_task_element_idx_array(self):
-    #     # TODO: probably won't need this.
-    #     element_idx = np.empty_like(self.EAR_ID)
-    #     for task_iID, elem_idx in self.task_elements.items():
-    #         rows_idx = [
-    #             idx for idx, i in enumerate(self.task_actions) if i[0] == task_iID
-    #         ]
-    #         element_idx[rows_idx] = elem_idx
-    #     return element_idx
-
-    # def get_EAR_run_idx_array(self):
-    #     # TODO: probably won't need this.
-    #     task_insert_ID_arr = self.get_task_insert_IDs_array()
-    #     element_idx = self.get_task_element_idx_array()
-    #     run_idx = np.empty_like(self.EAR_ID)
-    #     for js_act_idx in range(self.num_actions):
-    #         for js_elem_idx in range(self.num_elements):
-    #             EAR_idx_i = self.EAR_ID[js_act_idx, js_elem_idx]
-    #             task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
-    #             elem_idx_i = element_idx[js_act_idx, js_elem_idx]
-    #             (_, _, run_idx_i) = self.EARs[(task_iID_i, elem_idx_i, EAR_idx_i)]
-    #             run_idx[js_act_idx, js_elem_idx] = run_idx_i
-    #     return run_idx
-
-    def get_EAR_ID_array(self):
-        # TODO: probably won't need this.
-        task_insert_ID_arr = self.get_task_insert_IDs_array()
-        element_idx = self.get_task_element_idx_array()
-        EAR_ID_arr = np.empty(
-            shape=self.EAR_ID.shape,
-            dtype=[
-                ("task_insert_ID", np.int32),
-                ("element_idx", np.int32),
-                ("iteration_idx", np.int32),
-                ("action_idx", np.int32),
-                ("run_idx", np.int32),
-                ("EAR_idx", np.int32),
-            ],
-        )
-
-        for js_act_idx in range(self.num_actions):
-            for js_elem_idx in range(self.num_elements):
-                EAR_idx_i = self.EAR_ID[js_act_idx, js_elem_idx]
-                task_iID_i = task_insert_ID_arr[js_act_idx, js_elem_idx]
-                elem_idx_i = element_idx[js_act_idx, js_elem_idx]
-                (iter_idx_i, act_idx_i, run_idx_i) = self.EARs[
-                    (task_iID_i, elem_idx_i, EAR_idx_i)
-                ]
-                EAR_ID_arr[js_act_idx, js_elem_idx] = (
-                    task_iID_i,
-                    elem_idx_i,
-                    iter_idx_i,
-                    act_idx_i,
-                    run_idx_i,
-                    EAR_idx_i,
-                )
-
-        return EAR_ID_arr
 
     def write_EAR_ID_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
@@ -669,18 +660,54 @@ class Jobscript(JSONLike):
                 delimiter=self._EAR_files_delimiter,
             )
 
-    def compose_jobscript(self) -> str:
+    def compose_jobscript(
+        self,
+        os_name: str = None,
+        shell_name: str = None,
+        os_args: Optional[Dict] = None,
+        shell_args: Optional[Dict] = None,
+        scheduler_name: Optional[str] = None,
+        scheduler_args: Optional[Dict] = None,
+    ) -> str:
         """Prepare the jobscript file string."""
-        # workflows should be submitted from the workflow root directory
+
+        os_name = os_name or self.os_name
+        shell_name = shell_name or self.shell_name
+        scheduler_name = scheduler_name or self.scheduler_name
+
+        if not os_name:
+            raise RuntimeError(
+                f"Jobscript {self.index} `os_name` is not yet set. Pass the `os_name` as "
+                f"a method argument to compose the jobscript for a given `os_name`."
+            )
+        if not shell_name:
+            raise RuntimeError(
+                f"Jobscript {self.index} `shell_name` is not yet set. Pass the "
+                f"`shell_name` as a method argument to compose the jobscript for a given "
+                f"`shell_name`."
+            )
+
+        shell = self._get_shell(
+            os_name=os_name,
+            shell_name=shell_name,
+            os_args=os_args or self._get_submission_os_args(),
+            shell_args=shell_args or self._get_submission_shell_args(),
+        )
+        scheduler = self._get_scheduler(
+            scheduler_name=scheduler_name,
+            os_name=os_name,
+            scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
+        )
+
         env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
         if env_setup:
-            env_setup = indent(env_setup.strip(), self.shell.JS_ENV_SETUP_INDENT)
-            env_setup += "\n\n" + self.shell.JS_ENV_SETUP_INDENT
+            env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
+            env_setup += "\n\n" + shell.JS_ENV_SETUP_INDENT
         else:
-            env_setup = self.shell.JS_ENV_SETUP_INDENT
+            env_setup = shell.JS_ENV_SETUP_INDENT
 
         app_invoc = list(self.app.run_time_info.invocation_command)
-        header_args = self.shell.process_JS_header_args(
+        header_args = shell.process_JS_header_args(
             {
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
@@ -696,16 +723,16 @@ class Jobscript(JSONLike):
             }
         )
 
-        shebang = self.shell.JS_SHEBANG.format(
-            shebang_executable=" ".join(self.shell.shebang_executable),
-            shebang_args=self.scheduler.shebang_args,
+        shebang = shell.JS_SHEBANG.format(
+            shebang_executable=" ".join(shell.shebang_executable),
+            shebang_args=scheduler.shebang_args,
         )
-        header = self.shell.JS_HEADER.format(**header_args)
+        header = shell.JS_HEADER.format(**header_args)
 
-        if isinstance(self.scheduler, Scheduler):
-            header = self.shell.JS_SCHEDULER_HEADER.format(
+        if isinstance(scheduler, Scheduler):
+            header = shell.JS_SCHEDULER_HEADER.format(
                 shebang=shebang,
-                scheduler_options=self.scheduler.format_options(
+                scheduler_options=scheduler.format_options(
                     resources=self.resources,
                     num_elements=self.num_elements,
                     is_array=self.is_array,
@@ -714,39 +741,55 @@ class Jobscript(JSONLike):
                 header=header,
             )
         else:
-            header = self.shell.JS_DIRECT_HEADER.format(
+            # the NullScheduler (direct submission)
+            header = shell.JS_DIRECT_HEADER.format(
                 shebang=shebang,
                 header=header,
             )
 
-        main = self.shell.JS_MAIN.format(
+        main = shell.JS_MAIN.format(
             num_actions=self.num_actions,
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
-            commands_file_name=self.get_commands_file_name(r"${JS_act_idx}"),
+            commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
         )
 
         out = header
 
         if self.is_array:
-            out += self.shell.JS_ELEMENT_ARRAY.format(
-                scheduler_command=self.scheduler.js_cmd,
-                scheduler_array_switch=self.scheduler.array_switch,
-                scheduler_array_item_var=self.scheduler.array_item_var,
+            out += shell.JS_ELEMENT_ARRAY.format(
+                scheduler_command=scheduler.js_cmd,
+                scheduler_array_switch=scheduler.array_switch,
+                scheduler_array_item_var=scheduler.array_item_var,
                 num_elements=self.num_elements,
                 main=main,
             )
 
         else:
-            out += self.shell.JS_ELEMENT_LOOP.format(
+            out += shell.JS_ELEMENT_LOOP.format(
                 num_elements=self.num_elements,
-                main=indent(main, self.shell.JS_INDENT),
+                main=indent(main, shell.JS_INDENT),
             )
 
         return out
 
-    def write_jobscript(self):
-        js_str = self.compose_jobscript()
+    def write_jobscript(
+        self,
+        os_name: str = None,
+        shell_name: str = None,
+        os_args: Optional[Dict] = None,
+        shell_args: Optional[Dict] = None,
+        scheduler_name: Optional[str] = None,
+        scheduler_args: Optional[Dict] = None,
+    ):
+        js_str = self.compose_jobscript(
+            os_name=os_name,
+            shell_name=shell_name,
+            os_args=os_args,
+            shell_args=shell_args,
+            scheduler_name=scheduler_name,
+            scheduler_args=scheduler_args,
+        )
         with self.jobscript_path.open("wt", newline="\n") as fp:
             fp.write(js_str)
         return self.jobscript_path

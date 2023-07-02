@@ -55,9 +55,7 @@ class JSONPersistentStore(PersistentStore):
         commit_loop_num_iters=(_meta_res,),
         commit_submissions=(_subs_res,),
         commit_submission_attempts=(_subs_res,),
-        commit_jobscript_version_info=(_subs_res,),
-        commit_jobscript_submit_time=(_subs_res,),
-        commit_jobscript_job_ID=(_subs_res,),
+        commit_js_metadata=(_subs_res,),
         commit_elem_IDs=(_meta_res,),
         commit_elements=(_meta_res,),
         commit_elem_iter_IDs=(_meta_res,),
@@ -242,24 +240,11 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["runs"][EAR_id]["skip"] = True
 
-    def _update_jobscript_version_info(self, vers_info: Dict):
+    def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_vers_info in vers_info.items():
-                for js_idx, vers_info_i in js_vers_info.items():
-                    sub_res[sub_idx]["jobscripts"][js_idx]["version_info"] = vers_info_i
-
-    def _update_jobscript_submit_time(self, sub_times: Dict):
-        with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_sub_times in sub_times.items():
-                for js_idx, sub_time_i in js_sub_times.items():
-                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
-                    sub_res[sub_idx]["jobscripts"][js_idx]["submit_time"] = sub_time_fmt
-
-    def _update_jobscript_job_ID(self, job_IDs: Dict):
-        with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_job_IDs in job_IDs.items():
-                for js_idx, job_ID_i in js_job_IDs.items():
-                    sub_res[sub_idx]["jobscripts"][js_idx]["scheduler_job_ID"] = job_ID_i
+            for sub_idx, all_js_md in js_meta.items():
+                for js_idx, js_meta_i in all_js_md.items():
+                    sub_res[sub_idx]["jobscripts"][js_idx].update(**js_meta_i)
 
     def _append_parameters(self, new_params: List[StoreParameter]):
         with self.using_resource("parameters", "update") as params:

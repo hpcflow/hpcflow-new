@@ -957,24 +957,34 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def set_jobscript_version_info(
-        self, sub_idx: int, js_idx: int, vers_info: Dict, save: bool = True
+    def set_jobscript_metadata(
+        self,
+        sub_idx: int,
+        js_idx: int,
+        version_info: Optional[Dict] = None,
+        submit_time: Optional[str] = None,
+        os_name: Optional[str] = None,
+        shell_name: Optional[str] = None,
+        scheduler_name: Optional[str] = None,
+        scheduler_job_ID: Optional[str] = None,
+        save: bool = True,
     ):
-        self._pending.set_jobscript_version_info[sub_idx][js_idx] = vers_info
-        if save:
-            self.save()
-
-    def set_jobscript_submit_time(
-        self, sub_idx: int, js_idx: int, submit_time: datetime, save: bool = True
-    ):
-        self._pending.set_jobscript_submit_time[sub_idx][js_idx] = submit_time
-        if save:
-            self.save()
-
-    def set_jobscript_job_ID(
-        self, sub_idx: int, js_idx: int, job_ID: str, save: bool = True
-    ):
-        self._pending.set_jobscript_job_ID[sub_idx][js_idx] = job_ID
+        if version_info:
+            self._pending.set_js_metadata[sub_idx][js_idx]["version_info"] = version_info
+        if submit_time:
+            self._pending.set_js_metadata[sub_idx][js_idx]["submit_time"] = submit_time
+        if os_name:
+            self._pending.set_js_metadata[sub_idx][js_idx]["os_name"] = os_name
+        if shell_name:
+            self._pending.set_js_metadata[sub_idx][js_idx]["shell_name"] = shell_name
+        if scheduler_name:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "scheduler_name"
+            ] = scheduler_name
+        if scheduler_job_ID:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "scheduler_job_ID"
+            ] = scheduler_job_ID
         if save:
             self.save()
 
