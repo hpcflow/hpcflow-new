@@ -626,7 +626,7 @@ class PersistentStore(ABC):
 
     @property
     def ts_fmt(self) -> str:
-        return r"%Y-%m-%d %H:%M:%S.%f"  # TODO: self.workflow.ts_fmt
+        return self.workflow.ts_fmt
 
     @property
     def has_pending(self):

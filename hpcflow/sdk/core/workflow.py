@@ -865,6 +865,14 @@ class Workflow:
         return self._creation_info
 
     @property
+    def ts_fmt(self):
+        return self.creation_info["ts_fmt"]
+
+    @property
+    def ts_name_fmt(self):
+        return self.creation_info["ts_name_fmt"]
+
+    @property
     def template_components(self) -> Dict:
         if self._template_components is None:
             with self._store.cached_load():
