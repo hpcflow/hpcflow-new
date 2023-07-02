@@ -794,7 +794,7 @@ class ResourceSpec(JSONLike):
                 pass
             else:
                 if i_val is not None:
-                    i_str = f", {i}={i_val}"
+                    i_str = f", {i}={i_val!r}"
 
             param_strs += i_str
 
