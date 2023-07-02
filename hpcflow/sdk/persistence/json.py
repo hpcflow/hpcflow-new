@@ -470,7 +470,7 @@ class JSONPersistentStore(PersistentStore):
 
     def get_creation_info(self):
         with self.using_resource("metadata", action="read") as md:
-            return md["creation_info"]
+            return copy.deepcopy(md["creation_info"])
 
     def get_fs_path(self):
         with self.using_resource("metadata", action="read") as md:

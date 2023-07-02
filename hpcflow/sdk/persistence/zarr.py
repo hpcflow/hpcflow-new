@@ -972,7 +972,7 @@ class ZarrPersistentStore(PersistentStore):
 
     def get_creation_info(self):
         with self.using_resource("attrs", action="read") as attrs:
-            return attrs["creation_info"]
+            return copy.deepcopy(attrs["creation_info"])
 
     def get_fs_path(self):
         with self.using_resource("attrs", action="read") as attrs:
