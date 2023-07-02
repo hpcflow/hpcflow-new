@@ -24,10 +24,10 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
-            --with-config log_file_path "`pwd`/{app_package_name}.log"\\
-            --config-dir "{config_dir}"\\
-            --config-invocation-key "{config_invoc_key}"\\
-            "$@"
+                --with-config log_file_path "`pwd`/{app_package_name}.log"\\
+                --config-dir "{config_dir}"\\
+                --config-invocation-key "{config_invoc_key}"\\
+                "$@"
         )
         }}
 
