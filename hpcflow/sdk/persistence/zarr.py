@@ -343,10 +343,14 @@ class ZarrPersistentStore(PersistentStore):
         fs,
         fs_path: str,
         replaced_wk: str,
+        ts_fmt: str,
+        ts_name_fmt: str,
         creation_info: Dict,
     ) -> None:
         attrs = {
             "fs_path": fs_path,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
             "template": template_js,
             "template_components": template_components_js,
@@ -969,6 +973,14 @@ class ZarrPersistentStore(PersistentStore):
         # we assume the row index is equivalent to ID, might need to revisit in future
         base_arr = self._get_parameter_base_array(mode="r")
         return list(range(len(base_arr)))
+
+    def get_ts_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_fmt"]
+
+    def get_ts_name_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_name_fmt"]
 
     def get_creation_info(self):
         with self.using_resource("attrs", action="read") as attrs:

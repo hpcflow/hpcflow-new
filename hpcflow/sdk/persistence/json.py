@@ -122,6 +122,8 @@ class JSONPersistentStore(PersistentStore):
         fs_path: str,
         replaced_wk: str,
         creation_info: Dict,
+        ts_fmt: str,
+        ts_name_fmt: str,
     ) -> None:
         fs.mkdir(wk_path)
         submissions = []
@@ -131,6 +133,8 @@ class JSONPersistentStore(PersistentStore):
         }
         metadata = {
             "fs_path": fs_path,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
             "template_components": template_components_js,
             "template": template_js,
@@ -467,6 +471,14 @@ class JSONPersistentStore(PersistentStore):
     def _get_persistent_parameter_IDs(self) -> List[int]:
         with self.using_resource("parameters", "read") as params:
             return list(int(i) for i in params["data"].keys())
+
+    def get_ts_fmt(self):
+        with self.using_resource("metadata", action="read") as md:
+            return md["ts_fmt"]
+
+    def get_ts_name_fmt(self):
+        with self.using_resource("metadata", action="read") as md:
+            return md["ts_name_fmt"]
 
     def get_creation_info(self):
         with self.using_resource("metadata", action="read") as md:

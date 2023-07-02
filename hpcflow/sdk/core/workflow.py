@@ -21,7 +21,7 @@ from hpcflow.sdk.core import (
     DEFAULT_TEMPLATE_FORMAT,
     ABORT_EXIT_CODE,
 )
-from hpcflow.sdk.persistence import store_cls_from_str_NEW, DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
 from hpcflow.sdk.submission.jobscript import (
@@ -322,10 +322,13 @@ class Workflow:
         fs_path = str(path)
         fs, path, _ = resolve_fsspec(fs_path or "", **(fs_kwargs or {}))
         store_fmt = store_fmt or infer_store(fs_path, fs)
-        store_cls = store_cls_from_str_NEW(store_fmt)
+        store_cls = store_cls_from_str(store_fmt)
 
         self.path = path
 
+        # assigned on first access:
+        self._ts_fmt = None
+        self._ts_name_fmt = None
         self._creation_info = None
         self._fs_path = None
         self._template = None
@@ -857,7 +860,7 @@ class Workflow:
         if not self._creation_info:
             info = self._store.get_creation_info()
             info["create_time"] = (
-                datetime.strptime(info["create_time"], info["ts_fmt"])
+                datetime.strptime(info["create_time"], self.ts_fmt)
                 .replace(tzinfo=timezone.utc)
                 .astimezone()
             )
@@ -866,11 +869,15 @@ class Workflow:
 
     @property
     def ts_fmt(self):
-        return self.creation_info["ts_fmt"]
+        if not self._ts_fmt:
+            self._ts_fmt = self._store.get_ts_fmt()
+        return self._ts_fmt
 
     @property
     def ts_name_fmt(self):
-        return self.creation_info["ts_name_fmt"]
+        if not self._ts_name_fmt:
+            self._ts_name_fmt = self._store.get_ts_name_fmt()
+        return self._ts_name_fmt
 
     @property
     def template_components(self) -> Dict:
@@ -1270,11 +1277,9 @@ class Workflow:
         creation_info = {
             "app_info": cls.app.get_info(),
             "create_time": ts_utc.strftime(ts_fmt),
-            "ts_fmt": ts_fmt,
-            "ts_name_fmt": ts_name_fmt,
         }
 
-        store_cls = store_cls_from_str_NEW(store)
+        store_cls = store_cls_from_str(store)
         store_cls.write_empty_workflow(
             app=cls.app,
             template_js=template_js,
@@ -1284,6 +1289,8 @@ class Workflow:
             fs_path=fs_path,
             replaced_wk=replaced_wk,
             creation_info=creation_info,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
         )
 
         fs_kwargs = {"password": pw, **fs_kwargs}
