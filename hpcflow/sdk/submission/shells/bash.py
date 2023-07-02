@@ -174,9 +174,9 @@ class Bash(Shell):
                 {commands}) &
 
                 pid=$!
+                abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
                 while true
                 do
-                    abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
                     is_abort=`sed "$(($EAR_ID + 1))q;d" $abort_file`
                     ps -p $pid > /dev/null
                     if [ $? == 1 ]; then

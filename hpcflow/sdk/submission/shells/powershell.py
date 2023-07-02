@@ -181,8 +181,8 @@ class WindowsPowerShell(Shell):
                 }}
 
                 $is_abort = $null
+                $abort_file = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX abort_EARs.txt
                 while ($true) {{
-                    $abort_file = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX abort_EARs.txt
                     $is_abort = get_nth_line $abort_file $EAR_ID
                     if ($job.State -ne "Running") {{
                         break
