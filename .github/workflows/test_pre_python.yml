@@ -28,7 +28,6 @@ jobs:
         run: |
           sed -i.bak "/python = /s/<3.12/<=3.12/" pyproject.toml
           grep -rnie python pyproject.toml
-          rm pyproject.toml.bak
 
       - uses: actions/setup-python@v4
         with:
