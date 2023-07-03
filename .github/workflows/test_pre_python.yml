@@ -24,6 +24,11 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
+      - name: Edits python version upper bound
+        run: |
+          sed -i "/python = /s/<3.12/<=3.12/" pyproject.toml
+          grep -rnie python pyproject.toml
+
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
