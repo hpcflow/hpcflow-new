@@ -1707,6 +1707,8 @@ class Workflow:
         print_stdout: Optional[bool] = False,
     ) -> Dict[int, int]:
         with self._store.cached_load():
+            if not self._store.is_submittable:
+                raise NotImplementedError("The workflow is not submittable.")
             with self.batch_update():
                 # commit updates before raising exception:
                 exceptions, submitted_js = self._submit(

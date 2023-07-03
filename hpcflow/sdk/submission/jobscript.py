@@ -329,6 +329,7 @@ class Jobscript(JSONLike):
         dependencies: Dict[int:Dict],
         submit_time: Optional[datetime] = None,
         scheduler_job_ID: Optional[str] = None,
+        process_ID: Optional[int] = None,
         version_info: Optional[Tuple[str]] = None,
         os_name: Optional[str] = None,
         shell_name: Optional[str] = None,
@@ -346,6 +347,7 @@ class Jobscript(JSONLike):
         self._submit_time = submit_time
 
         self._scheduler_job_ID = scheduler_job_ID
+        self._process_ID = process_ID
         self._version_info = version_info
 
         # assigned as submit-time:
@@ -433,6 +435,10 @@ class Jobscript(JSONLike):
     @property
     def scheduler_job_ID(self):
         return self._scheduler_job_ID
+
+    @property
+    def process_ID(self):
+        return self._process_ID
 
     @property
     def version_info(self):
@@ -553,6 +559,16 @@ class Jobscript(JSONLike):
         return f"js_{self.index}_run_dirs.txt"
 
     @property
+    def direct_stdout_file_name(self):
+        """For direct execution stdout."""
+        return f"js_{self.index}_stdout.log"
+
+    @property
+    def direct_stderr_file_name(self):
+        """For direct execution stderr."""
+        return f"js_{self.index}_stderr.log"
+
+    @property
     def jobscript_name(self):
         return f"js_{self.index}{self.shell.JS_EXT}"
 
@@ -568,6 +584,14 @@ class Jobscript(JSONLike):
     def jobscript_path(self):
         return self.submission.path / self.jobscript_name
 
+    @property
+    def direct_stdout_path(self):
+        return self.submission.path / self.direct_stdout_file_name
+
+    @property
+    def direct_stderr_path(self):
+        return self.submission.path / self.direct_stderr_file_name
+
     def _set_submit_time(self, submit_time: datetime) -> None:
         submit_time = submit_time.strftime(self.workflow.ts_fmt)
         self._submit_time = submit_time
@@ -578,11 +602,21 @@ class Jobscript(JSONLike):
         )
 
     def _set_scheduler_job_ID(self, job_ID: str) -> None:
+        """For scheduled submission only."""
         self._scheduler_job_ID = job_ID
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
             scheduler_job_ID=job_ID,
+        )
+
+    def _set_process_ID(self, process_ID: str) -> None:
+        """For direct submission only."""
+        self._process_ID = process_ID
+        self.workflow._store.set_jobscript_metadata(
+            sub_idx=self.submission.index,
+            js_idx=self.index,
+            process_ID=process_ID,
         )
 
     def _set_version_info(self, version_info: Dict) -> None:
@@ -858,7 +892,10 @@ class Jobscript(JSONLike):
             for job_ID, (sched_ref, _) in scheduler_refs.items():
                 deps.append((sched_ref, False))
 
-        # TODO: split into scheduler/direct behaviour
+        job_ID = None
+        process_ID = None
+
+        is_scheduler = isinstance(self.scheduler, Scheduler)
 
         err_args = {
             "js_idx": self.index,
@@ -871,18 +908,32 @@ class Jobscript(JSONLike):
             self.app.submission_logger.info(
                 f"submitting jobscript {self.index!r} with command: {submit_cmd!r}"
             )
-            proc = subprocess.run(
-                args=submit_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=str(self.workflow.path),
-            )
-            stdout = proc.stdout.decode().strip()
-            stderr = proc.stderr.decode().strip()
-            err_args["stdout"] = stdout
-            err_args["stderr"] = stderr
-            if print_stdout and stdout:
-                print(stdout)
+            if is_scheduler:
+                # scheduled submission, wait for submission so we can parse the job ID:
+                proc = subprocess.run(
+                    args=submit_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=str(self.workflow.path),
+                )
+                stdout = proc.stdout.decode().strip()
+                stderr = proc.stderr.decode().strip()
+                err_args["stdout"] = stdout
+                err_args["stderr"] = stderr
+                if print_stdout and stdout:
+                    print(stdout)
+
+            else:
+                # direct submission; submit jobscript asynchronously:
+                with self.direct_stdout_path.open("wt") as fp_stdout:
+                    with self.direct_stderr_path.open("wt") as fp_stderr:
+                        proc = subprocess.Popen(
+                            args=submit_cmd,
+                            stdout=fp_stdout,
+                            stderr=fp_stderr,
+                            cwd=str(self.workflow.path),
+                        )
+                        process_ID = proc.pid
 
         except Exception as subprocess_exc:
             err_args["message"] = f"Failed to execute submit command."
@@ -892,23 +943,34 @@ class Jobscript(JSONLike):
             err_args["subprocess_exc"] = subprocess_exc
             raise JobscriptSubmissionFailure(**err_args)
 
-        if stderr:
-            err_args["message"] = "Non-empty stderr from submit command."
-            err_args["submit_cmd"] = submit_cmd
-            raise JobscriptSubmissionFailure(**err_args)
+        if is_scheduler:
+            # scheduled submission
+            if stderr:
+                err_args["message"] = "Non-empty stderr from submit command."
+                err_args["submit_cmd"] = submit_cmd
+                raise JobscriptSubmissionFailure(**err_args)
 
-        try:
-            job_ID = self.scheduler.parse_submission_output(stdout)
-        except Exception as job_ID_parse_exc:
-            # TODO: maybe handle this differently. If there is no stderr, then the job
-            # probably did submit fine, but the issue is just with parsing the job ID
-            # (e.g. if the scheduler version was updated and it now outputs differently).
-            err_args["message"] = "Failed to parse job ID from stdout."
-            err_args["submit_cmd"] = submit_cmd
-            err_args["job_ID_parse_exc"] = job_ID_parse_exc
-            raise JobscriptSubmissionFailure(**err_args)
+            try:
+                job_ID = self.scheduler.parse_submission_output(stdout)
+
+            except Exception as job_ID_parse_exc:
+                # TODO: maybe handle this differently. If there is no stderr, then the job
+                # probably did submit fine, but the issue is just with parsing the job ID
+                # (e.g. if the scheduler version was updated and it now outputs
+                # differently).
+                err_args["message"] = "Failed to parse job ID from stdout."
+                err_args["submit_cmd"] = submit_cmd
+                err_args["job_ID_parse_exc"] = job_ID_parse_exc
+                raise JobscriptSubmissionFailure(**err_args)
+
+            self._set_scheduler_job_ID(job_ID)
+            ref = job_ID
+
+        else:
+            # direct submission
+            self._set_process_ID(process_ID)
+            ref = process_ID
 
         self._set_submit_time(datetime.utcnow())
-        self._set_scheduler_job_ID(job_ID)
 
-        return job_ID
+        return ref

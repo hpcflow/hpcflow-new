@@ -296,6 +296,8 @@ class Submission(JSONLike):
         self.workflow._store._pending.commit_all()
 
         # TODO: a submission should only be "submitted" once shouldn't it?
+        # no; there could be an IO error (e.g. internet connectivity), so might
+        # need to be able to reattempt submission of outstanding jobscripts.
         self.path.mkdir(exist_ok=True)
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
@@ -318,8 +320,6 @@ class Submission(JSONLike):
             try:
                 job_ID_i = js.submit(scheduler_refs, print_stdout=print_stdout)
                 scheduler_refs[js.index] = (job_ID_i, js.is_array)
-                # note: currently for direct exec, this is not reached, so submission_status
-                # stays as pending.
                 submitted_js_idx.append(js.index)
 
             except JobscriptSubmissionFailure as err:

@@ -632,6 +632,11 @@ class PersistentStore(ABC):
     def has_pending(self):
         return bool(self._pending)
 
+    @property
+    def is_submittable(self):
+        """Does this store support workflow submission?"""
+        return self.fs.__class__.__name__ == "LocalFileSystem"
+
     @staticmethod
     def prepare_test_store_from_spec(task_spec):
         """Generate a valid store from a specification in terms of nested
@@ -967,6 +972,7 @@ class PersistentStore(ABC):
         shell_name: Optional[str] = None,
         scheduler_name: Optional[str] = None,
         scheduler_job_ID: Optional[str] = None,
+        process_ID: Optional[int] = None,
         save: bool = True,
     ):
         if version_info:
@@ -985,6 +991,8 @@ class PersistentStore(ABC):
             self._pending.set_js_metadata[sub_idx][js_idx][
                 "scheduler_job_ID"
             ] = scheduler_job_ID
+        if process_ID:
+            self._pending.set_js_metadata[sub_idx][js_idx]["process_ID"] = process_ID
         if save:
             self.save()
 
