@@ -81,21 +81,36 @@ class WindowsPowerShell(Shell):
             $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$JS_act_idx]
             $run_dir_abs = "$WK_PATH\\$run_dir"
             Set-Location $run_dir_abs
+            $app_stream_file = "$pwd/{app_package_name}_std.txt"
 
-            $skip = {workflow_app_alias} internal workflow $WK_PATH get-ear-skipped $EAR_ID
-            if ($skip -eq "1") {{
-                continue
-            }}
+            $skip = {workflow_app_alias} internal workflow $WK_PATH get-ear-skipped $EAR_ID 2>> $app_stream_file
+            $exc_sk = $LASTEXITCODE
 
-            {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-start $EAR_ID
-
-            . (Join-Path $run_dir_abs "{commands_file_name}")
+            if ($exc_sk -eq 0) {{
             
-            $exit_code = $LASTEXITCODE
-            $global:LASTEXITCODE = $null
+                if ($skip -eq "1") {{
+                    continue
+                }}
 
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $EAR_ID $exit_code
+                {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID 2>&1 >> $app_stream_file
+                $exc_wc = $LASTEXITCODE
+
+                {workflow_app_alias} internal workflow $WK_PATH set-ear-start $EAR_ID 2>&1 >> $app_stream_file
+                $exc_se = $LASTEXITCODE
+
+                if (($exc_wc -eq 0) -and ($exc_se -eq 0)) {{
+                    . (Join-Path $run_dir_abs "{commands_file_name}")
+                    $exit_code = $LASTEXITCODE
+                }}
+                else {{
+                    $exit_code = If ($exc_wc -ne 0) {{$exc_wc}} Else {{$exc_se}}
+                }}
+            }}
+            else {{ 
+                $exit_code = $exc_sk
+            }}
+            $global:LASTEXITCODE = $null
+            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $EAR_ID $exit_code 2>&1 >> $app_stream_file
 
         }}
     """
@@ -152,7 +167,7 @@ class WindowsPowerShell(Shell):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH save-parameter {param_name} ${shell_var_name}"
-            f" {EAR_ID}"
+            f" {EAR_ID} 2>&1 >> $app_stream_file"
             f"\n"
         )
 
@@ -173,6 +188,7 @@ class WindowsPowerShell(Shell):
                     $SUB_IDX = $using:SUB_IDX
                     $JS_IDX = $using:JS_IDX
                     $EAR_ID = $using:EAR_ID
+                    $app_stream_file= $using:app_stream_file
 
                 {commands}
                     if ($LASTEXITCODE -ne 0) {{
@@ -181,23 +197,24 @@ class WindowsPowerShell(Shell):
                 }}
 
                 $is_abort = $null
+                $abort_file = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX abort_EARs.txt
                 while ($true) {{
-                    $abort_file = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX abort_EARs.txt
                     $is_abort = get_nth_line $abort_file $EAR_ID
                     if ($job.State -ne "Running") {{
                         break
                     }}
                     elseif ($is_abort -eq "1") {{
+                        Add-Content -Path $app_stream_file -Value "Abort instruction received; stopping commands..."
                         Stop-Job -Job $job
                         Wait-Job -Job $job
                         break
                     }}
                     else {{
+                        Receive-Job -job $job | Write-Output
                         Start-Sleep 1 # TODO: TEMP: increase for production
                     }}
                 }}
-                $result = Receive-Job -job $job
-                Write-Host $result
+                Receive-Job -job $job | Write-Output
                 if ($job.state -eq "Completed") {{
                     exit 0
                 }}

@@ -79,7 +79,7 @@ class SlurmPosix(Scheduler):
 
         opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
         opts.extend([f"{self.js_cmd} {opt}" for opt in self.options])
-        return "\n".join(opts)
+        return "\n".join(opts) + "\n"
 
     def get_version_info(self):
         vers_cmd = [self.submit_cmd, "--version"]

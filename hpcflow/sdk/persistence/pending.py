@@ -61,9 +61,7 @@ class PendingChanges:
         self.set_EAR_starts: Dict[int, Tuple[datetime, Dict]] = None
         self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
 
-        self.set_jobscript_version_info: Dict[int, Dict[int, Dict]] = None
-        self.set_jobscript_submit_time: Dict[int, Dict[int, datetime]] = None
-        self.set_jobscript_job_ID: Dict[int, Dict[int, str]] = None
+        self.set_js_metadata: Dict[int, Dict[int, Any]] = None
 
         self.set_parameters: Dict[int, AnySParameter] = None
 
@@ -94,9 +92,7 @@ class PendingChanges:
             or bool(self.set_EAR_starts)
             or bool(self.set_EAR_ends)
             or bool(self.set_EAR_skips)
-            or bool(self.set_jobscript_version_info)
-            or bool(self.set_jobscript_submit_time)
-            or bool(self.set_jobscript_job_ID)
+            or bool(self.set_js_metadata)
             or bool(self.set_parameters)
             or bool(self.update_param_sources)
             or bool(self.update_loop_indices)
@@ -297,23 +293,13 @@ class PendingChanges:
             self.store._update_EAR_skip(EAR_id)
         self.clear_set_EAR_skips()
 
-    def commit_jobscript_version_info(self) -> None:
-        if self.set_jobscript_version_info:
-            self.logger.debug(f"commit: setting jobscript version info")
-            self.store._update_jobscript_version_info(self.set_jobscript_version_info)
-        self.clear_set_jobscript_version_info()
-
-    def commit_jobscript_submit_time(self) -> None:
-        if self.set_jobscript_submit_time:
-            self.logger.debug(f"commit: setting jobscript submit times")
-            self.store._update_jobscript_submit_time(self.set_jobscript_submit_time)
-        self.clear_set_jobscript_submit_time()
-
-    def commit_jobscript_job_ID(self) -> None:
-        if self.set_jobscript_job_ID:
-            self.logger.debug(f"commit: setting jobscript job IDs.")
-            self.store._update_jobscript_job_ID(self.set_jobscript_job_ID)
-        self.clear_set_jobscript_job_ID()
+    def commit_js_metadata(self) -> None:
+        if self.set_js_metadata:
+            self.logger.debug(
+                f"commit: setting jobscript metadata: {self.set_js_metadata!r}"
+            )
+            self.store._update_js_metadata(self.set_js_metadata)
+        self.clear_set_js_metadata()
 
     def commit_parameters(self) -> None:
         """Make pending parameters persistent."""
@@ -415,14 +401,8 @@ class PendingChanges:
     def clear_set_EAR_skips(self):
         self.set_EAR_skips = []
 
-    def clear_set_jobscript_version_info(self):
-        self.set_jobscript_version_info = defaultdict(dict)
-
-    def clear_set_jobscript_submit_time(self):
-        self.set_jobscript_submit_time = defaultdict(dict)
-
-    def clear_set_jobscript_job_ID(self):
-        self.set_jobscript_job_ID = defaultdict(dict)
+    def clear_set_js_metadata(self):
+        self.set_js_metadata = defaultdict(lambda: defaultdict(dict))
 
     def clear_add_parameters(self):
         self.add_parameters = {}
@@ -472,9 +452,7 @@ class PendingChanges:
         self.clear_set_EAR_ends()
         self.clear_set_EAR_skips()
 
-        self.clear_set_jobscript_version_info()
-        self.clear_set_jobscript_submit_time()
-        self.clear_set_jobscript_job_ID()
+        self.clear_set_js_metadata()
         self.clear_set_parameters()
 
         self.clear_update_param_sources()
@@ -507,9 +485,7 @@ class CommitResourceMap:
     commit_EAR_skips: Optional[Tuple[str]] = tuple()
     commit_EAR_starts: Optional[Tuple[str]] = tuple()
     commit_EAR_ends: Optional[Tuple[str]] = tuple()
-    commit_jobscript_version_info: Optional[Tuple[str]] = tuple()
-    commit_jobscript_submit_time: Optional[Tuple[str]] = tuple()
-    commit_jobscript_job_ID: Optional[Tuple[str]] = tuple()
+    commit_js_metadata: Optional[Tuple[str]] = tuple()
     commit_parameters: Optional[Tuple[str]] = tuple()
     commit_files: Optional[Tuple[str]] = tuple()
     commit_template_components: Optional[Tuple[str]] = tuple()

@@ -211,9 +211,7 @@ class Submission(JSONLike):
     def _raise_failure(self, submitted_js_idx, exceptions):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
         if submitted_js_idx:
-            msg += (
-                f" (but jobscripts {submitted_js_idx} were submitted " f"successfully):"
-            )
+            msg += f" (but jobscripts {submitted_js_idx} were submitted successfully):"
         else:
             msg += ":"
 
@@ -249,6 +247,12 @@ class Submission(JSONLike):
         print_stdout=False,
     ) -> List[int]:
         """Generate and submit the jobscripts of this submission."""
+
+        # set os_name and shell_name for each jobscript:
+        for js in self.jobscripts:
+            js._set_os_name()
+            js._set_shell_name()
+            js._set_scheduler_name()
 
         outstanding = self.outstanding_jobscripts
 
@@ -286,7 +290,14 @@ class Submission(JSONLike):
         for js_idx, vers_info_i in js_vers_info.items():
             self.jobscripts[js_idx]._set_version_info(vers_info_i)
 
+        # for direct submission, it's important that os_name/shell_name/scheduler_name
+        # are made persistent now, because `Workflow.write_commands`, which might be
+        # invoked in a new process before submission has completed, needs to know these:
+        self.workflow._store._pending.commit_all()
+
         # TODO: a submission should only be "submitted" once shouldn't it?
+        # no; there could be an IO error (e.g. internet connectivity), so might
+        # need to be able to reattempt submission of outstanding jobscripts.
         self.path.mkdir(exist_ok=True)
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
@@ -309,8 +320,6 @@ class Submission(JSONLike):
             try:
                 job_ID_i = js.submit(scheduler_refs, print_stdout=print_stdout)
                 scheduler_refs[js.index] = (job_ID_i, js.is_array)
-                # note: currently for direct exec, this is not reached, so submission_status
-                # stays as pending.
                 submitted_js_idx.append(js.index)
 
             except JobscriptSubmissionFailure as err:

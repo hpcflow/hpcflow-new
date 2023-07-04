@@ -343,10 +343,14 @@ class ZarrPersistentStore(PersistentStore):
         fs,
         fs_path: str,
         replaced_wk: str,
+        ts_fmt: str,
+        ts_name_fmt: str,
         creation_info: Dict,
     ) -> None:
         attrs = {
             "fs_path": fs_path,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
             "template": template_js,
             "template_components": template_components_js,
@@ -510,7 +514,7 @@ class ZarrPersistentStore(PersistentStore):
     def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, attempts_i in sub_attempts.items():
-                attrs["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+                attrs["submissions"][sub_idx]["submission_attempts"].append(attempts_i)
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         arr = self._get_iters_arr(mode="r+")
@@ -593,30 +597,13 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_jobscript_version_info(self, vers_info: Dict):
+    def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_vers_info in vers_info.items():
-                for js_idx, vers_info_i in js_vers_info.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "version_info"
-                    ] = vers_info_i
-
-    def _update_jobscript_submit_time(self, sub_times: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_sub_times in sub_times.items():
-                for js_idx, sub_time_i in js_sub_times.items():
-                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "submit_time"
-                    ] = sub_time_fmt
-
-    def _update_jobscript_job_ID(self, job_IDs: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_job_IDs in job_IDs.items():
-                for js_idx, job_ID_i in js_job_IDs.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "scheduler_job_ID"
-                    ] = job_ID_i
+            for sub_idx, all_js_md in js_meta.items():
+                for js_idx, js_meta_i in all_js_md.items():
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx].update(
+                        **js_meta_i
+                    )
 
     def _append_parameters(self, params: List[ZarrStoreParameter]):
         """Add new persistent parameters."""
@@ -987,9 +974,17 @@ class ZarrPersistentStore(PersistentStore):
         base_arr = self._get_parameter_base_array(mode="r")
         return list(range(len(base_arr)))
 
+    def get_ts_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_fmt"]
+
+    def get_ts_name_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_name_fmt"]
+
     def get_creation_info(self):
         with self.using_resource("attrs", action="read") as attrs:
-            return attrs["creation_info"]
+            return copy.deepcopy(attrs["creation_info"])
 
     def get_fs_path(self):
         with self.using_resource("attrs", action="read") as attrs:
