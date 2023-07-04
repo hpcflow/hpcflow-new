@@ -1,4 +1,31 @@
 
+<a name="v0.2.0a59"></a>
+## [v0.2.0a59](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a58...v0.2.0a59) - 2023.07.04
+
+### ♻ Code Refactoring
+
+* move abort_file variable out of while loop
+* move ts_fmt/ts_name_fmt out of creation_info
+
+### ✨ Features
+
+* check exit codes of and redirect stdout/err of JS app invocations
+* submit direct jobscripts asynchronously
+* add ts_fmt prop to Workflow
+
+### 🐛 Bug Fixes
+
+* don't mutate creation_info
+* set jobscript os/shell/scheduler persistently at submit time
+* ResourceSpec repr
+* lower-case shell/os_name in ResourceSpec init
+* method _append_submission_attempts
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a58"></a>
 ## [v0.2.0a58](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a57...v0.2.0a58) - 2023.06.30
 
