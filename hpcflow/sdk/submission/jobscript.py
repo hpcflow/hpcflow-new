@@ -786,6 +786,7 @@ class Jobscript(JSONLike):
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
             commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
+            app_package_name=self.app.package_name,
         )
 
         out = header
