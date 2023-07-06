@@ -514,7 +514,9 @@ class ElementActionRun:
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
-                out = executable.instances[0].command  # TODO: depends on resources
+                filterable = ("num_cores", "parallel_mode")
+                filter_exec = {j: self.get_resources().get(j) for j in filterable}
+                out = executable.filter_instances(**filter_exec)[0].command
             elif typ == "script":
                 out = self.action.get_script_path(val)
             return out
