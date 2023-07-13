@@ -11,7 +11,9 @@ import random
 import re
 import socket
 import string
+import subprocess
 from datetime import datetime, timezone
+import sys
 from typing import List, Mapping
 
 from ruamel.yaml import YAML
@@ -602,3 +604,12 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
             "root_path": root_path,
             "data": data,
         }
+
+
+def open_file(filename):
+    """Open a file or directory using the default system application."""
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])

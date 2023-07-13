@@ -245,3 +245,7 @@ class MissingParameterData(_MissingStoreItemError):
 
     def __init__(self, id_lst: Iterable[int]) -> None:
         super().__init__(id_lst, self._item_type)
+
+
+class NotSubmitMachineError(RuntimeError):
+    pass

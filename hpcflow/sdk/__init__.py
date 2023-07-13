@@ -84,6 +84,10 @@ sdk_classes = {
     "WorkflowBlueprint": "hpcflow.sdk.core.workflow",
     "Jobscript": "hpcflow.sdk.submission.jobscript",
     "Submission": "hpcflow.sdk.submission.submission",
+    "DirectWindows": "hpcflow.sdk.submission.schedulers.direct",
+    "DirectPosix": "hpcflow.sdk.submission.schedulers.direct",
+    "SlurmPosix": "hpcflow.sdk.submission.schedulers.slurm",
+    "SGEPosix": "hpcflow.sdk.submission.schedulers.sge",
 }
 
 sdk_funcs = {
@@ -94,6 +98,9 @@ sdk_funcs = {
     "run_tests": "hpcflow.sdk.api",
     "get_OS_info": "hpcflow.sdk.api",
     "get_shell_info": "hpcflow.sdk.api",
+    "get_known_submissions": "hpcflow.sdk.api",
+    "show": "hpcflow.sdk.api",
+    "cancel": "hpcflow.sdk.api",
 }
 
 sdk_objs = {**sdk_classes, **sdk_funcs}

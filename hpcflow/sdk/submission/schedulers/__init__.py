@@ -1,6 +1,6 @@
 from pathlib import Path
-from typing import List, Tuple
-from hpcflow.sdk.submission.shells.base import Shell
+import time
+from typing import Any, List, Tuple
 
 
 class NullScheduler:
@@ -30,14 +30,6 @@ class NullScheduler:
     def parse_submission_output(self, stdout: str) -> None:
         return None
 
-    def get_submit_command(
-        self,
-        shell: Shell,
-        js_path: str,
-        deps: List[Tuple],
-    ) -> List[str]:
-        return shell.executable + [js_path]
-
 
 class Scheduler(NullScheduler):
     def __init__(
@@ -62,3 +54,16 @@ class Scheduler(NullScheduler):
 
     def format_switch(self, switch):
         return f"{self.js_cmd} {switch}"
+
+    def is_jobscript_active(self, job_ID: str):
+        """Query if a jobscript is running/pending."""
+        return bool(self.get_job_state_info([job_ID]))
+
+    def wait_for_jobscripts(self, js_refs: List[Any]) -> None:
+        while js_refs:
+            info = self.get_job_state_info(js_refs)
+            print(info)
+            if not info:
+                break
+            js_refs = list(info.keys())
+            time.sleep(2)

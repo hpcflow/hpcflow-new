@@ -7,13 +7,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 import random
 import string
+from threading import Thread
 import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from uuid import uuid4
 from fsspec.implementations.local import LocalFileSystem
 from fsspec.implementations.zip import ZipFileSystem
-
+from platformdirs import user_data_dir
 import numpy as np
 from fsspec.core import url_to_fs
+import rich.console
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import (
@@ -31,6 +34,7 @@ from hpcflow.sdk.submission.jobscript import (
     merge_jobscripts_across_tasks,
     resolve_jobscript_dependencies,
 )
+from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
@@ -319,6 +323,7 @@ class Workflow:
 
         """
 
+        self.app.logger.info(f"loading workflow from path: {path}")
         fs_path = str(path)
         fs, path, _ = resolve_fsspec(fs_path or "", **(fs_kwargs or {}))
         store_fmt = store_fmt or infer_store(fs_path, fs)
@@ -868,6 +873,10 @@ class Workflow:
         return self._creation_info
 
     @property
+    def id_(self):
+        return self.creation_info["id"]
+
+    @property
     def ts_fmt(self):
         if not self._ts_fmt:
             self._ts_fmt = self._store.get_ts_fmt()
@@ -1277,6 +1286,7 @@ class Workflow:
         creation_info = {
             "app_info": cls.app.get_info(),
             "create_time": ts_utc.strftime(ts_fmt),
+            "id": str(uuid4()),
         }
 
         store_cls = store_cls_from_str(store)
@@ -1301,8 +1311,8 @@ class Workflow:
 
         return wk
 
-    def to_zip(self) -> str:
-        return self._store.to_zip()
+    def to_zip(self, log=None) -> str:
+        return self._store.to_zip(log=log)
 
     def copy(self, path=None) -> str:
         """Copy the workflow to a new path and return the copied workflow path."""
@@ -1607,7 +1617,7 @@ class Workflow:
                                 clean_up=(save_file_j in OFP_i.clean_up),
                             )
 
-                if exit_code != 0:
+                if not success:
                     for EAR_dep_ID in EAR.get_dependent_EARs(as_objects=False):
                         # TODO: this needs to be recursive?
                         self.app.logger.debug(
@@ -1663,6 +1673,7 @@ class Workflow:
 
     def _submit(
         self,
+        status,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
@@ -1672,8 +1683,10 @@ class Workflow:
         # generate a new submission if there are no pending submissions:
         pending = [i for i in self.submissions if i.needs_submit]
         if not pending:
+            status.update("Adding new submission...")
             new_sub = self._add_submission(JS_parallelism=JS_parallelism)
             if not new_sub:
+                status.stop()
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
@@ -1683,6 +1696,7 @@ class Workflow:
 
         # for direct execution the submission must be persistent at submit-time, because
         # it will be read by a new instance of the app:
+        status.update("Committing to the store...")
         self._store._pending.commit_all()
 
         # submit all pending submissions:
@@ -1690,7 +1704,9 @@ class Workflow:
         submitted_js = {}
         for sub in pending:
             try:
+                status.update(f"Preparing submission {sub.index}...")
                 sub_js_idx = sub.submit(
+                    status=status,
                     ignore_errors=ignore_errors,
                     print_stdout=print_stdout,
                 )
@@ -1705,9 +1721,17 @@ class Workflow:
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
+        wait: bool = False,
     ) -> Dict[int, int]:
+        """"""
+
+        console = rich.console.Console()
+        status = console.status("Submitting workflow...")
+        status.start()
+
         with self._store.cached_load():
             if not self._store.is_submittable:
+                status.stop()
                 raise NotImplementedError("The workflow is not submittable.")
             with self.batch_update():
                 # commit updates before raising exception:
@@ -1715,13 +1739,119 @@ class Workflow:
                     ignore_errors=ignore_errors,
                     JS_parallelism=JS_parallelism,
                     print_stdout=print_stdout,
+                    status=status,
                 )
 
         if exceptions:
             msg = "\n" + "\n\n".join([i.message for i in exceptions])
+            status.stop()
             raise WorkflowSubmissionFailure(msg)
 
+        status.stop()
+
+        if wait:
+            self.wait(submitted_js)
+
         return submitted_js
+
+    def wait(self, sub_js: Optional[Dict] = None):
+        """Wait for the completion of specified/all submitted jobscripts."""
+
+        # TODO: think about how this might work with remote workflow submission (via SSH)
+
+        def wait_for_direct_jobscripts(jobscripts: List[app.Jobscript]):
+            """Wait for the passed direct (i.e. non-scheduled) jobscripts to finish."""
+
+            def callback(proc):
+                js = js_pids[proc.pid]
+                # TODO sometimes proc.returncode is None; maybe because multiple wait
+                # calls?
+                print(
+                    f"Jobscript {js.index} from submission {js.submission.index} "
+                    f"finished with exit code {proc.returncode}."
+                )
+
+            js_pids = {i.process_ID: i for i in jobscripts}
+            process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
+            DirectScheduler.wait_for_jobscripts(process_refs, callback=callback)
+
+        def wait_for_scheduled_jobscripts(jobscripts: List[app.Jobscript]):
+            """Wait for the passed scheduled jobscripts to finish."""
+            schedulers = app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
+            threads = []
+            for js_indices, sched in schedulers.items():
+                jobscripts = [
+                    self.submissions[sub_idx].jobscripts[js_idx]
+                    for sub_idx, js_idx in js_indices
+                ]
+                job_IDs = [i.scheduler_job_ID for i in jobscripts]
+                threads.append(Thread(target=sched.wait_for_jobscripts, args=(job_IDs,)))
+
+            for i in threads:
+                i.start()
+
+            for i in threads:
+                i.join()
+
+        # TODO: add a log file to the submission dir where we can log stuff (e.g starting
+        # a thread...)
+
+        if not sub_js:
+            # find any active jobscripts first:
+            sub_js = {}
+            for sub in self.submissions:
+                for js_idx in sub.get_active_jobscripts():
+                    sub_js[sub.index].append(js_idx)
+
+        js_direct = []
+        js_sched = []
+        for sub_idx, all_js_idx in sub_js.items():
+            for js_idx in all_js_idx:
+                try:
+                    js = self.submissions[sub_idx].jobscripts[js_idx]
+                except IndexError:
+                    raise ValueError(
+                        f"No jobscript with submission index {sub_idx!r} and/or "
+                        f"jobscript index {js_idx!r}."
+                    )
+                if js.process_ID is not None:
+                    js_direct.append(js)
+                elif js.scheduler_job_ID is not None:
+                    js_sched.append(js)
+                else:
+                    raise RuntimeError(
+                        f"Process ID nor scheduler job ID is set for {js!r}."
+                    )
+
+        if js_direct or js_sched:
+            # TODO: use a rich console status? how would that appear in stdout though?
+            print("Waiting for workflow submissions to finish...")
+        else:
+            print("No running jobscripts.")
+            return
+
+        try:
+            t_direct = Thread(target=wait_for_direct_jobscripts, args=(js_direct,))
+            t_sched = Thread(target=wait_for_scheduled_jobscripts, args=(js_sched,))
+            t_direct.start()
+            t_sched.start()
+
+            # without these, KeyboardInterrupt seems to not be caught:
+            while t_direct.is_alive():
+                t_direct.join(timeout=1)
+
+            while t_sched.is_alive():
+                t_sched.join(timeout=1)
+
+        except KeyboardInterrupt:
+            print("No longer waiting (workflow execution will continue).")
+        else:
+            print("Specified submissions have finished.")
+
+    def cancel(self, hard=False):
+        """Cancel any running jobscripts."""
+        for sub in self.submissions:
+            sub.cancel()
 
     def add_submission(self, JS_parallelism: Optional[bool] = None) -> app.Submission:
         with self._store.cached_load():
@@ -1946,7 +2076,7 @@ class Workflow:
                             print(
                                 f"{task.insert_ID:^8d} {element.index:^8d} "
                                 f"{iter_idx:^8d} {act_idx:^8d} {run_idx:^8d} "
-                                f"{EAR.submission_status.name.lower():^8s}"
+                                f"{EAR.status.name.lower():^8s}"
                                 f"{exc}"
                                 f"{suc:^8}"
                                 f"{EAR.skip:^8}"
