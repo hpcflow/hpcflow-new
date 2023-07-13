@@ -10,6 +10,8 @@ import warnings
 
 from fsspec.implementations.zip import ZipFileSystem
 import numpy as np
+from rich.console import Console
+
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
     MissingStoreEARError,
@@ -511,10 +513,11 @@ class ZarrPersistentStore(PersistentStore):
             attrs
         )  # attrs shouldn't be mutated (TODO: test!)
 
-    def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
+    def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
         with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, attempts_i in sub_attempts.items():
-                attrs["submissions"][sub_idx]["submission_attempts"].append(attempts_i)
+            for sub_idx, sub_i_parts in sub_parts.items():
+                for dt_str, parts_j in sub_i_parts.items():
+                    attrs["submissions"][sub_idx]["submission_parts"][dt_str] = parts_j
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         arr = self._get_iters_arr(mode="r+")
@@ -864,11 +867,6 @@ class ZarrPersistentStore(PersistentStore):
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub_idx, sub in subs_dat.items():
                 for js_idx, js in enumerate(sub["jobscripts"]):
-                    if js["submit_time"]:
-                        subs_dat[sub_idx]["jobscripts"][js_idx][
-                            "submit_time"
-                        ] = datetime.strptime(js["submit_time"], self.ts_fmt)
-
                     for key in list(js["task_elements"].keys()):
                         subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
                             int(key)
@@ -990,9 +988,12 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["fs_path"]
 
-    def to_zip(self):
+    def to_zip(self, log=None):
         # TODO: need to update `fs_path` in the new store (because this used to get
         # `Workflow.name`), but can't seem to open `dst_zarr_store` below:
+        console = Console()
+        status = console.status(f"Zipping workflow {self.workflow.name!r}...")
+        status.start()
         src_zarr_store = self.zarr_store
         new_fs_path = f"{self.workflow.fs_path}.zip"
         zfs, _ = ask_pw_on_auth_exc(
@@ -1003,8 +1004,14 @@ class ZarrPersistentStore(PersistentStore):
             add_pw_to="target_options",
         )
         dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
-        zarr.convenience.copy_store(src_zarr_store, dst_zarr_store)
+        zarr.convenience.copy_store(
+            src_zarr_store,
+            dst_zarr_store,
+            excludes="execute",
+            log=log,
+        )
         del zfs  # ZipFileSystem remains open for instance lifetime
+        status.stop()
         return new_fs_path
 
 

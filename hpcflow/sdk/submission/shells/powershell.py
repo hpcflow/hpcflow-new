@@ -1,6 +1,6 @@
 import subprocess
 from textwrap import dedent, indent
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
@@ -53,6 +53,7 @@ class WindowsPowerShell(Shell):
         }}
 
         $WK_PATH = $(Get-Location)
+        $WK_PATH_ARG = $WK_PATH
         $SUB_IDX = {sub_idx}
         $JS_IDX = {js_idx}
         $EAR_ID_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {EAR_file_name}
@@ -64,6 +65,7 @@ class WindowsPowerShell(Shell):
         {shebang}
 
         {header}
+        {wait_command}
     """
     )
     JS_MAIN = dedent(
@@ -126,6 +128,10 @@ class WindowsPowerShell(Shell):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def get_direct_submit_command(self, js_path) -> List[str]:
+        """Get the command for submitting a non-scheduled jobscript."""
+        return self.executable + ["-File", js_path]
 
     def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
         """Get powershell version information.

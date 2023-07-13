@@ -147,7 +147,6 @@ def restart_helper(
 
 
 def get_helper_PID(app):
-
     PID_file = get_PID_file_path(app)
     if not PID_file.is_file():
         print("Helper not running!")
@@ -196,7 +195,6 @@ def get_helper_uptime(app):
 
 
 def get_helper_logger(app):
-
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -234,7 +232,6 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
-
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming

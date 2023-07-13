@@ -54,7 +54,7 @@ class PendingChanges:
         self.add_elem_IDs: Dict[int, List] = None
         self.add_elem_iter_IDs: Dict[int, List] = None
         self.add_elem_iter_EAR_IDs: Dict[int, Dict[int, List]] = None
-        self.add_submission_attempts: Dict[int, List[int]] = None
+        self.add_submission_parts: Dict[int, Dict[str, List[int]]] = None
 
         self.set_EAR_submission_indices: Dict[int, int] = None
         self.set_EAR_skips: List[int] = None
@@ -69,7 +69,7 @@ class PendingChanges:
         self.update_loop_indices: Dict[int, Dict] = None
         self.update_loop_num_iters: Dict[int, int] = None
 
-        self.reset()
+        self.reset(is_init=True)  # set up initial data structures
 
     def __bool__(self):
         """Returns True if there are any outstanding pending items."""
@@ -83,7 +83,7 @@ class PendingChanges:
             or bool(self.add_elem_IDs)
             or bool(self.add_elem_iter_IDs)
             or bool(self.add_elem_iter_EAR_IDs)
-            or bool(self.add_submission_attempts)
+            or bool(self.add_submission_parts)
             or bool(self.add_parameters)
             or bool(self.add_files)
             or bool(self.add_template_components)
@@ -164,11 +164,11 @@ class PendingChanges:
             self.store._append_submissions(subs)
         self.clear_add_submissions()
 
-    def commit_submission_attempts(self) -> None:
-        if self.add_submission_attempts:
-            self.logger.debug(f"commit: adding pending submission attempts")
-            self.store._append_submission_attempts(self.add_submission_attempts)
-        self.clear_add_submission_attempts()
+    def commit_submission_parts(self) -> None:
+        if self.add_submission_parts:
+            self.logger.debug(f"commit: adding pending submission parts")
+            self.store._append_submission_parts(self.add_submission_parts)
+        self.clear_add_submission_parts()
 
     def commit_elem_IDs(self) -> None:
         # TODO: could be batched up?
@@ -365,8 +365,8 @@ class PendingChanges:
     def clear_add_submissions(self):
         self.add_submissions = {}
 
-    def clear_add_submission_attempts(self):
-        self.add_submission_attempts = {}
+    def clear_add_submission_parts(self):
+        self.add_submission_parts = defaultdict(dict)
 
     def clear_add_elements(self):
         self.add_elements = {}
@@ -425,15 +425,20 @@ class PendingChanges:
     def clear_update_loop_num_iters(self):
         self.update_loop_num_iters = {}
 
-    def reset(self) -> None:
+    def reset(self, is_init=False) -> None:
         """Clear all pending data and prepare to accept new pending data."""
 
-        self.logger.info("resetting pending changes.")
+        if not is_init and not self:
+            # no pending changes
+            return
+
+        if not is_init:
+            self.logger.info("resetting pending changes.")
 
         self.clear_add_tasks()
         self.clear_add_loops()
         self.clear_add_submissions()
-        self.clear_add_submission_attempts()
+        self.clear_add_submission_parts()
         self.clear_add_elements()
         self.clear_add_element_sets()
         self.clear_add_elem_iters()
@@ -473,7 +478,7 @@ class CommitResourceMap:
     commit_tasks: Optional[Tuple[str]] = tuple()
     commit_loops: Optional[Tuple[str]] = tuple()
     commit_submissions: Optional[Tuple[str]] = tuple()
-    commit_submission_attempts: Optional[Tuple[str]] = tuple()
+    commit_submission_parts: Optional[Tuple[str]] = tuple()
     commit_elem_IDs: Optional[Tuple[str]] = tuple()
     commit_elements: Optional[Tuple[str]] = tuple()
     commit_element_sets: Optional[Tuple[str]] = tuple()

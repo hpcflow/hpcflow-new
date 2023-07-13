@@ -1,3 +1,4 @@
+from typing import Dict, List
 import click
 from colorama import init as colorama_init
 from termcolor import colored
@@ -5,7 +6,7 @@ from termcolor import colored
 from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
 from hpcflow.sdk.config.errors import ConfigError
-from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT, utils
 from hpcflow.sdk.demo.cli import get_demo_software_CLI
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
@@ -79,6 +80,26 @@ js_parallelism_option = click.option(
     ),
     type=click.BOOL,
 )
+wait_option = click.option(
+    "--wait",
+    help=("If True, this command will block until the workflow execution is complete."),
+    is_flag=True,
+    default=False,
+)
+workflow_ref_type_opt = click.option(
+    "--ref-type",
+    "-r",
+    type=click.Choice(["assume-id", "id", "path"]),
+    default="assume-id",
+)
+
+
+def parse_jobscript_wait_spec(sub_js_idx: str) -> Dict[int, List[int]]:
+    sub_js_idx_dct = {}
+    for sub_i in sub_js_idx.split(";"):
+        sub_idx_str, js_idx_lst_str = sub_i.split(":")
+        sub_js_idx_dct[int(sub_idx_str)] = [int(i) for i in js_idx_lst_str.split(",")]
+    return sub_js_idx_dct
 
 
 def _make_API_CLI(app):
@@ -135,6 +156,7 @@ def _make_API_CLI(app):
     @ts_fmt_option
     @ts_name_fmt_option
     @js_parallelism_option
+    @wait_option
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -146,6 +168,7 @@ def _make_API_CLI(app):
         ts_fmt=None,
         ts_name_fmt=None,
         js_parallelism=None,
+        wait=False,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -164,6 +187,7 @@ def _make_API_CLI(app):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             JS_parallelism=js_parallelism,
+            wait=wait,
         )
 
     @click.command(context_settings={"ignore_unknown_options": True})
@@ -311,10 +335,17 @@ def _make_workflow_CLI(app):
 
     @workflow.command(name="submit")
     @js_parallelism_option
+    @wait_option
     @click.pass_context
-    def submit_workflow(ctx, js_parallelism=None):
+    def submit_workflow(ctx, js_parallelism=None, wait=False):
         """Submit the workflow."""
-        ctx.obj["workflow"].submit(JS_parallelism=js_parallelism)
+        ctx.obj["workflow"].submit(JS_parallelism=js_parallelism, wait=wait)
+
+    @workflow.command(name="wait")
+    @click.argument("sub_js_idx")
+    @click.pass_context
+    def wait(ctx, sub_js_idx):
+        ctx.obj["workflow"].wait(parse_jobscript_wait_spec(sub_js_idx))
 
     @workflow.command(name="get-param")
     @click.argument("index", type=click.INT)
@@ -475,6 +506,15 @@ def _make_internal_CLI(app):
         app.CLI_logger.info(f"get EAR skip for EAR ID {ear_id!r}.")
         click.echo(int(ctx.obj["workflow"].get_EAR_skipped(ear_id)))
 
+    @workflow.command()
+    @click.pass_context
+    @click.argument("submission_idx", type=click.INT)
+    @click.argument("jobscript_idx", type=click.INT)
+    def launch_direct_win_js(ctx, submission_idx, jobscript_idx):
+        """fuck me."""
+        js = ctx.obj["workflow"].submissions[submission_idx].jobscripts[jobscript_idx]
+        js._launch_direct_js(write_pid=True)
+
     # TODO: in general, maybe the workflow command group can expose the simple Workflow
     # properties; maybe use a decorator on the Workflow property object to signify
     # inclusion?
@@ -491,6 +531,133 @@ def _make_template_components_CLI(app):
     return tc
 
 
+def _make_show_CLI(app):
+    @click.command()
+    @click.option(
+        "--max-recent",
+        default=3,
+        help="If True, show only recently finished workflows",
+    )
+    @click.option(
+        "--no-update",
+        is_flag=True,
+        default=False,
+        help=(
+            "If True, do not update the known-submissions file to remove workflows that "
+            "are no longer running."
+        ),
+    )
+    @click.option(
+        "-f",
+        "--full",
+        is_flag=True,
+        default=False,
+        help="Allow multiple lines per workflow submission.",
+    )
+    def show(max_recent, full, no_update):
+        """Show information about recent workflows."""
+        app.show(max_recent=max_recent, full=full, no_update=no_update)
+
+    return show
+
+
+def _make_zip_CLI(app):
+    @click.command(name="zip")
+    @click.argument("workflow_ref")
+    @click.option("--log")
+    @workflow_ref_type_opt
+    def zip_workflow(workflow_ref, ref_type, log=None):
+        workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
+        wk = app.Workflow(workflow_path)
+        wk.to_zip(log=log)
+
+    return zip_workflow
+
+
+def _make_cancel_CLI(app):
+    @click.command()
+    @click.argument("workflow_ref")
+    @workflow_ref_type_opt
+    def cancel(workflow_ref, ref_type):
+        app.cancel(workflow_ref, ref_type)
+
+    return cancel
+
+
+def _make_open_CLI(app):
+    @click.group(name="open")
+    def open_file():
+        """Open a file (e.g. {app_name}'s log file) using the default application."""
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def log(path=False):
+        """Open the {app_name} log file."""
+        file_path = app.config.get("log_file_path")
+        if path:
+            click.echo(file_path)
+        else:
+            utils.open_file(file_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def config(path=False):
+        """Open the {app_name} config file."""
+        file_path = app.config.get("config_file_path")
+        if path:
+            click.echo(file_path)
+        else:
+            utils.open_file(file_path)
+
+    @open_file.command()
+    @click.option("--name")
+    @click.option("--path", is_flag=True, default=False)
+    def env_source(name=None, path=False):
+        """Open a named environment sources file, or the first one."""
+        sources = app.config.get("environment_sources")
+        if not sources:
+            raise ValueError("No environment sources specified in the config file.")
+        file_paths = []
+        if not name:
+            file_paths = [sources[0]]
+        else:
+            for i in sources:
+                if i.name == name:
+                    file_paths.append(i)
+        if not file_paths:
+            raise ValueError(
+                f"No environment source named {name!r} could be found; available "
+                f"environment source files have names: {[i.name for i in sources]!r}"
+            )
+
+        assert len(file_paths) < 5  # don't open a stupid number of files
+        for i in file_paths:
+            if path:
+                click.echo(i)
+            else:
+                utils.open_file(i)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def known_subs(path=False):
+        """Open the known-submissions text file."""
+        file_path = app.known_subs_file_path
+        if path:
+            click.echo(file_path)
+        else:
+            utils.open_file(file_path)
+
+    @open_file.command()
+    @click.argument("workflow_ref")
+    @workflow_ref_type_opt
+    def workflow(workflow_ref, ref_type):
+        """Open a workflow directory in e.g. File Explorer in Windows."""
+        workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
+        utils.open_file(workflow_path)
+
+    return open_file
+
+
 def make_cli(app):
     """Generate the root CLI for the app."""
 
@@ -500,6 +667,12 @@ def make_cli(app):
         if not value or ctx.resilient_parsing:
             return
         click.echo(str(app.run_time_info))
+        ctx.exit()
+
+    def clear_known_subs_file_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        app.clear_known_submissions_file()
         ctx.exit()
 
     @click.group(name=app.name)
@@ -524,6 +697,14 @@ def make_cli(app):
         is_eager=True,
         expose_value=False,
         callback=run_time_info_callback,
+    )
+    @click.option(
+        "--clear-known-subs",
+        help="Delete the contents of the known-submissions file",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=clear_known_subs_file_callback,
     )
     @click.option("--config-dir", help="Set the configuration directory.")
     @click.option("--config-invocation-key", help="Set the configuration invocation key.")
@@ -554,6 +735,10 @@ def make_cli(app):
     new_CLI.add_command(_make_submission_CLI(app))
     new_CLI.add_command(_make_internal_CLI(app))
     new_CLI.add_command(_make_template_components_CLI(app))
+    new_CLI.add_command(_make_show_CLI(app))
+    new_CLI.add_command(_make_open_CLI(app))
+    new_CLI.add_command(_make_cancel_CLI(app))
+    new_CLI.add_command(_make_zip_CLI(app))
     for cli_cmd in _make_API_CLI(app):
         new_CLI.add_command(cli_cmd)
 

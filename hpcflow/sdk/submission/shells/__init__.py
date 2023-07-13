@@ -28,6 +28,7 @@ def get_supported_shells(os_name: Optional[str] = None) -> Dict[str, Shell]:
 def get_shell(shell_name, os_name: Optional[str] = None, **kwargs) -> Shell:
     # TODO: apply config default shell args?
 
+    os_name = os_name or os.name
     shell_name = shell_name.lower()
 
     shell_cls = get_supported_shells(os_name.lower()).get(shell_name)

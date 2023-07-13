@@ -52,6 +52,7 @@ class Bash(Shell):
         {shebang}
 
         {header}
+        {wait_command}
     """
     )
     JS_MAIN = dedent(

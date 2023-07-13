@@ -1,6 +1,7 @@
 from __future__ import annotations
+from collections import defaultdict
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import enum
 from pathlib import Path
 from textwrap import indent
@@ -48,13 +49,15 @@ class Submission(JSONLike):
         index: int,
         jobscripts: List[app.Jobscript],
         workflow: Optional[app.Workflow] = None,
-        submission_attempts: Optional[List] = None,
+        submission_parts: Optional[Dict] = None,
         JS_parallelism: Optional[bool] = None,
     ):
         self._index = index
         self._jobscripts = jobscripts
-        self._submission_attempts = submission_attempts or []
+        self._submission_parts = submission_parts or {}
         self._JS_parallelism = JS_parallelism
+
+        self._submission_parts_lst = None  # assigned on first access; datetime objects
 
         if workflow:
             self.workflow = workflow
@@ -68,6 +71,7 @@ class Submission(JSONLike):
         dct = super().to_dict()
         del dct["_workflow"]
         del dct["_index"]
+        del dct["_submission_parts_lst"]
         dct = {k.lstrip("_"): v for k, v in dct.items()}
         return dct
 
@@ -76,8 +80,71 @@ class Submission(JSONLike):
         return self._index
 
     @property
-    def submission_attempts(self) -> List:
-        return self._submission_attempts
+    def submission_parts(self) -> List[Dict]:
+        if not self._submission_parts:
+            return []
+
+        if self._submission_parts_lst is None:
+            self._submission_parts_lst = [
+                {
+                    "submit_time": datetime.strptime(dt, self.workflow.ts_fmt)
+                    .replace(tzinfo=timezone.utc)
+                    .astimezone(),
+                    "jobscripts": js_idx,
+                }
+                for dt, js_idx in self._submission_parts.items()
+            ]
+        return self._submission_parts_lst
+
+    def get_start_time(self, submit_time: str) -> Union[datetime, None]:
+        """Get the start time of a given submission part."""
+        js_idx = self._submission_parts[submit_time]
+        all_part_starts = []
+        for i in js_idx:
+            if self.jobscripts[i].start_time:
+                all_part_starts.append(self.jobscripts[i].start_time)
+        if all_part_starts:
+            return min(all_part_starts)
+        else:
+            return None
+
+    def get_end_time(self, submit_time: str) -> Union[datetime, None]:
+        """Get the end time of a given submission part."""
+        js_idx = self._submission_parts[submit_time]
+        all_part_ends = []
+        for i in js_idx:
+            if self.jobscripts[i].end_time:
+                all_part_ends.append(self.jobscripts[i].end_time)
+        if all_part_ends:
+            return max(all_part_ends)
+        else:
+            return None
+
+    @property
+    def start_time(self):
+        """Get the first non-None start time over all submission parts."""
+        all_start_times = []
+        for submit_time in self._submission_parts:
+            start_i = self.get_start_time(submit_time)
+            if start_i:
+                all_start_times.append(start_i)
+        if all_start_times:
+            return max(all_start_times)
+        else:
+            return None
+
+    @property
+    def end_time(self):
+        """Get the final non-None end time over all submission parts."""
+        all_end_times = []
+        for submit_time in self._submission_parts:
+            end_i = self.get_end_time(submit_time)
+            if end_i:
+                all_end_times.append(end_i)
+        if all_end_times:
+            return max(all_end_times)
+        else:
+            return None
 
     @property
     def jobscripts(self) -> List:
@@ -113,7 +180,7 @@ class Submission(JSONLike):
     @property
     def submitted_jobscripts(self) -> Tuple[int]:
         """Jobscript indices that have been successfully submitted."""
-        return tuple(j for i in self.submission_attempts for j in i)
+        return tuple(j for i in self.submission_parts for j in i["jobscripts"])
 
     @property
     def outstanding_jobscripts(self) -> Tuple[int]:
@@ -122,7 +189,7 @@ class Submission(JSONLike):
 
     @property
     def status(self):
-        if not self.submission_attempts:
+        if not self.submission_parts:
             return SubmissionStatus.PENDING
         else:
             if set(self.submitted_jobscripts) == set(self.jobscript_indices):
@@ -146,6 +213,17 @@ class Submission(JSONLike):
         return [i for js in self.jobscripts for i in js.EAR_ID.flatten()]
 
     @property
+    def all_EARs(self):
+        return [i for js in self.jobscripts for i in js.all_EARs]
+
+    @property
+    def EARs_by_elements(self):
+        task_elem_EARs = defaultdict(lambda: defaultdict(list))
+        for i in self.all_EARs:
+            task_elem_EARs[i.task.index][i.element.index].append(i)
+        return task_elem_EARs
+
+    @property
     def abort_EARs_file_name(self):
         return f"abort_EARs.txt"
 
@@ -153,26 +231,44 @@ class Submission(JSONLike):
     def abort_EARs_file_path(self):
         return self.path / self.abort_EARs_file_name
 
+    def get_active_jobscripts(
+        self,
+    ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
+        """Get jobscripts that are active on this machine, and their active states."""
+        out = {}
+        for js in self.jobscripts:
+            active_states = js.get_active_states()
+            if active_states:
+                out[js.index] = active_states
+        return out
+
     def _write_abort_EARs_file(self):
         with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
             # write a single line for each EAR currently in the workflow:
             fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
 
-    def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
-        """Get a unique schedulers and which jobscripts they correspond to."""
+    @staticmethod
+    def get_unique_schedulers_of_jobscripts(
+        jobscripts: List[Jobscript],
+    ) -> Dict[Tuple[Tuple[int, int]], Scheduler]:
+        """Get unique schedulers and which of the passed jobscripts they correspond to."""
         js_idx = []
         schedulers = []
-
-        for js in self.jobscripts:
+        for js in jobscripts:
             if js.scheduler not in schedulers:
                 schedulers.append(js.scheduler)
                 js_idx.append([])
             sched_idx = schedulers.index(js.scheduler)
-            js_idx[sched_idx].append(js.index)
+            js_idx[sched_idx].append((js.submission.index, js.index))
 
         sched_js_idx = dict(zip((tuple(i) for i in js_idx), schedulers))
 
         return sched_js_idx
+
+    def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
+        """Get unique schedulers and which of this submission's jobscripts they
+        correspond to."""
+        return self.get_unique_schedulers_of_jobscripts(self.jobscripts)
 
     def get_unique_shells(self) -> Dict[Tuple[int], Shell]:
         """Get unique shells and which jobscripts they correspond to."""
@@ -189,24 +285,6 @@ class Submission(JSONLike):
         shell_js_idx = dict(zip((tuple(i) for i in js_idx), shells))
 
         return shell_js_idx
-
-    # def prepare_EAR_submission_idx_update(self) -> List[Tuple[int, int, int, int]]:
-    #     """For all EARs in this submission (across all jobscripts), return a tuple of indices
-    #     that can be passed to `Workflow.set_EAR_submission_index`."""
-    #     indices = []
-    #     for js in self.jobscripts:
-    #         for ear_idx_i, ear_idx_j in js.EARs.items():
-    #             # task insert ID, iteration idx, action idx, run idx:
-    #             indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
-    #     return indices
-
-    # def get_EAR_run_dirs(self) -> Dict[Tuple(int, int, int), Path]:
-    #     indices = []
-    #     for js in self.jobscripts:
-    #         for ear_idx_i, ear_idx_j in js.EARs.items():
-    #             # task insert ID, iteration idx, action idx, run idx:
-    #             indices.append((ear_idx_i[0], ear_idx_j[0], ear_idx_j[1], ear_idx_j[2]))
-    #     return indices
 
     def _raise_failure(self, submitted_js_idx, exceptions):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
@@ -235,14 +313,17 @@ class Submission(JSONLike):
 
         raise SubmissionFailure(message=msg)
 
-    def _append_submission_attempt(self, submitted_js_idx: List[int]):
-        self._submission_attempts.append(submitted_js_idx)
-        self.workflow._store.add_submission_attempt(
-            sub_idx=self.index, submitted_js_idx=submitted_js_idx
+    def _append_submission_part(self, submit_time: str, submitted_js_idx: List[int]):
+        self._submission_parts[submit_time] = submitted_js_idx
+        self.workflow._store.add_submission_part(
+            sub_idx=self.index,
+            dt_str=submit_time,
+            submitted_js_idx=submitted_js_idx,
         )
 
     def submit(
         self,
+        status,
         ignore_errors=False,
         print_stdout=False,
     ) -> List[int]:
@@ -267,7 +348,7 @@ class Submission(JSONLike):
                     vers_info = {}
                 else:
                     raise err
-            for js_idx in js_indices:
+            for _, js_idx in js_indices:
                 if js_idx in outstanding:
                     if js_idx not in js_vers_info:
                         js_vers_info[js_idx] = {}
@@ -302,7 +383,8 @@ class Submission(JSONLike):
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
 
-        scheduler_refs = {}  # map jobscript `index` to (scheduler job ID, is_array)
+        # map jobscript `index` to (scheduler job ID or process ID, is_array):
+        scheduler_refs = {}
         submitted_js_idx = []
         errs = []
         for js in self.jobscripts:
@@ -318,8 +400,9 @@ class Submission(JSONLike):
                 continue
 
             try:
-                job_ID_i = js.submit(scheduler_refs, print_stdout=print_stdout)
-                scheduler_refs[js.index] = (job_ID_i, js.is_array)
+                status.update(f"Submitting jobscript {js.index}...")
+                js_ref_i = js.submit(scheduler_refs, print_stdout=print_stdout)
+                scheduler_refs[js.index] = (js_ref_i, js.is_array)
                 submitted_js_idx.append(js.index)
 
             except JobscriptSubmissionFailure as err:
@@ -327,12 +410,43 @@ class Submission(JSONLike):
                 continue
 
         if submitted_js_idx:
-            self._append_submission_attempt(submitted_js_idx)
+            dt_str = datetime.utcnow().strftime(self.app._submission_ts_fmt)
+            self._append_submission_part(
+                submit_time=dt_str,
+                submitted_js_idx=submitted_js_idx,
+            )
+            # add a record of the submission part to the known-submissions file
+            self.app._add_to_known_submissions(
+                wk_path=self.workflow.path,
+                wk_id=self.workflow.id_,
+                sub_idx=self.index,
+                sub_time=dt_str,
+            )
 
         if errs and not ignore_errors:
+            status.stop()
             self._raise_failure(submitted_js_idx, errs)
 
         len_js = len(submitted_js_idx)
         print(f"Submitted {len_js} jobscript{'s' if len_js > 1 else ''}.")
 
         return submitted_js_idx
+
+    def cancel(self):
+        act_js = list(self.get_active_jobscripts())
+        if not act_js:
+            print("No active jobscripts to cancel.")
+            return
+        for js_indices, sched in self.get_unique_schedulers().items():
+            # filter by active jobscripts:
+            js_idx = [i[1] for i in js_indices if i[1] in act_js]
+            if js_idx:
+                print(
+                    f"Cancelling jobscripts {js_idx!r} of submission {self.index} of "
+                    f"workflow {self.workflow.name!r}."
+                )
+                jobscripts = [self.jobscripts[i] for i in js_idx]
+                sched_refs = [i.scheduler_js_ref for i in jobscripts]
+                sched.cancel_jobs(js_refs=sched_refs, jobscripts=jobscripts)
+            else:
+                print("No active jobscripts to cancel.")
