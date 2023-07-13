@@ -531,7 +531,8 @@ class ElementActionRun:
                 executable = env.executables.get(val)
                 filterable = ("num_cores", "parallel_mode")
                 filter_exec = {j: self.get_resources().get(j) for j in filterable}
-                out = executable.filter_instances(**filter_exec)[0].command
+                exec_cmd = executable.filter_instances(**filter_exec)[0].command
+                out = exec_cmd.replace("<<num_cores>>", str(self.resources.num_cores))
             elif typ == "script":
                 out = self.action.get_script_path(val)
             return out
