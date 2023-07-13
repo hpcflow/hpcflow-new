@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a60"></a>
+## [v0.2.0a60](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a59...v0.2.0a60) - 2023.07.13
+
+### ✨ Features
+
+* add wait option to workflow submission
+
+### 🐛 Bug Fixes
+
+* use specified number of cores
+* select the correct executable instance
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a59"></a>
 ## [v0.2.0a59](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a58...v0.2.0a59) - 2023.07.04
 
