@@ -39,17 +39,56 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
-class EARStatus(str, enum.Enum):
+class EARStatus(enum.Enum):
     """Enumeration of all possible EAR statuses, and their associated status colour."""
 
-    PENDING = "grey46"  # Not yet associated with a submission
-    PREPARED = "grey46"  # Associated with a prepared submission that is not yet submitted
-    SUBMITTED = "grey46"  # Submitted for execution
-    RUNNING = "dodger_blue1"  # Executing now
-    SKIPPED = "dark_orange"  # Not attempted due to a failure of an upstream EAR on which this depends
-    ABORTED = "deep_pink4"  # User-initiated abort
-    SUCCESS = "green3"  # Probably exited successfully
-    ERROR = "red3"  # Probably failed
+    def __new__(cls, value, symbol, colour, doc=None):
+        member = object.__new__(cls)
+        member._value_ = value
+        member.colour = colour
+        member.__doc__ = doc
+        return member
+
+    PENDING = (
+        0,
+        "grey46",
+        "Not yet associated with a submission",
+    )
+    PREPARED = (
+        1,
+        "grey46",
+        "Associated with a prepared submission that is not yet submitted",
+    )
+    SUBMITTED = (
+        2,
+        "grey46",
+        "Submitted for execution",
+    )
+    RUNNING = (
+        3,
+        "dodger_blue1",
+        "Executing now",
+    )
+    SKIPPED = (
+        4,
+        "dark_orange",
+        "Not attempted due to a failure of an upstream EAR on which this depends",
+    )
+    ABORTED = (
+        5,
+        "deep_pink4",
+        "User-initiated abort",
+    )
+    SUCCESS = (
+        6,
+        "green3",
+        "Probably exited successfully",
+    )
+    ERROR = (
+        7,
+        "red3",
+        "Probably failed",
+    )
 
     @classmethod
     def get_non_running_submitted_states(cls):
