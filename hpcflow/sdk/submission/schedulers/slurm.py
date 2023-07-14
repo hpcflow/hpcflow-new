@@ -258,8 +258,8 @@ class SlurmPosix(Scheduler):
         info = self._parse_job_states(stdout)
         return info
 
-    def cancel_jobs(self, js_ref: List[str], jobscripts: List = None):
-        cmd = [self.del_cmd, "--me"] + js_ref
+    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        cmd = [self.del_cmd, "--me"] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )

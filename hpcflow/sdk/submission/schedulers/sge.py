@@ -208,8 +208,8 @@ class SGEPosix(Scheduler):
             info = {k: v for k, v in info.items() if k in js_refs}
         return info
 
-    def cancel_jobs(self, js_ref: List[str], jobscripts: List = None):
-        cmd = [self.del_cmd] + js_ref
+    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
