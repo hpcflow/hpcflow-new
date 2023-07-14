@@ -154,8 +154,7 @@ class SGEPosix(Scheduler):
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
 
-        # TODO: test this works with pending jobs:
-        cmd = self.show_cmd + ["-U", "$USER", "-g", "d"]  # "-g d": separate arrays items
+        cmd = self.show_cmd + ["-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
         stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
