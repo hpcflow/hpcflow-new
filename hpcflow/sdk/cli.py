@@ -649,11 +649,15 @@ def _make_open_CLI(app):
 
     @open_file.command()
     @click.argument("workflow_ref")
+    @click.option("--path", is_flag=True, default=False)
     @workflow_ref_type_opt
-    def workflow(workflow_ref, ref_type):
+    def workflow(workflow_ref, ref_type, path=False):
         """Open a workflow directory in e.g. File Explorer in Windows."""
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
-        utils.open_file(workflow_path)
+        if path:
+            click.echo(workflow_path)
+        else:
+            utils.open_file(workflow_path)
 
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
