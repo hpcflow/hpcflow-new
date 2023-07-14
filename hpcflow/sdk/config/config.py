@@ -512,9 +512,10 @@ class Config:
             with uid_file_path.open("rt") as fh:
                 uid = fh.read().strip()
 
-        # Generate sub-dir for this hostname (used by helper process):
-        hostname_dir = uid_file_dir.joinpath(socket.gethostname())
-        hostname_dir.mkdir(exist_ok=True)
+        # Generate sub-dir for this machine (used by helper process and known-submissions
+        # file):
+        machine_dir = self._app.get_user_data_dir()
+        machine_dir.mkdir(exist_ok=True)
 
         return uid, uid_file_path
 
