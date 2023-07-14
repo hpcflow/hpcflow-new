@@ -13,14 +13,17 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 import warnings
 from platformdirs import user_data_dir
 from reretry import retry
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table, box
 from rich.text import Text
 from rich.padding import Padding
+from rich.panel import Panel
+from rich import print as rich_print
 
 from setuptools import find_packages
 
 from hpcflow import __version__
+from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
@@ -35,6 +38,7 @@ from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
+from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
@@ -1067,6 +1071,55 @@ class BaseApp(metaclass=Singleton):
 
         return out
 
+    def _show_legend(self):
+        """ "Output a legend for the jobscript-element and EAR states that are displayed
+        by the `show` command."""
+
+        js_notes = Panel(
+            "The [i]Status[/i] column of the `show` command output displays the set of "
+            "unique jobscript-element states for that submission. Jobscript element "
+            "state meanings are shown below.",
+            width=80,
+            box=box.SIMPLE,
+        )
+
+        js_tab = Table(box=box.SQUARE, title="Jobscript element states")
+        js_tab.add_column("Symbol")
+        js_tab.add_column("State")
+        js_tab.add_column("Description")
+        for state in JobscriptElementState.__members__.values():
+            js_tab.add_row(state.rich_repr, state.name, state.__doc__)
+
+        act_notes = Panel(
+            "\nThe [i]Actions[/i] column of the `show` command output displays either the "
+            "set of unique action states for that submission, or (with the `--full` "
+            "option) an action state for each action of the submission. Action state "
+            "meanings are shown below.",
+            width=80,
+            box=box.SIMPLE,
+        )
+
+        act_tab = Table(box=box.SQUARE, title="Action states")
+        act_tab.add_column("Symbol")
+        act_tab.add_column("State")
+        act_tab.add_column("Description")
+        for state in EARStatus.__members__.values():
+            act_tab.add_row(state.rich_repr, state.name, state.__doc__)
+
+        group = Group(
+            js_notes,
+            js_tab,
+            act_notes,
+            act_tab,
+        )
+        rich_print(group)
+
+        # console = Console()
+        # console.print(js_notes)
+        # console.print(js_tab)
+        # console.print(act_notes)
+        # console.print(act_tab)
+
     def _show(
         self,
         max_recent: int = 3,
@@ -1199,7 +1252,7 @@ class BaseApp(metaclass=Singleton):
                         for elem_idx, EARs in elements.items():
                             elem_status = Text(f"{elem_idx} | ", style=style)
                             for i in EARs:
-                                elem_status.append("■", style=i.status.colour)
+                                elem_status.append(i.status.symbol, style=i.status.colour)
                             elem_tab_i.add_row(elem_status)
                         task_tab.add_row(task.unique_name, elem_tab_i, style=style)
                 else:
@@ -1213,9 +1266,10 @@ class BaseApp(metaclass=Singleton):
                     for _, elements in dat_i["submission"].EARs_by_elements.items():
                         for elem_idx, EARs in elements.items():
                             for i in EARs:
-                                EAR_stat_count[i.status.colour] += 1
+                                EAR_stat_count[i.status] += 1
                     all_cells["actions_compact"] = " | ".join(
-                        f"[{k}]■[/{k}]:{v}" for k, v in EAR_stat_count.items()
+                        f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"
+                        for k, v in EAR_stat_count.items()
                     )
                 else:
                     all_cells["actions_compact"] = ""

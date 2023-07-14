@@ -17,35 +17,39 @@ class JobscriptElementState(enum.Enum):
         0,
         "■",
         "yellow",
-        "The jobscript element is waiting for resource allocation.",
+        "Waiting for resource allocation.",
     )
     waiting = (
         1,
         "■",
         "grey46",
-        "The jobscript element is waiting for one or more dependencies to finish.",
+        "Waiting for one or more dependencies to finish.",
     )
     running = (
         2,
         "■",
         "dodger_blue1",
-        "The jobscript element is running.",
+        "Executing now.",
     )
     finished = (
         3,
         "■",
         "grey46",
-        "The jobscript element was previously submitted but is no longer active.",
+        "Previously submitted but is no longer active.",
     )
     cancelled = (
         4,
         "■",
         "red3",
-        "The jobscript was cancelled by the user.",
+        "Cancelled by the user.",
     )
     errored = (
         5,
         "■",
         "red3",
-        "The scheduler reports an error state for the jobscript element.",
+        "The scheduler reports an error state.",
     )
+
+    @property
+    def rich_repr(self):
+        return f"[{self.colour}]{self.symbol}[/{self.colour}]"

@@ -532,6 +532,12 @@ def _make_template_components_CLI(app):
 
 
 def _make_show_CLI(app):
+    def show_legend_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        app.show_legend()
+        ctx.exit()
+
     @click.command()
     @click.option(
         "--max-recent",
@@ -553,6 +559,14 @@ def _make_show_CLI(app):
         is_flag=True,
         default=False,
         help="Allow multiple lines per workflow submission.",
+    )
+    @click.option(
+        "--legend",
+        help="Display the legend for the `show` command output.",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=show_legend_callback,
     )
     def show(max_recent, full, no_update):
         """Show information about recent workflows."""

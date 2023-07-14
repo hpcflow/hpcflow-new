@@ -46,59 +46,72 @@ class EARStatus(enum.Enum):
         member = object.__new__(cls)
         member._value_ = value
         member.colour = colour
+        member.symbol = symbol
         member.__doc__ = doc
         return member
 
-    PENDING = (
+    pending = (
         0,
+        "■",
         "grey46",
-        "Not yet associated with a submission",
+        "Not yet associated with a submission.",
     )
-    PREPARED = (
+    prepared = (
         1,
+        "■",
         "grey46",
-        "Associated with a prepared submission that is not yet submitted",
+        "Associated with a prepared submission that is not yet submitted.",
     )
-    SUBMITTED = (
+    submitted = (
         2,
+        "■",
         "grey46",
-        "Submitted for execution",
+        "Submitted for execution.",
     )
-    RUNNING = (
+    running = (
         3,
+        "■",
         "dodger_blue1",
-        "Executing now",
+        "Executing now.",
     )
-    SKIPPED = (
+    skipped = (
         4,
+        "■",
         "dark_orange",
-        "Not attempted due to a failure of an upstream EAR on which this depends",
+        "Not attempted due to a failure of an upstream action on which this depends.",
     )
-    ABORTED = (
+    aborted = (
         5,
+        "■",
         "deep_pink4",
-        "User-initiated abort",
+        "Aborted by the user; downstream actions will be attempted.",
     )
-    SUCCESS = (
+    success = (
         6,
+        "■",
         "green3",
-        "Probably exited successfully",
+        "Probably exited successfully.",
     )
-    ERROR = (
+    error = (
         7,
+        "■",
         "red3",
-        "Probably failed",
+        "Probably failed.",
     )
 
     @classmethod
     def get_non_running_submitted_states(cls):
         """Return the set of all non-running states, excluding those before submission."""
         return {
-            cls.SKIPPED,
+            cls.skipped,
             cls.ABORTED,
-            cls.SUCCESS,
+            cls.success,
             cls.ERROR,
         }
+
+    @property
+    def rich_repr(self):
+        return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
 class ElementActionRun:
@@ -261,24 +274,24 @@ class ElementActionRun:
         """Return the state of this EAR."""
 
         if self.skip:
-            return EARStatus.SKIPPED
+            return EARStatus.skipped
 
         elif self.end_time is not None:
             if self.exit_code == 0:
-                return EARStatus.SUCCESS
+                return EARStatus.success
             elif self.action.abortable and self.exit_code == ABORT_EXIT_CODE:
                 return EARStatus.ABORTED
             else:
                 return EARStatus.ERROR
 
         elif self.start_time is not None:
-            return EARStatus.RUNNING
+            return EARStatus.running
 
         elif self.submission_idx is not None:
             wk_sub_stat = self.workflow.submissions[self.submission_idx].status
 
             if wk_sub_stat.name == "PENDING":
-                return EARStatus.PREPARED
+                return EARStatus.prepared
 
             elif wk_sub_stat.name == "SUBMITTED":
                 return EARStatus.SUBMITTED
@@ -286,7 +299,7 @@ class ElementActionRun:
             else:
                 RuntimeError(f"Workflow submission status not understood: {wk_sub_stat}.")
 
-        return EARStatus.PENDING
+        return EARStatus.pending
 
     def get_parameter_names(self, prefix):
         return self.element_action.get_parameter_names(prefix)
