@@ -1160,7 +1160,9 @@ class Jobscript(JSONLike):
             )
 
             not_run_states = EARStatus.get_non_running_submitted_states()
-            if set(i.status for i in self.all_EARs).issubset(not_run_states):
+            all_EAR_states = set(i.status for i in self.all_EARs)
+            self.app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
+            if all_EAR_states.issubset(not_run_states):
                 self.app.submission_logger.debug(
                     f"All jobscript EARs are in a non-running state"
                 )
