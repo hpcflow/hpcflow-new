@@ -655,6 +655,15 @@ def _make_open_CLI(app):
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         utils.open_file(workflow_path)
 
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_data_dir(path=False):
+        dir_path = app.get_user_data_dir()
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
     return open_file
 
 

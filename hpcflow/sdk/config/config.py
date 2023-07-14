@@ -512,12 +512,15 @@ class Config:
             with uid_file_path.open("rt") as fh:
                 uid = fh.read().strip()
 
-        # Generate sub-dir for this machine (used by helper process and known-submissions
-        # file):
-        machine_dir = self._app.get_user_data_dir()
-        machine_dir.mkdir(exist_ok=True)
-
         return uid, uid_file_path
+
+    def _init_user_data_dir(self):
+        """Generate a user data directory for this machine (used by the helper process and
+        the known-submissions file."""
+        user_dat_dir = self._app.get_user_data_dir()
+        if not user_dat_dir.exists():
+            user_dat_dir.mkdir()
+            self._logger.info(f"Created user data directory: {user_dat_dir!r}.")
 
     def _init_schemas(self):
         # Get allowed configurable keys from config schemas:

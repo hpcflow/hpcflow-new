@@ -399,6 +399,7 @@ class BaseApp(metaclass=Singleton):
             level=self.config.get("log_file_level"),
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
+        self.config._init_user_data_dir()
 
     def load_config(
         self,
@@ -514,8 +515,8 @@ class BaseApp(metaclass=Singleton):
 
         # This might need to cover e.g. multiple login nodes, as described in the
         # config file:
-        host_dir_name = self.config.get("machine")
-        return Path(user_data_dir(appname=self.package_name)).joinpath(host_dir_name)
+        machine_name = self.config.get("machine")
+        return Path(user_data_dir(appname=self.package_name)).joinpath(machine_name)
 
     @property
     def known_subs_file_name(self):
