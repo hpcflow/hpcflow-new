@@ -156,7 +156,7 @@ class SGEPosix(Scheduler):
 
         # TODO: test this works with pending jobs:
         cmd = self.show_cmd + ["-U", "$USER", "-g", "d"]  # "-g d": separate arrays items
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE jobs. Command was: {cmd!r}; stderr was: "
@@ -213,7 +213,7 @@ class SGEPosix(Scheduler):
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE {self.__class__.__name__}. Command was: "

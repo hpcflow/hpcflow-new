@@ -186,8 +186,7 @@ class SlurmPosix(Scheduler):
 
         return info
 
-    @staticmethod
-    def _query_job_states(job_IDs):
+    def _query_job_states(self, job_IDs):
         """Query the state of the specified jobs."""
         cmd = [
             "squeue",
@@ -198,15 +197,14 @@ class SlurmPosix(Scheduler):
             "--jobs",
             ",".join(job_IDs),
         ]
-        return run_cmd(cmd)
+        return run_cmd(cmd, logger=self.app.submission_logger)
 
-    @staticmethod
-    def _get_job_valid_IDs(job_IDs=None):
+    def _get_job_valid_IDs(self, job_IDs=None):
         """Get a list of job IDs that are known by the scheduler, optionally filtered by
         specified job IDs."""
 
         cmd = ["squeue", "--me", "--noheader", "--format", r"%F"]
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query Slurm jobs. Command was: {cmd!r}; stderr was: "
@@ -263,7 +261,7 @@ class SlurmPosix(Scheduler):
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query {self.__class__.__name__} jobs. Command was: "
