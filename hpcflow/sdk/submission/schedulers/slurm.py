@@ -143,7 +143,7 @@ class SlurmPosix(Scheduler):
             cmd.append(f"--dependency")
             cmd.append(",".join(dep_cmd))
 
-        cmd.append(f'"{js_path}"')
+        cmd.append(js_path)
 
         return cmd
 

@@ -138,7 +138,7 @@ class SGEPosix(Scheduler):
             cmd.append("-hold_jid_ad")
             cmd.append(",".join(dep_job_IDs_arr))
 
-        cmd.append(f'"{js_path}"')
+        cmd.append(js_path)
         return cmd
 
     def parse_submission_output(self, stdout: str) -> str:
