@@ -1199,7 +1199,7 @@ class BaseApp(metaclass=Singleton):
                         for elem_idx, EARs in elements.items():
                             elem_status = Text(f"{elem_idx} | ", style=style)
                             for i in EARs:
-                                elem_status.append("■", style=i.status.value)
+                                elem_status.append("■", style=i.status.colour)
                             elem_tab_i.add_row(elem_status)
                         task_tab.add_row(task.unique_name, elem_tab_i, style=style)
                 else:
@@ -1213,7 +1213,7 @@ class BaseApp(metaclass=Singleton):
                     for _, elements in dat_i["submission"].EARs_by_elements.items():
                         for elem_idx, EARs in elements.items():
                             for i in EARs:
-                                EAR_stat_count[i.status.value] += 1
+                                EAR_stat_count[i.status.colour] += 1
                     all_cells["actions_compact"] = " | ".join(
                         f"[{k}]■[/{k}]:{v}" for k, v in EAR_stat_count.items()
                     )
