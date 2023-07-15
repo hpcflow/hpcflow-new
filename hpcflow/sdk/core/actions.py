@@ -104,9 +104,9 @@ class EARStatus(enum.Enum):
         """Return the set of all non-running states, excluding those before submission."""
         return {
             cls.skipped,
-            cls.ABORTED,
+            cls.aborted,
             cls.success,
-            cls.ERROR,
+            cls.error,
         }
 
     @property
@@ -280,9 +280,9 @@ class ElementActionRun:
             if self.exit_code == 0:
                 return EARStatus.success
             elif self.action.abortable and self.exit_code == ABORT_EXIT_CODE:
-                return EARStatus.ABORTED
+                return EARStatus.aborted
             else:
-                return EARStatus.ERROR
+                return EARStatus.error
 
         elif self.start_time is not None:
             return EARStatus.running
@@ -294,7 +294,7 @@ class ElementActionRun:
                 return EARStatus.prepared
 
             elif wk_sub_stat.name == "SUBMITTED":
-                return EARStatus.SUBMITTED
+                return EARStatus.submitted
 
             else:
                 RuntimeError(f"Workflow submission status not understood: {wk_sub_stat}.")
