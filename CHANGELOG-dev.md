@@ -1,4 +1,40 @@
 
+<a name="v0.2.0a61"></a>
+## [v0.2.0a61](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a60...v0.2.0a61) - 2023.07.17
+
+### ♻ Code Refactoring
+
+* log EAR states in Jobscript.get_active_states
+* log when running subprocess command with SGE/slurm
+
+### ✨ Features
+
+* add show --legend option
+* add path option to open workflow command
+
+### 🐛 Bug Fixes
+
+* Slurm get_job_state_info log instead of print; add TODO
+* SGE get_job_statuses when no stdout
+* correctly raise error in _resolve_workflow_reference if not ID nor path
+* sorting of inactive non-deleted submissions in get_known_submissions
+* Slurm cancel_jobs command; no --me
+* EARStatus check in generate_EAR_resource_map
+* EARStatus enum
+* App.show table EAR status colours
+* only check JS parallelism on Submission.submit, so we can load zip workflows
+* EARStatus enum sharing the same value
+* SGE qstat wrong user switch; -U doesn't show pending
+* cancel_jobs arg name in SGE/slurm
+* consistent use of user data dir
+* use machine rather than hostname in userdatadir
+* jobscript path in scheduler submit command
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a60"></a>
 ## [v0.2.0a60](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a59...v0.2.0a60) - 2023.07.13
 
