@@ -161,16 +161,6 @@ class Submission(JSONLike):
     @workflow.setter
     def workflow(self, wk):
         self._workflow = wk
-        # if JS_parallelism explicitly requested but store doesn't support, raise:
-        supports_JS_para = self.workflow._store._features.jobscript_parallelism
-        if self.JS_parallelism:
-            if not supports_JS_para:
-                raise ValueError(
-                    f"Store type {self.workflow._store!r} does not support jobscript "
-                    f"parallelism."
-                )
-        elif self.JS_parallelism is None:
-            self._JS_parallelism = supports_JS_para
 
     @property
     def jobscript_indices(self) -> Tuple[int]:
@@ -235,6 +225,7 @@ class Submission(JSONLike):
         self,
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
+        # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
             active_states = js.get_active_states()
@@ -328,6 +319,18 @@ class Submission(JSONLike):
         print_stdout=False,
     ) -> List[int]:
         """Generate and submit the jobscripts of this submission."""
+
+        # if JS_parallelism explicitly requested but store doesn't support, raise:
+        supports_JS_para = self.workflow._store._features.jobscript_parallelism
+        if self.JS_parallelism:
+            if not supports_JS_para:
+                status.stop()
+                raise ValueError(
+                    f"Store type {self.workflow._store!r} does not support jobscript "
+                    f"parallelism."
+                )
+        elif self.JS_parallelism is None:
+            self._JS_parallelism = supports_JS_para
 
         # set os_name and shell_name for each jobscript:
         for js in self.jobscripts:

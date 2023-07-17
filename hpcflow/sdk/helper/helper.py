@@ -42,25 +42,19 @@ def kill_proc_tree(
     return (gone, alive)
 
 
-def get_user_data_dir(app):
-    """We segregate by hostname to account for the case where multiple machines might use
-    the same shared file system."""
-    return Path(user_data_dir(appname=app.package_name)).joinpath(socket.gethostname())
-
-
 def get_PID_file_path(app):
     """Get the path to the file containing the process ID of the helper, if running."""
-    return get_user_data_dir(app) / "pid.txt"
+    return app.get_user_data_dir() / "pid.txt"
 
 
 def get_watcher_file_path(app):
     """Get the path to the watcher file, which contains a list of workflows to watch."""
-    return get_user_data_dir(app) / "watch_workflows.txt"
+    return app.get_user_data_dir() / "watch_workflows.txt"
 
 
 def get_helper_log_path(app):
     """Get the log file path for the helper."""
-    return get_user_data_dir(app) / "helper.log"
+    return app.get_user_data_dir() / "helper.log"
 
 
 def get_helper_watch_list(app):

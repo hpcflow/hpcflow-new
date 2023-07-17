@@ -64,7 +64,7 @@ def generate_EAR_resource_map(
             if iter_i.EARs_initialised:  # not strictly needed (actions will be empty)
                 for act_idx, action in iter_i.actions.items():
                     for run in action.runs:
-                        if run.status.name == "PENDING":
+                        if run.status == EARStatus.pending:
                             # TODO: consider `time_limit`s
                             res_hash = run.resources.get_jobscript_hash()
                             if res_hash not in resource_hashes:
@@ -1160,7 +1160,9 @@ class Jobscript(JSONLike):
             )
 
             not_run_states = EARStatus.get_non_running_submitted_states()
-            if set(i.status for i in self.all_EARs).issubset(not_run_states):
+            all_EAR_states = set(i.status for i in self.all_EARs)
+            self.app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
+            if all_EAR_states.issubset(not_run_states):
                 self.app.submission_logger.debug(
                     f"All jobscript EARs are in a non-running state"
                 )

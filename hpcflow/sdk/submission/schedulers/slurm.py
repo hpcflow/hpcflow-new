@@ -143,7 +143,7 @@ class SlurmPosix(Scheduler):
             cmd.append(f"--dependency")
             cmd.append(",".join(dep_cmd))
 
-        cmd.append(f'"{js_path}"')
+        cmd.append(js_path)
 
         return cmd
 
@@ -186,8 +186,7 @@ class SlurmPosix(Scheduler):
 
         return info
 
-    @staticmethod
-    def _query_job_states(job_IDs):
+    def _query_job_states(self, job_IDs):
         """Query the state of the specified jobs."""
         cmd = [
             "squeue",
@@ -198,15 +197,14 @@ class SlurmPosix(Scheduler):
             "--jobs",
             ",".join(job_IDs),
         ]
-        return run_cmd(cmd)
+        return run_cmd(cmd, logger=self.app.submission_logger)
 
-    @staticmethod
-    def _get_job_valid_IDs(job_IDs=None):
+    def _get_job_valid_IDs(self, job_IDs=None):
         """Get a list of job IDs that are known by the scheduler, optionally filtered by
         specified job IDs."""
 
         cmd = ["squeue", "--me", "--noheader", "--format", r"%F"]
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query Slurm jobs. Command was: {cmd!r}; stderr was: "
@@ -243,10 +241,10 @@ class SlurmPosix(Scheduler):
                 # the job might have finished; this only seems to happen if a single
                 # non-existant job ID is specified; for multiple non-existant jobs, no
                 # error is produced;
-                print(
+                self.app.submission_logger.info(
                     f"A specified job ID is non-existant; refreshing known job IDs..."
-                )  # TODO: log instead of print
-                time.sleep(2)
+                )
+                time.sleep(0.5)
                 js_refs = self._get_job_valid_IDs(js_refs)
                 if not js_refs:
                     return {}
@@ -258,12 +256,12 @@ class SlurmPosix(Scheduler):
         info = self._parse_job_states(stdout)
         return info
 
-    def cancel_jobs(self, js_ref: List[str], jobscripts: List = None):
-        cmd = [self.del_cmd, "--me"] + js_ref
+    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query {self.__class__.__name__} jobs. Command was: "

@@ -13,14 +13,17 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 import warnings
 from platformdirs import user_data_dir
 from reretry import retry
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table, box
 from rich.text import Text
 from rich.padding import Padding
+from rich.panel import Panel
+from rich import print as rich_print
 
 from setuptools import find_packages
 
 from hpcflow import __version__
+from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
@@ -35,6 +38,7 @@ from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
+from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
@@ -399,6 +403,7 @@ class BaseApp(metaclass=Singleton):
             level=self.config.get("log_file_level"),
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
+        self.config._init_user_data_dir()
 
     def load_config(
         self,
@@ -514,8 +519,8 @@ class BaseApp(metaclass=Singleton):
 
         # This might need to cover e.g. multiple login nodes, as described in the
         # config file:
-        host_dir_name = self.config.get("machine")
-        return Path(user_data_dir(appname=self.package_name)).joinpath(host_dir_name)
+        machine_name = self.config.get("machine")
+        return Path(user_data_dir(appname=self.package_name)).joinpath(machine_name)
 
     @property
     def known_subs_file_name(self):
@@ -1050,11 +1055,14 @@ class BaseApp(metaclass=Singleton):
         out_deleted = [i for i in out_inactive if i["deleted"]]
         out_not_deleted = [i for i in out_inactive if not i["deleted"]]
 
-        # if an inactive submission has no end time, it was prematurely stopped, so put
-        # these ones on top:
+        # sort non-deleted inactive by end time or start time or submit time:
         out_not_deleted = sorted(
             out_not_deleted,
-            key=lambda i: i["submission"].end_time or datetime.now().astimezone(),
+            key=lambda i: (
+                i["submission"].end_time
+                or i["submission"].start_time
+                or i["submission"].submit_time
+            ),
             reverse=True,
         )
         out_inactive = (out_not_deleted + out_deleted)[:max_recent]
@@ -1065,6 +1073,55 @@ class BaseApp(metaclass=Singleton):
         out = out_active + out_inactive
 
         return out
+
+    def _show_legend(self):
+        """ "Output a legend for the jobscript-element and EAR states that are displayed
+        by the `show` command."""
+
+        js_notes = Panel(
+            "The [i]Status[/i] column of the `show` command output displays the set of "
+            "unique jobscript-element states for that submission. Jobscript element "
+            "state meanings are shown below.",
+            width=80,
+            box=box.SIMPLE,
+        )
+
+        js_tab = Table(box=box.SQUARE, title="Jobscript element states")
+        js_tab.add_column("Symbol")
+        js_tab.add_column("State")
+        js_tab.add_column("Description")
+        for state in JobscriptElementState.__members__.values():
+            js_tab.add_row(state.rich_repr, state.name, state.__doc__)
+
+        act_notes = Panel(
+            "\nThe [i]Actions[/i] column of the `show` command output displays either the "
+            "set of unique action states for that submission, or (with the `--full` "
+            "option) an action state for each action of the submission. Action state "
+            "meanings are shown below.",
+            width=80,
+            box=box.SIMPLE,
+        )
+
+        act_tab = Table(box=box.SQUARE, title="Action states")
+        act_tab.add_column("Symbol")
+        act_tab.add_column("State")
+        act_tab.add_column("Description")
+        for state in EARStatus.__members__.values():
+            act_tab.add_row(state.rich_repr, state.name, state.__doc__)
+
+        group = Group(
+            js_notes,
+            js_tab,
+            act_notes,
+            act_tab,
+        )
+        rich_print(group)
+
+        # console = Console()
+        # console.print(js_notes)
+        # console.print(js_tab)
+        # console.print(act_notes)
+        # console.print(act_tab)
 
     def _show(
         self,
@@ -1198,7 +1255,7 @@ class BaseApp(metaclass=Singleton):
                         for elem_idx, EARs in elements.items():
                             elem_status = Text(f"{elem_idx} | ", style=style)
                             for i in EARs:
-                                elem_status.append("■", style=i.status.value)
+                                elem_status.append(i.status.symbol, style=i.status.colour)
                             elem_tab_i.add_row(elem_status)
                         task_tab.add_row(task.unique_name, elem_tab_i, style=style)
                 else:
@@ -1212,9 +1269,10 @@ class BaseApp(metaclass=Singleton):
                     for _, elements in dat_i["submission"].EARs_by_elements.items():
                         for elem_idx, EARs in elements.items():
                             for i in EARs:
-                                EAR_stat_count[i.status.value] += 1
+                                EAR_stat_count[i.status] += 1
                     all_cells["actions_compact"] = " | ".join(
-                        f"[{k}]■[/{k}]:{v}" for k, v in EAR_stat_count.items()
+                        f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"
+                        for k, v in EAR_stat_count.items()
                     )
                 else:
                     all_cells["actions_compact"] = ""
@@ -1319,7 +1377,7 @@ class BaseApp(metaclass=Singleton):
                 try:
                     path = self._get_workflow_path_from_local_ID(local_ID)
                 except ValueError:
-                    pass
+                    is_local_ID = False
 
         if path is None:
             # see if reference is a valid path:

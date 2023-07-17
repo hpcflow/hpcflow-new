@@ -138,7 +138,7 @@ class SGEPosix(Scheduler):
             cmd.append("-hold_jid_ad")
             cmd.append(",".join(dep_job_IDs_arr))
 
-        cmd.append(f'"{js_path}"')
+        cmd.append(js_path)
         return cmd
 
     def parse_submission_output(self, stdout: str) -> str:
@@ -154,14 +154,15 @@ class SGEPosix(Scheduler):
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
 
-        # TODO: test this works with pending jobs:
-        cmd = self.show_cmd + ["-U", "$USER", "-g", "d"]  # "-g d": separate arrays items
-        stdout, stderr = run_cmd(cmd)
+        cmd = self.show_cmd + ["-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE jobs. Command was: {cmd!r}; stderr was: "
                 f"{stderr}"
             )
+        elif not stdout:
+            info = {}
         else:
             info = {}
             lines = stdout.split("\n")
@@ -208,12 +209,12 @@ class SGEPosix(Scheduler):
             info = {k: v for k, v in info.items() if k in js_refs}
         return info
 
-    def cancel_jobs(self, js_ref: List[str], jobscripts: List = None):
-        cmd = [self.del_cmd] + js_ref
+    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd)
+        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE {self.__class__.__name__}. Command was: "

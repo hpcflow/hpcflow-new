@@ -532,6 +532,12 @@ def _make_template_components_CLI(app):
 
 
 def _make_show_CLI(app):
+    def show_legend_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        app.show_legend()
+        ctx.exit()
+
     @click.command()
     @click.option(
         "--max-recent",
@@ -553,6 +559,14 @@ def _make_show_CLI(app):
         is_flag=True,
         default=False,
         help="Allow multiple lines per workflow submission.",
+    )
+    @click.option(
+        "--legend",
+        help="Display the legend for the `show` command output.",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=show_legend_callback,
     )
     def show(max_recent, full, no_update):
         """Show information about recent workflows."""
@@ -649,11 +663,24 @@ def _make_open_CLI(app):
 
     @open_file.command()
     @click.argument("workflow_ref")
+    @click.option("--path", is_flag=True, default=False)
     @workflow_ref_type_opt
-    def workflow(workflow_ref, ref_type):
+    def workflow(workflow_ref, ref_type, path=False):
         """Open a workflow directory in e.g. File Explorer in Windows."""
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
-        utils.open_file(workflow_path)
+        if path:
+            click.echo(workflow_path)
+        else:
+            utils.open_file(workflow_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_data_dir(path=False):
+        dir_path = app.get_user_data_dir()
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
 
     return open_file
 

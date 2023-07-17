@@ -100,6 +100,7 @@ sdk_funcs = {
     "get_shell_info": "hpcflow.sdk.api",
     "get_known_submissions": "hpcflow.sdk.api",
     "show": "hpcflow.sdk.api",
+    "show_legend": "hpcflow.sdk.api",
     "cancel": "hpcflow.sdk.api",
 }
 
