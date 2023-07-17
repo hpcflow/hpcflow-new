@@ -1145,7 +1145,6 @@ class BaseApp(metaclass=Singleton):
         """
 
         # TODO: add --json to show, just returning this but without submissions?
-        # TODO: add --legend to show to show what the EAR colours mean
 
         allowed_cols = {
             "id": "ID",
