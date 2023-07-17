@@ -1377,7 +1377,7 @@ class BaseApp(metaclass=Singleton):
                 try:
                     path = self._get_workflow_path_from_local_ID(local_ID)
                 except ValueError:
-                    pass
+                    is_local_ID = False
 
         if path is None:
             # see if reference is a valid path:
