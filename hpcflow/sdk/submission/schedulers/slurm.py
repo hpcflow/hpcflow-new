@@ -9,13 +9,6 @@ from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 
 
-class JobscriptState(enum.Enum):
-    error = -1
-    pending = 0
-    running = 1
-    finished = 2
-
-
 class SlurmPosix(Scheduler):
     """
 
