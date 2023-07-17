@@ -64,7 +64,7 @@ def generate_EAR_resource_map(
             if iter_i.EARs_initialised:  # not strictly needed (actions will be empty)
                 for act_idx, action in iter_i.actions.items():
                     for run in action.runs:
-                        if run.status.name == "PENDING":
+                        if run.status == EARStatus.pending:
                             # TODO: consider `time_limit`s
                             res_hash = run.resources.get_jobscript_hash()
                             if res_hash not in resource_hashes:
