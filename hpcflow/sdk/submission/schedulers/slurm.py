@@ -241,10 +241,10 @@ class SlurmPosix(Scheduler):
                 # the job might have finished; this only seems to happen if a single
                 # non-existant job ID is specified; for multiple non-existant jobs, no
                 # error is produced;
-                print(
+                self.app.submission_logger.info(
                     f"A specified job ID is non-existant; refreshing known job IDs..."
-                )  # TODO: log instead of print
-                time.sleep(2)
+                )
+                time.sleep(0.5)
                 js_refs = self._get_job_valid_IDs(js_refs)
                 if not js_refs:
                     return {}

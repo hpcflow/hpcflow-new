@@ -225,6 +225,7 @@ class Submission(JSONLike):
         self,
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
+        # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
             active_states = js.get_active_states()
