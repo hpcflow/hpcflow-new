@@ -1055,11 +1055,14 @@ class BaseApp(metaclass=Singleton):
         out_deleted = [i for i in out_inactive if i["deleted"]]
         out_not_deleted = [i for i in out_inactive if not i["deleted"]]
 
-        # if an inactive submission has no end time, it was prematurely stopped, so put
-        # these ones on top:
+        # sort non-deleted inactive by end time or start time or submit time:
         out_not_deleted = sorted(
             out_not_deleted,
-            key=lambda i: i["submission"].end_time or datetime.now().astimezone(),
+            key=lambda i: (
+                i["submission"].end_time
+                or i["submission"].start_time
+                or i["submission"].submit_time
+            ),
             reverse=True,
         )
         out_inactive = (out_not_deleted + out_deleted)[:max_recent]
