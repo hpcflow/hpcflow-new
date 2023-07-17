@@ -161,6 +161,8 @@ class SGEPosix(Scheduler):
                 f"Could not get query SGE jobs. Command was: {cmd!r}; stderr was: "
                 f"{stderr}"
             )
+        elif not stdout:
+            info = {}
         else:
             info = {}
             lines = stdout.split("\n")
