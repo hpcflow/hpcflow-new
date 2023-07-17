@@ -1773,7 +1773,7 @@ class Workflow:
 
             js_pids = {i.process_ID: i for i in jobscripts}
             process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
-            DirectScheduler.wait_for_jobscripts(process_refs, callback=callback)
+            DirectScheduler.wait_for_jobscripts(js_refs=process_refs, callback=callback)
 
         def wait_for_scheduled_jobscripts(jobscripts: List[app.Jobscript]):
             """Wait for the passed scheduled jobscripts to finish."""
