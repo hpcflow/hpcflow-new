@@ -37,29 +37,10 @@ on:
         default: "INFO"
 
 jobs:
-  build-executables:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-        include:
-          - os: windows-latest
-            executable_ext: .exe
-            executable_os: win
-            build_os: ${{github.event.inputs.build_windows}}
-          - os: macos-latest
-            executable_ext: ""
-            executable_os: macOS
-            build_os: ${{github.event.inputs.build_macos}}
-
-    runs-on: ${{ matrix.os }}
+  build-windows-executables:
+    if: github.event.inputs.build_windows == 'true'
+    runs-on: windows-latest
     steps:
-      - name: Build ${{ matrix.os}}? ${{matrix.build_os}}
-        if: matrix.build_os == 'false'
-        run: |
-          echo "Skipping build for ${{ matrix.os}}..."
-          exit 1
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 # get all history and tags
@@ -72,7 +53,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-build-windows-latest-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install poetry
         run: python -m pip install poetry==1.4
@@ -85,18 +66,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev
 
-      - name: Get exectuable version name (macOS)
-        if: contains(matrix.os, 'macos')
-        run: |
-          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
-          echo "CUR_TAG is: $CUR_TAG"
-          echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
-          vers=$(git describe --tags)
-          echo "vers is: $vers"
-          echo "vers=$vers" >> $GITHUB_ENV
-
-      - name: Get exectuable version name (Windows)
-        if: contains(matrix.os, 'windows')
+      - name: Get exectuable version name
         run: |
           $CUR_TAG = $(git describe --tags $(git rev-list --tags --max-count=1))
           echo "CUR_TAG is: $CUR_TAG"
@@ -105,68 +75,141 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $env:GITHUB_ENV
 
-      - name: Build with pyinstaller (macOS, file)
-        if: (contains(matrix.os, 'macos') && (github.event.inputs.build_onefile == 'true'))
+      - name: Build with pyinstaller for Windows (file)
+        if: github.event.inputs.build_onefile == 'true'
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }} 'onefile'
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-win" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefile'
 
-      - name: Build with pyinstaller (macOS, folder)
-        if: (contains(matrix.os, 'macos')  && (github.event.inputs.build_onedir == 'true'))
+      - name: Build with pyinstaller for Windows (folder)
+        if: github.event.inputs.build_onedir == 'true'
         working-directory: pyinstaller
-        run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onedir'
-
-      - name: Build with pyinstaller (Windows, file)
-        if: (contains(matrix.os, 'windows') && (github.event.inputs.build_onefile == 'true'))
-        working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefile'
-
-      - name: Build with pyinstaller (Windows, folder)
-        if: (contains(matrix.os, 'windows') && (github.event.inputs.build_onedir == 'true'))
-        working-directory: pyinstaller
-        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onedir'
+        run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-win-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onedir'
 
       - name: Upload executable artifact (file)
         if:  github.event.inputs.build_onefile == 'true'
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
-          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
+          name: hpcflow-${{ env.vers }}-win.exe
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe
 
       - name: Upload executable artifact (folder)
         if:  github.event.inputs.build_onedir == 'true'
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
-          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
+          name: hpcflow-${{ env.vers }}-win-dir
+          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-win-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
-          path: pyinstaller/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
+          name: hpcflow-${{ env.vers }}-win.spec
+          path: pyinstaller/hpcflow-${{ env.vers }}-win.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
-          name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
-          path: pyinstaller/build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
+          name: hpcflow-${{ env.vers }}-win-build
+          path: pyinstaller/build/hpcflow-${{ env.vers }}-win
 
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
         run: |
-          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe test
 
       - name: Run test suite on the frozen app (folder)
         if:  github.event.inputs.build_onedir == 'true'
         run: |
-          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-win-dir/hpcflow-${{ env.vers }}-win-dir.exe test
 
-      - name: Catch build skip for ${{ matrix.os}}? ${{matrix.build_os}}
-        if: failure() && matrix.build_os == 'false'
+
+  build-macos-executables:
+    if: github.event.inputs.build_macos == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # get all history and tags
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-build-macos-latest-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install poetry
+        run: python -m pip install poetry==1.4
+
+      - name: Configure poetry
         run: |
-          echo "Skipped build for ${{ matrix.os}} successfully."
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
+
+      - name: Install dependencies
+        run: poetry install --without dev
+
+      - name: Get exectuable version name
+        run: |
+          CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "CUR_TAG is: $CUR_TAG"
+          echo "cur_tag=$CUR_TAG" >> $GITHUB_ENV
+          vers=$(git describe --tags)
+          echo "vers is: $vers"
+          echo "vers=$vers" >> $GITHUB_ENV
+
+      - name: Build with pyinstaller for macOS (file)
+        if: github.event.inputs.build_onefile == 'true'
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ env.vers }}-macOS ${{ github.event.inputs.logLevel }} 'onefile'
+
+      - name: Build with pyinstaller for macOS (folder)
+        if: github.event.inputs.build_onedir == 'true'
+        working-directory: pyinstaller
+        run: ./make.sh hpcflow-${{ env.vers }}-macOS-dir ${{ github.event.inputs.logLevel }} 'onedir'
+
+      - name: Upload executable artifact (file)
+        if:  github.event.inputs.build_onefile == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-macOS
+          path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS
+
+      - name: Upload executable artifact (folder)
+        if:  github.event.inputs.build_onedir == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-macOS-dir
+          path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-macOS-dir
+
+      - name: Upload spec file
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-macOS.spec
+          path: pyinstaller/hpcflow-${{ env.vers }}-macOS.spec
+
+      - name: Upload build directory
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
+        uses: actions/upload-artifact@v3
+        with:
+          name: hpcflow-${{ env.vers }}-macOS-build
+          path: pyinstaller/build/hpcflow-${{ env.vers }}-macOS
+
+      - name: Run test suite on the frozen app (file)
+        if:  github.event.inputs.build_onefile == 'true'
+        run: |
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS test
+
+      - name: Run test suite on the frozen app (folder)
+        if:  github.event.inputs.build_onedir == 'true'
+        run: |
+          pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-macOS-dir/hpcflow-${{ env.vers }}-macOS-dir test
+
 
   build-executables-linux:
     if: github.event.inputs.build_linux == 'true'
