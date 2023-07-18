@@ -6,6 +6,31 @@ env:
 on:
   workflow_dispatch:
     inputs:
+      build_linux:
+        description: "Build executables for linux?"
+        required: true
+        type: boolean
+        default: true
+      build_macos:
+        description: "Build executables for macOS?"
+        required: true
+        type: boolean
+        default: true
+      build_windows:
+        description: "Build executables for Windows?"
+        required: true
+        type: boolean
+        default: true
+      build_onedir:
+        description: "Build one-dir?"
+        required: true
+        type: boolean
+        default: true
+      build_onefile:
+        description: "Build one-file?"
+        required: true
+        type: boolean
+        default: true
       logLevel:
         description: "PyInstaller log level"
         required: true
@@ -21,12 +46,20 @@ jobs:
           - os: windows-latest
             executable_ext: .exe
             executable_os: win
+            build_os: ${{github.event.inputs.build_windows}}
           - os: macos-latest
             executable_ext: ""
             executable_os: macOS
+            build_os: ${{github.event.inputs.build_macos}}
 
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Build ${{ matrix.os}}? ${{matrix.build_os}}
+        if: matrix.build_os == 'false'
+        run: |
+          echo "Skipping build for ${{ matrix.os}}..."
+          exit 1
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0 # get all history and tags
@@ -52,8 +85,8 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev
 
-      - name: Get exectuable version name (non Windows)
-        if: "!contains(matrix.os, 'windows')"
+      - name: Get exectuable version name (macOS)
+        if: contains(matrix.os, 'macos')
         run: |
           CUR_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "CUR_TAG is: $CUR_TAG"
@@ -72,59 +105,71 @@ jobs:
           echo "vers is: $vers"
           echo "vers=$vers" >> $env:GITHUB_ENV
 
-      - name: Build with pyinstaller (non Windows, file)
-        if: "!contains(matrix.os, 'windows')"
+      - name: Build with pyinstaller (macOS, file)
+        if: (contains(matrix.os, 'macos') && (github.event.inputs.build_onefile == 'true'))
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }} ${{ github.event.inputs.logLevel }} 'onefile'
 
-      - name: Build with pyinstaller (non Windows, folder)
-        if: "!contains(matrix.os, 'windows')"
+      - name: Build with pyinstaller (macOS, folder)
+        if: (contains(matrix.os, 'macos')  && (github.event.inputs.build_onedir == 'true'))
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir ${{ github.event.inputs.logLevel }} 'onedir'
 
       - name: Build with pyinstaller (Windows, file)
-        if: contains(matrix.os, 'windows')
+        if: (contains(matrix.os, 'windows') && (github.event.inputs.build_onefile == 'true'))
         working-directory: pyinstaller
         run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onefile'
 
       - name: Build with pyinstaller (Windows, folder)
-        if: contains(matrix.os, 'windows')
+        if: (contains(matrix.os, 'windows') && (github.event.inputs.build_onedir == 'true'))
         working-directory: pyinstaller
         run: ./make.ps1 -ExeName "hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir" -LogLevel ${{ github.event.inputs.logLevel }} -BuildType 'onedir'
 
       - name: Upload executable artifact (file)
+        if:  github.event.inputs.build_onefile == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload executable artifact (folder)
+        if:  github.event.inputs.build_onedir == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir
 
       - name: Upload spec file
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}.spec
 
       - name: Upload build directory
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}
 
       - name: Run test suite on the frozen app (file)
+        if:  github.event.inputs.build_onefile == 'true'
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
 
       - name: Run test suite on the frozen app (folder)
+        if:  github.event.inputs.build_onedir == 'true'
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir/hpcflow-${{ env.vers }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
 
+      - name: Catch build skip for ${{ matrix.os}}? ${{matrix.build_os}}
+        if: failure() && matrix.build_os == 'false'
+        run: |
+          echo "Skipped build for ${{ matrix.os}} successfully."
+
   build-executables-linux:
+    if: github.event.inputs.build_linux == 'true'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
@@ -163,41 +208,49 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for CentOS (file)
+        if: github.event.inputs.build_onefile == 'true'
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ env.vers }}-linux ${{ github.event.inputs.logLevel }} onefile
 
       - name: Build with pyinstaller for CentOS (folder)
+        if: github.event.inputs.build_onedir == 'true'
         working-directory: pyinstaller
         run: ./make.sh hpcflow-${{ env.vers }}-linux-dir ${{ github.event.inputs.logLevel }} onedir
 
       - name: Upload executable artifact (file)
+        if: github.event.inputs.build_onefile == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux
 
       - name: Upload executable artifact (folder)
+        if: github.event.inputs.build_onedir == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir
 
       - name: Upload spec file
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-linux.spec
 
       - name: Upload build directory
+        if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
         uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-linux
 
       - name: Run test suite on the frozen app (file)
+        if: github.event.inputs.build_onefile == 'true'
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux test
 
       - name: Run test suite on the frozen app (folder)
+        if: github.event.inputs.build_onedir == 'true'
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir/hpcflow-${{ env.vers }}-linux-dir test
