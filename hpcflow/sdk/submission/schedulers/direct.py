@@ -57,13 +57,14 @@ class DirectScheduler(NullScheduler):
                 procs.append(proc_i)
         return procs
 
+    @classmethod
     def wait_for_jobscripts(
-        self,
+        cls,
         js_refs: List[Tuple[int, List[str]]],
         callback: Optional[Callable] = None,
     ) -> None:
         """Wait until the specified jobscripts have completed."""
-        procs = self._get_jobscript_processes(js_refs)
+        procs = cls._get_jobscript_processes(js_refs)
         (gone, alive) = psutil.wait_procs(procs, callback=callback)
         assert not alive
         return gone
