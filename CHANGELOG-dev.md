@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a63"></a>
+## [v0.2.0a63](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a62...v0.2.0a63) - 2023.07.18
+
+### ♻ Code Refactoring
+
+* remove unused
+
+### 🐛 Bug Fixes
+
+* DirectScheduler.wait_for_jobscripts
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a62"></a>
 ## [v0.2.0a62](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a61...v0.2.0a62) - 2023.07.17
 
