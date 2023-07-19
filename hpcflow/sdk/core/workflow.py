@@ -1551,7 +1551,13 @@ class Workflow:
             with self.batch_update():
                 self._store.set_EAR_start(EAR_ID)
 
-    def set_EAR_end(self, EAR_ID: int, exit_code: int) -> None:
+    def set_EAR_end(
+        self,
+        js_idx: int,
+        js_act_idx: int,
+        EAR_ID: int,
+        exit_code: int,
+    ) -> None:
         """Set the end time and exit code on an EAR.
 
         If the exit code is non-zero, also set all downstream dependent EARs to be
@@ -1588,6 +1594,15 @@ class Workflow:
                             store_contents=True,  # TODO: make optional according to IFG
                             is_input=False,
                             path=Path(path_i).resolve(),
+                        )
+
+                if EAR.action.script and EAR.action.script_data_out != "direct":
+                    # parse outputs from a generated HDF5 file:
+                    if EAR.action.script_data_out == "hdf5":
+                        EAR._param_save_HDF5(
+                            js_idx=js_idx,
+                            js_act_idx=js_act_idx,
+                            workflow=self,
                         )
 
                 for OFP_i in EAR.action.output_file_parsers:
@@ -1638,10 +1653,16 @@ class Workflow:
         with self._store.cached_load():
             return self._store.get_EAR_skipped(EAR_ID)
 
-    def set_parameter_value(self, param_id: int, value: Any) -> None:
+    def set_parameter_value(
+        self, param_id: int, value: Any, commit: bool = False
+    ) -> None:
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_parameter_value(param_id, value)
+
+        if commit:
+            # force commit now:
+            self._store._pending.commit_all()
 
     def elements(self) -> Iterator[app.Element]:
         for task in self.tasks:
@@ -2032,7 +2053,7 @@ class Workflow:
         with self._store.cached_load():
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-            commands, shell_vars = EAR.compose_commands(jobscript)
+            commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
             for param_name, shell_var_name in shell_vars:
                 commands += jobscript.shell.format_save_parameter(
                     workflow_app_alias=jobscript.workflow_app_alias,

@@ -3,10 +3,12 @@ import copy
 from dataclasses import dataclass
 from datetime import datetime
 import enum
+import json
+import h5py
 from pathlib import Path
 import re
 import subprocess
-from textwrap import dedent
+from textwrap import indent, dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
@@ -513,42 +515,114 @@ class ElementActionRun:
     def compose_source(self) -> str:
         """Generate the file contents of this source."""
 
+        # TODO: what about an MTEX script?
+        # - what we've defined here is actually a type of "transfer protocol" where
+        #   we have direct access to the zarr store in Python
+        # - but this isn't the case for other scripts (e.g in matlab), where we need
+        #   an intermediate data format (e.g. JSON, HDF5 etc) for both getting parameter
+        #   data "in to" and "out of" the script
+
         script_name = self.action.script
         script_path = self.app.scripts.get(script_name)
-        script_main_func = Path(script_name).stem
-
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
-        main_block = dedent(
-            """\
-            if __name__ == "__main__":
+        is_python = script_path.suffix == ".py"
+        if is_python:
+            py_imports = dedent(
+                """\
                 import sys
                 from pathlib import Path
-                import {app_module} as app
-                app.load_config(
-                    log_file_path=Path("{app_package_name}.log").resolve(),
-                    config_dir=r"{cfg_dir}",
-                    config_invocation_key=r"{cfg_invoc_key}",
+
+                cmdline_args = sys.argv[1:]
+                """
+            )
+        else:
+            return script_str
+
+        # if either script_data_in or script_data_out is direct (must be python):
+        if "direct" in (self.action.script_data_in, self.action.script_data_out):
+            py_main_block_workflow_load = dedent(
+                """\
+                    import {app_module} as app
+                    app.load_config(
+                        log_file_path=Path("{app_package_name}.log").resolve(),
+                        config_dir=r"{cfg_dir}",
+                        config_invocation_key=r"{cfg_invoc_key}",
+                    )
+                    wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
+                    EAR_ID = int(EAR_ID)
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                """
+            ).format(
+                app_package_name=self.app.package_name,
+                app_module=self.app.module,
+                cfg_dir=self.app.config.config_directory,
+                cfg_invoc_key=self.app.config.config_invocation_key,
+            )
+        else:
+            py_main_block_workflow_load = ""
+
+        dump_name_lookup = {"json": "inputs_JSON_path"}
+        load_name_lookup = {"json": "outputs_JSON_path", "hdf5": "outputs_HDF5_path"}
+        load_path = "Path(cmdline_args.pop(0))"
+        dump_path = "Path(cmdline_args.pop(0))"
+
+        if self.action.script_data_in == "direct":
+            if self.action.script_data_out == "direct":
+                py_main_block_inputs = "inputs = EAR.get_input_values()"
+            else:
+                load_name = load_name_lookup[self.action.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f"**EAR.get_input_values(), "
+                    f'"{load_name}": {load_path}'
+                    f"}}"
                 )
-                wk_path, EAR_ID = sys.argv[1:]
-                EAR_ID = int(EAR_ID)
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
-                inputs = EAR.get_input_values()
-                outputs = {script_main_func}(**inputs)
-                outputs = {{"outputs." + k: v for k, v in outputs.items()}}
+        else:
+            dump_name = dump_name_lookup[self.action.script_data_in]
+            if self.action.script_data_out == "direct":
+                py_main_block_inputs = f'inputs = {{"{dump_name}": {dump_path}}}'
+            else:
+                load_name = load_name_lookup[self.action.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f'"{dump_name}": {dump_path}, '
+                    f'"{load_name}": {load_path}'
+                    f"}}"
+                )
+
+        script_main_func = Path(script_name).stem
+        if self.action.script_data_out == "direct":
+            py_main_block_invoke = f"outputs = {script_main_func}(**inputs)"
+            py_main_block_outputs = dedent(
+                """\
+                outputs = {"outputs." + k: v for k, v in outputs.items()}
                 for name_i, out_i in outputs.items():
                     wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
+                """
+            )
+        else:
+            py_main_block_invoke = f"{script_main_func}(**inputs)"
+            py_main_block_outputs = ""
 
-        """
-        )
-        main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_module=self.app.module,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_invocation_key,
-            script_main_func=script_main_func,
+        tab_indent = "    "
+        py_main_block = dedent(
+            """\
+            if __name__ == "__main__":
+            {py_imports}
+            {wk_load}
+            {inputs}
+            {invoke}
+            {outputs}
+            """
+        ).format(
+            py_imports=indent(py_imports, tab_indent),
+            wk_load=indent(py_main_block_workflow_load, tab_indent),
+            inputs=indent(py_main_block_inputs, tab_indent),
+            invoke=indent(py_main_block_invoke, tab_indent),
+            outputs=indent(py_main_block_outputs, tab_indent),
         )
 
         out = dedent(
@@ -556,16 +630,39 @@ class ElementActionRun:
             {script_str}
             {main_block}
         """
+        ).format(
+            script_str=script_str,
+            main_block=py_main_block,
         )
-        out = out.format(script_str=script_str, main_block=main_block)
+
         return out
 
-    def write_source(self):
+    def write_source(self, js_idx: int, js_act_idx: int):
+        if self.action.script_data_in == "json":
+            dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
+            self._param_dump_JSON(dump_path)
+
         script_path = self.action.get_script_path(self.action.script)
         with Path(script_path).open("wt", newline="\n") as fp:
             fp.write(self.compose_source())
 
-    def compose_commands(self, jobscript: app.Jobscript) -> Tuple[str, List[str]]:
+    def _param_dump_JSON(self, dump_path: Path):
+        with dump_path.open("wt") as fp:
+            json.dump(self.get_input_values(), fp)
+
+    def _param_save_HDF5(self, js_idx: int, js_act_idx: int, workflow):
+        """Save parameters stored in HDF5 groups to the workflow."""
+        load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
+        with h5py.File(load_path, mode="r") as f:
+            for param_name, h5_grp in f.items():
+                param_id = self.data_idx[f"outputs.{param_name}"]
+                param_cls = self.app.parameters.get(param_name)._value_class
+                if param_cls:
+                    param_cls.save_from_HDF5_group(h5_grp, param_id, workflow)
+
+    def compose_commands(
+        self, jobscript: app.Jobscript, JS_action_idx: int
+    ) -> Tuple[str, List[str]]:
         """
         Returns
         -------
@@ -598,7 +695,7 @@ class ElementActionRun:
             ofp.write_source(self.action)
 
         if self.action.script:
-            self.write_source()
+            self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         param_regex = r"(\<\<parameter:{}\>\>?)"
         file_regex = r"(\<\<file:{}\>\>?)"
@@ -1127,6 +1224,9 @@ class Action(JSONLike):
         environments: List[app.ActionEnvironment],
         commands: Optional[List[app.Command]] = None,
         script: Optional[str] = None,
+        script_data_in: Optional[str] = None,
+        script_data_out: Optional[str] = None,
+        script_exe: Optional[str] = None,
         abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
         output_file_parsers: Optional[List[app.OutputFileParser]] = None,
@@ -1136,6 +1236,9 @@ class Action(JSONLike):
     ):
         self.commands = commands or []
         self.script = script
+        self.script_data_in = script_data_in.lower() if script_data_in else None
+        self.script_data_out = script_data_out.lower() if script_data_out else None
+        self.script_exe = script_exe.lower() if script_exe else None
         self.environments = environments
         self.abortable = abortable
         self.input_file_generators = input_file_generators or []
@@ -1290,6 +1393,23 @@ class Action(JSONLike):
         """Return the script path, relative to the EAR directory."""
         return Path(*script_name.split("/")).parts[-1]
 
+    @staticmethod
+    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
+        return f"js_{js_idx}_act_{js_act_idx}_inputs"
+
+    @staticmethod
+    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
+        return f"js_{js_idx}_act_{js_act_idx}_outputs"
+
+    def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
+
+    def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
+
+    def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
+
     def expand(self):
         if self._from_expand:
             # already expanded
@@ -1351,15 +1471,45 @@ class Action(JSONLike):
 
             commands = self.commands
             if self.script:
-                commands += [
-                    self.app.Command(
-                        f"<<executable:python>> <<script:{self.script}>> $WK_PATH $EAR_ID"
-                    )
-                ]
+                main_cmd_str = (
+                    f"<<executable:{self.script_exe}>> <<script:{self.script}>>"
+                )
+                if "direct" in (self.script_data_in, self.script_data_out):
+                    main_cmd_str += " $WK_PATH $EAR_ID"
 
+                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
+
+                if self.script_data_in:
+                    if self.script_data_in == "json":
+                        file_name = str(self.get_param_dump_file_path_JSON(**fn_args))
+                        main_cmd_str += f' "{file_name}"'
+
+                if self.script_data_out:
+                    if self.script_data_out == "json":
+                        file_name = str(self.get_param_load_file_path_JSON(**fn_args))
+                        main_cmd_str += f' "{file_name}"'
+                    elif self.script_data_out == "hdf5":
+                        file_name = str(self.get_param_load_file_path_HDF5(**fn_args))
+                        main_cmd_str += f' "{file_name}"'
+
+                commands += [self.app.Command(main_cmd_str)]
+
+            # TODO: store script_args? and build command with executable syntax?
+            env__ = """
+                - name: matlab_env
+                  executables:
+                    - label: matlab
+                      instances:
+                        - command: matlab -batch "<<script_no_ext>> <<script_args_single_quotes>>"
+                          num_cores: 1
+                          parallel_mode: null
+            """
             main_act = self.app.Action(
                 commands=commands,
                 script=self.script,
+                script_data_in=self.script_data_in,
+                script_data_out=self.script_data_out,
+                script_exe=self.script_exe,
                 environments=[self.get_commands_action_env()],
                 abortable=self.abortable,
                 rules=main_rules,

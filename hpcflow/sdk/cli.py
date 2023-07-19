@@ -483,13 +483,28 @@ def _make_internal_CLI(app):
 
     @workflow.command()
     @click.pass_context
+    @click.argument("js_idx", type=click.INT)
+    @click.argument("js_act_idx", type=click.INT)
     @click.argument("ear_id", type=click.INT)
     @click.argument("exit_code", type=click.INT)
-    def set_EAR_end(ctx, ear_id: int, exit_code: int):
+    def set_EAR_end(
+        ctx,
+        js_idx: int,
+        js_act_idx: int,
+        ear_id: int,
+        exit_code: int,
+    ):
         app.CLI_logger.info(
             f"set EAR end for EAR ID {ear_id!r} with exit code {exit_code!r}."
         )
-        ctx.exit(ctx.obj["workflow"].set_EAR_end(ear_id, exit_code))
+        ctx.exit(
+            ctx.obj["workflow"].set_EAR_end(
+                js_idx=js_idx,
+                js_act_idx=js_act_idx,
+                EAR_ID=ear_id,
+                exit_code=exit_code,
+            )
+        )
 
     @workflow.command()
     @click.pass_context

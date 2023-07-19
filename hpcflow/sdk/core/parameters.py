@@ -208,6 +208,18 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        # we assume if default_value is specified, it is only the `value` part of the
+        # `InputValue` JSON:
+        if "default_value" in json_like:
+            json_like["default_value"] = {
+                "parameter": json_like["parameter"],
+                "value": json_like["default_value"],
+            }
+        obj = super().from_json_like(json_like, shared_data)
+        return obj
+
     def __deepcopy__(self, memo):
         kwargs = {
             "parameter": self.parameter,
