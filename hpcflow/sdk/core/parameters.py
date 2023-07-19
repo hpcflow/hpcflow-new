@@ -1149,7 +1149,7 @@ class InputSource(JSONLike):
             - import.[import_ref]
 
         """
-        parts = str_defn.lower().split(".")
+        parts = str_defn.split(".")
         source_type = cls._validate_source_type(parts[0])
         task_ref = None
         task_source_type = None
