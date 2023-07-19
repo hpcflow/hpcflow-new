@@ -11,6 +11,7 @@ class Command(JSONLike):
     _app_attr = "app"
 
     command: Optional[str] = None
+    executable: Optional[str] = None
     arguments: Optional[List[str]] = None
     variables: Optional[Dict[str, str]] = None
     stdout: Optional[str] = None
@@ -21,6 +22,8 @@ class Command(JSONLike):
         out = []
         if self.command:
             out.append(f"command={self.command!r}")
+        if self.executable:
+            out.append(f"executable={self.executable!r}")
         if self.arguments:
             out.append(f"arguments={self.arguments!r}")
         if self.variables:
@@ -40,7 +43,7 @@ class Command(JSONLike):
         if self.command:
             cmd_str = self.command
         else:
-            cmd_str = ' '.join(self.arguments or [])
+            cmd_str = self.executable or ""
 
         def exec_script_repl(match_obj):
             typ, val = match_obj.groups()
@@ -65,9 +68,16 @@ class Command(JSONLike):
             string=cmd_str,
         )
 
-        # executable command might itself contain variables defined in `variables`:
+        # executable command might itself contain variables defined in `variables`, and/or
+        # an `<<args>>` variable::
         for var_key, var_val in (self.variables or {}).items():
             cmd_str = cmd_str.replace(f"<<{var_key}>>", var_val)
+            if "<<args>>" in cmd_str:
+                args_str = " ".join(self.arguments or [])
+                ends_in_args = cmd_str.endswith("<<args>>")
+                cmd_str = cmd_str.replace("<<args>>", args_str)
+                if ends_in_args and not args_str:
+                    cmd_str = cmd_str.rstrip()
 
         # substitute input parameters in command:
         for cmd_inp in EAR.action.get_command_input_types():
@@ -107,7 +117,7 @@ class Command(JSONLike):
 
         if self.stderr:
             cmd_str += f" 2>> {self.stderr}"
-    
+
         return cmd_str, shell_vars
 
     def get_output_types(self):

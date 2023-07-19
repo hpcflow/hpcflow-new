@@ -669,7 +669,6 @@ class ElementActionRun:
             as strings.
         """
 
-
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
             ifg.write_source(self.action)
@@ -681,7 +680,6 @@ class ElementActionRun:
         if self.action.script:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
-
         command_lns = []
         env = self.get_environment()
         if env.setup:
@@ -689,7 +687,9 @@ class ElementActionRun:
 
         shell_vars = []
         for command in self.action.commands:
-            cmd_str, shell_vars_i = command.get_command_line(EAR=self, shell=jobscript.shell, env=env)
+            cmd_str, shell_vars_i = command.get_command_line(
+                EAR=self, shell=jobscript.shell, env=env
+            )
             shell_vars.extend(shell_vars_i)
             command_lns.append(cmd_str)
 
@@ -1353,7 +1353,6 @@ class Action(JSONLike):
         match_obj = re.match(pattern, script)
         return match_obj.group(1)
 
-
     @staticmethod
     def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
         return f"js_{js_idx}_act_{js_act_idx}_inputs"
@@ -1398,10 +1397,17 @@ class Action(JSONLike):
             inp_files = []
             inp_acts = []
             for ifg in self.input_file_generators:
-                args = ["<<executable:python_script>>", "$WK_PATH", "$EAR_ID"]
-                variables = {"script_name": self.get_script_name(ifg.script)}
+                exe = "<<executable:python_script>>"
+                args = ["$WK_PATH", "$EAR_ID"]
+                script_name = self.get_script_name(ifg.script)
+                variables = {
+                    "script_name": script_name,
+                    "script_name_no_ext": str(Path(script_name).stem),
+                }
                 act_i = self.app.Action(
-                    commands=[app.Command(arguments=args, variables=variables)],
+                    commands=[
+                        app.Command(executable=exe, arguments=args, variables=variables)
+                    ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + [ifg.get_action_rule()],
@@ -1416,10 +1422,17 @@ class Action(JSONLike):
             out_files = []
             out_acts = []
             for ofp in self.output_file_parsers:
-                args = ["<<executable:python_script>>", "$WK_PATH", "$EAR_ID"]
-                variables = {"script_name": self.get_script_name(ofp.script)}
+                exe = "<<executable:python_script>>"
+                args = ["$WK_PATH", "$EAR_ID"]
+                script_name = self.get_script_name(ofp.script)
+                variables = {
+                    "script_name": script_name,
+                    "script_name_no_ext": str(Path(script_name).stem),
+                }
                 act_i = self.app.Action(
-                    commands=[app.Command(arguments=args, variables=variables)],
+                    commands=[
+                        app.Command(executable=exe, arguments=args, variables=variables)
+                    ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
@@ -1434,8 +1447,13 @@ class Action(JSONLike):
 
             commands = self.commands
             if self.script:
-                args = [f"<<executable:{self.script_exe}>>",]
-                variables = {"script_name": self.get_script_name(self.script)}
+                exe = f"<<executable:{self.script_exe}>>"
+                args = []
+                script_name = self.get_script_name(self.script)
+                variables = {
+                    "script_name": script_name,
+                    "script_name_no_ext": str(Path(script_name).stem),
+                }
                 if "direct" in (self.script_data_in, self.script_data_out):
                     args.extend(["$WK_PATH", "$EAR_ID"])
 
@@ -1452,8 +1470,9 @@ class Action(JSONLike):
                     elif self.script_data_out == "hdf5":
                         args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
 
-
-                commands += [self.app.Command(arguments=args, variables=variables)]
+                commands += [
+                    self.app.Command(executable=exe, arguments=args, variables=variables)
+                ]
 
             # TODO: store script_args? and build command with executable syntax?
             env__ = """
