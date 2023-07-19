@@ -515,15 +515,9 @@ class ElementActionRun:
     def compose_source(self) -> str:
         """Generate the file contents of this source."""
 
-        # TODO: what about an MTEX script?
-        # - what we've defined here is actually a type of "transfer protocol" where
-        #   we have direct access to the zarr store in Python
-        # - but this isn't the case for other scripts (e.g in matlab), where we need
-        #   an intermediate data format (e.g. JSON, HDF5 etc) for both getting parameter
-        #   data "in to" and "out of" the script
-
-        script_name = self.action.script
-        script_path = self.app.scripts.get(script_name)
+        script_name = self.action.get_script_name(self.action.script)
+        script_key = self.action.get_app_data_script_path(self.action.script)
+        script_path = self.app.scripts.get(script_key)
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
@@ -642,9 +636,12 @@ class ElementActionRun:
             dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
             self._param_dump_JSON(dump_path)
 
-        script_path = self.action.get_script_path(self.action.script)
-        with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source())
+        # write the script if it is specifed as a app data script, otherwise we assume
+        # the script already exists in the working directory:
+        if self.action.is_app_data_script(self.action.script):
+            script_name = self.action.get_script_name(self.action.script)
+            with Path(script_name).open("wt", newline="\n") as fp:
+                fp.write(self.compose_source())
 
     def _param_dump_JSON(self, dump_path: Path):
         with dump_path.open("wt") as fp:
@@ -672,19 +669,6 @@ class ElementActionRun:
             as strings.
         """
 
-        env = self.get_environment()
-
-        def exec_script_repl(match_obj):
-            typ, val = match_obj.groups()
-            if typ == "executable":
-                executable = env.executables.get(val)
-                filterable = ("num_cores", "parallel_mode")
-                filter_exec = {j: self.get_resources().get(j) for j in filterable}
-                exec_cmd = executable.filter_instances(**filter_exec)[0].command
-                out = exec_cmd.replace("<<num_cores>>", str(self.resources.num_cores))
-            elif typ == "script":
-                out = self.action.get_script_path(val)
-            return out
 
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
@@ -697,63 +681,16 @@ class ElementActionRun:
         if self.action.script:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
-        param_regex = r"(\<\<parameter:{}\>\>?)"
-        file_regex = r"(\<\<file:{}\>\>?)"
-        exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
 
         command_lns = []
+        env = self.get_environment()
         if env.setup:
             command_lns += list(env.setup)
 
         shell_vars = []
         for command in self.action.commands:
-            cmd_str = command.command
-
-            # substitute executables:
-            cmd_str = re.sub(
-                pattern=exe_script_regex,
-                repl=exec_script_repl,
-                string=cmd_str,
-            )
-
-            # substitute input parameters in command:
-            for cmd_inp in self.action.get_command_input_types():
-                inp_val = self.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
-                cmd_str = re.sub(
-                    pattern=param_regex.format(cmd_inp),
-                    repl=str(inp_val),
-                    string=cmd_str,
-                )
-
-            # substitute input files in command:
-            for cmd_file in self.action.get_command_input_file_labels():
-                file_path = self.get(f"input_files.{cmd_file}")  # TODO: what if out file?
-                # assuming we have copied this file to the EAR directory, then we just
-                # need the file name:
-                file_name = Path(file_path).name
-                cmd_str = re.sub(
-                    pattern=file_regex.format(cmd_file),
-                    repl=file_name,
-                    string=cmd_str,
-                )
-
-            out_types = command.get_output_types()
-            if out_types["stdout"]:
-                # TODO: also map stderr/both if possible
-                # assign stdout to a shell variable if required:
-                param_name = f"outputs.{out_types['stdout']}"
-                shell_var_name = f"parameter_{out_types['stdout']}"
-                shell_vars.append((param_name, shell_var_name))
-                cmd_str = jobscript.shell.format_stream_assignment(
-                    shell_var_name=shell_var_name,
-                    command=cmd_str,
-                )
-            elif command.stdout:
-                cmd_str += f" 1>> {command.stdout}"
-
-            if command.stderr:
-                cmd_str += f" 2>> {command.stderr}"
-
+            cmd_str, shell_vars_i = command.get_command_line(EAR=self, shell=jobscript.shell, env=env)
+            shell_vars.extend(shell_vars_i)
             command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
@@ -1389,9 +1326,33 @@ class Action(JSONLike):
             commands=self.commands,
         )
 
-    def get_script_path(self, script_name):
-        """Return the script path, relative to the EAR directory."""
-        return Path(*script_name.split("/")).parts[-1]
+    @staticmethod
+    def is_app_data_script(script: str) -> bool:
+        return script.startswith("<<script:")
+
+    @classmethod
+    def get_script_name(cls, script: str) -> str:
+        """Return the script name."""
+        if cls.is_app_data_script(script):
+            # an app data script:
+            pattern = r"\<\<script:(?:.*\/)*(.*:?)\>\>"
+            match_obj = re.match(pattern, script)
+            return match_obj.group(1)
+        else:
+            # a script we can expect in the working directory:
+            return script
+
+    @classmethod
+    def get_app_data_script_path(cls, script) -> str:
+        if not cls.is_app_data_script(script):
+            raise ValueError(
+                f"Must be an app-data script name (e.g. "
+                f"<<script:path/to/app/data/script.py>>), but recieved {script}"
+            )
+        pattern = r"\<\<script:(.*:?)\>\>"
+        match_obj = re.match(pattern, script)
+        return match_obj.group(1)
+
 
     @staticmethod
     def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
@@ -1437,9 +1398,10 @@ class Action(JSONLike):
             inp_files = []
             inp_acts = []
             for ifg in self.input_file_generators:
-                cmd = f"<<executable:python>> <<script:{ifg.script}>> $WK_PATH $EAR_ID"
+                args = ["<<executable:python_script>>", "$WK_PATH", "$EAR_ID"]
+                variables = {"script_name": self.get_script_name(ifg.script)}
                 act_i = self.app.Action(
-                    commands=[app.Command(cmd)],
+                    commands=[app.Command(arguments=args, variables=variables)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + [ifg.get_action_rule()],
@@ -1454,9 +1416,10 @@ class Action(JSONLike):
             out_files = []
             out_acts = []
             for ofp in self.output_file_parsers:
-                cmd = f"<<executable:python>> <<script:{ofp.script}>> $WK_PATH $EAR_ID"
+                args = ["<<executable:python_script>>", "$WK_PATH", "$EAR_ID"]
+                variables = {"script_name": self.get_script_name(ofp.script)}
                 act_i = self.app.Action(
-                    commands=[app.Command(cmd)],
+                    commands=[app.Command(arguments=args, variables=variables)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
@@ -1471,28 +1434,26 @@ class Action(JSONLike):
 
             commands = self.commands
             if self.script:
-                main_cmd_str = (
-                    f"<<executable:{self.script_exe}>> <<script:{self.script}>>"
-                )
+                args = [f"<<executable:{self.script_exe}>>",]
+                variables = {"script_name": self.get_script_name(self.script)}
                 if "direct" in (self.script_data_in, self.script_data_out):
-                    main_cmd_str += " $WK_PATH $EAR_ID"
+                    args.extend(["$WK_PATH", "$EAR_ID"])
 
                 fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
 
                 if self.script_data_in:
                     if self.script_data_in == "json":
-                        file_name = str(self.get_param_dump_file_path_JSON(**fn_args))
-                        main_cmd_str += f' "{file_name}"'
+                        args.append(str(self.get_param_dump_file_path_JSON(**fn_args)))
 
                 if self.script_data_out:
                     if self.script_data_out == "json":
-                        file_name = str(self.get_param_load_file_path_JSON(**fn_args))
-                        main_cmd_str += f' "{file_name}"'
-                    elif self.script_data_out == "hdf5":
-                        file_name = str(self.get_param_load_file_path_HDF5(**fn_args))
-                        main_cmd_str += f' "{file_name}"'
+                        args.append(str(self.get_param_load_file_path_JSON(**fn_args)))
 
-                commands += [self.app.Command(main_cmd_str)]
+                    elif self.script_data_out == "hdf5":
+                        args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
+
+
+                commands += [self.app.Command(arguments=args, variables=variables)]
 
             # TODO: store script_args? and build command with executable syntax?
             env__ = """
@@ -1530,8 +1491,11 @@ class Action(JSONLike):
         # or schema output.
         vars_regex = r"\<\<parameter:(.*?)\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command):
+            for val in re.findall(vars_regex, command.command or ""):
                 params.append(val)
+            for arg in command.arguments or []:
+                for val in re.findall(vars_regex, arg):
+                    params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
 
@@ -1540,8 +1504,11 @@ class Action(JSONLike):
         files = []
         vars_regex = r"\<\<file:(.*?)\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command):
+            for val in re.findall(vars_regex, command.command or ""):
                 files.append(val)
+            for arg in command.arguments or []:
+                for val in re.findall(vars_regex, arg):
+                    files.append(val)
             # TODO: consider stdin?
         return tuple(set(files))
 

@@ -131,11 +131,12 @@ class InputFileGenerator(JSONLike):
         run or not for a given element."""
         return self.app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
 
-    def compose_source(self) -> str:
+    def compose_source(self, action) -> str:
         """Generate the file contents of this input file generator source."""
 
         script_name = self.script
-        script_path = self.app.scripts.get(script_name)
+        script_key = action.get_app_data_script_path(self.script)
+        script_path = self.app.scripts.get(script_key)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
@@ -179,9 +180,9 @@ class InputFileGenerator(JSONLike):
         return out
 
     def write_source(self, action):
-        script_path = action.get_script_path(self.script)
+        script_path = action.get_script_name(self.script)
         with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source())
+            fp.write(self.compose_source(action))
 
 
 @dataclass
@@ -257,11 +258,12 @@ class OutputFileParser(JSONLike):
                 json_like["save_files"] = [i for i in json_like["output_files"]]
         return super().from_json_like(json_like, shared_data)
 
-    def compose_source(self) -> str:
+    def compose_source(self, action) -> str:
         """Generate the file contents of this output file parser source."""
 
         script_name = self.script
-        script_path = self.app.scripts.get(script_name)
+        script_key = action.get_app_data_script_path(self.script)
+        script_path = self.app.scripts.get(script_key)
         script_main_func = Path(script_name).stem
 
         with script_path.open("rt") as fp:
@@ -311,9 +313,9 @@ class OutputFileParser(JSONLike):
         return out
 
     def write_source(self, action):
-        script_path = action.get_script_path(self.script)
+        script_path = action.get_script_name(self.script)
         with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source())
+            fp.write(self.compose_source(action))
 
 
 class _FileContentsSpecifier(JSONLike):
