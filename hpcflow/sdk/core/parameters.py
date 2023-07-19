@@ -184,6 +184,10 @@ class SchemaInput(SchemaParameter):
     where: Optional[app.ElementFilter] = None
 
     def __post_init__(self):
+        if not isinstance(self.propagation_mode, ParameterPropagationMode):
+            self.propagation_mode = getattr(
+                ParameterPropagationMode, self.propagation_mode.upper()
+            )
         super().__post_init__()
         self._set_parent_refs()
 
