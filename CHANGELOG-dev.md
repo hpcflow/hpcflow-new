@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a65"></a>
+## [v0.2.0a65](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a64...v0.2.0a65) - 2023.07.20
+
+### ✨ Features
+
+* support running and compiling mtex scripts
+* support non-python scripts in actions
+
+### 🐛 Bug Fixes
+
+* failing tests
+* add missing func back _resolve_input_source_task_reference
+* cast SchemaInput propagation_mode if a string
+* add executable arg to Command to allow more control in command formatting
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a64"></a>
 ## [v0.2.0a64](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a63...v0.2.0a64) - 2023.07.18
 
