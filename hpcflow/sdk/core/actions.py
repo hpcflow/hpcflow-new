@@ -636,9 +636,9 @@ class ElementActionRun:
             dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
             self._param_dump_JSON(dump_path)
 
-        # write the script if it is specifed as a app data script, otherwise we assume
+        # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
-        if self.action.is_app_data_script(self.action.script):
+        if self.action.script and self.action.is_app_data_script(self.action.script):
             script_name = self.action.get_script_name(self.action.script)
             with Path(script_name).open("wt", newline="\n") as fp:
                 fp.write(self.compose_source())
@@ -1399,11 +1399,14 @@ class Action(JSONLike):
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
                 args = ["$WK_PATH", "$EAR_ID"]
-                script_name = self.get_script_name(ifg.script)
-                variables = {
-                    "script_name": script_name,
-                    "script_name_no_ext": str(Path(script_name).stem),
-                }
+                if ifg.script:
+                    script_name = self.get_script_name(ifg.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
                 act_i = self.app.Action(
                     commands=[
                         app.Command(executable=exe, arguments=args, variables=variables)
@@ -1424,11 +1427,14 @@ class Action(JSONLike):
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
                 args = ["$WK_PATH", "$EAR_ID"]
-                script_name = self.get_script_name(ofp.script)
-                variables = {
-                    "script_name": script_name,
-                    "script_name_no_ext": str(Path(script_name).stem),
-                }
+                if ofp.script:
+                    script_name = self.get_script_name(ofp.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
                 act_i = self.app.Action(
                     commands=[
                         app.Command(executable=exe, arguments=args, variables=variables)
@@ -1449,11 +1455,14 @@ class Action(JSONLike):
             if self.script:
                 exe = f"<<executable:{self.script_exe}>>"
                 args = []
-                script_name = self.get_script_name(self.script)
-                variables = {
-                    "script_name": script_name,
-                    "script_name_no_ext": str(Path(script_name).stem),
-                }
+                if self.script:
+                    script_name = self.get_script_name(self.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
                 if "direct" in (self.script_data_in, self.script_data_out):
                     args.extend(["$WK_PATH", "$EAR_ID"])
 
