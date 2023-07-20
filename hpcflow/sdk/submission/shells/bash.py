@@ -98,7 +98,7 @@ class Bash(Shell):
               exit_code=$exc_sk
           fi
 
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $EAR_ID $exit_code >> $app_stream_file 2>&1
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $JS_IDX $JS_act_idx $EAR_ID $exit_code >> $app_stream_file 2>&1
 
         done
     """

@@ -6,6 +6,7 @@ import contextlib
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import enum
 import os
 from pathlib import Path
 import shutil
@@ -481,6 +482,9 @@ class StoreParameter:
                 type_lookup=type_lookup,
                 **kwargs,
             )
+
+        elif isinstance(obj, enum.Enum):
+            data = obj.value
 
         else:
             raise ValueError(

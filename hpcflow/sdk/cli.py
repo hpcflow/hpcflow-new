@@ -321,14 +321,16 @@ def _make_workflow_CLI(app):
     """Generate the CLI for interacting with existing workflows."""
 
     @click.group()
-    @click.argument("workflow_path", type=click.Path(exists=True))
+    @click.argument("workflow_ref")
+    @workflow_ref_type_opt
     @click.pass_context
-    def workflow(ctx, workflow_path):
+    def workflow(ctx, workflow_ref, ref_type):
         """Interact with existing {app_name} workflows.
 
-        WORKFLOW_PATH is the path to an existing workflow.
+        WORKFLOW_REF is the path to, or local ID of, an existing workflow.
 
         """
+        workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
         ctx.ensure_object(dict)
         ctx.obj["workflow"] = wk
@@ -379,6 +381,12 @@ def _make_workflow_CLI(app):
     def show_all_EAR_statuses(ctx):
         """Show the submission status of all workflow EARs."""
         ctx.obj["workflow"].show_all_EAR_statuses()
+
+    @workflow.command(name="zip")
+    @click.option("--log")
+    @click.pass_context
+    def zip_workflow(ctx, log=None):
+        ctx.obj["workflow"].to_zip(log=log)
 
     workflow.help = workflow.help.format(app_name=app.name)
 
@@ -483,13 +491,28 @@ def _make_internal_CLI(app):
 
     @workflow.command()
     @click.pass_context
+    @click.argument("js_idx", type=click.INT)
+    @click.argument("js_act_idx", type=click.INT)
     @click.argument("ear_id", type=click.INT)
     @click.argument("exit_code", type=click.INT)
-    def set_EAR_end(ctx, ear_id: int, exit_code: int):
+    def set_EAR_end(
+        ctx,
+        js_idx: int,
+        js_act_idx: int,
+        ear_id: int,
+        exit_code: int,
+    ):
         app.CLI_logger.info(
             f"set EAR end for EAR ID {ear_id!r} with exit code {exit_code!r}."
         )
-        ctx.exit(ctx.obj["workflow"].set_EAR_end(ear_id, exit_code))
+        ctx.exit(
+            ctx.obj["workflow"].set_EAR_end(
+                js_idx=js_idx,
+                js_act_idx=js_act_idx,
+                EAR_ID=ear_id,
+                exit_code=exit_code,
+            )
+        )
 
     @workflow.command()
     @click.pass_context

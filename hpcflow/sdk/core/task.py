@@ -1448,7 +1448,9 @@ class WorkflowTask:
 
         count = 0
         for act_idx, action in self.template.all_schema_actions():
+            log_common = f"for action {act_idx} of element iteration {element_iter.index} of element {element_iter.element.index} of task {self.unique_name!r}."
             if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
+                self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
                 param_source = {
                     "type": "EAR_output",
@@ -1475,6 +1477,8 @@ class WorkflowTask:
                 }
                 action_runs[(act_idx, EAR_ID)] = run_0
                 count += 1
+            else:
+                self.app.logger.info(f"Some action rules evaluated to false {log_common}")
 
         # `generate_data_index` can modify data index for previous actions, so only assign
         # this at the end:

@@ -3,10 +3,12 @@ import copy
 from dataclasses import dataclass
 from datetime import datetime
 import enum
+import json
+import h5py
 from pathlib import Path
 import re
 import subprocess
-from textwrap import dedent
+from textwrap import indent, dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.rules import Rule
@@ -513,42 +515,108 @@ class ElementActionRun:
     def compose_source(self) -> str:
         """Generate the file contents of this source."""
 
-        script_name = self.action.script
-        script_path = self.app.scripts.get(script_name)
-        script_main_func = Path(script_name).stem
-
+        script_name = self.action.get_script_name(self.action.script)
+        script_key = self.action.get_app_data_script_path(self.action.script)
+        script_path = self.app.scripts.get(script_key)
         with script_path.open("rt") as fp:
             script_str = fp.read()
 
-        main_block = dedent(
-            """\
-            if __name__ == "__main__":
+        is_python = script_path.suffix == ".py"
+        if is_python:
+            py_imports = dedent(
+                """\
                 import sys
                 from pathlib import Path
-                import {app_module} as app
-                app.load_config(
-                    log_file_path=Path("{app_package_name}.log").resolve(),
-                    config_dir=r"{cfg_dir}",
-                    config_invocation_key=r"{cfg_invoc_key}",
+
+                cmdline_args = sys.argv[1:]
+                """
+            )
+        else:
+            return script_str
+
+        # if either script_data_in or script_data_out is direct (must be python):
+        if "direct" in (self.action.script_data_in, self.action.script_data_out):
+            py_main_block_workflow_load = dedent(
+                """\
+                    import {app_module} as app
+                    app.load_config(
+                        log_file_path=Path("{app_package_name}.log").resolve(),
+                        config_dir=r"{cfg_dir}",
+                        config_invocation_key=r"{cfg_invoc_key}",
+                    )
+                    wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
+                    EAR_ID = int(EAR_ID)
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                """
+            ).format(
+                app_package_name=self.app.package_name,
+                app_module=self.app.module,
+                cfg_dir=self.app.config.config_directory,
+                cfg_invoc_key=self.app.config.config_invocation_key,
+            )
+        else:
+            py_main_block_workflow_load = ""
+
+        dump_name_lookup = {"json": "inputs_JSON_path"}
+        load_name_lookup = {"json": "outputs_JSON_path", "hdf5": "outputs_HDF5_path"}
+        load_path = "Path(cmdline_args.pop(0))"
+        dump_path = "Path(cmdline_args.pop(0))"
+
+        if self.action.script_data_in == "direct":
+            if self.action.script_data_out == "direct":
+                py_main_block_inputs = "inputs = EAR.get_input_values()"
+            else:
+                load_name = load_name_lookup[self.action.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f"**EAR.get_input_values(), "
+                    f'"{load_name}": {load_path}'
+                    f"}}"
                 )
-                wk_path, EAR_ID = sys.argv[1:]
-                EAR_ID = int(EAR_ID)
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
-                inputs = EAR.get_input_values()
-                outputs = {script_main_func}(**inputs)
-                outputs = {{"outputs." + k: v for k, v in outputs.items()}}
+        else:
+            dump_name = dump_name_lookup[self.action.script_data_in]
+            if self.action.script_data_out == "direct":
+                py_main_block_inputs = f'inputs = {{"{dump_name}": {dump_path}}}'
+            else:
+                load_name = load_name_lookup[self.action.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f'"{dump_name}": {dump_path}, '
+                    f'"{load_name}": {load_path}'
+                    f"}}"
+                )
+
+        script_main_func = Path(script_name).stem
+        if self.action.script_data_out == "direct":
+            py_main_block_invoke = f"outputs = {script_main_func}(**inputs)"
+            py_main_block_outputs = dedent(
+                """\
+                outputs = {"outputs." + k: v for k, v in outputs.items()}
                 for name_i, out_i in outputs.items():
                     wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
+                """
+            )
+        else:
+            py_main_block_invoke = f"{script_main_func}(**inputs)"
+            py_main_block_outputs = ""
 
-        """
-        )
-        main_block = main_block.format(
-            app_package_name=self.app.package_name,
-            app_module=self.app.module,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_invocation_key,
-            script_main_func=script_main_func,
+        tab_indent = "    "
+        py_main_block = dedent(
+            """\
+            if __name__ == "__main__":
+            {py_imports}
+            {wk_load}
+            {inputs}
+            {invoke}
+            {outputs}
+            """
+        ).format(
+            py_imports=indent(py_imports, tab_indent),
+            wk_load=indent(py_main_block_workflow_load, tab_indent),
+            inputs=indent(py_main_block_inputs, tab_indent),
+            invoke=indent(py_main_block_invoke, tab_indent),
+            outputs=indent(py_main_block_outputs, tab_indent),
         )
 
         out = dedent(
@@ -556,16 +624,42 @@ class ElementActionRun:
             {script_str}
             {main_block}
         """
+        ).format(
+            script_str=script_str,
+            main_block=py_main_block,
         )
-        out = out.format(script_str=script_str, main_block=main_block)
+
         return out
 
-    def write_source(self):
-        script_path = self.action.get_script_path(self.action.script)
-        with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source())
+    def write_source(self, js_idx: int, js_act_idx: int):
+        if self.action.script_data_in == "json":
+            dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
+            self._param_dump_JSON(dump_path)
 
-    def compose_commands(self, jobscript: app.Jobscript) -> Tuple[str, List[str]]:
+        # write the script if it is specified as a app data script, otherwise we assume
+        # the script already exists in the working directory:
+        if self.action.script and self.action.is_app_data_script(self.action.script):
+            script_name = self.action.get_script_name(self.action.script)
+            with Path(script_name).open("wt", newline="\n") as fp:
+                fp.write(self.compose_source())
+
+    def _param_dump_JSON(self, dump_path: Path):
+        with dump_path.open("wt") as fp:
+            json.dump(self.get_input_values(), fp)
+
+    def _param_save_HDF5(self, js_idx: int, js_act_idx: int, workflow):
+        """Save parameters stored in HDF5 groups to the workflow."""
+        load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
+        with h5py.File(load_path, mode="r") as f:
+            for param_name, h5_grp in f.items():
+                param_id = self.data_idx[f"outputs.{param_name}"]
+                param_cls = self.app.parameters.get(param_name)._value_class
+                if param_cls:
+                    param_cls.save_from_HDF5_group(h5_grp, param_id, workflow)
+
+    def compose_commands(
+        self, jobscript: app.Jobscript, JS_action_idx: int
+    ) -> Tuple[str, List[str]]:
         """
         Returns
         -------
@@ -574,20 +668,6 @@ class ElementActionRun:
             List of shell variable names that must be saved as workflow parameter data
             as strings.
         """
-
-        env = self.get_environment()
-
-        def exec_script_repl(match_obj):
-            typ, val = match_obj.groups()
-            if typ == "executable":
-                executable = env.executables.get(val)
-                filterable = ("num_cores", "parallel_mode")
-                filter_exec = {j: self.get_resources().get(j) for j in filterable}
-                exec_cmd = executable.filter_instances(**filter_exec)[0].command
-                out = exec_cmd.replace("<<num_cores>>", str(self.resources.num_cores))
-            elif typ == "script":
-                out = self.action.get_script_path(val)
-            return out
 
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
@@ -598,65 +678,19 @@ class ElementActionRun:
             ofp.write_source(self.action)
 
         if self.action.script:
-            self.write_source()
-
-        param_regex = r"(\<\<parameter:{}\>\>?)"
-        file_regex = r"(\<\<file:{}\>\>?)"
-        exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
+            self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         command_lns = []
+        env = self.get_environment()
         if env.setup:
             command_lns += list(env.setup)
 
         shell_vars = []
         for command in self.action.commands:
-            cmd_str = command.command
-
-            # substitute executables:
-            cmd_str = re.sub(
-                pattern=exe_script_regex,
-                repl=exec_script_repl,
-                string=cmd_str,
+            cmd_str, shell_vars_i = command.get_command_line(
+                EAR=self, shell=jobscript.shell, env=env
             )
-
-            # substitute input parameters in command:
-            for cmd_inp in self.action.get_command_input_types():
-                inp_val = self.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
-                cmd_str = re.sub(
-                    pattern=param_regex.format(cmd_inp),
-                    repl=str(inp_val),
-                    string=cmd_str,
-                )
-
-            # substitute input files in command:
-            for cmd_file in self.action.get_command_input_file_labels():
-                file_path = self.get(f"input_files.{cmd_file}")  # TODO: what if out file?
-                # assuming we have copied this file to the EAR directory, then we just
-                # need the file name:
-                file_name = Path(file_path).name
-                cmd_str = re.sub(
-                    pattern=file_regex.format(cmd_file),
-                    repl=file_name,
-                    string=cmd_str,
-                )
-
-            out_types = command.get_output_types()
-            if out_types["stdout"]:
-                # TODO: also map stderr/both if possible
-                # assign stdout to a shell variable if required:
-                param_name = f"outputs.{out_types['stdout']}"
-                shell_var_name = f"parameter_{out_types['stdout']}"
-                shell_vars.append((param_name, shell_var_name))
-                cmd_str = jobscript.shell.format_stream_assignment(
-                    shell_var_name=shell_var_name,
-                    command=cmd_str,
-                )
-            elif command.stdout:
-                cmd_str += f" 1>> {command.stdout}"
-
-            if command.stderr:
-                cmd_str += f" 2>> {command.stderr}"
-
+            shell_vars.extend(shell_vars_i)
             command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
@@ -1127,6 +1161,9 @@ class Action(JSONLike):
         environments: List[app.ActionEnvironment],
         commands: Optional[List[app.Command]] = None,
         script: Optional[str] = None,
+        script_data_in: Optional[str] = None,
+        script_data_out: Optional[str] = None,
+        script_exe: Optional[str] = None,
         abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
         output_file_parsers: Optional[List[app.OutputFileParser]] = None,
@@ -1136,6 +1173,9 @@ class Action(JSONLike):
     ):
         self.commands = commands or []
         self.script = script
+        self.script_data_in = script_data_in.lower() if script_data_in else None
+        self.script_data_out = script_data_out.lower() if script_data_out else None
+        self.script_exe = script_exe.lower() if script_exe else None
         self.environments = environments
         self.abortable = abortable
         self.input_file_generators = input_file_generators or []
@@ -1286,9 +1326,49 @@ class Action(JSONLike):
             commands=self.commands,
         )
 
-    def get_script_path(self, script_name):
-        """Return the script path, relative to the EAR directory."""
-        return Path(*script_name.split("/")).parts[-1]
+    @staticmethod
+    def is_app_data_script(script: str) -> bool:
+        return script.startswith("<<script:")
+
+    @classmethod
+    def get_script_name(cls, script: str) -> str:
+        """Return the script name."""
+        if cls.is_app_data_script(script):
+            # an app data script:
+            pattern = r"\<\<script:(?:.*\/)*(.*:?)\>\>"
+            match_obj = re.match(pattern, script)
+            return match_obj.group(1)
+        else:
+            # a script we can expect in the working directory:
+            return script
+
+    @classmethod
+    def get_app_data_script_path(cls, script) -> str:
+        if not cls.is_app_data_script(script):
+            raise ValueError(
+                f"Must be an app-data script name (e.g. "
+                f"<<script:path/to/app/data/script.py>>), but recieved {script}"
+            )
+        pattern = r"\<\<script:(.*:?)\>\>"
+        match_obj = re.match(pattern, script)
+        return match_obj.group(1)
+
+    @staticmethod
+    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
+        return f"js_{js_idx}_act_{js_act_idx}_inputs"
+
+    @staticmethod
+    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
+        return f"js_{js_idx}_act_{js_act_idx}_outputs"
+
+    def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
+
+    def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
+
+    def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
     def expand(self):
         if self._from_expand:
@@ -1317,9 +1397,20 @@ class Action(JSONLike):
             inp_files = []
             inp_acts = []
             for ifg in self.input_file_generators:
-                cmd = f"<<executable:python>> <<script:{ifg.script}>> $WK_PATH $EAR_ID"
+                exe = "<<executable:python_script>>"
+                args = ["$WK_PATH", "$EAR_ID"]
+                if ifg.script:
+                    script_name = self.get_script_name(ifg.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
                 act_i = self.app.Action(
-                    commands=[app.Command(cmd)],
+                    commands=[
+                        app.Command(executable=exe, arguments=args, variables=variables)
+                    ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + [ifg.get_action_rule()],
@@ -1334,9 +1425,20 @@ class Action(JSONLike):
             out_files = []
             out_acts = []
             for ofp in self.output_file_parsers:
-                cmd = f"<<executable:python>> <<script:{ofp.script}>> $WK_PATH $EAR_ID"
+                exe = "<<executable:python_script>>"
+                args = ["$WK_PATH", "$EAR_ID"]
+                if ofp.script:
+                    script_name = self.get_script_name(ofp.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
                 act_i = self.app.Action(
-                    commands=[app.Command(cmd)],
+                    commands=[
+                        app.Command(executable=exe, arguments=args, variables=variables)
+                    ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules),
@@ -1351,15 +1453,52 @@ class Action(JSONLike):
 
             commands = self.commands
             if self.script:
+                exe = f"<<executable:{self.script_exe}>>"
+                args = []
+                if self.script:
+                    script_name = self.get_script_name(self.script)
+                    variables = {
+                        "script_name": script_name,
+                        "script_name_no_ext": str(Path(script_name).stem),
+                    }
+                else:
+                    variables = {}
+                if "direct" in (self.script_data_in, self.script_data_out):
+                    args.extend(["$WK_PATH", "$EAR_ID"])
+
+                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
+
+                if self.script_data_in:
+                    if self.script_data_in == "json":
+                        args.append(str(self.get_param_dump_file_path_JSON(**fn_args)))
+
+                if self.script_data_out:
+                    if self.script_data_out == "json":
+                        args.append(str(self.get_param_load_file_path_JSON(**fn_args)))
+
+                    elif self.script_data_out == "hdf5":
+                        args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
+
                 commands += [
-                    self.app.Command(
-                        f"<<executable:python>> <<script:{self.script}>> $WK_PATH $EAR_ID"
-                    )
+                    self.app.Command(executable=exe, arguments=args, variables=variables)
                 ]
 
+            # TODO: store script_args? and build command with executable syntax?
+            env__ = """
+                - name: matlab_env
+                  executables:
+                    - label: matlab
+                      instances:
+                        - command: matlab -batch "<<script_no_ext>> <<script_args_single_quotes>>"
+                          num_cores: 1
+                          parallel_mode: null
+            """
             main_act = self.app.Action(
                 commands=commands,
                 script=self.script,
+                script_data_in=self.script_data_in,
+                script_data_out=self.script_data_out,
+                script_exe=self.script_exe,
                 environments=[self.get_commands_action_env()],
                 abortable=self.abortable,
                 rules=main_rules,
@@ -1380,8 +1519,11 @@ class Action(JSONLike):
         # or schema output.
         vars_regex = r"\<\<parameter:(.*?)\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command):
+            for val in re.findall(vars_regex, command.command or ""):
                 params.append(val)
+            for arg in command.arguments or []:
+                for val in re.findall(vars_regex, arg):
+                    params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
 
@@ -1390,8 +1532,11 @@ class Action(JSONLike):
         files = []
         vars_regex = r"\<\<file:(.*?)\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command):
+            for val in re.findall(vars_regex, command.command or ""):
                 files.append(val)
+            for arg in command.arguments or []:
+                for val in re.findall(vars_regex, arg):
+                    files.append(val)
             # TODO: consider stdin?
         return tuple(set(files))
 
