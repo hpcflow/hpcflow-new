@@ -1920,7 +1920,7 @@ class WorkflowTask:
             else:
                 current_value = default
 
-        if parameter and parameter._value_class:
+        if parameter and isinstance(current_value, dict) and parameter._value_class:
             current_value = parameter._value_class(**current_value)
 
         return current_value
