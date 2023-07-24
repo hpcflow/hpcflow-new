@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a66"></a>
+## [v0.2.0a66](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a65...v0.2.0a66) - 2023.07.24
+
+### 🐛 Bug Fixes
+
+* if parameter value is not a dict, don't try to init a ParameterValue class
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a65"></a>
 ## [v0.2.0a65](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a64...v0.2.0a65) - 2023.07.20
 
