@@ -31,9 +31,23 @@ class Shell(ABC):
     def shebang_executable(self) -> List[str]:
         return self.executable
 
+    def get_direct_submit_command(self, js_path) -> List[str]:
+        """Get the command for submitting a non-scheduled jobscript."""
+        return self.executable + [js_path]
+
     @abstractmethod
     def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
         """Get shell and operating system information."""
+
+    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Dict):
+        if deps:
+            return (
+                f'{workflow_app_alias} workflow $WK_PATH_ARG wait "{sub_idx}:'
+                + ",".join(str(i) for i in deps.keys())
+                + '"'
+            )
+        else:
+            return ""
 
     def process_JS_header_args(self, header_args: Dict) -> Dict:
         app_invoc = header_args["app_invoc"][0]

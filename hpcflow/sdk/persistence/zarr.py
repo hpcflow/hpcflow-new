@@ -10,6 +10,8 @@ import warnings
 
 from fsspec.implementations.zip import ZipFileSystem
 import numpy as np
+from rich.console import Console
+
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
     MissingStoreEARError,
@@ -343,10 +345,14 @@ class ZarrPersistentStore(PersistentStore):
         fs,
         fs_path: str,
         replaced_wk: str,
+        ts_fmt: str,
+        ts_name_fmt: str,
         creation_info: Dict,
     ) -> None:
         attrs = {
             "fs_path": fs_path,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
             "template": template_js,
             "template_components": template_components_js,
@@ -507,10 +513,11 @@ class ZarrPersistentStore(PersistentStore):
             attrs
         )  # attrs shouldn't be mutated (TODO: test!)
 
-    def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
+    def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
         with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, attempts_i in sub_attempts.items():
-                attrs["submissions"][sub_idx]["submission_attempts"].extend(attempts_i)
+            for sub_idx, sub_i_parts in sub_parts.items():
+                for dt_str, parts_j in sub_i_parts.items():
+                    attrs["submissions"][sub_idx]["submission_parts"][dt_str] = parts_j
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         arr = self._get_iters_arr(mode="r+")
@@ -593,30 +600,13 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_jobscript_version_info(self, vers_info: Dict):
+    def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_vers_info in vers_info.items():
-                for js_idx, vers_info_i in js_vers_info.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "version_info"
-                    ] = vers_info_i
-
-    def _update_jobscript_submit_time(self, sub_times: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_sub_times in sub_times.items():
-                for js_idx, sub_time_i in js_sub_times.items():
-                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "submit_time"
-                    ] = sub_time_fmt
-
-    def _update_jobscript_job_ID(self, job_IDs: Dict):
-        with self.using_resource("attrs", action="update") as attrs:
-            for sub_idx, js_job_IDs in job_IDs.items():
-                for js_idx, job_ID_i in js_job_IDs.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx][
-                        "scheduler_job_ID"
-                    ] = job_ID_i
+            for sub_idx, all_js_md in js_meta.items():
+                for js_idx, js_meta_i in all_js_md.items():
+                    attrs["submissions"][sub_idx]["jobscripts"][js_idx].update(
+                        **js_meta_i
+                    )
 
     def _append_parameters(self, params: List[ZarrStoreParameter]):
         """Add new persistent parameters."""
@@ -877,11 +867,6 @@ class ZarrPersistentStore(PersistentStore):
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub_idx, sub in subs_dat.items():
                 for js_idx, js in enumerate(sub["jobscripts"]):
-                    if js["submit_time"]:
-                        subs_dat[sub_idx]["jobscripts"][js_idx][
-                            "submit_time"
-                        ] = datetime.strptime(js["submit_time"], self.ts_fmt)
-
                     for key in list(js["task_elements"].keys()):
                         subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
                             int(key)
@@ -987,17 +972,28 @@ class ZarrPersistentStore(PersistentStore):
         base_arr = self._get_parameter_base_array(mode="r")
         return list(range(len(base_arr)))
 
+    def get_ts_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_fmt"]
+
+    def get_ts_name_fmt(self):
+        with self.using_resource("attrs", action="read") as attrs:
+            return attrs["ts_name_fmt"]
+
     def get_creation_info(self):
         with self.using_resource("attrs", action="read") as attrs:
-            return attrs["creation_info"]
+            return copy.deepcopy(attrs["creation_info"])
 
     def get_fs_path(self):
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["fs_path"]
 
-    def to_zip(self):
+    def to_zip(self, log=None):
         # TODO: need to update `fs_path` in the new store (because this used to get
         # `Workflow.name`), but can't seem to open `dst_zarr_store` below:
+        console = Console()
+        status = console.status(f"Zipping workflow {self.workflow.name!r}...")
+        status.start()
         src_zarr_store = self.zarr_store
         new_fs_path = f"{self.workflow.fs_path}.zip"
         zfs, _ = ask_pw_on_auth_exc(
@@ -1008,8 +1004,14 @@ class ZarrPersistentStore(PersistentStore):
             add_pw_to="target_options",
         )
         dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
-        zarr.convenience.copy_store(src_zarr_store, dst_zarr_store)
+        zarr.convenience.copy_store(
+            src_zarr_store,
+            dst_zarr_store,
+            excludes="execute",
+            log=log,
+        )
         del zfs  # ZipFileSystem remains open for instance lifetime
+        status.stop()
         return new_fs_path
 
 

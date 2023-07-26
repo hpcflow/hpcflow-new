@@ -626,11 +626,16 @@ class PersistentStore(ABC):
 
     @property
     def ts_fmt(self) -> str:
-        return r"%Y-%m-%d %H:%M:%S.%f"  # TODO: self.workflow.ts_fmt
+        return self.workflow.ts_fmt
 
     @property
     def has_pending(self):
         return bool(self._pending)
+
+    @property
+    def is_submittable(self):
+        """Does this store support workflow submission?"""
+        return self.fs.__class__.__name__ == "LocalFileSystem"
 
     @staticmethod
     def prepare_test_store_from_spec(task_spec):
@@ -915,10 +920,10 @@ class PersistentStore(ABC):
             self.save()
         return new_ID
 
-    def add_submission_attempt(
-        self, sub_idx: int, submitted_js_idx: List[int], save: bool = True
+    def add_submission_part(
+        self, sub_idx: int, dt_str: str, submitted_js_idx: List[int], save: bool = True
     ):
-        self._pending.add_submission_attempts[sub_idx] = submitted_js_idx
+        self._pending.add_submission_parts[sub_idx][dt_str] = submitted_js_idx
         if save:
             self.save()
 
@@ -957,24 +962,52 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def set_jobscript_version_info(
-        self, sub_idx: int, js_idx: int, vers_info: Dict, save: bool = True
+    def set_jobscript_metadata(
+        self,
+        sub_idx: int,
+        js_idx: int,
+        version_info: Optional[Dict] = None,
+        submit_time: Optional[str] = None,
+        submit_hostname: Optional[str] = None,
+        submit_machine: Optional[str] = None,
+        submit_cmdline: Optional[List[str]] = None,
+        os_name: Optional[str] = None,
+        shell_name: Optional[str] = None,
+        scheduler_name: Optional[str] = None,
+        scheduler_job_ID: Optional[str] = None,
+        process_ID: Optional[int] = None,
+        save: bool = True,
     ):
-        self._pending.set_jobscript_version_info[sub_idx][js_idx] = vers_info
-        if save:
-            self.save()
-
-    def set_jobscript_submit_time(
-        self, sub_idx: int, js_idx: int, submit_time: datetime, save: bool = True
-    ):
-        self._pending.set_jobscript_submit_time[sub_idx][js_idx] = submit_time
-        if save:
-            self.save()
-
-    def set_jobscript_job_ID(
-        self, sub_idx: int, js_idx: int, job_ID: str, save: bool = True
-    ):
-        self._pending.set_jobscript_job_ID[sub_idx][js_idx] = job_ID
+        if version_info:
+            self._pending.set_js_metadata[sub_idx][js_idx]["version_info"] = version_info
+        if submit_time:
+            self._pending.set_js_metadata[sub_idx][js_idx]["submit_time"] = submit_time
+        if submit_hostname:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "submit_hostname"
+            ] = submit_hostname
+        if submit_machine:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "submit_machine"
+            ] = submit_machine
+        if submit_cmdline:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "submit_cmdline"
+            ] = submit_cmdline
+        if os_name:
+            self._pending.set_js_metadata[sub_idx][js_idx]["os_name"] = os_name
+        if shell_name:
+            self._pending.set_js_metadata[sub_idx][js_idx]["shell_name"] = shell_name
+        if scheduler_name:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "scheduler_name"
+            ] = scheduler_name
+        if scheduler_job_ID:
+            self._pending.set_js_metadata[sub_idx][js_idx][
+                "scheduler_job_ID"
+            ] = scheduler_job_ID
+        if process_ID:
+            self._pending.set_js_metadata[sub_idx][js_idx]["process_ID"] = process_ID
         if save:
             self.save()
 

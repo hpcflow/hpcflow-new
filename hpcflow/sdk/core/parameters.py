@@ -764,13 +764,13 @@ class ResourceSpec(JSONLike):
         self._scratch = scratch
         self._num_cores = num_cores
         self._scheduler = scheduler
-        self._shell = shell
+        self._shell = shell.lower() if shell else None
         self._use_job_array = use_job_array
         self._time_limit = time_limit
         self._scheduler_options = scheduler_options
         self._scheduler_args = scheduler_args
         self._shell_args = shell_args
-        self._os_name = os_name
+        self._os_name = os_name.lower() if os_name else None
 
         # assigned by `make_persistent`
         self._workflow = None
@@ -794,7 +794,7 @@ class ResourceSpec(JSONLike):
                 pass
             else:
                 if i_val is not None:
-                    i_str = f", {i}={i_val}"
+                    i_str = f", {i}={i_val!r}"
 
             param_strs += i_str
 

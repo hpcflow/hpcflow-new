@@ -54,10 +54,8 @@ class JSONPersistentStore(PersistentStore):
         commit_loops=(_meta_res,),
         commit_loop_num_iters=(_meta_res,),
         commit_submissions=(_subs_res,),
-        commit_submission_attempts=(_subs_res,),
-        commit_jobscript_version_info=(_subs_res,),
-        commit_jobscript_submit_time=(_subs_res,),
-        commit_jobscript_job_ID=(_subs_res,),
+        commit_submission_parts=(_subs_res,),
+        commit_js_metadata=(_subs_res,),
         commit_elem_IDs=(_meta_res,),
         commit_elements=(_meta_res,),
         commit_elem_iter_IDs=(_meta_res,),
@@ -124,6 +122,8 @@ class JSONPersistentStore(PersistentStore):
         fs_path: str,
         replaced_wk: str,
         creation_info: Dict,
+        ts_fmt: str,
+        ts_name_fmt: str,
     ) -> None:
         fs.mkdir(wk_path)
         submissions = []
@@ -133,6 +133,8 @@ class JSONPersistentStore(PersistentStore):
         }
         metadata = {
             "fs_path": fs_path,
+            "ts_fmt": ts_fmt,
+            "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
             "template_components": template_components_js,
             "template": template_js,
@@ -203,10 +205,11 @@ class JSONPersistentStore(PersistentStore):
                 md["iters"][iter_ID]["EAR_IDs"][act_idx] = []
             md["iters"][iter_ID]["EAR_IDs"][act_idx].extend(EAR_IDs)
 
-    def _append_submission_attempts(self, sub_attempts: Dict[int, List[int]]):
+    def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
         with self.using_resource("submissions", action="update") as subs_res:
-            for sub_idx, attempts_i in sub_attempts.items():
-                subs_res[sub_idx]["submission_attempts"].extend(attempts_i)
+            for sub_idx, sub_i_parts in sub_parts.items():
+                for dt_str, parts_j in sub_i_parts.items():
+                    subs_res[sub_idx]["submission_parts"][dt_str] = parts_j
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         with self.using_resource("metadata", action="update") as md:
@@ -242,24 +245,11 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["runs"][EAR_id]["skip"] = True
 
-    def _update_jobscript_version_info(self, vers_info: Dict):
+    def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_vers_info in vers_info.items():
-                for js_idx, vers_info_i in js_vers_info.items():
-                    sub_res[sub_idx]["jobscripts"][js_idx]["version_info"] = vers_info_i
-
-    def _update_jobscript_submit_time(self, sub_times: Dict):
-        with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_sub_times in sub_times.items():
-                for js_idx, sub_time_i in js_sub_times.items():
-                    sub_time_fmt = sub_time_i.strftime(self.ts_fmt)
-                    sub_res[sub_idx]["jobscripts"][js_idx]["submit_time"] = sub_time_fmt
-
-    def _update_jobscript_job_ID(self, job_IDs: Dict):
-        with self.using_resource("submissions", action="update") as sub_res:
-            for sub_idx, js_job_IDs in job_IDs.items():
-                for js_idx, job_ID_i in js_job_IDs.items():
-                    sub_res[sub_idx]["jobscripts"][js_idx]["scheduler_job_ID"] = job_ID_i
+            for sub_idx, all_js_md in js_meta.items():
+                for js_idx, js_meta_i in all_js_md.items():
+                    sub_res[sub_idx]["jobscripts"][js_idx].update(**js_meta_i)
 
     def _append_parameters(self, new_params: List[StoreParameter]):
         with self.using_resource("parameters", "update") as params:
@@ -405,11 +395,6 @@ class JSONPersistentStore(PersistentStore):
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub_idx, sub in subs_dat.items():
                 for js_idx, js in enumerate(sub["jobscripts"]):
-                    if js["submit_time"]:
-                        subs_dat[sub_idx]["jobscripts"][js_idx][
-                            "submit_time"
-                        ] = datetime.strptime(js["submit_time"], self.ts_fmt)
-
                     for key in list(js["task_elements"].keys()):
                         subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
                             int(key)
@@ -483,9 +468,17 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("parameters", "read") as params:
             return list(int(i) for i in params["data"].keys())
 
+    def get_ts_fmt(self):
+        with self.using_resource("metadata", action="read") as md:
+            return md["ts_fmt"]
+
+    def get_ts_name_fmt(self):
+        with self.using_resource("metadata", action="read") as md:
+            return md["ts_name_fmt"]
+
     def get_creation_info(self):
         with self.using_resource("metadata", action="read") as md:
-            return md["creation_info"]
+            return copy.deepcopy(md["creation_info"])
 
     def get_fs_path(self):
         with self.using_resource("metadata", action="read") as md:

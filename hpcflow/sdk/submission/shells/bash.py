@@ -24,10 +24,10 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
-            --with-config log_file_path "`pwd`/{app_package_name}.log"\\
-            --config-dir "{config_dir}"\\
-            --config-invocation-key "{config_invoc_key}"\\
-            "$@"
+                --with-config log_file_path "`pwd`/{app_package_name}.log"\\
+                --config-dir "{config_dir}"\\
+                --config-invocation-key "{config_invoc_key}"\\
+                "$@"
         )
         }}
 
@@ -52,6 +52,7 @@ class Bash(Shell):
         {shebang}
 
         {header}
+        {wait_command}
     """
     )
     JS_MAIN = dedent(
@@ -61,28 +62,43 @@ class Bash(Shell):
 
         for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
-  
+
           EAR_ID="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_EAR_IDs)"
           if [ "$EAR_ID" = "-1" ]; then
               continue
           fi
-  
+
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd $WK_PATH/$run_dir
+          app_stream_file="`pwd`/{app_package_name}_std.txt"
 
-          skip=`{workflow_app_alias} internal workflow $WK_PATH_ARG get-ear-skipped $EAR_ID`
-          if [ "$skip" = "1" ]; then
-              continue
+          skip=`{workflow_app_alias} internal workflow $WK_PATH_ARG get-ear-skipped $EAR_ID 2>> $app_stream_file`
+          exc_sk=$?
+
+          if [ $exc_sk -eq 0 ]; then
+
+              if [ "$skip" = "1" ]; then
+                  continue
+              fi
+
+              {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> $app_stream_file 2>&1
+              exc_wc=$?
+
+              {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $EAR_ID >> $app_stream_file 2>&1
+              exc_se=$?
+
+              if [ $exc_wc -eq 0 ] && [ $exc_se -eq 0 ]; then
+                  . {commands_file_name}
+                  exit_code=$?
+              else
+                  exit_code=$([ $exc_wc -ne 0 ] && echo "$exc_wc" || echo "$exc_se")
+              fi
+
+          else
+              exit_code=$exc_sk
           fi
-  
-          {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $EAR_ID
 
-          . {commands_file_name}
-          
-          exit_code=$?
-
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $EAR_ID $exit_code
+          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $EAR_ID $exit_code >> $app_stream_file 2>&1
 
         done
     """
@@ -155,7 +171,7 @@ class Bash(Shell):
         return (
             f"{workflow_app_alias}"
             f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" {EAR_ID}"
+            f" {EAR_ID} >> $app_stream_file 2>&1"
             f"\n"
         )
 
@@ -174,9 +190,9 @@ class Bash(Shell):
                 {commands}) &
 
                 pid=$!
+                abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
                 while true
                 do
-                    abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
                     is_abort=`sed "$(($EAR_ID + 1))q;d" $abort_file`
                     ps -p $pid > /dev/null
                     if [ $? == 1 ]; then
@@ -184,6 +200,7 @@ class Bash(Shell):
                         exitcode=$?
                         break
                     elif [ "$is_abort" = "1" ]; then
+                        echo "Abort instruction received; stopping commands..." >> $app_stream_file
                         kill $pid
                         wait $pid 2>/dev/null
                         exitcode={abort_exit_code}

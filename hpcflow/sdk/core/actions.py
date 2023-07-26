@@ -13,6 +13,7 @@ from valida.rules import Rule
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import MissingCompatibleActionEnvironment
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
@@ -38,13 +39,79 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
-class EARSubmissionStatus(enum.Enum):
-    PENDING = 0  # Not yet associated with a submission
-    PREPARED = 1  # Associated with a prepared submission that is not yet submitted
-    SUBMITTED = 2  # Submitted for execution
-    RUNNING = 3  # Executing
-    COMPLETE = 4  # Finished executing
-    SKIPPED = 5  # Not attempted due to a failure of an upstream EAR on which this depends
+class EARStatus(enum.Enum):
+    """Enumeration of all possible EAR statuses, and their associated status colour."""
+
+    def __new__(cls, value, symbol, colour, doc=None):
+        member = object.__new__(cls)
+        member._value_ = value
+        member.colour = colour
+        member.symbol = symbol
+        member.__doc__ = doc
+        return member
+
+    pending = (
+        0,
+        "■",
+        "grey46",
+        "Not yet associated with a submission.",
+    )
+    prepared = (
+        1,
+        "■",
+        "grey46",
+        "Associated with a prepared submission that is not yet submitted.",
+    )
+    submitted = (
+        2,
+        "■",
+        "grey46",
+        "Submitted for execution.",
+    )
+    running = (
+        3,
+        "■",
+        "dodger_blue1",
+        "Executing now.",
+    )
+    skipped = (
+        4,
+        "■",
+        "dark_orange",
+        "Not attempted due to a failure of an upstream action on which this depends.",
+    )
+    aborted = (
+        5,
+        "■",
+        "deep_pink4",
+        "Aborted by the user; downstream actions will be attempted.",
+    )
+    success = (
+        6,
+        "■",
+        "green3",
+        "Probably exited successfully.",
+    )
+    error = (
+        7,
+        "■",
+        "red3",
+        "Probably failed.",
+    )
+
+    @classmethod
+    def get_non_running_submitted_states(cls):
+        """Return the set of all non-running states, excluding those before submission."""
+        return {
+            cls.skipped,
+            cls.aborted,
+            cls.success,
+            cls.error,
+        }
+
+    @property
+    def rich_repr(self):
+        return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
 class ElementActionRun:
@@ -203,36 +270,36 @@ class ElementActionRun:
         return self.element_action.task
 
     @property
-    def submission_status(self):
-        """Return the submission status of this EAR.
-
-        Note: the submission status does not provide any information about whether the EAR
-        execution itself can be considered successful or not.
-
-        """
+    def status(self):
+        """Return the state of this EAR."""
 
         if self.skip:
-            return EARSubmissionStatus.SKIPPED
+            return EARStatus.skipped
 
         elif self.end_time is not None:
-            return EARSubmissionStatus.COMPLETE
+            if self.exit_code == 0:
+                return EARStatus.success
+            elif self.action.abortable and self.exit_code == ABORT_EXIT_CODE:
+                return EARStatus.aborted
+            else:
+                return EARStatus.error
 
         elif self.start_time is not None:
-            return EARSubmissionStatus.RUNNING
+            return EARStatus.running
 
         elif self.submission_idx is not None:
             wk_sub_stat = self.workflow.submissions[self.submission_idx].status
 
             if wk_sub_stat.name == "PENDING":
-                return EARSubmissionStatus.PREPARED
+                return EARStatus.prepared
 
             elif wk_sub_stat.name == "SUBMITTED":
-                return EARSubmissionStatus.SUBMITTED
+                return EARStatus.submitted
 
             else:
                 RuntimeError(f"Workflow submission status not understood: {wk_sub_stat}.")
 
-        return EARSubmissionStatus.PENDING
+        return EARStatus.pending
 
     def get_parameter_names(self, prefix):
         return self.element_action.get_parameter_names(prefix)
@@ -514,7 +581,10 @@ class ElementActionRun:
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
-                out = executable.instances[0].command  # TODO: depends on resources
+                filterable = ("num_cores", "parallel_mode")
+                filter_exec = {j: self.get_resources().get(j) for j in filterable}
+                exec_cmd = executable.filter_instances(**filter_exec)[0].command
+                out = exec_cmd.replace("<<num_cores>>", str(self.resources.num_cores))
             elif typ == "script":
                 out = self.action.get_script_path(val)
             return out

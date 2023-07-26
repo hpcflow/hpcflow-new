@@ -1,4 +1,96 @@
 
+<a name="v0.2.0a62"></a>
+## [v0.2.0a62](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a61...v0.2.0a62) - 2023.07.17
+
+### 🐛 Bug Fixes
+
+* remove TODO
+
+### 👷 Build changes
+
+* merge develop into working
+
+
+<a name="v0.2.0a61"></a>
+## [v0.2.0a61](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a60...v0.2.0a61) - 2023.07.17
+
+### ♻ Code Refactoring
+
+* log EAR states in Jobscript.get_active_states
+* log when running subprocess command with SGE/slurm
+
+### ✨ Features
+
+* add show --legend option
+* add path option to open workflow command
+
+### 🐛 Bug Fixes
+
+* Slurm get_job_state_info log instead of print; add TODO
+* SGE get_job_statuses when no stdout
+* correctly raise error in _resolve_workflow_reference if not ID nor path
+* sorting of inactive non-deleted submissions in get_known_submissions
+* Slurm cancel_jobs command; no --me
+* EARStatus check in generate_EAR_resource_map
+* EARStatus enum
+* App.show table EAR status colours
+* only check JS parallelism on Submission.submit, so we can load zip workflows
+* EARStatus enum sharing the same value
+* SGE qstat wrong user switch; -U doesn't show pending
+* cancel_jobs arg name in SGE/slurm
+* consistent use of user data dir
+* use machine rather than hostname in userdatadir
+* jobscript path in scheduler submit command
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a60"></a>
+## [v0.2.0a60](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a59...v0.2.0a60) - 2023.07.13
+
+### ✨ Features
+
+* add wait option to workflow submission
+
+### 🐛 Bug Fixes
+
+* use specified number of cores
+* select the correct executable instance
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a59"></a>
+## [v0.2.0a59](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a58...v0.2.0a59) - 2023.07.04
+
+### ♻ Code Refactoring
+
+* move abort_file variable out of while loop
+* move ts_fmt/ts_name_fmt out of creation_info
+
+### ✨ Features
+
+* check exit codes of and redirect stdout/err of JS app invocations
+* submit direct jobscripts asynchronously
+* add ts_fmt prop to Workflow
+
+### 🐛 Bug Fixes
+
+* don't mutate creation_info
+* set jobscript os/shell/scheduler persistently at submit time
+* ResourceSpec repr
+* lower-case shell/os_name in ResourceSpec init
+* method _append_submission_attempts
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a58"></a>
 ## [v0.2.0a58](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a57...v0.2.0a58) - 2023.06.30
 
