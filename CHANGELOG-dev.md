@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a67"></a>
+## [v0.2.0a67](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a66...v0.2.0a67) - 2023.07.26
+
+### 🐛 Bug Fixes
+
+* Python version upper bound
+* loosened upper bound for python version in pyproject.toml
+* updates lock file to match python version
+* .bak file not found in windows,
+* makes sed command work with both GNU and BSD/macOS Sed
+* Edits python version upper bound to allow 3.12-dev test
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a66"></a>
 ## [v0.2.0a66](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a65...v0.2.0a66) - 2023.07.24
 
