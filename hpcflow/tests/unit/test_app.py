@@ -63,7 +63,6 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                         "group": None,
                         "where": None,
                         "parameter": f"hash:{p1_hash}",
-                        "default_value": None,
                         "propagation_mode": "IMPLICIT",
                     }
                 ],
@@ -75,6 +74,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                         "commands": [
                             {
                                 "command": "<<parameter:p1>>",
+                                "executable": None,
                                 "arguments": None,
                                 "stdout": None,
                                 "stderr": None,

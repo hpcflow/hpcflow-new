@@ -184,6 +184,10 @@ class SchemaInput(SchemaParameter):
     where: Optional[app.ElementFilter] = None
 
     def __post_init__(self):
+        if not isinstance(self.propagation_mode, ParameterPropagationMode):
+            self.propagation_mode = getattr(
+                ParameterPropagationMode, self.propagation_mode.upper()
+            )
         super().__post_init__()
         self._set_parent_refs()
 
@@ -207,6 +211,18 @@ class SchemaInput(SchemaParameter):
             f"{default_str}{group_str}{where_str}"
             f")"
         )
+
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        # we assume if default_value is specified, it is only the `value` part of the
+        # `InputValue` JSON:
+        if "default_value" in json_like:
+            json_like["default_value"] = {
+                "parameter": json_like["parameter"],
+                "value": json_like["default_value"],
+            }
+        obj = super().from_json_like(json_like, shared_data)
+        return obj
 
     def __deepcopy__(self, memo):
         kwargs = {
@@ -1133,7 +1149,7 @@ class InputSource(JSONLike):
             - import.[import_ref]
 
         """
-        parts = str_defn.lower().split(".")
+        parts = str_defn.split(".")
         source_type = cls._validate_source_type(parts[0])
         task_ref = None
         task_source_type = None

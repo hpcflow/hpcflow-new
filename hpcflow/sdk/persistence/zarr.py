@@ -715,6 +715,22 @@ class ZarrPersistentStore(PersistentStore):
             self._param_data_arr_grp_name(parameter_idx)
         )
 
+    def _get_array_group_and_dataset(self, mode: str, param_id: int, data_path):
+        base_dat = self._get_parameter_base_array(mode="r")[param_id]
+        arr_idx = None
+        for arr_dat_path, arr_idx in base_dat["type_lookup"]["arrays"]:
+            if arr_dat_path == data_path:
+                break
+        if arr_idx is None:
+            raise ValueError(
+                f"Could not find array path {data_path} in the base data for parameter "
+                f"ID {param_id}."
+            )
+        group = self._get_parameter_user_array_group(mode=mode).get(
+            f"{self._param_data_arr_grp_name(param_id)}"
+        )
+        return group, f"arr_{arr_idx}"
+
     def _get_metadata_group(self, mode: str = "r") -> zarr.Group:
         return self._get_root_group(mode=mode).get("metadata")
 
