@@ -930,19 +930,6 @@ class Task(JSONLike):
         )
 
     @property
-    def all_sequences_normalised_paths(self):
-        return [j.normalised_path for i in self.element_sets for j in i.sequences]
-
-    @property
-    def all_used_sequences_normalised_paths(self):
-        return [
-            j.normalised_path
-            for i in self.element_sets
-            for j in i.sequences
-            if not j.is_unused
-        ]
-
-    @property
     def universal_input_types(self):
         """Get input types that are associated with all schemas"""
 
@@ -1183,7 +1170,6 @@ class WorkflowTask:
                         if key in sequence_idx:
                             sequence_idx.pop(key)
                             seq = element_set.get_sequence_by_path(key)
-                            seq.is_unused = True
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     grp_idx = [schema_input.default_value._value_group_idx]
@@ -1866,6 +1852,7 @@ class WorkflowTask:
 
         path = [] if not path else path.split(".")
         parameter = self._path_to_parameter(path)
+        source = None
         current_value = None
         is_cur_val_assigned = False
         for path_i, data_idx_i in data_index.items():
@@ -1893,6 +1880,11 @@ class WorkflowTask:
                 data = data.as_posix()
             else:
                 data = param.data
+                if parameter and len(path_i) == 2:
+                    # retrieve the source if this is a non-sub parameter, so we can, in
+                    # the case that there is an associated `ParameterValue` class, get the
+                    # class method that should be invoked to initialise the object:
+                    source = param.source
             if raise_on_unset and not param.is_set:
                 raise UnsetParameterDataError(
                     f"Element data path {path!r} resolves to unset data for (at least) "
@@ -1921,7 +1913,12 @@ class WorkflowTask:
                 current_value = default
 
         if parameter and isinstance(current_value, dict) and parameter._value_class:
-            current_value = parameter._value_class(**current_value)
+            method_name = source["value_class_method"]
+            if method_name:
+                method = getattr(parameter._value_class, method_name)
+            else:
+                method = parameter._value_class
+            current_value = method(**current_value)
 
         return current_value
 

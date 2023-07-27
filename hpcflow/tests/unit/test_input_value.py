@@ -66,25 +66,25 @@ def test_resources_spec_get_param_path_scope_with_no_kwargs():
     assert rs1.normalised_path == "resources.input_file_generator"
 
 
-# def test_raise_on_duplicate_input_value_sequence_address(param_p1):
-#     with pytest.raises(InputValueDuplicateSequenceAddress):
-#         hf.InputValue(
-#             parameter=param_p1,
-#             value={"A": 1},
-#             sequences=[
-#                 hf.ValueSequence(values=[1, 2, 3], path=("A",), nesting_order=0),
-#                 hf.ValueSequence(values=[4, 5, 6], path=("A",), nesting_order=0),
-#             ],
-#         )
-
-#     s1 = hf.TaskSchema("t1", inputs=[param_p1], actions=[])
-#     t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue(param_p1, value=101)])
+def test_input_value_from_json_like_class_method_attribute_is_set():
+    parameter_typ = "p1"
+    cls_method = "from_data"
+    json_like = {"parameter": f"{parameter_typ}::{cls_method}", "value": 101}
+    inp_val = hf.InputValue.from_json_like(json_like, shared_data=hf.template_components)
+    assert inp_val.parameter.typ == parameter_typ
+    assert inp_val.value_class_method == cls_method
 
 
-# def test_raise_on_duplicate_input_value_sequence_address_empty():
-#     p1 = hf.Parameter("p1")
-#     with pytest.raises(InputValueDuplicateSequenceAddress):
-#         hf.InputValue(
-#             parameter=p1,
-#             sequences=[hf.ValueSequence(values=[1, 2, 3]), hf.ValueSequence(values=[4, 5, 6])],
-#         )
+def test_value_sequence_from_json_like_class_method_attribute_is_set():
+    parameter_typ = "p1"
+    cls_method = "from_data"
+    json_like = {
+        "path": f"inputs.{parameter_typ}::{cls_method}",
+        "values": [101],
+        "nesting_order": 0,
+    }
+
+    val_seq = hf.ValueSequence.from_json_like(
+        json_like, shared_data=hf.template_components
+    )
+    assert val_seq.value_class_method == cls_method
