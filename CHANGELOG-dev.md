@@ -1,4 +1,13 @@
 
+<a name="v0.2.0a68"></a>
+## [v0.2.0a68](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a67...v0.2.0a68) - 2023.07.27
+
+### 👷 Build changes
+
+* sync-updates GH Actions workflow templates
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a67"></a>
 ## [v0.2.0a67](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a66...v0.2.0a67) - 2023.07.26
 
