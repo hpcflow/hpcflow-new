@@ -1548,14 +1548,6 @@ class WorkflowTask:
         elem_IDs = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
-            # elements.append(
-            #     {
-            #         "iterations_idx": [self.num_elements + elem_idx],
-            #         "es_idx": self.num_element_sets - 1,
-            #         "seq_idx": ,
-            #         "src_idx": ,
-            #     }
-            # )
             elem_ID_i = self.workflow._store.add_element(
                 task_ID=self.insert_ID,
                 es_idx=self.num_element_sets - 1,
@@ -1570,27 +1562,7 @@ class WorkflowTask:
             iter_IDs.append(iter_ID_i)
             elem_IDs.append(elem_ID_i)
 
-            # element_iterations.append(
-            #     {
-            #         "global_idx": self.workflow.num_element_iterations + elem_idx,
-            #         "data_idx": data_idx,
-            #         "EARs_initialised": False,
-            #         "actions": {},
-            #         "schema_parameters": list(schema_params),
-            #         "loop_idx": {},
-            #     }
-            # )
-
-        # self.workflow._store.add_elements(
-        #     self.index,
-        #     self.insert_ID,
-        #     elements,
-        #     element_iterations,
-        # )
         self._pending_element_IDs += elem_IDs
-        # self._pending_num_elements += len(element_data_idx)
-        # self._pending_num_element_iterations += len(element_data_idx)
-
         self.initialise_EARs()
 
         return iter_IDs
