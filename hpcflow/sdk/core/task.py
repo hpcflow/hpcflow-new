@@ -1519,10 +1519,6 @@ class WorkflowTask:
 
         element_inp_data_idx = self.resolve_element_data_indices(multiplicities)
 
-        # global_element_iter_idx_range = [
-        #     self.workflow.num_element_iterations,
-        #     self.workflow.num_element_iterations + len(element_inp_data_idx),
-        # ]
         local_element_idx_range = [
             self.num_elements,
             self.num_elements + len(element_inp_data_idx),
