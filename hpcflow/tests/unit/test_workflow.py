@@ -1,4 +1,5 @@
 import copy
+import os
 from textwrap import dedent
 import pytest
 
@@ -9,6 +10,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowNotFoundError,
 )
 from hpcflow.sdk.core.test_utils import make_workflow
+from ruamel.yaml import YAML
 
 
 def modify_workflow_metadata_on_disk(workflow):
@@ -116,6 +118,69 @@ def workflow_w1(null_config, tmp_path, schema_s3, param_p1):
     t1 = hf.Task(schemas=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1])
     return hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+@pytest.fixture
+def wkt_yml():
+    return dedent(
+        """
+        name: simple_workflow
+        tasks:
+        - schemas: [dummy_task_1]
+          element_sets:
+          - inputs:
+              p2: 201
+              p5: 501
+            sequences:
+            - path: inputs.p1
+              values: [101, 102]
+              nesting_order: 0
+            resources:
+              any:
+                num_cores: 8
+    """
+    )
+
+
+@pytest.fixture
+def wkt_json():
+    return dedent(
+        """
+            {
+                "name": "simple_workflow",
+                "tasks": [
+                    {
+                        "schemas": [
+                            "dummy_task_1"
+                        ],
+                        "element_sets": [
+                            {
+                                "inputs": {
+                                    "p2": 201,
+                                    "p5": 501
+                                },
+                                "sequences": [
+                                    {
+                                        "path": "inputs.p1",
+                                        "values": [
+                                            101,
+                                            102
+                                        ],
+                                        "nesting_order": 0
+                                    }
+                                ],
+                                "resources": {
+                                    "any": {
+                                        "num_cores": 8
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+    """
+    )
 
 
 def test_make_empty_workflow(empty_workflow):
@@ -232,6 +297,146 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
     assert wkt_1 == wkt_2
 
 
+def test_WorkflowTemplate_to_YAML_string_format(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_string = wkt.to_yaml_string()
+    assert wkt_yml == "\n" + yaml_string
+
+
+def test_WorkflowTemplate_to_YAML_string_functional(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_string = wkt.to_yaml_string()
+    wkt_2 = hf.WorkflowTemplate.from_YAML_string(yaml_string)
+    assert wkt == wkt_2
+
+
+def test_WorkflowTemplate_to_YAML_file_functional(null_config, wkt_yml):
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+    yaml_file_path = "to_yaml_test.yml"
+    wkt.to_yaml_file(yaml_file_path)
+    saved_yaml = ""
+    with open(yaml_file_path, "r") as output_file:
+        saved_yaml = output_file.read()
+    os.remove(yaml_file_path)
+    wkt_3 = hf.WorkflowTemplate.from_YAML_string(saved_yaml)
+    assert wkt == wkt_3
+
+
+def test_WorkflowTemplate_to_YAML_complex(null_config):
+    wkt_yml_name = dedent(
+        """
+    name: test_wk
+        """
+    )
+    wkt_yml_command_files = dedent(
+        """
+    command_files:
+      - label: file1
+        name:
+          name: file1.txt
+      - label: file2
+        name:
+          name: file2.txt
+      - label: file3
+        name:
+          name: file3.txt
+        """
+    )
+    wkt_yml_task_schemas = dedent(
+        """
+    task_schemas:
+      - objective: t1
+        inputs:
+          - parameter: p1
+          - parameter: p2
+        outputs:
+          - parameter: p3
+        actions:
+          - environments:
+              - scope:
+                  type: any
+                environment: null_env
+            commands:
+              - command: doSomething < <<input_file:file1>> <<parameter:p1>> --out <<output_file:file2>>
+            input_file_generators:
+              file1:
+                from_inputs: [p1, p2]
+            output_file_parsers:
+              p3:
+                from_files: [file2]
+      - objective: t2
+        inputs:
+          - parameter: p2
+          - parameter: p3
+          - parameter: p4
+        outputs:
+          - parameter: p4
+        actions:
+          - environments:
+              - scope:
+                  type: any
+                environment: null_env
+            commands:
+              - command: doSomething2 <<parameter:p2>> <<parameter:p3>> <<parameter:p4>> --out <<output_file:file3>>
+            output_file_parsers:
+              p4:
+                from_files: [file3]
+    """
+    )
+    wkt_yml_tasks = dedent(
+        """
+    tasks:
+      - schemas: [t1]
+        element_sets:
+          - inputs:
+              p1: 101
+            input_files:
+              - file: file1
+                path: file1.txt
+          - inputs:
+              p2: 201
+            sequences:
+              - path: inputs.p1
+                values: [101, 102]
+                nesting_order: 0
+              - path: inputs.p2.b
+                values: [201]
+                nesting_order: 1
+            resources:
+              any:
+                num_cores: 8
+              processing:
+                num_cores: 1
+              input_file_generator[file=file1]:
+                num_cores: 2
+      - schemas: [t2]
+        inputs:
+          p4: [1, 2, 3]
+      """
+    )
+
+    wkt_yml = wkt_yml_name + wkt_yml_command_files + wkt_yml_task_schemas + wkt_yml_tasks
+    wkt_1 = hf.WorkflowTemplate.from_YAML_string(wkt_yml)
+
+    yaml_file_path = "to_yaml_test.yml"
+    wkt_1.to_yaml_file(yaml_file_path)
+
+    saved_yaml = ""
+    with open(yaml_file_path, "r") as output_file:
+        saved_yaml = output_file.read()
+        # Command_files and task_schemas currently not suported - inserting manually
+        saved_yaml = (
+            wkt_yml_name
+            + wkt_yml_command_files
+            + wkt_yml_task_schemas
+            + saved_yaml.replace(wkt_yml_name.strip("\n"), "")
+        )
+    os.remove(yaml_file_path)
+    wkt_2 = hf.WorkflowTemplate.from_YAML_string(saved_yaml)
+
+    assert wkt_1 == wkt_2
+
+
 def test_store_has_pending_during_add_task(workflow_w1, schema_s2, param_p3):
     t2 = hf.Task(schemas=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
     with workflow_w1.batch_update():
@@ -294,3 +499,28 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
     """
     )
     hf.WorkflowTemplate.from_JSON_string(wkt_json)
+
+
+def test_WorkflowTemplate_to_JSON_string_format(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_string = wkt.to_json_string()
+    assert wkt_json == "\n" + json_string + "\n"
+
+
+def test_WorkflowTemplate_to_JSON_string_functional(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_string = wkt.to_json_string()
+    wkt_2 = hf.WorkflowTemplate.from_JSON_string(json_string)
+    assert wkt == wkt_2
+
+
+def test_WorkflowTemplate_to_JSON_file_functional(null_config, wkt_json):
+    wkt = hf.WorkflowTemplate.from_JSON_string(wkt_json)
+    json_file_path = "to_json_test.json"
+    wkt.to_json_file(json_file_path)
+    saved_json = ""
+    with open(json_file_path, "r") as output_file:
+        saved_json = output_file.read()
+    os.remove(json_file_path)
+    wkt_3 = hf.WorkflowTemplate.from_YAML_string(saved_json)
+    assert wkt == wkt_3

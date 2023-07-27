@@ -506,6 +506,13 @@ class InputFile(_FileContentsSpecifier):
         dct = super().to_dict()
         return dct
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+        if self.to_dict() == other.to_dict():
+            return True
+        return False
+
     def _get_members(self, ensure_contents=False, use_file_label=False):
         out = super()._get_members(ensure_contents)
         if use_file_label:
