@@ -1,5 +1,8 @@
 import copy
+from dataclasses import dataclass
 from textwrap import dedent
+from typing import Optional
+
 import pytest
 
 from hpcflow.app import app as hf
@@ -8,7 +11,33 @@ from hpcflow.sdk.core.errors import (
     WorkflowBatchUpdateFailedError,
     WorkflowNotFoundError,
 )
+from hpcflow.sdk.core.parameters import ParameterValue
 from hpcflow.sdk.core.test_utils import make_workflow
+
+
+@dataclass
+class P1(ParameterValue):
+    _typ = "p1"
+
+    a: int
+    d: Optional[int] = None
+
+    @classmethod
+    def from_data(cls, b, c):
+        return cls(a=b + c)
+
+
+p1 = hf.Parameter("p1")
+s1 = hf.TaskSchema(
+    objective="t1",
+    inputs=[hf.SchemaInput(parameter=p1)],
+    actions=[
+        hf.Action(
+            environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+            commands=[hf.Command("Write-Output '<<parameter:p1>>'")],
+        )
+    ],
+)
 
 
 def modify_workflow_metadata_on_disk(workflow):
@@ -294,3 +323,258 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
     """
     )
     hf.WorkflowTemplate.from_JSON_string(wkt_json)
+
+
+def test_equivalent_element_input_parameter_value_class_and_kwargs():
+    a_value = 101
+    t1_1 = hf.Task(
+        schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=P1(a=a_value))]
+    )
+    t1_2 = hf.Task(
+        schemas=[s1], inputs=[hf.InputValue(parameter=p1, value={"a": a_value})]
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    assert (
+        wk.tasks.t1_1.elements[0].inputs.p1.value
+        == wk.tasks.t1_2.elements[0].inputs.p1.value
+    )
+
+
+def test_equivalent_element_input_parameter_value_class_method_and_kwargs():
+    b_val = 50
+    c_val = 51
+    expected_a_val = b_val + c_val
+    t1_1 = hf.Task(
+        schemas=[s1],
+        inputs=[hf.InputValue(parameter=p1, value=P1.from_data(b=b_val, c=c_val))],
+    )
+    t1_2 = hf.Task(
+        schemas=[s1],
+        inputs=[
+            hf.InputValue(
+                parameter=p1,
+                value={"b": b_val, "c": c_val},
+                value_class_method="from_data",
+            )
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    assert wk.tasks.t1_1.elements[0].inputs.p1.value.a == expected_a_val
+    assert (
+        wk.tasks.t1_1.elements[0].inputs.p1.value
+        == wk.tasks.t1_2.elements[0].inputs.p1.value
+    )
+
+
+def test_input_value_class_expected_value():
+    a_value = 101
+    t1_value_exp = P1(a=a_value)
+    t2_value_exp = {"a": a_value}
+    t1_1 = hf.Task(schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=t1_value_exp)])
+    t1_2 = hf.Task(schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=t2_value_exp)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    value_1 = wk.tasks.t1_1.template.element_sets[0].inputs[0].value
+    value_2 = wk.tasks.t1_2.template.element_sets[0].inputs[0].value
+    assert value_1 == t1_value_exp
+    assert value_2 == t2_value_exp
+
+
+def test_input_value_class_method_expected_value():
+    b_val = 50
+    c_val = 51
+    t1_value_exp = P1.from_data(b=b_val, c=c_val)
+    t2_value_exp = {"b": b_val, "c": c_val}
+    t1_1 = hf.Task(schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=t1_value_exp)])
+    t1_2 = hf.Task(
+        schemas=[s1],
+        inputs=[
+            hf.InputValue(
+                parameter=p1,
+                value=t2_value_exp,
+                value_class_method="from_data",
+            )
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    value_1 = wk.tasks.t1_1.template.element_sets[0].inputs[0].value
+    value_2 = wk.tasks.t1_2.template.element_sets[0].inputs[0].value
+    assert value_1 == t1_value_exp
+    assert value_2 == t2_value_exp
+
+
+def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs():
+    data = {"a": 101}
+    obj = P1(**data)
+    t1_1 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+    )
+    t1_2 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[data], nesting_order=0)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
+    val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
+    assert val_1 == val_2 == obj
+
+
+def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwargs():
+    data = {"b": 50, "c": 51}
+    obj = P1.from_data(**data)
+    t1_1 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+    )
+    t1_2 = hf.Task(
+        schemas=[s1],
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[data],
+                value_class_method="from_data",
+                nesting_order=0,
+            )
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
+    val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
+    assert val_1 == val_2 == obj
+
+
+def test_sequence_value_class_expected_value():
+    data = {"a": 101}
+    obj = P1(**data)
+    t1_1 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+    )
+    t1_2 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[data], nesting_order=0)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    value_1 = wk.tasks.t1_1.template.element_sets[0].sequences[0].values[0]
+    value_2 = wk.tasks.t1_2.template.element_sets[0].sequences[0].values[0]
+    assert value_1 == obj
+    assert value_2 == data
+
+
+def test_sequence_value_class_method_expected_value():
+    data = {"b": 50, "c": 51}
+    obj = P1.from_data(**data)
+    t1_1 = hf.Task(
+        schemas=[s1],
+        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+    )
+    t1_2 = hf.Task(
+        schemas=[s1],
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[data],
+                nesting_order=0,
+                value_class_method="from_data",
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1_1, t1_2],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    value_1 = wk.tasks.t1_1.template.element_sets[0].sequences[0].values[0]
+    value_2 = wk.tasks.t1_2.template.element_sets[0].sequences[0].values[0]
+    assert value_1 == obj
+    assert value_2 == data
+
+
+def test_expected_element_input_parameter_value_class_merge_sequence():
+    a_val = 101
+    d_val = 201
+    obj_exp = P1(a=a_val, d=d_val)
+
+    t1 = hf.Task(
+        schemas=[s1],
+        inputs=[hf.InputValue(parameter=p1, value={"a": a_val})],
+        sequences=[hf.ValueSequence(path="inputs.p1.d", values=[d_val], nesting_order=0)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
+    assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
+
+
+def test_expected_element_input_parameter_value_class_method_merge_sequence():
+    b_val = 50
+    c_val = 51
+    obj_exp = P1.from_data(b=b_val, c=c_val)
+
+    t1 = hf.Task(
+        schemas=[s1],
+        inputs=[
+            hf.InputValue(
+                parameter=p1, value={"b": b_val}, value_class_method="from_data"
+            )
+        ],
+        sequences=[hf.ValueSequence(path="inputs.p1.c", values=[c_val], nesting_order=0)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="test_param_class_init",
+        workflow_name="test_param_class_init",
+        overwrite=True,
+        store="json",
+    )
+    wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
+    assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp

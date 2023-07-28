@@ -296,15 +296,17 @@ class ValueSequence(JSONLike):
         path: str,
         nesting_order: int,
         values: List[Any],
-        is_unused: bool = False,
+        value_class_method: Optional[str] = None,
     ):
         self.path = self._validate_parameter_path(path)
         self.nesting_order = nesting_order
-        self.is_unused = is_unused  # TODO: what is this for; should it be in init?
+        self.value_class_method = value_class_method
 
         self._values = values
 
         self._values_group_idx = None
+        self._values_are_objs = None  # assigned initially on `make_persistent`
+
         self._workflow = None
         self._element_set = None  # assigned by parent ElementSet
 
@@ -312,6 +314,9 @@ class ValueSequence(JSONLike):
         self._parameter = None
 
         self._path_split = None  # assigned by property `path_split`
+
+        self._values_method = None
+        self._values_method_args = None
 
     def __repr__(self):
         vals_grp_idx = (
@@ -338,13 +343,48 @@ class ValueSequence(JSONLike):
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
         kwargs["values"] = kwargs.pop("_values")
+
         _values_group_idx = kwargs.pop("_values_group_idx")
+        _values_are_objs = kwargs.pop("_values_are_objs")
+        _values_method = kwargs.pop("_values_method", None)
+        _values_method_args = kwargs.pop("_values_method_args", None)
+
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
+
         obj._values_group_idx = _values_group_idx
+        obj._values_are_objs = _values_are_objs
+        obj._values_method = _values_method
+        obj._values_method_args = _values_method_args
+
         obj._workflow = self._workflow
         obj._element_set = self._element_set
         obj._path_split = self._path_split
         obj._parameter = self._parameter
+
+        return obj
+
+    @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        if "::" in json_like["path"]:
+            path, cls_method = json_like["path"].split("::")
+            json_like["path"] = path
+            json_like["value_class_method"] = cls_method
+
+        val_key = None
+        for i in json_like:
+            if "values" in i:
+                val_key = i
+        if "::" in val_key:
+            _, method = val_key.split("::")
+            _values_method_args = json_like.pop(val_key)
+            _values_method = f"_values_{method}"
+            json_like["values"] = getattr(cls, _values_method)(**_values_method_args)
+
+        obj = super().from_json_like(json_like, shared_data)
+        if "::" in val_key:
+            obj._values_method = method
+            obj._values_method_args = _values_method_args
+
         return obj
 
     @property
@@ -386,11 +426,17 @@ class ValueSequence(JSONLike):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _values_group_idx = json_like.pop("_values_group_idx", None)
+        _values_are_objs = json_like.pop("_values_are_objs", None)
+        _values_method = json_like.pop("_values_method", None)
+        _values_method_args = json_like.pop("_values_method_args", None)
         if "_values" in json_like:
             json_like["values"] = json_like.pop("_values")
 
         obj = cls(**json_like)
         obj._values_group_idx = _values_group_idx
+        obj._values_are_objs = _values_are_objs
+        obj._values_method = _values_method
+        obj._values_method_args = _values_method_args
         return obj
 
     def _validate_parameter_path(self, path):
@@ -463,7 +509,13 @@ class ValueSequence(JSONLike):
 
         else:
             data_ref = []
+            source = copy.deepcopy(source)
+            source["value_class_method"] = self.value_class_method
+            are_objs = []
             for idx, i in enumerate(self._values):
+                # record if ParameterValue sub-classes are passed for values, which allows
+                # us to re-init the objects on access to `.value`:
+                are_objs.append(isinstance(i, ParameterValue))
                 source = copy.deepcopy(source)
                 source["sequence_idx"] = idx
                 pg_idx_i = workflow._add_parameter_data(i, source=source)
@@ -473,6 +525,7 @@ class ValueSequence(JSONLike):
             self._values_group_idx = data_ref
             self._workflow = workflow
             self._values = None
+            self._values_are_objs = are_objs
 
         return (self.normalised_path, data_ref, is_new)
 
@@ -487,9 +540,13 @@ class ValueSequence(JSONLike):
     def values(self):
         if self._values_group_idx is not None:
             vals = []
-            for pg_idx_i in self._values_group_idx:
+            for idx, pg_idx_i in enumerate(self._values_group_idx):
                 val = self.workflow.get_parameter_data(pg_idx_i)
-                if self.parameter and self.parameter._value_class:
+                if (
+                    self.parameter
+                    and self.parameter._value_class
+                    and self._values_are_objs[idx]
+                ):
                     val = self.parameter._value_class(**val)
                 vals.append(val)
             return vals
@@ -497,29 +554,46 @@ class ValueSequence(JSONLike):
             return self._values
 
     @classmethod
-    def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
-        values = list(np.linspace(start, stop, num=num, **kwargs))
-        # TODO: save persistently as an array?
-        return cls(values=values, path=path, nesting_order=nesting_order)
+    def _values_from_linear_space(cls, start, stop, num, **kwargs):
+        return np.linspace(start, stop, num=num, **kwargs).tolist()
 
     @classmethod
-    def from_range(cls, start, stop, nesting_order, step=1, path=None):
+    def _values_from_range(cls, start, stop, step, **kwargs):
+        return np.arange(start, stop, step, **kwargs).tolist()
+
+    @classmethod
+    def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
+        # TODO: save persistently as an array?
+        args = {"start": start, "stop": stop, "num": num, **kwargs}
+        values = cls._values_from_linear_space(**args)
+        obj = cls(values=values, path=path, nesting_order=nesting_order)
+        obj._values_method = "from_linear_space"
+        obj._values_method_args = args
+        return obj
+
+    @classmethod
+    def from_range(cls, start, stop, nesting_order, step=1, path=None, **kwargs):
+        # TODO: save persistently as an array?
+        args = {"start": start, "stop": stop, "step": step, **kwargs}
         if isinstance(step, int):
-            return cls(
-                values=list(np.arange(start, stop, step)),
-                path=path,
-                nesting_order=nesting_order,
-            )
+            values = cls._values_from_range(**args)
         else:
             # Use linspace for non-integer step, as recommended by Numpy:
-            return cls.from_linear_space(
-                start,
-                stop,
+            values = cls._values_from_linear_space(
+                start=start,
+                stop=stop,
                 num=int((stop - start) / step),
-                address=path,
                 endpoint=False,
-                nesting_order=nesting_order,
+                **kwargs,
             )
+        obj = cls(
+            values=values,
+            path=path,
+            nesting_order=nesting_order,
+        )
+        obj._values_method = "from_range"
+        obj._values_method_args = args
+        return obj
 
 
 @dataclass
@@ -590,7 +664,7 @@ class AbstractInputValue(JSONLike):
     def value(self):
         if self._value_group_idx is not None:
             val = self.workflow.get_parameter_data(self._value_group_idx)
-            if self.parameter._value_class:
+            if self._value_is_obj and self.parameter._value_class:
                 val = self.parameter._value_class(**val)
         else:
             val = self._value
@@ -632,13 +706,9 @@ class InputValue(AbstractInputValue):
         elif isinstance(parameter, SchemaInput):
             parameter = parameter.parameter
 
-        if value_class_method and value is not None:
-            if parameter._value_class:
-                func = getattr(parameter._value_class, value_class_method)
-                value = func(**value)
-
         self.parameter = parameter
         self.path = (path.strip(".") if path else None) or None
+        self.value_class_method = value_class_method
         self._value = value
 
         self._value_group_idx = None  # assigned by method make_persistent
@@ -648,13 +718,19 @@ class InputValue(AbstractInputValue):
         # SchemaInput):
         self._schema_input = None
 
+        # record if a ParameterValue sub-class is passed for value, which allows us
+        # to re-init the object on `.value`:
+        self._value_is_obj = isinstance(value, ParameterValue)
+
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
         _value = kwargs.pop("_value")
         _value_group_idx = kwargs.pop("_value_group_idx")
+        _value_is_obj = kwargs.pop("_value_is_obj")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._value = _value
         obj._value_group_idx = _value_group_idx
+        obj._value_is_obj = _value_is_obj
         obj._element_set = self._element_set
         obj._schema_input = self._schema_input
         return obj
@@ -694,11 +770,13 @@ class InputValue(AbstractInputValue):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("_value_group_idx", None)
+        _value_is_obj = json_like.pop("_value_is_obj", None)
         if "_value" in json_like:
             json_like["value"] = json_like.pop("_value")
 
         obj = cls(**json_like)
         obj._value_group_idx = _value_group_idx
+        obj._value_is_obj = _value_is_obj
 
         return obj
 
@@ -709,6 +787,11 @@ class InputValue(AbstractInputValue):
     @property
     def normalised_path(self):
         return f"inputs.{self.normalised_inputs_path}"
+
+    def make_persistent(self, workflow: Any, source: Dict) -> Tuple[str, List[int], bool]:
+        source = copy.deepcopy(source)
+        source["value_class_method"] = self.value_class_method
+        return super().make_persistent(workflow, source)
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
