@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a69"></a>
+## [v0.2.0a69](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a68...v0.2.0a69) - 2023.07.28
+
+### ✨ Features
+
+* rough first implementation of groups
+* support merging parameter class method parametrisations from sequences
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a68"></a>
 ## [v0.2.0a68](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a67...v0.2.0a68) - 2023.07.27
 
