@@ -362,7 +362,24 @@ class ElementIteration:
             ID.
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
-        out = {k: self.workflow.get_parameter_source(v) for k, v in data_idx.items()}
+        out = {}
+        for k, v in data_idx.items():
+            is_multi = False
+            if isinstance(v, list):
+                is_multi = True
+            else:
+                v = [v]
+
+            sources_k = []
+            for dat_idx_i in v:
+                src = self.workflow.get_parameter_source(dat_idx_i)
+                sources_k.append(src)
+
+            if not is_multi:
+                sources_k = src
+
+            out[k] = sources_k
+
         task_key = "task_insert_ID"
 
         if use_task_index:
@@ -376,7 +393,27 @@ class ElementIteration:
             out = out_task_idx
 
         if typ:
-            out = {k: v for k, v in out.items() if v["type"] == typ}
+            out_ = {}
+            for k, v in out.items():
+                is_multi = False
+                if isinstance(v, list):
+                    is_multi = True
+                else:
+                    v = [v]
+
+                sources_k = []
+                for src_i in v:
+                    if src_i["type"] == typ:
+                        if not is_multi:
+                            sources_k = src_i
+                            break
+                        else:
+                            sources_k.append(src_i)
+
+                if sources_k:
+                    out_[k] = sources_k
+
+            out = out_
 
         if as_strings:
             # format as a dict with compact string values
@@ -467,11 +504,14 @@ class ElementIteration:
         element iteration depends on."""
         out = {}
         for k, v in self.get_parameter_sources().items():
-            if (
-                v["type"] in ["local_input", "default_input"]
-                and v["task_insert_ID"] != self.task.insert_ID
-            ):
-                out[k] = v
+            if not isinstance(v, list):
+                v = [v]
+            for v_i in v:
+                if (
+                    v_i["type"] in ["local_input", "default_input"]
+                    and v_i["task_insert_ID"] != self.task.insert_ID
+                ):
+                    out[k] = v_i
 
         return out
 
@@ -971,7 +1011,7 @@ class ElementFilter:
 
 
 @dataclass
-class ElementGroup:
+class ElementGroup(JSONLike):
     name: str
     where: Optional[ElementFilter] = None
     group_by_distinct: Optional[app.ParameterPath] = None

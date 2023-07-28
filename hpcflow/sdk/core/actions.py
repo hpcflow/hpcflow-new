@@ -348,10 +348,13 @@ class ElementActionRun:
 
         out = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            EAR_ID_i = src["EAR_ID"]
-            if EAR_ID_i != self.id_:
-                # don't record a self dependency!
-                out.append(EAR_ID_i)
+            if not isinstance(src, list):
+                src = [src]
+            for src_i in src:
+                EAR_ID_i = src_i["EAR_ID"]
+                if EAR_ID_i != self.id_:
+                    # don't record a self dependency!
+                    out.append(EAR_ID_i)
 
         out = sorted(out)
 
@@ -368,11 +371,14 @@ class ElementActionRun:
 
         out = {}
         for k, v in self.get_parameter_sources().items():
-            if (
-                v["type"] in ["local_input", "default_input"]
-                and v["task_insert_ID"] != self.task.insert_ID
-            ):
-                out[k] = v
+            if not isinstance(v, list):
+                v = [v]
+            for v_i in v:
+                if (
+                    v_i["type"] in ["local_input", "default_input"]
+                    and v_i["task_insert_ID"] != self.task.insert_ID
+                ):
+                    out[k] = v_i
 
         return out
 

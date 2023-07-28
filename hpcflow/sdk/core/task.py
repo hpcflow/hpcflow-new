@@ -100,6 +100,11 @@ class ElementSet(JSONLike):
             is_dict_values=True,
             is_dict_values_ensure_list=True,
         ),
+        ChildObjectSpec(
+            name="groups",
+            class_name="ElementGroup",
+            is_multiple=True,
+        ),
     )
 
     def __init__(
@@ -109,6 +114,7 @@ class ElementSet(JSONLike):
         sequences: Optional[List[app.ValueSequence]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         repeats: Optional[Union[int, List[int]]] = 1,
+        groups: Optional[List[app.ElementGroup]] = None,
         input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
@@ -138,6 +144,7 @@ class ElementSet(JSONLike):
         self.inputs = inputs or []
         self.input_files = input_files or []
         self.repeats = repeats
+        self.groups = groups or []
         self.resources = resources
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
@@ -292,6 +299,7 @@ class ElementSet(JSONLike):
         sequences=None,
         resources=None,
         repeats=None,
+        groups=None,
         input_sources=None,
         nesting_order=None,
         element_sets=None,
@@ -303,6 +311,7 @@ class ElementSet(JSONLike):
             sequences,
             resources,
             repeats,
+            groups,
             input_sources,
             nesting_order,
         )
@@ -441,6 +450,7 @@ class Task(JSONLike):
         self,
         schemas: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
         repeats: Optional[Union[int, List[int]]] = None,
+        groups: Optional[List[app.ElementGroup]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         inputs: Optional[List[app.InputValue]] = None,
         input_files: Optional[List[app.InputFile]] = None,
@@ -499,6 +509,7 @@ class Task(JSONLike):
             sequences=sequences,
             resources=resources,
             repeats=repeats,
+            groups=groups,
             input_sources=input_sources,
             nesting_order=nesting_order,
             element_sets=element_sets,
@@ -1088,6 +1099,13 @@ class WorkflowTask:
         sequence_idx = {}
         source_idx = {}
 
+        # from pprint import pprint
+
+        # print(f"{element_set.groups=}")
+        # print(f"{element_set.inputs=}")
+        # print("element_set.input_sources")
+        # pprint(element_set.input_sources)
+
         # Assign first assuming all locally defined values are to be used:
         param_src = {
             "type": "local_input",
@@ -1138,16 +1156,31 @@ class WorkflowTask:
             key = f"inputs.{schema_input.typ}"
             sources = element_set.input_sources[schema_input.typ]
 
+            inp_group_name = schema_input.group
+            # print(f"{inp_group_name=}")
+
             for inp_src_idx, inp_src in enumerate(sources):
                 if inp_src.source_type is InputSourceType.TASK:
+                    # print(f"  inp_src: {inp_src}")
+
                     src_task = inp_src.get_task(self.workflow)
 
+                    # print(f"  src_task: {src_task}")
+                    # print(f"  {src_task.template.element_sets[0].groups=}")
+
                     src_elem_iters = src_task.get_all_element_iterations()
+                    # print(f"  {src_elem_iters=}")
+
                     if inp_src.element_iters:
                         # only include "sourceable" element iterations:
                         src_elem_iters = [
                             i for i in src_elem_iters if i.id_ in inp_src.element_iters
                         ]
+
+                        src_elem_set_idx = [
+                            i.element.element_set_idx for i in src_elem_iters
+                        ]
+                        # print(f"  {src_elem_set_idx=}")
 
                     if not src_elem_iters:
                         continue
@@ -1157,6 +1190,22 @@ class WorkflowTask:
                     grp_idx = [
                         iter_i.get_data_idx()[src_key] for iter_i in src_elem_iters
                     ]
+
+                    # print(f"  grp_idx (1): {grp_idx}")
+
+                    if inp_group_name:
+                        # print(
+                        #     f" only use elements which are part of a group definition named: {inp_group_name}."
+                        # )
+                        group_dat_idx = []
+                        for dat_idx_i, src_set_idx_i in zip(grp_idx, src_elem_set_idx):
+                            src_es = src_task.template.element_sets[src_set_idx_i]
+                            if inp_group_name in [i.name for i in src_es.groups or []]:
+                                # print(f"IN GROUP; {dat_idx_i}; {src_set_idx_i=}")
+                                group_dat_idx.append(dat_idx_i)
+
+                        grp_idx = [group_dat_idx]  # TODO: generalise to multiple groups
+                        # print(f"  grp_idx (2): {grp_idx}")
 
                     if self.app.InputSource.local() in sources:
                         # add task source to existing local source:
@@ -1488,6 +1537,7 @@ class WorkflowTask:
 
         """
 
+        # print()
         self.template.set_sequence_parameters(element_set)
 
         self.ensure_input_sources(element_set)  # may modify element_set.input_sources
@@ -1497,13 +1547,24 @@ class WorkflowTask:
             element_set_idx=self.num_element_sets,
         )
 
+        # from pprint import pprint
+
+        # print("input_data_idx")
+        # pprint(input_data_idx)
+
         element_set.task_template = self.template  # may modify element_set.nesting_order
 
         multiplicities = self.template.prepare_element_resolution(
             element_set, input_data_idx
         )
 
+        # print("multiplicities")
+        # pprint(multiplicities)
+
         element_inp_data_idx = self.resolve_element_data_indices(multiplicities)
+
+        # print("element_inp_data_idx")
+        # pprint(element_inp_data_idx)
 
         # global_element_iter_idx_range = [
         #     self.workflow.num_element_iterations,
@@ -1522,6 +1583,9 @@ class WorkflowTask:
             local_element_idx_range=local_element_idx_range,
         )
 
+        # print("output_data_idx")
+        # pprint(output_data_idx)
+
         (element_data_idx, element_seq_idx, element_src_idx) = self.generate_new_elements(
             input_data_idx,
             output_data_idx,
@@ -1529,6 +1593,8 @@ class WorkflowTask:
             seq_idx,
             src_idx,
         )
+        # print("element_data_idx")
+        # pprint(element_data_idx)
 
         iter_IDs = []
         elem_IDs = []
@@ -1851,10 +1917,12 @@ class WorkflowTask:
         """Get element data from the persistent store."""
 
         path = [] if not path else path.split(".")
+
         parameter = self._path_to_parameter(path)
-        source = None
+        sources = []
         current_value = None
         is_cur_val_assigned = False
+        is_obj_multi = False
         for path_i, data_idx_i in data_index.items():
             path_i = path_i.split(".")
             is_parent = False
@@ -1871,25 +1939,44 @@ class WorkflowTask:
                     # no intersection between paths
                     continue
 
-            param = self.workflow.get_parameter(data_idx_i)
-            if param.file:
-                if param.file["store_contents"]:
-                    data = Path(self.workflow.path) / param.file["path"]
-                else:
-                    data = Path(param.file["path"])
-                data = data.as_posix()
+            is_multi = False
+            if isinstance(data_idx_i, list):
+                is_multi = True
+                if path_i == path:
+                    # print(f"{is_obj_multi=}")
+                    is_obj_multi = True
             else:
-                data = param.data
-                if parameter and len(path_i) == 2:
-                    # retrieve the source if this is a non-sub parameter, so we can, in
-                    # the case that there is an associated `ParameterValue` class, get the
-                    # class method that should be invoked to initialise the object:
-                    source = param.source
-            if raise_on_unset and not param.is_set:
-                raise UnsetParameterDataError(
-                    f"Element data path {path!r} resolves to unset data for (at least) "
-                    f"data index path: {path_i!r}."
-                )
+                data_idx_i = [data_idx_i]
+
+            data = []
+            for data_idx_i_j in data_idx_i:
+                param_j = self.workflow.get_parameter(data_idx_i_j)
+                if param_j.file:
+                    if param_j.file["store_contents"]:
+                        data_j = Path(self.workflow.path) / param_j.file["path"]
+                    else:
+                        data_j = Path(param_j.file["path"])
+                    data_j = data_j.as_posix()
+                else:
+                    data_j = param_j.data
+                    if parameter and len(path_i) == 2:
+                        # retrieve the source if this is a non-sub parameter, so we can,
+                        # in the case that there is an associated `ParameterValue` class,
+                        # get the class method that should be invoked to initialise the
+                        # object:
+                        if is_multi:
+                            sources.append(param_j.source)
+                        else:
+                            sources = param_j.source
+                if raise_on_unset and not param_j.is_set:
+                    raise UnsetParameterDataError(
+                        f"Element data path {path!r} resolves to unset data for (at "
+                        f"least) data index path: {path_i!r}."
+                    )
+                if not is_multi:
+                    data = data_j
+                else:
+                    data.append(data_j)
 
             if is_parent:
                 # replace current value:
@@ -1912,13 +1999,27 @@ class WorkflowTask:
             else:
                 current_value = default
 
-        if parameter and isinstance(current_value, dict) and parameter._value_class:
-            method_name = source["value_class_method"]
-            if method_name:
-                method = getattr(parameter._value_class, method_name)
-            else:
-                method = parameter._value_class
-            current_value = method(**current_value)
+        if parameter and parameter._value_class:
+            if isinstance(current_value, dict):
+                # return a ParameterValue instance:
+                method_name = sources["value_class_method"]
+                if method_name:
+                    method = getattr(parameter._value_class, method_name)
+                else:
+                    method = parameter._value_class
+                current_value = method(**current_value)
+
+            elif is_obj_multi and isinstance(current_value[0], dict):
+                # return a list of ParameterValue instances:
+                current_value_ = []
+                for cur_val, src in zip(current_value, sources):
+                    method_name = src["value_class_method"]
+                    if method_name:
+                        method = getattr(parameter._value_class, method_name)
+                    else:
+                        method = parameter._value_class
+                    current_value_.append(method(**cur_val))
+                current_value = current_value_
 
         return current_value
 
