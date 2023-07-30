@@ -2002,9 +2002,10 @@ class WorkflowTask:
                 current_value = default
 
         if parameter and parameter._value_class:
+            # TODO: retrieve value class method case-insensitively!
             if isinstance(current_value, dict):
                 # return a ParameterValue instance:
-                method_name = sources["value_class_method"]
+                method_name = sources.get("value_class_method")
                 if method_name:
                     method = getattr(parameter._value_class, method_name)
                 else:
@@ -2015,7 +2016,7 @@ class WorkflowTask:
                 # return a list of ParameterValue instances:
                 current_value_ = []
                 for cur_val, src in zip(current_value, sources):
-                    method_name = src["value_class_method"]
+                    method_name = src.get("value_class_method")
                     if method_name:
                         method = getattr(parameter._value_class, method_name)
                     else:
