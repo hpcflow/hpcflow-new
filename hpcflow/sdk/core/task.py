@@ -113,7 +113,7 @@ class ElementSet(JSONLike):
         input_files: Optional[List[app.InputFile]] = None,
         sequences: Optional[List[app.ValueSequence]] = None,
         resources: Optional[Dict[str, Dict]] = None,
-        repeats: Optional[Union[int, List[int]]] = 1,
+        repeats: Optional[List[Dict]] = None,
         groups: Optional[List[app.ElementGroup]] = None,
         input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
@@ -143,7 +143,7 @@ class ElementSet(JSONLike):
 
         self.inputs = inputs or []
         self.input_files = input_files or []
-        self.repeats = repeats
+        self.repeats = repeats or []
         self.groups = groups or []
         self.resources = resources
         self.sequences = sequences or []
@@ -281,6 +281,11 @@ class ElementSet(JSONLike):
                 seq_inp_types.append(inp_type)
             if seq_i.path not in self.nesting_order:
                 self.nesting_order.update({seq_i.path: seq_i.nesting_order})
+
+        for rep_spec in self.repeats:
+            reps_path_i = f'repeats.{rep_spec["name"]}'
+            if reps_path_i not in self.nesting_order:
+                self.nesting_order[reps_path_i] = rep_spec["nesting_order"]
 
         for k, v in self.nesting_order.items():
             if v < 0:
@@ -449,7 +454,7 @@ class Task(JSONLike):
     def __init__(
         self,
         schemas: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
-        repeats: Optional[Union[int, List[int]]] = None,
+        repeats: Optional[List[Dict]] = None,
         groups: Optional[List[app.ElementGroup]] = None,
         resources: Optional[Dict[str, Dict]] = None,
         inputs: Optional[List[app.InputValue]] = None,
@@ -1152,6 +1157,12 @@ class WorkflowTask:
                 ] * len(dat_ref)
             except ValueError:
                 pass
+
+        for rep_spec in element_set.repeats:
+            seq_key = f"repeats.{rep_spec['name']}"
+            num_range = list(range(rep_spec["number"]))
+            input_data_idx[seq_key] = num_range
+            sequence_idx[seq_key] = num_range
 
         # Now check for task- and default-sources and overwrite or append to local sources:
         for schema_input in self.template.get_all_required_schema_inputs(element_set):
@@ -1952,29 +1963,33 @@ class WorkflowTask:
 
             data = []
             for data_idx_i_j in data_idx_i:
-                param_j = self.workflow.get_parameter(data_idx_i_j)
-                if param_j.file:
-                    if param_j.file["store_contents"]:
-                        data_j = Path(self.workflow.path) / param_j.file["path"]
-                    else:
-                        data_j = Path(param_j.file["path"])
-                    data_j = data_j.as_posix()
+                if path_i[0] == "repeats":
+                    # data is an integer repeats index, rather than a parameter ID:
+                    data_j = data_idx_i_j
                 else:
-                    data_j = param_j.data
-                    if parameter and len(path_i) == 2:
-                        # retrieve the source if this is a non-sub parameter, so we can,
-                        # in the case that there is an associated `ParameterValue` class,
-                        # get the class method that should be invoked to initialise the
-                        # object:
-                        if is_multi:
-                            sources.append(param_j.source)
+                    param_j = self.workflow.get_parameter(data_idx_i_j)
+                    if param_j.file:
+                        if param_j.file["store_contents"]:
+                            data_j = Path(self.workflow.path) / param_j.file["path"]
                         else:
-                            sources = param_j.source
-                if raise_on_unset and not param_j.is_set:
-                    raise UnsetParameterDataError(
-                        f"Element data path {path!r} resolves to unset data for (at "
-                        f"least) data index path: {path_i!r}."
-                    )
+                            data_j = Path(param_j.file["path"])
+                        data_j = data_j.as_posix()
+                    else:
+                        data_j = param_j.data
+                        if parameter and len(path_i) == 2:
+                            # retrieve the source if this is a non-sub parameter, so we can,
+                            # in the case that there is an associated `ParameterValue` class,
+                            # get the class method that should be invoked to initialise the
+                            # object:
+                            if is_multi:
+                                sources.append(param_j.source)
+                            else:
+                                sources = param_j.source
+                    if raise_on_unset and not param_j.is_set:
+                        raise UnsetParameterDataError(
+                            f"Element data path {path!r} resolves to unset data for (at "
+                            f"least) data index path: {path_i!r}."
+                        )
                 if not is_multi:
                     data = data_j
                 else:

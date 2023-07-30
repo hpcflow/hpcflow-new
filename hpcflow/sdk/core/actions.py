@@ -1628,8 +1628,12 @@ class Action(JSONLike):
         # these are consumed by the OFP, so should not be considered to generate new data:
         OFP_outs = [j for i in self.output_file_parsers for j in i.outputs or []]
 
-        # keep all resources data:
-        sub_data_idx = {k: v for k, v in schema_data_idx.items() if "resources" in k}
+        # keep all resources and repeats data:
+        sub_data_idx = {
+            k: v
+            for k, v in schema_data_idx.items()
+            if ("resources" in k or "repeats" in k)
+        }
         param_src_update = []
         for key in keys:
             sub_param_idx = {}
