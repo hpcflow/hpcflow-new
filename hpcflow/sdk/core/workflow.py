@@ -1341,10 +1341,11 @@ class Workflow:
         return self.get_parameters([index], **kwargs)[0]
 
     def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
-        return (
-            self.get_parameter(index, **kwargs).data
-            or self.get_parameter(index, **kwargs).file
-        )
+        param = self.get_parameter(index, **kwargs)
+        if param.data is not None:
+            return param.data
+        else:
+            return param.file
 
     def get_parameter_source(self, index: int) -> Dict:
         return self.get_parameter_sources([index])[0]
