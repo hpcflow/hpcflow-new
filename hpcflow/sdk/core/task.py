@@ -885,6 +885,8 @@ class Task(JSONLike):
 
         provided_files = [i.file for i in element_set.input_files]
         for schema in self.schemas:
+            if not schema.actions:
+                return True  # for empty tasks that are used merely for defining inputs
             for act in schema.actions:
                 if act.is_input_type_required(typ, provided_files):
                     return True

@@ -269,7 +269,7 @@ class ElementIteration:
                     action_idx=act_idx,
                     runs=runs,
                 )
-                for act_idx, runs in self._EARs.items()
+                for act_idx, runs in (self._EARs or {}).items()
             }
         return self._action_objs
 
@@ -322,6 +322,9 @@ class ElementIteration:
         action_idx
             The index of the action within the schema.
         """
+
+        if not self.actions:
+            return self.data_idx
 
         if action_idx is None:
             # inputs should be from first action where that input is defined, and outputs

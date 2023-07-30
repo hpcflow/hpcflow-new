@@ -50,7 +50,7 @@ class TaskSchema(JSONLike):
     def __init__(
         self,
         objective: Union[app.TaskObjective, str],
-        actions: List[app.Action],
+        actions: List[app.Action] = None,
         method: Optional[str] = None,
         implementation: Optional[str] = None,
         inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
@@ -59,7 +59,7 @@ class TaskSchema(JSONLike):
         _hash_value: Optional[str] = None,
     ):
         self.objective = objective
-        self.actions = actions
+        self.actions = actions or []
         self.method = method
         self.implementation = implementation
         self.inputs = inputs or []
@@ -203,10 +203,11 @@ class TaskSchema(JSONLike):
                     for OFP_j in act_i.output_file_parsers:
                         extra_ins = extra_ins - set(OFP_j.inputs or [])
 
-                if extra_ins:
+                if self.actions and extra_ins:
+                    # allow for no actions (e.g. defining inputs for downstream tasks)
                     raise ValueError(
-                        f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used by "
-                        f"any actions."
+                        f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used "
+                        f"by any actions."
                     )
 
             missing_outs = set(self.output_types) - set(all_outs)
