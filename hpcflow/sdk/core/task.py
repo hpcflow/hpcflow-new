@@ -1245,7 +1245,7 @@ class WorkflowTask:
 
         # sort smallest to largest path, so more-specific items overwrite less-specific
         # items parameter retrieval:
-        # TODO: is this still necessary?
+        input_data_idx = dict(sorted(input_data_idx.items()))
 
         return (input_data_idx, sequence_idx, source_idx)
 

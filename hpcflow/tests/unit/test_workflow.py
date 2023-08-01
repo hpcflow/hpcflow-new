@@ -578,3 +578,26 @@ def test_expected_element_input_parameter_value_class_method_merge_sequence():
     )
     wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
     assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_upstream_input_source_merge_with_current_input_modification(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+    )
+    s2 = hf.TaskSchema(
+        objective="t2", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+    )
+    tasks = [
+        hf.Task(schemas=s1, inputs=[hf.InputValue("p2", {"a": 101})]),
+        hf.Task(schemas=s2, inputs=[hf.InputValue("p2", value=102, path="b")]),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="temp",
+        store=store,
+    )
+    assert wk.tasks[1].elements[0].inputs.p2.value == {"a": 101, "b": 102}
