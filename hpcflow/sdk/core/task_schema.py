@@ -227,7 +227,7 @@ class TaskSchema(JSONLike):
         new_refs = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
-                if lab_info["default_value"] is not None:
+                if "default_value" in lab_info:
                     _, dat_ref, is_new = lab_info["default_value"].make_persistent(
                         workflow, source
                     )

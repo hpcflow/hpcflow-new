@@ -925,7 +925,7 @@ class Task(JSONLike):
             for lab_info in schema_input.labelled_info():
                 labelled_type = lab_info["labelled_type"]
                 status[labelled_type] = InputStatus(
-                    has_default=lab_info["default_value"] is not None,
+                    has_default="default_value" in lab_info,
                     is_provided=elem_set.is_input_type_provided(labelled_type),
                     is_required=self.is_input_type_required(labelled_type, elem_set),
                 )
@@ -1179,10 +1179,11 @@ class WorkflowTask:
 
             inp_group_name, def_val = None, None
             for schema_input in self.template.all_schema_inputs:
-                if schema_input.parameter.typ == path_i_root:
-                    for lab_info in schema_input.labelled_info():
+                for lab_info in schema_input.labelled_info():
+                    if lab_info["labelled_type"] == path_i_root:
                         inp_group_name = lab_info["group"]
-                        def_val = lab_info["default_value"]
+                        if "default_value" in lab_info:
+                            def_val = lab_info["default_value"]
                         break
 
             key = f"inputs.{labelled_path_i}"

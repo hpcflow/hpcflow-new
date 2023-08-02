@@ -148,6 +148,10 @@ class SchemaParameter(JSONLike):
         return self.parameter.typ
 
 
+class NullDefault(enum.Enum):
+    NULL = 0
+
+
 class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
     applied.
@@ -202,7 +206,7 @@ class SchemaInput(SchemaParameter):
         parameter: app.Parameter,
         accept_multiple: bool = False,
         labels: Optional[Dict] = None,
-        default_value: Optional[app.InputValue] = None,
+        default_value: Optional[Union[app.InputValue, NullDefault]] = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
         group: Optional[str] = None,
     ):
@@ -235,14 +239,6 @@ class SchemaInput(SchemaParameter):
                     )
 
         labels_defaults = {}
-        if default_value is not None:
-            # print(f"SchemaInput: {default_value.__class__=}")
-            if not isinstance(default_value, InputValue):
-                default_value = app.InputValue(
-                    parameter=self.parameter, value=default_value
-                )
-                # print(f"   casting to InputValue; now: {default_value=}")
-            labels_defaults["default_value"] = default_value
         if propagation_mode is not None:
             labels_defaults["propagation_mode"] = propagation_mode
         if group is not None:
@@ -250,7 +246,16 @@ class SchemaInput(SchemaParameter):
 
         # apply defaults:
         for k, v in self.labels.items():
-            label_i = {**labels_defaults, **v}
+            labels_defaults_i = copy.deepcopy(labels_defaults)
+            if default_value is not NullDefault.NULL:
+                if not isinstance(default_value, InputValue):
+                    default_value = app.InputValue(
+                        parameter=self.parameter,
+                        value=default_value,
+                        label=k,
+                    )
+                labels_defaults_i["default_value"] = default_value
+            label_i = {**labels_defaults_i, **v}
             if "propagation_mode" in label_i:
                 label_i["propagation_mode"] = get_enum_by_name_or_val(
                     ParameterPropagationMode, label_i["propagation_mode"]
@@ -269,13 +274,15 @@ class SchemaInput(SchemaParameter):
         if not self.accept_multiple:
             label = next(iter(self.labels.keys()))  # the single key
 
-            def_val = self.labels[label].get("default_value")
-            if def_val is not None:
-                default_str = f", size={def_val!r}"
+            default_str = ""
+            if "default_value" in self.labels[label]:
+                default_str = (
+                    f", default_value={self.labels[label]['default_value'].value!r}"
+                )
 
             group = self.labels[label].get("group")
-            if def_val is not None:
-                group_str = f", size={group!r}"
+            if group is not None:
+                group_str = f", group={group!r}"
 
         else:
             labels_str = f", labels={str(self.labels)!r}"
@@ -296,26 +303,27 @@ class SchemaInput(SchemaParameter):
                 dct["labels"][k]["parameter_propagation_mode"] = prop_mode.name
         return dct
 
+    def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
+        out, shared = super().to_json_like(dct, shared_data, exclude, path)
+        for k, v in out["labels"].items():
+            if "default_value" in v:
+                out["labels"][k]["default_value_is_input_value"] = True
+        return out, shared
+
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
-        # we assume if `default_value` is specified, it is only the `value` part of the
-        # `InputValue` JSON:
-        if "default_value" in json_like:
-            json_like["default_value"] = InputValue.from_json_like(
-                json_like={
-                    "parameter": json_like["parameter"],
-                    "value": json_like["default_value"],
-                },
-                shared_data=shared_data,
-            )
-
         for k, v in json_like.get("labels", {}).items():
             if "default_value" in v:
-                json_like["labels"][k]["default_value"] = InputValue.from_json_like(
-                    json_like={
+                if "default_value_is_input_value" in v:
+                    inp_val_kwargs = v["default_value"]
+                else:
+                    inp_val_kwargs = {
                         "parameter": json_like["parameter"],
                         "value": v["default_value"],
-                    },
+                        "label": k,
+                    }
+                json_like["labels"][k]["default_value"] = InputValue.from_json_like(
+                    json_like=inp_val_kwargs,
                     shared_data=shared_data,
                 )
 
@@ -343,29 +351,33 @@ class SchemaInput(SchemaParameter):
     def labelled_info(self):
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""
-            yield {
+            dct = {
                 "labelled_type": self.parameter.typ + label,
-                "default_value": v.get("default_value"),
                 "propagation_mode": v["propagation_mode"],
                 "group": v.get("group"),
             }
+            if "default_value" in v:
+                dct["default_value"] = v["default_value"]
+            yield dct
 
     def _validate(self):
         super()._validate()
         for k, v in self.labels.items():
-            if "default_value" in v and v["default_value"] is not None:
+            if "default_value" in v:
                 if not isinstance(v["default_value"], InputValue):
-                    self.labels[k]["default_value"] = self.app.InputValue(
+                    def_val = self.app.InputValue(
                         parameter=self.parameter,
-                        value=self.default_value,
+                        value=v["default_value"],
+                        label=k,
                     )
-                if v["default_value"].parameter != self.parameter:
-                    # TODO: this is raising when it shouldn't
+                    self.labels[k]["default_value"] = def_val
+                def_val = self.labels[k]["default_value"]
+                if def_val.parameter != self.parameter or def_val.label != k:
                     raise ValueError(
                         f"{self.__class__.__name__} `default_value` for label {k!r} must "
-                        f"be an `InputValue` for parameter: {self.parameter!r}, but "
-                        f"specified `InputValue` parameter is: "
-                        f"{v['default_value'].parameter!r}."
+                        f"be an `InputValue` for parameter: {self.parameter!r} with the "
+                        f"same label, but specified `InputValue` is: "
+                        f"{v['default_value']!r}."
                     )
 
     @property
