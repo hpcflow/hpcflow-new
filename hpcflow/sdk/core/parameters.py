@@ -348,6 +348,16 @@ class SchemaInput(SchemaParameter):
     def all_labelled_types(self):
         return list(f"{self.typ}{f'[{i}]' if i else ''}" for i in self.labels)
 
+    @property
+    def single_label(self):
+        if not self.multiple:
+            return next(iter(self.labels))
+
+    @property
+    def single_labelled_type(self):
+        if not self.multiple:
+            return next(iter(self.labelled_info()))["labelled_type"]
+
     def labelled_info(self):
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""

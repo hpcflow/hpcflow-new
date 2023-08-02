@@ -468,7 +468,18 @@ class ElementActionRun:
         return self.action.environments[0].environment
 
     def get_input_values(self) -> Dict[str, Any]:
-        return {i.path[len("inputs.") :]: i.value for i in self.inputs}
+        out = {}
+        for name in self.inputs.prefixed_names_unlabelled:
+            i = getattr(self.inputs, name)
+            try:
+                value = i.value
+            except AttributeError:
+                value = {}
+                for k, v in i.items():
+                    value[k] = v.value
+            out[name] = value
+
+        return out
 
     def get_IFG_input_values(self) -> Dict[str, Any]:
         if not self.action._from_expand:
@@ -835,13 +846,15 @@ class ElementAction:
 
     def get_parameter_names(self, prefix):
         if prefix == "inputs":
-            return list(f"{i}" for i in self.action.get_input_types())
+            single_lab_lookup = self.element_iteration._get_single_label_lookup()
+            out = list(single_lab_lookup.get(i, i) for i in self.action.get_input_types())
         elif prefix == "outputs":
-            return list(f"{i}" for i in self.action.get_output_types())
+            out = list(f"{i}" for i in self.action.get_output_types())
         elif prefix == "input_files":
-            return list(f"{i}" for i in self.action.get_input_file_labels())
+            out = list(f"{i}" for i in self.action.get_input_file_labels())
         elif prefix == "output_files":
-            return list(f"{i}" for i in self.action.get_output_file_labels())
+            out = list(f"{i}" for i in self.action.get_output_file_labels())
+        return out
 
 
 @dataclass
