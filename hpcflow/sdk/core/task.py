@@ -216,7 +216,7 @@ class ElementSet(JSONLike):
 
     @property
     def input_types(self):
-        return [i.parameter.typ for i in self.inputs]
+        return [i.labelled_type for i in self.inputs]
 
     @property
     def element_local_idx_range(self):
@@ -266,7 +266,7 @@ class ElementSet(JSONLike):
 
         seq_inp_types = []
         for seq_i in self.sequences:
-            inp_type = seq_i.input_type
+            inp_type = seq_i.labelled_type
             if inp_type:
                 bad_inp = {inp_type} - self.task_template.all_schema_input_types
                 allowed_str = ", ".join(
@@ -413,17 +413,17 @@ class ElementSet(JSONLike):
 
         return deps
 
-    def is_input_type_provided(self, typ: str) -> bool:
+    def is_input_type_provided(self, labelled_path: str) -> bool:
         """Check if an input is provided locally as an InputValue or a ValueSequence."""
 
         for inp in self.inputs:
-            if typ == inp.parameter.typ:
+            if labelled_path == inp.normalised_inputs_path:
                 return True
 
         for seq in self.sequences:
             if seq.parameter:
                 # i.e. not a resource:
-                if not seq.is_sub_value and typ == seq.parameter.typ:
+                if labelled_path == seq.normalised_inputs_path:
                     return True
 
         return False
@@ -720,8 +720,6 @@ class Task(JSONLike):
         Note this only produces a subset of available input sources for each input
         parameter; other available input sources may exist from workflow imports."""
 
-        # TODO: also search sub-parameters in the source tasks!
-
         if source_tasks:
             # ensure parameters provided by later tasks are added to the available sources
             # list first, meaning they take precedence when choosing an input source:
@@ -742,19 +740,19 @@ class Task(JSONLike):
                 # ensure we process output types before input types, so they appear in the
                 # available sources list first, meaning they take precedence when choosing
                 # an input source:
-                for param_i in sorted(
-                    src_task_i.provides_parameters,
-                    key=lambda x: x.input_or_output,
+                for in_or_out, labelled_path in sorted(
+                    src_task_i.provides_parameters(),
+                    key=lambda x: x[0],
                     reverse=True,
                 ):
-                    if param_i.typ == inputs_path:
-                        if param_i.input_or_output == "input":
+                    if inputs_path in labelled_path:
+                        if in_or_out == "input":
                             # input parameter might not be provided e.g. if it only used
                             # to generate an input file, and that input file is passed
                             # directly, so consider only source task element sets that
                             # provide the input locally:
                             es_idx = src_task_i.get_param_provided_element_sets(
-                                param_i.typ
+                                labelled_path
                             )
                         else:
                             # outputs are always available, so consider all source task
@@ -784,10 +782,14 @@ class Task(JSONLike):
 
                         task_source = self.app.InputSource.task(
                             task_ref=src_task_i.insert_ID,
-                            task_source_type=param_i.input_or_output,
+                            task_source_type=in_or_out,
                             element_iters=src_elem_iters,
                         )
-                        available[inputs_path].append(task_source)
+
+                        if labelled_path not in available:  # for sub-parameters
+                            available[labelled_path] = []
+
+                        available[labelled_path].append(task_source)
 
             if inp_status.has_default:
                 available[inputs_path].append(self.app.InputSource.default())
@@ -898,12 +900,12 @@ class Task(JSONLike):
 
         return False
 
-    def get_param_provided_element_sets(self, typ: str) -> List[int]:
+    def get_param_provided_element_sets(self, labelled_path: str) -> List[int]:
         """Get the element set indices of this task for which a specified parameter type
         is locally provided."""
         es_idx = []
         for idx, src_es in enumerate(self.element_sets):
-            if src_es.is_input_type_provided(typ):
+            if src_es.is_input_type_provided(labelled_path):
                 es_idx.append(idx)
         return es_idx
 
@@ -920,19 +922,18 @@ class Task(JSONLike):
 
         status = {}
         for schema_input in self.all_schema_inputs:
-            typ = schema_input.parameter.typ
-            status[typ] = InputStatus(
-                has_default=schema_input.default_value is not None,
-                is_provided=elem_set.is_input_type_provided(typ),
-                is_required=self.is_input_type_required(typ, elem_set),
-            )
+            for lab_info in schema_input.labelled_info():
+                labelled_type = lab_info["labelled_type"]
+                status[labelled_type] = InputStatus(
+                    has_default=lab_info["default_value"] is not None,
+                    is_provided=elem_set.is_input_type_provided(labelled_type),
+                    is_required=self.is_input_type_required(labelled_type, elem_set),
+                )
 
         for inp_path in elem_set.get_defined_sub_parameter_types():
             root_param = ".".join(inp_path.split(".")[:-1])
-            # Sub-parameters can only be specified locally (currently), so "is_provided"
-            # is True by definition, and if the root parameter is required then the
-            # sub-parameter should also be required, otherwise there would be no point in
-            # specifying it:
+            # If the root parameter is required then the sub-parameter should also be
+            # required, otherwise there would be no point in specifying it:
             status[inp_path] = InputStatus(
                 has_default=False,
                 is_provided=True,
@@ -941,19 +942,15 @@ class Task(JSONLike):
 
         return status
 
-    def get_all_required_schema_inputs(self, element_set):
-        stats = self.get_input_statuses(element_set)
-        return tuple(
-            i for i in self.all_schema_inputs if stats[i.parameter.typ].is_required
-        )
-
     @property
     def universal_input_types(self):
         """Get input types that are associated with all schemas"""
+        raise NotImplementedError()
 
     @property
     def non_universal_input_types(self):
         """Get input types for each schema that are non-universal."""
+        raise NotImplementedError()
 
     @property
     def defined_input_types(self):
@@ -977,15 +974,26 @@ class Task(JSONLike):
         """Get schema input types for which no input sources are currently specified."""
         return self.all_schema_input_types - set(self.input_sources.keys())
 
-    @property
-    def provides_parameters(self):
-        return tuple(j for schema in self.schemas for j in schema.provides_parameters)
+    def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+        """Get all provided parameter labelled types and whether they are inputs and
+        outputs, considering all element sets.
 
-    def get_sub_parameter_input_values(self):
-        return [i for i in self.inputs if i.is_sub_value]
+        """
+        out = []
+        for schema in self.schemas:
+            for in_or_out, labelled_type in schema.provides_parameters:
+                out.append((in_or_out, labelled_type))
 
-    def get_non_sub_parameter_input_values(self):
-        return [i for i in self.inputs if not i.is_sub_value]
+        # add sub-parameter input values and sequences:
+        for es_i in self.element_sets:
+            for inp_j in es_i.inputs:
+                if inp_j.is_sub_value:
+                    out.append(("input", inp_j.normalised_inputs_path))
+            for seq_j in es_i.sequences:
+                if seq_j.is_sub_value:
+                    out.append(("input", seq_j.normalised_inputs_path))
+
+        return tuple(out)
 
     def add_group(
         self, name: str, where: app.ElementFilter, group_by_distinct: app.ParameterPath
@@ -1106,13 +1114,6 @@ class WorkflowTask:
         sequence_idx = {}
         source_idx = {}
 
-        # from pprint import pprint
-
-        # print(f"{element_set.groups=}")
-        # print(f"{element_set.inputs=}")
-        # print("element_set.input_sources")
-        # pprint(element_set.input_sources)
-
         # Assign first assuming all locally defined values are to be used:
         param_src = {
             "type": "local_input",
@@ -1165,24 +1166,31 @@ class WorkflowTask:
             sequence_idx[seq_key] = num_range
 
         # Now check for task- and default-sources and overwrite or append to local sources:
-        for schema_input in self.template.get_all_required_schema_inputs(element_set):
-            key = f"inputs.{schema_input.typ}"
-            sources = element_set.input_sources[schema_input.typ]
+        inp_stats = self.template.get_input_statuses(element_set)
+        for labelled_path_i, sources_i in element_set.input_sources.items():
+            path_i_split = labelled_path_i.split(".")
+            is_path_i_sub = len(path_i_split) > 1
+            if is_path_i_sub:
+                path_i_root = path_i_split[0]
+            else:
+                path_i_root = labelled_path_i
+            if not inp_stats[path_i_root].is_required:
+                continue
 
-            inp_group_name = schema_input.group
-            # print(f"{inp_group_name=}")
+            inp_group_name, def_val = None, None
+            for schema_input in self.template.all_schema_inputs:
+                if schema_input.parameter.typ == path_i_root:
+                    for lab_info in schema_input.labelled_info():
+                        inp_group_name = lab_info["group"]
+                        def_val = lab_info["default_value"]
+                        break
 
-            for inp_src_idx, inp_src in enumerate(sources):
+            key = f"inputs.{labelled_path_i}"
+
+            for inp_src_idx, inp_src in enumerate(sources_i):
                 if inp_src.source_type is InputSourceType.TASK:
-                    # print(f"  inp_src: {inp_src}")
-
                     src_task = inp_src.get_task(self.workflow)
-
-                    # print(f"  src_task: {src_task}")
-                    # print(f"  {src_task.template.element_sets[0].groups=}")
-
                     src_elem_iters = src_task.get_all_element_iterations()
-                    # print(f"  {src_elem_iters=}")
 
                     if inp_src.element_iters:
                         # only include "sourceable" element iterations:
@@ -1193,23 +1201,17 @@ class WorkflowTask:
                         src_elem_set_idx = [
                             i.element.element_set_idx for i in src_elem_iters
                         ]
-                        # print(f"  {src_elem_set_idx=}")
 
                     if not src_elem_iters:
                         continue
 
                     task_source_type = inp_src.task_source_type.name.lower()
-                    src_key = f"{task_source_type}s.{schema_input.typ}"
+                    src_key = f"{task_source_type}s.{labelled_path_i}"
                     grp_idx = [
                         iter_i.get_data_idx()[src_key] for iter_i in src_elem_iters
                     ]
 
-                    # print(f"  grp_idx (1): {grp_idx}")
-
                     if inp_group_name:
-                        # print(
-                        #     f" only use elements which are part of a group definition named: {inp_group_name}."
-                        # )
                         group_dat_idx = []
                         for dat_idx_i, src_set_idx_i in zip(grp_idx, src_elem_set_idx):
                             src_es = src_task.template.element_sets[src_set_idx_i]
@@ -1218,9 +1220,8 @@ class WorkflowTask:
                                 group_dat_idx.append(dat_idx_i)
 
                         grp_idx = [group_dat_idx]  # TODO: generalise to multiple groups
-                        # print(f"  grp_idx (2): {grp_idx}")
 
-                    if self.app.InputSource.local() in sources:
+                    if self.app.InputSource.local() in sources_i:
                         # add task source to existing local source:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
@@ -1234,8 +1235,8 @@ class WorkflowTask:
                             seq = element_set.get_sequence_by_path(key)
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
-                    grp_idx = [schema_input.default_value._value_group_idx]
-                    if self.app.InputSource.local() in sources:
+                    grp_idx = [def_val._value_group_idx]
+                    if self.app.InputSource.local() in sources_i:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
 
@@ -1252,9 +1253,13 @@ class WorkflowTask:
     def ensure_input_sources(self, element_set):
         """Check valid input sources are specified for a new task to be added to the
         workflow in a given position. If none are specified, set them according to the
-        default behaviour."""
+        default behaviour.
 
-        # this just depends on this schema and other schemas:
+        This method mutates `element_set.input_sources`.
+
+        """
+
+        # this depends on this schema, other task schemas and inputs/sequences:
         available_sources = self.template.get_available_task_input_sources(
             element_set=element_set,
             source_tasks=self.workflow.template.tasks[: self.index],
@@ -1277,33 +1282,40 @@ class WorkflowTask:
 
         all_stats = self.template.get_input_statuses(element_set)
 
+        # an input is not required if it is only used to generate an input file that is
+        # passed directly:
+        req_types = set(k for k, v in all_stats.items() if v.is_required)
+
         # check any specified sources are valid, and replace them with those computed in
-        # available_sources since this will have `element_iters` assigned:
-        for inputs_path in all_stats:
+        # `available_sources` since these will have `element_iters` assigned:
+        for path_i, avail_i in available_sources.items():
+            # for each sub-path in available sources, if the "root-path" source is
+            # required, then add the sub-path source to `req_types` as well:
+            path_i_split = path_i.split(".")
+            is_path_i_sub = len(path_i_split) > 1
+            if is_path_i_sub:
+                path_i_root = path_i_split[0]
+                if path_i_root in req_types:
+                    req_types.add(path_i)
+
             for s_idx, specified_source in enumerate(
-                element_set.input_sources.get(inputs_path, [])
+                element_set.input_sources.get(path_i, [])
             ):
                 self.workflow._resolve_input_source_task_reference(
                     specified_source, self.unique_name
                 )
-                avail_idx = specified_source.is_in(available_sources[inputs_path])
+                avail_idx = specified_source.is_in(avail_i)
                 if avail_idx is None:
                     raise ValueError(
                         f"The input source {specified_source.to_string()!r} is not "
-                        f"available for input path {inputs_path!r}. Available "
-                        f"input sources are: "
-                        f"{[i.to_string() for i in available_sources[inputs_path]]}"
+                        f"available for input path {path_i!r}. Available "
+                        f"input sources are: {[i.to_string() for i in avail_i]}."
                     )
                 else:
                     # overwrite with the source from available_sources, since it will have
                     # the `element_iters` attribute assigned:
-                    element_set.input_sources[inputs_path][s_idx] = available_sources[
-                        inputs_path
-                    ][avail_idx]
+                    element_set.input_sources[path_i][s_idx] = avail_i[avail_idx]
 
-        # an input is not required if it is only used to generate an input file that is
-        # passed directly:
-        req_types = set(k for k, v in all_stats.items() if v.is_required)
         unsourced_inputs = req_types - set(element_set.input_sources.keys())
 
         extra_types = set(k for k, v in all_stats.items() if v.is_extra)
@@ -1550,7 +1562,6 @@ class WorkflowTask:
 
         """
 
-        # print()
         self.template.set_sequence_parameters(element_set)
 
         self.ensure_input_sources(element_set)  # may modify element_set.input_sources
@@ -1560,29 +1571,14 @@ class WorkflowTask:
             element_set_idx=self.num_element_sets,
         )
 
-        # from pprint import pprint
-
-        # print("input_data_idx")
-        # pprint(input_data_idx)
-
         element_set.task_template = self.template  # may modify element_set.nesting_order
 
         multiplicities = self.template.prepare_element_resolution(
             element_set, input_data_idx
         )
 
-        # print("multiplicities")
-        # pprint(multiplicities)
-
         element_inp_data_idx = self.resolve_element_data_indices(multiplicities)
 
-        # print("element_inp_data_idx")
-        # pprint(element_inp_data_idx)
-
-        # global_element_iter_idx_range = [
-        #     self.workflow.num_element_iterations,
-        #     self.workflow.num_element_iterations + len(element_inp_data_idx),
-        # ]
         local_element_idx_range = [
             self.num_elements,
             self.num_elements + len(element_inp_data_idx),
@@ -1596,9 +1592,6 @@ class WorkflowTask:
             local_element_idx_range=local_element_idx_range,
         )
 
-        # print("output_data_idx")
-        # pprint(output_data_idx)
-
         (element_data_idx, element_seq_idx, element_src_idx) = self.generate_new_elements(
             input_data_idx,
             output_data_idx,
@@ -1606,21 +1599,11 @@ class WorkflowTask:
             seq_idx,
             src_idx,
         )
-        # print("element_data_idx")
-        # pprint(element_data_idx)
 
         iter_IDs = []
         elem_IDs = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
-            # elements.append(
-            #     {
-            #         "iterations_idx": [self.num_elements + elem_idx],
-            #         "es_idx": self.num_element_sets - 1,
-            #         "seq_idx": ,
-            #         "src_idx": ,
-            #     }
-            # )
             elem_ID_i = self.workflow._store.add_element(
                 task_ID=self.insert_ID,
                 es_idx=self.num_element_sets - 1,
@@ -1635,27 +1618,7 @@ class WorkflowTask:
             iter_IDs.append(iter_ID_i)
             elem_IDs.append(elem_ID_i)
 
-            # element_iterations.append(
-            #     {
-            #         "global_idx": self.workflow.num_element_iterations + elem_idx,
-            #         "data_idx": data_idx,
-            #         "EARs_initialised": False,
-            #         "actions": {},
-            #         "schema_parameters": list(schema_params),
-            #         "loop_idx": {},
-            #     }
-            # )
-
-        # self.workflow._store.add_elements(
-        #     self.index,
-        #     self.insert_ID,
-        #     elements,
-        #     element_iterations,
-        # )
         self._pending_element_IDs += elem_IDs
-        # self._pending_num_elements += len(element_data_idx)
-        # self._pending_num_element_iterations += len(element_data_idx)
-
         self.initialise_EARs()
 
         return iter_IDs
@@ -1908,9 +1871,13 @@ class WorkflowTask:
             return
 
         if path[0] == "inputs":
+            try:
+                path_1 = path[1].split("[")[0]
+            except IndexError:
+                path_1 = path[1]
             for i in self.template.schemas:
                 for j in i.inputs:
-                    if j.parameter.typ == path[1]:
+                    if j.parameter.typ == path_1:
                         return j.parameter
 
         elif path[0] == "outputs":

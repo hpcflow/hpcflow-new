@@ -12,19 +12,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowNotFoundError,
 )
 from hpcflow.sdk.core.parameters import ParameterValue
-from hpcflow.sdk.core.test_utils import make_workflow
-
-
-@dataclass
-class P1(ParameterValue):
-    _typ = "p1"
-
-    a: int
-    d: Optional[int] = None
-
-    @classmethod
-    def from_data(cls, b, c):
-        return cls(a=b + c)
+from hpcflow.sdk.core.test_utils import make_workflow, P1_parameter_cls as P1
 
 
 p1 = hf.Parameter("p1")
@@ -325,7 +313,10 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
     hf.WorkflowTemplate.from_JSON_string(wkt_json)
 
 
-def test_equivalent_element_input_parameter_value_class_and_kwargs():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_equivalent_element_input_parameter_value_class_and_kwargs(
+    null_config, tmp_path, store
+):
     a_value = 101
     t1_1 = hf.Task(
         schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=P1(a=a_value))]
@@ -335,10 +326,9 @@ def test_equivalent_element_input_parameter_value_class_and_kwargs():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     assert (
         wk.tasks.t1_1.elements[0].inputs.p1.value
@@ -346,7 +336,10 @@ def test_equivalent_element_input_parameter_value_class_and_kwargs():
     )
 
 
-def test_equivalent_element_input_parameter_value_class_method_and_kwargs():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_equivalent_element_input_parameter_value_class_method_and_kwargs(
+    null_config, tmp_path, store
+):
     b_val = 50
     c_val = 51
     expected_a_val = b_val + c_val
@@ -366,10 +359,9 @@ def test_equivalent_element_input_parameter_value_class_method_and_kwargs():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     assert wk.tasks.t1_1.elements[0].inputs.p1.value.a == expected_a_val
     assert (
@@ -378,7 +370,8 @@ def test_equivalent_element_input_parameter_value_class_method_and_kwargs():
     )
 
 
-def test_input_value_class_expected_value():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_value_class_expected_value(null_config, tmp_path, store):
     a_value = 101
     t1_value_exp = P1(a=a_value)
     t2_value_exp = {"a": a_value}
@@ -386,10 +379,9 @@ def test_input_value_class_expected_value():
     t1_2 = hf.Task(schemas=[s1], inputs=[hf.InputValue(parameter=p1, value=t2_value_exp)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     value_1 = wk.tasks.t1_1.template.element_sets[0].inputs[0].value
     value_2 = wk.tasks.t1_2.template.element_sets[0].inputs[0].value
@@ -397,7 +389,8 @@ def test_input_value_class_expected_value():
     assert value_2 == t2_value_exp
 
 
-def test_input_value_class_method_expected_value():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_value_class_method_expected_value(null_config, tmp_path, store):
     b_val = 50
     c_val = 51
     t1_value_exp = P1.from_data(b=b_val, c=c_val)
@@ -415,10 +408,9 @@ def test_input_value_class_method_expected_value():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     value_1 = wk.tasks.t1_1.template.element_sets[0].inputs[0].value
     value_2 = wk.tasks.t1_2.template.element_sets[0].inputs[0].value
@@ -426,7 +418,10 @@ def test_input_value_class_method_expected_value():
     assert value_2 == t2_value_exp
 
 
-def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs(
+    null_config, tmp_path, store
+):
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
@@ -439,17 +434,19 @@ def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
     val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
     assert val_1 == val_2 == obj
 
 
-def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwargs():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwargs(
+    null_config, tmp_path, store
+):
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
@@ -469,17 +466,17 @@ def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwar
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
     val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
     assert val_1 == val_2 == obj
 
 
-def test_sequence_value_class_expected_value():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_sequence_value_class_expected_value(null_config, tmp_path, store):
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
@@ -492,10 +489,9 @@ def test_sequence_value_class_expected_value():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     value_1 = wk.tasks.t1_1.template.element_sets[0].sequences[0].values[0]
     value_2 = wk.tasks.t1_2.template.element_sets[0].sequences[0].values[0]
@@ -503,7 +499,8 @@ def test_sequence_value_class_expected_value():
     assert value_2 == data
 
 
-def test_sequence_value_class_method_expected_value():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_sequence_value_class_method_expected_value(null_config, tmp_path, store):
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
@@ -523,10 +520,9 @@ def test_sequence_value_class_method_expected_value():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     value_1 = wk.tasks.t1_1.template.element_sets[0].sequences[0].values[0]
     value_2 = wk.tasks.t1_2.template.element_sets[0].sequences[0].values[0]
@@ -534,7 +530,10 @@ def test_sequence_value_class_method_expected_value():
     assert value_2 == data
 
 
-def test_expected_element_input_parameter_value_class_merge_sequence():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_expected_element_input_parameter_value_class_merge_sequence(
+    null_config, tmp_path, store
+):
     a_val = 101
     d_val = 201
     obj_exp = P1(a=a_val, d=d_val)
@@ -546,16 +545,18 @@ def test_expected_element_input_parameter_value_class_merge_sequence():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
     assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
 
 
-def test_expected_element_input_parameter_value_class_method_merge_sequence():
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_expected_element_input_parameter_value_class_method_merge_sequence(
+    null_config, tmp_path, store
+):
     b_val = 50
     c_val = 51
     obj_exp = P1.from_data(b=b_val, c=c_val)
@@ -571,10 +572,9 @@ def test_expected_element_input_parameter_value_class_method_merge_sequence():
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
-        template_name="test_param_class_init",
-        workflow_name="test_param_class_init",
-        overwrite=True,
-        store="json",
+        path=tmp_path,
+        template_name="temp",
+        store=store,
     )
     wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
     assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
@@ -601,3 +601,117 @@ def test_upstream_input_source_merge_with_current_input_modification(
         store=store,
     )
     assert wk.tasks[1].elements[0].inputs.p2.value == {"a": 101, "b": 102}
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_upstream_input_source_with_sub_parameter(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+    )
+    s2 = hf.TaskSchema(
+        objective="t2", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            inputs=[
+                hf.InputValue("p2", {"a": 101}),
+                hf.InputValue("p2", value=102, path="b"),
+            ],
+        ),
+        hf.Task(schemas=s2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="temp",
+        store=store,
+    )
+    assert wk.tasks[1].elements[0].inputs.p2.value == {"a": 101, "b": 102}
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_from_template_data_workflow_reload(null_config, tmp_path, store):
+    wk_name = "temp"
+    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+        store=store,
+    )
+    wk_ld = hf.Workflow(wk.path)
+    assert (
+        wk.tasks[0].elements[0].get_data_idx()
+        == wk_ld.tasks[0].elements[0].get_data_idx()
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_from_template_workflow_reload(null_config, tmp_path, store):
+    wk_name = "temp"
+    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    wkt = hf.WorkflowTemplate(name=wk_name, tasks=[t1])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+        store=store,
+    )
+    wk_ld = hf.Workflow(wk.path)
+    assert (
+        wk.tasks[0].elements[0].get_data_idx()
+        == wk_ld.tasks[0].elements[0].get_data_idx()
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_from_YAML_str_template_workflow_reload(null_config, tmp_path, store):
+    yaml_str = dedent(
+        """
+    name: temp
+    tasks: 
+      - schemas: [test_t1_ps]
+        inputs:
+          p1: 101
+    """
+    )
+    wk = hf.Workflow.from_YAML_string(
+        YAML_str=yaml_str,
+        path=tmp_path,
+        store=store,
+    )
+    wk_ld = hf.Workflow(wk.path)
+    assert (
+        wk.tasks[0].elements[0].get_data_idx()
+        == wk_ld.tasks[0].elements[0].get_data_idx()
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_from_template_workflow_add_task_reload(null_config, tmp_path, store):
+    wk_name = "temp"
+    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    wkt = hf.WorkflowTemplate(name=wk_name)
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+        store=store,
+    )
+    wk.add_task(t1)
+    wk_ld = hf.Workflow(wk.path)
+    assert (
+        wk.tasks[0].elements[0].get_data_idx()
+        == wk_ld.tasks[0].elements[0].get_data_idx()
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_batch_update_mode_false_after_empty_workflow_init(null_config, tmp_path, store):
+    wk_name = "temp"
+    wk = hf.Workflow.from_template_data(
+        tasks=[],
+        path=tmp_path,
+        template_name=wk_name,
+        store=store,
+    )
+    assert wk._in_batch_mode == False

@@ -492,6 +492,42 @@ def test_raise_on_multiple_input_values(param_p1):
         )
 
 
+def test_raise_on_multiple_input_values_same_label(param_p1):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1", labels={"0": {}})],
+    )
+
+    with pytest.raises(TaskTemplateMultipleInputValues):
+        hf.Task(
+            schemas=s1,
+            inputs=[
+                hf.InputValue(param_p1, value=101, label=0),
+                hf.InputValue(param_p1, value=101, label=0),
+            ],
+        )
+
+
+def test_multiple_input_values_different_labels(param_p1):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(
+                parameter="p1",
+                labels={"0": {}, "1": {}},
+                accept_multiple=True,
+            )
+        ],
+    )
+    hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue(param_p1, value=101, label=0),
+            hf.InputValue(param_p1, value=101, label=1),
+        ],
+    )
+
+
 def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
     s1 = make_schemas([[{"p1": None, "p2": None}, ()]])
 

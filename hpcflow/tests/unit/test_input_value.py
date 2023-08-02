@@ -88,3 +88,44 @@ def test_value_sequence_from_json_like_class_method_attribute_is_set():
         json_like, shared_data=hf.template_components
     )
     assert val_seq.value_class_method == cls_method
+
+
+def test_path_attributes():
+    inp = hf.InputValue(parameter="p1", value=101, path="a.b")
+    assert inp.labelled_type == "p1"
+    assert inp.normalised_path == "inputs.p1.a.b"
+    assert inp.normalised_inputs_path == "p1.a.b"
+
+
+def test_path_attributes_with_label_arg():
+    inp = hf.InputValue(parameter="p1", value=101, path="a.b", label="1")
+    assert inp.labelled_type == "p1[1]"
+    assert inp.normalised_path == "inputs.p1[1].a.b"
+    assert inp.normalised_inputs_path == "p1[1].a.b"
+
+
+def test_path_attributes_with_label_arg_cast():
+    inp = hf.InputValue(parameter="p1", value=101, path="a.b", label=1)
+    assert inp.labelled_type == "p1[1]"
+    assert inp.normalised_path == "inputs.p1[1].a.b"
+    assert inp.normalised_inputs_path == "p1[1].a.b"
+
+
+def test_from_json_like():
+    inp = hf.InputValue.from_json_like(
+        json_like={"parameter": "p1", "value": 101},
+        shared_data=hf.template_components,
+    )
+    assert inp.parameter.typ == hf.Parameter("p1").typ
+    assert inp.value == 101
+    assert inp.label == ""
+
+
+def test_from_json_like_with_label():
+    inp = hf.InputValue.from_json_like(
+        json_like={"parameter": "p1[1]", "value": 101},
+        shared_data=hf.template_components,
+    )
+    assert inp.parameter.typ == hf.Parameter("p1").typ
+    assert inp.value == 101
+    assert inp.label == "1"
