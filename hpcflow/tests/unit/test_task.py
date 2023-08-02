@@ -522,7 +522,7 @@ def test_multiple_input_values_different_labels(param_p1):
             hf.SchemaInput(
                 parameter="p1",
                 labels={"0": {}, "1": {}},
-                accept_multiple=True,
+                multiple=True,
             )
         ],
     )

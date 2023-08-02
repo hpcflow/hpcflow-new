@@ -160,15 +160,15 @@ class SchemaInput(SchemaParameter):
     ----------
     parameter
         The parameter (i.e. type) of this schema input.
-    accept_multiple
+    multiple
         If True, expect one or more of these parameters defined in the workflow,
         distinguished by a string label in square brackets. For example `p1[0]` for a
         parameter `p1`.
     labels
         Dict whose keys represent the string labels that distinguish multiple parameters
-        if `accept_multiple` is `True`. Use the key "*" to mean all labels not matching
-        other label keys. If `accept_multiple` is `False`, this will default to a
-        single-item dict with an empty string key: `{{"": {{}}}}`. If `accept_multiple` is
+        if `multiple` is `True`. Use the key "*" to mean all labels not matching
+        other label keys. If `multiple` is `False`, this will default to a
+        single-item dict with an empty string key: `{{"": {{}}}}`. If `multiple` is
         `True`, this will default to a single-item dict with the catch-all key:
         `{{"*": {{}}}}`. On initialisation, remaining keyword-arguments are treated as default
         values for the dict values of `labels`.
@@ -204,7 +204,7 @@ class SchemaInput(SchemaParameter):
     def __init__(
         self,
         parameter: app.Parameter,
-        accept_multiple: bool = False,
+        multiple: bool = False,
         labels: Optional[Dict] = None,
         default_value: Optional[Union[app.InputValue, NullDefault]] = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
@@ -220,20 +220,20 @@ class SchemaInput(SchemaParameter):
             parameter = app.Parameter(parameter)
 
         self.parameter = parameter
-        self.accept_multiple = accept_multiple
+        self.multiple = multiple
         self.labels = labels
 
         if self.labels is None:
-            if self.accept_multiple:
+            if self.multiple:
                 self.labels = {"*": {}}
             else:
                 self.labels = {"": {}}
         else:
-            if not self.accept_multiple:
+            if not self.multiple:
                 # check single-item:
                 if len(self.labels) > 1:
                     raise ValueError(
-                        f"If `{self.__class__.__name__}.accept_multiple` is `False`, "
+                        f"If `{self.__class__.__name__}.multiple` is `False`, "
                         f"then `labels` must be a single-item `dict` if specified, but "
                         f"`labels` is: {self.labels!r}."
                     )
@@ -271,7 +271,7 @@ class SchemaInput(SchemaParameter):
         default_str = ""
         group_str = ""
         labels_str = ""
-        if not self.accept_multiple:
+        if not self.multiple:
             label = next(iter(self.labels.keys()))  # the single key
 
             default_str = ""
@@ -290,7 +290,7 @@ class SchemaInput(SchemaParameter):
         return (
             f"{self.__class__.__name__}("
             f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
-            f"accept_multiple={self.accept_multiple!r}"
+            f"multiple={self.multiple!r}"
             f"{default_str}{group_str}{labels_str}"
             f")"
         )
@@ -333,7 +333,7 @@ class SchemaInput(SchemaParameter):
     def __deepcopy__(self, memo):
         kwargs = {
             "parameter": self.parameter,
-            "accept_multiple": self.accept_multiple,
+            "multiple": self.multiple,
             "labels": self.labels,
         }
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
