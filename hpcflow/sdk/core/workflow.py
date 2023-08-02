@@ -1577,7 +1577,6 @@ class Workflow:
                 if EAR.action.abortable and exit_code == ABORT_EXIT_CODE:
                     # the point of aborting an EAR is to continue with the workflow:
                     success = True
-                self._store.set_EAR_end(EAR_ID, exit_code, success)
 
                 for IFG_i in EAR.action.input_file_generators:
                     inp_file = IFG_i.input_file
@@ -1644,6 +1643,8 @@ class Workflow:
                             f" {exit_code!r}."
                         )
                         self._store.set_EAR_skip(EAR_dep_ID)
+
+                self._store.set_EAR_end(EAR_ID, exit_code, success)
 
     def set_EAR_skip(self, EAR_ID: int) -> None:
         """Record that an EAR is to be skipped due to an upstream failure."""
