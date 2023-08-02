@@ -1179,15 +1179,15 @@ class Workflow:
                     for loop in self.loops:
                         loop._accept_pending_num_added_iters()
 
-                    if is_workflow_creation:
-                        self._store.remove_replaced_dir()
-
                     # TODO: handle errors in commit pending?
                     self._store._pending.commit_all()
-
                     self._accept_pending()
-                    self.app.persistence_logger.info("exiting batch update")
-                    self._in_batch_mode = False
+
+                if is_workflow_creation:
+                    self._store.remove_replaced_dir()
+
+                self.app.persistence_logger.info("exiting batch update")
+                self._in_batch_mode = False
 
     @classmethod
     def temporary_rename(cls, path: str, fs) -> List[str]:
