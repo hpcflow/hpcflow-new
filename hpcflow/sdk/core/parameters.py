@@ -541,14 +541,28 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals = []
             for idx, pg_idx_i in enumerate(self._values_group_idx):
-                val = self.workflow.get_parameter_data(pg_idx_i)
+                param_i = self.workflow.get_parameter(pg_idx_i)
+                if param_i.data is not None:
+                    val_i = param_i.data
+                else:
+                    val_i = param_i.file
+
+                # `val_i` might already be a `_value_class` object if the store has not
+                # yet been committed to disk:
                 if (
                     self.parameter
                     and self.parameter._value_class
                     and self._values_are_objs[idx]
+                    and not isinstance(val_i, self.parameter._value_class)
                 ):
-                    val = self.parameter._value_class(**val)
-                vals.append(val)
+                    method_name = param_i.source.get("value_class_method")
+                    if method_name:
+                        method = getattr(self.parameter._value_class, method_name)
+                    else:
+                        method = self.parameter._value_class
+                    val_i = method(**val_i)
+
+                vals.append(val_i)
             return vals
         else:
             return self._values
