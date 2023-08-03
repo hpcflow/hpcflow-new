@@ -1,4 +1,36 @@
 
+<a name="v0.2.0a70"></a>
+## [v0.2.0a70](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a69...v0.2.0a70) - 2023.08.03
+
+### ♻ Code Refactoring
+
+* change SchemaInput.accept_multiple to multiple
+* add get_enum_by_name_or_val from matflow
+
+### ✨ Features
+
+* support task output labels
+* initial support for SchemaInput labels for input parameter multiplicity
+* initial support for ElementSet.repeats
+* allow action-less schemas for defining inputs
+
+### 🐛 Bug Fixes
+
+* make ElementInputs parameter accessible when they have multiple labels
+* set_EAR_end - commit to store at the end so it won't record success on some python failure
+* tests that use make_schemas where a default value should not be set
+* distinguish SchemaInput default value of None from un-specified
+* ValueSequence.values when object parameter is not yet store-committed
+* Workflow.batch_update when no pending changes
+* sort input_data_idx in _make_new_elements_persistent to ensure correct element data retrieval
+* WorkflowTask._get_merged_parameter_data where ParameterValue exists but no class method specified
+* get_parameter_data if data is specified falsey
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a69"></a>
 ## [v0.2.0a69](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a68...v0.2.0a69) - 2023.07.28
 
