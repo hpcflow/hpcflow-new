@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
+from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
@@ -1079,10 +1080,8 @@ class ElementParameter:
         raise NotImplementedError
 
 
-@dataclass
-class ElementFilter:
-    parameter_path: app.ParameterPath
-    condition: ConditionLike
+class ElementFilter(Rule):
+    pass
 
 
 @dataclass

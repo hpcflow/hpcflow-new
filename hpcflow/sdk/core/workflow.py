@@ -127,9 +127,11 @@ class WorkflowTemplate(JSONLike):
             if "element_sets" not in task_dat:
                 # add a single element set:
                 schemas = task_dat.pop("schemas")
+                out_labels = task_dat.pop("output_labels", [])
                 data["tasks"][task_idx] = {
                     "schemas": schemas,
                     "element_sets": [task_dat],
+                    "output_labels": out_labels,
                 }
 
         # extract out any template components:

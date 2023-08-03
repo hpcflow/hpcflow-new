@@ -223,7 +223,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -250,7 +250,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -281,7 +281,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -309,7 +309,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -342,7 +342,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     )
     available = t3.get_available_task_input_sources(
         element_set=t3.element_sets[0],
-        source_tasks=[wk.tasks.t1.template, wk.tasks.t2.template],
+        source_tasks=[wk.tasks.t1, wk.tasks.t2],
     )
     available_exp = {
         "p3": [
@@ -378,7 +378,7 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -420,7 +420,7 @@ def test_task_get_available_task_input_sources_input_source_excluded_if_not_loca
     )
     available = t3.get_available_task_input_sources(
         element_set=t3.element_sets[0],
-        source_tasks=[wk.tasks.t1.template, wk.tasks.t2.template],
+        source_tasks=[wk.tasks.t1, wk.tasks.t2],
     )
     available_exp = {
         "p1": [
