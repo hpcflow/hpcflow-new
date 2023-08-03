@@ -1,4 +1,4 @@
-import copy
+import enum
 from functools import wraps
 import contextlib
 import hashlib
@@ -14,7 +14,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import List, Mapping
+from typing import Type, Union, List, Mapping
 
 from ruamel.yaml import YAML
 import sentry_sdk
@@ -613,3 +613,19 @@ def open_file(filename):
     else:
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, filename])
+
+
+def get_enum_by_name_or_val(enum_cls: Type, key: Union[str, None]) -> enum.Enum:
+    """Retrieve an enum by name or value, assuming uppercase names and integer values."""
+    err = f"Unknown enum key or value {key!r} for class {enum_cls!r}"
+    if key is None or isinstance(key, enum_cls):
+        return key
+    elif isinstance(key, (int, float)):
+        return enum_cls(int(key))  # retrieve by value
+    elif isinstance(key, str):
+        try:
+            return getattr(enum_cls, key.upper())  # retrieve by name
+        except AttributeError:
+            raise ValueError(err)
+    else:
+        raise ValueError(err)

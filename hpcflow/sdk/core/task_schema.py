@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.parameters import Parameter
@@ -50,7 +50,7 @@ class TaskSchema(JSONLike):
     def __init__(
         self,
         objective: Union[app.TaskObjective, str],
-        actions: List[app.Action],
+        actions: List[app.Action] = None,
         method: Optional[str] = None,
         implementation: Optional[str] = None,
         inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
@@ -59,7 +59,7 @@ class TaskSchema(JSONLike):
         _hash_value: Optional[str] = None,
     ):
         self.objective = objective
-        self.actions = actions
+        self.actions = actions or []
         self.method = method
         self.implementation = implementation
         self.inputs = inputs or []
@@ -203,10 +203,11 @@ class TaskSchema(JSONLike):
                     for OFP_j in act_i.output_file_parsers:
                         extra_ins = extra_ins - set(OFP_j.inputs or [])
 
-                if extra_ins:
+                if self.actions and extra_ins:
+                    # allow for no actions (e.g. defining inputs for downstream tasks)
                     raise ValueError(
-                        f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used by "
-                        f"any actions."
+                        f"Schema {self.name!r} inputs {tuple(extra_ins)!r} are not used "
+                        f"by any actions."
                     )
 
             missing_outs = set(self.output_types) - set(all_outs)
@@ -225,11 +226,12 @@ class TaskSchema(JSONLike):
     def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
         new_refs = []
         for input_i in self.inputs:
-            if input_i.default_value is not None:
-                _, dat_ref, is_new = input_i.default_value.make_persistent(
-                    workflow, source
-                )
-                new_refs.extend(dat_ref) if is_new else None
+            for lab_info in input_i.labelled_info():
+                if "default_value" in lab_info:
+                    _, dat_ref, is_new = lab_info["default_value"].make_persistent(
+                        workflow, source
+                    )
+                    new_refs.extend(dat_ref) if is_new else None
         return new_refs
 
     @property
@@ -243,19 +245,26 @@ class TaskSchema(JSONLike):
 
     @property
     def input_types(self):
-        return tuple(i.typ for i in self.inputs)
+        return tuple(j for i in self.inputs for j in i.all_labelled_types)
 
     @property
     def output_types(self):
         return tuple(i.typ for i in self.outputs)
 
     @property
-    def provides_parameters(self):
-        return tuple(
-            i
-            for i in self.inputs + self.outputs
-            if i.propagation_mode != ParameterPropagationMode.NEVER
-        )
+    def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+        out = []
+        for schema_inp in self.inputs:
+            for labelled_info in schema_inp.labelled_info():
+                prop_mode = labelled_info["propagation_mode"]
+                if prop_mode is not ParameterPropagationMode.NEVER:
+                    out.append(
+                        (schema_inp.input_or_output, labelled_info["labelled_type"])
+                    )
+        for schema_out in self.outputs:
+            if schema_out.propagation_mode is not ParameterPropagationMode.NEVER:
+                out.append((schema_out.input_or_output, schema_out.typ))
+        return tuple(out)
 
     @property
     def task_template(self):

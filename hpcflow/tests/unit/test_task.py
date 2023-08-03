@@ -8,6 +8,7 @@ from hpcflow.sdk.core.errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
 )
+from hpcflow.sdk.core.parameters import NullDefault
 from hpcflow.sdk.core.test_utils import make_schemas, make_tasks, make_workflow
 
 
@@ -211,7 +212,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     tmp_path,
 ):
     t1, t2 = make_tasks(
-        schemas_spec=[[{"p1": None}, ("p2",), "t1"], [{"p2": None}, (), "t2"]],
+        schemas_spec=[
+            [{"p1": NullDefault.NULL}, ("p2",), "t1"],
+            [{"p2": NullDefault.NULL}, (), "t2"],
+        ],
         local_inputs={0: ("p1",)},
     )
     wk = hf.Workflow.from_template(
@@ -219,7 +223,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -246,7 +250,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -266,7 +270,10 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     tmp_path,
 ):
     t1, t2 = make_tasks(
-        schemas_spec=[[{"p1": None}, ("p2",), "t1"], [{"p2": None}, (), "t2"]],
+        schemas_spec=[
+            [{"p1": NullDefault.NULL}, ("p2",), "t1"],
+            [{"p2": NullDefault.NULL}, (), "t2"],
+        ],
         local_inputs={0: ("p1",), 1: ("p2",)},
     )
     wk = hf.Workflow.from_template(
@@ -274,7 +281,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -302,7 +309,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_one_out
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -324,9 +331,9 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
 ):
     t1, t2, t3 = make_tasks(
         schemas_spec=[
-            [{"p1": None}, ("p2", "p3"), "t1"],
-            [{"p2": None}, ("p3", "p4"), "t2"],
-            [{"p3": None}, (), "t3"],
+            [{"p1": NullDefault.NULL}, ("p2", "p3"), "t1"],
+            [{"p2": NullDefault.NULL}, ("p3", "p4"), "t2"],
+            [{"p3": NullDefault.NULL}, (), "t3"],
         ],
         local_inputs={0: ("p1",), 1: ("p2",)},
     )
@@ -335,7 +342,7 @@ def test_task_get_available_task_input_sources_expected_return_one_param_two_out
     )
     available = t3.get_available_task_input_sources(
         element_set=t3.element_sets[0],
-        source_tasks=[wk.tasks.t1.template, wk.tasks.t2.template],
+        source_tasks=[wk.tasks.t1, wk.tasks.t2],
     )
     available_exp = {
         "p3": [
@@ -361,8 +368,8 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
 ):
     t1, t2 = make_tasks(
         schemas_spec=[
-            [{"p1": None}, ("p2", "p3"), "t1"],
-            [{"p2": None, "p3": None}, (), "t2"],
+            [{"p1": NullDefault.NULL}, ("p2", "p3"), "t1"],
+            [{"p2": NullDefault.NULL, "p3": NullDefault.NULL}, (), "t2"],
         ],
         local_inputs={0: ("p1",)},
     )
@@ -371,7 +378,7 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
     )
     available = t2.get_available_task_input_sources(
         element_set=t2.element_sets[0],
-        source_tasks=[wk.tasks.t1.template],
+        source_tasks=[wk.tasks.t1],
     )
     available_exp = {
         "p2": [
@@ -402,9 +409,9 @@ def test_task_get_available_task_input_sources_input_source_excluded_if_not_loca
 
     t1, t2, t3 = make_tasks(
         schemas_spec=[
-            [{"p1": None}, ("p1",), "t1"],  # sources for t3: input + output
-            [{"p1": None}, ("p1",), "t2"],  # sources fot t3: output only
-            [{"p1": None}, ("p1",), "t3"],
+            [{"p1": NullDefault.NULL}, ("p1",), "t1"],  # sources for t3: input + output
+            [{"p1": NullDefault.NULL}, ("p1",), "t2"],  # sources fot t3: output only
+            [{"p1": NullDefault.NULL}, ("p1",), "t3"],
         ],
         local_inputs={0: ("p1",)},
     )
@@ -413,7 +420,7 @@ def test_task_get_available_task_input_sources_input_source_excluded_if_not_loca
     )
     available = t3.get_available_task_input_sources(
         element_set=t3.element_sets[0],
-        source_tasks=[wk.tasks.t1.template, wk.tasks.t2.template],
+        source_tasks=[wk.tasks.t1, wk.tasks.t2],
     )
     available_exp = {
         "p1": [
@@ -490,6 +497,42 @@ def test_raise_on_multiple_input_values(param_p1):
                 hf.InputValue(param_p1, value=7),
             ],
         )
+
+
+def test_raise_on_multiple_input_values_same_label(param_p1):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1", labels={"0": {}})],
+    )
+
+    with pytest.raises(TaskTemplateMultipleInputValues):
+        hf.Task(
+            schemas=s1,
+            inputs=[
+                hf.InputValue(param_p1, value=101, label=0),
+                hf.InputValue(param_p1, value=101, label=0),
+            ],
+        )
+
+
+def test_multiple_input_values_different_labels(param_p1):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(
+                parameter="p1",
+                labels={"0": {}, "1": {}},
+                multiple=True,
+            )
+        ],
+    )
+    hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue(param_p1, value=101, label=0),
+            hf.InputValue(param_p1, value=101, label=1),
+        ],
+    )
 
 
 def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
@@ -1276,13 +1319,13 @@ def test_task_add_elements_simple_dependence_three_tasks(tmp_path, param_p1):
 
 def test_no_change_to_tasks_metadata_on_add_task_failure(tmp_path):
     wk = make_workflow(
-        schemas_spec=[[{"p1": None}, (), "t1"]],
+        schemas_spec=[[{"p1": NullDefault.NULL}, (), "t1"]],
         local_inputs={0: ("p1",)},
         path=tmp_path,
     )
     tasks_meta = copy.deepcopy(wk._store.get_tasks())
 
-    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
+    s2 = make_schemas([[{"p1": NullDefault.NULL, "p3": NullDefault.NULL}, ()]])
     t2 = hf.Task(schemas=s2)
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
@@ -1292,12 +1335,14 @@ def test_no_change_to_tasks_metadata_on_add_task_failure(tmp_path):
 
 def test_no_change_to_parameter_data_on_add_task_failure(tmp_path, param_p2, param_p3):
     wk = make_workflow(
-        schemas_spec=[[{"p1": None}, (), "t1"]],
+        schemas_spec=[[{"p1": NullDefault.NULL}, (), "t1"]],
         local_inputs={0: ("p1",)},
         path=tmp_path,
     )
     param_data = copy.deepcopy(wk.get_all_parameters())
-    s2 = make_schemas([[{"p1": None, "p2": None, "p3": None}, ()]])
+    s2 = make_schemas(
+        [[{"p1": NullDefault.NULL, "p2": NullDefault.NULL, "p3": NullDefault.NULL}, ()]]
+    )
     t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p2, 201)])
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
@@ -1307,13 +1352,13 @@ def test_no_change_to_parameter_data_on_add_task_failure(tmp_path, param_p2, par
 
 def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
     wk = make_workflow(
-        schemas_spec=[[{"p1": None}, (), "t1"]],
+        schemas_spec=[[{"p1": NullDefault.NULL}, (), "t1"]],
         local_inputs={0: ("p1",)},
         path=tmp_path,
     )
     param_data = copy.deepcopy(wk.get_all_parameter_data())
 
-    s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
+    s2 = make_schemas([[{"p1": NullDefault.NULL, "p3": NullDefault.NULL}, ()]])
     t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
     wk.add_task(t2)
 

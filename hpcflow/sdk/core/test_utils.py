@@ -1,5 +1,7 @@
-from typing import List, Tuple, Union
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.parameters import ParameterValue
 
 
 def make_schemas(ins_outs, ret_list=False):
@@ -39,6 +41,7 @@ def make_schemas(ins_outs, ret_list=False):
             output_file_parsers=out_file_parsers,
             environments=[hf.ActionEnvironment(hf.Environment(name="env_1"))],
         )
+        print(f"{ins_i=}")
         out.append(
             hf.TaskSchema(
                 objective=obj,
@@ -149,3 +152,15 @@ def make_workflow(
         store=store,
     )
     return wk
+
+
+@dataclass
+class P1_parameter_cls(ParameterValue):
+    _typ = "p1"
+
+    a: int
+    d: Optional[int] = None
+
+    @classmethod
+    def from_data(cls, b, c):
+        return cls(a=b + c)

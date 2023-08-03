@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
+from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
@@ -25,25 +26,44 @@ class _ElementPrefixedParameter:
         self._element_action = element_action
         self._element_action_run = element_action_run
 
+        self._prefixed_names_unlabelled = None  # assigned on first access
+
     def __getattr__(self, name):
-        if name not in self._get_prefixed_names():
+        if name not in self.prefixed_names_unlabelled:
             raise ValueError(
                 f"No {self._prefix} named {name!r}. Available {self._prefix} are: "
-                f"{self._get_prefixed_names_str()}."
+                f"{self.prefixed_names_unlabelled_str}."
             )
 
-        data_idx = self._parent.get_data_idx(path=f"{self._prefix}.{name}")
-        param = self._app.ElementParameter(
-            path=f"{self._prefix}.{name}",
-            task=self._task,
-            data_idx=data_idx,
-            parent=self._parent,
-            element=self._element_iteration_obj,
-        )
-        return param
+        labels = self.prefixed_names_unlabelled.get(name)
+        if labels:
+            # is multiple; return a dict of `ElementParameter`s
+            out = {}
+            for label_i in labels:
+                path_i = f"{self._prefix}.{name}[{label_i}]"
+                data_idx = self._parent.get_data_idx(path=path_i)
+                out[label_i] = self._app.ElementParameter(
+                    path=path_i,
+                    task=self._task,
+                    data_idx=data_idx,
+                    parent=self._parent,
+                    element=self._element_iteration_obj,
+                )
+
+        else:
+            path_i = f"{self._prefix}.{name}"
+            data_idx = self._parent.get_data_idx(path=path_i)
+            out = self._app.ElementParameter(
+                path=path_i,
+                task=self._task,
+                data_idx=data_idx,
+                parent=self._parent,
+                element=self._element_iteration_obj,
+            )
+        return out
 
     def __dir__(self):
-        return super().__dir__() + self._get_prefixed_names()
+        return super().__dir__() + self.prefixed_names_unlabelled
 
     @property
     def _parent(self):
@@ -60,17 +80,47 @@ class _ElementPrefixedParameter:
     def _task(self):
         return self._parent.task
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self._get_prefixed_names_str()})"
+    @property
+    def prefixed_names_unlabelled(self):
+        if self._prefixed_names_unlabelled is None:
+            self._prefixed_names_unlabelled = self._get_prefixed_names_unlabelled()
+        return self._prefixed_names_unlabelled
 
-    def _get_prefixed_names_str(self):
-        return f"{', '.join(f'{i!r}' for i in self._get_prefixed_names())}"
+    @property
+    def prefixed_names_unlabelled_str(self):
+        return ", ".join(i for i in self.prefixed_names_unlabelled)
+
+    def __repr__(self):
+        # If there are one or more labels present, then replace with a single name
+        # indicating there could be multiple (using `multi_prefix` prefix):
+        names = []
+        for unlabelled, labels in self.prefixed_names_unlabelled.items():
+            name_i = unlabelled
+            if labels:
+                name_i = "*" + name_i
+            names.append(name_i)
+        names_str = ", ".join(i for i in names)
+        return f"{self.__class__.__name__}({names_str})"
 
     def _get_prefixed_names(self):
         return sorted(self._parent.get_parameter_names(self._prefix))
 
+    def _get_prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
+        names = self._get_prefixed_names()
+        all_names = {}
+        for i in list(names):
+            if "[" in i:
+                unlab_i, rem = i.split("[")
+                label = rem.split("]")[0]
+                if unlab_i not in all_names:
+                    all_names[unlab_i] = []
+                all_names[unlab_i].append(label)
+            else:
+                all_names[i] = []
+        return all_names
+
     def __iter__(self):
-        for name in self._get_prefixed_names():
+        for name in self.prefixed_names_unlabelled:
             yield getattr(self, name)
 
 
@@ -269,7 +319,7 @@ class ElementIteration:
                     action_idx=act_idx,
                     runs=runs,
                 )
-                for act_idx, runs in self._EARs.items()
+                for act_idx, runs in (self._EARs or {}).items()
             }
         return self._action_objs
 
@@ -304,8 +354,9 @@ class ElementIteration:
         return self._output_files
 
     def get_parameter_names(self, prefix: str) -> List[str]:
+        single_label_lookup = self._get_single_label_lookup("inputs")
         return list(
-            ".".join(i.split(".")[1:])
+            ".".join(single_label_lookup.get(i, i).split(".")[1:])
             for i in self.schema_parameters
             if i.startswith(prefix)
         )
@@ -323,7 +374,10 @@ class ElementIteration:
             The index of the action within the schema.
         """
 
-        if action_idx is None:
+        if not self.actions:
+            data_idx = self.data_idx
+
+        elif action_idx is None:
             # inputs should be from first action where that input is defined, and outputs
             # should include modifications from all actions; we can't just take
             # `self.data_idx`, because 1) this is used for initial runs, and subsequent
@@ -438,6 +492,16 @@ class ElementIteration:
 
         return out
 
+    def _get_single_label_lookup(self, prefix=""):
+        lookup = {}
+        if prefix and not prefix.endswith("."):
+            prefix += "."
+        for sch_inp in self.task.template.all_schema_inputs:
+            if not sch_inp.multiple and sch_inp.single_label:
+                labelled_type = sch_inp.single_labelled_type
+                lookup[f"{prefix}{labelled_type}"] = f"{prefix}{sch_inp.typ}"
+        return lookup
+
     def get(
         self,
         path: str = None,
@@ -450,8 +514,20 @@ class ElementIteration:
         # TODO include a "stats" parameter which when set we know the run has been
         # executed (or if start time is set but not end time, we know it's running or
         # failed.)
+
+        data_idx = self.get_data_idx(action_idx=action_idx, run_idx=run_idx)
+        single_label_lookup = self._get_single_label_lookup(prefix="inputs")
+
+        if single_label_lookup:
+            # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
+            # remove the trivial label:
+            for key in list(data_idx.keys()):
+                lookup_val = single_label_lookup.get(key)
+                if lookup_val:
+                    data_idx[lookup_val] = data_idx.pop(key)
+
         return self.task._get_merged_parameter_data(
-            data_index=self.get_data_idx(action_idx=action_idx, run_idx=run_idx),
+            data_index=data_idx,
             path=path,
             raise_on_missing=raise_on_missing,
             default=default,
@@ -1004,10 +1080,8 @@ class ElementParameter:
         raise NotImplementedError
 
 
-@dataclass
-class ElementFilter:
-    parameter_path: app.ParameterPath
-    condition: ConditionLike
+class ElementFilter(Rule):
+    pass
 
 
 @dataclass

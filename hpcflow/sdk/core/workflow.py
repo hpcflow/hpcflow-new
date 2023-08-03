@@ -127,9 +127,11 @@ class WorkflowTemplate(JSONLike):
             if "element_sets" not in task_dat:
                 # add a single element set:
                 schemas = task_dat.pop("schemas")
+                out_labels = task_dat.pop("output_labels", [])
                 data["tasks"][task_idx] = {
                     "schemas": schemas,
                     "element_sets": [task_dat],
+                    "output_labels": out_labels,
                 }
 
         # extract out any template components:
@@ -1179,15 +1181,15 @@ class Workflow:
                     for loop in self.loops:
                         loop._accept_pending_num_added_iters()
 
-                    if is_workflow_creation:
-                        self._store.remove_replaced_dir()
-
                     # TODO: handle errors in commit pending?
                     self._store._pending.commit_all()
-
                     self._accept_pending()
-                    self.app.persistence_logger.info("exiting batch update")
-                    self._in_batch_mode = False
+
+                if is_workflow_creation:
+                    self._store.remove_replaced_dir()
+
+                self.app.persistence_logger.info("exiting batch update")
+                self._in_batch_mode = False
 
     @classmethod
     def temporary_rename(cls, path: str, fs) -> List[str]:
@@ -1341,10 +1343,11 @@ class Workflow:
         return self.get_parameters([index], **kwargs)[0]
 
     def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
-        return (
-            self.get_parameter(index, **kwargs).data
-            or self.get_parameter(index, **kwargs).file
-        )
+        param = self.get_parameter(index, **kwargs)
+        if param.data is not None:
+            return param.data
+        else:
+            return param.file
 
     def get_parameter_source(self, index: int) -> Dict:
         return self.get_parameter_sources([index])[0]
@@ -1576,7 +1579,6 @@ class Workflow:
                 if EAR.action.abortable and exit_code == ABORT_EXIT_CODE:
                     # the point of aborting an EAR is to continue with the workflow:
                     success = True
-                self._store.set_EAR_end(EAR_ID, exit_code, success)
 
                 for IFG_i in EAR.action.input_file_generators:
                     inp_file = IFG_i.input_file
@@ -1643,6 +1645,8 @@ class Workflow:
                             f" {exit_code!r}."
                         )
                         self._store.set_EAR_skip(EAR_dep_ID)
+
+                self._store.set_EAR_end(EAR_ID, exit_code, success)
 
     def set_EAR_skip(self, EAR_ID: int) -> None:
         """Record that an EAR is to be skipped due to an upstream failure."""

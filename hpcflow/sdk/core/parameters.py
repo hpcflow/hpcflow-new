@@ -15,7 +15,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.submission import timedelta_format
 
 
@@ -148,10 +148,47 @@ class SchemaParameter(JSONLike):
         return self.parameter.typ
 
 
-@dataclass
+class NullDefault(enum.Enum):
+    NULL = 0
+
+
 class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
-    applied."""
+    applied.
+
+    Parameters
+    ----------
+    parameter
+        The parameter (i.e. type) of this schema input.
+    multiple
+        If True, expect one or more of these parameters defined in the workflow,
+        distinguished by a string label in square brackets. For example `p1[0]` for a
+        parameter `p1`.
+    labels
+        Dict whose keys represent the string labels that distinguish multiple parameters
+        if `multiple` is `True`. Use the key "*" to mean all labels not matching
+        other label keys. If `multiple` is `False`, this will default to a
+        single-item dict with an empty string key: `{{"": {{}}}}`. If `multiple` is
+        `True`, this will default to a single-item dict with the catch-all key:
+        `{{"*": {{}}}}`. On initialisation, remaining keyword-arguments are treated as default
+        values for the dict values of `labels`.
+    default_value
+        The default value for this input parameter. This is itself a default value that
+        will be applied to all `labels` values if a "default_value" key does not exist.
+    propagation_mode
+        Determines how this input should propagate through the workflow. This is a default
+        value that will be applied to all `labels` values if a "propagation_mode" key does
+        not exist. By default, the input is allowed to be used in downstream tasks simply
+        because it has a compatible type (this is the "implicit" propagation mode). Other
+        options are "explicit", meaning that the parameter must be explicitly specified in
+        the downstream task `input_sources` for it to be used, and "never", meaning that
+        the parameter must not be used in downstream tasks and will be inaccessible to
+        those tasks.
+    group
+        Determines the name of the element group from which this input should be sourced.
+        This is a default value that will be applied to all `labels` if a "group" key
+        does not exist.
+    """
 
     _task_schema = None  # assigned by parent TaskSchema
 
@@ -162,74 +199,142 @@ class SchemaInput(SchemaParameter):
             shared_data_name="parameters",
             shared_data_primary_key="typ",
         ),
-        ChildObjectSpec(
-            name="default_value",
-            class_name="InputValue",
-            parent_ref="_schema_input",
-        ),
-        ChildObjectSpec(
-            name="propagation_mode",
-            class_name="ParameterPropagationMode",
-            is_enum=True,
-        ),
     )
 
-    parameter: app.Parameter
-    default_value: Optional[app.InputValue] = None
-    propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
+    def __init__(
+        self,
+        parameter: app.Parameter,
+        multiple: bool = False,
+        labels: Optional[Dict] = None,
+        default_value: Optional[Union[app.InputValue, NullDefault]] = NullDefault.NULL,
+        propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
+        group: Optional[str] = None,
+    ):
+        # TODO: can we define elements groups on local inputs as well, or should these be
+        # just for elements from other tasks?
 
-    # can we define elements groups on local inputs as well, or should these be just for
-    # elements from other tasks?
-    group: Optional[str] = None
-    where: Optional[app.ElementFilter] = None
+        # TODO: test we allow unlabelled with accepts-multiple True.
+        # TODO: test we allow a single labelled with accepts-multiple False.
 
-    def __post_init__(self):
-        if not isinstance(self.propagation_mode, ParameterPropagationMode):
-            self.propagation_mode = getattr(
-                ParameterPropagationMode, self.propagation_mode.upper()
-            )
-        super().__post_init__()
+        if not isinstance(parameter, app.Parameter):
+            parameter = app.Parameter(parameter)
+
+        self.parameter = parameter
+        self.multiple = multiple
+        self.labels = labels
+
+        if self.labels is None:
+            if self.multiple:
+                self.labels = {"*": {}}
+            else:
+                self.labels = {"": {}}
+        else:
+            if not self.multiple:
+                # check single-item:
+                if len(self.labels) > 1:
+                    raise ValueError(
+                        f"If `{self.__class__.__name__}.multiple` is `False`, "
+                        f"then `labels` must be a single-item `dict` if specified, but "
+                        f"`labels` is: {self.labels!r}."
+                    )
+
+        labels_defaults = {}
+        if propagation_mode is not None:
+            labels_defaults["propagation_mode"] = propagation_mode
+        if group is not None:
+            labels_defaults["group"] = group
+
+        # apply defaults:
+        for k, v in self.labels.items():
+            labels_defaults_i = copy.deepcopy(labels_defaults)
+            if default_value is not NullDefault.NULL:
+                if not isinstance(default_value, InputValue):
+                    default_value = app.InputValue(
+                        parameter=self.parameter,
+                        value=default_value,
+                        label=k,
+                    )
+                labels_defaults_i["default_value"] = default_value
+            label_i = {**labels_defaults_i, **v}
+            if "propagation_mode" in label_i:
+                label_i["propagation_mode"] = get_enum_by_name_or_val(
+                    ParameterPropagationMode, label_i["propagation_mode"]
+                )
+            if "default_value" in label_i:
+                label_i["default_value"]._schema_input = self
+            self.labels[k] = label_i
+
         self._set_parent_refs()
+        self._validate()
 
     def __repr__(self) -> str:
         default_str = ""
-        if self.default_value is not None:
-            default_str = f", default_value={self.default_value!r}"
-
         group_str = ""
-        if self.group is not None:
-            group_str = f", group={self.group!r}"
+        labels_str = ""
+        if not self.multiple:
+            label = next(iter(self.labels.keys()))  # the single key
 
-        where_str = ""
-        if self.where is not None:
-            where_str = f", group={self.where!r}"
+            default_str = ""
+            if "default_value" in self.labels[label]:
+                default_str = (
+                    f", default_value={self.labels[label]['default_value'].value!r}"
+                )
+
+            group = self.labels[label].get("group")
+            if group is not None:
+                group_str = f", group={group!r}"
+
+        else:
+            labels_str = f", labels={str(self.labels)!r}"
 
         return (
             f"{self.__class__.__name__}("
             f"parameter={self.parameter.__class__.__name__}({self.parameter.typ!r}), "
-            f"propagation_mode={self.propagation_mode.name!r}"
-            f"{default_str}{group_str}{where_str}"
+            f"multiple={self.multiple!r}"
+            f"{default_str}{group_str}{labels_str}"
             f")"
         )
 
+    def to_dict(self):
+        dct = super().to_dict()
+        for k, v in dct["labels"].items():
+            prop_mode = v.get("parameter_propagation_mode")
+            if prop_mode:
+                dct["labels"][k]["parameter_propagation_mode"] = prop_mode.name
+        return dct
+
+    def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
+        out, shared = super().to_json_like(dct, shared_data, exclude, path)
+        for k, v in out["labels"].items():
+            if "default_value" in v:
+                out["labels"][k]["default_value_is_input_value"] = True
+        return out, shared
+
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
-        # we assume if default_value is specified, it is only the `value` part of the
-        # `InputValue` JSON:
-        if "default_value" in json_like:
-            json_like["default_value"] = {
-                "parameter": json_like["parameter"],
-                "value": json_like["default_value"],
-            }
+        for k, v in json_like.get("labels", {}).items():
+            if "default_value" in v:
+                if "default_value_is_input_value" in v:
+                    inp_val_kwargs = v["default_value"]
+                else:
+                    inp_val_kwargs = {
+                        "parameter": json_like["parameter"],
+                        "value": v["default_value"],
+                        "label": k,
+                    }
+                json_like["labels"][k]["default_value"] = InputValue.from_json_like(
+                    json_like=inp_val_kwargs,
+                    shared_data=shared_data,
+                )
+
         obj = super().from_json_like(json_like, shared_data)
         return obj
 
     def __deepcopy__(self, memo):
         kwargs = {
             "parameter": self.parameter,
-            "default_value": self.default_value,
-            "propagation_mode": self.propagation_mode,
-            "group": self.group,
+            "multiple": self.multiple,
+            "labels": self.labels,
         }
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._task_schema = self._task_schema
@@ -239,20 +344,51 @@ class SchemaInput(SchemaParameter):
     def task_schema(self):
         return self._task_schema
 
+    @property
+    def all_labelled_types(self):
+        return list(f"{self.typ}{f'[{i}]' if i else ''}" for i in self.labels)
+
+    @property
+    def single_label(self):
+        if not self.multiple:
+            return next(iter(self.labels))
+
+    @property
+    def single_labelled_type(self):
+        if not self.multiple:
+            return next(iter(self.labelled_info()))["labelled_type"]
+
+    def labelled_info(self):
+        for k, v in self.labels.items():
+            label = f"[{k}]" if k else ""
+            dct = {
+                "labelled_type": self.parameter.typ + label,
+                "propagation_mode": v["propagation_mode"],
+                "group": v.get("group"),
+            }
+            if "default_value" in v:
+                dct["default_value"] = v["default_value"]
+            yield dct
+
     def _validate(self):
         super()._validate()
-        if self.default_value is not None:
-            if not isinstance(self.default_value, InputValue):
-                self.default_value = self.app.InputValue(
-                    parameter=self.parameter,
-                    value=self.default_value,
-                )
-            if self.default_value.parameter != self.parameter:
-                raise ValueError(
-                    f"{self.__class__.__name__} `default_value` must be an `InputValue` for "
-                    f"parameter: {self.parameter!r}, but specified `InputValue` parameter "
-                    f"is: {self.default_value.parameter!r}."
-                )
+        for k, v in self.labels.items():
+            if "default_value" in v:
+                if not isinstance(v["default_value"], InputValue):
+                    def_val = self.app.InputValue(
+                        parameter=self.parameter,
+                        value=v["default_value"],
+                        label=k,
+                    )
+                    self.labels[k]["default_value"] = def_val
+                def_val = self.labels[k]["default_value"]
+                if def_val.parameter != self.parameter or def_val.label != k:
+                    raise ValueError(
+                        f"{self.__class__.__name__} `default_value` for label {k!r} must "
+                        f"be an `InputValue` for parameter: {self.parameter!r} with the "
+                        f"same label, but specified `InputValue` is: "
+                        f"{v['default_value']!r}."
+                    )
 
     @property
     def input_or_output(self):
@@ -296,9 +432,14 @@ class ValueSequence(JSONLike):
         path: str,
         nesting_order: int,
         values: List[Any],
+        label: Optional[str] = None,
         value_class_method: Optional[str] = None,
     ):
-        self.path = self._validate_parameter_path(path)
+        label = str(label) if label is not None else ""
+        path, label = self._validate_parameter_path(path, label)
+
+        self.path = path
+        self.label = label
         self.nesting_order = nesting_order
         self.value_class_method = value_class_method
 
@@ -319,6 +460,9 @@ class ValueSequence(JSONLike):
         self._values_method_args = None
 
     def __repr__(self):
+        label_str = ""
+        if self.label:
+            label_str = f"label={self.label!r}, "
         vals_grp_idx = (
             f"values_group_idx={self._values_group_idx}, "
             if self._values_group_idx
@@ -327,6 +471,7 @@ class ValueSequence(JSONLike):
         return (
             f"{self.__class__.__name__}("
             f"path={self.path!r}, "
+            f"{label_str}"
             f"nesting_order={self.nesting_order}, "
             f"{vals_grp_idx}"
             f"values={self.values}"
@@ -404,12 +549,12 @@ class ValueSequence(JSONLike):
     @property
     def input_type(self):
         if self.path_type == "inputs":
-            return self.path_split[1]
+            return self.path_split[1].replace(self._label_fmt, "")
 
     @property
     def input_path(self):
         if self.path_type == "inputs":
-            return ".".join(self.path_split[2:]) or None
+            return ".".join(self.path_split[2:])
 
     @property
     def resource_scope(self):
@@ -420,6 +565,15 @@ class ValueSequence(JSONLike):
     def is_sub_value(self):
         """True if the values are for a sub part of the parameter."""
         return True if self.input_path else False
+
+    @property
+    def _label_fmt(self):
+        return f"[{self.label}]" if self.label else ""
+
+    @property
+    def labelled_type(self):
+        if self.input_type:
+            return f"{self.input_type}{self._label_fmt}"
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -439,7 +593,15 @@ class ValueSequence(JSONLike):
         obj._values_method_args = _values_method_args
         return obj
 
-    def _validate_parameter_path(self, path):
+    def _validate_parameter_path(self, path, label):
+        """Parse the supplied path and perform basic checks on it.
+
+        This method also adds the specified `SchemaInput` label to the path and checks for
+        consistency if a label is already present.
+
+        """
+        label_arg = label
+
         if not isinstance(path, str):
             raise MalformedParameterPathError(
                 f"`path` must be a string, but given path has type {type(path)} with value "
@@ -451,7 +613,36 @@ class ValueSequence(JSONLike):
                 f'`path` must start with "inputs", "outputs", or "resources", but given path '
                 f"is: {path!r}."
             )
+
+        try:
+            label_from_path = path_split[1].split("[")[1].split("]")[0]
+        except IndexError:
+            label_from_path = None
+
+        if path_split[0] == "inputs":
+            if label_arg:
+                if not label_from_path:
+                    # add label to path without lower casing any parts:
+                    path_split_orig = path.split(".")
+                    path_split_orig[1] += f"[{label_arg}]"
+                    path = ".".join(path_split_orig)
+                    label = label_arg
+                elif label_arg != label_from_path:
+                    raise ValueError(
+                        f"{self.__class__.__name__} `label` argument is specified as "
+                        f"{label_arg!r}, but a distinct label is implied by the sequence "
+                        f"path: {path!r}."
+                    )
+            elif label_from_path:
+                label = label_from_path
+
         if path_split[0] == "resources":
+            if label_from_path or label_arg:
+                raise ValueError(
+                    f"{self.__class__.__name__} `label` argument ({label_arg!r}) and/or "
+                    f"label specification via `path` ({path!r}) is not supported for "
+                    f"`resource` sequences."
+                )
             try:
                 self.app.ActionScope.from_json_like(path_split[1])
             except Exception as err:
@@ -470,7 +661,7 @@ class ValueSequence(JSONLike):
                         f"resource item names are: {allowed_keys_str}."
                     )
 
-        return path
+        return path, label
 
     def to_dict(self):
         out = super().to_dict()
@@ -490,7 +681,10 @@ class ValueSequence(JSONLike):
         inputs sequence, else return None."""
 
         if self.input_type:
-            return ".".join(self.path_split[1:])
+            if self.input_path:
+                return f"{self.labelled_type}.{self.input_path}"
+            else:
+                return self.labelled_type
 
     def make_persistent(
         self, workflow: app.Workflow, source: Dict
@@ -541,14 +735,28 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals = []
             for idx, pg_idx_i in enumerate(self._values_group_idx):
-                val = self.workflow.get_parameter_data(pg_idx_i)
+                param_i = self.workflow.get_parameter(pg_idx_i)
+                if param_i.data is not None:
+                    val_i = param_i.data
+                else:
+                    val_i = param_i.file
+
+                # `val_i` might already be a `_value_class` object if the store has not
+                # yet been committed to disk:
                 if (
                     self.parameter
                     and self.parameter._value_class
                     and self._values_are_objs[idx]
+                    and not isinstance(val_i, self.parameter._value_class)
                 ):
-                    val = self.parameter._value_class(**val)
-                vals.append(val)
+                    method_name = param_i.source.get("value_class_method")
+                    if method_name:
+                        method = getattr(self.parameter._value_class, method_name)
+                    else:
+                        method = self.parameter._value_class
+                    val_i = method(**val_i)
+
+                vals.append(val_i)
             return vals
         else:
             return self._values
@@ -619,6 +827,8 @@ class AbstractInputValue(JSONLike):
         out = super().to_dict()
         if "_workflow" in out:
             del out["_workflow"]
+        if "_schema_input" in out:
+            del out["_schema_input"]
         return out
 
     def make_persistent(
@@ -685,6 +895,25 @@ class ValuePerturbation(AbstractInputValue):
 
 
 class InputValue(AbstractInputValue):
+    """
+    Parameters
+    ----------
+    parameter
+        Parameter whose value is to be specified
+    label
+        Optional identifier to be used where the associated `SchemaInput` accepts multiple
+        parameters of the specified type. This will be cast to a string.
+    value
+        The input parameter value.
+    value_class_method
+        A class method that can be invoked with the `value` attribute as keyword
+        arguments.
+    path
+        Dot-delimited path within the parameter's nested data structure for which `value`
+        should be set.
+
+    """
+
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -698,6 +927,7 @@ class InputValue(AbstractInputValue):
         self,
         parameter: Union[app.Parameter, str],
         value: Optional[Any] = None,
+        label: Optional[str] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
     ):
@@ -707,6 +937,7 @@ class InputValue(AbstractInputValue):
             parameter = parameter.parameter
 
         self.parameter = parameter
+        self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
         self._value = value
@@ -725,6 +956,7 @@ class InputValue(AbstractInputValue):
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
         _value = kwargs.pop("_value")
+        kwargs.pop("_schema_input", None)
         _value_group_idx = kwargs.pop("_value_group_idx")
         _value_is_obj = kwargs.pop("_value_is_obj")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
@@ -744,6 +976,10 @@ class InputValue(AbstractInputValue):
         if self.path is not None:
             path_str = f", path={self.path!r}"
 
+        label_str = ""
+        if self.label is not None:
+            label_str = f", label={self.label!r}"
+
         try:
             value_str = f", value={self.value}"
         except WorkflowParameterMissingError:
@@ -751,7 +987,7 @@ class InputValue(AbstractInputValue):
 
         return (
             f"{self.__class__.__name__}("
-            f"parameter={self.parameter.typ!r}"
+            f"parameter={self.parameter.typ!r}{label_str}"
             f"{value_str}"
             f"{path_str}"
             f"{val_grp_idx}"
@@ -781,8 +1017,13 @@ class InputValue(AbstractInputValue):
         return obj
 
     @property
+    def labelled_type(self):
+        label = f"[{self.label}]" if self.label else ""
+        return f"{self.parameter.typ}{label}"
+
+    @property
     def normalised_inputs_path(self):
-        return f"{self.parameter.typ}{f'.{self.path}' if self.path else ''}"
+        return f"{self.labelled_type}{f'.{self.path}' if self.path else ''}"
 
     @property
     def normalised_path(self):
@@ -795,6 +1036,12 @@ class InputValue(AbstractInputValue):
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
+        if "[" in json_like["parameter"]:
+            # extract out the parameter label:
+            label = json_like["parameter"].split("[")[1].split("]")[0]
+            json_like["parameter"] = json_like["parameter"].replace(f"[{label}]", "")
+            json_like["label"] = label
+
         if "::" in json_like["parameter"]:
             param, cls_method = json_like["parameter"].split("::")
             json_like["parameter"] = param

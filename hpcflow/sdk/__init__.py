@@ -88,6 +88,7 @@ sdk_classes = {
     "DirectPosix": "hpcflow.sdk.submission.schedulers.direct",
     "SlurmPosix": "hpcflow.sdk.submission.schedulers.slurm",
     "SGEPosix": "hpcflow.sdk.submission.schedulers.sge",
+    "OutputLabel": "hpcflow.sdk.core.task",
 }
 
 sdk_funcs = {

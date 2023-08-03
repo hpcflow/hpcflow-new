@@ -58,14 +58,7 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
                 "implementation": ts1.implementation,
                 "version": ts1.version,
                 "objective": ts1.objective.name,
-                "inputs": [
-                    {
-                        "group": None,
-                        "where": None,
-                        "parameter": f"hash:{p1_hash}",
-                        "propagation_mode": "IMPLICIT",
-                    }
-                ],
+                "inputs": [{"parameter": f"hash:{p1_hash}", "labels": {"": {}}}],
                 "outputs": [],
                 "actions": [
                     {
