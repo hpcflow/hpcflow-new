@@ -2,6 +2,7 @@ from typing import Dict, List
 import click
 from colorama import init as colorama_init
 from termcolor import colored
+from rich.pretty import pprint
 
 from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
@@ -401,7 +402,7 @@ def _make_submission_CLI(app):
     def OS_info_callback(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        click.echo(app.get_OS_info())
+        pprint(app.get_OS_info())
         ctx.exit()
 
     @click.group()
@@ -423,7 +424,7 @@ def _make_submission_CLI(app):
     @click.pass_context
     def shell_info(ctx, shell_name, exclude_os):
         """Show information about the specified shell, such as the version."""
-        click.echo(app.get_shell_info(shell_name, exclude_os))
+        pprint(app.get_shell_info(shell_name, exclude_os))
         ctx.exit()
 
     return submission
@@ -550,7 +551,7 @@ def _make_template_components_CLI(app):
     @click.command()
     def tc(help=True):
         """For showing template component data."""
-        click.echo(app.template_components)
+        pprint(app.template_components)
 
     return tc
 
