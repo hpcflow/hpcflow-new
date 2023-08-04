@@ -205,7 +205,7 @@ def _make_API_CLI(app):
     @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
     @click.pass_context
     def test_hpcflow(ctx, py_test_args):
-        """Run hpcflow test suite.".
+        """Run hpcFlow test suite.
 
         PY_TEST_ARGS are arguments passed on to Pytest.
 
@@ -422,6 +422,7 @@ def _make_submission_CLI(app):
     @click.option("--exclude-os", is_flag=True, default=False)
     @click.pass_context
     def shell_info(ctx, shell_name, exclude_os):
+        """Show information about the specified shell, such as the version."""
         click.echo(app.get_shell_info(shell_name, exclude_os))
         ctx.exit()
 
@@ -563,9 +564,10 @@ def _make_show_CLI(app):
 
     @click.command()
     @click.option(
+        "-r",
         "--max-recent",
         default=3,
-        help="If True, show only recently finished workflows",
+        help="The maximum number of inactive submissions to show.",
     )
     @click.option(
         "--no-update",
@@ -592,7 +594,7 @@ def _make_show_CLI(app):
         callback=show_legend_callback,
     )
     def show(max_recent, full, no_update):
-        """Show information about recent workflows."""
+        """Show information about running and recently active workflows."""
         app.show(max_recent=max_recent, full=full, no_update=no_update)
 
     return show
@@ -604,6 +606,11 @@ def _make_zip_CLI(app):
     @click.option("--log")
     @workflow_ref_type_opt
     def zip_workflow(workflow_ref, ref_type, log=None):
+        """Generate a copy of the specified workflow in the zip file format.
+
+        WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
+        workflow path.
+        """
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
         wk.to_zip(log=log)
@@ -616,6 +623,12 @@ def _make_cancel_CLI(app):
     @click.argument("workflow_ref")
     @workflow_ref_type_opt
     def cancel(workflow_ref, ref_type):
+        """Stop all running jobscripts of the specified workflow.
+
+        WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
+        workflow path.
+
+        """
         app.cancel(workflow_ref, ref_type)
 
     return cancel
@@ -624,7 +637,8 @@ def _make_cancel_CLI(app):
 def _make_open_CLI(app):
     @click.group(name="open")
     def open_file():
-        """Open a file (e.g. {app_name}'s log file) using the default application."""
+        """Open a file (for example {app_name}'s log file) using the default
+        application."""
 
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
@@ -689,7 +703,7 @@ def _make_open_CLI(app):
     @click.option("--path", is_flag=True, default=False)
     @workflow_ref_type_opt
     def workflow(workflow_ref, ref_type, path=False):
-        """Open a workflow directory in e.g. File Explorer in Windows."""
+        """Open a workflow directory using, for example, File Explorer on Windows."""
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         if path:
             click.echo(workflow_path)
@@ -704,6 +718,10 @@ def _make_open_CLI(app):
             click.echo(dir_path)
         else:
             utils.open_file(dir_path)
+
+    open_file.help = open_file.help.format(app_name=app.name)
+    log.help = log.help.format(app_name=app.name)
+    config.help = config.help.format(app_name=app.name)
 
     return open_file
 
