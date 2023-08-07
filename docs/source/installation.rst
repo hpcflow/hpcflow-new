@@ -48,7 +48,7 @@
                 & $([scriptblock]::Create((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/hpcflow/install-scripts/main/src/install-{{ app_package_name }}.ps1'))) -PreRelease
 
     .. admonition:: What does this script do?
-        :class: note        
+        :class: note dropdown
         
         The above command downloads a script from the {{ app_name }} GitHub repository and runs it. The script does the following:
 
