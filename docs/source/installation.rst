@@ -55,14 +55,14 @@
         #. It downloads the latest prerelease version of {{ app_name }} zip archived in a single folder.
         #. The archive is extracted and the folder placed in an accessible location. The location depends on the 
             operating system. In Linux it is ``/.local/share/hpcflow``. In macOS it is 
-            ``~/Library/Application Support/hpcflow``. In Windows it is ``Username\AppData\Local\hpcflow``
-        #. A symbolic link (Linux/macOS) or an alias pointing to the file is created. This allows {{ app_name }} to be run
-            by entering a simple command.
-        #. A command is added to ``.bashrc``/``.zshrc`` (linux/macOS) or the Powershell profile (Windows) that allows {{ app_name }}
-            to be run from any folder.
+            ``~/Library/Application Support/hpcflow``. In Windows it is ``Username\AppData\Local\hpcflow``.
+        #. A symbolic link (Linux/macOS) or an alias pointing to the file is created. This allows {{ app_name }} to be 
+            run by entering a simple command.
+        #. A command is added to ``.bashrc``/``.zshrc`` (linux/macOS) or the Powershell profile (Windows) that allows 
+            {{ app_name }} to be run from any folder.
 
-        If the script detects that the version of {{ app_name }} it is trying to install is already there, it will stop running
-        and exit.
+        If the script detects that the version of {{ app_name }} it is trying to install is already there, it will stop 
+        running and exit.
 
 
 
