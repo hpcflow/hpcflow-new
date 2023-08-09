@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a72"></a>
+## [v0.2.0a72](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a71...v0.2.0a72) - 2023.08.09
+
+### ✨ Features
+
+* simplify ObjectList repr and add TaskSchema.info
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a71"></a>
 ## [v0.2.0a71](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a70...v0.2.0a71) - 2023.08.03
 
