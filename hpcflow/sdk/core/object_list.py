@@ -47,7 +47,7 @@ class ObjectList(JSONLike):
         return len(self._objects)
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({[self._get_item(i) for i in self._objects]})"
+        return repr(self._objects)
 
     def __str__(self):
         return str([self._get_item(i) for i in self._objects])
