@@ -24,6 +24,11 @@ jobs:
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }}
           ref: develop
       
+      - name: Configure git
+        run: |
+          git config user.name hpcflow-actions
+          git config user.email hpcflow-actions@users.noreply.github.com
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
