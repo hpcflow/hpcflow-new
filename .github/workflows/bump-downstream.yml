@@ -1,4 +1,5 @@
 name: bump-downstream
+concurrency: bump-downstream
 
 on:
   workflow_dispatch:
