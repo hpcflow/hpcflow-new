@@ -16,12 +16,13 @@ jobs:
     if: ( github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' )
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout MatFlow
+      - name: Checkout MatFlow develop branch
         uses: actions/checkout@v3
         with:
           repository: hpcflow/matflow-new
           fetch-depth: 0 # get all history and tags
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }}
+          ref: develop
       
       - name: Setup Python
         uses: actions/setup-python@v4
