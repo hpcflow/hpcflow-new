@@ -3,10 +3,13 @@ import copy
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
+from rich import print as rich_print
+from rich.table import Table
+
 from hpcflow.sdk import app
 from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
-from .parameters import ParameterPropagationMode, SchemaInput
+from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 
 
@@ -82,13 +85,34 @@ class TaskSchema(JSONLike):
         #     )
 
     def __repr__(self):
-        return (
-            f"{self.__class__.__name__}("
-            f"objective={self.objective.name!r}, "
-            f"input_types={self.input_types!r}, "
-            f"output_types={self.output_types!r}"
-            f")"
-        )
+        return f"{self.__class__.__name__}({self.objective.name!r})"
+
+    @property
+    def info(self):
+        """Show attributes of the task schema."""
+        tab = Table(show_header=False)
+        tab.add_column()
+        tab.add_column()
+        tab.add_row("Objective", self.objective.name)
+        tab.add_row("Actions", str(self.actions))
+
+        tab_ins = Table(show_header=False, box=None)
+        tab_ins.add_column()
+        for inp in self.inputs:
+            def_str = ""
+            if not inp.multiple:
+                if inp.default_value is not NullDefault.NULL:
+                    def_str = f" [i]default[/i]={inp.default_value}"
+            tab_ins.add_row(inp.parameter.typ + def_str)
+
+        tab_outs = Table(show_header=False, box=None)
+        tab_outs.add_column()
+        for out in self.outputs:
+            tab_outs.add_row(out.parameter.typ)
+
+        tab.add_row("Inputs", tab_ins)
+        tab.add_row("Outputs", tab_outs)
+        rich_print(tab)
 
     def __eq__(self, other):
         if type(other) is not self.__class__:

@@ -341,6 +341,11 @@ class SchemaInput(SchemaParameter):
         return obj
 
     @property
+    def default_value(self):
+        if not self.multiple and "default" in self.single_labelled_data:
+            return self.single_labelled_data["default"]
+
+    @property
     def task_schema(self):
         return self._task_schema
 
@@ -357,6 +362,11 @@ class SchemaInput(SchemaParameter):
     def single_labelled_type(self):
         if not self.multiple:
             return next(iter(self.labelled_info()))["labelled_type"]
+
+    @property
+    def single_labelled_data(self):
+        if not self.multiple:
+            return self.labels[self.single_label]
 
     def labelled_info(self):
         for k, v in self.labels.items():
