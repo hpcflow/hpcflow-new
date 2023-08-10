@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a75"></a>
+## [v0.2.0a75](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a74...v0.2.0a75) - 2023.08.10
+
+### 🐛 Bug Fixes
+
+* skip failing test on non-windows for now
+* RunTimeInfo.get_invocation_command within pytest running; fixes [#447](https://github.com/hpcflow/hpcflow-new/issues/447)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* merge from develop
+
+
 <a name="v0.2.0a74"></a>
 ## [v0.2.0a74](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a73...v0.2.0a74) - 2023.08.10
 
