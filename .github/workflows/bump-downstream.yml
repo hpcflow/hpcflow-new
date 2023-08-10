@@ -1,4 +1,5 @@
 name: bump-downstream
+concurrency: bump-downstream
 
 on:
   workflow_dispatch:
@@ -13,16 +14,22 @@ env:
 
 jobs:
   create-matflow-pull-request:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ( github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' )
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout MatFlow
+      - name: Checkout MatFlow develop branch
         uses: actions/checkout@v3
         with:
           repository: hpcflow/matflow-new
           fetch-depth: 0 # get all history and tags
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }}
+          ref: develop
       
+      - name: Configure git
+        run: |
+          git config user.name hpcflow-actions
+          git config user.email hpcflow-actions@users.noreply.github.com
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
