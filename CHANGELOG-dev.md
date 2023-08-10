@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a76"></a>
+## [v0.2.0a76](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a75...v0.2.0a76) - 2023.08.10
+
+### 🐛 Bug Fixes
+
+* test_in_pytest when frozen
+
+
 <a name="v0.2.0a75"></a>
 ## [v0.2.0a75](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a74...v0.2.0a75) - 2023.08.10
 
