@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a73"></a>
+## [v0.2.0a73](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a72...v0.2.0a73) - 2023.08.10
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a72"></a>
 ## [v0.2.0a72](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a71...v0.2.0a72) - 2023.08.09
 
