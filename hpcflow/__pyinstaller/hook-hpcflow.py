@@ -10,11 +10,13 @@ hiddenimports += [
     "hpcflow.sdk.data",
     "hpcflow.sdk.data.template_components",
     "hpcflow.sdk.demo.scripts",
+    "hpcflow.sdk.demo.data",
     "hpcflow.sdk.core.test_utils",
     "click.testing",
 ]
 
 datas = collect_data_files("hpcflow.sdk.data")
+datas += collect_data_files("hpcflow.sdk.demo.data")
 datas += collect_data_files("hpcflow.sdk.data.template_components")
 datas += collect_data_files(
     "hpcflow.tests",

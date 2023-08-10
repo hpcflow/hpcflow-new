@@ -47,6 +47,7 @@ class RunTimeInfo(PrettyPrinter):
         path_argv = Path(sys.argv[0])
 
         self.in_ipython = False
+        self.in_pytest = "pytest" in sys.modules
 
         if self.is_frozen:
             self.bundle_dir = Path(bundle_dir)
@@ -121,6 +122,7 @@ class RunTimeInfo(PrettyPrinter):
             "working_dir": self.working_dir,
             "invocation_command": self.get_invocation_command(),
             "in_ipython": self.in_ipython,
+            "in_pytest": self.in_pytest,
         }
         if self.is_frozen:
             out.update(
@@ -175,9 +177,10 @@ class RunTimeInfo(PrettyPrinter):
     def get_invocation_command(self):
         """Get the command that was used to invoke this instance of the app."""
         if self.is_frozen:
+            # (this also works if we are running tests using the frozen app)
             return [str(self.resolved_executable_path)]
         else:
-            if self.in_ipython:
+            if self.in_ipython or self.in_pytest:
                 app_module = import_module(self.package_name)
                 CLI_path = Path(*app_module.__path__, "cli.py")
                 command = [str(self.python_executable_path), str(CLI_path)]
