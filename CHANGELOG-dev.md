@@ -1,4 +1,23 @@
 
+<a name="v0.2.0a74"></a>
+## [v0.2.0a74](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a73...v0.2.0a74) - 2023.08.10
+
+### ✨ Features
+
+* add GHA workflow to create a MatFlow PR with bumped hpcflow
+
+### 🐛 Bug Fixes
+
+* new GHA workflow
+* new GHA workflow
+* new GHA workflow
+* new GHA workflow
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a73"></a>
 ## [v0.2.0a73](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a72...v0.2.0a73) - 2023.08.10
 
