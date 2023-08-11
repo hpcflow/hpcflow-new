@@ -479,6 +479,15 @@ class ResourceList(ObjectList):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set = None  # assigned by parent ElementSet
         self._workflow_template = None  # assigned by parent WorkflowTemplate
+
+        # check distinct scopes for each item:
+        scopes = [i.scope.to_string() for i in self._objects]
+        if len(set(scopes)) < len(scopes):
+            raise ValueError(
+                "Multiple `ResourceSpec` objects have the same scope. The scopes are "
+                f"{scopes!r}."
+            )
+
         self._set_parent_refs()
 
     def __deepcopy__(self, memo):
