@@ -13,3 +13,9 @@ def test_init_scope_equivalence_with_kwargs():
     )
     rs2 = hf.ResourceSpec(scope="input_file_generator[file=my_file]", num_cores=1)
     assert rs1 == rs2
+
+
+def test_init_no_args():
+    rs1 = hf.ResourceSpec()
+    rs2 = hf.ResourceSpec(scope="any")
+    assert rs1 == rs2
