@@ -1648,8 +1648,6 @@ class WorkflowTask:
         return initialised
 
     def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
-        schema_data_idx = element_iter.data_idx
-
         # keys are (act_idx, EAR_idx):
         all_data_idx = {}
         action_runs = {}
@@ -1659,8 +1657,15 @@ class WorkflowTask:
 
         count = 0
         for act_idx, action in self.template.all_schema_actions():
-            log_common = f"for action {act_idx} of element iteration {element_iter.index} of element {element_iter.element.index} of task {self.unique_name!r}."
-            if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
+            log_common = (
+                f"for action {act_idx} of element iteration {element_iter.index} of "
+                f"element {element_iter.element.index} of task {self.unique_name!r}."
+            )
+            rules_valid = [
+                self.test_action_rule(action=action, act_rule=i, elem_iter=element_iter)
+                for i in action.rules
+            ]
+            if all(rules_valid):
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
                 param_source = {
@@ -1671,7 +1676,7 @@ class WorkflowTask:
                     action.generate_data_index(  # adds an item to `all_data_idx`
                         act_idx=act_idx,
                         EAR_ID=EAR_ID,
-                        schema_data_idx=schema_data_idx,
+                        schema_data_idx=element_iter.data_idx,
                         all_data_idx=all_data_idx,
                         workflow=self.workflow,
                         param_source=param_source,
@@ -2159,32 +2164,54 @@ class WorkflowTask:
 
         return current_value
 
-    def test_action_rule(self, act_rule: app.ActionRule, data_idx: Dict) -> bool:
+    def test_action_rule(
+        self,
+        action: app.Action,
+        act_rule: app.ActionRule,
+        elem_iter: app.ElementIteration,
+    ) -> bool:
+        schema_data_idx = elem_iter.data_idx
+        print(f"test_action_rule: {schema_data_idx=}")
         check = act_rule.check_exists or act_rule.check_missing
         if check:
             param_s = check.split(".")
             if len(param_s) > 2:
                 # sub-parameter, so need to try to retrieve parameter data
                 try:
-                    self._get_merged_parameter_data(data_idx, raise_on_missing=True)
+                    self._get_merged_parameter_data(
+                        schema_data_idx, raise_on_missing=True
+                    )
                     return True if act_rule.check_exists else False
                 except ValueError:
                     return False if act_rule.check_exists else True
             else:
                 if act_rule.check_exists:
-                    return act_rule.check_exists in data_idx
+                    return act_rule.check_exists in schema_data_idx
                 elif act_rule.check_missing:
-                    return act_rule.check_missing not in data_idx
+                    return act_rule.check_missing not in schema_data_idx
 
         else:
             rule = act_rule.rule
             param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
-            element_dat = self._get_merged_parameter_data(
-                data_idx,
-                path=param_path,
-                raise_on_missing=True,
-                raise_on_unset=True,
-            )
+            print(f"{param_path=}")
+            if param_path.startswith("resources."):
+                # generate an ElementResources object and test attributes of that
+                elem_res = elem_iter.get_resources_obj(action=action)
+                # TODO: actually maybe don't need to turn into an ElementResource object?
+                res_path = param_path.split(".")[1:]
+                print(f"{elem_res.__dict__=}")
+                print(f"{res_path=}")
+                element_dat = get_in_container(
+                    cont=elem_res.__dict__, path=res_path, cast_indices=True
+                )
+            else:
+                element_dat = self._get_merged_parameter_data(
+                    schema_data_idx,
+                    path=param_path,
+                    raise_on_missing=True,
+                    raise_on_unset=True,
+                )
+            print(f"{element_dat=}")
             # test the rule:
             # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):

@@ -431,32 +431,10 @@ class ElementActionRun:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
-    def get_template_resources(self):
-        """Get template-level resources."""
-        out = {}
-        for res_i in self.workflow.template.resources:
-            out[res_i.scope.to_string()] = res_i._get_value()
-        return out
-
     def get_resources(self):
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
-
-        resource_specs = copy.deepcopy(self.get("resources"))
-        template_resource_specs = copy.deepcopy(self.get_template_resources())
-        resources = {}
-        for scope in self.action.get_possible_scopes()[::-1]:
-            # loop in reverse so higher-specificity scopes take precedence:
-            scope_s = scope.to_string()
-            scope_res = resource_specs.get(scope_s, {})
-            if scope_s in template_resource_specs:
-                for k, v in template_resource_specs[scope_s].items():
-                    if scope_res.get(k) is None and v is not None:
-                        scope_res[k] = v
-
-            resources.update({k: v for k, v in scope_res.items() if v is not None})
-
-        return resources
+        return self.element_iteration.get_resources(self.action)
 
     def get_environment(self):
         if not self.action._from_expand:

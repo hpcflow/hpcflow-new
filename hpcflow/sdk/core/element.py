@@ -701,6 +701,48 @@ class ElementIteration:
 
         return deps
 
+    def get_template_resources(self) -> Dict:
+        """Get template-level resources."""
+        out = {}
+        for res_i in self.workflow.template.resources:
+            out[res_i.scope.to_string()] = res_i._get_value()
+        return out
+
+    def get_resources(self, action: app.Action) -> Dict:
+        """Resolve specific resources for the specified action of this iteration,
+        considering all applicable scopes and template-level resources."""
+
+        # This method is accurate for both `ElementIteration` and `EAR` objects because
+        # when generating the EAR data index we copy (from the schema data index) anything
+        # that starts with "resources".
+        resource_specs = copy.deepcopy(self.get("resources"))
+        template_resource_specs = copy.deepcopy(self.get_template_resources())
+        print(f"Iter.get_resources: {resource_specs=}")
+        print(f"Iter.get_resources: {template_resource_specs=}")
+        resources = {}
+        for scope in action.get_possible_scopes()[::-1]:
+            # loop in reverse so higher-specificity scopes take precedence:
+            scope_s = scope.to_string()
+            print(f"Iter.get_resources: {scope_s=}")
+            scope_res = resource_specs.get(scope_s, {})
+            print(f"Iter.get_resources: 1 {scope_res=}")
+
+            if scope_s in template_resource_specs:
+                for k, v in template_resource_specs[scope_s].items():
+                    if scope_res.get(k) is None and v is not None:
+                        scope_res[k] = v
+            print(f"Iter.get_resources: 2 {scope_res=}")
+
+            resources.update({k: v for k, v in scope_res.items() if v is not None})
+            print(f"Iter.get_resources: - {resources=}")
+
+        print(f"Iter.get_resources: {resources=}")
+
+        return resources
+
+    def get_resources_obj(self, action: app.Action) -> app.ElementResources:
+        return self.app.ElementResources(**self.get_resources(action))
+
 
 class Element:
     _app_attr = "app"
