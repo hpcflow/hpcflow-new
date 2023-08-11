@@ -134,18 +134,11 @@ class ElementSet(JSONLike):
 
         """
 
-        if isinstance(resources, dict):
-            resources = self.app.ResourceList.from_json_like(resources)
-        elif isinstance(resources, list):
-            resources = self.app.ResourceList(resources)
-        elif not resources:
-            resources = self.app.ResourceList([self.app.ResourceSpec()])
-
         self.inputs = inputs or []
         self.input_files = input_files or []
         self.repeats = repeats or []
         self.groups = groups or []
-        self.resources = resources
+        self.resources = self.app.ResourceList.normalise(resources)
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
         self.nesting_order = nesting_order or {}

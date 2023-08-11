@@ -43,3 +43,23 @@ def workflow_w2(workflow_w1):
     """Add another element set to the second task."""
     workflow_w1.tasks.t2.add_elements(nesting_order={"inputs.p2": 1})
     return workflow_w1
+
+
+def test_resources_init_equivalence_dict_list_of_obj():
+    es1 = hf.ElementSet(resources={"any": {"num_cores": 1}})
+    es2 = hf.ElementSet(resources=[hf.ResourceSpec(scope="any", num_cores=1)])
+    assert es1 == es2
+
+
+def test_resources_init_equivalence_list_list_of_obj():
+    res_1_kwargs = {"scope": "any", "num_cores": 1}
+    es1 = hf.ElementSet(resources=[res_1_kwargs])
+    es2 = hf.ElementSet(resources=[hf.ResourceSpec(**res_1_kwargs)])
+    assert es1 == es2
+
+
+def test_resources_init_equivalence_list_of_obj_resource_list_obj():
+    res_1_kwargs = {"scope": "any", "num_cores": 1}
+    es1 = hf.ElementSet(resources=[hf.ResourceSpec(**res_1_kwargs)])
+    es2 = hf.ElementSet(resources=hf.ResourceList([hf.ResourceSpec(**res_1_kwargs)]))
+    assert es1 == es2

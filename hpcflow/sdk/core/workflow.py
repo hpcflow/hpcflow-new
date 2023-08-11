@@ -111,13 +111,7 @@ class WorkflowTemplate(JSONLike):
     resources: Optional[Dict[str, Dict]] = None
 
     def __post_init__(self):
-        if isinstance(self.resources, dict):
-            self.resources = self.app.ResourceList.from_json_like(self.resources)
-        elif isinstance(self.resources, list):
-            self.resources = self.app.ResourceList(self.resources)
-        elif not self.resources:
-            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
-
+        self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
     @classmethod

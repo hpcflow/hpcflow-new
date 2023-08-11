@@ -506,6 +506,20 @@ class ResourceList(ObjectList):
             as_dict[scope.to_string()] = res_spec_js
         return as_dict, shared_data
 
+    @classmethod
+    def normalise(cls, resources):
+        """Generate from resource-specs specified in potentially several ways."""
+        if isinstance(resources, dict):
+            resources = cls.from_json_like(resources)
+        elif isinstance(resources, list):
+            for idx, i in enumerate(resources):
+                if isinstance(i, dict):
+                    resources[idx] = cls._app.ResourceSpec.from_json_like(i)
+            resources = cls(resources)
+        elif not resources:
+            resources = cls([cls._app.ResourceSpec()])
+        return resources
+
 
 def index(obj_lst, obj):
     for idx, i in enumerate(obj_lst._objects):
