@@ -1112,6 +1112,8 @@ class ResourceSpec(JSONLike):
         os_name: Optional[str] = None,
     ):
         self.scope = scope or self.app.ActionScope.any()
+        if not isinstance(self.scope, self.app.ActionScope):
+            self.scope = self.app.ActionScope.from_json_like(self.scope)
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
