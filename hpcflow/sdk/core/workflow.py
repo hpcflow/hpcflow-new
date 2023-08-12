@@ -1358,7 +1358,7 @@ class Workflow:
     def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
         """Retrieve all workflow parameter data."""
         params = self.get_all_parameters(**kwargs)
-        return {i.id_: (i.data or i.file) for i in params}
+        return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
     def check_parameters_exist(
         self, id_lst: Union[int, List[int]]
