@@ -710,33 +710,25 @@ class ElementIteration:
 
     def get_resources(self, action: app.Action) -> Dict:
         """Resolve specific resources for the specified action of this iteration,
-        considering all applicable scopes and template-level resources."""
+        considering all applicable scopes."""
 
-        # This method is accurate for both `ElementIteration` and `EAR` objects because
-        # when generating the EAR data index we copy (from the schema data index) anything
-        # that starts with "resources".
+        # This method is currently accurate for both `ElementIteration` and `EAR` objects
+        # because when generating the EAR data index we copy (from the schema data index)
+        # anything that starts with "resources". BUT: when we support adding a run, the
+        # user should be able to modify the resources! Which would invalidate this
+        # assumption!!!!!
+
+        # --- so need to rethink...
+        # question is perhaps "what would the resources be if this action were to become
+        # an EAR?" which would then allow us to test a resources-based action rule.
+
         resource_specs = copy.deepcopy(self.get("resources"))
-        template_resource_specs = copy.deepcopy(self.get_template_resources())
-        print(f"Iter.get_resources: {resource_specs=}")
-        print(f"Iter.get_resources: {template_resource_specs=}")
         resources = {}
         for scope in action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:
             scope_s = scope.to_string()
-            print(f"Iter.get_resources: {scope_s=}")
             scope_res = resource_specs.get(scope_s, {})
-            print(f"Iter.get_resources: 1 {scope_res=}")
-
-            if scope_s in template_resource_specs:
-                for k, v in template_resource_specs[scope_s].items():
-                    if scope_res.get(k) is None and v is not None:
-                        scope_res[k] = v
-            print(f"Iter.get_resources: 2 {scope_res=}")
-
             resources.update({k: v for k, v in scope_res.items() if v is not None})
-            print(f"Iter.get_resources: - {resources=}")
-
-        print(f"Iter.get_resources: {resources=}")
 
         return resources
 

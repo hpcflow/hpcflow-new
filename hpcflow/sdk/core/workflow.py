@@ -114,6 +114,12 @@ class WorkflowTemplate(JSONLike):
         self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
+        # merge template-level `resources` into task element set resources (this mutates
+        # `tasks`):
+        for task in self.tasks:
+            for element_set in task.element_sets:
+                element_set.resources.merge_template_resources(self.resources)
+
     @classmethod
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
         # use element_sets if not already:

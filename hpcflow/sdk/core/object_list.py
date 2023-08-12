@@ -481,7 +481,7 @@ class ResourceList(ObjectList):
         self._workflow_template = None  # assigned by parent WorkflowTemplate
 
         # check distinct scopes for each item:
-        scopes = [i.scope.to_string() for i in self._objects]
+        scopes = [i.to_string() for i in self.get_scopes()]
         if len(set(scopes)) < len(scopes):
             raise ValueError(
                 "Multiple `ResourceSpec` objects have the same scope. The scopes are "
@@ -528,6 +528,27 @@ class ResourceList(ObjectList):
         elif not resources:
             resources = cls([cls._app.ResourceSpec()])
         return resources
+
+    def get_scopes(self):
+        return tuple(i.scope for i in self._objects)
+
+    def merge_template_resources(self, temp_res_lst):
+        """Merge lower-precedence template-level resources into this resource list."""
+        for scope_i in temp_res_lst.get_scopes():
+            try:
+                es_scoped = self.get(scope=scope_i)
+            except ValueError:
+                in_es = False
+            else:
+                in_es = True
+
+            temp_res_scoped = temp_res_lst.get(scope=scope_i)
+            if in_es:
+                for k, v in temp_res_scoped._get_members().items():
+                    if getattr(es_scoped, k) is None:
+                        setattr(es_scoped, f"_{k}", v)
+            else:
+                self.add_object(temp_res_scoped)
 
 
 def index(obj_lst, obj):

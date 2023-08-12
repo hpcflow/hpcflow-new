@@ -25,3 +25,26 @@ def test_init_no_args():
 def test_resource_list_raise_on_identical_scopes():
     with pytest.raises(ValueError):
         hf.ResourceList.normalise([{"scope": "any"}, {"scope": "any"}])
+
+
+def test_merge_template_resources_same_scope():
+    res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
+    res_lst_2 = hf.ResourceList.from_json_like({"any": {}})
+    res_lst_2.merge_template_resources(res_lst_1)
+    assert res_lst_2 == hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
+
+
+def test_merge_template_resources_same_scope_no_overwrite():
+    res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
+    res_lst_2 = hf.ResourceList.from_json_like({"any": {"num_cores": 2}})
+    res_lst_2.merge_template_resources(res_lst_1)
+    assert res_lst_2 == hf.ResourceList.from_json_like({"any": {"num_cores": 2}})
+
+
+def test_merge_template_resources_multi_scope():
+    res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
+    res_lst_2 = hf.ResourceList.from_json_like({"any": {}, "main": {"num_cores": 3}})
+    res_lst_2.merge_template_resources(res_lst_1)
+    assert res_lst_2 == hf.ResourceList.from_json_like(
+        {"any": {"num_cores": 1}, "main": {"num_cores": 3}}
+    )

@@ -1136,7 +1136,7 @@ class ResourceSpec(JSONLike):
 
     def __deepcopy__(self, memo):
         kwargs = copy.deepcopy(self.to_dict(), memo)
-        _value_group_idx = kwargs.pop("value_group_idx")
+        _value_group_idx = kwargs.pop("value_group_idx", None)
         obj = self.__class__(**kwargs)
         obj._value_group_idx = _value_group_idx
         obj._resource_list = self._resource_list
@@ -1201,14 +1201,17 @@ class ResourceSpec(JSONLike):
         if self._value_group_idx is not None:
             # only store pointer to persistent data:
             out = {k: v for k, v in out.items() if k in ["_value_group_idx", "scope"]}
+        else:
+            out = {k: v for k, v in out.items() if v is not None}
 
         out = {k.lstrip("_"): v for k, v in out.items()}
         return out
 
     def _get_members(self):
         out = self.to_dict()
-        del out["scope"]
-        del out["value_group_idx"]
+        out.pop("scope")
+        out.pop("value_group_idx", None)
+        out = {k: v for k, v in out.items() if v is not None}
         return out
 
     def make_persistent(
