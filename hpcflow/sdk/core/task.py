@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -9,6 +10,7 @@ from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.task_schema import TaskSchema
+from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
@@ -1638,6 +1640,9 @@ class WorkflowTask:
                     except UnsetParameterDataError:
                         # raised by `test_action_rule`; cannot yet initialise EARs
                         pass
+                    else:
+                        iter_i._EARs_initialised = True
+                        self.workflow.set_EARs_initialised(iter_i.id_)
         return initialised
 
     def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
@@ -1858,7 +1863,17 @@ class WorkflowTask:
 
         elem_idx = []
         for elem_set_i in element_sets:
+            # copy:
             elem_set_i = elem_set_i.prepare_persistent_copy()
+
+            # add some resource defaults to all scopes:
+            for res in elem_set_i.resources:
+                if res.os_name is None:
+                    res._os_name = os.name
+                if res.shell is None:
+                    res._shell = DEFAULT_SHELL_NAMES[os.name]
+
+            # add the new element set:
             elem_idx += self._add_element_set(elem_set_i)
 
         for task in self.get_dependent_tasks(as_objects=True):
@@ -2164,7 +2179,6 @@ class WorkflowTask:
         elem_iter: app.ElementIteration,
     ) -> bool:
         schema_data_idx = elem_iter.data_idx
-        print(f"test_action_rule: {schema_data_idx=}")
         check = act_rule.check_exists or act_rule.check_missing
         if check:
             param_s = check.split(".")
@@ -2186,16 +2200,11 @@ class WorkflowTask:
         else:
             rule = act_rule.rule
             param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
-            print(f"{param_path=}")
             if param_path.startswith("resources."):
-                # generate an ElementResources object and test attributes of that
-                elem_res = elem_iter.get_resources_obj(action=action)
-                # TODO: actually maybe don't need to turn into an ElementResource object?
+                elem_res = elem_iter.get_resources(action=action)
                 res_path = param_path.split(".")[1:]
-                print(f"{elem_res.__dict__=}")
-                print(f"{res_path=}")
                 element_dat = get_in_container(
-                    cont=elem_res.__dict__, path=res_path, cast_indices=True
+                    cont=elem_res, path=res_path, cast_indices=True
                 )
             else:
                 element_dat = self._get_merged_parameter_data(
@@ -2204,7 +2213,6 @@ class WorkflowTask:
                     raise_on_missing=True,
                     raise_on_unset=True,
                 )
-            print(f"{element_dat=}")
             # test the rule:
             # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):

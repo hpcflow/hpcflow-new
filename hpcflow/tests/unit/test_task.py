@@ -1,5 +1,10 @@
 import copy
+import os
 import pytest
+
+from valida.rules import Rule
+from valida.conditions import Value
+
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import (
     MissingInputs,
@@ -1464,3 +1469,204 @@ def test_parameter_two_modifying_actions_expected_data_indices(
         and p1_idx_1 == p1_idx_2
         and p1_idx_3 == p1_idx_schema_out
     )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_conditional_shell_schema_single_initialised_action(null_config, tmp_path, store):
+    rules = {
+        "posix": hf.ActionRule(
+            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("posix"))
+        ),
+        "nt": hf.ActionRule(
+            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("nt"))
+        ),
+    }
+    s1 = hf.TaskSchema(
+        objective="test_conditional_on_shell",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p2")],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 100))",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+                rules=[rules["posix"]],
+            ),
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="Write-Output ((<<parameter:p1>> + 100))",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+                rules=[rules["nt"]],
+            ),
+        ],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    action_runs = wk.tasks[0].elements[0].iterations[0].action_runs
+    assert len(action_runs) == 1
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert action_runs[0].action.rules[0] == rules[os.name]
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_element_iteration_EARs_initialised_on_make_workflow(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p2")],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 100))",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert len(wk.tasks[0].elements[0].iterations[0].action_runs) == 1
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_element_iteration_EARs_initialised_on_make_workflow_with_no_actions(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        actions=[],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert not wk.tasks[0].elements[0].iterations[0].action_runs
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p2")],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 100))",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaInput("p3")],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p2>> + 100))",
+                        stdout="<<parameter:p3>>",
+                    )
+                ],
+                rules=[
+                    hf.ActionRule(
+                        rule=Rule(path=["inputs.p2"], condition=Value.less_than(500))
+                    )
+                ],
+            ),
+        ],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    t2 = hf.Task(schemas=[s2])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    # second task cannot initialise runs because it depends on the value of an output of
+    # the first task:
+    assert not wk.tasks[1].elements[0].iterations[0].EARs_initialised
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_element_iteration_EARs_initialised_on_make_workflow_with_no_valid_actions(
+    null_config, tmp_path, store
+):
+    rules = {
+        "posix": hf.ActionRule(
+            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("posix"))
+        ),
+        "nt": hf.ActionRule(
+            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("nt"))
+        ),
+    }
+    s1 = hf.TaskSchema(
+        objective="test_conditional_on_shell",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p2")],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command="some command that uses <<parameter:p1>>",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+                rules=[rules["posix"] if os.name == "nt" else rules["nt"]],
+            ),
+        ],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    action_runs = wk.tasks[0].elements[0].iterations[0].action_runs
+    assert len(action_runs) == 0
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised

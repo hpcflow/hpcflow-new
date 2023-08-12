@@ -230,6 +230,7 @@ class ElementIteration:
         index: int,
         element: app.Element,
         data_idx: Dict,
+        EARs_initialised: bool,
         EAR_IDs: Dict[int, int],
         EARs: Union[List[Dict], None],
         schema_parameters: List[str],
@@ -242,6 +243,7 @@ class ElementIteration:
         self._data_idx = data_idx
         self._loop_idx = loop_idx
         self._schema_parameters = schema_parameters
+        self._EARs_initialised = EARs_initialised
         self._EARs = EARs
         self._EAR_IDs = EAR_IDs
 
@@ -268,7 +270,7 @@ class ElementIteration:
     @property
     def EARs_initialised(self):
         """Whether or not the EARs have been initialised."""
-        return self._EARs is not None
+        return self._EARs_initialised
 
     @property
     def element(self):

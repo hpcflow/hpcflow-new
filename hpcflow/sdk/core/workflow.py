@@ -1670,6 +1670,12 @@ class Workflow:
             # force commit now:
             self._store._pending.commit_all()
 
+    def set_EARs_initialised(self, iter_ID: int):
+        """Set `ElementIteration.EARs_initialised` to True for the specified iteration."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_EARs_initialised(iter_ID)
+
     def elements(self) -> Iterator[app.Element]:
         for task in self.tasks:
             for element in task.elements[:]:
