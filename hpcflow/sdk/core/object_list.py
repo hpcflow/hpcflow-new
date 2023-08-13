@@ -518,15 +518,30 @@ class ResourceList(ObjectList):
     @classmethod
     def normalise(cls, resources):
         """Generate from resource-specs specified in potentially several ways."""
-        if isinstance(resources, dict):
+
+        def _ensure_non_persistent(resource_spec):
+            # for any resources that are persistent, if they have a
+            # `_resource_list` attribute, this means they are sourced from some
+            # other persistent workflow, rather than, say, a workflow being
+            # loaded right now, so make a non-persistent copy:
+            if res_i._value_group_idx is not None and res_i._resource_list is not None:
+                return resource_spec.copy_non_persistent()
+            return resource_spec
+
+        if isinstance(resources, cls._app.ResourceSpec):
+            return resources
+        if not resources:
+            resources = cls([cls._app.ResourceSpec()])
+        elif isinstance(resources, dict):
             resources = cls.from_json_like(resources)
         elif isinstance(resources, list):
-            for idx, i in enumerate(resources):
-                if isinstance(i, dict):
-                    resources[idx] = cls._app.ResourceSpec.from_json_like(i)
+            for idx, res_i in enumerate(resources):
+                if isinstance(res_i, dict):
+                    resources[idx] = cls._app.ResourceSpec.from_json_like(res_i)
+                else:
+                    resources[idx] = _ensure_non_persistent(resources[idx])
             resources = cls(resources)
-        elif not resources:
-            resources = cls([cls._app.ResourceSpec()])
+
         return resources
 
     def get_scopes(self):
@@ -548,7 +563,7 @@ class ResourceList(ObjectList):
                     if getattr(es_scoped, k) is None:
                         setattr(es_scoped, f"_{k}", v)
             else:
-                self.add_object(temp_res_scoped)
+                self.add_object(copy.deepcopy(temp_res_scoped))
 
 
 def index(obj_lst, obj):

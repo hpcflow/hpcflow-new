@@ -1896,11 +1896,13 @@ class WorkflowTask:
             src_elem_iters = elem_idx + [
                 j for i in element_sets for j in i.sourceable_elem_iters or []
             ]
+
+            # note we must pass `resources` as a list since it is already persistent:
             elem_set_i = self.app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,
-                resources=elem_prop.element_set.resources,
+                resources=elem_prop.element_set.resources[:],
                 repeats=elem_prop.element_set.repeats,
                 nesting_order=elem_prop.nesting_order,
                 sourceable_elem_iters=src_elem_iters,

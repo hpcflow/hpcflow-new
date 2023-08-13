@@ -1255,6 +1255,13 @@ class ResourceSpec(JSONLike):
 
         return (self.normalised_path, [data_ref], is_new)
 
+    def copy_non_persistent(self):
+        """Make a non-persistent copy."""
+        kwargs = {"scope": self.scope}
+        for name in self.ALLOWED_PARAMETERS:
+            kwargs[name] = getattr(self, name)
+        return self.__class__(**kwargs)
+
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
             val = self.workflow.get_parameter_data(self._value_group_idx)
@@ -1317,6 +1324,13 @@ class ResourceSpec(JSONLike):
         elif self.workflow_template:
             # template-level resources
             return self.workflow_template.workflow
+
+        elif self._value_group_idx is not None:
+            raise RuntimeError(
+                f"`{self.__class__.__name__}._value_group_idx` is set but the `workflow` "
+                f"attribute is not. This might be because we are in the process of "
+                f"creating the workflow object."
+            )
 
     @property
     def element_set(self):
