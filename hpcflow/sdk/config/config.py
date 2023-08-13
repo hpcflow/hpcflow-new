@@ -163,7 +163,10 @@ class Config:
         return super().__dir__() + self._all_keys
 
     def __getattr__(self, name):
-        return self.get(name)
+        if not name.startswith("__"):
+            return self.get(name)
+        else:
+            raise AttributeError(f"Attribute not known: {name!r}.")
 
     def __setattr__(self, name, value):
         if (
