@@ -517,6 +517,11 @@ class Config:
 
         return uid, uid_file_path
 
+    def reset(self):
+        """Reset to the default configuration."""
+        self._logger.info(f"Resetting config file to defaults.")
+        self._app.reset_config()
+
     def _init_user_data_dir(self):
         """Generate a user data directory for this machine (used by the helper process and
         the known-submissions file."""

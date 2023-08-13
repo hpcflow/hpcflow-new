@@ -170,11 +170,6 @@ class ConfigFile:
             yaml.dump(config_data, handle)
 
     def _setup_default_config(self, config_path):
-        self.config._logger.info(
-            "No config.yaml found in the configuration directory. Generating "
-            "a config.yaml file."
-        )
-
         # validate the default:
         default_config = self.config._options.default_config
         try:
@@ -199,6 +194,10 @@ class ConfigFile:
             path = self.directory.joinpath("config.yml")
 
         if not path.is_file():
+            self.config._logger.info(
+                "No config.yaml found in the configuration directory. Generating "
+                "a config.yaml file."
+            )
             self._setup_default_config(config_path=path)
 
         yaml = YAML(typ="safe")

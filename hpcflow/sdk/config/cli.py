@@ -179,4 +179,9 @@ def get_config_CLI(app):
         configuration."""
         app.load_data_files()
 
+    @config.command()
+    def reset():
+        """Reset the configuration to defaults."""
+        app.reset_config()
+
     return config

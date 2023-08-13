@@ -415,6 +415,19 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_invocation_key, **overrides)
 
+    def reset_config(
+        self,
+        config_dir=None,
+        config_invocation_key=None,
+        **overrides,
+    ) -> None:
+        """Reset the config file to defaults."""
+        if not self.is_config_loaded:
+            self._load_config(config_dir, config_invocation_key, **overrides)
+        self.config._file._setup_default_config(self.config._file.path)
+        self._config = None
+        self.load_config(config_dir, config_invocation_key, **overrides)
+
     def reload_config(
         self,
         config_dir=None,
