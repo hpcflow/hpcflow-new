@@ -22,7 +22,7 @@ def test_none_default_value(null_config):
     p1_inp = hf.SchemaInput(parameter=p1, default_value=None)
     def_val_exp = hf.InputValue(parameter=p1, label="", value=None)
     def_val_exp._schema_input = p1_inp
-    assert p1_inp.labels[""]["default_value"] == def_val_exp
+    assert p1_inp.labels[""]["default_value"].value == def_val_exp.value
 
 
 def test_from_json_like_labels_and_default(null_config):
