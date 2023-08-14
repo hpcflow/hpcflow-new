@@ -4,7 +4,7 @@ from hpcflow.app import app as hf
 
 
 @pytest.fixture
-def env_1():
+def env_1(null_config):
     return hf.Environment(name="env_1")
 
 
