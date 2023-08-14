@@ -10,13 +10,13 @@ def null_config(tmp_path):
         hf.load_config(config_dir=tmp_path)
 
 
-def test_null_default_value():
+def test_null_default_value(null_config):
     p1 = hf.Parameter("p1")
     p1_inp = hf.SchemaInput(parameter=p1)
     assert "default_value" not in p1_inp.labels[""]
 
 
-def test_none_default_value():
+def test_none_default_value(null_config):
     """A `None` default value is set with a value of `None`"""
     p1 = hf.Parameter("p1")
     p1_inp = hf.SchemaInput(parameter=p1, default_value=None)
@@ -25,7 +25,7 @@ def test_none_default_value():
     assert p1_inp.labels[""]["default_value"] == def_val_exp
 
 
-def test_from_json_like_labels_and_default():
+def test_from_json_like_labels_and_default(null_config):
     json_like = {
         "parameter": "p1",
         "labels": {"0": {}},

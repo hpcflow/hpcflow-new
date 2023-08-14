@@ -2,19 +2,27 @@ from dataclasses import dataclass
 import enum
 from types import SimpleNamespace
 from typing import Optional, Any
+
 import pytest
 
+from hpcflow.app import app as hf
 from hpcflow.sdk.core.json_like import BaseJSONLike, ChildObjectSpec
 from hpcflow.sdk.core.object_list import ObjectList
 
 
-def test_json_like_name_is_name():
+@pytest.fixture
+def null_config(tmp_path):
+    if not hf.is_config_loaded:
+        hf.load_config(config_dir=tmp_path)
+
+
+def test_json_like_name_is_name(null_config):
     spec = ChildObjectSpec(name="a")
     assert spec.json_like_name == "a"
 
 
 @pytest.fixture
-def obj_and_json_like_1():
+def obj_and_json_like_1(null_config):
     @dataclass
     class ObjA(BaseJSONLike):
         a: int
@@ -47,11 +55,11 @@ def test_json_like_round_trip_obj_simple(obj_and_json_like_1):
 
 
 @pytest.fixture
-def BaseJSONLikeSubClass():
+def BaseJSONLikeSubClass(null_config):
     return type("MyBaseJSONLike", (BaseJSONLike,), {})
 
 
-def test_BaseJSONLike_child_object_class_namespace_via_obj():
+def test_BaseJSONLike_child_object_class_namespace_via_obj(null_config):
     """Child object class passed directly as a class object."""
 
     @dataclass
@@ -172,7 +180,7 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_SimpleNamespace(
 
 
 @pytest.fixture
-def obj_and_child_obj_and_json_like_1():
+def obj_and_child_obj_and_json_like_1(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         c: int
@@ -221,7 +229,7 @@ def test_json_like_round_trip_with_child_obj(obj_and_child_obj_and_json_like_1):
 
 
 @pytest.fixture
-def obj_and_child_obj_with_json_like_name_and_json_like():
+def obj_and_child_obj_with_json_like_name_and_json_like(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         c: int
@@ -274,7 +282,7 @@ def test_json_like_round_trip_with_child_obj_with_json_like_name(
 
 
 @pytest.fixture
-def obj_and_child_obj_with_list_and_json_like():
+def obj_and_child_obj_with_list_and_json_like(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         c: int
@@ -325,7 +333,7 @@ def test_json_like_round_trip_with_child_obj_list(
 
 
 @pytest.fixture
-def obj_and_child_obj_with_dict_key_only_and_json_like_and_json_like_normed():
+def obj_and_child_obj_with_dict_key_only_and_json_like_and_json_like_normed(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         name: str
@@ -394,7 +402,7 @@ def test_to_json_like_expected_json_like_with_child_obj_dict_key_only(
 
 
 @pytest.fixture
-def obj_and_child_obj_with_dict_key_val_and_json_like_and_json_like_normed():
+def obj_and_child_obj_with_dict_key_val_and_json_like_and_json_like_normed(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         name: str
@@ -466,7 +474,7 @@ def test_to_json_like_expected_json_like_with_child_obj_dict_key_dict_val(
     assert js == js_1_normed
 
 
-def test_from_json_like_raise_on_is_multiple_with_dict_but_no_dict_key_attr():
+def test_from_json_like_raise_on_is_multiple_with_dict_but_no_dict_key_attr(null_config):
     @dataclass
     class ObjA(BaseJSONLike):
         _child_objects = (
@@ -490,7 +498,9 @@ def test_from_json_like_raise_on_is_multiple_with_dict_but_no_dict_key_attr():
         ObjA.from_json_like(js_1)
 
 
-def test_from_json_like_raise_on_is_multiple_with_dict_key_no_dict_val_but_non_dict_vals():
+def test_from_json_like_raise_on_is_multiple_with_dict_key_no_dict_val_but_non_dict_vals(
+    null_config,
+):
     @dataclass
     class ObjA(BaseJSONLike):
         _child_objects = (
@@ -514,7 +524,7 @@ def test_from_json_like_raise_on_is_multiple_with_dict_key_no_dict_val_but_non_d
         ObjA.from_json_like(js_1)
 
 
-def test_from_json_like_raise_on_is_multiple_not_list_or_dict():
+def test_from_json_like_raise_on_is_multiple_not_list_or_dict(null_config):
     @dataclass
     class ObjA(BaseJSONLike):
         _child_objects = (
@@ -534,7 +544,7 @@ def test_from_json_like_raise_on_is_multiple_not_list_or_dict():
         ObjA.from_json_like(js_1)
 
 
-def test_from_json_like_with_parent_ref():
+def test_from_json_like_with_parent_ref(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         name: str
@@ -585,7 +595,7 @@ def test_from_json_like_with_parent_ref():
     assert ObjA.from_json_like(js_1) == objA
 
 
-def test_json_like_round_trip_with_parent_ref():
+def test_json_like_round_trip_with_parent_ref(null_config):
     @dataclass
     class ObjB(BaseJSONLike):
         name: str
@@ -631,7 +641,7 @@ def test_json_like_round_trip_with_parent_ref():
     assert objA.to_json_like()[0] == js_1
 
 
-def test_from_json_like_optional_attr():
+def test_from_json_like_optional_attr(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -655,7 +665,7 @@ def test_from_json_like_optional_attr():
     assert objA == ObjA(a=9)
 
 
-def test_from_json_like_optional_attr_with_is_multiple_both_none():
+def test_from_json_like_optional_attr_with_is_multiple_both_none(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -683,7 +693,7 @@ def test_from_json_like_optional_attr_with_is_multiple_both_none():
     assert objA == ObjA(a=9, b=[None, None])
 
 
-def test_from_json_like_optional_attr_with_is_multiple_one_none():
+def test_from_json_like_optional_attr_with_is_multiple_one_none(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -711,7 +721,9 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none():
     assert objA == ObjA(a=9, b=[None, ObjB(name="c1", c=2)])
 
 
-def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_name():
+def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_name(
+    null_config,
+):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -748,7 +760,9 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_
     assert objA == ObjA(a=9, b=[None, ObjB(name="c1", c=2)])
 
 
-def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_name():
+def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_name(
+    null_config,
+):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -785,7 +799,7 @@ def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_
     assert objA == ObjA(a=9, b=[None, None])
 
 
-def test_from_json_like_optional_attr_with_shared_data_name():
+def test_from_json_like_optional_attr_with_shared_data_name(null_config):
     # test optional attribute with shared_data_name
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
@@ -822,7 +836,7 @@ def test_from_json_like_optional_attr_with_shared_data_name():
     assert objA == ObjA(a=9, b=None)
 
 
-def test_from_json_like_optional_attr_with_enum():
+def test_from_json_like_optional_attr_with_enum(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     class MyEnum(enum.Enum):
@@ -844,7 +858,7 @@ def test_from_json_like_optional_attr_with_enum():
     assert objA == ObjA(a=9, b=None)
 
 
-def test_from_json_like_with_is_multiple():
+def test_from_json_like_with_is_multiple(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -868,7 +882,7 @@ def test_from_json_like_with_is_multiple():
     assert objA == ObjA(a=9, b=[ObjB(name="c1", c=2), ObjB(name="c2", c=3)])
 
 
-def test_from_json_like_with_is_multiple_dict_values():
+def test_from_json_like_with_is_multiple_dict_values(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -905,7 +919,7 @@ def test_from_json_like_with_is_multiple_dict_values():
     )
 
 
-def test_from_json_like_with_is_multiple_dict_values_ensure_list():
+def test_from_json_like_with_is_multiple_dict_values_ensure_list(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -948,7 +962,7 @@ def test_from_json_like_with_is_multiple_dict_values_ensure_list():
     )
 
 
-def test_from_json_like_round_trip_with_is_multiple_dict_values():
+def test_from_json_like_round_trip_with_is_multiple_dict_values(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -982,7 +996,7 @@ def test_from_json_like_round_trip_with_is_multiple_dict_values():
     assert objA.to_json_like()[0] == js_in
 
 
-def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list():
+def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -1019,7 +1033,7 @@ def test_from_json_like_round_trip_with_is_multiple_dict_values_ensure_list():
     assert objA.to_json_like()[0] == js_in
 
 
-def test_from_json_like_with_is_multiple_and_shared_data():
+def test_from_json_like_with_is_multiple_and_shared_data(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -1058,7 +1072,7 @@ def test_from_json_like_with_is_multiple_and_shared_data():
     assert objA == ObjA(a=9, b=[ObjB(name="c1", c=2), ObjB(name="c2", c=3)])
 
 
-def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup():
+def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup(null_config):
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
     @dataclass
@@ -1102,7 +1116,7 @@ def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup():
     assert objA == ObjA(a=9, b=[ObjB(name="c1", c=2), ObjB(name="c2", c=3)])
 
 
-def test_from_json_like_enum():
+def test_from_json_like_enum(null_config):
     # test enum from_json_like
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
@@ -1125,7 +1139,7 @@ def test_from_json_like_enum():
     assert objA == ObjA(a=9, b=MyEnum.A)
 
 
-def test_from_to_json_round_trip_enum():
+def test_from_to_json_round_trip_enum(null_config):
     # test enum round trip
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
@@ -1148,7 +1162,7 @@ def test_from_to_json_round_trip_enum():
     assert objA.to_json_like()[0] == js_in
 
 
-def test_from_json_like_round_trip_enum_case_insensitivity():
+def test_from_json_like_round_trip_enum_case_insensitivity(null_config):
     # test enum from_json_like case-insensitivity
     BaseJSONLikeSubClass = type("MyBaseJSONLike", (BaseJSONLike,), {})
 
@@ -1184,7 +1198,7 @@ def test_from_json_like_round_trip_enum_case_insensitivity():
         "this class."
     )
 )
-def test_to_json_like_with_child_ref():
+def test_to_json_like_with_child_ref(null_config):
     """i.e. check parent references are not included in child item to_json_like output:"""
 
     @dataclass
