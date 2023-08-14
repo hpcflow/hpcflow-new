@@ -1,4 +1,34 @@
 
+<a name="v0.2.0a77"></a>
+## [v0.2.0a77](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a76...v0.2.0a77) - 2023.08.14
+
+### ♻ Code Refactoring
+
+* remove unused
+* ResourceList.normalise
+* start work to support conditional action based on resources
+
+### ✨ Features
+
+* allow action rules on resources
+* **config:** add reset config
+
+### 🐛 Bug Fixes
+
+* disallow ResourceList with multiple identical scopes
+* ResourceSpec string scope arg
+* passing existing persistent ResourceSpec objects into new workflows/tasks
+* merge workflow template resources into element set resources on WorkflowTemplate init
+* Workflow.get_all_parameter_data for falsey parameter data
+* **config:** account for IPython calling Config.__getattr__
+* **config:** reset-config CLI
+* **config:** allow resetting the config if it is currently invalid
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a76"></a>
 ## [v0.2.0a76](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a75...v0.2.0a76) - 2023.08.10
 
