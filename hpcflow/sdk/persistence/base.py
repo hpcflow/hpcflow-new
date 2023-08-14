@@ -188,6 +188,7 @@ class StoreElementIter:
     id_: int
     is_pending: bool
     element_ID: int
+    EARs_initialised: bool
     EAR_IDs: Dict[int, List[int]]
     data_idx: Dict[str, int]
     schema_parameters: List[str]
@@ -221,6 +222,7 @@ class StoreElementIter:
             "data_idx": self.data_idx,
             "schema_parameters": self.schema_parameters,
             "EARs": EARs,
+            "EARs_initialised": self.EARs_initialised,
             "loop_idx": self.loop_idx,
         }
 
@@ -243,6 +245,7 @@ class StoreElementIter:
             data_idx=self.data_idx,
             schema_parameters=self.schema_parameters,
             loop_idx=self.loop_idx,
+            EARs_initialised=self.EARs_initialised,
         )
 
     def update_loop_idx(
@@ -258,7 +261,21 @@ class StoreElementIter:
             EAR_IDs=self.EAR_IDs,
             data_idx=self.data_idx,
             schema_parameters=self.schema_parameters,
+            EARs_initialised=self.EARs_initialised,
             loop_idx=loop_idx_new,
+        )
+
+    def set_EARs_initialised(self: AnySElementIter) -> AnySElementIter:
+        """Return a copy with `EARs_initialised` set to `True`."""
+        return self.__class__(
+            id_=self.id_,
+            is_pending=self.is_pending,
+            element_ID=self.element_ID,
+            EAR_IDs=self.EAR_IDs,
+            data_idx=self.data_idx,
+            schema_parameters=self.schema_parameters,
+            loop_idx=self.loop_idx,
+            EARs_initialised=True,
         )
 
 
@@ -890,6 +907,7 @@ class PersistentStore(ABC):
             id_=new_ID,
             element_ID=element_ID,
             is_pending=True,
+            EARs_initialised=False,
             EAR_IDs=None,
             data_idx=data_idx,
             schema_parameters=schema_parameters,
@@ -963,6 +981,11 @@ class PersistentStore(ABC):
 
     def set_EAR_skip(self, EAR_ID: int, save: bool = True) -> None:
         self._pending.set_EAR_skips.append(EAR_ID)
+        if save:
+            self.save()
+
+    def set_EARs_initialised(self, iter_ID: int, save: bool = True) -> None:
+        self._pending.set_EARs_initialised.append(iter_ID)
         if save:
             self.save()
 
@@ -1360,6 +1383,10 @@ class PersistentStore(ABC):
             pend_loop_idx = self._pending.update_loop_indices.get(iter_i.id_)
             if pend_loop_idx:
                 iter_i = iter_i.update_loop_idx(pend_loop_idx)
+
+            # consider pending `EARs_initialised`:
+            if iter_i.id_ in self._pending.set_EARs_initialised:
+                iter_i = iter_i.set_EARs_initialised()
 
             iters_new.append(iter_i)
 

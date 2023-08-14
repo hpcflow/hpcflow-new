@@ -19,9 +19,6 @@ from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachine
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
-from hpcflow.sdk.submission.schedulers.direct import DirectPosix, DirectWindows
-from hpcflow.sdk.submission.schedulers.sge import SGEPosix
-from hpcflow.sdk.submission.schedulers.slurm import SlurmPosix
 from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES, get_shell
 
 

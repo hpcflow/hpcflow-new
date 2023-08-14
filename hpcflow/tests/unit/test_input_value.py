@@ -5,7 +5,13 @@ from hpcflow.sdk.core.errors import InputValueDuplicateSequenceAddress
 
 
 @pytest.fixture
-def param_p1():
+def null_config(tmp_path):
+    if not hf.is_config_loaded:
+        hf.load_config(config_dir=tmp_path)
+
+
+@pytest.fixture
+def param_p1(null_config):
     return hf.Parameter("p1")
 
 
@@ -41,32 +47,32 @@ def test_normalised_path_with_empty_path(param_p1):
     assert iv1.normalised_path == "inputs.p1"
 
 
-def test_resource_spec_get_param_path():
+def test_resource_spec_get_param_path(null_config):
     rs1 = hf.ResourceSpec()
     assert rs1.normalised_path == "resources.any"
 
 
-def test_resource_spec_get_param_path_scope_any_with_single_kwarg():
+def test_resource_spec_get_param_path_scope_any_with_single_kwarg(null_config):
     rs1 = hf.ResourceSpec(scratch="local")
     assert rs1.normalised_path == "resources.any"
 
 
-def test_resources_spec_get_param_path_scope_main():
+def test_resources_spec_get_param_path_scope_main(null_config):
     rs1 = hf.ResourceSpec(scope=hf.ActionScope.main())
     assert rs1.normalised_path == "resources.main"
 
 
-def test_resources_spec_get_param_path_scope_with_kwargs():
+def test_resources_spec_get_param_path_scope_with_kwargs(null_config):
     rs1 = hf.ResourceSpec(scope=hf.ActionScope.input_file_generator(file="file1"))
     assert rs1.normalised_path == "resources.input_file_generator[file=file1]"
 
 
-def test_resources_spec_get_param_path_scope_with_no_kwargs():
+def test_resources_spec_get_param_path_scope_with_no_kwargs(null_config):
     rs1 = hf.ResourceSpec(scope=hf.ActionScope.input_file_generator())
     assert rs1.normalised_path == "resources.input_file_generator"
 
 
-def test_input_value_from_json_like_class_method_attribute_is_set():
+def test_input_value_from_json_like_class_method_attribute_is_set(null_config):
     parameter_typ = "p1"
     cls_method = "from_data"
     json_like = {"parameter": f"{parameter_typ}::{cls_method}", "value": 101}
@@ -75,7 +81,7 @@ def test_input_value_from_json_like_class_method_attribute_is_set():
     assert inp_val.value_class_method == cls_method
 
 
-def test_value_sequence_from_json_like_class_method_attribute_is_set():
+def test_value_sequence_from_json_like_class_method_attribute_is_set(null_config):
     parameter_typ = "p1"
     cls_method = "from_data"
     json_like = {
@@ -90,28 +96,28 @@ def test_value_sequence_from_json_like_class_method_attribute_is_set():
     assert val_seq.value_class_method == cls_method
 
 
-def test_path_attributes():
+def test_path_attributes(null_config):
     inp = hf.InputValue(parameter="p1", value=101, path="a.b")
     assert inp.labelled_type == "p1"
     assert inp.normalised_path == "inputs.p1.a.b"
     assert inp.normalised_inputs_path == "p1.a.b"
 
 
-def test_path_attributes_with_label_arg():
+def test_path_attributes_with_label_arg(null_config):
     inp = hf.InputValue(parameter="p1", value=101, path="a.b", label="1")
     assert inp.labelled_type == "p1[1]"
     assert inp.normalised_path == "inputs.p1[1].a.b"
     assert inp.normalised_inputs_path == "p1[1].a.b"
 
 
-def test_path_attributes_with_label_arg_cast():
+def test_path_attributes_with_label_arg_cast(null_config):
     inp = hf.InputValue(parameter="p1", value=101, path="a.b", label=1)
     assert inp.labelled_type == "p1[1]"
     assert inp.normalised_path == "inputs.p1[1].a.b"
     assert inp.normalised_inputs_path == "p1[1].a.b"
 
 
-def test_from_json_like():
+def test_from_json_like(null_config):
     inp = hf.InputValue.from_json_like(
         json_like={"parameter": "p1", "value": 101},
         shared_data=hf.template_components,
@@ -121,7 +127,7 @@ def test_from_json_like():
     assert inp.label == ""
 
 
-def test_from_json_like_with_label():
+def test_from_json_like_with_label(null_config):
     inp = hf.InputValue.from_json_like(
         json_like={"parameter": "p1[1]", "value": 101},
         shared_data=hf.template_components,

@@ -1112,6 +1112,8 @@ class ResourceSpec(JSONLike):
         os_name: Optional[str] = None,
     ):
         self.scope = scope or self.app.ActionScope.any()
+        if not isinstance(self.scope, self.app.ActionScope):
+            self.scope = self.app.ActionScope.from_json_like(self.scope)
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
@@ -1134,7 +1136,7 @@ class ResourceSpec(JSONLike):
 
     def __deepcopy__(self, memo):
         kwargs = copy.deepcopy(self.to_dict(), memo)
-        _value_group_idx = kwargs.pop("value_group_idx")
+        _value_group_idx = kwargs.pop("value_group_idx", None)
         obj = self.__class__(**kwargs)
         obj._value_group_idx = _value_group_idx
         obj._resource_list = self._resource_list
@@ -1199,14 +1201,17 @@ class ResourceSpec(JSONLike):
         if self._value_group_idx is not None:
             # only store pointer to persistent data:
             out = {k: v for k, v in out.items() if k in ["_value_group_idx", "scope"]}
+        else:
+            out = {k: v for k, v in out.items() if v is not None}
 
         out = {k.lstrip("_"): v for k, v in out.items()}
         return out
 
     def _get_members(self):
         out = self.to_dict()
-        del out["scope"]
-        del out["value_group_idx"]
+        out.pop("scope")
+        out.pop("value_group_idx", None)
+        out = {k: v for k, v in out.items() if v is not None}
         return out
 
     def make_persistent(
@@ -1249,6 +1254,13 @@ class ResourceSpec(JSONLike):
             self._os_name = None
 
         return (self.normalised_path, [data_ref], is_new)
+
+    def copy_non_persistent(self):
+        """Make a non-persistent copy."""
+        kwargs = {"scope": self.scope}
+        for name in self.ALLOWED_PARAMETERS:
+            kwargs[name] = getattr(self, name)
+        return self.__class__(**kwargs)
 
     def _get_value(self, value_name=None):
         if self._value_group_idx is not None:
@@ -1312,6 +1324,13 @@ class ResourceSpec(JSONLike):
         elif self.workflow_template:
             # template-level resources
             return self.workflow_template.workflow
+
+        elif self._value_group_idx is not None:
+            raise RuntimeError(
+                f"`{self.__class__.__name__}._value_group_idx` is set but the `workflow` "
+                f"attribute is not. This might be because we are in the process of "
+                f"creating the workflow object."
+            )
 
     @property
     def element_set(self):

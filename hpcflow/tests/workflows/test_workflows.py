@@ -10,10 +10,6 @@ def null_config(tmp_path):
         hf.load_config(config_dir=tmp_path)
 
 
-@pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="fails for non-windows - need to implement conditional actions based on OS name.",
-)
 def test_workflow_1(tmp_path, null_config):
     package = "hpcflow.sdk.demo.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:

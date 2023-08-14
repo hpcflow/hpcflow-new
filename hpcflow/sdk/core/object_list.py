@@ -479,6 +479,15 @@ class ResourceList(ObjectList):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set = None  # assigned by parent ElementSet
         self._workflow_template = None  # assigned by parent WorkflowTemplate
+
+        # check distinct scopes for each item:
+        scopes = [i.to_string() for i in self.get_scopes()]
+        if len(set(scopes)) < len(scopes):
+            raise ValueError(
+                "Multiple `ResourceSpec` objects have the same scope. The scopes are "
+                f"{scopes!r}."
+            )
+
         self._set_parent_refs()
 
     def __deepcopy__(self, memo):
@@ -505,6 +514,56 @@ class ResourceList(ObjectList):
             scope = self._app.ActionScope.from_json_like(res_spec_js.pop("scope"))
             as_dict[scope.to_string()] = res_spec_js
         return as_dict, shared_data
+
+    @classmethod
+    def normalise(cls, resources):
+        """Generate from resource-specs specified in potentially several ways."""
+
+        def _ensure_non_persistent(resource_spec):
+            # for any resources that are persistent, if they have a
+            # `_resource_list` attribute, this means they are sourced from some
+            # other persistent workflow, rather than, say, a workflow being
+            # loaded right now, so make a non-persistent copy:
+            if res_i._value_group_idx is not None and res_i._resource_list is not None:
+                return resource_spec.copy_non_persistent()
+            return resource_spec
+
+        if isinstance(resources, cls._app.ResourceSpec):
+            return resources
+        if not resources:
+            resources = cls([cls._app.ResourceSpec()])
+        elif isinstance(resources, dict):
+            resources = cls.from_json_like(resources)
+        elif isinstance(resources, list):
+            for idx, res_i in enumerate(resources):
+                if isinstance(res_i, dict):
+                    resources[idx] = cls._app.ResourceSpec.from_json_like(res_i)
+                else:
+                    resources[idx] = _ensure_non_persistent(resources[idx])
+            resources = cls(resources)
+
+        return resources
+
+    def get_scopes(self):
+        return tuple(i.scope for i in self._objects)
+
+    def merge_template_resources(self, temp_res_lst):
+        """Merge lower-precedence template-level resources into this resource list."""
+        for scope_i in temp_res_lst.get_scopes():
+            try:
+                es_scoped = self.get(scope=scope_i)
+            except ValueError:
+                in_es = False
+            else:
+                in_es = True
+
+            temp_res_scoped = temp_res_lst.get(scope=scope_i)
+            if in_es:
+                for k, v in temp_res_scoped._get_members().items():
+                    if getattr(es_scoped, k) is None:
+                        setattr(es_scoped, f"_{k}", v)
+            else:
+                self.add_object(copy.deepcopy(temp_res_scoped))
 
 
 def index(obj_lst, obj):

@@ -62,6 +62,7 @@ class JSONPersistentStore(PersistentStore):
         commit_elem_iters=(_meta_res,),
         commit_loop_indices=(_meta_res,),
         commit_elem_iter_EAR_IDs=(_meta_res,),
+        commit_EARs_initialised=(_meta_res,),
         commit_EARs=(_meta_res,),
         commit_EAR_submission_indices=(_meta_res,),
         commit_EAR_skips=(_meta_res,),
@@ -204,6 +205,10 @@ class JSONPersistentStore(PersistentStore):
             if act_idx not in md["iters"][iter_ID]["EAR_IDs"]:
                 md["iters"][iter_ID]["EAR_IDs"][act_idx] = []
             md["iters"][iter_ID]["EAR_IDs"][act_idx].extend(EAR_IDs)
+
+    def _update_elem_iter_EARs_initialised(self, iter_ID: int):
+        with self.using_resource("metadata", action="update") as md:
+            md["iters"][iter_ID]["EARs_initialised"] = True
 
     def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
         with self.using_resource("submissions", action="update") as subs_res:

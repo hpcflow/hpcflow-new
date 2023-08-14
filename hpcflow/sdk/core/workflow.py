@@ -111,14 +111,14 @@ class WorkflowTemplate(JSONLike):
     resources: Optional[Dict[str, Dict]] = None
 
     def __post_init__(self):
-        if isinstance(self.resources, dict):
-            self.resources = self.app.ResourceList.from_json_like(self.resources)
-        elif isinstance(self.resources, list):
-            self.resources = self.app.ResourceList(self.resources)
-        elif not self.resources:
-            self.resources = self.app.ResourceList([self.app.ResourceSpec()])
-
+        self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
+
+        # merge template-level `resources` into task element set resources (this mutates
+        # `tasks`):
+        for task in self.tasks:
+            for element_set in task.element_sets:
+                element_set.resources.merge_template_resources(self.resources)
 
     @classmethod
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
@@ -1364,7 +1364,7 @@ class Workflow:
     def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
         """Retrieve all workflow parameter data."""
         params = self.get_all_parameters(**kwargs)
-        return {i.id_: (i.data or i.file) for i in params}
+        return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
     def check_parameters_exist(
         self, id_lst: Union[int, List[int]]
@@ -1669,6 +1669,12 @@ class Workflow:
         if commit:
             # force commit now:
             self._store._pending.commit_all()
+
+    def set_EARs_initialised(self, iter_ID: int):
+        """Set `ElementIteration.EARs_initialised` to True for the specified iteration."""
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_EARs_initialised(iter_ID)
 
     def elements(self) -> Iterator[app.Element]:
         for task in self.tasks:

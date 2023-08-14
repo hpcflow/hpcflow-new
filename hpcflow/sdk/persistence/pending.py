@@ -56,6 +56,7 @@ class PendingChanges:
         self.add_elem_iter_EAR_IDs: Dict[int, Dict[int, List]] = None
         self.add_submission_parts: Dict[int, Dict[str, List[int]]] = None
 
+        self.set_EARs_initialised: List[int] = None
         self.set_EAR_submission_indices: Dict[int, int] = None
         self.set_EAR_skips: List[int] = None
         self.set_EAR_starts: Dict[int, Tuple[datetime, Dict]] = None
@@ -88,6 +89,7 @@ class PendingChanges:
             or bool(self.add_files)
             or bool(self.add_template_components)
             or bool(self.add_element_sets)
+            or bool(self.set_EARs_initialised)
             or bool(self.set_EAR_submission_indices)
             or bool(self.set_EAR_starts)
             or bool(self.set_EAR_ends)
@@ -220,6 +222,10 @@ class PendingChanges:
             self.add_elem_iter_EAR_IDs = {
                 k: v for k, v in self.add_elem_iter_EAR_IDs.items() if k not in iter_ids
             }
+            # pending EARs_initialised that belong to pending iters are now committed:
+            self.set_EARs_initialised = [
+                i for i in self.set_EARs_initialised if i not in iter_ids
+            ]
         self.clear_add_elem_iters()
 
     def commit_elem_iter_EAR_IDs(self) -> None:
@@ -255,6 +261,18 @@ class PendingChanges:
             }
 
         self.clear_add_EARs()
+
+    def commit_EARs_initialised(self) -> None:
+        if self.set_EARs_initialised:
+            iter_ids = self.set_EARs_initialised
+            self.logger.debug(
+                f"commit: setting pending `EARs_initialised` for iteration IDs: "
+                f"{iter_ids!r}."
+            )
+            # TODO: could be batched up?
+            for i in iter_ids:
+                self._store._update_elem_iter_EARs_initialised(i)
+        self.clear_set_EARs_initialised()
 
     def commit_EAR_submission_indices(self) -> None:
         # TODO: could be batched up?
@@ -389,6 +407,9 @@ class PendingChanges:
     def clear_add_elem_iter_EAR_IDs(self):
         self.add_elem_iter_EAR_IDs = defaultdict(lambda: defaultdict(list))
 
+    def clear_set_EARs_initialised(self):
+        self.set_EARs_initialised = []
+
     def clear_set_EAR_submission_indices(self):
         self.set_EAR_submission_indices = {}
 
@@ -444,6 +465,7 @@ class PendingChanges:
         self.clear_add_elem_iters()
         self.clear_add_EARs()
 
+        self.clear_set_EARs_initialised()
         self.clear_add_elem_IDs()
         self.clear_add_elem_iter_IDs()
         self.clear_add_elem_iter_EAR_IDs()
@@ -485,6 +507,7 @@ class CommitResourceMap:
     commit_elem_iter_IDs: Optional[Tuple[str]] = tuple()
     commit_elem_iters: Optional[Tuple[str]] = tuple()
     commit_elem_iter_EAR_IDs: Optional[Tuple[str]] = tuple()
+    commit_EARs_initialised: Optional[Tuple[str]] = tuple()
     commit_EARs: Optional[Tuple[str]] = tuple()
     commit_EAR_submission_indices: Optional[Tuple[str]] = tuple()
     commit_EAR_skips: Optional[Tuple[str]] = tuple()

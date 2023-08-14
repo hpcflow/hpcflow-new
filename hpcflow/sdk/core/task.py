@@ -1,6 +1,7 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -9,6 +10,7 @@ from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.task_schema import TaskSchema
+from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
@@ -134,18 +136,11 @@ class ElementSet(JSONLike):
 
         """
 
-        if isinstance(resources, dict):
-            resources = self.app.ResourceList.from_json_like(resources)
-        elif isinstance(resources, list):
-            resources = self.app.ResourceList(resources)
-        elif not resources:
-            resources = self.app.ResourceList([self.app.ResourceSpec()])
-
         self.inputs = inputs or []
         self.input_files = input_files or []
         self.repeats = repeats or []
         self.groups = groups or []
-        self.resources = resources
+        self.resources = self.app.ResourceList.normalise(resources)
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
         self.nesting_order = nesting_order or {}
@@ -1645,11 +1640,12 @@ class WorkflowTask:
                     except UnsetParameterDataError:
                         # raised by `test_action_rule`; cannot yet initialise EARs
                         pass
+                    else:
+                        iter_i._EARs_initialised = True
+                        self.workflow.set_EARs_initialised(iter_i.id_)
         return initialised
 
     def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
-        schema_data_idx = element_iter.data_idx
-
         # keys are (act_idx, EAR_idx):
         all_data_idx = {}
         action_runs = {}
@@ -1659,8 +1655,15 @@ class WorkflowTask:
 
         count = 0
         for act_idx, action in self.template.all_schema_actions():
-            log_common = f"for action {act_idx} of element iteration {element_iter.index} of element {element_iter.element.index} of task {self.unique_name!r}."
-            if all(self.test_action_rule(i, schema_data_idx) for i in action.rules):
+            log_common = (
+                f"for action {act_idx} of element iteration {element_iter.index} of "
+                f"element {element_iter.element.index} of task {self.unique_name!r}."
+            )
+            rules_valid = [
+                self.test_action_rule(action=action, act_rule=i, elem_iter=element_iter)
+                for i in action.rules
+            ]
+            if all(rules_valid):
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
                 param_source = {
@@ -1671,7 +1674,7 @@ class WorkflowTask:
                     action.generate_data_index(  # adds an item to `all_data_idx`
                         act_idx=act_idx,
                         EAR_ID=EAR_ID,
-                        schema_data_idx=schema_data_idx,
+                        schema_data_idx=element_iter.data_idx,
                         all_data_idx=all_data_idx,
                         workflow=self.workflow,
                         param_source=param_source,
@@ -1860,7 +1863,17 @@ class WorkflowTask:
 
         elem_idx = []
         for elem_set_i in element_sets:
+            # copy:
             elem_set_i = elem_set_i.prepare_persistent_copy()
+
+            # add some resource defaults to all scopes:
+            for res in elem_set_i.resources:
+                if res.os_name is None:
+                    res._os_name = os.name
+                if res.shell is None:
+                    res._shell = DEFAULT_SHELL_NAMES[os.name]
+
+            # add the new element set:
             elem_idx += self._add_element_set(elem_set_i)
 
         for task in self.get_dependent_tasks(as_objects=True):
@@ -1883,11 +1896,13 @@ class WorkflowTask:
             src_elem_iters = elem_idx + [
                 j for i in element_sets for j in i.sourceable_elem_iters or []
             ]
+
+            # note we must pass `resources` as a list since it is already persistent:
             elem_set_i = self.app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,
-                resources=elem_prop.element_set.resources,
+                resources=elem_prop.element_set.resources[:],
                 repeats=elem_prop.element_set.repeats,
                 nesting_order=elem_prop.nesting_order,
                 sourceable_elem_iters=src_elem_iters,
@@ -2159,32 +2174,47 @@ class WorkflowTask:
 
         return current_value
 
-    def test_action_rule(self, act_rule: app.ActionRule, data_idx: Dict) -> bool:
+    def test_action_rule(
+        self,
+        action: app.Action,
+        act_rule: app.ActionRule,
+        elem_iter: app.ElementIteration,
+    ) -> bool:
+        schema_data_idx = elem_iter.data_idx
         check = act_rule.check_exists or act_rule.check_missing
         if check:
             param_s = check.split(".")
             if len(param_s) > 2:
                 # sub-parameter, so need to try to retrieve parameter data
                 try:
-                    self._get_merged_parameter_data(data_idx, raise_on_missing=True)
+                    self._get_merged_parameter_data(
+                        schema_data_idx, raise_on_missing=True
+                    )
                     return True if act_rule.check_exists else False
                 except ValueError:
                     return False if act_rule.check_exists else True
             else:
                 if act_rule.check_exists:
-                    return act_rule.check_exists in data_idx
+                    return act_rule.check_exists in schema_data_idx
                 elif act_rule.check_missing:
-                    return act_rule.check_missing not in data_idx
+                    return act_rule.check_missing not in schema_data_idx
 
         else:
             rule = act_rule.rule
             param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
-            element_dat = self._get_merged_parameter_data(
-                data_idx,
-                path=param_path,
-                raise_on_missing=True,
-                raise_on_unset=True,
-            )
+            if param_path.startswith("resources."):
+                elem_res = elem_iter.get_resources(action=action)
+                res_path = param_path.split(".")[1:]
+                element_dat = get_in_container(
+                    cont=elem_res, path=res_path, cast_indices=True
+                )
+            else:
+                element_dat = self._get_merged_parameter_data(
+                    schema_data_idx,
+                    path=param_path,
+                    raise_on_missing=True,
+                    raise_on_unset=True,
+                )
             # test the rule:
             # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):

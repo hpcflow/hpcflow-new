@@ -230,6 +230,7 @@ class ElementIteration:
         index: int,
         element: app.Element,
         data_idx: Dict,
+        EARs_initialised: bool,
         EAR_IDs: Dict[int, int],
         EARs: Union[List[Dict], None],
         schema_parameters: List[str],
@@ -242,6 +243,7 @@ class ElementIteration:
         self._data_idx = data_idx
         self._loop_idx = loop_idx
         self._schema_parameters = schema_parameters
+        self._EARs_initialised = EARs_initialised
         self._EARs = EARs
         self._EAR_IDs = EAR_IDs
 
@@ -268,7 +270,7 @@ class ElementIteration:
     @property
     def EARs_initialised(self):
         """Whether or not the EARs have been initialised."""
-        return self._EARs is not None
+        return self._EARs_initialised
 
     @property
     def element(self):
@@ -700,6 +702,40 @@ class ElementIteration:
             deps = [self.workflow.tasks.get(insert_ID=i) for i in deps]
 
         return deps
+
+    def get_template_resources(self) -> Dict:
+        """Get template-level resources."""
+        out = {}
+        for res_i in self.workflow.template.resources:
+            out[res_i.scope.to_string()] = res_i._get_value()
+        return out
+
+    def get_resources(self, action: app.Action) -> Dict:
+        """Resolve specific resources for the specified action of this iteration,
+        considering all applicable scopes."""
+
+        # This method is currently accurate for both `ElementIteration` and `EAR` objects
+        # because when generating the EAR data index we copy (from the schema data index)
+        # anything that starts with "resources". BUT: when we support adding a run, the
+        # user should be able to modify the resources! Which would invalidate this
+        # assumption!!!!!
+
+        # --- so need to rethink...
+        # question is perhaps "what would the resources be if this action were to become
+        # an EAR?" which would then allow us to test a resources-based action rule.
+
+        resource_specs = copy.deepcopy(self.get("resources"))
+        resources = {}
+        for scope in action.get_possible_scopes()[::-1]:
+            # loop in reverse so higher-specificity scopes take precedence:
+            scope_s = scope.to_string()
+            scope_res = resource_specs.get(scope_s, {})
+            resources.update({k: v for k, v in scope_res.items() if v is not None})
+
+        return resources
+
+    def get_resources_obj(self, action: app.Action) -> app.ElementResources:
+        return self.app.ElementResources(**self.get_resources(action))
 
 
 class Element:

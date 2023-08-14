@@ -28,7 +28,7 @@ from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
 from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
-from hpcflow.sdk.config import Config
+from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     DEFAULT_TEMPLATE_FORMAT,
@@ -414,6 +414,29 @@ class BaseApp(metaclass=Singleton):
         if self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_invocation_key, **overrides)
+
+    def _delete_config_file(self, config_dir=None):
+        """Delete the config file."""
+        config_dir = ConfigFile._resolve_config_dir(
+            config_opt=self.config_options,
+            logger=self.logger,
+            directory=config_dir,
+        )
+        config_path = ConfigFile.get_config_file_path(config_dir)
+        self.logger.info(f"deleting config file: {str(config_path)!r}.")
+        config_path.unlink()
+
+    def reset_config(
+        self,
+        config_dir=None,
+        config_invocation_key=None,
+        **overrides,
+    ) -> None:
+        """Reset the config file to defaults, and reload the config."""
+        self.logger.info(f"resetting config")
+        self._delete_config_file(config_dir=config_dir)
+        self._config = None
+        self.load_config(config_dir, config_invocation_key, **overrides)
 
     def reload_config(
         self,

@@ -163,7 +163,10 @@ class Config:
         return super().__dir__() + self._all_keys
 
     def __getattr__(self, name):
-        return self.get(name)
+        if not name.startswith("__"):
+            return self.get(name)
+        else:
+            raise AttributeError(f"Attribute not known: {name!r}.")
 
     def __setattr__(self, name, value):
         if (
@@ -513,6 +516,11 @@ class Config:
                 uid = fh.read().strip()
 
         return uid, uid_file_path
+
+    def reset(self):
+        """Reset to the default configuration."""
+        self._logger.info(f"Resetting config file to defaults.")
+        self._app.reset_config()
 
     def _init_user_data_dir(self):
         """Generate a user data directory for this machine (used by the helper process and

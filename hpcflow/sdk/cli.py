@@ -785,16 +785,29 @@ def make_cli(app):
     )
     @click.pass_context
     def new_CLI(ctx, config_dir, config_invocation_key, with_config):
-        overrides = {kv[0]: kv[1] for kv in with_config}
-        try:
-            app.load_config(
-                config_dir=config_dir,
-                config_invocation_key=config_invocation_key,
-                **overrides,
-            )
-        except ConfigError as err:
-            click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
-            ctx.exit(1)
+        if ctx.invoked_subcommand != "reset_config":
+            # don't load the config if we are resetting it - it could be invalid
+            overrides = {kv[0]: kv[1] for kv in with_config}
+            try:
+                app.load_config(
+                    config_dir=config_dir,
+                    config_invocation_key=config_invocation_key,
+                    **overrides,
+                )
+            except ConfigError as err:
+                click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
+                ctx.exit(1)
+
+    @new_CLI.command
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file to be reset.",
+    )
+    def reset_config(config_dir):
+        """Reset the configuration file to defaults.
+
+        This can be used if the current configuration file is invalid."""
+        app.reset_config(config_dir)
 
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))

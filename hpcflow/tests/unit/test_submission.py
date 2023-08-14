@@ -1,9 +1,19 @@
 from datetime import timedelta
+
+import pytest
+
+from hpcflow.app import app as hf
 from hpcflow.sdk.submission.jobscript import group_resource_map_into_jobscripts
 from hpcflow.sdk.submission.submission import timedelta_format, timedelta_parse
 
 
-def test_group_resource_map_into_jobscripts():
+@pytest.fixture
+def null_config(tmp_path):
+    if not hf.is_config_loaded:
+        hf.load_config(config_dir=tmp_path)
+
+
+def test_group_resource_map_into_jobscripts(null_config):
     # x-axis corresponds to elements; y-axis corresponds to actions:
     examples = (
         {
@@ -163,7 +173,7 @@ def test_group_resource_map_into_jobscripts():
         assert jobscripts_i == i["expected"]
 
 
-def test_timedelta_parse_format_round_trip():
+def test_timedelta_parse_format_round_trip(null_config):
     td = timedelta(days=2, hours=25, minutes=92, seconds=77)
     td_str = timedelta_format(td)
     assert td_str == timedelta_format(timedelta_parse(td_str))

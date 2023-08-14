@@ -165,6 +165,7 @@ class ZarrStoreElementIter(StoreElementIter):
         iter_enc = [
             self.id_,
             self.element_ID,
+            int(self.EARs_initialised),
             [[k, v] for k, v in self.EAR_IDs.items()] if self.EAR_IDs else None,
             [
                 [ensure_in(dk, attrs["parameter_paths"]), dv]
@@ -181,10 +182,11 @@ class ZarrStoreElementIter(StoreElementIter):
         obj_dat = {
             "id_": iter_dat[0],
             "element_ID": iter_dat[1],
-            "EAR_IDs": {i[0]: i[1] for i in iter_dat[2]} if iter_dat[2] else None,
-            "data_idx": {attrs["parameter_paths"][i[0]]: i[1] for i in iter_dat[3]},
-            "schema_parameters": [attrs["schema_parameters"][i] for i in iter_dat[4]],
-            "loop_idx": {i[0]: i[1] for i in iter_dat[5]},
+            "EARs_initialised": bool(iter_dat[2]),
+            "EAR_IDs": {i[0]: i[1] for i in iter_dat[3]} if iter_dat[3] else None,
+            "data_idx": {attrs["parameter_paths"][i[0]]: i[1] for i in iter_dat[4]},
+            "schema_parameters": [attrs["schema_parameters"][i] for i in iter_dat[5]],
+            "loop_idx": {i[0]: i[1] for i in iter_dat[6]},
         }
         return cls(is_pending=False, **obj_dat)
 
@@ -509,6 +511,16 @@ class ZarrPersistentStore(PersistentStore):
         iter_dat = arr[iter_ID]
         store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
         store_iter = store_iter.append_EAR_IDs(pend_IDs={act_idx: EAR_IDs})
+        arr[iter_ID] = store_iter.encode(
+            attrs
+        )  # attrs shouldn't be mutated (TODO: test!)
+
+    def _update_elem_iter_EARs_initialised(self, iter_ID: int):
+        arr = self._get_iters_arr(mode="r+")
+        attrs = arr.attrs.asdict()
+        iter_dat = arr[iter_ID]
+        store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
+        store_iter = store_iter.set_EARs_initialised()
         arr[iter_ID] = store_iter.encode(
             attrs
         )  # attrs shouldn't be mutated (TODO: test!)
