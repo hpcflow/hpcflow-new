@@ -1,8 +1,11 @@
 rules:
   - path: []
     condition:
-      value.required_keys:
-        - configs
+      and:
+        - value.required_keys:
+            - configs
+        - value.allowed_keys:
+            - configs
 
   - path: [configs]
     doc: >

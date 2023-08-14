@@ -29,7 +29,11 @@ class ConfigFile:
     def __init__(self, config, directory, invoc_key=None):
         self.config = config
         self.logger = self.config._logger
-        self.directory = self._resolve_config_dir(directory)
+        self.directory = self._resolve_config_dir(
+            config_opt=self.config._options,
+            logger=self.logger,
+            directory=directory,
+        )
 
         # set by _load_file_data:
         self.path = None
@@ -121,7 +125,10 @@ class ConfigFile:
         self.config._unset_keys = []
         self.config._modified_keys = {}
 
-    def _resolve_config_dir(self, directory: Optional[Union[str, Path]] = None) -> Path:
+    @staticmethod
+    def _resolve_config_dir(
+        config_opt, logger, directory: Optional[Union[str, Path]] = None
+    ) -> Path:
         """Find the directory in which to locate the configuration file.
 
         If no configuration directory is specified, look first for an environment variable
@@ -144,21 +151,18 @@ class ConfigFile:
 
         if not directory:
             directory = Path(
-                os.getenv(
-                    self.config._options.directory_env_var,
-                    self.config._options.default_directory,
-                )
+                os.getenv(config_opt.directory_env_var, config_opt.default_directory)
             ).expanduser()
         else:
             directory = Path(directory)
 
         if not directory.is_dir():
-            self.logger.debug(
+            logger.debug(
                 f"Configuration directory does not exist. Generating here: {str(directory)!r}."
             )
             directory.mkdir()
         else:
-            self.logger.debug(f"Using configuration directory: {str(directory)!r}.")
+            logger.debug(f"Using configuration directory: {str(directory)!r}.")
 
         return directory.resolve()
 
@@ -185,14 +189,21 @@ class ConfigFile:
 
         self._dump_config(default_config, config_path)
 
+    @staticmethod
+    def get_config_file_path(directory):
+        # Try both ".yml" and ".yaml" extensions:
+        path_yaml = directory.joinpath("config.yaml")
+        if path_yaml.is_file():
+            return path_yaml
+        path_yml = directory.joinpath("config.yml")
+        if path_yml.is_file():
+            return path_yml
+        return path_yaml
+
     def _load_file_data(self):
         """Load data from the configuration file (config.yaml or config.yml)."""
 
-        # Try both ".yml" and ".yaml" extensions:
-        path = self.directory.joinpath("config.yaml")
-        if not path.is_file():
-            path = self.directory.joinpath("config.yml")
-
+        path = self.get_config_file_path(self.directory)
         if not path.is_file():
             self.config._logger.info(
                 "No config.yaml found in the configuration directory. Generating "
