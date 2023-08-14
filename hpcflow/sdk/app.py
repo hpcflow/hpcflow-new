@@ -415,14 +415,18 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_invocation_key, **overrides)
 
-    def _delete_config_file(self, config_dir=None):
-        """Delete the config file."""
+    def get_config_path(self, config_dir=None):
+        """Return the full path to the config file, without loading the config."""
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
             logger=self.logger,
             directory=config_dir,
         )
-        config_path = ConfigFile.get_config_file_path(config_dir)
+        return ConfigFile.get_config_file_path(config_dir)
+
+    def _delete_config_file(self, config_dir=None):
+        """Delete the config file."""
+        config_path = self.get_config_path(config_dir=config_dir)
         self.logger.info(f"deleting config file: {str(config_path)!r}.")
         config_path.unlink()
 
