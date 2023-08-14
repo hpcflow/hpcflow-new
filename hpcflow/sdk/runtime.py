@@ -47,7 +47,7 @@ class RunTimeInfo(PrettyPrinter):
         path_argv = Path(sys.argv[0])
 
         self.in_ipython = False
-        self.in_pytest = "pytest" in sys.modules
+        self.in_pytest = False  # set in `conftest.py`
 
         if self.is_frozen:
             self.bundle_dir = Path(bundle_dir)
@@ -74,8 +74,6 @@ class RunTimeInfo(PrettyPrinter):
         self.sys_base_prefix = getattr(sys, "base_prefix", None)
         self.sys_real_prefix = getattr(sys, "real_prefix", None)
         self.conda_prefix = os.environ.get("CONDA_PREFIX")
-
-        self.invocation_command = self.get_invocation_command()
 
         try:
             self.venv_path = self._set_venv_path()
@@ -120,7 +118,7 @@ class RunTimeInfo(PrettyPrinter):
             "python_version": self.python_version,
             "hostname": self.hostname,
             "working_dir": self.working_dir,
-            "invocation_command": self.get_invocation_command(),
+            "invocation_command": self.invocation_command,
             "in_ipython": self.in_ipython,
             "in_pytest": self.in_pytest,
         }
@@ -174,7 +172,8 @@ class RunTimeInfo(PrettyPrinter):
     def get_deactivate_env_command(self):
         pass
 
-    def get_invocation_command(self):
+    @property
+    def invocation_command(self):
         """Get the command that was used to invoke this instance of the app."""
         if self.is_frozen:
             # (this also works if we are running tests using the frozen app)
