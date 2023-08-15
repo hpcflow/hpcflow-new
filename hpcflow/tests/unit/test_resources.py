@@ -1,11 +1,7 @@
+import os
 import pytest
-from hpcflow.app import app as hf
-
-
-@pytest.fixture
-def null_config(tmp_path):
-    if not hf.is_config_loaded:
-        hf.load_config(config_dir=tmp_path)
+import hpcflow.app as hf
+from hpcflow.sdk.core.errors import UnsupportedSchedulerError
 
 
 def test_init_scope_equivalence_simple():
@@ -122,3 +118,78 @@ def test_use_persistent_resource_list(null_config, tmp_path, store):
     )
 
     assert wk.tasks[0].template.element_sets[0].resources[0].num_cores == num_cores_check
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_default_scheduler_set(null_config, tmp_path, store):
+    wk = hf.Workflow.from_template_data(
+        template_name="wk",
+        path=tmp_path,
+        store=store,
+        tasks=[
+            hf.Task(
+                schemas=[hf.task_schemas.test_t1_bash],
+                inputs=[hf.InputValue("p1", 101)],
+            ),
+        ],
+    )
+    def_sched = hf.config.default_scheduler
+    assert wk.tasks[0].template.element_sets[0].resources[0].scheduler == def_sched
+
+
+def test_scheduler_case_insensitive(null_config):
+    rs1 = hf.ResourceSpec(scheduler="direct")
+    rs2 = hf.ResourceSpec(scheduler="dIrEcT")
+    assert rs1 == rs2
+    assert rs1.scheduler == rs2.scheduler == "direct"
+
+
+def test_scheduler_strip(null_config):
+    rs1 = hf.ResourceSpec(scheduler="  direct ")
+    rs2 = hf.ResourceSpec(scheduler="direct")
+    assert rs1 == rs2
+    assert rs1.scheduler == rs2.scheduler == "direct"
+
+
+def test_shell_case_insensitive(null_config):
+    shell_name = "bash" if os.name == "posix" else "powershell"
+    shell_name_title = shell_name
+    n = shell_name_title[0]
+    shell_name_title = shell_name_title.replace(n, n.upper())
+    assert shell_name != shell_name_title
+    rs1 = hf.ResourceSpec(shell=shell_name)
+    rs2 = hf.ResourceSpec(shell=shell_name_title)
+    assert rs1 == rs2
+    assert rs1.shell == rs2.shell == shell_name
+
+
+def test_shell_strip(null_config):
+    shell_name = "bash" if os.name == "posix" else "powershell"
+    rs1 = hf.ResourceSpec(shell=f"  {shell_name} ")
+    rs2 = hf.ResourceSpec(shell=shell_name)
+    assert rs1 == rs2
+    assert rs1.shell == rs2.shell == shell_name
+
+
+def test_os_name_case_insensitive(null_config):
+    rs1 = hf.ResourceSpec(os_name="nt")
+    rs2 = hf.ResourceSpec(os_name="NT")
+    assert rs1 == rs2
+    assert rs1.os_name == rs2.os_name == "nt"
+
+
+def test_os_name_strip(null_config):
+    rs1 = hf.ResourceSpec(os_name="  nt ")
+    rs2 = hf.ResourceSpec(os_name="nt")
+    assert rs1 == rs2
+    assert rs1.os_name == rs2.os_name == "nt"
+
+
+def test_raise_on_unsupported_scheduler(null_config):
+    with pytest.raises(UnsupportedSchedulerError):
+        hf.ResourceSpec(scheduler="slurm")  # not supported by default config file
+
+
+def test_can_use_non_default_scheduler(null_config):
+    hf.config.append("schedulers", "slurm")
+    hf.ResourceSpec(scheduler="slurm")  # not supported by default config file

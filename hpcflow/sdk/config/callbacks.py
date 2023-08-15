@@ -40,6 +40,23 @@ def callback_bool(config, value):
     return value
 
 
+def callback_lowercase(config, value):
+    if isinstance(value, list):
+        return [i.lower() for i in value]
+    else:
+        return value.lower()
+
+
+def exists_in_schedulers(config, value):
+    if value not in config.schedulers:
+        raise ValueError(
+            f"Cannot set default scheduler; {value!r} is not a supported scheduler "
+            f"according to the config file, which lists these schedulers as available "
+            f"on this machine: {config.schedulers!r}."
+        )
+    return value
+
+
 def set_callback_file_paths(config, value):
     """Check the file(s) is/are accessible. This is only done on `config.set` (and not on
     `config.get` or `config._validate`) because it could be expensive in the case of remote

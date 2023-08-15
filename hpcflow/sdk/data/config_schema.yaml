@@ -15,13 +15,11 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-        - max_num_zarr_objects_per_dir
-        - num_zarr_objects_nesting_levels
-        - num_task_group_nesting_levels
-        - parameter_index_dtype
-        - element_index_dtype
-        - task_index_dtype
-
+        - schedulers
+        - default_scheduler
+        - default_scheduler_args_direct
+        - default_scheduler_args_sge
+        - default_scheduler_args_slurm
   - path: []
     condition:
       value.required_keys:
@@ -31,7 +29,8 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-
+        - schedulers
+        - default_scheduler
   - path: []
     condition:
       value.forbidden_keys:
@@ -136,3 +135,15 @@ rules:
   - path: [command_file_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]
+
+  - path: [schedulers]
+    condition:
+      value.type.equal_to: list
+
+  - path: [schedulers, { type: list_value }]
+    condition:
+      value.in: [direct, sge, slurm]
+
+  - path: [default_scheduler]
+    condition:
+      value.in: [direct, sge, slurm]

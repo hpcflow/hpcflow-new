@@ -193,6 +193,21 @@ class UnsupportedShellError(ValueError):
     pass
 
 
+class UnsupportedSchedulerError(ValueError):
+    """This scheduler is not supported on this machine according to the config."""
+
+    _app_attr = "app"
+
+    def __init__(self, scheduler) -> None:
+        message = (
+            f"Scheduler {scheduler!r} is not supported on this machine/instance. "
+            f"Supported schedulers according to the app configuration are: "
+            f"{self.app.config.schedulers!r}."
+        )
+        super().__init__(message)
+        self.scheduler = scheduler
+
+
 class _MissingStoreItemError(ValueError):
     def __init__(self, id_lst: Iterable[int], item_type: str) -> None:
         message = (

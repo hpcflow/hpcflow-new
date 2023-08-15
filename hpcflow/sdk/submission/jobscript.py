@@ -24,8 +24,8 @@ from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES, get_shell
 
 # lookup by (scheduler, `os.name`):
 scheduler_cls_lookup = {
-    (None, "posix"): app.DirectPosix,
-    (None, "nt"): app.DirectWindows,
+    ("direct", "posix"): app.DirectPosix,
+    ("direct", "nt"): app.DirectWindows,
     ("sge", "posix"): app.SGEPosix,
     ("slurm", "posix"): app.SlurmPosix,
 }

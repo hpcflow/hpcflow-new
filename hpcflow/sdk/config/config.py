@@ -21,8 +21,10 @@ from hpcflow.sdk.typing import PathLike
 
 from .callbacks import (
     callback_bool,
+    callback_lowercase,
     callback_vars,
     callback_file_paths,
+    exists_in_schedulers,
     set_callback_file_paths,
     check_load_data_files,
 )
@@ -54,6 +56,11 @@ DEFAULT_CONFIG_FILE = {
                 "task_schema_sources": [],
                 "command_file_sources": [],
                 "parameter_sources": [],
+                "schedulers": ["direct"],
+                "default_scheduler": "direct",
+                "default_scheduler_args_direct": {},
+                "default_scheduler_args_sge": {},
+                "default_scheduler_args_slurm": {},
             },
         }
     }
@@ -115,6 +122,8 @@ class Config:
                 callback_file_paths,
             ),
             "telemetry": (callback_bool,),
+            "schedulers": (callback_lowercase,),
+            "default_scheduler": (callback_lowercase, exists_in_schedulers),
             **(callbacks or {}),
         }
 

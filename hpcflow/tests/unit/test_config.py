@@ -1,7 +1,7 @@
 import pytest
 
 from hpcflow.app import app as hf
-from hpcflow.sdk.config.errors import ConfigFileValidationError
+from hpcflow.sdk.config.errors import ConfigFileValidationError, ConfigItemCallbackError
 
 
 @pytest.fixture
@@ -41,3 +41,15 @@ def test_reset_invalid_config(null_config):
     # check we can reset the invalid file:
     cfg_dir = hf.config.get("config_directory")
     hf.reset_config(config_dir=cfg_dir)
+
+
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_invalid_name():
+    new_default = "invalid-scheduler"
+    with pytest.raises(ConfigItemCallbackError):
+        hf.config.default_scheduler = new_default
+
+
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name():
+    new_default = "slurm"  # valid but unsupported (by default) scheduler
+    with pytest.raises(ConfigItemCallbackError):
+        hf.config.default_scheduler = new_default

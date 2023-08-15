@@ -16,6 +16,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
 
 
@@ -1118,21 +1119,21 @@ class ResourceSpec(JSONLike):
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
 
+        # assigned by `make_persistent`
+        self._workflow = None
+        self._value_group_idx = None
+
         # user-specified resource parameters:
         self._scratch = scratch
         self._num_cores = num_cores
-        self._scheduler = scheduler
-        self._shell = shell.lower() if shell else None
+        self.scheduler = scheduler
+        self.shell = shell
+        self.os_name = os_name
         self._use_job_array = use_job_array
         self._time_limit = time_limit
         self._scheduler_options = scheduler_options
         self._scheduler_args = scheduler_args
         self._shell_args = shell_args
-        self._os_name = os_name.lower() if os_name else None
-
-        # assigned by `make_persistent`
-        self._workflow = None
-        self._value_group_idx = None
 
     def __deepcopy__(self, memo):
         kwargs = copy.deepcopy(self.to_dict(), memo)
@@ -1272,8 +1273,15 @@ class ResourceSpec(JSONLike):
 
         return val
 
+    def _setter_persistent_check(self):
+        if self._value_group_idx:
+            raise ValueError(
+                f"Cannot set `scheduler` of a persistent {self.__class__.__name__!r}"
+            )
+
     @property
     def scratch(self):
+        # TODO: currently unused?
         return self._get_value("scratch")
 
     @property
@@ -1284,9 +1292,25 @@ class ResourceSpec(JSONLike):
     def scheduler(self):
         return self._get_value("scheduler")
 
+    @scheduler.setter
+    def scheduler(self, value):
+        self._setter_persistent_check()
+        value = value.lower().strip() if value else value
+        if value not in self.app.config.schedulers:
+            raise self.app.UnsupportedSchedulerError(scheduler=value)
+        self._scheduler = value
+
     @property
     def shell(self):
         return self._get_value("shell")
+
+    @shell.setter
+    def shell(self, value):
+        self._setter_persistent_check()
+        value = value.lower().strip() if value else value
+        if value:
+            get_shell(shell_name=value, os_name=self.os_name)  # validate
+        self._shell = value
 
     @property
     def use_job_array(self):
@@ -1311,6 +1335,11 @@ class ResourceSpec(JSONLike):
     @property
     def os_name(self):
         return self._get_value("os_name")
+
+    @os_name.setter
+    def os_name(self, value):
+        self._setter_persistent_check()
+        self._os_name = value.lower().strip() if value else value
 
     @property
     def workflow(self):

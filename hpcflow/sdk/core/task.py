@@ -1869,9 +1869,11 @@ class WorkflowTask:
             # add some resource defaults to all scopes:
             for res in elem_set_i.resources:
                 if res.os_name is None:
-                    res._os_name = os.name
-                if res.shell is None:
-                    res._shell = DEFAULT_SHELL_NAMES[os.name]
+                    res.os_name = os.name
+                if res.shell is None:  # should be set after `os_name`
+                    res.shell = DEFAULT_SHELL_NAMES[os.name]
+                if res.scheduler is None:
+                    res.scheduler = self.app.config.default_scheduler
 
             # add the new element set:
             elem_idx += self._add_element_set(elem_set_i)
