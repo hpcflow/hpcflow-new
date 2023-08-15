@@ -1295,7 +1295,7 @@ class ResourceSpec(JSONLike):
     @scheduler.setter
     def scheduler(self, value):
         self._setter_persistent_check()
-        value = value.lower().strip() if value else value
+        value = (value or "direct").lower().strip()
         if value not in self.app.config.schedulers:
             raise self.app.UnsupportedSchedulerError(scheduler=value)
         self._scheduler = value
