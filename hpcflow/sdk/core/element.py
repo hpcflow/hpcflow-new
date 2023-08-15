@@ -178,7 +178,6 @@ class ElementResources(JSONLike):
     shell: str = None
     use_job_array: bool = None
     time_limit: str = None
-    scheduler_options: Dict = None
 
     scheduler_args: Dict = None
     shell_args: Dict = None
@@ -190,7 +189,6 @@ class ElementResources(JSONLike):
 
         self.scheduler_args = self.scheduler_args or {}
         self.shell_args = self.shell_args or {}
-        self.scheduler_options = self.scheduler_options or {}
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
@@ -208,7 +206,7 @@ class ElementResources(JSONLike):
             return hash(tuple((keys, vals)))
 
         exclude = ("time_limit",)
-        sub_dicts = ("scheduler_options", "scheduler_args", "shell_args")
+        sub_dicts = ("scheduler_args", "shell_args")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
         if "options" in dct.get("scheduler_args", []):
             dct["scheduler_args"]["options"] = tuple(dct["scheduler_args"]["options"])
