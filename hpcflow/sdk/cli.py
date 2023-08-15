@@ -785,7 +785,7 @@ def make_cli(app):
     )
     @click.pass_context
     def new_CLI(ctx, config_dir, config_invocation_key, with_config):
-        if ctx.invoked_subcommand != "reset_config":
+        if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
             # don't load the config if we are resetting it - it could be invalid
             overrides = {kv[0]: kv[1] for kv in with_config}
             try:
@@ -808,6 +808,20 @@ def make_cli(app):
 
         This can be used if the current configuration file is invalid."""
         app.reset_config(config_dir)
+
+    @new_CLI.command
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file whose path is to be returned.",
+    )
+    def get_config_path(config_dir):
+        """Print the config file path without loading the config.
+
+        This can be used instead of `{app_name} open config --path` if the config file
+        is invalid, because this command does not load the config.
+
+        """
+        click.echo(app.get_config_path(config_dir))
 
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))

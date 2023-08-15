@@ -95,7 +95,7 @@ def start_helper(
         if isinstance(watch_interval, timedelta):
             watch_interval = watch_interval.total_seconds()
 
-        args = app.run_time_info.get_invocation_command()
+        args = app.run_time_info.invocation_command
         args += [
             "--config-dir",
             str(app.config.config_directory),
