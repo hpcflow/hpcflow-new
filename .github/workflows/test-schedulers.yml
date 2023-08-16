@@ -20,6 +20,9 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
+      - name: set up tkinter
+        run: apt install python-tk
+
       - name: Set ownership
         run: |
           # see: https://github.com/actions/runner/issues/2033#issuecomment-1204205989
