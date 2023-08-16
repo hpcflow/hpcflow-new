@@ -1,4 +1,109 @@
 
+<a name="v0.2.0a79"></a>
+## [v0.2.0a79](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a78...v0.2.0a79) - 2023.08.15
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a78"></a>
+## [v0.2.0a78](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a77...v0.2.0a78) - 2023.08.15
+
+### ✨ Features
+
+* add App.get_config_path and CLI to retrieve config path without loading config
+
+### 🐛 Bug Fixes
+
+* another downstream app hpcflow-test fix
+* downstream app test-hpcflow failure; fix https://github.com/hpcflow/matflow-new/issues/89
+* set RunTimeInfo.in_pytest in conftest.py
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a77"></a>
+## [v0.2.0a77](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a76...v0.2.0a77) - 2023.08.14
+
+### ♻ Code Refactoring
+
+* remove unused
+* ResourceList.normalise
+* start work to support conditional action based on resources
+
+### ✨ Features
+
+* allow action rules on resources
+* **config:** add reset config
+
+### 🐛 Bug Fixes
+
+* disallow ResourceList with multiple identical scopes
+* ResourceSpec string scope arg
+* passing existing persistent ResourceSpec objects into new workflows/tasks
+* merge workflow template resources into element set resources on WorkflowTemplate init
+* Workflow.get_all_parameter_data for falsey parameter data
+* **config:** account for IPython calling Config.__getattr__
+* **config:** reset-config CLI
+* **config:** allow resetting the config if it is currently invalid
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a76"></a>
+## [v0.2.0a76](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a75...v0.2.0a76) - 2023.08.10
+
+### 🐛 Bug Fixes
+
+* test_in_pytest when frozen
+
+
+<a name="v0.2.0a75"></a>
+## [v0.2.0a75](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a74...v0.2.0a75) - 2023.08.10
+
+### 🐛 Bug Fixes
+
+* skip failing test on non-windows for now
+* RunTimeInfo.get_invocation_command within pytest running; fixes [#447](https://github.com/hpcflow/hpcflow-new/issues/447)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* merge from develop
+
+
+<a name="v0.2.0a74"></a>
+## [v0.2.0a74](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a73...v0.2.0a74) - 2023.08.10
+
+### ✨ Features
+
+* add GHA workflow to create a MatFlow PR with bumped hpcflow
+
+### 🐛 Bug Fixes
+
+* new GHA workflow
+* new GHA workflow
+* new GHA workflow
+* new GHA workflow
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a73"></a>
+## [v0.2.0a73](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a72...v0.2.0a73) - 2023.08.10
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a72"></a>
 ## [v0.2.0a72](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a71...v0.2.0a72) - 2023.08.09
 
