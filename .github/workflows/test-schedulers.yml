@@ -49,4 +49,4 @@ jobs:
 
       - name: Run slurm tests only tests
         run: |
-          poetry run python -m pytest --slurm
+          poetry run hpcflow test --slurm
