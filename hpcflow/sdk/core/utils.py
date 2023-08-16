@@ -171,17 +171,37 @@ def get_in_container(cont, path, cast_indices=False):
     return cur_data
 
 
-def set_in_container(cont, path, value, ensure_path=False):
+def set_in_container(cont, path, value, ensure_path=False, cast_indices=False):
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
             try:
-                get_in_container(cont, path[:idx])
+                get_in_container(cont, path[:idx], cast_indices=cast_indices)
             except (KeyError, ValueError):
-                set_in_container(cont, path[:idx], {}, ensure_path=False)
+                set_in_container(
+                    cont=cont,
+                    path=path[:idx],
+                    value={},
+                    ensure_path=False,
+                    cast_indices=cast_indices,
+                )
 
-    sub_data = get_in_container(cont, path[:-1])
-    sub_data[path[-1]] = value
+    sub_data = get_in_container(cont, path[:-1], cast_indices=cast_indices)
+    path_comp = path[-1]
+    if isinstance(sub_data, (list, tuple)):
+        if not isinstance(path_comp, int):
+            msg = (
+                f"Path component {path_comp!r} must be an integer index "
+                f"since data is a sequence: {sub_data!r}."
+            )
+            if cast_indices:
+                try:
+                    path_comp = int(path_comp)
+                except ValueError:
+                    raise ValueError(msg)
+            else:
+                raise ValueError(msg)
+    sub_data[path_comp] = value
 
 
 def get_relative_path(path1, path2):
