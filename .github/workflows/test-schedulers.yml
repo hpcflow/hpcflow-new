@@ -14,7 +14,7 @@ jobs:
   test-slurm:
     runs-on: ubuntu-latest
     container:
-      image: nathanhess/slurm:base
+      image: nathanhess/slurm:base-root
     steps:
       - uses: actions/checkout@v3
         with:
