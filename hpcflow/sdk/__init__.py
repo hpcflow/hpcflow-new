@@ -89,7 +89,6 @@ sdk_classes = {
     "SlurmPosix": "hpcflow.sdk.submission.schedulers.slurm",
     "SGEPosix": "hpcflow.sdk.submission.schedulers.sge",
     "OutputLabel": "hpcflow.sdk.core.task",
-    "UnsupportedSchedulerError": "hpcflow.sdk.core.errors",
 }
 
 sdk_funcs = {

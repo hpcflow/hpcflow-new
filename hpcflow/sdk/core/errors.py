@@ -1,3 +1,4 @@
+import os
 from typing import Iterable
 
 
@@ -187,25 +188,47 @@ class WorkflowSubmissionFailure(RuntimeError):
     pass
 
 
-class UnsupportedShellError(ValueError):
+class ResourceValidationError(ValueError):
+    """An incompatible resource requested by the user."""
+
+
+class UnsupportedOSError(ResourceValidationError):
+    """This machine is not of the requested OS."""
+
+    def __init__(self, os_name) -> None:
+        message = (
+            f"OS {os_name!r} is not compatible with this machine/instance with OS: "
+            f"{os.name!r}."
+        )
+        super().__init__(message)
+        self.os_name = os_name
+
+
+class UnsupportedShellError(ResourceValidationError):
     """We don't support this shell on this OS."""
 
-    pass
+    def __init__(self, shell, supported) -> None:
+        message = (
+            f"Shell {shell!r} is not supported on this machine/instance. Supported "
+            f"shells are: {supported!r}."
+        )
+        super().__init__(message)
+        self.shell = shell
+        self.supported = supported
 
 
-class UnsupportedSchedulerError(ValueError):
+class UnsupportedSchedulerError(ResourceValidationError):
     """This scheduler is not supported on this machine according to the config."""
 
-    _app_attr = "app"
-
-    def __init__(self, scheduler) -> None:
+    def __init__(self, scheduler, supported) -> None:
         message = (
             f"Scheduler {scheduler!r} is not supported on this machine/instance. "
             f"Supported schedulers according to the app configuration are: "
-            f"{self.app.config.schedulers!r}."
+            f"{supported!r}."
         )
         super().__init__(message)
         self.scheduler = scheduler
+        self.supported = supported
 
 
 class _MissingStoreItemError(ValueError):

@@ -483,10 +483,21 @@ class Config:
             self._unset_keys.pop()
             raise ConfigChangeValidationError(name, validation_err=err) from None
 
-    def get(self, path, callback=True, copy=False, ret_root=False, ret_parts=False):
+    def get(
+        self,
+        path,
+        callback=True,
+        copy=False,
+        ret_root=False,
+        ret_parts=False,
+        default=None,
+    ):
         parts = path.split(".")
         root = deepcopy(self._get(parts[0], callback=callback))
-        out = get_in_container(root, parts[1:], cast_indices=True)
+        try:
+            out = get_in_container(root, parts[1:], cast_indices=True)
+        except KeyError:
+            out = default
         if copy:
             out = deepcopy(out)
         if not (ret_root or ret_parts):
@@ -503,12 +514,13 @@ class Config:
         if is_json:
             value = self._parse_JSON(path, value)
 
-        try:
-            existing, root, parts = self.get(
-                path, ret_root=True, ret_parts=True, callback=False
-            )
-        except KeyError:
-            existing = []
+        existing, root, parts = self.get(
+            path,
+            ret_root=True,
+            ret_parts=True,
+            callback=False,
+            default=[],
+        )
 
         try:
             new = existing + [value]
@@ -532,12 +544,9 @@ class Config:
         if is_json:
             value = self._parse_JSON(path, value)
 
-        try:
-            existing, root, parts = self.get(
-                path, ret_root=True, ret_parts=True, callback=False
-            )
-        except KeyError:
-            existing = []
+        existing, root, parts = self.get(
+            path, ret_root=True, ret_parts=True, callback=False, default=[]
+        )
 
         try:
             new = [value] + existing
@@ -559,13 +568,13 @@ class Config:
     def pop(self, path, index):
         """Remove a value from a specified index of a list-like configuration item."""
 
-        try:
-            existing, root, parts = self.get(
-                path, ret_root=True, ret_parts=True, callback=False
-            )
-        except KeyError:
-            existing = []
-
+        existing, root, parts = self.get(
+            path,
+            ret_root=True,
+            ret_parts=True,
+            callback=False,
+            default=[],
+        )
         new = deepcopy(existing)
         try:
             new.pop(index)
@@ -600,12 +609,14 @@ class Config:
         if is_json:
             value = self._parse_JSON(path, value)
 
-        try:
-            val_mod, root, parts = self.get(
-                path, copy=True, ret_root=True, ret_parts=True, callback=False
-            )
-        except KeyError:
-            val_mod = {}
+        val_mod, root, parts = self.get(
+            path,
+            copy=True,
+            ret_root=True,
+            ret_parts=True,
+            callback=False,
+            default={},
+        )
 
         try:
             val_mod.update(value)

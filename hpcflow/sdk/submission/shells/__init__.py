@@ -14,6 +14,7 @@ ALL_SHELLS = {
     "wsl": {"nt": WSLBash},
 }
 
+# used to set the default shell in the default config:
 DEFAULT_SHELL_NAMES = {
     "posix": "bash",
     "nt": "powershell",
@@ -31,9 +32,10 @@ def get_shell(shell_name, os_name: Optional[str] = None, **kwargs) -> Shell:
     os_name = os_name or os.name
     shell_name = shell_name.lower()
 
-    shell_cls = get_supported_shells(os_name.lower()).get(shell_name)
+    supported = get_supported_shells(os_name.lower())
+    shell_cls = supported.get(shell_name)
     if not shell_cls:
-        raise UnsupportedShellError(f"Shell name {shell_name!r} is not supported.")
+        raise UnsupportedShellError(shell=shell_name, supported=supported)
 
     shell_obj = shell_cls(**kwargs)
 

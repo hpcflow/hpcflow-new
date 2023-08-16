@@ -1076,6 +1076,15 @@ class InputValue(AbstractInputValue):
 
 
 class ResourceSpec(JSONLike):
+    """Class to represent specification of resource requirements for a (set of) actions.
+
+    Notes
+    -----
+    `os_name` is used for retrieving a default shell name and for retrieving the correct
+    `Shell` class; when using WSL, it should still be `nt` (i.e. Windows).
+
+    """
+
     ALLOWED_PARAMETERS = {
         "scratch",
         "num_cores",
@@ -1124,9 +1133,9 @@ class ResourceSpec(JSONLike):
         # user-specified resource parameters:
         self._scratch = scratch
         self._num_cores = num_cores
-        self.scheduler = scheduler
-        self.shell = shell
-        self.os_name = os_name
+        self._scheduler = self._process_string(scheduler)
+        self._shell = self._process_string(shell)
+        self._os_name = self._process_string(os_name)
         self._use_job_array = use_job_array
         self._time_limit = time_limit
         self._scheduler_args = scheduler_args
@@ -1269,15 +1278,19 @@ class ResourceSpec(JSONLike):
 
         return val
 
+    @staticmethod
+    def _process_string(value: Union[str, None]):
+        return value.lower().strip() if value else value
+
     def _setter_persistent_check(self):
         if self._value_group_idx:
             raise ValueError(
-                f"Cannot set `scheduler` of a persistent {self.__class__.__name__!r}"
+                f"Cannot set attribute of a persistent {self.__class__.__name__!r}."
             )
 
     @property
     def scratch(self):
-        # TODO: currently unused?
+        # TODO: currently unused, except in tests
         return self._get_value("scratch")
 
     @property
@@ -1291,9 +1304,7 @@ class ResourceSpec(JSONLike):
     @scheduler.setter
     def scheduler(self, value):
         self._setter_persistent_check()
-        value = (value or "direct").lower().strip()
-        if value not in self.app.config.schedulers:
-            raise self.app.UnsupportedSchedulerError(scheduler=value)
+        value = self._process_string(value)
         self._scheduler = value
 
     @property
@@ -1303,9 +1314,7 @@ class ResourceSpec(JSONLike):
     @shell.setter
     def shell(self, value):
         self._setter_persistent_check()
-        value = value.lower().strip() if value else value
-        if value:
-            get_shell(shell_name=value, os_name=self.os_name)  # validate
+        value = self._process_string(value)
         self._shell = value
 
     @property
@@ -1331,7 +1340,7 @@ class ResourceSpec(JSONLike):
     @os_name.setter
     def os_name(self, value):
         self._setter_persistent_check()
-        self._os_name = value.lower().strip() if value else value
+        self._os_name = self._process_string(value)
 
     @property
     def workflow(self):

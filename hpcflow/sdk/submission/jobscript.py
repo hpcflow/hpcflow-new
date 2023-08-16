@@ -19,7 +19,7 @@ from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachine
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
-from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES, get_shell
+from hpcflow.sdk.submission.shells import get_shell
 
 
 # lookup by (scheduler, `os.name`):
@@ -71,6 +71,11 @@ def generate_EAR_resource_map(
                                 res_hash
                             )
                             EAR_ID_map[act_idx, element.index] = run.id_
+
+    # set defaults for and validate unique resources:
+    for res in resources:
+        res.set_defaults()
+        res.validate_against_machine()
 
     return (
         resources,
@@ -706,7 +711,7 @@ class Jobscript(JSONLike):
 
     def _set_os_name(self) -> None:
         """Set the OS name for this jobscript. This is invoked at submit-time."""
-        self._os_name = self.resources.os_name or os.name
+        self._os_name = self.resources.os_name
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
@@ -715,7 +720,7 @@ class Jobscript(JSONLike):
 
     def _set_shell_name(self) -> None:
         """Set the shell name for this jobscript. This is invoked at submit-time."""
-        self._shell_name = self.resources.shell or DEFAULT_SHELL_NAMES[self.os_name]
+        self._shell_name = self.resources.shell
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
@@ -724,7 +729,7 @@ class Jobscript(JSONLike):
 
     def _set_scheduler_name(self) -> None:
         """Set the scheduler name for this jobscript. This is invoked at submit-time."""
-        self._scheduler_name = self.resources.scheduler or None
+        self._scheduler_name = self.resources.scheduler
         if self._scheduler_name:
             self.workflow._store.set_jobscript_metadata(
                 sub_idx=self.submission.index,

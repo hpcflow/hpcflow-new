@@ -133,8 +133,8 @@ def test_default_scheduler_set(null_config, tmp_path, store):
             ),
         ],
     )
-    def_sched = hf.config.default_scheduler
-    assert wk.tasks[0].template.element_sets[0].resources[0].scheduler == def_sched
+    wk.add_submission()
+    assert wk.submissions[0].jobscripts[0].scheduler_name == hf.config.default_scheduler
 
 
 def test_scheduler_case_insensitive(null_config):
@@ -185,11 +185,36 @@ def test_os_name_strip(null_config):
     assert rs1.os_name == rs2.os_name == "nt"
 
 
-def test_raise_on_unsupported_scheduler(null_config):
+def test_raise_on_unsupported_scheduler(null_config, tmp_path):
+    # slurm not supported by default config file:
+    wk = hf.Workflow.from_template_data(
+        template_name="wk1",
+        path=tmp_path,
+        tasks=[
+            hf.Task(
+                schemas=[hf.task_schemas.test_t1_bash],
+                inputs=[hf.InputValue("p1", 101)],
+                resources=[hf.ResourceSpec(scheduler="slurm")],
+            )
+        ],
+    )
     with pytest.raises(UnsupportedSchedulerError):
-        hf.ResourceSpec(scheduler="slurm")  # not supported by default config file
+        wk.add_submission()
 
 
-def test_can_use_non_default_scheduler(null_config):
-    hf.config.append("schedulers", "slurm")
-    hf.ResourceSpec(scheduler="slurm")  # not supported by default config file
+def test_can_use_non_default_scheduler(null_config, tmp_path):
+    # slurm not supported by default config file, so add:
+    hf.config.update("schedulers.slurm", {"defaults": {}})
+
+    wk = hf.Workflow.from_template_data(
+        template_name="wk1",
+        path=tmp_path,
+        tasks=[
+            hf.Task(
+                schemas=[hf.task_schemas.test_t1_bash],
+                inputs=[hf.InputValue("p1", 101)],
+                resources=[hf.ResourceSpec(scheduler="slurm")],
+            )
+        ],
+    )
+    wk.add_submission()

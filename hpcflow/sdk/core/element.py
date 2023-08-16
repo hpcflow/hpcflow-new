@@ -1,14 +1,17 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+import os
 from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
 from valida.rules import Rule
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.submission.shells import get_shell
 
 
 class _ElementPrefixedParameter:
@@ -216,6 +219,52 @@ class ElementResources(JSONLike):
                 dct[k] = _hash_dict(dct[k])
 
         return _hash_dict(dct)
+
+    @staticmethod
+    def get_default_os_name():
+        return os.name
+
+    @classmethod
+    def get_default_shell(cls):
+        return cls.app.config.default_shell
+
+    @classmethod
+    def get_default_scheduler(cls):
+        return cls.app.config.default_scheduler
+
+    def set_defaults(self):
+        if self.os_name is None:
+            self.os_name = self.get_default_os_name()
+        if self.shell is None:
+            self.shell = self.get_default_shell()
+        if self.scheduler is None:
+            self.scheduler = self.get_default_scheduler()
+
+        # merge defaults shell args from config:
+        self.shell_args = {
+            **self.app.config.shells.get(self.shell, {}).get("defaults"),
+            **self.shell_args,
+        }
+
+        # "direct_posix" scheduler is valid on Windows if using WSL:
+        cfg_lookup = f"{self.scheduler}_posix" if "wsl" in self.shell else self.scheduler
+        cfg_sched = self.app.config.schedulers.get(cfg_lookup, {})
+
+        # merge defaults scheduler args from config:
+        self.scheduler_args = {**cfg_sched.get("defaults", {}), **self.scheduler_args}
+
+    def validate_against_machine(self):
+        """Validate the values for `os_name`, `shell` and `scheduler` against those
+        supported on this machine (as specified by the app configuration)."""
+        if self.os_name != os.name:
+            raise UnsupportedOSError(os_name=self.os_name)
+        if self.scheduler not in self.app.config.schedulers:
+            raise UnsupportedSchedulerError(
+                scheduler=self.scheduler,
+                supported=self.app.config.schedulers,
+            )
+        # might raise `UnsupportedShellError`:
+        get_shell(shell_name=self.shell, os_name=self.os_name)
 
 
 class ElementIteration:
@@ -708,9 +757,16 @@ class ElementIteration:
             out[res_i.scope.to_string()] = res_i._get_value()
         return out
 
-    def get_resources(self, action: app.Action) -> Dict:
+    def get_resources(self, action: app.Action, set_defaults: bool = False) -> Dict:
         """Resolve specific resources for the specified action of this iteration,
-        considering all applicable scopes."""
+        considering all applicable scopes.
+
+        Parameters
+        ----------
+        set_defaults
+            If `True`, include machine-defaults for `os_name`, `shell` and `scheduler`.
+
+        """
 
         # This method is currently accurate for both `ElementIteration` and `EAR` objects
         # because when generating the EAR data index we copy (from the schema data index)
@@ -730,10 +786,22 @@ class ElementIteration:
             scope_res = resource_specs.get(scope_s, {})
             resources.update({k: v for k, v in scope_res.items() if v is not None})
 
+        if set_defaults:
+            # this is used in e.g. `WorkflowTask.test_action_rule` if testing action rules
+            # that concern resources:
+            if "os_name" not in resources:
+                resources["os_name"] = self.app.ElementResources.get_default_os_name()
+            if "shell" not in resources:
+                resources["shell"] = self.app.ElementResources.get_default_shell()
+            if "scheduler" not in resources:
+                resources["scheduler"] = self.app.ElementResources.get_default_scheduler()
+
         return resources
 
-    def get_resources_obj(self, action: app.Action) -> app.ElementResources:
-        return self.app.ElementResources(**self.get_resources(action))
+    def get_resources_obj(
+        self, action: app.Action, set_defaults: bool = False
+    ) -> app.ElementResources:
+        return self.app.ElementResources(**self.get_resources(action, set_defaults))
 
 
 class Element:

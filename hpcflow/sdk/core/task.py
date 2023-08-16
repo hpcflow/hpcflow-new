@@ -1659,6 +1659,10 @@ class WorkflowTask:
                 f"for action {act_idx} of element iteration {element_iter.index} of "
                 f"element {element_iter.element.index} of task {self.unique_name!r}."
             )
+            # TODO: when we support adding new runs, we will probably pass additional
+            # run-specific data index to `test_action_rule` and `generate_data_index`
+            # (e.g. if we wanted to increase the memory requirements of a action because
+            # it previously failed)
             rules_valid = [
                 self.test_action_rule(action=action, act_rule=i, elem_iter=element_iter)
                 for i in action.rules
@@ -1865,15 +1869,6 @@ class WorkflowTask:
         for elem_set_i in element_sets:
             # copy:
             elem_set_i = elem_set_i.prepare_persistent_copy()
-
-            # add some resource defaults to all scopes:
-            for res in elem_set_i.resources:
-                if res.os_name is None:
-                    res.os_name = os.name
-                if res.shell is None:  # should be set after `os_name`
-                    res.shell = DEFAULT_SHELL_NAMES[os.name]
-                if res.scheduler is None:
-                    res.scheduler = self.app.config.default_scheduler
 
             # add the new element set:
             elem_idx += self._add_element_set(elem_set_i)
@@ -2205,7 +2200,7 @@ class WorkflowTask:
             rule = act_rule.rule
             param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
             if param_path.startswith("resources."):
-                elem_res = elem_iter.get_resources(action=action)
+                elem_res = elem_iter.get_resources(action=action, set_defaults=True)
                 res_path = param_path.split(".")[1:]
                 element_dat = get_in_container(
                     cont=elem_res, path=res_path, cast_indices=True
