@@ -15,11 +15,10 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-        - schedulers
         - default_scheduler
-        - default_scheduler_args_direct
-        - default_scheduler_args_sge
-        - default_scheduler_args_slurm
+        - default_shell
+        - schedulers
+        - shells
   - path: []
     condition:
       value.required_keys:
@@ -29,8 +28,9 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-        - schedulers
         - default_scheduler
+        - default_shell
+        - schedulers
   - path: []
     condition:
       value.forbidden_keys:
@@ -47,6 +47,7 @@ rules:
         - get_all # Config method
         - get # Config method
         - set # Config method
+        - _set # Config method
         - unset # Config method
         - save # Config method
         - reload # Config method
@@ -136,14 +137,48 @@ rules:
     condition:
       value.is_instance: [str, path]
 
-  - path: [schedulers]
-    condition:
-      value.type.equal_to: list
-
-  - path: [schedulers, { type: list_value }]
-    condition:
-      value.in: [direct, sge, slurm]
-
   - path: [default_scheduler]
     condition:
       value.in: [direct, sge, slurm]
+
+  - path: [default_shell]
+    condition:
+      value.in: [powershell, bash, wsl, wsl+bash]
+
+  - path: [schedulers]
+    condition:
+      value.allowed_keys: [direct, direct_posix, sge, slurm]
+
+  - path: [schedulers, { type: map_value }]
+    condition:
+      value.allowed_keys: [defaults]
+
+  - path: [schedulers, { type: map_value }, defaults]
+    condition:
+      value.allowed_keys: # TODO: split these up based on scheduler type
+        - shebang_args
+        - options
+        - submit_cmd
+        - show_cmd
+        - del_cmd
+        - js_cmd
+        - array_switch
+        - array_item_var
+        - cwd_switch
+
+  - path: [shells]
+    condition:
+      value.allowed_keys: [powershell, bash, wsl, wsl+bash]
+
+  - path: [shells, { type: map_value }]
+    condition:
+      value.allowed_keys: [defaults]
+
+  - path: [shells, { type: map_value }, defaults]
+    condition:
+      value.allowed_keys:
+        - executable
+        - os_args
+        - WSL_executable
+        - WSL_distribution
+        - WSL_user
