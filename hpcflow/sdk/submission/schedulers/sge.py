@@ -106,6 +106,9 @@ class SGEPosix(Scheduler):
             stderr=subprocess.PIPE,
         )
         stdout = proc.stdout.decode().strip()
+        stderr = proc.stderr.decode().strip()
+        if stderr:
+            print(stderr)
         version_str = stdout.split("\n")[0].strip()
         name, version = version_str.split()
         out = {

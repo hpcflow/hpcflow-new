@@ -107,6 +107,9 @@ class SlurmPosix(Scheduler):
             stderr=subprocess.PIPE,
         )
         stdout = proc.stdout.decode().strip()
+        stderr = proc.stderr.decode().strip()
+        if stderr:
+            print(stderr)
         name, version = stdout.split()
         out = {
             "scheduler_name": name,
