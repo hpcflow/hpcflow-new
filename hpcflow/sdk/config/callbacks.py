@@ -1,8 +1,12 @@
 """Module that defines built-in callback functions for configuration item values."""
 
 
+import os
 import re
 import fsspec
+from hpcflow.sdk.core.errors import UnsupportedShellError
+
+from hpcflow.sdk.submission.shells import get_supported_shells
 
 
 def callback_vars(config, value):
@@ -43,6 +47,8 @@ def callback_bool(config, value):
 def callback_lowercase(config, value):
     if isinstance(value, list):
         return [i.lower() for i in value]
+    elif isinstance(value, dict):
+        return {k.lower(): v for k, v in value.items()}
     else:
         return value.lower()
 
@@ -55,6 +61,13 @@ def exists_in_schedulers(config, value):
             f"on this machine: {config.schedulers!r}."
         )
     return value
+
+
+def callback_supported_shells(config, shell_name):
+    supported = get_supported_shells(os.name)
+    if shell_name not in supported:
+        raise UnsupportedShellError(shell=shell_name, supported=supported)
+    return shell_name
 
 
 def set_callback_file_paths(config, value):

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import copy
+from copy import deepcopy
 import functools
 import json
 import logging
+import os
 import socket
 import uuid
 from dataclasses import dataclass, field
@@ -14,14 +15,16 @@ from typing import Dict, List, Optional, Tuple, Union
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
 from valida.schema import Schema
+from hpcflow.sdk.core.utils import get_in_container, set_in_container
 
 from hpcflow.sdk.core.validation import get_schema
-from hpcflow.sdk.log import AppLog
+from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from hpcflow.sdk.typing import PathLike
 
 from .callbacks import (
     callback_bool,
     callback_lowercase,
+    callback_supported_shells,
     callback_vars,
     callback_file_paths,
     exists_in_schedulers,
@@ -44,6 +47,7 @@ from .errors import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
 DEFAULT_CONFIG_FILE = {
     "configs": {
         "default": {
@@ -56,11 +60,10 @@ DEFAULT_CONFIG_FILE = {
                 "task_schema_sources": [],
                 "command_file_sources": [],
                 "parameter_sources": [],
-                "schedulers": ["direct"],
                 "default_scheduler": "direct",
-                "default_scheduler_args_direct": {},
-                "default_scheduler_args_sge": {},
-                "default_scheduler_args_slurm": {},
+                "default_shell": _DEFAULT_SHELL,
+                "schedulers": {"direct": {"defaults": {}}},
+                "shells": {_DEFAULT_SHELL: {"defaults": {}}},
             },
         }
     }
@@ -77,7 +80,7 @@ class ConfigOptions:
     sentry_traces_sample_rate: float
     sentry_env: str
     default_config: Optional[Dict] = field(
-        default_factory=lambda: copy.deepcopy(DEFAULT_CONFIG_FILE)
+        default_factory=lambda: deepcopy(DEFAULT_CONFIG_FILE)
     )
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
 
@@ -90,6 +93,12 @@ class Config:
     On modifying/setting existing values, modifications are not automatically copied
     to the configuration file; use `save()` to save to the file. Items in `overrides`
     are not saved into the file.
+
+    `schedulers` is used for specifying the available schedulers on this machine, and the
+    default arguments that should be used when initialising the `Scheduler` object.
+
+    `shells` is used for specifying the default arguments that should be used when
+    initialising the `Shell` object.
 
     """
 
@@ -117,13 +126,12 @@ class Config:
             "environment_sources": (callback_file_paths,),
             "parameter_sources": (callback_file_paths,),
             "command_file_sources": (callback_file_paths,),
-            "log_file_path": (
-                callback_vars,
-                callback_file_paths,
-            ),
+            "log_file_path": (callback_vars, callback_file_paths),
             "telemetry": (callback_bool,),
             "schedulers": (callback_lowercase,),
+            "shells": (callback_lowercase,),
             "default_scheduler": (callback_lowercase, exists_in_schedulers),
+            "default_shell": (callback_lowercase, callback_supported_shells),
             **(callbacks or {}),
         }
 
@@ -173,7 +181,7 @@ class Config:
 
     def __getattr__(self, name):
         if not name.startswith("__"):
-            return self.get(name)
+            return self._get(name)
         else:
             raise AttributeError(f"Attribute not known: {name!r}.")
 
@@ -182,7 +190,7 @@ class Config:
             "_configurable_keys" in self.__dict__
             and name in self.__dict__["_configurable_keys"]
         ):
-            self.set(name, value)
+            self._set(name, value)
         else:
             super().__setattr__(name, value)
 
@@ -308,7 +316,7 @@ class Config:
                 continue
             else:
                 try:
-                    val = self.get(
+                    val = self._get(
                         name=key,
                         include_overrides=include_overrides,
                         raise_on_missing=True,
@@ -331,7 +339,7 @@ class Config:
                     raise ConfigItemCallbackError(name, cb, err)
         return value
 
-    def get(
+    def _get(
         self,
         name,
         include_overrides=True,
@@ -384,16 +392,13 @@ class Config:
             raise ConfigChangeInvalidJSONError(name=name, json_str=value, err=err)
         return value
 
-    def set(self, name, value, is_json=False, callback=True):
-        """Set the value of a configuration item."""
-        self._logger.debug(f"Attempting to set config item {name!r} to {value!r}.")
-
+    def _set(self, name, value, is_json=False, callback=True):
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         else:
             if is_json:
                 value = self._parse_JSON(name, value)
-            current_val = self.get(name)
+            current_val = self._get(name)
             callback_val = self._get_callback_value(name, value)
             file_val_raw = self._file.get_config_item(name)
             file_val = self._get_callback_value(name, file_val_raw)
@@ -445,6 +450,25 @@ class Config:
             else:
                 print(f"value is already: {callback_val!r}")
 
+    def set(self, path: str, value, is_json=False):
+        """Set the value of a configuration item."""
+        self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
+
+        if is_json:
+            value = self._parse_JSON(path, value)
+
+        parts = path.split(".")
+        name = parts[0]
+        root = deepcopy(self._get(name, callback=False))
+        set_in_container(
+            cont=root,
+            path=parts[1:],
+            value=value,
+            ensure_path=True,
+            cast_indices=True,
+        )
+        self._set(name, root)
+
     def unset(self, name):
         """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
@@ -459,44 +483,146 @@ class Config:
             self._unset_keys.pop()
             raise ConfigChangeValidationError(name, validation_err=err) from None
 
-    def append(self, name, value, is_json=False):
+    def get(self, path, callback=True, copy=False, ret_root=False, ret_parts=False):
+        parts = path.split(".")
+        root = deepcopy(self._get(parts[0], callback=callback))
+        out = get_in_container(root, parts[1:], cast_indices=True)
+        if copy:
+            out = deepcopy(out)
+        if not (ret_root or ret_parts):
+            return out
+        ret = [out]
+        if ret_root:
+            ret += [root]
+        if ret_parts:
+            ret += [parts]
+        return tuple(ret)
+
+    def append(self, path, value, is_json=False):
         """Append a value to a list-like configuration item."""
-        existing = self.get(name, callback=False)
         if is_json:
-            value = self._parse_JSON(name, value)
+            value = self._parse_JSON(path, value)
+
+        try:
+            existing, root, parts = self.get(
+                path, ret_root=True, ret_parts=True, callback=False
+            )
+        except KeyError:
+            existing = []
+
         try:
             new = existing + [value]
         except TypeError:
-            raise ConfigChangeTypeInvalidError(name, typ=type(existing)) from None
+            raise ConfigChangeTypeInvalidError(path, typ=type(existing)) from None
 
-        self.set(name, new)
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=new,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = new
+        self._set(parts[0], root)
 
-    def prepend(self, name, value, is_json=False):
+    def prepend(self, path, value, is_json=False):
         """Prepend a value to a list-like configuration item."""
-        existing = self.get(name, callback=False)
         if is_json:
-            value = self._parse_JSON(name, value)
+            value = self._parse_JSON(path, value)
+
+        try:
+            existing, root, parts = self.get(
+                path, ret_root=True, ret_parts=True, callback=False
+            )
+        except KeyError:
+            existing = []
+
         try:
             new = [value] + existing
         except TypeError:
-            raise ConfigChangeTypeInvalidError(name, typ=type(existing)) from None
+            raise ConfigChangeTypeInvalidError(path, typ=type(existing)) from None
 
-        self.set(name, new)
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=new,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = new
+        self._set(parts[0], root)
 
-    def pop(self, name, index):
+    def pop(self, path, index):
         """Remove a value from a specified index of a list-like configuration item."""
-        existing = self.get(name, callback=False)
+
         try:
-            new = copy.deepcopy(existing)
+            existing, root, parts = self.get(
+                path, ret_root=True, ret_parts=True, callback=False
+            )
+        except KeyError:
+            existing = []
+
+        new = deepcopy(existing)
+        try:
             new.pop(index)
         except AttributeError:
-            raise ConfigChangeTypeInvalidError(name, typ=type(existing)) from None
+            raise ConfigChangeTypeInvalidError(path, typ=type(existing)) from None
         except IndexError:
             raise ConfigChangePopIndexError(
-                name, length=len(existing), index=index
+                path, length=len(existing), index=index
             ) from None
 
-        self.set(name, new)
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=new,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = new
+        self._set(parts[0], root)
+
+    def update(self, path: str, value, is_json=False):
+        """Update a map-like configuration item.
+
+        Parameters
+        ----------
+        path
+            A dot-delimited string of the nested path to update.
+        """
+
+        if is_json:
+            value = self._parse_JSON(path, value)
+
+        try:
+            val_mod, root, parts = self.get(
+                path, copy=True, ret_root=True, ret_parts=True, callback=False
+            )
+        except KeyError:
+            val_mod = {}
+
+        try:
+            val_mod.update(value)
+        except TypeError:
+            raise ConfigChangeTypeInvalidError(path, typ=type(val_mod)) from None
+
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=val_mod,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = val_mod
+        self._set(parts[0], root)
 
     def save(self):
         """Save any modified/unset configuration items into the file."""
