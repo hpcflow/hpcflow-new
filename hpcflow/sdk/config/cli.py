@@ -1,6 +1,7 @@
 """Module defining a function that returns the click CLI group for manipulating the app
 configuration."""
 
+import json
 import logging
 import warnings
 from functools import wraps
@@ -217,6 +218,16 @@ def get_config_CLI(app):
 
         """
         app.config.update(name, value, is_json)
+        app.config.save()
+
+    @config.command()
+    @click.argument("name")
+    @click.option("--defaults")
+    @CLI_exception_wrapper_gen(ConfigError)
+    def add_scheduler(name, defaults):
+        if defaults:
+            defaults = json.loads(defaults)
+        app.config.add_scheduler(name, defaults=defaults)
         app.config.save()
 
     @config.command()

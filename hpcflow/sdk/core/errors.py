@@ -218,17 +218,29 @@ class UnsupportedShellError(ResourceValidationError):
 
 
 class UnsupportedSchedulerError(ResourceValidationError):
-    """This scheduler is not supported on this machine according to the config."""
+    """This scheduler is not supported on this machine according to the config.
 
-    def __init__(self, scheduler, supported) -> None:
-        message = (
-            f"Scheduler {scheduler!r} is not supported on this machine/instance. "
-            f"Supported schedulers according to the app configuration are: "
-            f"{supported!r}."
-        )
+    This is also raised in config validation when attempting to add a scheduler that is
+    not known for this OS.
+
+    """
+
+    def __init__(self, scheduler, supported=None, available=None) -> None:
+        if supported is not None:
+            message = (
+                f"Scheduler {scheduler!r} is not supported on this machine/instance. "
+                f"Supported schedulers according to the app configuration are: "
+                f"{supported!r}."
+            )
+        elif available is not None:
+            message = (
+                f"Scheduler {scheduler!r} is not supported on this OS. Schedulers "
+                f"compatible with this OS are: {available!r}."
+            )
         super().__init__(message)
         self.scheduler = scheduler
         self.supported = supported
+        self.available = available
 
 
 class _MissingStoreItemError(ValueError):

@@ -4,7 +4,7 @@
 import os
 import re
 import fsspec
-from hpcflow.sdk.core.errors import UnsupportedShellError
+from hpcflow.sdk.core.errors import UnsupportedSchedulerError, UnsupportedShellError
 
 from hpcflow.sdk.submission.shells import get_supported_shells
 
@@ -61,6 +61,17 @@ def exists_in_schedulers(config, value):
             f"on this machine: {config.schedulers!r}."
         )
     return value
+
+
+def callback_supported_schedulers(config, schedulers):
+    # validate against supported schedulers according to the OS - this won't validate that
+    # a particular scheduler actually exists on this system:
+    available = config._app.get_OS_supported_schedulers()
+    for k in schedulers:
+        if k not in available:
+            raise UnsupportedSchedulerError(scheduler=k, available=available)
+
+    return schedulers
 
 
 def callback_supported_shells(config, shell_name):

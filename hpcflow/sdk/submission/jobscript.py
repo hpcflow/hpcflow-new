@@ -22,15 +22,6 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
 
 
-# lookup by (scheduler, `os.name`):
-scheduler_cls_lookup = {
-    ("direct", "posix"): app.DirectPosix,
-    ("direct", "nt"): app.DirectWindows,
-    ("sge", "posix"): app.SGEPosix,
-    ("slurm", "posix"): app.SlurmPosix,
-}
-
-
 def generate_EAR_resource_map(
     task: app.WorkflowTask,
     loop_idx: Dict,
@@ -570,7 +561,7 @@ class Jobscript(JSONLike):
         scheduler_args = scheduler_args or {}
         key = (scheduler_name.lower() if scheduler_name else None, os_name.lower())
         try:
-            scheduler_cls = scheduler_cls_lookup[key]
+            scheduler_cls = self.app.scheduler_lookup[key]
         except KeyError:
             raise ValueError(
                 f"Unsupported combination of scheduler and operation system: {key!r}"

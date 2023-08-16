@@ -24,6 +24,7 @@ from hpcflow.sdk.typing import PathLike
 from .callbacks import (
     callback_bool,
     callback_lowercase,
+    callback_supported_schedulers,
     callback_supported_shells,
     callback_vars,
     callback_file_paths,
@@ -128,7 +129,7 @@ class Config:
             "command_file_sources": (callback_file_paths,),
             "log_file_path": (callback_vars, callback_file_paths),
             "telemetry": (callback_bool,),
-            "schedulers": (callback_lowercase,),
+            "schedulers": (callback_lowercase, callback_supported_schedulers),
             "shells": (callback_lowercase,),
             "default_scheduler": (callback_lowercase, exists_in_schedulers),
             "default_shell": (callback_lowercase, callback_supported_shells),
@@ -141,6 +142,9 @@ class Config:
             "environment_sources": (set_callback_file_paths, check_load_data_files),
             "parameter_sources": (set_callback_file_paths, check_load_data_files),
             "command_file_sources": (set_callback_file_paths, check_load_data_files),
+            "default_scheduler": (exists_in_schedulers,),
+            "default_shell": (callback_supported_shells,),
+            "schedulers": (callback_supported_schedulers,),
             "log_file_path": (set_callback_file_paths,),
         }
 
@@ -686,3 +690,9 @@ class Config:
                     cfg_keys.extend(rule.condition.callable.args)
 
         return (cfg_schemas, cfg_keys)
+
+    def add_scheduler(self, scheduler, **kwargs):
+        if scheduler in self.get("schedulers"):
+            print(f"Scheduler {scheduler!r} already exists.")
+            return
+        self.update(f"schedulers.{scheduler}", kwargs)
