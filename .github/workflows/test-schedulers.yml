@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: set up tkinter
-        run: apt install python-tk
+        run: apt install -y python-tk
 
       - name: Set ownership
         run: |
@@ -50,6 +50,6 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev,pyinstaller
 
-      - name: Run slurm tests only tests
+      - name: Run slurm tests only
         run: |
           poetry run hpcflow test --slurm
