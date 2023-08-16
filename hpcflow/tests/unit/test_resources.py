@@ -203,8 +203,12 @@ def test_raise_on_unsupported_scheduler(null_config, tmp_path):
 
 
 def test_can_use_non_default_scheduler(null_config, tmp_path):
-    # slurm not supported by default config file, so add:
-    hf.config.update("schedulers.slurm", {"defaults": {}})
+    # for either OS choose a compatible scheduler not set by default:
+    if os.name == "nt":
+        opt_scheduler = "direct_posix"  # i.e for WSL
+    else:
+        opt_scheduler = "slurm"
+    hf.config.add_scheduler(opt_scheduler)
 
     wk = hf.Workflow.from_template_data(
         template_name="wk1",
@@ -213,7 +217,7 @@ def test_can_use_non_default_scheduler(null_config, tmp_path):
             hf.Task(
                 schemas=[hf.task_schemas.test_t1_bash],
                 inputs=[hf.InputValue("p1", 101)],
-                resources=[hf.ResourceSpec(scheduler="slurm")],
+                resources=[hf.ResourceSpec(scheduler=opt_scheduler)],
             )
         ],
     )
