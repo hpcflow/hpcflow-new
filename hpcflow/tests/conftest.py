@@ -18,12 +18,15 @@ def pytest_configure(config):
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--slurm"):
-        # --slurm given in cli: do not skip slurm tests
-        return
-    skip_slurm = pytest.mark.skip(reason="need --slurm option to run")
-    for item in items:
-        if "slurm" in item.keywords:
-            item.add_marker(skip_slurm)
+        # --slurm given in cli: do not skip slurm tests and skip other tests
+        for item in items:
+            if "slurm" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need no --slurm option to run"))
+    else:
+        # --slurm not given in cli: skip slurm tests and do not skip other tests
+        for item in items:
+            if "slurm" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --slurm option to run"))
 
 
 def pytest_unconfigure(config):
