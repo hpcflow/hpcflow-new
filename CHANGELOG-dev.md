@@ -1,4 +1,51 @@
 
+<a name="v0.2.0a80"></a>
+## [v0.2.0a80](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a79...v0.2.0a80) - 2023.08.17
+
+### ♻ Code Refactoring
+
+* fix config get calls
+* remove unused scheduler_options
+
+### ✨ Features
+
+* support configuring SGE parallel environments and SLURM partitions
+* add Config.add_scheduler and CLI
+* defer resource validation until submit-time
+* support setting/getting config items at dot-delimted paths
+* start adding scheduler configuration
+
+### 🐛 Bug Fixes
+
+* print stderr in Scheduler.get_version_info
+* SlurmPosix.process_resources typo
+* ElementResource.SLURM_is_parallel
+* utils.set_in_container
+* updated config_schema.yaml
+* tests
+* use slurm docker root image tag
+* pytest run via python -m does not detect custom option, so change to use hpcflow script
+* test-scheduler try
+* test-scheduler try
+* use base slurm image
+* test-scheduler try
+* test-scheduler try
+* SlurmPosix.format_options
+* set scheduler to 'direct' if not set in ResourceSpec
+* **GHA:** test-shells
+* **GHA:** test-shells
+* **GHA:** test-shells
+* **GHA:** test-shells
+* **GHA:** test-shells
+* **GHA:** test-shells
+* **GHA:** test-shells
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a79"></a>
 ## [v0.2.0a79](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a78...v0.2.0a79) - 2023.08.15
 
