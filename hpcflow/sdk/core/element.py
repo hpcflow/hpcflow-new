@@ -246,25 +246,21 @@ class ElementResources(JSONLike):
     @property
     def is_parallel(self) -> bool:
         """Returns True if any scheduler-agnostic arguments indicate a parallel job."""
-        if self.num_cores:
-            return self.num_cores > 1
-        if self.num_cores_per_node:
-            return self.num_cores_per_node > 1
-        if self.num_threads:
-            return self.num_threads > 1
-        if self.num_nodes:
-            return self.num_nodes > 1
-        return False
+        return (
+            (self.num_cores and self.num_cores != 1)
+            or (self.num_cores_per_node and self.num_cores_per_node != 1)
+            or (self.num_nodes and self.num_nodes != 1)
+            or (self.num_threads and self.num_threads != 1)
+        )
 
     @property
     def SLURM_is_parallel(self) -> bool:
         """Returns True if any SLURM-specific arguments indicate a parallel job."""
         return (
-            self.SLURM_num_tasks != 1
-            or self.SLURM_num_tasks_per_node != 1
-            or self.SLURM_num_nodes != 1
-            or self.SLURM_num_cpus_per_task != 1
-            or self.SLURM_num_nodes != 1
+            (self.SLURM_num_tasks and self.SLURM_num_tasks != 1)
+            or (self.SLURM_num_tasks_per_node and self.SLURM_num_tasks_per_node != 1)
+            or (self.SLURM_num_nodes and self.SLURM_num_nodes != 1)
+            or (self.SLURM_num_cpus_per_task and self.SLURM_num_cpus_per_task != 1)
         )
 
     @staticmethod
