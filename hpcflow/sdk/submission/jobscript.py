@@ -349,6 +349,7 @@ class Jobscript(JSONLike):
         self._version_info = version_info
 
         # assigned as submit-time:
+        # TODO: these should now always be set in `resources` so shouldn't need these:
         self._os_name = os_name
         self._shell_name = shell_name
         self._scheduler_name = scheduler_name
@@ -559,7 +560,14 @@ class Jobscript(JSONLike):
     def _get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
         """Get an arbitrary scheduler, not necessarily associated with submission."""
         scheduler_args = scheduler_args or {}
-        key = (scheduler_name.lower() if scheduler_name else None, os_name.lower())
+
+        os_name = os_name.lower()
+        if os_name == "nt" and "_" in scheduler_name:
+            # e.g. WSL on windows uses *_posix
+            key = tuple(scheduler_name.split("_"))
+        else:
+            key = (scheduler_name.lower(), os_name)
+
         try:
             scheduler_cls = self.app.scheduler_lookup[key]
         except KeyError:

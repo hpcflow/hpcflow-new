@@ -1075,6 +1075,12 @@ class InputValue(AbstractInputValue):
         return True if self.path else False
 
 
+class ParallelMode(enum.Enum):
+    DISTRIBUTED = 0
+    SHARED = 1
+    HYBRID = 2
+
+
 class ResourceSpec(JSONLike):
     """Class to represent specification of resource requirements for a (set of) actions.
 
@@ -1087,7 +1093,11 @@ class ResourceSpec(JSONLike):
 
     ALLOWED_PARAMETERS = {
         "scratch",
+        "parallel_mode",
         "num_cores",
+        "num_cores_per_node",
+        "num_threads",
+        "num_nodes",
         "scheduler",
         "shell",
         "use_job_array",
@@ -1095,6 +1105,12 @@ class ResourceSpec(JSONLike):
         "scheduler_args",
         "shell_args",
         "os_name",
+        "SGE_parallel_env",
+        "SLURM_partition",
+        "SLURM_num_tasks",
+        "SLURM_num_tasks_per_node",
+        "SLURM_num_nodes",
+        "SLURM_num_cpus_per_task",
     }
 
     _resource_list = None
@@ -1110,7 +1126,11 @@ class ResourceSpec(JSONLike):
         self,
         scope: app.ActionScope = None,
         scratch: Optional[str] = None,
+        parallel_mode: Optional[Union[str, ParallelMode]] = None,
         num_cores: Optional[int] = None,
+        num_cores_per_node: Optional[int] = None,
+        num_threads: Optional[int] = None,
+        num_nodes: Optional[int] = None,
         scheduler: Optional[str] = None,
         shell: Optional[str] = None,
         use_job_array: Optional[bool] = None,
@@ -1118,6 +1138,12 @@ class ResourceSpec(JSONLike):
         scheduler_args: Optional[Dict] = None,
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
+        SGE_parallel_env: Optional[str] = None,
+        SLURM_partition: Optional[str] = None,
+        SLURM_num_tasks: Optional[str] = None,
+        SLURM_num_tasks_per_node: Optional[str] = None,
+        SLURM_num_nodes: Optional[str] = None,
+        SLURM_num_cpus_per_task: Optional[str] = None,
     ):
         self.scope = scope or self.app.ActionScope.any()
         if not isinstance(self.scope, self.app.ActionScope):
@@ -1132,7 +1158,11 @@ class ResourceSpec(JSONLike):
 
         # user-specified resource parameters:
         self._scratch = scratch
+        self._parallel_mode = get_enum_by_name_or_val(ParallelMode, parallel_mode)
         self._num_cores = num_cores
+        self._num_threads = num_threads
+        self._num_nodes = num_nodes
+        self._num_cores_per_node = num_cores_per_node
         self._scheduler = self._process_string(scheduler)
         self._shell = self._process_string(shell)
         self._os_name = self._process_string(os_name)
@@ -1140,6 +1170,16 @@ class ResourceSpec(JSONLike):
         self._time_limit = time_limit
         self._scheduler_args = scheduler_args
         self._shell_args = shell_args
+
+        # user-specified SGE-specific parameters:
+        self._SGE_parallel_env = SGE_parallel_env
+
+        # user-specified SLURM-specific parameters:
+        self._SLURM_partition = SLURM_partition
+        self._SLURM_num_tasks = SLURM_num_tasks
+        self._SLURM_num_tasks_per_node = SLURM_num_tasks_per_node
+        self._SLURM_num_nodes = SLURM_num_nodes
+        self._SLURM_num_cpus_per_task = SLURM_num_cpus_per_task
 
     def __deepcopy__(self, memo):
         kwargs = copy.deepcopy(self.to_dict(), memo)
@@ -1294,8 +1334,24 @@ class ResourceSpec(JSONLike):
         return self._get_value("scratch")
 
     @property
+    def parallel_mode(self):
+        return self._get_value("parallel_mode")
+
+    @property
     def num_cores(self):
         return self._get_value("num_cores")
+
+    @property
+    def num_cores_per_node(self):
+        return self._get_value("num_cores_per_node")
+
+    @property
+    def num_nodes(self):
+        return self._get_value("num_nodes")
+
+    @property
+    def num_threads(self):
+        return self._get_value("num_threads")
 
     @property
     def scheduler(self):
@@ -1336,6 +1392,30 @@ class ResourceSpec(JSONLike):
     @property
     def os_name(self):
         return self._get_value("os_name")
+
+    @property
+    def SGE_parallel_env(self):
+        return self._get_value("SGE_parallel_env")
+
+    @property
+    def SLURM_partition(self):
+        return self._get_value("SLURM_partition")
+
+    @property
+    def SLURM_num_tasks(self):
+        return self._get_value("SLURM_num_tasks")
+
+    @property
+    def SLURM_num_tasks_per_node(self):
+        return self._get_value("SLURM_num_tasks_per_node")
+
+    @property
+    def SLURM_num_nodes(self):
+        return self._get_value("SLURM_num_nodes")
+
+    @property
+    def SLURM_num_cpus_per_task(self):
+        return self._get_value("SLURM_num_cpus_per_task")
 
     @os_name.setter
     def os_name(self, value):

@@ -1,8 +1,14 @@
-import enum
 from pathlib import Path
 import subprocess
 import time
 from typing import Dict, List, Tuple
+from hpcflow.sdk.core.errors import (
+    IncompatibleParallelModeError,
+    IncompatibleSLURMArgumentsError,
+    IncompatibleSLURMPartitionError,
+    UnknownSLURMPartitionError,
+)
+from hpcflow.sdk.core.parameters import ParallelMode
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
@@ -51,23 +57,267 @@ class SlurmPosix(Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def format_core_request_lines(self, num_cores, num_nodes):
-        # TODO: I think these partition names are set by the sysadmins, so they should
-        # be set in the config file as a mapping between num_cores/nodes and partition
-        # names. `sinfo -s` shows a list of available partitions
+    @classmethod
+    def process_resources(cls, resources, scheduler_config: Dict) -> None:
+        """Perform scheduler-specific processing to the element resources.
 
+        Note: this mutates `resources`.
+
+        """
+        if resources.is_parallel:
+            if resources.parallel_mode is None:
+                # set default parallel mode:
+                resources.parallel_mode = ParallelMode.DISTRIBUTED
+
+            if resources.parallel_mode is ParallelMode.SHARED:
+                if (resources.num_nodes and resources.num_nodes > 1) or (
+                    resources.SLURM_node_nodes and resources.SLURM_num_nodes > 1
+                ):
+                    raise IncompatibleParallelModeError(
+                        f"For the {resources.parallel_mode.name.lower()} parallel mode, "
+                        f"only a single node may be requested."
+                    )
+                # consider `num_cores` and `num_threads` synonyms in this case:
+                if resources.SLURM_num_tasks and resources.SLURM_num_task != 1:
+                    raise IncompatibleSLURMArgumentsError(
+                        f"For the {resources.parallel_mode.name.lower()} parallel mode, "
+                        f"`SLURM_num_tasks` must be set to 1 (to ensure all requested "
+                        f"cores reside on the same node)."
+                    )
+                else:
+                    resources.SLURM_num_tasks = 1
+
+                if resources.SLURM_num_cpus_per_task == 1:
+                    raise IncompatibleSLURMArgumentsError(
+                        f"For the {resources.parallel_mode.name.lower()} parallel mode, "
+                        f"if `SLURM_num_cpus_per_task` is set, it must be set to the "
+                        f"number of threads/cores to use, and so must be greater than 1, "
+                        f"but {resources.SLURM_num_cpus_per_task!r} was specified."
+                    )
+                else:
+                    resources.num_threads = resources.num_threads or resources.num_cores
+                    if (
+                        not resources.num_threads
+                        and not resources.SLURM_num_cpus_per_task
+                    ):
+                        raise ValueError(
+                            f"For the {resources.parallel_mode.name.lower()} parallel "
+                            f"mode, specify `num_threads` (or its synonym for this "
+                            f"parallel mode: `num_cores`), or the SLURM-specific "
+                            f"parameter `SLURM_num_cpus_per_task`."
+                        )
+                    elif (
+                        resources.num_threads and resources.SLURM_num_cpus_per_task
+                    ) and (resources.num_threads != resources.SLURM_num_cpus_per_task):
+                        raise IncompatibleSLURMArgumentsError(
+                            f"Incompatible parameters for `num_cores`/`num_threads` "
+                            f"({resources.num_threads}) and `SLURM_num_cpus_per_task` "
+                            f"({resources.SLURM_num_cpus_per_task}) for the "
+                            f"{resources.parallel_mode.name.lower()} parallel mode."
+                        )
+                    resources.SLURM_num_cpus_per_task = resources.num_threads
+
+            elif resources.parallel_mode is ParallelMode.DISTRIBUTED:
+                if resources.num_threads:
+                    raise ValueError(
+                        f"For the {resources.parallel_mode.name.lower()} parallel "
+                        f"mode, specifying `num_threads` is not permitted."
+                    )
+                if (
+                    resources.SLURM_num_tasks
+                    and resources.num_cores
+                    and resources.SLURM_num_tasks != resources.num_cores
+                ):
+                    raise IncompatibleSLURMArgumentsError(
+                        f"Incompatible parameters for `num_cores` ({resources.num_cores})"
+                        f" and `SLURM_num_tasks` ({resources.SLURM_num_tasks}) for the "
+                        f"{resources.parallel_mode.name.lower()} parallel mode."
+                    )
+                elif not resources.SLURM_num_tasks and resources.num_cores:
+                    resources.SLURM_num_tasks = resources.num_cores
+                elif (
+                    resources.SLURM_num_tasks_per_node
+                    and resources.num_cores_per_node
+                    and resources.SLURM_num_tasks_per_node != resources.num_cores_per_node
+                ):
+                    raise IncompatibleSLURMArgumentsError(
+                        f"Incompatible parameters for `num_cores_per_node` "
+                        f"({resources.num_cores_per_node}) and `SLURM_num_tasks_per_node`"
+                        f" ({resources.SLURM_num_tasks_per_node}) for the "
+                        f"{resources.parallel_mode.name.lower()} parallel mode."
+                    )
+                elif (
+                    not resources.SLURM_num_tasks_per_node
+                    and resources.num_cores_per_node
+                ):
+                    resources.SLURM_num_tasks_per_node = resources.num_cores_per_node
+
+                if (
+                    resources.SLURM_num_nodes
+                    and resources.num_nodes
+                    and resources.SLURM_num_nodes != resources.num_nodes
+                ):
+                    raise IncompatibleSLURMArgumentsError(
+                        f"Incompatible parameters for `num_nodes` ({resources.num_nodes})"
+                        f" and `SLURM_num_nodes` ({resources.SLURM_num_nodes}) for the "
+                        f"{resources.parallel_mode.name.lower()} parallel mode."
+                    )
+                elif not resources.SLURM_num_nodes and resources.num_nodes:
+                    resources.SLURM_num_nodes = resources.num_nodes
+
+            elif resources.parallel_mode is ParallelMode.HYBRID:
+                raise NotImplementedError("hybrid parallel mode not yet supported.")
+
+        else:
+            if resources.SLURM_is_parallel:
+                raise IncompatibleSLURMArgumentsError(
+                    f"Some specified SLURM-specific arguments (which indicate a parallel "
+                    f"job) conflict with the scheduler-agnostic arguments (which "
+                    f"indicate a serial job)."
+                )
+            if not resources.SLURM_num_tasks:
+                resources.SLURM_num_tasks = 1
+
+            if resources.SLURM_num_tasks_per_node:
+                resources.SLURM_num_tasks_per_node = None
+
+            if not resources.SLURM_num_nodes:
+                resources.SLURM_num_nodes = 1
+
+            if not resources.SLURM_cpus_per_task:
+                resources.SLURM_cpus_per_task = 1
+
+        num_cores = resources.num_cores or resources.SLURM_num_tasks
+        num_cores_per_node = (
+            resources.num_cores_per_node or resources.SLURM_num_tasks_per_node
+        )
+        num_nodes = resources.num_nodes or resources.SLURM_num_nodes
+        para_mode = resources.parallel_mode
+
+        # select matching partition if possible:
+        all_parts = scheduler_config.get("partitions", {})
+        if resources.SLURM_partition is not None:
+            # check user-specified partition is valid and compatible with requested
+            # cores/nodes:
+            try:
+                part = all_parts[resources.SLURM_partition]
+            except KeyError:
+                raise UnknownSLURMPartitionError(
+                    f"The SLURM partition {resources.SLURM_partition!r} is not "
+                    f"specified in the configuration. Specified partitions are "
+                    f"{list(all_parts.keys())!r}."
+                )
+            # TODO: we when we support ParallelMode.HYBRID, these checks will have to
+            # consider the total number of cores requested per node
+            # (num_cores_per_node * num_threads)?
+            part_num_cores = part.get("num_cores")
+            part_num_cores_per_node = part.get("num_cores_per_node")
+            part_num_nodes = part.get("num_nodes")
+            part_para_modes = part.get("parallel_modes", [])
+            if (
+                num_cores
+                and part_num_cores
+                and not cls.is_num_cores_supported(num_cores, part_num_cores)
+            ):
+                raise IncompatibleSLURMPartitionError(
+                    f"The SLURM partition {resources.SLURM_partition!r} is not "
+                    f"compatible with the number of cores requested: {num_cores!r}."
+                )
+            if (
+                num_cores_per_node
+                and part_num_cores_per_node
+                and not cls.is_num_cores_supported(
+                    num_cores_per_node, part_num_cores_per_node
+                )
+            ):
+                raise IncompatibleSLURMPartitionError(
+                    f"The SLURM partition {resources.SLURM_partition!r} is not "
+                    f"compatible with the number of cores per node requested: "
+                    f"{num_cores_per_node!r}."
+                )
+            if (
+                num_nodes
+                and part_num_nodes
+                and not cls.is_num_cores_supported(num_nodes, part_num_nodes)
+            ):
+                raise IncompatibleSLURMPartitionError(
+                    f"The SLURM partition {resources.SLURM_partition!r} is not "
+                    f"compatible with the number of nodes requested: {num_nodes!r}."
+                )
+            if para_mode and para_mode.name.lower() not in part_para_modes:
+                raise IncompatibleSLURMPartitionError(
+                    f"The SLURM partition {resources.SLURM_partition!r} is not "
+                    f"compatible with the parallel mode requested: {para_mode!r}."
+                )
+        else:
+            # find the first compatible partition if one exists:
+            part_match = False
+            for part_name, part_info in all_parts.items():
+                part_num_cores = part_info.get("num_cores")
+                part_num_cores_per_node = part_info.get("num_cores_per_node")
+                part_num_nodes = part_info.get("num_nodes")
+                part_para_modes = part_info.get("parallel_modes", [])
+                if (
+                    num_cores
+                    and part_num_cores
+                    and cls.is_num_cores_supported(num_cores, part_num_cores)
+                ):
+                    part_match = True
+                else:
+                    part_match = False
+                    continue
+                if (
+                    num_cores_per_node
+                    and part_num_cores_per_node
+                    and cls.is_num_cores_supported(
+                        num_cores_per_node, part_num_cores_per_node
+                    )
+                ):
+                    part_match = True
+                else:
+                    part_match = False
+                    continue
+                if (
+                    num_nodes
+                    and part_num_nodes
+                    and cls.is_num_cores_supported(num_nodes, part_num_nodes)
+                ):
+                    part_match = True
+                else:
+                    part_match = False
+                    continue
+                if part_match:
+                    part_match = part_name
+                    break
+                if para_mode and para_mode.name.lower() not in part_para_modes:
+                    part_match = False
+                    continue
+                if part_match:
+                    part_match = part_name
+                    break
+            if part_match:
+                resources.SLURM_partition = part_match
+
+    def format_core_request_lines(self, resources):
         lns = []
-        if num_cores == 1:
-            lns.append(f"{self.js_cmd} --partition serial")
+        if resources.SLURM_partition:
+            lns.append(f"{self.js_cmd} --partition {resources.SLURM_partition}")
 
-        elif num_nodes == 1:
-            lns.append(f"{self.js_cmd} --partition multicore")
+        if resources.SLURM_num_nodes:  # TODO: option for --exclusive ?
+            lns.append(f"{self.js_cmd} --nodes {resources.SLURM_num_nodes}")
 
-        elif num_nodes > 1:
-            lns.append(f"{self.js_cmd} --partition multinode")
-            lns.append(f"{self.js_cmd} --nodes {num_nodes}")
+        if resources.SLURM_num_tasks:
+            lns.append(f"{self.js_cmd} --ntasks {resources.SLURM_num_tasks}")
 
-        lns.append(f"{self.js_cmd} --ntasks {num_cores}")
+        if resources.SLURM_num_tasks_per_node:
+            lns.append(
+                f"{self.js_cmd} --ntasks-per-node {resources.SLURM_num_tasks_per_node}"
+            )
+
+        if resources.SLURM_num_cpus_per_task:
+            lns.append(
+                f"{self.js_cmd} --cpus-per-task {resources.SLURM_num_cpus_per_task}"
+            )
 
         return lns
 
@@ -89,9 +339,7 @@ class SlurmPosix(Scheduler):
 
     def format_options(self, resources, num_elements, is_array, sub_idx):
         opts = []
-        opts.extend(
-            self.format_core_request_lines(num_cores=resources.num_cores, num_nodes=1)
-        )
+        opts.extend(self.format_core_request_lines(resources.num_cores))
         if is_array:
             opts.append(self.format_array_request(num_elements))
 

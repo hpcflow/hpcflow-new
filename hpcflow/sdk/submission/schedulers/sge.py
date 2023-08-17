@@ -2,6 +2,11 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Dict, List, Tuple
+from hpcflow.sdk.core.errors import (
+    IncompatibleSGEPEError,
+    NoCompatibleSGEPEError,
+    UnknownSGEPEError,
+)
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
@@ -66,10 +71,66 @@ class SGEPosix(Scheduler):
         super().__init__(*args, **kwargs)
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
-    def format_core_request_lines(self, num_cores, parallel_env):
+    @classmethod
+    def process_resources(cls, resources, scheduler_config: Dict) -> None:
+        """Perform scheduler-specific processing to the element resources.
+
+        Note: this mutates `resources`.
+
+        """
+        if resources.num_nodes is not None:
+            raise ValueError(
+                f"Specifying `num_nodes` for the {cls.__name__!r} scheduler is not "
+                f"supported."
+            )
+
+        para_envs = scheduler_config.get("parallel_environments", {})
+
+        if resources.SGE_parallel_env is not None:
+            # check user-specified `parallel_env` is valid and compatible with
+            # `num_cores`:
+            if resources.num_cores > 1:
+                raise ValueError(
+                    f"An SGE parallel environment should not be specified if `num_cores` "
+                    f"is 1 (`SGE_parallel_env` was specified as "
+                    f"{resources.SGE_parallel_env!r})."
+                )
+
+            try:
+                env = para_envs[resources.SGE_parallel_env]
+            except KeyError:
+                raise UnknownSGEPEError(
+                    f"The SGE parallel environment {resources.SGE_parallel_env!r} is not "
+                    f"specified in the configuration. Specified parallel environments "
+                    f"are {list(para_envs.keys())!r}."
+                )
+            if not cls.is_num_cores_supported(resources.num_cores, env["num_cores"]):
+                raise IncompatibleSGEPEError(
+                    f"The SGE parallel environment {resources.SGE_parallel_env!r} is not "
+                    f"compatible with the number of cores requested: "
+                    f"{resources.num_cores!r}."
+                )
+        else:
+            # find the first compatible PE:
+            pe_match = None
+            for pe_name, pe_info in para_envs.items():
+                if cls.is_num_cores_supported(resources.num_cores, pe_info["num_cores"]):
+                    pe_match = pe_name
+                    break
+            if pe_match:
+                resources.SGE_parallel_env = pe_name
+            else:
+                raise NoCompatibleSGEPEError(
+                    f"No compatible SGE parallel environment could be found for the "
+                    f"specified `num_cores` ({resources.num_cores!r})."
+                )
+
+    def format_core_request_lines(self, resources):
         lns = []
-        if num_cores > 1:
-            lns.append(f"{self.js_cmd} -pe {parallel_env} {num_cores}")
+        if resources.num_cores > 1:
+            lns.append(
+                f"{self.js_cmd} -pe {resources.SGE_parallel_env} {resources.num_cores}"
+            )
         return lns
 
     def format_array_request(self, num_elements):
@@ -84,13 +145,9 @@ class SGEPosix(Scheduler):
         ]
 
     def format_options(self, resources, num_elements, is_array, sub_idx):
-        # TODO: I think the PEs are set by the sysadmins so they should be set in the
-        # config file as a mapping between num_cores/nodes and PE names?
-        # `qconf -spl` shows a list of PEs
-
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
-        opts.extend(self.format_core_request_lines(resources.num_cores, "smp.pe"))
+        opts.extend(self.format_core_request_lines(resources))
         if is_array:
             opts.append(self.format_array_request(num_elements))
 

@@ -243,6 +243,34 @@ class UnsupportedSchedulerError(ResourceValidationError):
         self.available = available
 
 
+class UnknownSGEPEError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSGEPEError(ResourceValidationError):
+    pass
+
+
+class NoCompatibleSGEPEError(ResourceValidationError):
+    pass
+
+
+class IncompatibleParallelModeError(ResourceValidationError):
+    pass
+
+
+class UnknownSLURMPartitionError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSLURMPartitionError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSLURMArgumentsError(ResourceValidationError):
+    pass
+
+
 class _MissingStoreItemError(ValueError):
     def __init__(self, id_lst: Iterable[int], item_type: str) -> None:
         message = (

@@ -11,7 +11,7 @@ ALL_SHELLS = {
     "bash": {"posix": Bash},
     "powershell": {"nt": WindowsPowerShell},
     "wsl+bash": {"nt": WSLBash},
-    "wsl": {"nt": WSLBash},
+    "wsl": {"nt": WSLBash},  # TODO: cast this to wsl+bash in ResourceSpec?
 }
 
 # used to set the default shell in the default config:

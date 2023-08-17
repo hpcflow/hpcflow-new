@@ -30,6 +30,10 @@ class NullScheduler:
     def parse_submission_output(self, stdout: str) -> None:
         return None
 
+    @staticmethod
+    def is_num_cores_supported(num_cores, core_range: List[int]):
+        return num_cores in range(core_range[0], core_range[2] + 1, core_range[1])
+
 
 class Scheduler(NullScheduler):
     def __init__(

@@ -166,6 +166,27 @@ rules:
         - array_item_var
         - cwd_switch
 
+  - path: [schedulers, sge, parallel_environments, { type: map_value }]
+    condition:
+      and:
+        - value.allowed_keys:
+            - num_cores
+            - num_nodes
+            - parallel_modes
+        - value.required_keys:
+            - num_cores
+
+  - path: [schedulers, slurm, partitions, { type: map_value }]
+    condition:
+      and:
+        - value.allowed_keys:
+            - num_cores
+            - num_nodes
+            - num_cores_per_node
+            - parallel_modes
+        - value.required_keys:
+            - num_cores
+
   - path: [shells]
     condition:
       value.allowed_keys: [powershell, bash, wsl, wsl+bash]

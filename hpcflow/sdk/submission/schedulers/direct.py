@@ -14,6 +14,15 @@ class DirectScheduler(NullScheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @classmethod
+    def process_resources(cls, resources, scheduler_config: Dict) -> None:
+        """Perform scheduler-specific processing to the element resources.
+
+        Note: this mutates `resources`.
+
+        """
+        return
+
     def get_submit_command(
         self,
         shell: Shell,

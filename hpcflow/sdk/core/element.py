@@ -10,7 +10,8 @@ from valida.rules import Rule
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import JSONLike
-from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.core.parameters import ParallelMode
+from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.shells import get_shell
 
 
@@ -175,20 +176,42 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 
-    scratch: str = None
-    num_cores: int = None
-    scheduler: str = None
-    shell: str = None
-    use_job_array: bool = None
-    time_limit: str = None
+    scratch: Optional[str] = None
+    parallel_mode: Optional[ParallelMode] = None
+    num_cores: Optional[int] = None
+    num_cores_per_node: Optional[int] = None
+    num_threads: Optional[int] = None
+    num_nodes: Optional[int] = None
+    scheduler: Optional[str] = None
+    shell: Optional[str] = None
+    use_job_array: Optional[bool] = None
+    time_limit: Optional[str] = None
 
-    scheduler_args: Dict = None
-    shell_args: Dict = None
-    os_name: str = None
+    scheduler_args: Optional[Dict] = None
+    shell_args: Optional[Dict] = None
+    os_name: Optional[str] = None
+
+    # SGE scheduler specific:
+    SGE_parallel_env: str = None
+
+    # SLURM scheduler specific:
+    SLURM_partition: str = None
+    SLURM_num_tasks: str = None
+    SLURM_num_tasks_per_node: str = None
+    SLURM_num_nodes: str = None
+    SLURM_num_cpus_per_task: str = None
 
     def __post_init__(self):
-        if self.num_cores is None:
+        if (
+            self.num_cores is None
+            and self.num_cores_per_node is None
+            and self.num_threads is None
+            and self.num_nodes is None
+        ):
             self.num_cores = 1
+
+        if self.parallel_mode:
+            self.parallel_mode = get_enum_by_name_or_val(self.parallel_mode)
 
         self.scheduler_args = self.scheduler_args or {}
         self.shell_args = self.shell_args or {}
@@ -220,6 +243,30 @@ class ElementResources(JSONLike):
 
         return _hash_dict(dct)
 
+    @property
+    def is_parallel(self) -> bool:
+        """Returns True if any scheduler-agnostic arguments indicate a parallel job."""
+        if self.num_cores:
+            return self.num_cores > 1
+        if self.num_cores_per_node:
+            return self.num_cores_per_node > 1
+        if self.num_threads:
+            return self.num_threads > 1
+        if self.num_nodes:
+            return self.num_nodes > 1
+        return False
+
+    @property
+    def SLURM_is_parallel(self) -> bool:
+        """Returns True if any SLURM-specific arguments indicate a parallel job."""
+        return (
+            self.SLURM_num_tasks != 1
+            or self.SLURM_num_tasks_per_node != 1
+            or self.SLURM_num_nodes != 1
+            or self.SLURM_num_cpus_per_task != 1
+            or self.SLURM_num_nodes != 1
+        )
+
     @staticmethod
     def get_default_os_name():
         return os.name
@@ -229,7 +276,10 @@ class ElementResources(JSONLike):
         return cls.app.config.default_shell
 
     @classmethod
-    def get_default_scheduler(cls):
+    def get_default_scheduler(cls, os_name, shell_name):
+        if os_name == "nt" and "wsl" in shell_name:
+            # provide a "*_posix" default scheduler on windows if shell is WSL:
+            return "direct_posix"
         return cls.app.config.default_scheduler
 
     def set_defaults(self):
@@ -238,11 +288,11 @@ class ElementResources(JSONLike):
         if self.shell is None:
             self.shell = self.get_default_shell()
         if self.scheduler is None:
-            self.scheduler = self.get_default_scheduler()
+            self.scheduler = self.get_default_scheduler(self.os_name, self.shell)
 
         # merge defaults shell args from config:
         self.shell_args = {
-            **self.app.config.shells.get(self.shell, {}).get("defaults"),
+            **self.app.config.shells.get(self.shell, {}).get("defaults", {}),
             **self.shell_args,
         }
 
@@ -265,6 +315,15 @@ class ElementResources(JSONLike):
             )
         # might raise `UnsupportedShellError`:
         get_shell(shell_name=self.shell, os_name=self.os_name)
+
+        # Validate num_cores/num_nodes against options in config and set scheduler-
+        # specific resources (e.g. SGE parallel environmentPE, and SLURM partition)
+        if "_" in self.scheduler:  # e.g. WSL on windows uses *_posix
+            key = tuple(self.scheduler.split("_"))
+        else:
+            key = (self.scheduler.lower(), self.os_name.lower())
+        scheduler_cls = self.app.scheduler_lookup[key]
+        scheduler_cls.process_resources(self, self.app.config.schedulers[self.scheduler])
 
 
 class ElementIteration:
@@ -794,7 +853,9 @@ class ElementIteration:
             if "shell" not in resources:
                 resources["shell"] = self.app.ElementResources.get_default_shell()
             if "scheduler" not in resources:
-                resources["scheduler"] = self.app.ElementResources.get_default_scheduler()
+                resources["scheduler"] = self.app.ElementResources.get_default_scheduler(
+                    resources["os_name"], resources["shell"]
+                )
 
         return resources
 

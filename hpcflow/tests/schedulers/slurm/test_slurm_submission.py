@@ -1,5 +1,4 @@
 from importlib import resources
-import os
 import pytest
 from hpcflow.app import app as hf
 
