@@ -184,8 +184,8 @@ class SlurmPosix(Scheduler):
             if not resources.SLURM_num_nodes:
                 resources.SLURM_num_nodes = 1
 
-            if not resources.SLURM_cpus_per_task:
-                resources.SLURM_cpus_per_task = 1
+            if not resources.SLURM_num_cpus_per_task:
+                resources.SLURM_num_cpus_per_task = 1
 
         num_cores = resources.num_cores or resources.SLURM_num_tasks
         num_cores_per_node = (
