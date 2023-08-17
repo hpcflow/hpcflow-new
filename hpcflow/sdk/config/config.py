@@ -340,7 +340,7 @@ class Config:
                 try:
                     value = cb(self, value)
                 except Exception as err:
-                    raise ConfigItemCallbackError(name, cb, err)
+                    raise ConfigItemCallbackError(name, cb, err) from None
         return value
 
     def _get(
