@@ -16,37 +16,33 @@ jobs:
     steps:
       - uses: Vampire/setup-wsl@v2 # install a WSL distribution
 
-      - run: wsl.exe --list
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
 
-      - run: wsl.exe --help
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      # - uses: actions/checkout@v3
-      #   with:
-      #     ref: ${{ github.ref }}
+      - name: Install poetry
+        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
 
-      # - uses: actions/setup-python@v4
-      #   with:
-      #     python-version: ${{ env.PYTHON_VERSION }}
+      - name: Configure poetry
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
 
-      # - name: Install poetry
-      #   run: python -m pip install poetry==${{ env.POETRY_VERSION }}
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-wsl-test-${{ hashFiles('**/poetry.lock') }}
 
-      # - name: Configure poetry
-      #   run: |
-      #     poetry config virtualenvs.in-project true
-      #     poetry config installer.modern-installation false
+      - name: Install dependencies
+        run: poetry install --without dev,pyinstaller
 
-      # - name: Cache the virtualenv
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: ./.venv
-      #     key: venv-wsl-test-${{ hashFiles('**/poetry.lock') }}
-
-      # - name: Install dependencies
-      #   run: poetry install --without dev,pyinstaller
-
-      # - name: Run WSL tests only
-      #   run: |
-      #     poetry run hpcflow config update --json shells.wsl.defaults '{\"WSL_executable\": \"wsl.exe\"}'
-      #     poetry run hpcflow config add-scheduler direct_posix
-      #     poetry run hpcflow test --wsl
+      - name: Run WSL tests only
+        run: |
+          poetry run hpcflow config update --json shells.wsl.defaults '{\"WSL_executable\": \"wsl.exe\"}'
+          poetry run hpcflow config add-scheduler direct_posix
+          poetry run hpcflow test --wsl
