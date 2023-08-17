@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a81"></a>
+## [v0.2.0a81](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a80...v0.2.0a81) - 2023.08.17
+
+### 🐛 Bug Fixes
+
+* bump valida (one valida bug) and fix config validation schema (workaround for another valida bug)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a80"></a>
 ## [v0.2.0a80](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a79...v0.2.0a80) - 2023.08.17
 
