@@ -476,6 +476,7 @@ class BaseApp(metaclass=Singleton):
     ) -> None:
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
+        self.log.remove_file_handlers()
         self._load_config(config_dir, config_invocation_key, **overrides)
 
     def _load_scripts(self):

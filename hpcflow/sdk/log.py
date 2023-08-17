@@ -39,3 +39,10 @@ class AppLog:
         handler.setLevel(level.upper())
         self.logger.addHandler(handler)
         return handler
+
+    def remove_file_handlers(self):
+        """Remove all file handlers."""
+        for hdlr in self.logger.handlers:
+            if isinstance(hdlr, logging.FileHandler):
+                self.logger.debug(f"Removing file handler from the AppLog: {hdlr!r}.")
+                self.logger.removeHandler(hdlr)
