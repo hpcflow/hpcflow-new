@@ -12,9 +12,8 @@ on:
 
 jobs:
   test-wsl:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
-      - uses: Vampire/setup-wsl@v2 # set up a `wsl-bash` shell
 
       - uses: actions/checkout@v3
         with:
@@ -41,7 +40,9 @@ jobs:
       - name: Install dependencies
         run: poetry install --without dev,pyinstaller
 
+      - uses: Vampire/setup-wsl@v2 # set up a `wsl-bash` shell
+
       - name: Run WSL tests only
-        shell: wsl-bash {0}
         run: |
+          poetry run hpcflow config update --json shells.wsl.defaults '{\"WSL_executable\": \"wsl-bash\"}'
           poetry run hpcflow test --wsl
