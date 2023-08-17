@@ -1,6 +1,7 @@
 """Module defining a function that returns the click CLI group for manipulating the app
 configuration."""
 
+import json
 import logging
 import warnings
 from functools import wraps
@@ -149,19 +150,41 @@ def get_config_CLI(app):
     @config.command()
     @click.argument("name")
     @click.argument("value")
+    @click.option(
+        "--json",
+        "is_json",
+        is_flag=True,
+        default=False,
+        help="Interpret VALUE as a JSON string.",
+    )
     @CLI_exception_wrapper_gen(ConfigError)
-    def append(name, value):
-        """Append a new value to the specified configuration item."""
-        app.config.append(name, value)
+    def append(name, value, is_json):
+        """Append a new value to the specified configuration item.
+
+        NAME is the dot-delimited path to the list to be appended to.
+
+        """
+        app.config.append(name, value, is_json)
         app.config.save()
 
     @config.command()
     @click.argument("name")
     @click.argument("value")
+    @click.option(
+        "--json",
+        "is_json",
+        is_flag=True,
+        default=False,
+        help="Interpret VALUE as a JSON string.",
+    )
     @CLI_exception_wrapper_gen(ConfigError)
-    def prepend(name, value):
-        """Append a new value to the specified configuration item."""
-        app.config.prepend(name, value)
+    def prepend(name, value, is_json):
+        """Prepend a new value to the specified configuration item.
+
+        NAME is the dot-delimited path to the list to be prepended to.
+
+        """
+        app.config.prepend(name, value, is_json)
         app.config.save()
 
     @config.command(context_settings={"ignore_unknown_options": True})
@@ -169,8 +192,44 @@ def get_config_CLI(app):
     @click.argument("index", type=click.types.INT)
     @CLI_exception_wrapper_gen(ConfigError)
     def pop(name, index):
-        """Remove a value from a list-like configuration item."""
+        """Remove a value from a list-like configuration item.
+
+        NAME is the dot-delimited path to the list to be modified.
+
+        """
         app.config.pop(name, index)
+        app.config.save()
+
+    @config.command()
+    @click.argument("name")
+    @click.argument("value")
+    @click.option(
+        "--json",
+        "is_json",
+        is_flag=True,
+        default=False,
+        help="Interpret VALUE as a JSON string.",
+    )
+    @CLI_exception_wrapper_gen(ConfigError)
+    def update(name, value, is_json):
+        """Update a map-like value in the configuration.
+
+        NAME is the dot-delimited path to the map to be updated.
+
+        """
+        app.config.update(name, value, is_json)
+        app.config.save()
+
+    @config.command()
+    @click.argument("name")
+    @click.option("--defaults")
+    @CLI_exception_wrapper_gen(ConfigError)
+    def add_scheduler(name, defaults):
+        if defaults:
+            defaults = json.loads(defaults)
+        else:
+            defaults = {}
+        app.config.add_scheduler(name, defaults=defaults)
         app.config.save()
 
     @config.command()

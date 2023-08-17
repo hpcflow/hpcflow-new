@@ -1,14 +1,18 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
+import os
 from typing import Any, Dict, List, Optional, Union
 
 from valida.conditions import ConditionLike
 from valida.rules import Rule
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import JSONLike
-from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.core.parameters import ParallelMode
+from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.submission.shells import get_shell
 
 
 class _ElementPrefixedParameter:
@@ -172,25 +176,45 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 
-    scratch: str = None
-    num_cores: int = None
-    scheduler: str = None
-    shell: str = None
-    use_job_array: bool = None
-    time_limit: str = None
-    scheduler_options: Dict = None
+    scratch: Optional[str] = None
+    parallel_mode: Optional[ParallelMode] = None
+    num_cores: Optional[int] = None
+    num_cores_per_node: Optional[int] = None
+    num_threads: Optional[int] = None
+    num_nodes: Optional[int] = None
+    scheduler: Optional[str] = None
+    shell: Optional[str] = None
+    use_job_array: Optional[bool] = None
+    time_limit: Optional[str] = None
 
-    scheduler_args: Dict = None
-    shell_args: Dict = None
-    os_name: str = None
+    scheduler_args: Optional[Dict] = None
+    shell_args: Optional[Dict] = None
+    os_name: Optional[str] = None
+
+    # SGE scheduler specific:
+    SGE_parallel_env: str = None
+
+    # SLURM scheduler specific:
+    SLURM_partition: str = None
+    SLURM_num_tasks: str = None
+    SLURM_num_tasks_per_node: str = None
+    SLURM_num_nodes: str = None
+    SLURM_num_cpus_per_task: str = None
 
     def __post_init__(self):
-        if self.num_cores is None:
+        if (
+            self.num_cores is None
+            and self.num_cores_per_node is None
+            and self.num_threads is None
+            and self.num_nodes is None
+        ):
             self.num_cores = 1
+
+        if self.parallel_mode:
+            self.parallel_mode = get_enum_by_name_or_val(self.parallel_mode)
 
         self.scheduler_args = self.scheduler_args or {}
         self.shell_args = self.shell_args or {}
-        self.scheduler_options = self.scheduler_options or {}
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
@@ -208,7 +232,7 @@ class ElementResources(JSONLike):
             return hash(tuple((keys, vals)))
 
         exclude = ("time_limit",)
-        sub_dicts = ("scheduler_options", "scheduler_args", "shell_args")
+        sub_dicts = ("scheduler_args", "shell_args")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
         if "options" in dct.get("scheduler_args", []):
             dct["scheduler_args"]["options"] = tuple(dct["scheduler_args"]["options"])
@@ -218,6 +242,84 @@ class ElementResources(JSONLike):
                 dct[k] = _hash_dict(dct[k])
 
         return _hash_dict(dct)
+
+    @property
+    def is_parallel(self) -> bool:
+        """Returns True if any scheduler-agnostic arguments indicate a parallel job."""
+        return (
+            (self.num_cores and self.num_cores != 1)
+            or (self.num_cores_per_node and self.num_cores_per_node != 1)
+            or (self.num_nodes and self.num_nodes != 1)
+            or (self.num_threads and self.num_threads != 1)
+        )
+
+    @property
+    def SLURM_is_parallel(self) -> bool:
+        """Returns True if any SLURM-specific arguments indicate a parallel job."""
+        return (
+            (self.SLURM_num_tasks and self.SLURM_num_tasks != 1)
+            or (self.SLURM_num_tasks_per_node and self.SLURM_num_tasks_per_node != 1)
+            or (self.SLURM_num_nodes and self.SLURM_num_nodes != 1)
+            or (self.SLURM_num_cpus_per_task and self.SLURM_num_cpus_per_task != 1)
+        )
+
+    @staticmethod
+    def get_default_os_name():
+        return os.name
+
+    @classmethod
+    def get_default_shell(cls):
+        return cls.app.config.default_shell
+
+    @classmethod
+    def get_default_scheduler(cls, os_name, shell_name):
+        if os_name == "nt" and "wsl" in shell_name:
+            # provide a "*_posix" default scheduler on windows if shell is WSL:
+            return "direct_posix"
+        return cls.app.config.default_scheduler
+
+    def set_defaults(self):
+        if self.os_name is None:
+            self.os_name = self.get_default_os_name()
+        if self.shell is None:
+            self.shell = self.get_default_shell()
+        if self.scheduler is None:
+            self.scheduler = self.get_default_scheduler(self.os_name, self.shell)
+
+        # merge defaults shell args from config:
+        self.shell_args = {
+            **self.app.config.shells.get(self.shell, {}).get("defaults", {}),
+            **self.shell_args,
+        }
+
+        # "direct_posix" scheduler is valid on Windows if using WSL:
+        cfg_lookup = f"{self.scheduler}_posix" if "wsl" in self.shell else self.scheduler
+        cfg_sched = self.app.config.schedulers.get(cfg_lookup, {})
+
+        # merge defaults scheduler args from config:
+        self.scheduler_args = {**cfg_sched.get("defaults", {}), **self.scheduler_args}
+
+    def validate_against_machine(self):
+        """Validate the values for `os_name`, `shell` and `scheduler` against those
+        supported on this machine (as specified by the app configuration)."""
+        if self.os_name != os.name:
+            raise UnsupportedOSError(os_name=self.os_name)
+        if self.scheduler not in self.app.config.schedulers:
+            raise UnsupportedSchedulerError(
+                scheduler=self.scheduler,
+                supported=self.app.config.schedulers,
+            )
+        # might raise `UnsupportedShellError`:
+        get_shell(shell_name=self.shell, os_name=self.os_name)
+
+        # Validate num_cores/num_nodes against options in config and set scheduler-
+        # specific resources (e.g. SGE parallel environmentPE, and SLURM partition)
+        if "_" in self.scheduler:  # e.g. WSL on windows uses *_posix
+            key = tuple(self.scheduler.split("_"))
+        else:
+            key = (self.scheduler.lower(), self.os_name.lower())
+        scheduler_cls = self.app.scheduler_lookup[key]
+        scheduler_cls.process_resources(self, self.app.config.schedulers[self.scheduler])
 
 
 class ElementIteration:
@@ -710,9 +812,16 @@ class ElementIteration:
             out[res_i.scope.to_string()] = res_i._get_value()
         return out
 
-    def get_resources(self, action: app.Action) -> Dict:
+    def get_resources(self, action: app.Action, set_defaults: bool = False) -> Dict:
         """Resolve specific resources for the specified action of this iteration,
-        considering all applicable scopes."""
+        considering all applicable scopes.
+
+        Parameters
+        ----------
+        set_defaults
+            If `True`, include machine-defaults for `os_name`, `shell` and `scheduler`.
+
+        """
 
         # This method is currently accurate for both `ElementIteration` and `EAR` objects
         # because when generating the EAR data index we copy (from the schema data index)
@@ -732,10 +841,24 @@ class ElementIteration:
             scope_res = resource_specs.get(scope_s, {})
             resources.update({k: v for k, v in scope_res.items() if v is not None})
 
+        if set_defaults:
+            # this is used in e.g. `WorkflowTask.test_action_rule` if testing action rules
+            # that concern resources:
+            if "os_name" not in resources:
+                resources["os_name"] = self.app.ElementResources.get_default_os_name()
+            if "shell" not in resources:
+                resources["shell"] = self.app.ElementResources.get_default_shell()
+            if "scheduler" not in resources:
+                resources["scheduler"] = self.app.ElementResources.get_default_scheduler(
+                    resources["os_name"], resources["shell"]
+                )
+
         return resources
 
-    def get_resources_obj(self, action: app.Action) -> app.ElementResources:
-        return self.app.ElementResources(**self.get_resources(action))
+    def get_resources_obj(
+        self, action: app.Action, set_defaults: bool = False
+    ) -> app.ElementResources:
+        return self.app.ElementResources(**self.get_resources(action, set_defaults))
 
 
 class Element:

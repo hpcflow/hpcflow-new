@@ -2,8 +2,45 @@ import pytest
 import hpcflow.app as hf
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--slurm",
+        action="store_true",
+        default=False,
+        help="run slurm tests",
+    )
+    parser.addoption(
+        "--wsl",
+        action="store_true",
+        default=False,
+        help="run Windows Subsystem for Linux tests",
+    )
+
+
 def pytest_configure(config):
+    config.addinivalue_line("markers", "slurm: mark test as slurm to run")
+    config.addinivalue_line("markers", "wsl: mark test as wsl to run")
     hf.run_time_info.in_pytest = True
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--slurm"):
+        # --slurm given in cli: only run slurm tests
+        for item in items:
+            if "slurm" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need no --slurm option to run"))
+    elif config.getoption("--wsl"):
+        # --wsl given in CLI: only run wsl tests
+        for item in items:
+            if "wsl" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need no --wsl option to run"))
+    else:
+        # --slurm not given in cli: skip slurm tests and do not skip other tests
+        for item in items:
+            if "slurm" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --slurm option to run"))
+            elif "wsl" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --wsl option to run"))
 
 
 def pytest_unconfigure(config):

@@ -1,3 +1,4 @@
+import os
 from typing import Iterable
 
 
@@ -187,9 +188,86 @@ class WorkflowSubmissionFailure(RuntimeError):
     pass
 
 
-class UnsupportedShellError(ValueError):
+class ResourceValidationError(ValueError):
+    """An incompatible resource requested by the user."""
+
+
+class UnsupportedOSError(ResourceValidationError):
+    """This machine is not of the requested OS."""
+
+    def __init__(self, os_name) -> None:
+        message = (
+            f"OS {os_name!r} is not compatible with this machine/instance with OS: "
+            f"{os.name!r}."
+        )
+        super().__init__(message)
+        self.os_name = os_name
+
+
+class UnsupportedShellError(ResourceValidationError):
     """We don't support this shell on this OS."""
 
+    def __init__(self, shell, supported) -> None:
+        message = (
+            f"Shell {shell!r} is not supported on this machine/instance. Supported "
+            f"shells are: {supported!r}."
+        )
+        super().__init__(message)
+        self.shell = shell
+        self.supported = supported
+
+
+class UnsupportedSchedulerError(ResourceValidationError):
+    """This scheduler is not supported on this machine according to the config.
+
+    This is also raised in config validation when attempting to add a scheduler that is
+    not known for this OS.
+
+    """
+
+    def __init__(self, scheduler, supported=None, available=None) -> None:
+        if supported is not None:
+            message = (
+                f"Scheduler {scheduler!r} is not supported on this machine/instance. "
+                f"Supported schedulers according to the app configuration are: "
+                f"{supported!r}."
+            )
+        elif available is not None:
+            message = (
+                f"Scheduler {scheduler!r} is not supported on this OS. Schedulers "
+                f"compatible with this OS are: {available!r}."
+            )
+        super().__init__(message)
+        self.scheduler = scheduler
+        self.supported = supported
+        self.available = available
+
+
+class UnknownSGEPEError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSGEPEError(ResourceValidationError):
+    pass
+
+
+class NoCompatibleSGEPEError(ResourceValidationError):
+    pass
+
+
+class IncompatibleParallelModeError(ResourceValidationError):
+    pass
+
+
+class UnknownSLURMPartitionError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSLURMPartitionError(ResourceValidationError):
+    pass
+
+
+class IncompatibleSLURMArgumentsError(ResourceValidationError):
     pass
 
 

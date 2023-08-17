@@ -15,13 +15,10 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-        - max_num_zarr_objects_per_dir
-        - num_zarr_objects_nesting_levels
-        - num_task_group_nesting_levels
-        - parameter_index_dtype
-        - element_index_dtype
-        - task_index_dtype
-
+        - default_scheduler
+        - default_shell
+        - schedulers
+        - shells
   - path: []
     condition:
       value.required_keys:
@@ -31,7 +28,9 @@ rules:
         - parameter_sources
         - command_file_sources
         - environment_sources
-
+        - default_scheduler
+        - default_shell
+        - schedulers
   - path: []
     condition:
       value.forbidden_keys:
@@ -48,6 +47,7 @@ rules:
         - get_all # Config method
         - get # Config method
         - set # Config method
+        - _set # Config method
         - unset # Config method
         - save # Config method
         - reload # Config method
@@ -136,3 +136,70 @@ rules:
   - path: [command_file_sources, { type: list_value }]
     condition:
       value.is_instance: [str, path]
+
+  - path: [default_scheduler]
+    condition:
+      value.in: [direct, sge, slurm]
+
+  - path: [default_shell]
+    condition:
+      value.in: [powershell, bash, wsl, wsl+bash]
+
+  - path: [schedulers]
+    condition:
+      value.allowed_keys: [direct, direct_posix, sge, slurm]
+
+  - path: [schedulers, { type: map_value }]
+    condition:
+      value.allowed_keys: [defaults]
+
+  - path: [schedulers, { type: map_value }, defaults]
+    condition:
+      value.allowed_keys: # TODO: split these up based on scheduler type
+        - shebang_args
+        - options
+        - submit_cmd
+        - show_cmd
+        - del_cmd
+        - js_cmd
+        - array_switch
+        - array_item_var
+        - cwd_switch
+
+  - path: [schedulers, sge, parallel_environments, { type: map_value }]
+    condition:
+      and:
+        - value.allowed_keys:
+            - num_cores
+            - num_nodes
+            - parallel_modes
+        - value.required_keys:
+            - num_cores
+
+  - path: [schedulers, slurm, partitions, { type: map_value }]
+    condition:
+      and:
+        - value.allowed_keys:
+            - num_cores
+            - num_nodes
+            - num_cores_per_node
+            - parallel_modes
+        - value.required_keys:
+            - num_cores
+
+  - path: [shells]
+    condition:
+      value.allowed_keys: [powershell, bash, wsl, wsl+bash]
+
+  - path: [shells, { type: map_value }]
+    condition:
+      value.allowed_keys: [defaults]
+
+  - path: [shells, { type: map_value }, defaults]
+    condition:
+      value.allowed_keys:
+        - executable
+        - os_args
+        - WSL_executable
+        - WSL_distribution
+        - WSL_user

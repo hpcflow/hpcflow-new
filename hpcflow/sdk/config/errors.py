@@ -42,7 +42,7 @@ class ConfigItemCallbackError(ConfigError):
     def __init__(self, name, callback, err, message=None):
         self.message = message or (
             f"Callback function {callback.__name__!r} for configuration item {name!r} "
-            f"failed with exception: \n\n{err!r}"
+            f"failed with exception: \n\n{str(err)}"
         )
         super().__init__(self.message)
 

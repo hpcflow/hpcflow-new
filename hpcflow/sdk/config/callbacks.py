@@ -1,8 +1,12 @@
 """Module that defines built-in callback functions for configuration item values."""
 
 
+import os
 import re
 import fsspec
+from hpcflow.sdk.core.errors import UnsupportedSchedulerError, UnsupportedShellError
+
+from hpcflow.sdk.submission.shells import get_supported_shells
 
 
 def callback_vars(config, value):
@@ -38,6 +42,43 @@ def callback_bool(config, value):
         else:
             raise TypeError(f"Cannot cast {value!r} to a bool type.")
     return value
+
+
+def callback_lowercase(config, value):
+    if isinstance(value, list):
+        return [i.lower() for i in value]
+    elif isinstance(value, dict):
+        return {k.lower(): v for k, v in value.items()}
+    else:
+        return value.lower()
+
+
+def exists_in_schedulers(config, value):
+    if value not in config.schedulers:
+        raise ValueError(
+            f"Cannot set default scheduler; {value!r} is not a supported scheduler "
+            f"according to the config file, which lists these schedulers as available "
+            f"on this machine: {config.schedulers!r}."
+        )
+    return value
+
+
+def callback_supported_schedulers(config, schedulers):
+    # validate against supported schedulers according to the OS - this won't validate that
+    # a particular scheduler actually exists on this system:
+    available = config._app.get_OS_supported_schedulers()
+    for k in schedulers:
+        if k not in available:
+            raise UnsupportedSchedulerError(scheduler=k, available=available)
+
+    return schedulers
+
+
+def callback_supported_shells(config, shell_name):
+    supported = get_supported_shells(os.name)
+    if shell_name not in supported:
+        raise UnsupportedShellError(shell=shell_name, supported=supported)
+    return shell_name
 
 
 def set_callback_file_paths(config, value):

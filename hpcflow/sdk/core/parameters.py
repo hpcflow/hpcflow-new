@@ -16,6 +16,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
 
 
@@ -1074,18 +1075,42 @@ class InputValue(AbstractInputValue):
         return True if self.path else False
 
 
+class ParallelMode(enum.Enum):
+    DISTRIBUTED = 0
+    SHARED = 1
+    HYBRID = 2
+
+
 class ResourceSpec(JSONLike):
+    """Class to represent specification of resource requirements for a (set of) actions.
+
+    Notes
+    -----
+    `os_name` is used for retrieving a default shell name and for retrieving the correct
+    `Shell` class; when using WSL, it should still be `nt` (i.e. Windows).
+
+    """
+
     ALLOWED_PARAMETERS = {
         "scratch",
+        "parallel_mode",
         "num_cores",
+        "num_cores_per_node",
+        "num_threads",
+        "num_nodes",
         "scheduler",
         "shell",
         "use_job_array",
         "time_limit",
-        "scheduler_options",
         "scheduler_args",
         "shell_args",
         "os_name",
+        "SGE_parallel_env",
+        "SLURM_partition",
+        "SLURM_num_tasks",
+        "SLURM_num_tasks_per_node",
+        "SLURM_num_nodes",
+        "SLURM_num_cpus_per_task",
     }
 
     _resource_list = None
@@ -1101,15 +1126,24 @@ class ResourceSpec(JSONLike):
         self,
         scope: app.ActionScope = None,
         scratch: Optional[str] = None,
+        parallel_mode: Optional[Union[str, ParallelMode]] = None,
         num_cores: Optional[int] = None,
+        num_cores_per_node: Optional[int] = None,
+        num_threads: Optional[int] = None,
+        num_nodes: Optional[int] = None,
         scheduler: Optional[str] = None,
         shell: Optional[str] = None,
         use_job_array: Optional[bool] = None,
         time_limit: Optional[Union[str, timedelta]] = None,
-        scheduler_options: Optional[Dict] = None,
         scheduler_args: Optional[Dict] = None,
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
+        SGE_parallel_env: Optional[str] = None,
+        SLURM_partition: Optional[str] = None,
+        SLURM_num_tasks: Optional[str] = None,
+        SLURM_num_tasks_per_node: Optional[str] = None,
+        SLURM_num_nodes: Optional[str] = None,
+        SLURM_num_cpus_per_task: Optional[str] = None,
     ):
         self.scope = scope or self.app.ActionScope.any()
         if not isinstance(self.scope, self.app.ActionScope):
@@ -1118,21 +1152,34 @@ class ResourceSpec(JSONLike):
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
 
-        # user-specified resource parameters:
-        self._scratch = scratch
-        self._num_cores = num_cores
-        self._scheduler = scheduler
-        self._shell = shell.lower() if shell else None
-        self._use_job_array = use_job_array
-        self._time_limit = time_limit
-        self._scheduler_options = scheduler_options
-        self._scheduler_args = scheduler_args
-        self._shell_args = shell_args
-        self._os_name = os_name.lower() if os_name else None
-
         # assigned by `make_persistent`
         self._workflow = None
         self._value_group_idx = None
+
+        # user-specified resource parameters:
+        self._scratch = scratch
+        self._parallel_mode = get_enum_by_name_or_val(ParallelMode, parallel_mode)
+        self._num_cores = num_cores
+        self._num_threads = num_threads
+        self._num_nodes = num_nodes
+        self._num_cores_per_node = num_cores_per_node
+        self._scheduler = self._process_string(scheduler)
+        self._shell = self._process_string(shell)
+        self._os_name = self._process_string(os_name)
+        self._use_job_array = use_job_array
+        self._time_limit = time_limit
+        self._scheduler_args = scheduler_args
+        self._shell_args = shell_args
+
+        # user-specified SGE-specific parameters:
+        self._SGE_parallel_env = SGE_parallel_env
+
+        # user-specified SLURM-specific parameters:
+        self._SLURM_partition = SLURM_partition
+        self._SLURM_num_tasks = SLURM_num_tasks
+        self._SLURM_num_tasks_per_node = SLURM_num_tasks_per_node
+        self._SLURM_num_nodes = SLURM_num_nodes
+        self._SLURM_num_cpus_per_task = SLURM_num_cpus_per_task
 
     def __deepcopy__(self, memo):
         kwargs = copy.deepcopy(self.to_dict(), memo)
@@ -1248,7 +1295,6 @@ class ResourceSpec(JSONLike):
             self._shell = None
             self._use_job_array = None
             self._time_limit = None
-            self._scheduler_options = None
             self._scheduler_args = None
             self._shell_args = None
             self._os_name = None
@@ -1272,21 +1318,60 @@ class ResourceSpec(JSONLike):
 
         return val
 
+    @staticmethod
+    def _process_string(value: Union[str, None]):
+        return value.lower().strip() if value else value
+
+    def _setter_persistent_check(self):
+        if self._value_group_idx:
+            raise ValueError(
+                f"Cannot set attribute of a persistent {self.__class__.__name__!r}."
+            )
+
     @property
     def scratch(self):
+        # TODO: currently unused, except in tests
         return self._get_value("scratch")
+
+    @property
+    def parallel_mode(self):
+        return self._get_value("parallel_mode")
 
     @property
     def num_cores(self):
         return self._get_value("num_cores")
 
     @property
+    def num_cores_per_node(self):
+        return self._get_value("num_cores_per_node")
+
+    @property
+    def num_nodes(self):
+        return self._get_value("num_nodes")
+
+    @property
+    def num_threads(self):
+        return self._get_value("num_threads")
+
+    @property
     def scheduler(self):
         return self._get_value("scheduler")
+
+    @scheduler.setter
+    def scheduler(self, value):
+        self._setter_persistent_check()
+        value = self._process_string(value)
+        self._scheduler = value
 
     @property
     def shell(self):
         return self._get_value("shell")
+
+    @shell.setter
+    def shell(self, value):
+        self._setter_persistent_check()
+        value = self._process_string(value)
+        self._shell = value
 
     @property
     def use_job_array(self):
@@ -1295,10 +1380,6 @@ class ResourceSpec(JSONLike):
     @property
     def time_limit(self):
         return self._get_value("time_limit")
-
-    @property
-    def scheduler_options(self):
-        return self._get_value("scheduler_options")
 
     @property
     def scheduler_args(self):
@@ -1311,6 +1392,35 @@ class ResourceSpec(JSONLike):
     @property
     def os_name(self):
         return self._get_value("os_name")
+
+    @property
+    def SGE_parallel_env(self):
+        return self._get_value("SGE_parallel_env")
+
+    @property
+    def SLURM_partition(self):
+        return self._get_value("SLURM_partition")
+
+    @property
+    def SLURM_num_tasks(self):
+        return self._get_value("SLURM_num_tasks")
+
+    @property
+    def SLURM_num_tasks_per_node(self):
+        return self._get_value("SLURM_num_tasks_per_node")
+
+    @property
+    def SLURM_num_nodes(self):
+        return self._get_value("SLURM_num_nodes")
+
+    @property
+    def SLURM_num_cpus_per_task(self):
+        return self._get_value("SLURM_num_cpus_per_task")
+
+    @os_name.setter
+    def os_name(self, value):
+        self._setter_persistent_check()
+        self._os_name = self._process_string(value)
 
     @property
     def workflow(self):

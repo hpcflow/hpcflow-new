@@ -375,6 +375,32 @@ class BaseApp(metaclass=Singleton):
             self.load_config()
         return self._config
 
+    @property
+    def scheduler_lookup(self):
+        return {
+            ("direct", "posix"): self.DirectPosix,
+            ("direct", "nt"): self.DirectWindows,
+            ("sge", "posix"): self.SGEPosix,
+            ("slurm", "posix"): self.SlurmPosix,
+        }
+
+    def get_OS_supported_schedulers(self):
+        """Retrieve a list of schedulers that are supported in principle by this operating
+        system.
+
+        This does not necessarily mean all the returned schedulers are available on this
+        system.
+
+        """
+        out = []
+        for k in self.scheduler_lookup:
+            if os.name == "nt" and k == ("direct", "posix"):
+                # this is valid for WSL on Windows
+                out.append("_".join(k))
+            elif k[1] == os.name:
+                out.append(k[0])
+        return out
+
     def perm_error_retry(self):
         """Return a decorator for retrying functions on permission and OS errors that
         might be associated with cloud-storage desktop sync. engine operations."""
