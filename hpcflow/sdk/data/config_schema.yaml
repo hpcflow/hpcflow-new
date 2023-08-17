@@ -166,6 +166,14 @@ rules:
         - array_item_var
         - cwd_switch
 
+  - path: [schedulers, sge]
+    condition:
+      value.type.equal_to: dict
+
+  - path: [schedulers, sge, parallel_environments]
+    condition:
+      value.type.equal_to: dict
+
   - path: [schedulers, sge, parallel_environments, { type: map_value }]
     condition:
       and:
@@ -175,6 +183,14 @@ rules:
             - parallel_modes
         - value.required_keys:
             - num_cores
+
+  - path: [schedulers, slurm]
+    condition:
+      value.type.equal_to: dict
+
+  - path: [schedulers, slurm, partitions]
+    condition:
+      value.type.equal_to: dict
 
   - path: [schedulers, slurm, partitions, { type: map_value }]
     condition:
