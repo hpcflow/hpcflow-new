@@ -17,7 +17,7 @@ jobs:
       - uses: Vampire/setup-wsl@v2 # set up a `wsl-bash` shell
 
       - name: test wsl executable
-        run: wsl-bash --version
+        run: wsl --version
 
       # - uses: actions/checkout@v3
       #   with:
