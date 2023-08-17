@@ -45,4 +45,5 @@ jobs:
       - name: Run WSL tests only
         run: |
           poetry run hpcflow config update --json shells.wsl.defaults '{\"WSL_executable\": \"wsl-bash\"}'
+          poetry run hpcflow config add-scheduler direct_posix
           poetry run hpcflow test --wsl

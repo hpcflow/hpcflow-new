@@ -227,6 +227,8 @@ def get_config_CLI(app):
     def add_scheduler(name, defaults):
         if defaults:
             defaults = json.loads(defaults)
+        else:
+            defaults = {}
         app.config.add_scheduler(name, defaults=defaults)
         app.config.save()
 
