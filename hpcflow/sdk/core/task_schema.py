@@ -29,6 +29,26 @@ class TaskObjective(JSONLike):
 
 
 class TaskSchema(JSONLike):
+    """Class to represent the inputs, outputs and implementation mechanism of a given
+    task.
+
+    Parameters
+    ----------
+    objective
+        This is a string representing the objective of the task schema.
+    actions
+        A list of Action objects whose commands are to be executed by the task.
+    method
+        An optional string to label the task schema by its method.
+    implementation
+        An optional string to label the task schema by its implementation.
+    inputs
+        A list of SchemaInput objects that define the inputs to the task.
+    outputs
+        A list of SchemaOutput objects that define the outputs of the task.
+
+    """
+
     _validation_schema = "task_schema_spec_schema.yaml"
     _hash_value = None
     _validate_actions = True

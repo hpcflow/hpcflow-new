@@ -1155,7 +1155,7 @@ class Action(JSONLike):
 
     def __init__(
         self,
-        environments: List[app.ActionEnvironment],
+        environments: Optional[List[app.ActionEnvironment]] = None,
         commands: Optional[List[app.Command]] = None,
         script: Optional[str] = None,
         script_data_in: Optional[str] = None,
@@ -1173,7 +1173,9 @@ class Action(JSONLike):
         self.script_data_in = script_data_in.lower() if script_data_in else None
         self.script_data_out = script_data_out.lower() if script_data_out else None
         self.script_exe = script_exe.lower() if script_exe else None
-        self.environments = environments
+        self.environments = environments or [
+            self.app.ActionEnvironment(environment=self.app.envs.null_env)
+        ]
         self.abortable = abortable
         self.input_file_generators = input_file_generators or []
         self.output_file_parsers = output_file_parsers or []
@@ -1344,7 +1346,7 @@ class Action(JSONLike):
         if not cls.is_app_data_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
-                f"<<script:path/to/app/data/script.py>>), but recieved {script}"
+                f"<<script:path/to/app/data/script.py>>), but received {script}"
             )
         pattern = r"\<\<script:(.*:?)\>\>"
         match_obj = re.match(pattern, script)

@@ -26,6 +26,7 @@ from .callbacks import (
     callback_lowercase,
     callback_supported_schedulers,
     callback_supported_shells,
+    callback_update_log_console_level,
     callback_vars,
     callback_file_paths,
     exists_in_schedulers,
@@ -146,6 +147,7 @@ class Config:
             "default_shell": (callback_supported_shells,),
             "schedulers": (callback_supported_schedulers,),
             "log_file_path": (set_callback_file_paths,),
+            "log_console_level": (callback_update_log_console_level,),
         }
 
         cfg_schemas, cfg_keys = self._init_schemas()
@@ -340,7 +342,7 @@ class Config:
                 try:
                     value = cb(self, value)
                 except Exception as err:
-                    raise ConfigItemCallbackError(name, cb, err)
+                    raise ConfigItemCallbackError(name, cb, err) from None
         return value
 
     def _get(

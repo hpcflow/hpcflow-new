@@ -103,3 +103,7 @@ def check_load_data_files(config, value):
     done on `config.set` (and not on `config.get` or `config._validate`) because it could
     be expensive in the case of remote files."""
     config._app.reload_template_components(warn=False)
+
+
+def callback_update_log_console_level(config, value):
+    config._app.log.update_console_level(value)

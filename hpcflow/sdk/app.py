@@ -255,9 +255,17 @@ class BaseApp(metaclass=Singleton):
         for path in self.config.command_file_sources:
             cmd_files.extend(read_YAML_file(path))
 
-        envs = self._builtin_template_components.get("environments", [])
+        envs = []
+        builtin_envs = self._builtin_template_components.get("environments", [])
         for path in self.config.environment_sources:
-            envs.extend(read_YAML_file(path))
+            envs_i_lst = read_YAML_file(path)
+            for env_j in envs_i_lst:
+                for b_idx, builtin_env in enumerate(list(builtin_envs)):
+                    # overwrite builtin envs with user-supplied:
+                    if builtin_env["name"] == env_j["name"]:
+                        builtin_envs.pop(b_idx)
+                envs.append(env_j)
+        envs = builtin_envs + envs
 
         schemas = self._builtin_template_components.get("task_schemas", [])
         for path in self.config.task_schema_sources:
@@ -476,6 +484,7 @@ class BaseApp(metaclass=Singleton):
     ) -> None:
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
+        self.log.remove_file_handlers()
         self._load_config(config_dir, config_invocation_key, **overrides)
 
     def _load_scripts(self):
