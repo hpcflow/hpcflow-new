@@ -1,0 +1,12 @@
+from importlib import resources
+import pytest
+from hpcflow.app import app as hf
+
+
+@pytest.mark.direct_linux
+def test_workflow_1(tmp_path, null_config):
+    act = hf.Action(commands=[hf.Command("echo 'Buenas!'")])
+    ts = hf.TaskSchema(objective="hello", actions=[act])
+    wkt = hf.WorkflowTemplate(name="greetings", tasks=[hf.Task(schemas=[ts])])
+    wf = hf.Workflow.from_template(name="saludos", template=wkt)
+    wf.submit(wait=True)

@@ -56,3 +56,35 @@ jobs:
       - name: Run slurm tests only
         run: |
           poetry run hpcflow test --slurm
+
+  test-direct-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install poetry
+        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Configure poetry
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-direct-linux-test-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --without dev,pyinstaller
+
+      - name: Run slurm tests only
+        run: |
+          poetry run hpcflow test --direct-linux    
