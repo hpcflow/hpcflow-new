@@ -15,6 +15,7 @@ import subprocess
 from datetime import datetime, timezone
 import sys
 from typing import Type, Union, List, Mapping
+import fsspec
 
 from ruamel.yaml import YAML
 import sentry_sdk
@@ -343,7 +344,13 @@ def read_YAML(loadable_yaml):
 
 
 def read_YAML_file(path: PathLike):
-    return read_YAML(Path(path))
+    if is_fsspec_url(str(path)):
+        with fsspec.open(path, "rt") as f:
+            data = f.read()
+        loadable_yaml = data
+    else:
+        loadable_yaml = Path(path)
+    return read_YAML(loadable_yaml)
 
 
 def read_JSON_string(string: str):

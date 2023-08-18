@@ -80,7 +80,22 @@ class _DummyPersistentWorkflow:
 @dataclass
 class WorkflowTemplate(JSONLike):
     """Class to represent initial parametrisation of a {app_name} workflow, with limited
-    validation logic."""
+    validation logic.
+
+    Parameters
+    ----------
+    name
+        A string name for the workflow. By default this name will be used in combination
+        with a date-time stamp when generating a persistent workflow from the template.
+    tasks
+        A list of Task objects to include in the workflow.
+    loops
+        A list of Loop objects to include in the workflow.
+    resources
+        Template-level resources to apply to all tasks as default values. This can be a
+        dict that maps action scopes to resources (e.g. `{{"any": {{"num_cores": 2}}}}`)
+        or a list of `ResourceSpec` objects, or a `ResourceList` object.
+    """
 
     _app_attr = "app"
 

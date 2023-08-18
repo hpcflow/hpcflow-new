@@ -449,7 +449,15 @@ class OutputLabel(JSONLike):
 class Task(JSONLike):
     """Parametrisation of an isolated task for which a subset of input values are given
     "locally". The remaining input values are expected to be satisfied by other
-    tasks/imports in the workflow."""
+    tasks/imports in the workflow.
+
+    Parameters
+    ----------
+    schemas
+        A `TaskSchema` object of a list of `TaskSchema` objects.
+    inputs
+        A list of `InputValue` objects.
+    """
 
     _child_objects = (
         ChildObjectSpec(

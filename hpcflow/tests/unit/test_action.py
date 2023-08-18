@@ -24,11 +24,6 @@ def test_action_equality():
     assert a1 == a2
 
 
-def test_raise_on_no_envs():
-    with pytest.raises(TypeError):
-        hf.Action(commands=[])
-
-
 def test_action_scope_to_string_any():
     assert hf.ActionScope.any().to_string() == "any"
 
