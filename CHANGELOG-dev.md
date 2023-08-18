@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a82"></a>
+## [v0.2.0a82](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a81...v0.2.0a82) - 2023.08.18
+
+### ✨ Features
+
+* prep for tutorial
+
+### 🐛 Bug Fixes
+
+* add set-callback on config item log_console_level to update the handler
+* remove AppLog file handlers on reload_config
+* improve ConfigItemCallbackError UX
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a81"></a>
 ## [v0.2.0a81](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a80...v0.2.0a81) - 2023.08.17
 
