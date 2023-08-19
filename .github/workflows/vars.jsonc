@@ -3,6 +3,9 @@
     "repo": "hpcflow-new",
     "app_name": "hpcFlow",
     "version_file": "hpcflow/_version.py",
+    "CLI_path": "hpcflow/cli.py",
+    "CLI_path_win": "hpcflow\\cli.py",
+    "CLI_module": "hpcflow.cli",
     "release_branch": "main",
     "pre_release_branch": "develop",
     "bot_account_name": "hpcflow-actions",
@@ -12,7 +15,6 @@
     "PYPI_token_name": "PYPI", // or "TEST_PYPI", as defined within the `secrets` context
     "PYPI_URL": "https://upload.pypi.org/legacy/", // "https://test.pypi.org/legacy/",
     "executable_name": "hpcflow",
-    "pyinstaller_package": "hpcflow/cli/cli.py",
     "pyinstaller_dir": "pyinstaller", // directory containing hooks and make.sh and make.ps1 scripts to invoke
     "website_source_org": "hpcflow",
     "website_source_repo": "hpcflow.github.io",

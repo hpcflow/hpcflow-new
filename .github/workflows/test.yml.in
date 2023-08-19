@@ -180,29 +180,29 @@ jobs:
           poetry install --without dev,pyinstaller
           poetry run pip install ipython
 
-      - name: Test invocation command with `python ./hpcflow/cli.py`
+      - name: Test invocation command with `python ./{{ CLI_path }}`
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          actual=`python ./{{ CLI_path }} internal get-invoc-cmd`
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with `python -m hpcflow.cli`
+      - name: Test invocation command with `python -m {{ CLI_module }}`
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`python -m hpcflow.cli internal get-invoc-cmd`
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          actual=`python -m {{ CLI_module }} internal get-invoc-cmd`
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with `hpcflow` entry point script
+      - name: Test invocation command with `{{ executable_name }}` entry point script
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`hpcflow internal get-invoc-cmd`
-          expected="('`command -v python`', '`command -v hpcflow`')"
+          actual=`{{ executable_name }} internal get-invoc-cmd`
+          expected="('`command -v python`', '`command -v {{ executable_name }}`')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -211,7 +211,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py python)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -220,7 +220,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -254,29 +254,29 @@ jobs:
           poetry install --without dev,pyinstaller
           poetry run pip install ipython
 
-      - name: Test invocation command with `python ./hpcflow/cli.py`
+      - name: Test invocation command with `python ./{{ CLI_path }}`
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          actual=`python ./{{ CLI_path }} internal get-invoc-cmd`
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with `python -m hpcflow.cli`
+      - name: Test invocation command with `python -m {{ CLI_module }}`
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`python -m hpcflow.cli internal get-invoc-cmd`
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          actual=`python -m {{ CLI_module }} internal get-invoc-cmd`
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with `hpcflow` entry point script
+      - name: Test invocation command with `{{ executable_name }}` entry point script
         run: |
           source $(poetry env info --path)/bin/activate
-          actual=`hpcflow internal get-invoc-cmd`
-          expected="('`command -v python`', '`command -v hpcflow`')"
+          actual=`{{ executable_name }} internal get-invoc-cmd`
+          expected="('`command -v python`', '`command -v {{ executable_name }}`')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -285,7 +285,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py python)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -294,7 +294,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/{{ CLI_path }}')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -327,33 +327,33 @@ jobs:
         run: |
           poetry install --without dev,pyinstaller
 
-      - name: Test invocation command with `python ./hpcflow/cli.py`
+      - name: Test invocation command with `python ./{{ CLI_path }}`
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
-          $actual = $(python ./hpcflow/cli.py internal get-invoc-cmd)
-          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\hpcflow\cli.py".Replace('\', '\\') + "')"
+          $actual = $(python ./{{ CLI_path }} internal get-invoc-cmd)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\{{ CLI_path_win }}".Replace('\', '\\') + "')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {
             exit 1
           }
 
-      - name: Test invocation command with `python -m hpcflow.cli`
+      - name: Test invocation command with `python -m {{ CLI_module }}`
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
-          $actual = $(python -m hpcflow.cli internal get-invoc-cmd)
-          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\hpcflow\cli.py".Replace('\', '\\') + "')"
+          $actual = $(python -m {{ CLI_module }} internal get-invoc-cmd)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\{{ CLI_path_win }}".Replace('\', '\\') + "')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {
             exit 1
           }
 
-      - name: Test invocation command with `hpcflow` entry point script
+      - name: Test invocation command with `{{ executable_name }}` entry point script
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
-          $actual = $(hpcflow internal get-invoc-cmd)
-          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + ((Get-Command hpcflow).source | Resolve-Path).Path.Replace('\', '\\').Trim('.cmd') + "')"
+          $actual = $({{ executable_name }} internal get-invoc-cmd)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + ((Get-Command {{ executable_name }}).source | Resolve-Path).Path.Replace('\', '\\').Trim('.cmd') + "')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {
