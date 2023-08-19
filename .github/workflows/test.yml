@@ -118,8 +118,8 @@ jobs:
 
   test-CentOS:
     needs: pre-commit
-    if: github.event.inputs.run_unit_tests == 'true'
     runs-on: ubuntu-latest
+    if: github.event.inputs.run_unit_tests == 'true'
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
@@ -163,11 +163,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install poetry
-        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
-
-      - name: Configure poetry
+      - name: Install poetry and configure poetry
         run: |
+          python -m pip install poetry==${{ env.POETRY_VERSION }}
           poetry config virtualenvs.in-project true
           poetry config installer.modern-installation false
 
@@ -239,11 +237,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install poetry
-        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
-
-      - name: Configure poetry
+      - name: Install poetry and configure poetry
         run: |
+          python -m pip install poetry==${{ env.POETRY_VERSION }}
           poetry config virtualenvs.in-project true
           poetry config installer.modern-installation false
 
@@ -315,11 +311,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install poetry
-        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
-
-      - name: Configure poetry
+      - name: Install poetry and configure poetry
         run: |
+          python -m pip install poetry==${{ env.POETRY_VERSION }}
           poetry config virtualenvs.in-project true
           poetry config installer.modern-installation false
 
