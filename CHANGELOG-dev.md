@@ -1,4 +1,41 @@
 
+<a name="v0.2.0a83"></a>
+## [v0.2.0a83](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a82...v0.2.0a83) - 2023.08.19
+
+### 🐛 Bug Fixes
+
+* refactor RunTimeInfo to not use sys.argv on init; fix [#462](https://github.com/hpcflow/hpcflow-new/issues/462)
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+* **GHA:** testing
+
+### 👷 Build changes
+
+* merge from develop
+* bump ipykernel
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a82"></a>
 ## [v0.2.0a82](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a81...v0.2.0a82) - 2023.08.18
 
