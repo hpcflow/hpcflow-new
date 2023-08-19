@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a84"></a>
+## [v0.2.0a84](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a83...v0.2.0a84) - 2023.08.19
+
+### 🐛 Bug Fixes
+
+* always use importlib.resources method for running tests; otherwise we couldn't pass custom CLI options to pytest
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a83"></a>
 ## [v0.2.0a83](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a82...v0.2.0a83) - 2023.08.19
 
