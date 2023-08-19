@@ -181,10 +181,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --without dev,pyinstaller     
+          poetry install --without dev,pyinstaller
           poetry run pip install ipython
 
-      - name: Test invocation command with `python ./hpcflow/cli.py`      
+      - name: Test invocation command with `python ./hpcflow/cli.py`
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
@@ -193,7 +193,7 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with `python -m hpcflow.cli`      
+      - name: Test invocation command with `python -m hpcflow.cli`
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python -m hpcflow.cli internal get-invoc-cmd`
@@ -340,6 +340,28 @@ jobs:
           ."$(poetry env info --path)\Scripts\activate.ps1"
           $actual = $(python ./hpcflow/cli.py internal get-invoc-cmd)
           $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\hpcflow\cli.py".Replace('\', '\\') + "')"
+          Write-Host actual: $actual
+          Write-Host expected: $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+
+      - name: Test invocation command with `python -m hpcflow.cli`
+        run: |
+          ."$(poetry env info --path)\Scripts\activate.ps1"
+          $actual = $(python -m hpcflow.cli internal get-invoc-cmd)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\hpcflow\cli.py".Replace('\', '\\') + "')"
+          Write-Host actual: $actual
+          Write-Host expected: $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+
+      - name: Test invocation command with `hpcflow` entry point script
+        run: |
+          ."$(poetry env info --path)\Scripts\activate.ps1"
+          $actual = $(hpcflow internal get-invoc-cmd)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + ((Get-Command hpcflow).source | Resolve-Path).Path.Replace('\', '\\').Trim('.cmd') + "')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {
