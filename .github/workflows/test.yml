@@ -189,8 +189,8 @@ jobs:
           source $(poetry env info --path)/bin/activate
           actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
-          echo $actual
-          echo $expected
+          echo actual: $actual
+          echo expected: $expected
           [ "$actual" = "$expected" ]
 
       - name: Test invocation command with `python -m path.to.cli`
@@ -198,8 +198,8 @@ jobs:
           source $(poetry env info --path)/bin/activate
           actual=`python -m hpcflow.cli internal get-invoc-cmd`
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
-          echo $actual
-          echo $expected
+          echo actual: $actual
+          echo expected: $expected
           [ "$actual" = "$expected" ]
 
       - name: Test invocation command with entry point script
@@ -207,8 +207,8 @@ jobs:
           source $(poetry env info --path)/bin/activate
           actual=`hpcflow internal get-invoc-cmd`
           expected="('`command -v python`', '`command -v hpcflow`')"
-          echo $actual
-          echo $expected
+          echo actual: $actual
+          echo expected: $expected
           [ "$actual" = "$expected" ]
 
       - name: Test invocation command with interactive python
@@ -216,8 +216,8 @@ jobs:
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py python)
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
-          echo $actual
-          echo $expected
+          echo actual: $actual
+          echo expected: $expected
           [ "$actual" = "$expected" ]
 
       - name: Test invocation command with interactive ipython
@@ -226,6 +226,6 @@ jobs:
           pip install ipython
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
-          echo $actual
-          echo $expected
+          echo actual: $actual
+          echo expected: $expected
           [ "$actual" = "$expected" ]

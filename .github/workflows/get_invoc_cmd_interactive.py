@@ -16,6 +16,11 @@ prompt = {
 
 c = pexpect.spawnu(executable)
 c.expect(prompt)
+
+if executable == "ipython":
+    # turn off pretty printing so parsing expected output is easier:
+    c.sendline("%pprint")
+
 c.sendline("import hpcflow.app as hf")
 c.sendline("hf.run_time_info.invocation_command")
 c.expect("\('.*'\)")
