@@ -184,7 +184,7 @@ jobs:
 
         # on windows: `((Get-Command python).source | Resolve-Path).Path` will normalise the path
         
-      - name: python /path/to/cli.py
+      - name: Test invocation command with `python /path/to/cli.py`
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
@@ -193,7 +193,7 @@ jobs:
           echo $expected
           [ "$actual" = "$expected" ]
 
-      - name: python -m path.to.cli
+      - name: Test invocation command with `python -m path.to.cli`
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python -m hpcflow.cli internal get-invoc-cmd`
@@ -202,7 +202,7 @@ jobs:
           echo $expected
           [ "$actual" = "$expected" ]
 
-      - name: entry point script
+      - name: Test invocation command with entry point script
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`hpcflow internal get-invoc-cmd`
@@ -211,28 +211,20 @@ jobs:
           echo $expected
           [ "$actual" = "$expected" ]
 
-      - name: interactive python
+      - name: Test invocation command with interactive python
         run: |
           source $(poetry env info --path)/bin/activate 
-          expected="('`command -v python`', '`command -v hpcflow`')"
-          export expected
-          python
-          import os
-          import hpcflow.app as hf
-          actual = str(hf.run_time_info.invocation_command)
-          expected = os.environ["expected"]
-          print(f"actual: {actual}")
-          print(f"expected: {expected}")
+          actual=$(python ./.github/workflow/get_invoc_cmd_interactive.py python)
+          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          echo $actual
+          echo $expected
+          [ "$actual" = "$expected" ]
 
-      - name: interactive ipython
+      - name: Test invocation command with interactive ipython
         run: |
-          source $(poetry env info --path)/bin/activate
-          expected="('`command -v python`', '`command -v hpcflow`')"
-          export expected
-          ipython
-          import os
-          import hpcflow.app as hf
-          actual = str(hf.run_time_info.invocation_command)
-          expected = os.environ["expected"]
-          print(f"actual: {actual}")
-          print(f"expected: {expected}")
+          source $(poetry env info --path)/bin/activate 
+          actual=$(python ./.github/workflow/get_invoc_cmd_interactive.py ipython)
+          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          echo $actual
+          echo $expected
+          [ "$actual" = "$expected" ]
