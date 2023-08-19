@@ -6,7 +6,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   POETRY_VERSION: "1.4"
-  
+
 
 on:
   workflow_dispatch: # manual invocation
@@ -183,7 +183,7 @@ jobs:
         run: poetry install --without dev,pyinstaller
 
         # on windows: `((Get-Command python).source | Resolve-Path).Path` will normalise the path
-        
+
       - name: Test invocation command with `python /path/to/cli.py`
         run: |
           source $(poetry env info --path)/bin/activate
@@ -213,7 +213,7 @@ jobs:
 
       - name: Test invocation command with interactive python
         run: |
-          source $(poetry env info --path)/bin/activate 
+          source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py python)
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
@@ -222,7 +222,7 @@ jobs:
 
       - name: Test invocation command with interactive ipython
         run: |
-          pip install ipython  
+          pip install ipython
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
