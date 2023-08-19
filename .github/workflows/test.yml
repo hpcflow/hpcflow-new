@@ -339,7 +339,7 @@ jobs:
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
           $actual = $(python ./hpcflow/cli.py internal get-invoc-cmd)
-          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path + "', '$GITHUB_WORKSPACE\hpcflow\cli.py')"
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '$env:GITHUB_WORKSPACE\\hpcflow\\cli.py')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {
