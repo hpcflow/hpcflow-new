@@ -223,7 +223,7 @@ jobs:
       - name: Test invocation command with interactive ipython
         run: |
           source $(poetry env info --path)/bin/activate 
-          pip install -y ipython
+          pip install ipython
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
