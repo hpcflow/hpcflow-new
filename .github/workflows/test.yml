@@ -262,7 +262,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
-          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -271,7 +271,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=`python -m hpcflow.cli internal get-invoc-cmd`
-          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -289,7 +289,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py python)
-          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -299,7 +299,7 @@ jobs:
           source $(poetry env info --path)/bin/activate
           pip install ipython
           actual=$(python ./.github/workflows/get_invoc_cmd_interactive.py ipython)
-          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
