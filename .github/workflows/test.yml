@@ -342,3 +342,6 @@ jobs:
           $expected = "('" + ((Get-Command python).source | Resolve-Path).Path + "', '$GITHUB_WORKSPACE\hpcflow\cli.py')"
           Write-Host actual: $actual
           Write-Host expected: $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
