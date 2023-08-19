@@ -11,7 +11,7 @@ on:
   workflow_dispatch: # manual invocation
     inputs:
       run_pre_commit:
-        description: "Run pre-commit to invoke e.g. black formatting. This is a prerequisite for running unit tests."
+        description: "Run pre-commit."
         required: true
         type: boolean
         default: true
