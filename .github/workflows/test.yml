@@ -191,9 +191,7 @@ jobs:
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
           echo $expected
-          if ($actual -ne $expected) {
-            exit 1
-          }
+          [ "$actual" = "$expected" ]
 
       - name: python -m path.to.cli
         run: |
@@ -202,9 +200,7 @@ jobs:
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
           echo $expected
-          if ($actual -ne $expected) {
-            exit 1
-          }
+          [ "$actual" = "$expected" ]
 
       - name: entry point script
         run: |
@@ -213,10 +209,7 @@ jobs:
           expected="('`command -v python`', '`command -v hpcflow`')"
           echo $actual
           echo $expected
-          if ($actual -ne $expected) {
-            exit 1
-          }
-          hpcflow internal get-invoc-cmd
+          [ "$actual" = "$expected" ]
 
       - name: interactive python
         run: |
