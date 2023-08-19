@@ -967,23 +967,9 @@ class BaseApp(metaclass=Singleton):
             )
 
         test_args = (self.pytest_args or []) + list(args)
-        if self.run_time_info.is_frozen:
-            pkg = self.package_name
-            res = "tests"
-            try:
-                test_dir_ctx = resources.as_file(resources.files(pkg).joinpath(res))
-            except AttributeError:
-                # < python 3.8; `resource.path` deprecated since 3.11
-                test_dir_ctx = resources.path(pkg, res)
-
-            with test_dir_ctx as test_dir:
-                return pytest.main([str(test_dir)] + test_args)
-        else:
-            ret_code = pytest.main(["--pyargs", f"{self.package_name}"] + test_args)
-            if ret_code is not pytest.ExitCode.OK:
-                raise RuntimeError(f"Tests failed with exit code: {str(ret_code)}")
-            else:
-                return ret_code
+        pkg = self.package_name
+        with resources.as_file(resources.files(pkg).joinpath("tests")) as test_dir:
+            return pytest.main([str(test_dir)] + test_args)
 
     def _get_OS_info(self) -> Dict:
         """Get information about the operating system."""
