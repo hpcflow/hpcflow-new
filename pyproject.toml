@@ -50,9 +50,11 @@ pydata-sphinx-theme = "^0.13.3"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.2.0"
+pexpect = "^4.8.0"
 
 [tool.poetry.group.pyinstaller.dependencies]
 pyinstaller = "^5.12"
+
 
 [tool.poetry.extras]
 test = ["pytest"]
