@@ -8,7 +8,8 @@ works on POSIX operating systems.
 import sys
 import pexpect
 
-executable = sys.argv[1]
+executable = sys.argv[1]  # e.g. `python` or `ipython`
+app_import = sys.argv[2]  # e.g. `hpcflow.app` or `matflow`
 prompt = {
     "python": ">>>",
     "ipython": "In.*",
@@ -21,8 +22,8 @@ if executable == "ipython":
     # turn off pretty printing so parsing expected output is easier:
     c.sendline("%pprint")
 
-c.sendline("import hpcflow.app as hf")
-c.sendline("hf.run_time_info.invocation_command")
+c.sendline(f"import {app_import} as app")
+c.sendline("app.run_time_info.invocation_command")
 c.expect("\('.*'\)")
 c.kill(1)
 print(c.after)

@@ -2,6 +2,7 @@
     "org": "hpcflow",
     "repo": "hpcflow-new",
     "app_name": "hpcFlow",
+    "app_package": "hpcflow.app",
     "version_file": "hpcflow/_version.py",
     "CLI_path": "hpcflow/cli.py",
     "CLI_path_win": "hpcflow\\cli.py",
