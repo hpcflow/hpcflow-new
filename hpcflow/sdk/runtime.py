@@ -8,11 +8,11 @@ from pathlib import Path
 import warnings
 
 import sentry_sdk
+from rich.table import Table
+from rich.console import Console
 
-from hpcflow.sdk.core.utils import PrettyPrinter
 
-
-class RunTimeInfo(PrettyPrinter):
+class RunTimeInfo:
     """Get useful run-time information, including the executable name used to
     invoke the CLI, in the case a PyInstaller-built executable was used.
 
@@ -43,28 +43,23 @@ class RunTimeInfo(PrettyPrinter):
         self.logger = logger
         self.hostname = socket.gethostname()
 
-        path_exec = Path(sys.executable)
-        path_argv = Path(sys.argv[0])
-
         self.in_ipython = False
+        self.is_interactive = False
         self.in_pytest = False  # set in `conftest.py`
 
         if self.is_frozen:
             self.bundle_dir = Path(bundle_dir)
-            self.executable_path = path_argv
-            self.resolved_executable_path = path_exec
-            self.executable_name = self.executable_path.name
-            self.resolved_executable_name = self.resolved_executable_path.name
         else:
-            self.script_path = path_argv
-            self.resolved_script_path = path_argv.absolute()
-            self.python_executable_path = path_exec
+            self.python_executable_path = Path(sys.executable)
 
             try:
                 get_ipython
                 self.in_ipython = True
             except NameError:
                 pass
+
+            if hasattr(sys, "ps1"):
+                self.is_interactive = True
 
         self.python_version = platform.python_version()
         self.is_venv = hasattr(sys, "real_prefix") or sys.base_prefix != sys.prefix
@@ -114,10 +109,14 @@ class RunTimeInfo(PrettyPrinter):
 
     def _get_members(self):
         out = {
+            "name": self.name,
+            "package_name": self.package_name,
+            "version": self.version,
             "is_frozen": self.is_frozen,
-            "python_version": self.python_version,
-            "hostname": self.hostname,
             "working_dir": self.working_dir,
+            "logger": self.logger,
+            "hostname": self.hostname,
+            "python_version": self.python_version,
             "invocation_command": self.invocation_command,
             "in_ipython": self.in_ipython,
             "in_pytest": self.in_pytest,
@@ -134,6 +133,7 @@ class RunTimeInfo(PrettyPrinter):
         else:
             out.update(
                 {
+                    "is_interactive": self.is_interactive,
                     "script_path": self.script_path,
                     "resolved_script_path": self.resolved_script_path,
                     "python_executable_path": self.python_executable_path,
@@ -172,6 +172,76 @@ class RunTimeInfo(PrettyPrinter):
     def get_deactivate_env_command(self):
         pass
 
+    def show(self):
+        tab = Table(show_header=False, box=None)
+        tab.add_column()
+        tab.add_column()
+        for k, v in self._get_members().items():
+            tab.add_row(k, str(v))
+
+        console = Console()
+        console.print(tab)
+
+    @property
+    def executable_path(self):
+        """Get the path that the user invoked to launch the frozen app, if the app is
+        frozen.
+
+        If the user launches the app via a symbolic link, then this returns that link,
+        whereas `executable_path_resolved` returns the actual frozen app path.
+
+        """
+        if self.is_frozen:
+            return Path(sys.argv[0])
+
+    @property
+    def resolved_executable_path(self):
+        """Get the resolved path to the frozen app that the user launched, if the app is
+        frozen.
+
+        In a one-file app, this is the path to the bootloader. In the one-folder app, this
+        is the path to the executable.
+
+        References
+        ----------
+        [1] https://pyinstaller.org/en/stable/runtime-information.html#using-sys-executable-and-sys-argv-0
+
+        """
+        if self.is_frozen:
+            return Path(sys.executable)
+
+    @property
+    def executable_name(self):
+        """Get the name of the frozen app executable, if the app is frozen.
+
+        If the user launches the app via a symbolic link, then this returns the name of
+        that link, whereas `resolved_executable_name` returns the actual frozen app file
+        name.
+
+        """
+        if self.is_frozen:
+            return self.executable_path.name
+
+    @property
+    def resolved_executable_name(self):
+        """Get the resolved name of the frozen app executable, if the app is frozen."""
+        if self.is_frozen:
+            return self.resolved_executable_path.name
+
+    @property
+    def script_path(self) -> Path:
+        """Get the path to the Python script used to invoked this instance of the app, if
+        the app is not frozen."""
+        if not self.is_frozen:
+            return Path(sys.argv[0])
+
+    @property
+    def resolved_script_path(self) -> Path:
+        """Get the resolved path to the Python script used to invoked this instance of the
+        app, if the app is not frozen."""
+        if not self.is_frozen:
+            return self.script_path.resolve()
+
     @property
     def invocation_command(self):
         """Get the command that was used to invoke this instance of the app."""
@@ -179,7 +249,7 @@ class RunTimeInfo(PrettyPrinter):
             # (this also works if we are running tests using the frozen app)
             return [str(self.resolved_executable_path)]
         else:
-            if self.in_ipython or self.in_pytest:
+            if self.is_interactive or self.in_ipython or self.in_pytest:
                 app_module = import_module(self.package_name)
                 CLI_path = Path(*app_module.__path__, "cli.py")
                 command = [str(self.python_executable_path), str(CLI_path)]
