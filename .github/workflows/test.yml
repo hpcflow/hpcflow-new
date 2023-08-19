@@ -185,8 +185,9 @@ jobs:
         # on windows: `((Get-Command python).source | Resolve-Path).Path` will normalise the path
         
       - name: python /path/to/cli.py
+        working-directory: $GITHUB_WORKSPACE
         run: |
-          poetry shell
+          source $(poetry env info --path)/bin/activate
           actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
@@ -196,8 +197,9 @@ jobs:
           }
 
       - name: python -m path.to.cli
+        working-directory: $GITHUB_WORKSPACE
         run: |
-          poetry shell
+          source $(poetry env info --path)/bin/activate
           actual=`python -m hpcflow.cli internal get-invoc-cmd`
           expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
           echo $actual
@@ -207,8 +209,9 @@ jobs:
           }
 
       - name: entry point script
+        working-directory: $GITHUB_WORKSPACE
         run: |
-          poetry shell
+          source $(poetry env info --path)/bin/activate
           actual=`hpcflow internal get-invoc-cmd`
           expected="('`command -v python`', '`command -v hpcflow`')"
           echo $actual
@@ -219,8 +222,9 @@ jobs:
           hpcflow internal get-invoc-cmd
 
       - name: interactive python
+        working-directory: $GITHUB_WORKSPACE
         run: |
-          poetry shell 
+          source $(poetry env info --path)/bin/activate 
           expected="('`command -v python`', '`command -v hpcflow`')"
           export expected
           python
@@ -232,8 +236,9 @@ jobs:
           print(f"expected: {expected}")
 
       - name: interactive ipython
+        working-directory: $GITHUB_WORKSPACE
         run: |
-          poetry shell 
+          source $(poetry env info --path)/bin/activate
           expected="('`command -v python`', '`command -v hpcflow`')"
           export expected
           ipython
