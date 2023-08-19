@@ -4,18 +4,37 @@ concurrency:
   ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
 
 env:
-  PYTHON_VERSION_PRE_COMMIT: "3.11"
+  PYTHON_VERSION: "3.11"
   POETRY_VERSION: "1.4"
+  
 
 on:
   workflow_dispatch: # manual invocation
+    inputs:
+      run_pre_commit:
+        description: "Run pre-commit to invoke e.g. black formatting. This is a prerequisite for running unit tests."
+        required: true
+        type: boolean
+        default: true
+      run_unit_tests:
+        description: "Run unit test on a matrix of OS/Python versions."
+        required: true
+        type: boolean
+        default: true
+      run_invoc_cmd_tests:
+        description: "Run invocation command tests."
+        required: true
+        type: boolean
+        default: true
   pull_request:
     types: [opened, edited, synchronize]
     branches: [main, develop] # have to manually change these
 
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
+    if: github.event.inputs.run_pre_commit == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -33,7 +52,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: pre-commit
         # avoid exit code 1 (which halts GH actions) from pre-commit run command by
@@ -55,6 +74,7 @@ jobs:
 
   test:
     needs: pre-commit
+    if: github.event.inputs.run_unit_tests == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -100,6 +120,7 @@ jobs:
 
   test-CentOS:
     needs: pre-commit
+    if: github.event.inputs.run_unit_tests == 'true'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
@@ -131,3 +152,94 @@ jobs:
       - name: Run tests
         run: |
           poetry run python -m pytest --verbose --exitfirst
+
+  test-invoc-cmd:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.run_invoc_cmd_tests == 'true'
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install poetry
+        run: python -m pip install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Configure poetry
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.modern-installation false
+
+      - name: Cache the virtualenv
+        uses: actions/cache@v3
+        with:
+          path: ./.venv
+          key: venv-invoc-cmd-test-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --without dev,pyinstaller
+
+        # on windows: `((Get-Command python).source | Resolve-Path).Path` will normalise the path
+        
+      - name: python /path/to/cli.py
+        run: |
+          poetry shell
+          actual=`python ./hpcflow/cli.py internal get-invoc-cmd`
+          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          echo $actual
+          echo $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+
+      - name: python -m path.to.cli
+        run: |
+          poetry shell
+          actual=`python -m hpcflow.cli internal get-invoc-cmd`
+          expected="('`command -v python`', '`realpath ./hpcflow/cli.py`')"
+          echo $actual
+          echo $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+
+      - name: entry point script
+        run: |
+          poetry shell
+          actual=`hpcflow internal get-invoc-cmd`
+          expected="('`command -v python`', '`command -v hpcflow`')"
+          echo $actual
+          echo $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+          hpcflow internal get-invoc-cmd
+
+      - name: interactive python
+        run: |
+          poetry shell 
+          expected="('`command -v python`', '`command -v hpcflow`')"
+          export expected
+          python
+          import os
+          import hpcflow.app as hf
+          actual = str(hf.run_time_info.invocation_command)
+          expected = os.environ["expected"]
+          print(f"actual: {actual}")
+          print(f"expected: {expected}")
+
+      - name: interactive ipython
+        run: |
+          poetry shell 
+          expected="('`command -v python`', '`command -v hpcflow`')"
+          export expected
+          ipython
+          import os
+          import hpcflow.app as hf
+          actual = str(hf.run_time_info.invocation_command)
+          expected = os.environ["expected"]
+          print(f"actual: {actual}")
+          print(f"expected: {expected}")
