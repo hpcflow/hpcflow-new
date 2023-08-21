@@ -4,7 +4,7 @@ concurrency:
   {% raw %}ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}{% endraw %}
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION_PRE_COMMIT: "3.11"
   POETRY_VERSION: "1.4"
 
 on:
@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: {% raw %}${{ env.PYTHON_VERSION }}{% endraw %}
+          python-version: {% raw %}${{ env.PYTHON_VERSION_PRE_COMMIT }}{% endraw %}
 
       - name: pre-commit
         # avoid exit code 1 (which halts GH actions) from pre-commit run command by
