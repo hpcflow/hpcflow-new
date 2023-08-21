@@ -224,6 +224,7 @@ jobs:
       - name: Test direct workflow submission within a Jupyter notebook (via papermill)
         run: |
           source $(poetry env info --path)/bin/activate
+          python -m ipykernel install --name python3
           papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
@@ -317,6 +318,7 @@ jobs:
       - name: Test direct workflow submission within a Jupyter notebook (via papermill)
         run: |
           source $(poetry env info --path)/bin/activate
+          python -m ipykernel install --name python3
           papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
@@ -417,5 +419,6 @@ jobs:
       - name: Test direct workflow submission within a Jupyter notebook (via papermill)
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
+          python -m ipykernel install --name python3
           papermill .\.github\workflows\test_direct_sub_jupyter_notebook.ipynb .\.github\workflows\test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
   
