@@ -150,9 +150,18 @@ jobs:
       - name: Run tests
         run: |
           poetry run python -m pytest --verbose --exitfirst
+
   test-invocation-ubuntu:
-    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -160,7 +169,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry and configure poetry
         run: |
@@ -172,7 +181,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-invoc-cmd-test-linux-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-linux--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -210,21 +219,10 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py ')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
-
-      - name: Test direct workflow submission within a python script
-        run: |
-          source $(poetry env info --path)/bin/activate
-          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
-
-      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
-        run: |
-          source $(poetry env info --path)/bin/activate
-          python -m ipykernel install --user --name python3
-          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
         run: |
@@ -243,10 +241,29 @@ jobs:
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
+
+      - name: Test direct workflow submission within a python script
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
+
+      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python -m ipykernel install --user --name python3
+          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ matrix.python-version }}_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
   test-invocation-macos:
-    runs-on: macos-latest
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -254,7 +271,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry and configure poetry
         run: |
@@ -266,7 +283,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-invoc-cmd-test-macos-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-macos--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -304,21 +321,10 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py ')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
-
-      - name: Test direct workflow submission within a python script
-        run: |
-          source $(poetry env info --path)/bin/activate
-          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
-
-      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
-        run: |
-          source $(poetry env info --path)/bin/activate
-          python -m ipykernel install --user --name python3
-          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
         run: |
@@ -338,9 +344,28 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
+      - name: Test direct workflow submission within a python script
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
+
+      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python -m ipykernel install --user --name python3
+          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ matrix.python-version }}_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
+
   test-invocation-windows:
-    runs-on: windows-latest
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -348,7 +373,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install poetry and configure poetry
         run: |
@@ -360,7 +385,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-invoc-cmd-test-win-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-windows--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -414,10 +439,9 @@ jobs:
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
           python .\.github\workflows\test_direct_sub_python_script.py hpcflow.app
-  
+
       - name: Test direct workflow submission within a Jupyter notebook (via papermill)
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
           python -m ipykernel install --user --name python3
-          papermill .\.github\workflows\test_direct_sub_jupyter_notebook.ipynb .\.github\workflows\test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
-  
+          papermill .\.github\workflows\test_direct_sub_jupyter_notebook.ipynb .\.github\workflows\test_direct_sub_jupyter_notebook_${{ matrix.python-version }}_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
