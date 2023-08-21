@@ -207,6 +207,15 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
+      - name: Test invocation command with non-interactive python
+        run: |
+          source $(poetry env info --path)/bin/activate
+          actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          echo actual: $actual
+          echo expected: $expected
+          [ "$actual" = "$expected" ]
+
       - name: Test invocation command with interactive python
         run: |
           source $(poetry env info --path)/bin/activate
@@ -277,6 +286,15 @@ jobs:
           source $(poetry env info --path)/bin/activate
           actual=`hpcflow internal get-invoc-cmd`
           expected="('`command -v python`', '`command -v hpcflow`')"
+          echo actual: $actual
+          echo expected: $expected
+          [ "$actual" = "$expected" ]
+
+      - name: Test invocation command with non-interactive python
+        run: |
+          source $(poetry env info --path)/bin/activate
+          actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -354,6 +372,17 @@ jobs:
           ."$(poetry env info --path)\Scripts\activate.ps1"
           $actual = $(hpcflow internal get-invoc-cmd)
           $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + ((Get-Command hpcflow).source | Resolve-Path).Path.Replace('\', '\\').Trim('.cmd') + "')"
+          Write-Host actual: $actual
+          Write-Host expected: $expected
+          if ($actual -ne $expected) {
+            exit 1
+          }
+
+      - name: Test invocation command with non-interactive python
+        run: |
+          ."$(poetry env info --path)\Scripts\activate.ps1"
+          $actual = $(python .\.github\workflows\get_invoc_cmd.py hpcflow.app)
+          $expected = "('" + ((Get-Command python).source | Resolve-Path).Path.Replace('\', '\\') + "', '" + "$env:GITHUB_WORKSPACE\hpcflow\cli.py".Replace('\', '\\') + "')"
           Write-Host actual: $actual
           Write-Host expected: $expected
           if ($actual -ne $expected) {

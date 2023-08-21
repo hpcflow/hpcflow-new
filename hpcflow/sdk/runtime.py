@@ -46,6 +46,7 @@ class RunTimeInfo:
         self.in_ipython = False
         self.is_interactive = False
         self.in_pytest = False  # set in `conftest.py`
+        self.from_CLI = False  # set in CLI
 
         if self.is_frozen:
             self.bundle_dir = Path(bundle_dir)
@@ -120,6 +121,7 @@ class RunTimeInfo:
             "invocation_command": self.invocation_command,
             "in_ipython": self.in_ipython,
             "in_pytest": self.in_pytest,
+            "from_CLI": self.from_CLI,
         }
         if self.is_frozen:
             out.update(
@@ -247,17 +249,15 @@ class RunTimeInfo:
         """Get the command that was used to invoke this instance of the app."""
         if self.is_frozen:
             # (this also works if we are running tests using the frozen app)
-            return [str(self.resolved_executable_path)]
+            command = [str(self.resolved_executable_path)]
+        elif self.from_CLI:
+            command = [
+                str(self.python_executable_path),
+                str(self.resolved_script_path),
+            ]
         else:
-            if self.is_interactive or self.in_ipython or self.in_pytest:
-                app_module = import_module(self.package_name)
-                CLI_path = Path(*app_module.__path__, "cli.py")
-                command = [str(self.python_executable_path), str(CLI_path)]
+            app_module = import_module(self.package_name)
+            CLI_path = Path(*app_module.__path__, "cli.py")
+            command = [str(self.python_executable_path), str(CLI_path)]
 
-            else:
-                command = [
-                    str(self.python_executable_path),
-                    str(self.resolved_script_path),
-                ]
-
-            return tuple(command)
+        return tuple(command)
