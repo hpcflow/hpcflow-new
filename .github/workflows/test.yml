@@ -207,7 +207,7 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with non-interactive python
+      - name: Test invocation command within a python script
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
@@ -215,6 +215,16 @@ jobs:
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
+
+      - name: Test direct workflow submission within a python script
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
+
+      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
+        run: |
+          source $(poetry env info --path)/bin/activate
+          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
         run: |
@@ -290,7 +300,7 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-      - name: Test invocation command with non-interactive python
+      - name: Test invocation command within a python script
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
@@ -298,6 +308,16 @@ jobs:
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
+
+      - name: Test direct workflow submission within a python script
+        run: |
+          source $(poetry env info --path)/bin/activate
+          python ./.github/workflows/test_direct_sub_python_script.py hpcflow.app
+
+      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
+        run: |
+          source $(poetry env info --path)/bin/activate
+          papermill ./.github/workflows/test_direct_sub_jupyter_notebook.ipynb ./.github/workflows/test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
 
       - name: Test invocation command with interactive python
         run: |
@@ -378,7 +398,7 @@ jobs:
             exit 1
           }
 
-      - name: Test invocation command with non-interactive python
+      - name: Test invocation command within a python script
         run: |
           ."$(poetry env info --path)\Scripts\activate.ps1"
           $actual = $(python .\.github\workflows\get_invoc_cmd.py hpcflow.app)
@@ -388,3 +408,14 @@ jobs:
           if ($actual -ne $expected) {
             exit 1
           }
+
+      - name: Test direct workflow submission within a python script
+        run: |
+          ."$(poetry env info --path)\Scripts\activate.ps1"
+          python .\.github\workflows\test_direct_sub_python_script.py hpcflow.app
+  
+      - name: Test direct workflow submission within a Jupyter notebook (via papermill)
+        run: |
+          ."$(poetry env info --path)\Scripts\activate.ps1"
+          papermill .\.github\workflows\test_direct_sub_jupyter_notebook.ipynb .\.github\workflows\test_direct_sub_jupyter_notebook_${{ runner.os }}.ipynb -p app_import_str hpcflow.app
+  
