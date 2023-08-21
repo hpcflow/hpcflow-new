@@ -729,12 +729,14 @@ def make_cli(app):
     colorama_init(autoreset=True)
 
     def run_time_info_callback(ctx, param, value):
+        app.run_time_info.from_CLI = True
         if not value or ctx.resilient_parsing:
             return
         app.run_time_info.show()
         ctx.exit()
 
     def clear_known_subs_file_callback(ctx, param, value):
+        app.run_time_info.from_CLI = True
         if not value or ctx.resilient_parsing:
             return
         app.clear_known_submissions_file()
@@ -781,6 +783,7 @@ def make_cli(app):
     )
     @click.pass_context
     def new_CLI(ctx, config_dir, config_invocation_key, with_config):
+        app.run_time_info.from_CLI = True
         if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
             # don't load the config if we are resetting it - it could be invalid
             overrides = {kv[0]: kv[1] for kv in with_config}
