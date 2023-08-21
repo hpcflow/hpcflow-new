@@ -181,7 +181,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-linux-{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: venv-test-invocation-linux{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -283,7 +283,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-macos-{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: venv-test-invocation-macos{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -385,7 +385,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-windows-{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
+          key: venv-test-invocation-windows{% raw %}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
 
       - name: Install dependencies
         run: |
