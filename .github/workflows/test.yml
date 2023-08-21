@@ -10,18 +10,18 @@ env:
 on:
   workflow_dispatch: # manual invocation
     inputs:
-      run_pre_commit:
+      pre_commit:
         description: "Run pre-commit."
         required: true
         type: boolean
         default: true
-      run_unit_tests:
-        description: "Run unit test on a matrix of OS/Python versions."
+      unit_tests:
+        description: "Run unit tests"
         required: true
         type: boolean
         default: true
-      run_invoc_cmd_tests:
-        description: "Run invocation command tests."
+      invocation_tests:
+        description: "Run invocation tests."
         required: true
         type: boolean
         default: true
@@ -32,7 +32,7 @@ on:
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.run_pre_commit == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.pre_commit == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -70,9 +70,9 @@ jobs:
             git push
           fi
 
-  test:
+  test-units:
     needs: pre-commit
-    if: github.event_name == 'pull_request' || github.event.inputs.run_unit_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.unit_tests == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -116,10 +116,10 @@ jobs:
         run: |
           poetry run python -m pytest --verbose --exitfirst
 
-  test-CentOS:
+  test-units-CentOS:
     needs: pre-commit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.run_unit_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.unit_tests == 'true'
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
@@ -150,10 +150,9 @@ jobs:
       - name: Run tests
         run: |
           poetry run python -m pytest --verbose --exitfirst
-
-  test-invoc-cmd-ubuntu:
+  test-invocation-ubuntu:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.run_invoc_cmd_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -211,7 +210,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py ')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -245,9 +244,9 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-  test-invoc-cmd-macos:
+  test-invocation-macos:
     runs-on: macos-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.run_invoc_cmd_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -305,7 +304,7 @@ jobs:
         run: |
           source $(poetry env info --path)/bin/activate
           actual=$(python ./.github/workflows/get_invoc_cmd.py hpcflow.app)
-          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py')"
+          expected="('`command -v python`', '$GITHUB_WORKSPACE/hpcflow/cli.py ')"
           echo actual: $actual
           echo expected: $expected
           [ "$actual" = "$expected" ]
@@ -339,9 +338,9 @@ jobs:
           echo expected: $expected
           [ "$actual" = "$expected" ]
 
-  test-invoc-cmd-windows:
+  test-invocation-windows:
     runs-on: windows-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.run_invoc_cmd_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
