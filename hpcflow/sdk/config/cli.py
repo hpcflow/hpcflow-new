@@ -87,8 +87,7 @@ def get_config_CLI(app):
         ctx.exit()
 
     @click.group()
-    @click.option("--invocation", default="_")
-    def config(invocation):
+    def config():
         """Configuration sub-command for getting and setting data in the configuration
         file(s)."""
 
