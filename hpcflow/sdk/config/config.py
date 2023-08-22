@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
 from valida.schema import Schema
-from hpcflow.sdk.core.utils import get_in_container, set_in_container
+from hpcflow.sdk.core.utils import get_in_container, read_YAML_file, set_in_container
 
 from hpcflow.sdk.core.validation import get_schema
 from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
@@ -733,3 +733,15 @@ class Config:
             print(f"Scheduler {scheduler!r} already exists.")
             return
         self.update(f"schedulers.{scheduler}", kwargs)
+
+    def import_from_file(self, file_path):
+        """Import config items from a (remote or local) YAML file. Existing config items
+        of the same names will be overwritten."""
+
+        file_dat = read_YAML_file(file_path)
+
+        # sort in reverse so "schedulers" and "shells" are set before "default_scheduler"
+        # and "default_shell" which might reference the former:
+        file_dat = dict(sorted(file_dat.items(), reverse=True))
+        for k, v in file_dat.items():
+            self.set(k, value=v)

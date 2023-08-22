@@ -108,6 +108,14 @@ def get_config_CLI(app):
         """Show a list of all configurable keys."""
         click.echo("\n".join(ctx.obj["config"].get_configurable()))
 
+    @config.command("import")
+    @click.argument("file_path")
+    @click.pass_context
+    def import_from_file(ctx, file_path):
+        """Update the config file with keys from a YAML file."""
+        ctx.obj["config"].import_from_file(file_path)
+        ctx.obj["config"].save()
+
     @config.command()
     @click.argument("name")
     @click.option(
