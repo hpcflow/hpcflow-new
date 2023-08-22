@@ -466,13 +466,16 @@ class Config:
         parts = path.split(".")
         name = parts[0]
         root = deepcopy(self._get(name, callback=False))
-        set_in_container(
-            cont=root,
-            path=parts[1:],
-            value=value,
-            ensure_path=True,
-            cast_indices=True,
-        )
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=value,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = value
         self._set(name, root)
 
     def unset(self, name):
