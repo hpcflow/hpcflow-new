@@ -1,6 +1,5 @@
 from pathlib import Path
 import re
-import subprocess
 from typing import Dict, List, Tuple
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
@@ -157,13 +156,7 @@ class SGEPosix(Scheduler):
 
     def get_version_info(self):
         vers_cmd = self.show_cmd + ["-help"]
-        proc = subprocess.run(
-            args=vers_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout = proc.stdout.decode().strip()
-        stderr = proc.stderr.decode().strip()
+        stdout, stderr = run_cmd(vers_cmd)
         if stderr:
             print(stderr)
         version_str = stdout.split("\n")[0].strip()
