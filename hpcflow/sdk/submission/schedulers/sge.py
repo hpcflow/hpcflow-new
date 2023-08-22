@@ -36,6 +36,7 @@ class SGEPosix(Scheduler):
     DEFAULT_ARRAY_SWITCH = "-t"
     DEFAULT_ARRAY_ITEM_VAR = "SGE_TASK_ID"
     DEFAULT_CWD_SWITCH = "-cwd"
+    DEFAULT_LOGIN_NODES_CMD = ["qconf", "-sh"]
 
     # maps scheduler states:
     state_lookup = {
@@ -123,6 +124,15 @@ class SGEPosix(Scheduler):
                     f"No compatible SGE parallel environment could be found for the "
                     f"specified `num_cores` ({resources.num_cores!r})."
                 )
+
+    def get_login_nodes(self):
+        """Return a list of hostnames of login/administrative nodes as reported by the
+        scheduler."""
+        stdout, stderr = run_cmd(self.login_nodes_cmd)
+        if stderr:
+            print(stderr)
+        nodes = stdout.split("\n")
+        return nodes
 
     def format_core_request_lines(self, resources):
         lns = []

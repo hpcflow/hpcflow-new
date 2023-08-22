@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 import click
 from colorama import init as colorama_init
@@ -417,6 +418,7 @@ def _make_submission_CLI(app):
     @click.pass_context
     def submission(ctx):
         """Submission-related queries."""
+        ctx.ensure_object(dict)
 
     @submission.command("shell-info")
     @click.argument("shell_name", type=click.Choice(ALL_SHELLS))
@@ -426,6 +428,18 @@ def _make_submission_CLI(app):
         """Show information about the specified shell, such as the version."""
         pprint(app.get_shell_info(shell_name, exclude_os))
         ctx.exit()
+
+    @submission.group("scheduler")
+    @click.argument("scheduler_name")
+    @click.pass_context
+    def scheduler(ctx, scheduler_name):
+        ctx.obj["scheduler_obj"] = app.get_scheduler(scheduler_name, "posix")  # os.name)
+
+    @scheduler.command()
+    @click.pass_context
+    def get_login_nodes(ctx):
+        scheduler = ctx.obj["scheduler_obj"]
+        pprint(scheduler.get_login_nodes())
 
     return submission
 

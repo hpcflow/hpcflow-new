@@ -392,6 +392,25 @@ class BaseApp(metaclass=Singleton):
             ("slurm", "posix"): self.SlurmPosix,
         }
 
+    def get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
+        """Get an arbitrary scheduler object."""
+        scheduler_args = scheduler_args or {}
+
+        os_name = os_name.lower()
+        if os_name == "nt" and "_" in scheduler_name:
+            # e.g. WSL on windows uses *_posix
+            key = tuple(scheduler_name.split("_"))
+        else:
+            key = (scheduler_name.lower(), os_name)
+
+        try:
+            scheduler_cls = self.scheduler_lookup[key]
+        except KeyError:
+            raise ValueError(
+                f"Unsupported combination of scheduler and operation system: {key!r}"
+            )
+        return scheduler_cls(**scheduler_args)
+
     def get_OS_supported_schedulers(self):
         """Retrieve a list of schedulers that are supported in principle by this operating
         system.
