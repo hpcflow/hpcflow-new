@@ -650,7 +650,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def config(path=False):
-        """Open the {app_name} config file."""
+        """Open the {app_name} config file, or retrieve it's path."""
         file_path = app.config.get("config_file_path")
         if path:
             click.echo(file_path)

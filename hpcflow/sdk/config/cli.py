@@ -237,4 +237,17 @@ def get_config_CLI(app):
         configuration."""
         app.load_data_files()
 
+    @config.command()
+    @click.option("--path", is_flag=True, default=False)
+    def open(path=False):
+        """Alias for `{package_name} open config`: open the configuration file, or retrieve
+        it's path."""
+        file_path = app.config.get("config_file_path")
+        if path:
+            click.echo(file_path)
+        else:
+            utils.open_file(file_path)
+
+    open.help = open.help.format(package_name=app.package_name)
+
     return config
