@@ -74,6 +74,22 @@ def callback_supported_schedulers(config, schedulers):
     return schedulers
 
 
+def callback_scheduler_set_up(config, schedulers):
+    """Run scheduler-specific config initialisation."""
+    print(f"{schedulers=}")
+    for k, v in schedulers.items():
+        sched = config.app.get_scheduler(
+            scheduler_name=k,
+            os_name=os.name,
+            scheduler_args=v["defaults"],
+        )
+        if hasattr(sched, "get_login_nodes"):
+            login_nodes = sched.get_login_nodes()
+            print("login_nodes")
+            print(login_nodes)
+            # TODO: set the config match hostname argument to this list
+
+
 def callback_supported_shells(config, shell_name):
     supported = get_supported_shells(os.name)
     if shell_name not in supported:

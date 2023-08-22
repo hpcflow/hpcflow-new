@@ -26,6 +26,7 @@ from hpcflow.sdk.typing import PathLike
 from .callbacks import (
     callback_bool,
     callback_lowercase,
+    callback_scheduler_set_up,
     callback_supported_schedulers,
     callback_supported_shells,
     callback_update_log_console_level,
@@ -147,7 +148,7 @@ class Config:
             "command_file_sources": (set_callback_file_paths, check_load_data_files),
             "default_scheduler": (exists_in_schedulers,),
             "default_shell": (callback_supported_shells,),
-            "schedulers": (callback_supported_schedulers,),
+            "schedulers": (callback_supported_schedulers, callback_scheduler_set_up),
             "log_file_path": (set_callback_file_paths,),
             "log_console_level": (callback_update_log_console_level,),
         }
@@ -745,3 +746,5 @@ class Config:
         file_dat = dict(sorted(file_dat.items(), reverse=True))
         for k, v in file_dat.items():
             self.set(k, value=v)
+
+        # TODO: need to consider scheduler args e.g. if login_nodes_cmd was provided?

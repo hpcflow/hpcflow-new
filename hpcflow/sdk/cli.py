@@ -433,7 +433,7 @@ def _make_submission_CLI(app):
     @click.argument("scheduler_name")
     @click.pass_context
     def scheduler(ctx, scheduler_name):
-        ctx.obj["scheduler_obj"] = app.get_scheduler(scheduler_name, "posix")  # os.name)
+        ctx.obj["scheduler_obj"] = app.get_scheduler(scheduler_name, os.name)
 
     @scheduler.command()
     @click.pass_context
