@@ -78,7 +78,7 @@ def callback_scheduler_set_up(config, schedulers):
     """Run scheduler-specific config initialisation."""
     print(f"{schedulers=}")
     for k, v in schedulers.items():
-        sched = config.app.get_scheduler(
+        sched = config._app.get_scheduler(
             scheduler_name=k,
             os_name=os.name,
             scheduler_args=v["defaults"],
