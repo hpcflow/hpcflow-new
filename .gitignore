@@ -148,3 +148,5 @@ docs/source/reference/_autosummary/
 
 # generated via conf.py
 docs/source/reference/_generated
+
+*.pptx
