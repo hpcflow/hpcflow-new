@@ -1783,12 +1783,16 @@ class Workflow:
                 raise NotImplementedError("The workflow is not submittable.")
             with self.batch_update():
                 # commit updates before raising exception:
-                exceptions, submitted_js = self._submit(
-                    ignore_errors=ignore_errors,
-                    JS_parallelism=JS_parallelism,
-                    print_stdout=print_stdout,
-                    status=status,
-                )
+                try:
+                    exceptions, submitted_js = self._submit(
+                        ignore_errors=ignore_errors,
+                        JS_parallelism=JS_parallelism,
+                        print_stdout=print_stdout,
+                        status=status,
+                    )
+                except Exception:
+                    status.stop()
+                    raise
 
         if exceptions:
             msg = "\n" + "\n\n".join([i.message for i in exceptions])

@@ -508,7 +508,7 @@ class Jobscript(JSONLike):
 
     @property
     def is_array(self):
-        if not self.scheduler_name:
+        if self.scheduler_name == "direct":
             return False
 
         support_EAR_para = self.workflow._store._features.EAR_parallelism
