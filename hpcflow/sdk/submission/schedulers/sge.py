@@ -131,7 +131,7 @@ class SGEPosix(Scheduler):
         stdout, stderr = run_cmd(self.login_nodes_cmd)
         if stderr:
             print(stderr)
-        nodes = stdout.split("\n")
+        nodes = stdout.strip().split("\n")
         return nodes
 
     def format_core_request_lines(self, resources):
