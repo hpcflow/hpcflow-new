@@ -6,7 +6,6 @@ import io
 import logging
 import os
 from pathlib import Path
-from tkinter import E
 from typing import Dict, Optional, Union
 
 from ruamel.yaml import YAML
