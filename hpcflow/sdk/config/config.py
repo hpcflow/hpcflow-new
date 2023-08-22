@@ -110,7 +110,7 @@ class Config:
         options: ConfigOptions,
         logger: logging.Logger,
         config_dir: Optional[PathLike],
-        config_invocation_key: Optional[str],
+        config_key: Optional[str],
         uid=None,
         callbacks=None,
         variables=None,
@@ -153,7 +153,7 @@ class Config:
         cfg_schemas, cfg_keys = self._init_schemas()
         self._schemas = cfg_schemas
 
-        self._file = ConfigFile(self, config_dir, config_invocation_key)
+        self._file = ConfigFile(self, config_dir, config_key)
 
         self._configurable_keys = cfg_keys
         self._modified_keys = {}
@@ -170,7 +170,7 @@ class Config:
             "config_file_name": self._file.path.name,
             "config_file_path": self._file.path,
             "config_file_contents": self._file.contents,
-            "config_invocation_key": self._file.invoc_key,
+            "config_key": self._file.invoc_key,
             "config_schemas": cfg_schemas,
             "invoking_user_id": uid or host_uid,
             "host_user_id": host_uid,

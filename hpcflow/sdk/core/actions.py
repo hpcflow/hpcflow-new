@@ -537,7 +537,7 @@ class ElementActionRun:
                     app.load_config(
                         log_file_path=Path("{app_package_name}.log").resolve(),
                         config_dir=r"{cfg_dir}",
-                        config_invocation_key=r"{cfg_invoc_key}",
+                        config_key=r"{cfg_invoc_key}",
                     )
                     wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
                     EAR_ID = int(EAR_ID)
@@ -548,7 +548,7 @@ class ElementActionRun:
                 app_package_name=self.app.package_name,
                 app_module=self.app.module,
                 cfg_dir=self.app.config.config_directory,
-                cfg_invoc_key=self.app.config.config_invocation_key,
+                cfg_invoc_key=self.app.config.config_key,
             )
         else:
             py_main_block_workflow_load = ""

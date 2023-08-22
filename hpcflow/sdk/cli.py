@@ -774,7 +774,7 @@ def make_cli(app):
         callback=clear_known_subs_file_callback,
     )
     @click.option("--config-dir", help="Set the configuration directory.")
-    @click.option("--config-invocation-key", help="Set the configuration invocation key.")
+    @click.option("--config-key", help="Set the configuration invocation key.")
     @click.option(
         "--with-config",
         help="Override a config item in the config file",
@@ -782,7 +782,7 @@ def make_cli(app):
         multiple=True,
     )
     @click.pass_context
-    def new_CLI(ctx, config_dir, config_invocation_key, with_config):
+    def new_CLI(ctx, config_dir, config_key, with_config):
         app.run_time_info.from_CLI = True
         if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
             # don't load the config if we are resetting it - it could be invalid
@@ -790,7 +790,7 @@ def make_cli(app):
             try:
                 app.load_config(
                     config_dir=config_dir,
-                    config_invocation_key=config_invocation_key,
+                    config_key=config_key,
                     **overrides,
                 )
             except ConfigError as err:

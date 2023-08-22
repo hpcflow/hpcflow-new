@@ -38,7 +38,7 @@ rules:
         - config_file_name # Config metadata
         - config_file_path # Config metadata
         - config_file_contents # Config metadata
-        - config_invocation_key # Config metadata
+        - config_key # Config metadata
         - config_schemas # Config metadata
         - invoking_user_id # Config metadata
         - host_user_id # Config metadata

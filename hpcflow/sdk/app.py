@@ -420,13 +420,13 @@ class BaseApp(metaclass=Singleton):
             logger=self.persistence_logger,
         )
 
-    def _load_config(self, config_dir, config_invocation_key, **overrides) -> None:
+    def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._config = Config(
             app=self,
             options=self.config_options,
             config_dir=config_dir,
-            config_invocation_key=config_invocation_key,
+            config_key=config_key,
             logger=self.config_logger,
             variables={"app_name": self.name, "app_version": self.version},
             **overrides,
@@ -442,12 +442,12 @@ class BaseApp(metaclass=Singleton):
     def load_config(
         self,
         config_dir=None,
-        config_invocation_key=None,
+        config_key=None,
         **overrides,
     ) -> None:
         if self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
-        self._load_config(config_dir, config_invocation_key, **overrides)
+        self._load_config(config_dir, config_key, **overrides)
 
     def get_config_path(self, config_dir=None):
         """Return the full path to the config file, without loading the config."""
@@ -467,25 +467,25 @@ class BaseApp(metaclass=Singleton):
     def reset_config(
         self,
         config_dir=None,
-        config_invocation_key=None,
+        config_key=None,
         **overrides,
     ) -> None:
         """Reset the config file to defaults, and reload the config."""
         self.logger.info(f"resetting config")
         self._delete_config_file(config_dir=config_dir)
         self._config = None
-        self.load_config(config_dir, config_invocation_key, **overrides)
+        self.load_config(config_dir, config_key, **overrides)
 
     def reload_config(
         self,
         config_dir=None,
-        config_invocation_key=None,
+        config_key=None,
         **overrides,
     ) -> None:
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
         self.log.remove_file_handlers()
-        self._load_config(config_dir, config_invocation_key, **overrides)
+        self._load_config(config_dir, config_key, **overrides)
 
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
