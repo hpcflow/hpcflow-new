@@ -15,7 +15,7 @@ def test_reset_config(null_config):
     assert hf.config.get("machine") == machine_name
 
 
-def test_raise_on_invalid_config_file(null_config):
+def test_raise_on_invalid_config_file(new_null_config):
     # make an invalid config file:
     cfg_path = hf.config.get("config_file_path")
     with cfg_path.open("at+") as f:
@@ -25,11 +25,11 @@ def test_raise_on_invalid_config_file(null_config):
     cfg_dir = hf.config.get("config_directory")
     with pytest.raises(ConfigFileValidationError):
         hf.reload_config(config_dir=cfg_dir)
-
+    hf.reset_config(config_dir=cfg_dir)
     hf.unload_config()
 
 
-def test_reset_invalid_config(null_config):
+def test_reset_invalid_config(new_null_config):
     # make an invalid config file:
     cfg_path = hf.config.get("config_file_path")
     with cfg_path.open("at+") as f:
