@@ -88,6 +88,7 @@ def callback_scheduler_set_up(config, schedulers):
             print("login_nodes")
             print(login_nodes)
             # TODO: set the config match hostname argument to this list
+    return schedulers
 
 
 def callback_supported_shells(config, shell_name):
