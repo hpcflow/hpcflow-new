@@ -449,6 +449,9 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_key, **overrides)
 
+    def unload_config(self):
+        self._config = None
+
     def get_config_path(self, config_dir=None):
         """Return the full path to the config file, without loading the config."""
         config_dir = ConfigFile._resolve_config_dir(

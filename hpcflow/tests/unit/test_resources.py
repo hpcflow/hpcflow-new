@@ -121,7 +121,7 @@ def test_use_persistent_resource_list(null_config, tmp_path, store):
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_default_scheduler_set(null_config, tmp_path, store):
+def test_default_scheduler_set(new_null_config, tmp_path, store):
     wk = hf.Workflow.from_template_data(
         template_name="wk",
         path=tmp_path,
@@ -185,7 +185,7 @@ def test_os_name_strip(null_config):
     assert rs1.os_name == rs2.os_name == "nt"
 
 
-def test_raise_on_unsupported_scheduler(null_config, tmp_path):
+def test_raise_on_unsupported_scheduler(new_null_config, tmp_path):
     # slurm not supported by default config file:
     wk = hf.Workflow.from_template_data(
         template_name="wk1",
@@ -202,7 +202,7 @@ def test_raise_on_unsupported_scheduler(null_config, tmp_path):
         wk.add_submission()
 
 
-def test_can_use_non_default_scheduler(null_config, tmp_path):
+def test_can_use_non_default_scheduler(new_null_config, tmp_path):
     # for either OS choose a compatible scheduler not set by default:
     if os.name == "nt":
         opt_scheduler = "direct_posix"  # i.e for WSL

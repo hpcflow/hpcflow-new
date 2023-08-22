@@ -210,16 +210,16 @@ class Config:
         The original get and set callback dictionaries.
         """
         self._logger.info(f"disabling config callbacks: {callbacks!r}")
-        get_callbacks = copy.copy(self._get_callbacks)
-        set_callbacks = copy.copy(self._set_callbacks)
         get_callbacks_tmp = {
             k: tuple(i for i in v if i.__name__ not in callbacks)
-            for k, v in get_callbacks.items()
+            for k, v in self._get_callbacks.items()
         }
         set_callbacks_tmp = {
             k: tuple(i for i in v if i.__name__ not in callbacks)
-            for k, v in set_callbacks.items()
+            for k, v in self._set_callbacks.items()
         }
+        get_callbacks = copy.deepcopy(self._get_callbacks)
+        set_callbacks = copy.deepcopy(self._set_callbacks)
         self._get_callbacks = get_callbacks_tmp
         self._set_callbacks = set_callbacks_tmp
         return (get_callbacks, set_callbacks)
