@@ -1,6 +1,8 @@
 from __future__ import annotations
+import contextlib
 
 from copy import deepcopy
+import copy
 import functools
 import json
 import logging
@@ -199,6 +201,36 @@ class Config:
             self._set(name, value)
         else:
             super().__setattr__(name, value)
+
+    def _disable_callbacks(self, callbacks) -> Tuple[Dict]:
+        """Disable named get and set callbacks.
+
+        Returns
+        -------
+        The original get and set callback dictionaries.
+        """
+        self._logger.info(f"disabling config callbacks: {callbacks!r}")
+        get_callbacks = copy.copy(self._get_callbacks)
+        set_callbacks = copy.copy(self._set_callbacks)
+        get_callbacks_tmp = {
+            k: tuple(i for i in v if i.__name__ not in callbacks)
+            for k, v in get_callbacks.items()
+        }
+        set_callbacks_tmp = {
+            k: tuple(i for i in v if i.__name__ not in callbacks)
+            for k, v in set_callbacks.items()
+        }
+        self._get_callbacks = get_callbacks_tmp
+        self._set_callbacks = set_callbacks_tmp
+        return (get_callbacks, set_callbacks)
+
+    @contextlib.contextmanager
+    def _without_callbacks(self, *callbacks):
+        """Context manager to temporarily exclude named get and set callbacks."""
+        get_callbacks, set_callbacks = self._disable_callbacks(*callbacks)
+        yield
+        self._get_callbacks = get_callbacks
+        self._set_callbacks = set_callbacks
 
     def _validate(self, data=None, raise_with_metadata=True):
         """Validate configuration items of the loaded invocation."""

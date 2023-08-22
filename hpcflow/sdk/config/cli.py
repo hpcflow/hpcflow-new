@@ -11,6 +11,8 @@ import click
 from colorama import init as colorama_init
 from termcolor import colored
 
+from hpcflow.sdk.core import utils
+
 from .errors import ConfigError
 
 logger = logging.getLogger(__name__)
@@ -77,24 +79,34 @@ def get_config_CLI(app):
     def show_all_config(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        print(app.config.to_string(exclude=["config_file_contents"]))
+        print(ctx.obj["config"].to_string(exclude=["config_file_contents"]))
         ctx.exit()
 
     def show_config_file(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        print(app.config.config_file_contents)
+        print(ctx.obj["config"].config_file_contents)
         ctx.exit()
 
     @click.group()
-    def config():
+    @click.option(
+        "--no-callback",
+        multiple=True,
+        help="Exclude a named get/set callback function during execution of the command.",
+    )
+    @click.pass_context
+    def config(ctx, no_callback):
         """Configuration sub-command for getting and setting data in the configuration
         file(s)."""
+        ctx.ensure_object(dict)
+        ctx.obj["config"] = app.config
+        ctx.obj["config"]._disable_callbacks(no_callback)
 
     @config.command("list")
-    def config_list():
+    @click.pass_context
+    def config_list(ctx):
         """Show a list of all configurable keys."""
-        click.echo("\n".join(app.config.get_configurable()))
+        click.echo("\n".join(ctx.obj["config"].get_configurable()))
 
     @config.command()
     @click.argument("name")
@@ -114,10 +126,11 @@ def get_config_CLI(app):
         help="Show the contents of the configuration file.",
         callback=show_config_file,
     )
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def get(name):
+    def get(ctx, name):
         """Show the value of the specified configuration item."""
-        val = app.config.get(name)
+        val = ctx.obj["config"].get(name)
         if isinstance(val, list):
             val = "\n".join(str(i) for i in val)
         click.echo(val)
@@ -132,19 +145,21 @@ def get_config_CLI(app):
         default=False,
         help="Interpret VALUE as a JSON string.",
     )
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def set(name, value, is_json):
+    def set(ctx, name, value, is_json):
         """Set and save the value of the specified configuration item."""
-        app.config.set(name, value, is_json)
-        app.config.save()
+        ctx.obj["config"].set(name, value, is_json)
+        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def unset(name):
+    def unset(ctx, name):
         """Unset and save the value of the specified configuration item."""
-        app.config.unset(name)
-        app.config.save()
+        ctx.obj["config"].unset(name)
+        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")
@@ -156,15 +171,16 @@ def get_config_CLI(app):
         default=False,
         help="Interpret VALUE as a JSON string.",
     )
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def append(name, value, is_json):
+    def append(ctx, name, value, is_json):
         """Append a new value to the specified configuration item.
 
         NAME is the dot-delimited path to the list to be appended to.
 
         """
-        app.config.append(name, value, is_json)
-        app.config.save()
+        ctx.obj["config"].append(name, value, is_json)
+        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")
@@ -176,28 +192,30 @@ def get_config_CLI(app):
         default=False,
         help="Interpret VALUE as a JSON string.",
     )
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def prepend(name, value, is_json):
+    def prepend(ctx, name, value, is_json):
         """Prepend a new value to the specified configuration item.
 
         NAME is the dot-delimited path to the list to be prepended to.
 
         """
-        app.config.prepend(name, value, is_json)
-        app.config.save()
+        ctx.obj["config"].prepend(name, value, is_json)
+        ctx.obj["config"].save()
 
     @config.command(context_settings={"ignore_unknown_options": True})
     @click.argument("name")
     @click.argument("index", type=click.types.INT)
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def pop(name, index):
+    def pop(ctx, name, index):
         """Remove a value from a list-like configuration item.
 
         NAME is the dot-delimited path to the list to be modified.
 
         """
-        app.config.pop(name, index)
-        app.config.save()
+        ctx.obj["config"].pop(name, index)
+        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")
@@ -209,27 +227,29 @@ def get_config_CLI(app):
         default=False,
         help="Interpret VALUE as a JSON string.",
     )
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def update(name, value, is_json):
+    def update(ctx, name, value, is_json):
         """Update a map-like value in the configuration.
 
         NAME is the dot-delimited path to the map to be updated.
 
         """
-        app.config.update(name, value, is_json)
-        app.config.save()
+        ctx.obj["config"].update(name, value, is_json)
+        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")
     @click.option("--defaults")
+    @click.pass_context
     @CLI_exception_wrapper_gen(ConfigError)
-    def add_scheduler(name, defaults):
+    def add_scheduler(ctx, name, defaults):
         if defaults:
             defaults = json.loads(defaults)
         else:
             defaults = {}
-        app.config.add_scheduler(name, defaults=defaults)
-        app.config.save()
+        ctx.obj["config"].add_scheduler(name, defaults=defaults)
+        ctx.obj["config"].save()
 
     @config.command()
     def load_data_files():
@@ -239,10 +259,11 @@ def get_config_CLI(app):
 
     @config.command()
     @click.option("--path", is_flag=True, default=False)
-    def open(path=False):
+    @click.pass_context
+    def open(ctx, path=False):
         """Alias for `{package_name} open config`: open the configuration file, or retrieve
         it's path."""
-        file_path = app.config.get("config_file_path")
+        file_path = ctx.obj["config"].get("config_file_path")
         if path:
             click.echo(file_path)
         else:

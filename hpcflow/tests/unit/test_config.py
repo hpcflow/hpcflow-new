@@ -1,3 +1,4 @@
+import os
 import pytest
 
 from hpcflow.app import app as hf
@@ -53,3 +54,16 @@ def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name():
     new_default = "slurm"  # valid but unsupported (by default) scheduler
     with pytest.raises(ConfigItemCallbackError):
         hf.config.default_scheduler = new_default
+
+
+def test_without_callbacks_ctx_manager():
+    # set a new shell that would raise an error in the `callback_supported_shells`:
+    new_default = "bash" if os.name == "nt" else "powershell"
+
+    with hf.config._without_callbacks("callback_supported_shells"):
+        hf.config.default_shell = new_default
+        assert hf.config.default_shell == new_default
+
+    # outside the context manager, the callback is reinstated, which should raise:
+    with pytest.raises(ConfigItemCallbackError):
+        hf.config.default_shell
