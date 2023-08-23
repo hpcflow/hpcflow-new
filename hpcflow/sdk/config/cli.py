@@ -111,10 +111,28 @@ def get_config_CLI(app):
 
     @config.command("import")
     @click.argument("file_path")
+    @click.option(
+        "--rename",
+        type=click.BOOL,
+        default=True,
+        help=(
+            "If True, rename the currently loaded config file according to the name of "
+            f"the file that is being imported. Ignored if `--new` is specified."
+        ),
+    )
+    @click.option(
+        "--new",
+        type=click.BOOL,
+        default=False,
+        help=(
+            "If True, generate a new default config, and import the file into this "
+            "config. If False, modify the currently loaded config."
+        ),
+    )
     @click.pass_context
-    def import_from_file(ctx, file_path):
+    def import_from_file(ctx, file_path, new=False):
         """Update the config file with keys from a YAML file."""
-        ctx.obj["config"].import_from_file(file_path)
+        ctx.obj["config"].import_from_file(file_path, rename=rename, new=new)
         ctx.obj["config"].save()
 
     @config.command()
