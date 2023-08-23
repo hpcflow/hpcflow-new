@@ -36,6 +36,9 @@ class NullScheduler:
 
 
 class Scheduler(NullScheduler):
+    DEFAULT_LOGIN_NODES_CMD = None
+    DEFAULT_LOGIN_NODE_MATCH = "*login*"
+
     def __init__(
         self,
         submit_cmd=None,

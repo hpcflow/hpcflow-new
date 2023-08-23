@@ -74,9 +74,34 @@ def callback_supported_schedulers(config, schedulers):
     return schedulers
 
 
+def set_scheduler_invocation_match(config, scheduler: str):
+    """Invoked on set of `default_scheduler`.
+
+    For clusters with "proper" schedulers (SGE, SLURM, etc.), login nodes are typically
+    named using the word "login". So we can use this knowledge to set a default for the
+    "hostname" invocation match key, if it is not manually set. However, it is preferable
+    that on clusters the hostname match is explicitly set.
+
+    """
+    default_args = config.get(f"schedulers.{scheduler}").get("defaults", {})
+    sched = config._app.get_scheduler(
+        scheduler_name=scheduler,
+        os_name=os.name,
+        scheduler_args=default_args,
+    )
+    if hasattr(sched, "DEFAULT_LOGIN_NODE_MATCH"):
+        if "hostname" not in config._file.invocation["match"]:
+            config._file.update_invocation(
+                match={"hostname": sched.DEFAULT_LOGIN_NODE_MATCH}
+            )
+
+
 def callback_scheduler_set_up(config, schedulers):
-    """Run scheduler-specific config initialisation."""
-    print(f"{schedulers=}")
+    """Invoked on set of `schedulers`.
+
+    Runs scheduler-specific config initialisation.
+
+    """
     for k, v in schedulers.items():
         sched = config._app.get_scheduler(
             scheduler_name=k,
@@ -84,10 +109,11 @@ def callback_scheduler_set_up(config, schedulers):
             scheduler_args=v.get("defaults", {}),
         )
         if hasattr(sched, "get_login_nodes"):
-            login_nodes = sched.get_login_nodes()
-            print("login_nodes")
-            print(login_nodes)
-            # TODO: set the config match hostname argument to this list
+            # some `Scheduler` classes have a `get_login_nodes` method which can be used
+            # to populate the names of login nodes explicitly, if not already set:
+            if "hostname" not in config._file.invocation["match"]:
+                login_nodes = sched.get_login_nodes()
+                config._file.update_invocation(match={"hostname": login_nodes})
     return schedulers
 
 
