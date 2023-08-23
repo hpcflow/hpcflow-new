@@ -823,12 +823,18 @@ class Config:
                 )
         fs = fsspec.open(fsspec_path).fs
         files = fs.glob("*.yaml") + fs.glob("*.yml")
-        files = [i for i in files if i.startswith(known_name)]
+        self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
+        files = [i for i in files if Path(i).stem.startswith(known_name)]
+        if not files:
+            print(f"No configuration-import files found matching name {known_name!r}.")
+            return
+
         print(f"Found configuration-import files: {files!r}")
         for i in files:
             path_i = f"{fsspec_path}/{i}"
             self.import_from_file(file_path=path_i, make_new=True)
 
+        print(f"imports complete")
         # if current config is named "default", rename machine to DEFAULT_CONFIG:
         if self.config_key == "default":
             self.set("machine", "DEFAULT_MACHINE")

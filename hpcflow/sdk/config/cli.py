@@ -299,10 +299,17 @@ def get_config_CLI(app):
 
     @config.command()
     @click.argument("known_name")
-    @click.option("--path", default=None)
+    @click.option(
+        "--path",
+        default=None,
+        help=(
+            "An `fsspec`-compatible path in which to look for configuration-import "
+            "files."
+        ),
+    )
     @click.pass_context
     def init(ctx, known_name, path):
-        ctx.obj["config"].init(known_name, path)
+        ctx.obj["config"].init(known_name=known_name, fsspec_path=path)
 
     open.help = open.help.format(package_name=app.package_name)
 
