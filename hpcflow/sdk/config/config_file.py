@@ -16,6 +16,7 @@ from .errors import (
     ConfigChangeFileUpdateError,
     ConfigDefaultValidationError,
     ConfigFileInvocationIncompatibleError,
+    ConfigFileInvocationUnknownMatchKey,
     ConfigFileValidationError,
     ConfigInvocationKeyNotFoundError,
     ConfigValidationError,
@@ -43,34 +44,62 @@ class ConfigFile:
         self._load_file_data()
         self.file_schema = self._validate(self.data)
 
-        # select appropriate config data for this invocation using run-time info:
+        self.invoc_key = self.select_invocation(
+            invoc_key=invoc_key,
+            configs=self.data["configs"],
+            run_time_info=self.config._app.run_time_info.to_dict(),
+            path=self.path,
+        )
+
+    @staticmethod
+    def select_invocation(
+        configs: Dict,
+        run_time_info: Dict,
+        path: Path,
+        invoc_key: Union[str, None] = None,
+    ) -> str:
+        """Select a matching configuration for this invocation using run-time info."""
         if not invoc_key:
-            for c_name_i, c_dat_i in self.data["configs"].items():
+            all_matches = {}  # keys are config keys; values are lengths of match dict
+            for c_name_i, c_dat_i in configs.items():
+                # for a config to "match", each "match key" must match the relevant run
+                # time info attribute. If a "match key" has multiple values, at least
+                # one value must match the run time info attribute:
                 is_match = True
                 for match_k, match_v in c_dat_i["invocation"]["match"].items():
-                    # test for a matching glob pattern:
-                    k_value = getattr(self.config._app.run_time_info, match_k)
-                    if not fnmatch.filter(names=[k_value], pat=match_v):
+                    # test for a matching glob pattern (where multiple may be specified):
+                    if not isinstance(match_v, list):
+                        match_v = [match_v]
+
+                    try:
+                        k_value = run_time_info[match_k]
+                    except KeyError:
+                        raise ConfigFileInvocationUnknownMatchKey(match_k)
+
+                    is_match_i = False
+                    for match_i in match_v:
+                        if fnmatch.filter(names=[k_value], pat=match_i):
+                            is_match_i = True
+                            break
+
+                    if not is_match_i:
                         is_match = False
                         break
-                if is_match:
-                    invoc_key = c_name_i
-                    self.logger.debug(
-                        f"Found matching config ({invoc_key!r}) for this invocation."
-                    )
-                    break
 
-            if not is_match:
+                if is_match:
+                    all_matches[c_name_i] = len(c_dat_i["invocation"]["match"])
+
+            if is_match:
+                # for multiple matches select the more specific one:
+                all_sorted = sorted(all_matches.items(), key=lambda x: x[1], reverse=True)
+                invoc_key = all_sorted[0][0]
+            else:
                 raise ConfigFileInvocationIncompatibleError(invoc_key)
 
-        elif invoc_key not in self.data["configs"]:
-            raise ConfigInvocationKeyNotFoundError(
-                invoc_key,
-                self.path,
-                list(self.data["configs"].keys()),
-            )
+        elif invoc_key not in configs:
+            raise ConfigInvocationKeyNotFoundError(invoc_key, path, list(configs.keys()))
 
-        self.invoc_key = invoc_key
+        return invoc_key
 
     def _validate(self, data):
         file_schema = get_schema("config_file_schema.yaml")
@@ -235,3 +264,7 @@ class ConfigFile:
         except ValueError:
             return False
         return True
+
+    def modify_invocation(self, config_key):
+        # TODO
+        pass

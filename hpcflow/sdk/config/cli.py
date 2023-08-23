@@ -100,7 +100,8 @@ def get_config_CLI(app):
         file(s)."""
         ctx.ensure_object(dict)
         ctx.obj["config"] = app.config
-        ctx.obj["config"]._disable_callbacks(no_callback)
+        if no_callback:
+            ctx.obj["config"]._disable_callbacks(no_callback)
 
     @config.command("list")
     @click.pass_context
