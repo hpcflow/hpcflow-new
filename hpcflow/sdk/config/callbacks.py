@@ -81,7 +81,7 @@ def callback_scheduler_set_up(config, schedulers):
         sched = config._app.get_scheduler(
             scheduler_name=k,
             os_name=os.name,
-            scheduler_args=v["defaults"],
+            scheduler_args=v.get("defaults", {}),
         )
         if hasattr(sched, "get_login_nodes"):
             login_nodes = sched.get_login_nodes()
