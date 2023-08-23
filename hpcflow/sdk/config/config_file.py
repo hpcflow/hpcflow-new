@@ -6,6 +6,8 @@ import io
 import logging
 import os
 from pathlib import Path
+import random
+import string
 from typing import Dict, Optional, Union
 
 from ruamel.yaml import YAML
@@ -228,21 +230,45 @@ class ConfigFile:
 
         return new_contents
 
-    def _setup_default_config(self):
-        # validate the default:
-        default_config = self.config._options.default_config
-        try:
-            # validate default config "file" structure:
-            self._validate(data=default_config)
+    def add_default_config(self, name=None) -> str:
+        """Add a new default config to the config file, and create the file if it doesn't
+        exist."""
 
-            # validate default config items for each defined invocation:
-            for val in default_config["configs"].values():
-                self.config._validate(data=val["config"], raise_with_metadata=False)
+        is_new_file = False
+        if not self.path.exists():
+            is_new_file = True
+            new_data = {"configs": {}}
+            new_data_rt = {"configs": {}}
+        else:
+            new_data = copy.deepcopy(self.data)
+            new_data_rt = copy.deepcopy(self.data_rt)
+
+        if not name:
+            chars = string.ascii_letters
+            name = "".join(random.choices(chars, k=6))
+
+        def_config = copy.deepcopy(self.config._options.default_config)
+        new_config = {name: def_config}
+
+        new_data["configs"].update(new_config)
+        new_data_rt["configs"].update(new_config)
+
+        try:
+            if is_new_file:
+                # validate default config "file" structure:
+                self._validate(data=new_data)
+
+            # validate default config items for the newly added default config:
+            self.config._validate(data=def_config["config"], raise_with_metadata=False)
 
         except (ConfigFileValidationError, ConfigValidationError) as err:
             raise ConfigDefaultValidationError(err) from None
 
-        self._dump(default_config)
+        self.data_rt = new_data_rt
+        self.data = new_data
+        self.contents = self._dump(new_data_rt)
+
+        return name
 
     @staticmethod
     def get_config_file_path(directory):
@@ -264,7 +290,7 @@ class ConfigFile:
                 "No config.yaml found in the configuration directory. Generating "
                 "a config.yaml file."
             )
-            self._setup_default_config()
+            self.add_default_config(name="default")
 
         yaml = YAML(typ="safe")
         yaml_rt = YAML(typ="rt")

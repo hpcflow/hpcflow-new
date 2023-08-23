@@ -14,6 +14,7 @@ from hashlib import new
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+from rich.console import Console
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
 from valida.schema import Schema
@@ -54,25 +55,21 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
-DEFAULT_CONFIG_FILE = {
-    "configs": {
-        "default": {
-            "invocation": {"environment_setup": None, "match": {}},
-            "config": {
-                "machine": socket.gethostname(),
-                "telemetry": True,
-                "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
-                "environment_sources": [],
-                "task_schema_sources": [],
-                "command_file_sources": [],
-                "parameter_sources": [],
-                "default_scheduler": "direct",
-                "default_shell": _DEFAULT_SHELL,
-                "schedulers": {"direct": {"defaults": {}}},
-                "shells": {_DEFAULT_SHELL: {"defaults": {}}},
-            },
-        }
-    }
+DEFAULT_CONFIG = {
+    "invocation": {"environment_setup": None, "match": {}},
+    "config": {
+        "machine": socket.gethostname(),
+        "telemetry": True,
+        "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
+        "environment_sources": [],
+        "task_schema_sources": [],
+        "command_file_sources": [],
+        "parameter_sources": [],
+        "default_scheduler": "direct",
+        "default_shell": _DEFAULT_SHELL,
+        "schedulers": {"direct": {"defaults": {}}},
+        "shells": {_DEFAULT_SHELL: {"defaults": {}}},
+    },
 }
 
 
@@ -86,7 +83,7 @@ class ConfigOptions:
     sentry_traces_sample_rate: float
     sentry_env: str
     default_config: Optional[Dict] = field(
-        default_factory=lambda: deepcopy(DEFAULT_CONFIG_FILE)
+        default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
 
@@ -432,7 +429,7 @@ class Config:
             raise ConfigChangeInvalidJSONError(name=name, json_str=value, err=err)
         return value
 
-    def _set(self, name, value, is_json=False, callback=True):
+    def _set(self, name, value, is_json=False, callback=True, quiet=False):
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         else:
@@ -487,10 +484,10 @@ class Config:
                 self._logger.debug(
                     f"Successfully set config item {name!r} to {callback_val!r}."
                 )
-            else:
+            elif not quiet:
                 print(f"value is already: {callback_val!r}")
 
-    def set(self, path: str, value, is_json=False):
+    def set(self, path: str, value, is_json=False, quiet=False):
         """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
@@ -510,7 +507,7 @@ class Config:
             )
         else:
             root = value
-        self._set(name, root)
+        self._set(name, root, quiet=quiet)
 
     def unset(self, name):
         """Unset the value of a configuration item."""
@@ -736,7 +733,7 @@ class Config:
             return
         self.update(f"schedulers.{scheduler}", kwargs)
 
-    def import_from_file(self, file_path, rename=True):
+    def import_from_file(self, file_path, rename=True, make_new=False):
         """Import config items from a (remote or local) YAML file. Existing config items
         of the same names will be overwritten.
 
@@ -746,27 +743,65 @@ class Config:
             Local or remote path to a config import YAML file which may have top-level
             keys "invocation" and "config".
         rename
-            If True, the current config will be renamed to the name of the file specified
-            in `file_path`.
+            If True, the current config will be renamed to the stem of the file specified
+            in `file_path`. Ignored if `make_new` is True.
+        make_new
+            If True, add the config items as a new config, rather than modifying the
+            current config. The name of the new config will be the stem of the file
+            specified in `file_path`.
+
         """
 
-        file_dat = read_YAML_file(file_path)
-        if rename:
-            file_stem = Path(file_path).stem
-            if self.config_key != file_stem:
-                self._file.rename_config_key(file_stem)
+        console = Console()
+        status = console.status(f"Importing config from file {file_path!r}...")
+        status.start()
 
-        new_invoc = file_dat.get("invocation")
-        new_config = file_dat.get("config")
+        try:
+            file_dat = read_YAML_file(file_path)
+            if rename or make_new:
+                file_stem = Path(file_path).stem
 
-        if new_invoc:
-            self._file.update_invocation(
-                environment_setup=new_invoc.get("environment_setup"),
-                match=new_invoc.get("match"),
-            )
+            obj = self  # `Config` object to update
+            if make_new:
+                status.update("Adding a new config...")
+                # add a new default config:
+                self._file.add_default_config(name=file_stem)
 
-        # sort in reverse so "schedulers" and "shells" are set before "default_scheduler"
-        # and "default_shell" which might reference the former:
-        new_config = dict(sorted(new_config.items(), reverse=True))
-        for k, v in new_config.items():
-            self.set(k, value=v)
+                # load it:
+                new_config_obj = Config(
+                    app=self._app,
+                    options=self._options,
+                    config_dir=self.config_directory,
+                    config_key=file_stem,
+                    logger=self._logger,
+                    variables=self._variables,
+                )
+                obj = new_config_obj
+
+            elif rename:
+                if self.config_key != file_stem:
+                    self._file.rename_config_key(file_stem)
+
+            new_invoc = file_dat.get("invocation")
+            new_config = file_dat.get("config")
+
+            if new_invoc:
+                status.update("Updating invocation details...")
+                obj._file.update_invocation(
+                    environment_setup=new_invoc.get("environment_setup"),
+                    match=new_invoc.get("match"),
+                )
+
+            # sort in reverse so "schedulers" and "shells" are set before
+            # "default_scheduler" and "default_shell" which might reference the former:
+            new_config = dict(sorted(new_config.items(), reverse=True))
+            for k, v in new_config.items():
+                status.update(f"Updating configurable item {k!r}")
+                obj.set(k, value=v, quiet=True)
+
+        except Exception:
+            status.stop()
+            raise
+
+        status.stop()
+        print(f"Config updated.")

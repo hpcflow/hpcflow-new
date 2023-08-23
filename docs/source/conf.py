@@ -105,7 +105,7 @@ def generate_config_file_validation_schema(app):
     )
 
     # write default config file example:
-    config = copy.deepcopy(app.config._options.default_config)
+    config = {"configs": {"default": copy.deepcopy(app.config._options.default_config)}}
     config["configs"]["default"]["config"]["machine"] = "HOSTNAME"
     log_file_path = config["configs"]["default"]["config"]["log_file_path"]
     config["configs"]["default"]["config"]["log_file_path"] = config_callback_vars(
