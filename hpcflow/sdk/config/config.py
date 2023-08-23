@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from hashlib import new
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
+import fsspec
 
 from rich.console import Console
 from fsspec.registry import known_implementations as fsspec_protocols
@@ -86,6 +87,7 @@ class ConfigOptions:
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
+    default_known_configs_dir: Optional[str] = None
 
 
 class Config:
@@ -760,6 +762,9 @@ class Config:
             file_dat = read_YAML_file(file_path)
             if rename or make_new:
                 file_stem = Path(file_path).stem
+                name = file_stem
+            else:
+                name = self.config_key
 
             obj = self  # `Config` object to update
             if make_new:
@@ -806,4 +811,25 @@ class Config:
             raise
 
         status.stop()
-        print(f"Config updated.")
+        print(f"Config {name!r} updated.")
+
+    def init(self, known_name: str, fsspec_path: Optional[str] = None):
+        """Configure from a known importable config."""
+        if not fsspec_path:
+            fsspec_path = self._options.default_known_configs_dir
+            if not fsspec_path:
+                raise ValueError(
+                    "Specify an `fsspec_path` to search for known config files."
+                )
+        fs = fsspec.open(fsspec_path).fs
+        files = fs.glob("*.yaml") + fs.glob("*.yml")
+        files = [i for i in files if i.startswith(known_name)]
+        print(f"Found configuration-import files: {files!r}")
+        for i in files:
+            path_i = f"{fsspec_path}/{i}"
+            self.import_from_file(file_path=path_i, make_new=True)
+
+        # if current config is named "default", rename machine to DEFAULT_CONFIG:
+        if self.config_key == "default":
+            self.set("machine", "DEFAULT_MACHINE")
+            self.save()

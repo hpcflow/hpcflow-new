@@ -297,6 +297,13 @@ def get_config_CLI(app):
         else:
             utils.open_file(file_path)
 
+    @config.command()
+    @click.argument("known_name")
+    @click.option("--path", default=None)
+    @click.pass_context
+    def init(ctx, known_name, path):
+        ctx.obj["config"].init(known_name, path)
+
     open.help = open.help.format(package_name=app.package_name)
 
     return config
