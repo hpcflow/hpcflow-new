@@ -309,7 +309,7 @@ def get_config_CLI(app):
     )
     @click.pass_context
     def init(ctx, known_name, path):
-        ctx.obj["config"].init(known_name=known_name, fsspec_path=path)
+        ctx.obj["config"].init(known_name=known_name, path=path)
 
     open.help = open.help.format(package_name=app.package_name)
 
