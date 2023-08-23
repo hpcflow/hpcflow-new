@@ -111,9 +111,7 @@ def generate_config_file_validation_schema(app):
     config["configs"]["default"]["config"]["log_file_path"] = config_callback_vars(
         app.config, log_file_path
     )
-    app.config._file._dump_config(
-        config, Path("reference/_generated/default_config.yaml")
-    )
+    app.config._file._dump(config, Path("reference/_generated/default_config.yaml"))
 
     # write valida schema tree for config file:
     _write_valida_tree_html(

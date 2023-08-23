@@ -127,22 +127,7 @@ class ConfigFile:
             del new_data_rt["configs"][self.invoc_key]["config"][k]
 
         try:
-            # write a new temporary config file
-            cfg_file_path = self.config.get("config_file_path")
-            cfg_tmp_file = cfg_file_path.with_suffix(cfg_file_path.suffix + ".tmp")
-            self.logger.debug(f"Creating temporary config file: {cfg_tmp_file!r}.")
-            yaml = YAML(typ="rt")
-            with cfg_tmp_file.open("wt", newline="\n") as fh:
-                yaml.dump(new_data_rt, fh)
-
-            # atomic rename, overwriting original:
-            self.logger.debug("Replacing original config file with temporary file.")
-            os.replace(src=cfg_tmp_file, dst=cfg_file_path)
-
-            buff = io.BytesIO()
-            yaml.dump(new_data_rt, buff)
-            new_contents = buff.getvalue()
-
+            new_contents = self._dump(new_data_rt)
         except Exception as err:
             raise ConfigChangeFileUpdateError(names=modified_names, err=err) from None
 
@@ -194,14 +179,52 @@ class ConfigFile:
 
         return directory.resolve()
 
-    def _dump_config(self, config_data: Dict, path: Path) -> None:
-        """Dump the specified config data to the specified config file path."""
+    def _dump(self, config_data: Dict, path: Optional[Path] = None) -> str:
+        """Dump the specified config data to the specified config file path.
+
+        Parameters
+        ----------
+        config_data
+            New configuration file data that will be dumped using the "round-trip" dumper.
+        path
+            Path to dump the config file data to. If not specified the `path` instance
+            attribute will be used. If the file already exists, an "atomic-ish" overwrite
+            will be used, where we firstly create a temporary file, which then replaces
+            the existing file.
+
+        Returns
+        -------
+        new_contents
+            String contents of the new file.
+
+        """
+
+        if path is None:
+            path = self.path
 
         yaml = YAML(typ="rt")
-        with path.open("w", newline="\n") as handle:
-            yaml.dump(config_data, handle)
+        if path.exists():
+            # write a new temporary config file
+            cfg_tmp_file = path.with_suffix(path.suffix + ".tmp")
+            self.logger.debug(f"Creating temporary config file: {cfg_tmp_file!r}.")
+            with cfg_tmp_file.open("wt", newline="\n") as fh:
+                yaml.dump(config_data, fh)
 
-    def _setup_default_config(self, config_path):
+            # atomic rename, overwriting original:
+            self.logger.debug("Replacing original config file with temporary file.")
+            os.replace(src=cfg_tmp_file, dst=path)
+
+        else:
+            with path.open("w", newline="\n") as handle:
+                yaml.dump(config_data, handle)
+
+        buff = io.BytesIO()
+        yaml.dump(config_data, buff)
+        new_contents = str(buff.getvalue())
+
+        return new_contents
+
+    def _setup_default_config(self):
         # validate the default:
         default_config = self.config._options.default_config
         try:
@@ -215,7 +238,7 @@ class ConfigFile:
         except (ConfigFileValidationError, ConfigValidationError) as err:
             raise ConfigDefaultValidationError(err) from None
 
-        self._dump_config(default_config, config_path)
+        self._dump(default_config)
 
     @staticmethod
     def get_config_file_path(directory):
@@ -231,24 +254,23 @@ class ConfigFile:
     def _load_file_data(self):
         """Load data from the configuration file (config.yaml or config.yml)."""
 
-        path = self.get_config_file_path(self.directory)
-        if not path.is_file():
+        self.path = self.get_config_file_path(self.directory)
+        if not self.path.is_file():
             self.config._logger.info(
                 "No config.yaml found in the configuration directory. Generating "
                 "a config.yaml file."
             )
-            self._setup_default_config(config_path=path)
+            self._setup_default_config()
 
         yaml = YAML(typ="safe")
         yaml_rt = YAML(typ="rt")
-        with path.open() as handle:
+        with self.path.open() as handle:
             contents = handle.read()
             handle.seek(0)
             data = yaml.load(handle)
             handle.seek(0)
             data_rt = yaml_rt.load(handle)
 
-        self.path = path
         self.contents = contents
         self.data = data
         self.data_rt = data_rt
@@ -265,6 +287,8 @@ class ConfigFile:
             return False
         return True
 
-    def modify_invocation(self, config_key):
+    def modify_invocation(self):
         # TODO
         pass
+
+        # _dump(modified, self.path)
