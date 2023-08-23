@@ -114,6 +114,7 @@ def get_config_CLI(app):
     @click.option(
         "--rename",
         type=click.BOOL,
+        is_flag=True,
         default=True,
         help=(
             "If True, rename the currently loaded config file according to the name of "
@@ -123,6 +124,7 @@ def get_config_CLI(app):
     @click.option(
         "--new",
         type=click.BOOL,
+        is_flag=True,
         default=False,
         help=(
             "If True, generate a new default config, and import the file into this "
@@ -130,9 +132,9 @@ def get_config_CLI(app):
         ),
     )
     @click.pass_context
-    def import_from_file(ctx, file_path, new=False):
+    def import_from_file(ctx, file_path, rename, new):
         """Update the config file with keys from a YAML file."""
-        ctx.obj["config"].import_from_file(file_path, rename=rename, new=new)
+        ctx.obj["config"].import_from_file(file_path, rename=rename, make_new=new)
         ctx.obj["config"].save()
 
     @config.command()
