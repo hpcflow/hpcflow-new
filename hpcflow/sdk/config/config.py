@@ -754,6 +754,8 @@ class Config:
 
         """
 
+        self._logger.debug(f"import from file: {file_path!r}")
+
         console = Console()
         status = console.status(f"Importing config from file {file_path!r}...")
         status.start()
