@@ -823,6 +823,8 @@ class Config:
                 raise ValueError(
                     "Specify an `fsspec_path` to search for known config files."
                 )
+        self._logger.debug(f"init with fsspec_path = {fsspec_path!r}")
+
         fs = fsspec.open(fsspec_path).fs
         files = fs.glob("*.yaml") + fs.glob("*.yml")
         self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
