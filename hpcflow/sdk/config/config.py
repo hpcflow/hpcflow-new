@@ -815,17 +815,18 @@ class Config:
         status.stop()
         print(f"Config {name!r} updated.")
 
-    def init(self, known_name: str, fsspec_path: Optional[str] = None):
+    def init(self, known_name: str, path: Optional[str] = None):
         """Configure from a known importable config."""
-        if not fsspec_path:
-            fsspec_path = self._options.default_known_configs_dir
-            if not fsspec_path:
-                raise ValueError(
-                    "Specify an `fsspec_path` to search for known config files."
-                )
-        self._logger.debug(f"init with fsspec_path = {fsspec_path!r}")
+        if not path:
+            path = self._options.default_known_configs_dir
+            if not path:
+                raise ValueError("Specify an `path` to search for known config files.")
+        elif path == ".":
+            path = str(Path(path).resolve())
 
-        fs = fsspec.open(fsspec_path).fs
+        self._logger.debug(f"init with `path` = {path!r}")
+
+        fs = fsspec.open(path).fs
         files = fs.glob("*.yaml") + fs.glob("*.yml")
         self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
         files = [i for i in files if Path(i).stem.startswith(known_name)]
@@ -835,7 +836,7 @@ class Config:
 
         print(f"Found configuration-import files: {files!r}")
         for i in files:
-            path_i = f"{fsspec_path}/{i}"
+            path_i = f"{path}/{i}"
             self.import_from_file(file_path=path_i, make_new=True)
 
         print(f"imports complete")
