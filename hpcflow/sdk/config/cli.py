@@ -135,7 +135,6 @@ def get_config_CLI(app):
     def import_from_file(ctx, file_path, rename, new):
         """Update the config file with keys from a YAML file."""
         ctx.obj["config"].import_from_file(file_path, rename=rename, make_new=new)
-        ctx.obj["config"].save()
 
     @config.command()
     @click.argument("name")

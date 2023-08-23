@@ -799,6 +799,8 @@ class Config:
                 status.update(f"Updating configurable item {k!r}")
                 obj.set(k, value=v, quiet=True)
 
+            obj.save()
+
         except Exception:
             status.stop()
             raise
