@@ -836,8 +836,7 @@ class Config:
 
         print(f"Found configuration-import files: {files!r}")
         for i in files:
-            path_i = f"{path}/{i}"
-            self.import_from_file(file_path=path_i, make_new=True)
+            self.import_from_file(file_path=i, make_new=True)
 
         print(f"imports complete")
         # if current config is named "default", rename machine to DEFAULT_CONFIG:
