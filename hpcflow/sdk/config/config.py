@@ -752,7 +752,7 @@ class Config:
 
         file_dat = read_YAML_file(file_path)
         if rename:
-            file_stem = file_path.stem
+            file_stem = Path(file_path).stem
             if self.config_key != file_stem:
                 self._file.rename_config_key(file_stem)
 
