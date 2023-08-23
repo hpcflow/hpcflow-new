@@ -112,6 +112,10 @@ class ConfigFile:
     def invoc_data(self):
         return self.data["configs"][self.invoc_key]
 
+    @property
+    def invocation(self):
+        return self.invoc_data["invocation"]
+
     def save(self):
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
@@ -287,6 +291,23 @@ class ConfigFile:
             return False
         return True
 
+    def rename_config_key(self, new_config_key: str):
+        """Change the config key of the loaded config."""
+
+        new_data = copy.deepcopy(self.data)
+        new_data_rt = copy.deepcopy(self.data_rt)
+
+        new_data["configs"][new_config_key] = new_data["configs"].pop(self.invoc_key)
+        new_data_rt["configs"][new_config_key] = new_data_rt["configs"].pop(
+            self.invoc_key
+        )
+
+        self.invoc_key = new_config_key
+        self.config._meta_data["config_key"] = new_config_key
+        self.data_rt = new_data_rt
+        self.data = new_data
+        self.contents = self._dump(new_data_rt)
+
     def update_invocation(
         self, environment_setup: Optional[str] = None, match: Optional[Dict] = None
     ):
@@ -302,8 +323,6 @@ class ConfigFile:
             if match:
                 invoc["match"].update(match)
 
-        new_contents = self._dump(new_data_rt)
-
         self.data_rt = new_data_rt
         self.data = new_data
-        self.contents = new_contents
+        self.contents = self._dump(new_data_rt)

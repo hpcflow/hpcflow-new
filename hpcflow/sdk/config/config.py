@@ -35,6 +35,7 @@ from .callbacks import (
     exists_in_schedulers,
     set_callback_file_paths,
     check_load_data_files,
+    set_scheduler_invocation_match,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -146,7 +147,7 @@ class Config:
             "environment_sources": (set_callback_file_paths, check_load_data_files),
             "parameter_sources": (set_callback_file_paths, check_load_data_files),
             "command_file_sources": (set_callback_file_paths, check_load_data_files),
-            "default_scheduler": (exists_in_schedulers,),
+            "default_scheduler": (exists_in_schedulers, set_scheduler_invocation_match),
             "default_shell": (callback_supported_shells,),
             "schedulers": (callback_supported_schedulers, callback_scheduler_set_up),
             "log_file_path": (set_callback_file_paths,),
@@ -735,16 +736,37 @@ class Config:
             return
         self.update(f"schedulers.{scheduler}", kwargs)
 
-    def import_from_file(self, file_path):
+    def import_from_file(self, file_path, rename=True):
         """Import config items from a (remote or local) YAML file. Existing config items
-        of the same names will be overwritten."""
+        of the same names will be overwritten.
+
+        Parameters
+        ----------
+        file_path
+            Local or remote path to a config import YAML file which may have top-level
+            keys "invocation" and "config".
+        rename
+            If True, the current config will be renamed to the name of the file specified
+            in `file_path`.
+        """
 
         file_dat = read_YAML_file(file_path)
+        if rename:
+            file_stem = file_path.stem
+            if self.config_key != file_stem:
+                self._file.rename_config_key(file_stem)
+
+        new_invoc = file_dat.get("invocation")
+        new_config = file_dat.get("config")
+
+        if new_invoc:
+            self._file.update_invocation(
+                environment_setup=new_invoc.get("environment_setup"),
+                match=new_invoc.get("match"),
+            )
 
         # sort in reverse so "schedulers" and "shells" are set before "default_scheduler"
         # and "default_shell" which might reference the former:
-        file_dat = dict(sorted(file_dat.items(), reverse=True))
-        for k, v in file_dat.items():
+        new_config = dict(sorted(new_config.items(), reverse=True))
+        for k, v in new_config.items():
             self.set(k, value=v)
-
-        # TODO: need to consider scheduler args e.g. if login_nodes_cmd was provided?
