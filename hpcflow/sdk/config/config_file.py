@@ -287,8 +287,23 @@ class ConfigFile:
             return False
         return True
 
-    def modify_invocation(self):
-        # TODO
-        pass
+    def update_invocation(
+        self, environment_setup: Optional[str] = None, match: Optional[Dict] = None
+    ):
+        """Modify the invocation parameters of the loaded config."""
 
-        # _dump(modified, self.path)
+        new_data = copy.deepcopy(self.data)
+        new_data_rt = copy.deepcopy(self.data_rt)
+
+        for dat in (new_data, new_data_rt):
+            invoc = dat["configs"][self.invoc_key]["invocation"]
+            if environment_setup:
+                invoc["environment_setup"] = environment_setup
+            if match:
+                invoc["match"].update(match)
+
+        new_contents = self._dump(new_data_rt)
+
+        self.data_rt = new_data_rt
+        self.data = new_data
+        self.contents = new_contents
