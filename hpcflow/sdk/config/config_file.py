@@ -330,6 +330,7 @@ class ConfigFile:
         for config in self._configs:
             if config._config_key == config_key:
                 config._meta_data["config_key"] = new_config_key
+                config._config_key = new_config_key
 
         self.data_rt = new_data_rt
         self.data = new_data

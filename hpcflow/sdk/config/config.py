@@ -787,13 +787,16 @@ class Config:
                 file_stem = Path(file_path).stem
                 name = file_stem
             else:
-                name = self.config_key
+                name = self._config_key
 
             obj = self  # `Config` object to update
             if make_new:
                 status.update("Adding a new config...")
                 # add a new default config:
-                self._file.add_default_config(name=file_stem)
+                self._file.add_default_config(
+                    name=file_stem,
+                    config_options=self._options,
+                )
 
                 # load it:
                 new_config_obj = Config(
@@ -807,7 +810,7 @@ class Config:
                 obj = new_config_obj
 
             elif rename:
-                if self.config_key != file_stem:
+                if self._config_key != file_stem:
                     self._file.rename_config_key(
                         config_key=self._config_key,
                         new_config_key=file_stem,
@@ -818,8 +821,9 @@ class Config:
 
             if new_invoc:
                 status.update("Updating invocation details...")
+                config_key = file_stem if (make_new or rename) else self._config_key
                 obj._file.update_invocation(
-                    config_key=file_stem if make_new else self._config_key,
+                    config_key=config_key,
                     environment_setup=new_invoc.get("environment_setup"),
                     match=new_invoc.get("match"),
                 )
@@ -865,6 +869,6 @@ class Config:
 
         print(f"imports complete")
         # if current config is named "default", rename machine to DEFAULT_CONFIG:
-        if self.config_key == "default":
+        if self._config_key == "default":
             self.set("machine", "DEFAULT_MACHINE")
             self.save()
