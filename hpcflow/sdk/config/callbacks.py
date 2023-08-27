@@ -90,7 +90,7 @@ def set_scheduler_invocation_match(config, scheduler: str):
         scheduler_args=default_args,
     )
     if hasattr(sched, "DEFAULT_LOGIN_NODE_MATCH"):
-        if "hostname" not in config._file.invocation["match"]:
+        if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
             config._file.update_invocation(
                 match={"hostname": sched.DEFAULT_LOGIN_NODE_MATCH}
             )
@@ -111,7 +111,7 @@ def callback_scheduler_set_up(config, schedulers):
         if hasattr(sched, "get_login_nodes"):
             # some `Scheduler` classes have a `get_login_nodes` method which can be used
             # to populate the names of login nodes explicitly, if not already set:
-            if "hostname" not in config._file.invocation["match"]:
+            if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
                 login_nodes = sched.get_login_nodes()
                 config._file.update_invocation(match={"hostname": login_nodes})
     return schedulers
