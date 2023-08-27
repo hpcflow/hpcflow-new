@@ -18,7 +18,7 @@ def dummy_action_kwargs_pre_proc():
     return act_kwargs
 
 
-def test_action_equality():
+def test_action_equality(null_config):
     a1 = hf.Action(commands=[hf.Command("ls")], environments=[])
     a2 = hf.Action(commands=[hf.Command("ls")], environments=[])
     assert a1 == a2

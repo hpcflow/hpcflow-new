@@ -557,25 +557,6 @@ class Jobscript(JSONLike):
             **shell_args,
         )
 
-    def _get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
-        """Get an arbitrary scheduler, not necessarily associated with submission."""
-        scheduler_args = scheduler_args or {}
-
-        os_name = os_name.lower()
-        if os_name == "nt" and "_" in scheduler_name:
-            # e.g. WSL on windows uses *_posix
-            key = tuple(scheduler_name.split("_"))
-        else:
-            key = (scheduler_name.lower(), os_name)
-
-        try:
-            scheduler_cls = self.app.scheduler_lookup[key]
-        except KeyError:
-            raise ValueError(
-                f"Unsupported combination of scheduler and operation system: {key!r}"
-            )
-        return scheduler_cls(**scheduler_args)
-
     @property
     def shell(self):
         """Retrieve the shell object for submission."""
@@ -592,7 +573,7 @@ class Jobscript(JSONLike):
     def scheduler(self):
         """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
-            self._scheduler_obj = self._get_scheduler(
+            self._scheduler_obj = self.app.get_scheduler(
                 scheduler_name=self.scheduler_name,
                 os_name=self.os_name,
                 scheduler_args=self._get_submission_scheduler_args(),
@@ -809,13 +790,14 @@ class Jobscript(JSONLike):
             os_args=os_args or self._get_submission_os_args(),
             shell_args=shell_args or self._get_submission_shell_args(),
         )
-        scheduler = self._get_scheduler(
+        scheduler = self.app.get_scheduler(
             scheduler_name=scheduler_name,
             os_name=os_name,
             scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
         )
 
-        env_setup = self.app.config._file.invoc_data["invocation"]["environment_setup"]
+        cfg_invocation = self.app.config._file.get_invocation(self.app.config._config_key)
+        env_setup = cfg_invocation["environment_setup"]
         if env_setup:
             env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
             env_setup += "\n\n" + shell.JS_ENV_SETUP_INDENT
@@ -834,7 +816,7 @@ class Jobscript(JSONLike):
                 "app_invoc": app_invoc,
                 "app_package_name": self.app.package_name,
                 "config_dir": str(self.app.config.config_directory),
-                "config_invoc_key": self.app.config.config_invocation_key,
+                "config_invoc_key": self.app.config.config_key,
                 "workflow_path": self.workflow.path,
                 "sub_idx": self.submission.index,
                 "js_idx": self.index,

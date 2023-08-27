@@ -74,6 +74,53 @@ def callback_supported_schedulers(config, schedulers):
     return schedulers
 
 
+def set_scheduler_invocation_match(config, scheduler: str):
+    """Invoked on set of `default_scheduler`.
+
+    For clusters with "proper" schedulers (SGE, SLURM, etc.), login nodes are typically
+    named using the word "login". So we can use this knowledge to set a default for the
+    "hostname" invocation match key, if it is not manually set. However, it is preferable
+    that on clusters the hostname match is explicitly set.
+
+    """
+    default_args = config.get(f"schedulers.{scheduler}").get("defaults", {})
+    sched = config._app.get_scheduler(
+        scheduler_name=scheduler,
+        os_name=os.name,
+        scheduler_args=default_args,
+    )
+    if hasattr(sched, "DEFAULT_LOGIN_NODE_MATCH"):
+        if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
+            config._file.update_invocation(
+                config_key=config._config_key,
+                match={"hostname": sched.DEFAULT_LOGIN_NODE_MATCH},
+            )
+
+
+def callback_scheduler_set_up(config, schedulers):
+    """Invoked on set of `schedulers`.
+
+    Runs scheduler-specific config initialisation.
+
+    """
+    for k, v in schedulers.items():
+        sched = config._app.get_scheduler(
+            scheduler_name=k,
+            os_name=os.name,
+            scheduler_args=v.get("defaults", {}),
+        )
+        if hasattr(sched, "get_login_nodes"):
+            # some `Scheduler` classes have a `get_login_nodes` method which can be used
+            # to populate the names of login nodes explicitly, if not already set:
+            if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
+                login_nodes = sched.get_login_nodes()
+                config._file.update_invocation(
+                    config_key=config._config_key,
+                    match={"hostname": login_nodes},
+                )
+    return schedulers
+
+
 def callback_supported_shells(config, shell_name):
     supported = get_supported_shells(os.name)
     if shell_name not in supported:

@@ -38,7 +38,7 @@ rules:
         - config_file_name # Config metadata
         - config_file_path # Config metadata
         - config_file_contents # Config metadata
-        - config_invocation_key # Config metadata
+        - config_key # Config metadata
         - config_schemas # Config metadata
         - invoking_user_id # Config metadata
         - host_user_id # Config metadata
@@ -151,7 +151,7 @@ rules:
 
   - path: [schedulers, { type: map_value }]
     condition:
-      value.allowed_keys: [defaults]
+      value.allowed_keys: [defaults, parallel_environments, partitions] # TODO split these up based on scheduler type
 
   - path: [schedulers, { type: map_value }, defaults]
     condition:

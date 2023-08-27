@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 import click
 from colorama import init as colorama_init
@@ -417,6 +418,7 @@ def _make_submission_CLI(app):
     @click.pass_context
     def submission(ctx):
         """Submission-related queries."""
+        ctx.ensure_object(dict)
 
     @submission.command("shell-info")
     @click.argument("shell_name", type=click.Choice(ALL_SHELLS))
@@ -426,6 +428,18 @@ def _make_submission_CLI(app):
         """Show information about the specified shell, such as the version."""
         pprint(app.get_shell_info(shell_name, exclude_os))
         ctx.exit()
+
+    @submission.group("scheduler")
+    @click.argument("scheduler_name")
+    @click.pass_context
+    def scheduler(ctx, scheduler_name):
+        ctx.obj["scheduler_obj"] = app.get_scheduler(scheduler_name, os.name)
+
+    @scheduler.command()
+    @click.pass_context
+    def get_login_nodes(ctx):
+        scheduler = ctx.obj["scheduler_obj"]
+        pprint(scheduler.get_login_nodes())
 
     return submission
 
@@ -650,7 +664,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def config(path=False):
-        """Open the {app_name} config file."""
+        """Open the {app_name} config file, or retrieve it's path."""
         file_path = app.config.get("config_file_path")
         if path:
             click.echo(file_path)
@@ -774,7 +788,7 @@ def make_cli(app):
         callback=clear_known_subs_file_callback,
     )
     @click.option("--config-dir", help="Set the configuration directory.")
-    @click.option("--config-invocation-key", help="Set the configuration invocation key.")
+    @click.option("--config-key", help="Set the configuration invocation key.")
     @click.option(
         "--with-config",
         help="Override a config item in the config file",
@@ -782,7 +796,7 @@ def make_cli(app):
         multiple=True,
     )
     @click.pass_context
-    def new_CLI(ctx, config_dir, config_invocation_key, with_config):
+    def new_CLI(ctx, config_dir, config_key, with_config):
         app.run_time_info.from_CLI = True
         if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
             # don't load the config if we are resetting it - it could be invalid
@@ -790,7 +804,7 @@ def make_cli(app):
             try:
                 app.load_config(
                     config_dir=config_dir,
-                    config_invocation_key=config_invocation_key,
+                    config_key=config_key,
                     **overrides,
                 )
             except ConfigError as err:

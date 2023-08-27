@@ -97,7 +97,7 @@ class RunTimeInfo:
         #     )
         #     warnings.warn(msg)
 
-        for k, v in self._get_members().items():
+        for k, v in self.to_dict().items():
             if k in (
                 "is_frozen",
                 "is_venv",
@@ -108,7 +108,7 @@ class RunTimeInfo:
             ):
                 sentry_sdk.set_tag(f"rti.{k}", v)
 
-    def _get_members(self):
+    def to_dict(self):
         out = {
             "name": self.name,
             "package_name": self.package_name,
@@ -152,7 +152,7 @@ class RunTimeInfo:
 
     def __repr__(self):
         out = f"{self.__class__.__name__}("
-        out += ", ".join(f"{k}={v!r}" for k, v in self._get_members().items())
+        out += ", ".join(f"{k}={v!r}" for k, v in self.to_dict().items())
         return out
 
     def _set_venv_path(self):
@@ -178,7 +178,7 @@ class RunTimeInfo:
         tab = Table(show_header=False, box=None)
         tab.add_column()
         tab.add_column()
-        for k, v in self._get_members().items():
+        for k, v in self.to_dict().items():
             tab.add_row(k, str(v))
 
         console = Console()

@@ -1,6 +1,8 @@
 from __future__ import annotations
+import contextlib
 
 from copy import deepcopy
+import copy
 import functools
 import json
 import logging
@@ -11,11 +13,17 @@ from dataclasses import dataclass, field
 from hashlib import new
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
+import fsspec
 
+from rich.console import Console, Group
+from rich.table import Table
+from rich.pretty import Pretty
+from rich.panel import Panel
+from rich import print as rich_print
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
 from valida.schema import Schema
-from hpcflow.sdk.core.utils import get_in_container, set_in_container
+from hpcflow.sdk.core.utils import get_in_container, read_YAML_file, set_in_container
 
 from hpcflow.sdk.core.validation import get_schema
 from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
@@ -24,6 +32,7 @@ from hpcflow.sdk.typing import PathLike
 from .callbacks import (
     callback_bool,
     callback_lowercase,
+    callback_scheduler_set_up,
     callback_supported_schedulers,
     callback_supported_shells,
     callback_update_log_console_level,
@@ -32,6 +41,7 @@ from .callbacks import (
     exists_in_schedulers,
     set_callback_file_paths,
     check_load_data_files,
+    set_scheduler_invocation_match,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -50,25 +60,21 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
-DEFAULT_CONFIG_FILE = {
-    "configs": {
-        "default": {
-            "invocation": {"environment_setup": None, "match": {}},
-            "config": {
-                "machine": socket.gethostname(),
-                "telemetry": True,
-                "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
-                "environment_sources": [],
-                "task_schema_sources": [],
-                "command_file_sources": [],
-                "parameter_sources": [],
-                "default_scheduler": "direct",
-                "default_shell": _DEFAULT_SHELL,
-                "schedulers": {"direct": {"defaults": {}}},
-                "shells": {_DEFAULT_SHELL: {"defaults": {}}},
-            },
-        }
-    }
+DEFAULT_CONFIG = {
+    "invocation": {"environment_setup": None, "match": {}},
+    "config": {
+        "machine": socket.gethostname(),
+        "telemetry": True,
+        "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
+        "environment_sources": [],
+        "task_schema_sources": [],
+        "command_file_sources": [],
+        "parameter_sources": [],
+        "default_scheduler": "direct",
+        "default_shell": _DEFAULT_SHELL,
+        "schedulers": {"direct": {"defaults": {}}},
+        "shells": {_DEFAULT_SHELL: {"defaults": {}}},
+    },
 }
 
 
@@ -82,9 +88,46 @@ class ConfigOptions:
     sentry_traces_sample_rate: float
     sentry_env: str
     default_config: Optional[Dict] = field(
-        default_factory=lambda: deepcopy(DEFAULT_CONFIG_FILE)
+        default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
+    default_known_configs_dir: Optional[str] = None
+
+    def __post_init__(self):
+        cfg_schemas, cfg_keys = self.init_schemas()
+        self._schemas = cfg_schemas
+        self._configurable_keys = cfg_keys
+
+    def init_schemas(self):
+        # Get allowed configurable keys from config schemas:
+        cfg_schemas = [get_schema("config_schema.yaml")] + self.extra_schemas
+        cfg_keys = []
+        for cfg_schema in cfg_schemas:
+            for rule in cfg_schema.rules:
+                if not rule.path and rule.condition.callable.name == "allowed_keys":
+                    cfg_keys.extend(rule.condition.callable.args)
+
+        return (cfg_schemas, cfg_keys)
+
+    def validate(self, data, logger, metadata=None, raise_with_metadata=True):
+        """Validate configuration items of the loaded invocation."""
+
+        logger.debug("Validating configuration...")
+        validated_data = data
+
+        for cfg_schema in self._schemas:
+            cfg_validated = cfg_schema.validate(validated_data)
+            if not cfg_validated.is_valid:
+                if not raise_with_metadata:
+                    metadata = None
+                raise ConfigValidationError(
+                    message=cfg_validated.get_failures_string(),
+                    meta_data=metadata,
+                )
+            validated_data = cfg_validated.cast_data
+
+        logger.debug("Configuration is valid.")
+        return validated_data
 
 
 class Config:
@@ -107,20 +150,30 @@ class Config:
     def __init__(
         self,
         app: BaseApp,
+        config_file: ConfigFile,
         options: ConfigOptions,
         logger: logging.Logger,
-        config_dir: Optional[PathLike],
-        config_invocation_key: Optional[str],
+        config_key: Optional[str],
         uid=None,
         callbacks=None,
         variables=None,
         **overrides,
     ):
         self._app = app
+        self._file = config_file
         self._options = options
         self._overrides = overrides
         self._logger = logger
         self._variables = variables or {}
+
+        self._file._configs.append(self)
+
+        self._config_key = self._file.select_invocation(
+            configs=self._file.data["configs"],
+            run_time_info=self._app.run_time_info.to_dict(),
+            path=self._file.path,
+            config_key=config_key,
+        )
 
         # Callbacks are run on get:
         self._get_callbacks = {
@@ -143,19 +196,14 @@ class Config:
             "environment_sources": (set_callback_file_paths, check_load_data_files),
             "parameter_sources": (set_callback_file_paths, check_load_data_files),
             "command_file_sources": (set_callback_file_paths, check_load_data_files),
-            "default_scheduler": (exists_in_schedulers,),
+            "default_scheduler": (exists_in_schedulers, set_scheduler_invocation_match),
             "default_shell": (callback_supported_shells,),
-            "schedulers": (callback_supported_schedulers,),
+            "schedulers": (callback_supported_schedulers, callback_scheduler_set_up),
             "log_file_path": (set_callback_file_paths,),
             "log_console_level": (callback_update_log_console_level,),
         }
 
-        cfg_schemas, cfg_keys = self._init_schemas()
-        self._schemas = cfg_schemas
-
-        self._file = ConfigFile(self, config_dir, config_invocation_key)
-
-        self._configurable_keys = cfg_keys
+        self._configurable_keys = self._options._configurable_keys
         self._modified_keys = {}
         self._unset_keys = []
 
@@ -165,22 +213,24 @@ class Config:
 
         host_uid, host_uid_file_path = self._get_user_id()
 
-        self._meta_data = {
+        metadata = {
             "config_directory": self._file.directory,
             "config_file_name": self._file.path.name,
             "config_file_path": self._file.path,
             "config_file_contents": self._file.contents,
-            "config_invocation_key": self._file.invoc_key,
-            "config_schemas": cfg_schemas,
+            "config_key": self._config_key,
+            "config_schemas": self._options._schemas,
             "invoking_user_id": uid or host_uid,
             "host_user_id": host_uid,
             "host_user_id_file_path": host_uid_file_path,
         }
+        self._meta_data = metadata
 
-        self._validate()
-
-    def __str__(self):
-        return self.to_string(exclude=["config_file_contents"])
+        self._options.validate(
+            data=self.get_all(include_overrides=True),
+            logger=self._logger,
+            metadata=metadata,
+        )
 
     def __dir__(self):
         return super().__dir__() + self._all_keys
@@ -200,61 +250,44 @@ class Config:
         else:
             super().__setattr__(name, value)
 
-    def _validate(self, data=None, raise_with_metadata=True):
-        """Validate configuration items of the loaded invocation."""
+    def _disable_callbacks(self, callbacks) -> Tuple[Dict]:
+        """Disable named get and set callbacks.
 
-        self._logger.debug("Validating configuration...")
-        if data is None:
-            validated_data = self.get_all(include_overrides=True)
-        else:
-            validated_data = data
-
-        for cfg_schema in self._schemas:
-            cfg_validated = cfg_schema.validate(validated_data)
-            if not cfg_validated.is_valid:
-                meta_data = None
-                if raise_with_metadata:
-                    meta_data = self.to_string(
-                        exclude=["config_file_contents", "config_schemas"], just_meta=True
-                    )
-                raise ConfigValidationError(
-                    message=cfg_validated.get_failures_string(),
-                    meta_data=meta_data,
-                )
-            validated_data = cfg_validated.cast_data
-
-        self._logger.debug("Configuration is valid.")
-        return validated_data
-
-    def to_string(self, exclude: Optional[List] = None, just_meta=False):
-        """Format the instance in a string, optionally exclude some keys.
-
-        Parameters
-        ----------
-        exclude
-            List of keys to exclude. Optional.
-        just_meta
-            If True, just return a str of the meta-data. This is useful to show during
-            initialisation, in the case where the configuration is otherwise invalid.
-
+        Returns
+        -------
+        The original get and set callback dictionaries.
         """
-        exclude = exclude or []
-        lines = []
-        blocks = {"meta-data": self._meta_data}
-        if not just_meta:
-            blocks.update({"configuration": self.get_all(as_str=True)})
-        for title, dat in blocks.items():
-            lines.append(f"{title}:")
-            for key, val in dat.items():
-                if key in exclude:
-                    continue
-                if isinstance(val, list):
-                    if val:
-                        val = "\n    " + "\n    ".join(str(i) for i in val)
-                    else:
-                        val = "[]"
-                lines.append(f"  {key}: {val}")
-        return "\n".join(lines)
+        self._logger.info(f"disabling config callbacks: {callbacks!r}")
+        get_callbacks_tmp = {
+            k: tuple(i for i in v if i.__name__ not in callbacks)
+            for k, v in self._get_callbacks.items()
+        }
+        set_callbacks_tmp = {
+            k: tuple(i for i in v if i.__name__ not in callbacks)
+            for k, v in self._set_callbacks.items()
+        }
+        get_callbacks = copy.deepcopy(self._get_callbacks)
+        set_callbacks = copy.deepcopy(self._set_callbacks)
+        self._get_callbacks = get_callbacks_tmp
+        self._set_callbacks = set_callbacks_tmp
+        return (get_callbacks, set_callbacks)
+
+    @contextlib.contextmanager
+    def _without_callbacks(self, *callbacks):
+        """Context manager to temporarily exclude named get and set callbacks."""
+        get_callbacks, set_callbacks = self._disable_callbacks(*callbacks)
+        yield
+        self._get_callbacks = get_callbacks
+        self._set_callbacks = set_callbacks
+
+    def _validate(self):
+        data = self.get_all(include_overrides=True)
+        self._options.validate(
+            data=data,
+            logger=self._logger,
+            metadata=self._meta_data,
+            raise_with_metadata=True,
+        )
 
     def _resolve_path(self, path):
         """Resolve a file path, but leave fsspec protocols alone."""
@@ -333,6 +366,31 @@ class Config:
                 items.update({key: val})
         return items
 
+    def _show(self, config=True, metadata=False):
+        group_args = []
+        if metadata:
+            tab_md = Table(show_header=False, box=None)
+            tab_md.add_column()
+            tab_md.add_column()
+            for k, v in self._meta_data.items():
+                if k == "config_file_contents":
+                    continue
+                tab_md.add_row(k, Pretty(v))
+            panel_md = Panel(tab_md, title="Config metadata")
+            group_args.append(panel_md)
+
+        if config:
+            tab = Table(show_header=False, box=None)
+            tab.add_column()
+            tab.add_column()
+            for k, v in self.get_all().items():
+                tab.add_row(k, Pretty(v))
+            panel = Panel(tab, title=f"Config {self._config_key!r}")
+            group_args.append(panel)
+
+        group = Group(*group_args)
+        rich_print(group)
+
     def _get_callback_value(self, name, value):
         if name in self._get_callbacks and value is not None:
             for cb in self._get_callbacks.get(name, []):
@@ -377,7 +435,10 @@ class Config:
 
         elif name in self._configurable_keys:
             val = self._file.get_config_item(
-                name, raise_on_missing, default_value=default_value
+                config_key=self._config_key,
+                name=name,
+                raise_on_missing=raise_on_missing,
+                default_value=default_value,
             )
 
         if callback:
@@ -398,7 +459,7 @@ class Config:
             raise ConfigChangeInvalidJSONError(name=name, json_str=value, err=err)
         return value
 
-    def _set(self, name, value, is_json=False, callback=True):
+    def _set(self, name, value, is_json=False, callback=True, quiet=False):
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         else:
@@ -406,7 +467,7 @@ class Config:
                 value = self._parse_JSON(name, value)
             current_val = self._get(name)
             callback_val = self._get_callback_value(name, value)
-            file_val_raw = self._file.get_config_item(name)
+            file_val_raw = self._file.get_config_item(self._config_key, name)
             file_val = self._get_callback_value(name, file_val_raw)
 
             if callback_val != current_val:
@@ -453,10 +514,10 @@ class Config:
                 self._logger.debug(
                     f"Successfully set config item {name!r} to {callback_val!r}."
                 )
-            else:
+            elif not quiet:
                 print(f"value is already: {callback_val!r}")
 
-    def set(self, path: str, value, is_json=False):
+    def set(self, path: str, value, is_json=False, quiet=False):
         """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
@@ -466,20 +527,23 @@ class Config:
         parts = path.split(".")
         name = parts[0]
         root = deepcopy(self._get(name, callback=False))
-        set_in_container(
-            cont=root,
-            path=parts[1:],
-            value=value,
-            ensure_path=True,
-            cast_indices=True,
-        )
-        self._set(name, root)
+        if parts[1:]:
+            set_in_container(
+                root,
+                path=parts[1:],
+                value=value,
+                ensure_path=True,
+                cast_indices=True,
+            )
+        else:
+            root = value
+        self._set(name, root, quiet=quiet)
 
     def unset(self, name):
         """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
-        if name in self._unset_keys or not self._file.is_item_set(name):
+        if name in self._unset_keys or not self._file.is_item_set(self._config_key, name):
             raise ConfigItemAlreadyUnsetError(name=name)
 
         self._unset_keys.append(name)
@@ -682,19 +746,125 @@ class Config:
             user_dat_dir.mkdir()
             self._logger.info(f"Created user data directory: {user_dat_dir!r}.")
 
-    def _init_schemas(self):
-        # Get allowed configurable keys from config schemas:
-        cfg_schemas = [get_schema("config_schema.yaml")] + self._options.extra_schemas
-        cfg_keys = []
-        for cfg_schema in cfg_schemas:
-            for rule in cfg_schema.rules:
-                if not rule.path and rule.condition.callable.name == "allowed_keys":
-                    cfg_keys.extend(rule.condition.callable.args)
-
-        return (cfg_schemas, cfg_keys)
-
     def add_scheduler(self, scheduler, **kwargs):
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
             return
         self.update(f"schedulers.{scheduler}", kwargs)
+
+    def import_from_file(self, file_path, rename=True, make_new=False):
+        """Import config items from a (remote or local) YAML file. Existing config items
+        of the same names will be overwritten.
+
+        Parameters
+        ----------
+        file_path
+            Local or remote path to a config import YAML file which may have top-level
+            keys "invocation" and "config".
+        rename
+            If True, the current config will be renamed to the stem of the file specified
+            in `file_path`. Ignored if `make_new` is True.
+        make_new
+            If True, add the config items as a new config, rather than modifying the
+            current config. The name of the new config will be the stem of the file
+            specified in `file_path`.
+
+        """
+
+        self._logger.debug(f"import from file: {file_path!r}")
+
+        console = Console()
+        status = console.status(f"Importing config from file {file_path!r}...")
+        status.start()
+
+        try:
+            file_dat = read_YAML_file(file_path)
+            if rename or make_new:
+                file_stem = Path(file_path).stem
+                name = file_stem
+            else:
+                name = self._config_key
+
+            obj = self  # `Config` object to update
+            if make_new:
+                status.update("Adding a new config...")
+                # add a new default config:
+                self._file.add_default_config(
+                    name=file_stem,
+                    config_options=self._options,
+                )
+
+                # load it:
+                new_config_obj = Config(
+                    app=self._app,
+                    config_file=self._file,
+                    options=self._options,
+                    config_key=file_stem,
+                    logger=self._logger,
+                    variables=self._variables,
+                )
+                obj = new_config_obj
+
+            elif rename:
+                if self._config_key != file_stem:
+                    self._file.rename_config_key(
+                        config_key=self._config_key,
+                        new_config_key=file_stem,
+                    )
+
+            new_invoc = file_dat.get("invocation")
+            new_config = file_dat.get("config")
+
+            if new_invoc:
+                status.update("Updating invocation details...")
+                config_key = file_stem if (make_new or rename) else self._config_key
+                obj._file.update_invocation(
+                    config_key=config_key,
+                    environment_setup=new_invoc.get("environment_setup"),
+                    match=new_invoc.get("match"),
+                )
+
+            # sort in reverse so "schedulers" and "shells" are set before
+            # "default_scheduler" and "default_shell" which might reference the former:
+            new_config = dict(sorted(new_config.items(), reverse=True))
+            for k, v in new_config.items():
+                status.update(f"Updating configurable item {k!r}")
+                obj.set(k, value=v, quiet=True)
+
+            obj.save()
+
+        except Exception:
+            status.stop()
+            raise
+
+        status.stop()
+        print(f"Config {name!r} updated.")
+
+    def init(self, known_name: str, path: Optional[str] = None):
+        """Configure from a known importable config."""
+        if not path:
+            path = self._options.default_known_configs_dir
+            if not path:
+                raise ValueError("Specify an `path` to search for known config files.")
+        elif path == ".":
+            path = str(Path(path).resolve())
+
+        self._logger.debug(f"init with `path` = {path!r}")
+
+        fs = fsspec.open(path).fs
+        files = fs.glob("*.yaml") + fs.glob("*.yml")
+        self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
+        files = [i for i in files if Path(i).stem.startswith(known_name)]
+        if not files:
+            print(f"No configuration-import files found matching name {known_name!r}.")
+            return
+
+        print(f"Found configuration-import files: {files!r}")
+        for i in files:
+            self.import_from_file(file_path=i, make_new=True)
+
+        print(f"imports complete")
+        # if current config is named "default", rename machine to DEFAULT_CONFIG:
+        if self._config_key == "default":
+            self.set("machine", "DEFAULT_MACHINE")
+            self.save()

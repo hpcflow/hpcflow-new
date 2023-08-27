@@ -1,6 +1,5 @@
 from pathlib import Path
 import re
-import subprocess
 from typing import Dict, List, Tuple
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
@@ -37,6 +36,7 @@ class SGEPosix(Scheduler):
     DEFAULT_ARRAY_SWITCH = "-t"
     DEFAULT_ARRAY_ITEM_VAR = "SGE_TASK_ID"
     DEFAULT_CWD_SWITCH = "-cwd"
+    DEFAULT_LOGIN_NODES_CMD = ["qconf", "-sh"]
 
     # maps scheduler states:
     state_lookup = {
@@ -125,6 +125,15 @@ class SGEPosix(Scheduler):
                     f"specified `num_cores` ({resources.num_cores!r})."
                 )
 
+    def get_login_nodes(self):
+        """Return a list of hostnames of login/administrative nodes as reported by the
+        scheduler."""
+        stdout, stderr = run_cmd(self.login_nodes_cmd)
+        if stderr:
+            print(stderr)
+        nodes = stdout.strip().split("\n")
+        return nodes
+
     def format_core_request_lines(self, resources):
         lns = []
         if resources.num_cores > 1:
@@ -157,13 +166,7 @@ class SGEPosix(Scheduler):
 
     def get_version_info(self):
         vers_cmd = self.show_cmd + ["-help"]
-        proc = subprocess.run(
-            args=vers_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout = proc.stdout.decode().strip()
-        stderr = proc.stderr.decode().strip()
+        stdout, stderr = run_cmd(vers_cmd)
         if stderr:
             print(stderr)
         version_str = stdout.split("\n")[0].strip()

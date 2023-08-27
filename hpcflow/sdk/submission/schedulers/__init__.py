@@ -36,12 +36,16 @@ class NullScheduler:
 
 
 class Scheduler(NullScheduler):
+    DEFAULT_LOGIN_NODES_CMD = None
+    DEFAULT_LOGIN_NODE_MATCH = "*login*"
+
     def __init__(
         self,
         submit_cmd=None,
         show_cmd=None,
         del_cmd=None,
         js_cmd=None,
+        login_nodes_cmd=None,
         array_switch=None,
         array_item_var=None,
         *args,
@@ -53,6 +57,7 @@ class Scheduler(NullScheduler):
         self.show_cmd = show_cmd or self.DEFAULT_SHOW_CMD
         self.del_cmd = del_cmd or self.DEFAULT_DEL_CMD
         self.js_cmd = js_cmd or self.DEFAULT_JS_CMD
+        self.login_nodes_cmd = login_nodes_cmd or self.DEFAULT_LOGIN_NODES_CMD
         self.array_switch = array_switch or self.DEFAULT_ARRAY_SWITCH
         self.array_item_var = array_item_var or self.DEFAULT_ARRAY_ITEM_VAR
 

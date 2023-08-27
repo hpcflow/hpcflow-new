@@ -51,10 +51,20 @@ class ConfigFileInvocationIncompatibleError(ConfigError):
     """Raised when, given the run time information of the invocation, no compatible
     configuration can be found in the config file."""
 
-    def __init__(
-        self, message="No config could be found that matches the current invocation."
-    ):
-        self.message = message
+    def __init__(self, message=None):
+        self.message = message or (
+            "No config could be found that matches the current invocation."
+        )
+        super().__init__(self.message)
+
+
+class ConfigFileInvocationUnknownMatchKey(ConfigError):
+    def __init__(self, match_key, message=None):
+        self.message = message or (
+            f"Specified match key ({match_key!r}) is not a valid run time info "
+            f"attribute."
+        )
+        self.match_key = match_key
         super().__init__(self.message)
 
 

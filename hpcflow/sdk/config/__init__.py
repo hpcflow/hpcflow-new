@@ -1,1 +1,1 @@
-from .config import Config, ConfigFile, ConfigOptions, DEFAULT_CONFIG_FILE
+from .config import Config, ConfigFile, ConfigOptions, DEFAULT_CONFIG

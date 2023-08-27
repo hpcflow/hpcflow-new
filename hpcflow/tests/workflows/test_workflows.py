@@ -4,7 +4,7 @@ import pytest
 from hpcflow.app import app as hf
 
 
-def test_workflow_1(tmp_path, null_config):
+def test_workflow_1(tmp_path, new_null_config):
     package = "hpcflow.sdk.demo.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:
         wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
