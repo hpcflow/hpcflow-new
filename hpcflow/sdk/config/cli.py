@@ -79,13 +79,13 @@ def get_config_CLI(app):
     def show_all_config(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        print(ctx.obj["config"]._show(config=True, metadata=False))
+        ctx.obj["config"]._show(config=True, metadata=False)
         ctx.exit()
 
     def show_all_metadata(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        print(ctx.obj["config"]._show(config=False, metadata=True))
+        ctx.obj["config"]._show(config=False, metadata=True)
         ctx.exit()
 
     def show_config_file(ctx, param, value):
