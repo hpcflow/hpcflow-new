@@ -58,35 +58,27 @@ class ConfigFile:
         if not config_key:
             all_matches = {}  # keys are config keys; values are lengths of match dict
             for c_name_i, c_dat_i in configs.items():
-                print(f"{c_name_i=}")
                 # for a config to "match", each "match key" must match the relevant run
                 # time info attribute. If a "match key" has multiple values, at least
                 # one value must match the run time info attribute:
                 is_match = True
                 for match_k, match_v in c_dat_i["invocation"]["match"].items():
-                    print(f"{match_k=} {match_v=}")
                     # test for a matching glob pattern (where multiple may be specified):
                     if not isinstance(match_v, list):
                         match_v = [match_v]
-                        print(f"(2) {match_v=}")
 
                     try:
                         k_value = run_time_info[match_k]
                     except KeyError:
                         raise ConfigFileInvocationUnknownMatchKey(match_k)
-                    else:
-                        print(f"{k_value=}")
 
                     is_match_i = False
                     for match_i in match_v:
-                        print(f"{match_i=}")
                         if fnmatch.filter(names=[k_value], pat=match_i):
                             is_match_i = True
-                            print(f"{is_match_i=}")
                             break
 
                     if not is_match_i:
-                        print(f"setting is_match to False")
                         is_match = False
                         break
 

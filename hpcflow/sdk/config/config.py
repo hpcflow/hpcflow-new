@@ -164,10 +164,6 @@ class Config:
 
         self._file._configs.append(self)
 
-        print(f"{self._file.data['configs']=}")
-        print(f"{self._app.run_time_info.to_dict()=}")
-        print(f"{config_key=}")
-
         self._config_key = self._file.select_invocation(
             configs=self._file.data["configs"],
             run_time_info=self._app.run_time_info.to_dict(),
