@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a88"></a>
+## [v0.2.0a88](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a87...v0.2.0a88) - 2023.08.27
+
+### 🐛 Bug Fixes
+
+* remove option for matflow
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a87"></a>
 ## [v0.2.0a87](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a86...v0.2.0a87) - 2023.08.27
 
