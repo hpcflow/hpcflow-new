@@ -93,7 +93,7 @@ class ConfigFile:
                 if is_match:
                     all_matches[c_name_i] = len(c_dat_i["invocation"]["match"])
 
-            if is_match:
+            if all_matches:
                 # for multiple matches select the more specific one:
                 all_sorted = sorted(all_matches.items(), key=lambda x: x[1], reverse=True)
                 config_key = all_sorted[0][0]
