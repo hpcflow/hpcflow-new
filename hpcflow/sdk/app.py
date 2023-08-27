@@ -153,6 +153,7 @@ class BaseApp(metaclass=Singleton):
         self._builtin_template_components = template_components or {}
 
         self._config = None  # assigned on first access to `config` property
+        self._config_files = {}  # assigned on config load, keys are string absolute paths
 
         # Set by `_load_template_components`:
         self._template_components = {}
@@ -441,10 +442,22 @@ class BaseApp(metaclass=Singleton):
 
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
+        config_dir = ConfigFile._resolve_config_dir(
+            config_opt=self.config_options,
+            logger=self.config_logger,
+            directory=config_dir,
+        )
+        if str(config_dir) not in self._config_files:
+            self._config_files[str(config_dir)] = ConfigFile(
+                directory=config_dir,
+                logger=self.config_logger,
+                config_options=self.config_options,
+            )
+        file = self._config_files[str(config_dir)]
         self._config = Config(
             app=self,
+            config_file=file,
             options=self.config_options,
-            config_dir=config_dir,
             config_key=config_key,
             logger=self.config_logger,
             variables={"app_name": self.name, "app_version": self.version},
@@ -469,6 +482,7 @@ class BaseApp(metaclass=Singleton):
         self._load_config(config_dir, config_key, **overrides)
 
     def unload_config(self):
+        self._config_files = {}
         self._config = None
 
     def get_config_path(self, config_dir=None):
@@ -496,6 +510,7 @@ class BaseApp(metaclass=Singleton):
         self.logger.info(f"resetting config")
         self._delete_config_file(config_dir=config_dir)
         self._config = None
+        self._config_files = {}
         self.load_config(config_dir, config_key, **overrides)
 
     def reload_config(
@@ -507,6 +522,7 @@ class BaseApp(metaclass=Singleton):
         if not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
         self.log.remove_file_handlers()
+        self._config_files = {}
         self._load_config(config_dir, config_key, **overrides)
 
     def _load_scripts(self):

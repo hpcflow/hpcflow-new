@@ -89,6 +89,42 @@ class ConfigOptions:
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
     default_known_configs_dir: Optional[str] = None
 
+    def __post_init__(self):
+        cfg_schemas, cfg_keys = self.init_schemas()
+        self._schemas = cfg_schemas
+        self._configurable_keys = cfg_keys
+
+    def init_schemas(self):
+        # Get allowed configurable keys from config schemas:
+        cfg_schemas = [get_schema("config_schema.yaml")] + self.extra_schemas
+        cfg_keys = []
+        for cfg_schema in cfg_schemas:
+            for rule in cfg_schema.rules:
+                if not rule.path and rule.condition.callable.name == "allowed_keys":
+                    cfg_keys.extend(rule.condition.callable.args)
+
+        return (cfg_schemas, cfg_keys)
+
+    def validate(self, data, logger, metadata=None, raise_with_metadata=True):
+        """Validate configuration items of the loaded invocation."""
+
+        logger.debug("Validating configuration...")
+        validated_data = data
+
+        for cfg_schema in self._schemas:
+            cfg_validated = cfg_schema.validate(validated_data)
+            if not cfg_validated.is_valid:
+                if not raise_with_metadata:
+                    metadata = None
+                raise ConfigValidationError(
+                    message=cfg_validated.get_failures_string(),
+                    meta_data=metadata,
+                )
+            validated_data = cfg_validated.cast_data
+
+        logger.debug("Configuration is valid.")
+        return validated_data
+
 
 class Config:
     """Application configuration as defined in one or more config files.
@@ -110,9 +146,9 @@ class Config:
     def __init__(
         self,
         app: BaseApp,
+        config_file: ConfigFile,
         options: ConfigOptions,
         logger: logging.Logger,
-        config_dir: Optional[PathLike],
         config_key: Optional[str],
         uid=None,
         callbacks=None,
@@ -120,10 +156,20 @@ class Config:
         **overrides,
     ):
         self._app = app
+        self._file = config_file
         self._options = options
         self._overrides = overrides
         self._logger = logger
         self._variables = variables or {}
+
+        self._file._configs.append(self)
+
+        self._config_key = self._file.select_invocation(
+            configs=self._file.data["configs"],
+            run_time_info=self._app.run_time_info.to_dict(),
+            path=self._file.path,
+            config_key=config_key,
+        )
 
         # Callbacks are run on get:
         self._get_callbacks = {
@@ -153,12 +199,7 @@ class Config:
             "log_console_level": (callback_update_log_console_level,),
         }
 
-        cfg_schemas, cfg_keys = self._init_schemas()
-        self._schemas = cfg_schemas
-
-        self._file = ConfigFile(self, config_dir, config_key)
-
-        self._configurable_keys = cfg_keys
+        self._configurable_keys = self._options._configurable_keys
         self._modified_keys = {}
         self._unset_keys = []
 
@@ -168,19 +209,24 @@ class Config:
 
         host_uid, host_uid_file_path = self._get_user_id()
 
-        self._meta_data = {
+        metadata = {
             "config_directory": self._file.directory,
             "config_file_name": self._file.path.name,
             "config_file_path": self._file.path,
             "config_file_contents": self._file.contents,
-            "config_key": self._file.invoc_key,
-            "config_schemas": cfg_schemas,
+            "config_key": self._config_key,
+            "config_schemas": self._options._schemas,
             "invoking_user_id": uid or host_uid,
             "host_user_id": host_uid,
             "host_user_id_file_path": host_uid_file_path,
         }
+        self._meta_data = metadata
 
-        self._validate()
+        self._options.validate(
+            data=self.get_all(include_overrides=True),
+            logger=self._logger,
+            metadata=metadata,
+        )
 
     def __str__(self):
         return self.to_string(exclude=["config_file_contents"])
@@ -233,31 +279,14 @@ class Config:
         self._get_callbacks = get_callbacks
         self._set_callbacks = set_callbacks
 
-    def _validate(self, data=None, raise_with_metadata=True):
-        """Validate configuration items of the loaded invocation."""
-
-        self._logger.debug("Validating configuration...")
-        if data is None:
-            validated_data = self.get_all(include_overrides=True)
-        else:
-            validated_data = data
-
-        for cfg_schema in self._schemas:
-            cfg_validated = cfg_schema.validate(validated_data)
-            if not cfg_validated.is_valid:
-                meta_data = None
-                if raise_with_metadata:
-                    meta_data = self.to_string(
-                        exclude=["config_file_contents", "config_schemas"], just_meta=True
-                    )
-                raise ConfigValidationError(
-                    message=cfg_validated.get_failures_string(),
-                    meta_data=meta_data,
-                )
-            validated_data = cfg_validated.cast_data
-
-        self._logger.debug("Configuration is valid.")
-        return validated_data
+    def _validate(self):
+        data = self.get_all(include_overrides=True)
+        self._options.validate(
+            data=data,
+            logger=self._logger,
+            metadata=self._meta_data,
+            raise_with_metadata=True,
+        )
 
     def to_string(self, exclude: Optional[List] = None, just_meta=False):
         """Format the instance in a string, optionally exclude some keys.
@@ -410,7 +439,10 @@ class Config:
 
         elif name in self._configurable_keys:
             val = self._file.get_config_item(
-                name, raise_on_missing, default_value=default_value
+                config_key=self._config_key,
+                name=name,
+                raise_on_missing=raise_on_missing,
+                default_value=default_value,
             )
 
         if callback:
@@ -439,7 +471,7 @@ class Config:
                 value = self._parse_JSON(name, value)
             current_val = self._get(name)
             callback_val = self._get_callback_value(name, value)
-            file_val_raw = self._file.get_config_item(name)
+            file_val_raw = self._file.get_config_item(self._config_key, name)
             file_val = self._get_callback_value(name, file_val_raw)
 
             if callback_val != current_val:
@@ -515,7 +547,7 @@ class Config:
         """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
-        if name in self._unset_keys or not self._file.is_item_set(name):
+        if name in self._unset_keys or not self._file.is_item_set(self._config_key, name):
             raise ConfigItemAlreadyUnsetError(name=name)
 
         self._unset_keys.append(name)
@@ -718,17 +750,6 @@ class Config:
             user_dat_dir.mkdir()
             self._logger.info(f"Created user data directory: {user_dat_dir!r}.")
 
-    def _init_schemas(self):
-        # Get allowed configurable keys from config schemas:
-        cfg_schemas = [get_schema("config_schema.yaml")] + self._options.extra_schemas
-        cfg_keys = []
-        for cfg_schema in cfg_schemas:
-            for rule in cfg_schema.rules:
-                if not rule.path and rule.condition.callable.name == "allowed_keys":
-                    cfg_keys.extend(rule.condition.callable.args)
-
-        return (cfg_schemas, cfg_keys)
-
     def add_scheduler(self, scheduler, **kwargs):
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
@@ -777,8 +798,8 @@ class Config:
                 # load it:
                 new_config_obj = Config(
                     app=self._app,
+                    config_file=self._file,
                     options=self._options,
-                    config_dir=self.config_directory,
                     config_key=file_stem,
                     logger=self._logger,
                     variables=self._variables,
@@ -787,7 +808,10 @@ class Config:
 
             elif rename:
                 if self.config_key != file_stem:
-                    self._file.rename_config_key(file_stem)
+                    self._file.rename_config_key(
+                        config_key=self._config_key,
+                        new_config_key=file_stem,
+                    )
 
             new_invoc = file_dat.get("invocation")
             new_config = file_dat.get("config")
@@ -795,6 +819,7 @@ class Config:
             if new_invoc:
                 status.update("Updating invocation details...")
                 obj._file.update_invocation(
+                    config_key=file_stem if make_new else self._config_key,
                     environment_setup=new_invoc.get("environment_setup"),
                     match=new_invoc.get("match"),
                 )
