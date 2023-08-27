@@ -79,7 +79,13 @@ def get_config_CLI(app):
     def show_all_config(ctx, param, value):
         if not value or ctx.resilient_parsing:
             return
-        print(ctx.obj["config"].to_string(exclude=["config_file_contents"]))
+        print(ctx.obj["config"]._show(config=True, metadata=False))
+        ctx.exit()
+
+    def show_all_metadata(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        print(ctx.obj["config"]._show(config=False, metadata=True))
         ctx.exit()
 
     def show_config_file(ctx, param, value):
@@ -145,6 +151,14 @@ def get_config_CLI(app):
         is_eager=True,
         help="Show all configuration items.",
         callback=show_all_config,
+    )
+    @click.option(
+        "--metadata",
+        is_flag=True,
+        expose_value=False,
+        is_eager=True,
+        help="Show all metadata items.",
+        callback=show_all_metadata,
     )
     @click.option(
         "--file",

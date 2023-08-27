@@ -15,7 +15,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import fsspec
 
-from rich.console import Console
+from rich.console import Console, Group
+from rich.table import Table
+from rich.pretty import Pretty
+from rich.panel import Panel
+from rich import print as rich_print
 from fsspec.registry import known_implementations as fsspec_protocols
 from platformdirs import user_data_dir
 from valida.schema import Schema
@@ -228,9 +232,6 @@ class Config:
             metadata=metadata,
         )
 
-    def __str__(self):
-        return self.to_string(exclude=["config_file_contents"])
-
     def __dir__(self):
         return super().__dir__() + self._all_keys
 
@@ -287,36 +288,6 @@ class Config:
             metadata=self._meta_data,
             raise_with_metadata=True,
         )
-
-    def to_string(self, exclude: Optional[List] = None, just_meta=False):
-        """Format the instance in a string, optionally exclude some keys.
-
-        Parameters
-        ----------
-        exclude
-            List of keys to exclude. Optional.
-        just_meta
-            If True, just return a str of the meta-data. This is useful to show during
-            initialisation, in the case where the configuration is otherwise invalid.
-
-        """
-        exclude = exclude or []
-        lines = []
-        blocks = {"meta-data": self._meta_data}
-        if not just_meta:
-            blocks.update({"configuration": self.get_all(as_str=True)})
-        for title, dat in blocks.items():
-            lines.append(f"{title}:")
-            for key, val in dat.items():
-                if key in exclude:
-                    continue
-                if isinstance(val, list):
-                    if val:
-                        val = "\n    " + "\n    ".join(str(i) for i in val)
-                    else:
-                        val = "[]"
-                lines.append(f"  {key}: {val}")
-        return "\n".join(lines)
 
     def _resolve_path(self, path):
         """Resolve a file path, but leave fsspec protocols alone."""
@@ -394,6 +365,31 @@ class Config:
                     continue
                 items.update({key: val})
         return items
+
+    def _show(self, config=True, metadata=False):
+        group_args = []
+        if metadata:
+            tab_md = Table(show_header=False, box=None)
+            tab_md.add_column()
+            tab_md.add_column()
+            for k, v in self._meta_data.items():
+                if k == "config_file_contents":
+                    continue
+                tab_md.add_row(k, Pretty(v))
+            panel_md = Panel(tab_md, title="Config metadata")
+            group_args.append(panel_md)
+
+        if config:
+            tab = Table(show_header=False, box=None)
+            tab.add_column()
+            tab.add_column()
+            for k, v in self.get_all().items():
+                tab.add_row(k, Pretty(v))
+            panel = Panel(tab, title=f"Config {self._config_key!r}")
+            group_args.append(panel)
+
+        group = Group(*group_args)
+        rich_print(group)
 
     def _get_callback_value(self, name, value):
         if name in self._get_callbacks and value is not None:

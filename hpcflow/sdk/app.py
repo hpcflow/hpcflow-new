@@ -1203,12 +1203,6 @@ class BaseApp(metaclass=Singleton):
         )
         rich_print(group)
 
-        # console = Console()
-        # console.print(js_notes)
-        # console.print(js_tab)
-        # console.print(act_notes)
-        # console.print(act_tab)
-
     def _show(
         self,
         max_recent: int = 3,
