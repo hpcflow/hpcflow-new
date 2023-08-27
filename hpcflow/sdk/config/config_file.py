@@ -119,12 +119,12 @@ class ConfigFile:
         for config in self._configs:
             modified_names += list(config._modified_keys.keys()) + config._unset_keys
             for k, v in config._modified_keys.items():
-                new_data["configs"][self.invoc_key]["config"][k] = v
-                new_data_rt["configs"][self.invoc_key]["config"][k] = v
+                new_data["configs"][config._config_key]["config"][k] = v
+                new_data_rt["configs"][config._config_key]["config"][k] = v
 
             for k in config._unset_keys:
-                del new_data["configs"][self.invoc_key]["config"][k]
-                del new_data_rt["configs"][self.invoc_key]["config"][k]
+                del new_data["configs"][config._config_key]["config"][k]
+                del new_data_rt["configs"][config._config_key]["config"][k]
 
         try:
             new_contents = self._dump(new_data_rt)
