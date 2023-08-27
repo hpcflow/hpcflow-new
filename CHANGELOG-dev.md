@@ -1,4 +1,68 @@
 
+<a name="v0.2.0a87"></a>
+## [v0.2.0a87](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a86...v0.2.0a87) - 2023.08.27
+
+### Other changes
+
+* update gitignore
+
+### ♻ Code Refactoring
+
+* add config callback_scheduler_set_up
+* use existing utils func
+* rename config_invocation_key -> config_key
+* remove unused
+* **config:** use rich for Config._show
+* **config:** use ConfigFile._dump for all file dump ops
+
+### ✨ Features
+
+* **config:** add Config.init for easy importing of 'known configs'
+* **config:** add make_new arg to Config.import_from_file
+* **config:** add rename_config_key
+* **config:** use DEFAULT_LOGIN_NODE_MATCH for proper-schedulers to set a reasonable hostname match
+* **config:** add ConfigFile.update_invocation
+* **config:** allow list of match values
+* **config:** add import_from_file
+* **config:** add ability to disable temporarily config callbacks
+* **config:** add `hpcflow config open` as an alias for `hpcflow open config`
+* **schedulers:** add SGE.get_login_nodes and CLI
+
+### 🐛 Bug Fixes
+
+* init ConfigFile before Config, allowing multiple Configs for the same file
+* SGE.get_login_nodes newline
+* add config callback_scheduler_set_up
+* callback_scheduler_set_up
+* **config:** remove prints
+* **config:** try fix callbacks
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** fix config import CLI
+* **config:** fix config import CLI
+* **config:** update config import CLI with additional options
+* **config:** import_from_file
+* **config:** callback_scheduler_set_up
+* **config:** try fix
+* **config:** try fix
+* **config:** try fix
+* **config:** tests
+* **config:** tests
+* **config:** validation for schedulers
+* **config:** Config.set
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a86"></a>
 ## [v0.2.0a86](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a85...v0.2.0a86) - 2023.08.22
 
