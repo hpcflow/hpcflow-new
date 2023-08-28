@@ -176,13 +176,10 @@ class BaseApp(metaclass=Singleton):
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
-    def _get_app_attribute(self, name: str) -> Type:
-        obj_mod = import_module(sdk_objs[name])
-        return getattr(obj_mod, name)
-
     def _get_app_core_class(self, name: str) -> Type:
         if name not in self._app_attr_cache:
-            cls = self._get_app_attribute(name)
+            obj_mod = import_module(sdk_objs[name])
+            cls = getattr(obj_mod, name)
             if issubclass(cls, enum.Enum):
                 sub_cls = cls
             else:
