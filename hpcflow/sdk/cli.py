@@ -223,7 +223,7 @@ def _make_API_CLI(app):
         if cmd.help:
             cmd.help = cmd.help.format(app_name=app.name)
 
-    if app.name != "hpcflow":
+    if app.name != "hpcFlow":
         # `test_hpcflow` is the same as `test` for the hpcflow app no need to add both:
         commands.append(test_hpcflow)
 
