@@ -118,13 +118,12 @@ def get_config_CLI(app):
     @config.command("import")
     @click.argument("file_path")
     @click.option(
-        "--rename",
-        type=click.BOOL,
-        is_flag=True,
+        "--rename/--no-rename",
         default=True,
         help=(
-            "If True, rename the currently loaded config file according to the name of "
-            f"the file that is being imported. Ignored if `--new` is specified."
+            "Rename the currently loaded config file according to the name of the file "
+            "that is being imported (default is to rename). Ignored if `--new` is "
+            "specified."
         ),
     )
     @click.option(
