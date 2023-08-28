@@ -32,10 +32,7 @@ from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
-from hpcflow.sdk.core import (
-    ALL_TEMPLATE_FORMATS,
-    DEFAULT_TEMPLATE_FORMAT,
-)
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.log import AppLog
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
@@ -887,7 +884,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: Union[PathLike, str],
         is_string: Optional[bool] = False,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -952,9 +949,15 @@ class BaseApp(metaclass=Singleton):
         elif template_format == "yaml":
             wk = self.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
 
+        elif not template_format:
+            raise ValueError(
+                f"Must specify `template_format` if parsing a workflow template from a "
+                f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
+            )
+
         else:
             raise ValueError(
-                f"Template format {template_format} not understood. Available template "
+                f"Template format {template_format!r} not understood. Available template "
                 f"formats are {ALL_TEMPLATE_FORMATS!r}."
             )
         return wk
@@ -963,7 +966,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: Union[PathLike, str],
         is_string: Optional[bool] = False,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -1031,7 +1034,7 @@ class BaseApp(metaclass=Singleton):
     def _make_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -1087,7 +1090,7 @@ class BaseApp(metaclass=Singleton):
     def _make_and_submit_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,

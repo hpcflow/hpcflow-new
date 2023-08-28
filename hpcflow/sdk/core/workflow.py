@@ -22,7 +22,6 @@ import rich.console
 from hpcflow.sdk import app
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
-    DEFAULT_TEMPLATE_FORMAT,
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
@@ -193,6 +192,21 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_YAML(string))
 
     @classmethod
+    def _check_name(cls, data: Dict, path: PathLike) -> str:
+        """Check the workflow template data has a "name" key. If not, add a "name" key,
+        using the file path stem.
+
+        Note: this method mutates `data`.
+
+        """
+        if "name" not in data:
+            name = Path(path).stem
+            cls.app.logger.info(
+                f"using file name stem ({name!r}) as the workflow template name."
+            )
+            data["name"] = name
+
+    @classmethod
     def from_YAML_file(cls, path: PathLike) -> app.WorkflowTemplate:
         """Load from a YAML file.
 
@@ -202,7 +216,10 @@ class WorkflowTemplate(JSONLike):
             The path to the YAML file containing the workflow template parametrisation.
 
         """
-        return cls._from_data(read_YAML_file(path))
+        cls.app.logger.debug("parsing workflow template from a YAML file")
+        data = read_YAML_file(path)
+        cls._check_name(data, path)
+        return cls._from_data(data)
 
     @classmethod
     def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
@@ -226,13 +243,16 @@ class WorkflowTemplate(JSONLike):
             The path to the JSON file containing the workflow template parametrisation.
 
         """
-        return cls._from_data(read_JSON_file(path))
+        cls.app.logger.debug("parsing workflow template from a JSON file")
+        data = read_JSON_file(path)
+        cls._check_name(data, path)
+        return cls._from_data(data)
 
     @classmethod
     def from_file(
         cls,
         path: PathLike,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
     ) -> app.WorkflowTemplate:
         """Load from either a YAML or JSON file, depending on the file extension.
 
@@ -246,10 +266,10 @@ class WorkflowTemplate(JSONLike):
 
         """
         path = Path(path)
-        fmt = template_format.lower()
+        fmt = template_format.lower() if template_format else None
         if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
             return cls.from_YAML_file(path)
-        elif fmt == "json" or path.suffix == ".json":
+        elif fmt == "json" or path.suffix in (".json", ".jsonc"):
             return cls.from_JSON_file(path)
         else:
             raise ValueError(

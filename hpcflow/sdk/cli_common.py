@@ -2,14 +2,14 @@
 
 import click
 
-from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 
 
 format_option = click.option(
     "--format",
     type=click.Choice(ALL_TEMPLATE_FORMATS),
-    default=DEFAULT_TEMPLATE_FORMAT,
+    default=None,
     help=(
         'If specified, one of "json" or "yaml". This forces parsing from a '
         "particular format."
