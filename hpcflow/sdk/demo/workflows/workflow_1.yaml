@@ -1,4 +1,3 @@
-name: workflow_1
 tasks:
   - schemas: [test_t1_conditional_OS]
     inputs:
