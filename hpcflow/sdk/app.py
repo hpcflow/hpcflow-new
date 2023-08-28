@@ -1,19 +1,22 @@
 """An hpcflow application."""
 from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime, timezone
 import enum
+import shutil
 from functools import wraps
 from importlib import resources, import_module
 from logging import Logger
 import os
 from pathlib import Path
 import socket
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
 from platformdirs import user_data_dir
 from reretry import retry
 from rich.console import Console, Group
+from rich.syntax import Syntax
 from rich.table import Table, box
 from rich.text import Text
 from rich.padding import Padding
@@ -47,6 +50,7 @@ from hpcflow.sdk.submission.shells.os_version import (
 from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
+DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 
 def __getattr__(name):
@@ -123,6 +127,7 @@ class BaseApp(metaclass=Singleton):
         description,
         config_options,
         scripts_dir,
+        workflows_dir: str = None,
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
@@ -138,6 +143,7 @@ class BaseApp(metaclass=Singleton):
         self.config_options = config_options
         self.pytest_args = pytest_args
         self.scripts_dir = scripts_dir
+        self.workflows_dir = workflows_dir
         self.docs_import_conv = docs_import_conv
 
         self.cli = make_cli(self)
@@ -568,6 +574,66 @@ class BaseApp(metaclass=Singleton):
 
         return scripts
 
+    def _get_demo_workflows(self) -> Dict[str, Path]:
+        templates = {}
+        pkg = f"hpcflow.{self.workflows_dir}"
+        try:
+            files = resources.files(pkg).iterdir()
+        except AttributeError:
+            # python 3.8; `resources.contents` deprecated since 3.11
+            files = resources.contents(pkg)
+        for i in files:
+            if i.suffix in (".yaml", ".yml", ".json", ".jsonc"):
+                templates[i.stem] = i
+        return templates
+
+    def list_demo_workflows(self) -> Tuple[str]:
+        """Return a list of demo workflow templates included in the app."""
+        return tuple(self._get_demo_workflows().keys())
+
+    def get_demo_workflow_template_file(self, name: str) -> Path:
+        """Return the file path to an included demo workflow template."""
+        return self._get_demo_workflows()[name]
+
+    def copy_demo_workflow(self, name: str, dst: Optional[PathLike] = None) -> None:
+        """Copy a builtin demo workflow to the specified location.
+
+        Parameters
+        ----------
+        name
+            The name of the demo workflow to copy
+        dst
+            Directory or full file path to copy the demo workflow to. If not specified,
+            the current working directory will be used.
+
+        """
+
+        dst = dst or Path(".")
+        src = self.get_demo_workflow_template_file(name)
+        shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
+
+    def show_demo_workflow(self, name: str, syntax: bool = True):
+        """Print the contents of a builtin demo workflow template file.
+
+        Parameters
+        ----------
+        name
+            The name of the demo workflow file to print.
+        syntax
+            If True, use rich to syntax-highlight the output.
+        """
+        file_path = self.get_demo_workflow_template_file(name)
+        with file_path.open("rt") as fp:
+            contents = fp.read()
+
+        if syntax:
+            fmt = DEMO_WK_FORMATS[file_path.suffix]
+            contents = Syntax(contents, fmt)
+            console = Console()
+            console.print(contents)
+        else:
+            print(contents)
+
     def template_components_from_json_like(self, json_like) -> None:
         cls_lookup = {
             "parameters": self.ParametersList,
@@ -952,6 +1018,126 @@ class BaseApp(metaclass=Singleton):
         wk = self.make_workflow(
             template_file_or_str=template_file_or_str,
             is_string=is_string,
+            template_format=template_format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
+        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+
+    def _make_demo_workflow(
+        self,
+        workflow_name: str,
+        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+    ) -> get_app_attribute("Workflow"):
+        """Generate a new {app_name} workflow from a builtin demo workflow template.
+
+        Parameters
+        ----------
+        workflow_name
+            Name of the demo workflow to make.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the workflow template name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store type to use.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        """
+
+        self.API_logger.info("make_demo_workflow called")
+
+        template_path = self.get_demo_workflow_template_file(workflow_name)
+        wk = self.Workflow.from_file(
+            template_path=template_path,
+            template_format=template_format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
+        return wk
+
+    def _make_and_submit_demo_workflow(
+        self,
+        workflow_name: str,
+        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+        JS_parallelism: Optional[bool] = None,
+        wait: Optional[bool] = False,
+    ) -> Dict[int, int]:
+        """Generate and submit a new {app_name} workflow from a file or string containing a
+        workflow template parametrisation.
+
+        Parameters
+        ----------
+        workflow_name
+            Name of the demo workflow to make.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        JS_parallelism
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        wait
+            If True, this command will block until the workflow execution is complete.
+        """
+
+        self.API_logger.info("make_and_submit_demo_workflow called")
+
+        wk = self.make_demo_workflow(
+            workflow_name=workflow_name,
             template_format=template_format,
             path=path,
             name=name,

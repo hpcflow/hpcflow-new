@@ -94,7 +94,9 @@ sdk_classes = {
 # these are defined as `BaseApp` methods with an underscore prefix:
 sdk_funcs = (
     "make_workflow",
+    "make_demo_workflow",
     "make_and_submit_workflow",
+    "make_and_submit_demo_workflow",
     "submit_workflow",
     "run_hpcflow_tests",
     "run_tests",

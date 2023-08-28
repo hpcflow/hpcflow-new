@@ -8,10 +8,20 @@ from rich.pretty import pprint
 from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
 from hpcflow.sdk.config.errors import ConfigError
-from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT, utils
-from hpcflow.sdk.demo.cli import get_demo_software_CLI
+from hpcflow.sdk.core import utils
+from hpcflow.sdk.demo.cli import get_demo_software_CLI, get_demo_workflow_CLI
+from hpcflow.sdk.cli_common import (
+    format_option,
+    path_option,
+    name_option,
+    overwrite_option,
+    store_option,
+    ts_fmt_option,
+    ts_name_fmt_option,
+    js_parallelism_option,
+    wait_option,
+)
 from hpcflow.sdk.helper.cli import get_helper_CLI
-from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
 string_option = click.option(
@@ -19,74 +29,6 @@ string_option = click.option(
     is_flag=True,
     default=False,
     help="Determines if passing a file path or a string.",
-)
-format_option = click.option(
-    "--format",
-    type=click.Choice(ALL_TEMPLATE_FORMATS),
-    default=DEFAULT_TEMPLATE_FORMAT,
-    help=(
-        'If specified, one of "json" or "yaml". This forces parsing from a '
-        "particular format."
-    ),
-)
-path_option = click.option(
-    "--path",
-    type=click.Path(exists=True),
-    help="The directory path into which the new workflow will be generated.",
-)
-name_option = click.option(
-    "--name",
-    help=(
-        "The name of the workflow. If specified, the workflow directory will be "
-        "`path` joined with `name`. If not specified the workflow template name "
-        "will be used, in combination with a date-timestamp."
-    ),
-)
-overwrite_option = click.option(
-    "--overwrite",
-    is_flag=True,
-    default=False,
-    help=(
-        "If True and the workflow directory (`path` + `name`) already exists, "
-        "the existing directory will be overwritten."
-    ),
-)
-store_option = click.option(
-    "--store",
-    type=click.Choice(ALL_STORE_FORMATS),
-    help="The persistent store type to use.",
-    default=DEFAULT_STORE_FORMAT,
-)
-ts_fmt_option = click.option(
-    "--ts-fmt",
-    help=(
-        "The datetime format to use for storing datetimes. Datetimes are always "
-        "stored in UTC (because Numpy does not store time zone info), so this "
-        "should not include a time zone name."
-    ),
-)
-ts_name_fmt_option = click.option(
-    "--ts-name-fmt",
-    help=(
-        "The datetime format to use when generating the workflow name, where it "
-        "includes a timestamp."
-    ),
-)
-js_parallelism_option = click.option(
-    "--js-parallelism",
-    help=(
-        "If True, allow multiple jobscripts to execute simultaneously. Raises if "
-        "set to True but the store type does not support the "
-        "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
-        "be used if the store type supports it."
-    ),
-    type=click.BOOL,
-)
-wait_option = click.option(
-    "--wait",
-    help=("If True, this command will block until the workflow execution is complete."),
-    is_flag=True,
-    default=False,
 )
 workflow_ref_type_opt = click.option(
     "--ref-type",
@@ -839,6 +781,7 @@ def make_cli(app):
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))
     new_CLI.add_command(get_demo_software_CLI(app))
+    new_CLI.add_command(get_demo_workflow_CLI(app))
     new_CLI.add_command(get_helper_CLI(app))
     new_CLI.add_command(_make_workflow_CLI(app))
     new_CLI.add_command(_make_submission_CLI(app))

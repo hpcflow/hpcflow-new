@@ -3,6 +3,17 @@ from random import randint
 import click
 
 from hpcflow.sdk.core.utils import get_process_stamp
+from hpcflow.sdk.cli_common import (
+    format_option,
+    path_option,
+    name_option,
+    overwrite_option,
+    store_option,
+    ts_fmt_option,
+    ts_name_fmt_option,
+    js_parallelism_option,
+    wait_option,
+)
 
 
 def get_demo_software_CLI(app):
@@ -10,7 +21,7 @@ def get_demo_software_CLI(app):
 
     @click.group()
     def demo_software():
-        click.echo("demo software!")
+        pass
 
     @demo_software.command("doSomething")
     @click.option("--infile1", "-i1", type=click.Path(exists=True), required=True)
@@ -18,7 +29,6 @@ def get_demo_software_CLI(app):
     @click.option("--value", "-v")
     @click.option("--out", "-o")
     def demo_do_something(infile1, infile2, value=None, out=None):
-
         click.echo("trying to do something")
 
         with Path(infile1).open("r") as handle:
@@ -50,3 +60,109 @@ def get_demo_software_CLI(app):
             )
 
     return demo_software
+
+
+def get_demo_workflow_CLI(app):
+    """Generate the CLI to provide access to builtin demo workflows."""
+
+    def list_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        # TODO: format with Rich with a one-line description
+        click.echo("\n".join(app.list_demo_workflows()))
+        ctx.exit()
+
+    @click.group()
+    @click.option(
+        "-l",
+        "--list",
+        help="Print available builtin demo workflows.",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=list_callback,
+    )
+    def demo_workflow():
+        """Interact with builtin demo workflows."""
+        pass
+
+    @demo_workflow.command("make")
+    @click.argument("workflow_name")
+    @format_option
+    @path_option
+    @name_option
+    @overwrite_option
+    @store_option
+    @ts_fmt_option
+    @ts_name_fmt_option
+    def make_demo_workflow(
+        workflow_name,
+        format,
+        path,
+        name,
+        overwrite,
+        store,
+        ts_fmt=None,
+        ts_name_fmt=None,
+    ):
+        wk = app.make_demo_workflow(
+            workflow_name=workflow_name,
+            template_format=format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
+        click.echo(wk.path)
+
+    @demo_workflow.command("go")
+    @click.argument("workflow_name")
+    @format_option
+    @path_option
+    @name_option
+    @overwrite_option
+    @store_option
+    @ts_fmt_option
+    @ts_name_fmt_option
+    @js_parallelism_option
+    @wait_option
+    def make_and_submit_demo_workflow(
+        workflow_name,
+        format,
+        path,
+        name,
+        overwrite,
+        store,
+        ts_fmt=None,
+        ts_name_fmt=None,
+        js_parallelism=None,
+        wait=False,
+    ):
+        app.make_and_submit_demo_workflow(
+            workflow_name=workflow_name,
+            template_format=format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+            JS_parallelism=js_parallelism,
+            wait=wait,
+        )
+
+    @demo_workflow.command("copy")
+    @click.argument("workflow_name")
+    @click.argument("destination")
+    def copy_demo_workflow(workflow_name, destination):
+        app.copy_demo_workflow(name=workflow_name, dst=destination)
+
+    @demo_workflow.command("show")
+    @click.argument("workflow_name")
+    @click.option("--syntax/--no-syntax", default=True)
+    def show_demo_workflow(workflow_name, syntax):
+        app.show_demo_workflow(workflow_name, syntax=syntax)
+
+    return demo_workflow
