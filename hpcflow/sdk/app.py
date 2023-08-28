@@ -27,7 +27,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
-from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
+from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
@@ -70,7 +70,7 @@ def get_app_attribute(name):
 
 
 def get_app_module_all():
-    return ["app"] + list(sdk_objs.keys())
+    return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
 
 
 def get_app_module_dir():
@@ -178,7 +178,7 @@ class BaseApp(metaclass=Singleton):
 
     def _get_app_core_class(self, name: str) -> Type:
         if name not in self._app_attr_cache:
-            obj_mod = import_module(sdk_objs[name])
+            obj_mod = import_module(sdk_classes[name])
             cls = getattr(obj_mod, name)
             if issubclass(cls, enum.Enum):
                 sub_cls = cls
