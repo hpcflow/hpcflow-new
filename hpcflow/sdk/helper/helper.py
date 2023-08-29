@@ -9,7 +9,6 @@ import subprocess
 import sys
 import time
 
-from platformdirs import user_data_dir
 import psutil
 
 from .watcher import MonitorController
