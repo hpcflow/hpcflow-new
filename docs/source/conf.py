@@ -138,16 +138,17 @@ def generate_parameter_validation_schemas(app):
 
 def copy_all_demo_workflows(app):
     """Load WorkflowTemplate objects and copy template files from all builtin demo
-    template files."""
+    template files to the reference source directory (adjacent to the workflows.rst file
+    within which they are included)."""
     out = {}
     for name in app.list_demo_workflows():
         obj = app.load_demo_workflow(name)
-        dst = Path(f"_static/demo_workflow_{name}").resolve()
-        app.copy_demo_workflow(name, dst=dst, doc=False)
+        dst = Path(f"reference/demo_workflow_{name}")
+        file_name = app.copy_demo_workflow(name, dst=dst, doc=False)
         value = {
             "obj": obj,
-            "file_path": str(dst),
-            "file_name": str(dst.name),
+            "file_path": f"demo_workflow_{name}",
+            "file_name": file_name,
         }
         out[name] = value
     return out
