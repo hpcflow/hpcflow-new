@@ -91,21 +91,22 @@ sdk_classes = {
     "OutputLabel": "hpcflow.sdk.core.task",
 }
 
-sdk_funcs = {
-    "make_workflow": "hpcflow.sdk.api",
-    "make_and_submit_workflow": "hpcflow.sdk.api",
-    "submit_workflow": "hpcflow.sdk.api",
-    "run_hpcflow_tests": "hpcflow.sdk.api",
-    "run_tests": "hpcflow.sdk.api",
-    "get_OS_info": "hpcflow.sdk.api",
-    "get_shell_info": "hpcflow.sdk.api",
-    "get_known_submissions": "hpcflow.sdk.api",
-    "show": "hpcflow.sdk.api",
-    "show_legend": "hpcflow.sdk.api",
-    "cancel": "hpcflow.sdk.api",
-}
-
-sdk_objs = {**sdk_classes, **sdk_funcs}
+# these are defined as `BaseApp` methods with an underscore prefix:
+sdk_funcs = (
+    "make_workflow",
+    "make_demo_workflow",
+    "make_and_submit_workflow",
+    "make_and_submit_demo_workflow",
+    "submit_workflow",
+    "run_hpcflow_tests",
+    "run_tests",
+    "get_OS_info",
+    "get_shell_info",
+    "get_known_submissions",
+    "show",
+    "show_legend",
+    "cancel",
+)
 
 _SDK_CONSOLE_LOG_LEVEL = os.environ.get("HPCFLOW_SDK_CONSOLE_LOG_LEVEL", "ERROR")
 

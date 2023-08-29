@@ -8,10 +8,20 @@ from rich.pretty import pprint
 from hpcflow import __version__, _app_name
 from hpcflow.sdk.config.cli import get_config_CLI
 from hpcflow.sdk.config.errors import ConfigError
-from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS, DEFAULT_TEMPLATE_FORMAT, utils
-from hpcflow.sdk.demo.cli import get_demo_software_CLI
+from hpcflow.sdk.core import utils
+from hpcflow.sdk.demo.cli import get_demo_software_CLI, get_demo_workflow_CLI
+from hpcflow.sdk.cli_common import (
+    format_option,
+    path_option,
+    name_option,
+    overwrite_option,
+    store_option,
+    ts_fmt_option,
+    ts_name_fmt_option,
+    js_parallelism_option,
+    wait_option,
+)
 from hpcflow.sdk.helper.cli import get_helper_CLI
-from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
 string_option = click.option(
@@ -19,74 +29,6 @@ string_option = click.option(
     is_flag=True,
     default=False,
     help="Determines if passing a file path or a string.",
-)
-format_option = click.option(
-    "--format",
-    type=click.Choice(ALL_TEMPLATE_FORMATS),
-    default=DEFAULT_TEMPLATE_FORMAT,
-    help=(
-        'If specified, one of "json" or "yaml". This forces parsing from a '
-        "particular format."
-    ),
-)
-path_option = click.option(
-    "--path",
-    type=click.Path(exists=True),
-    help="The directory path into which the new workflow will be generated.",
-)
-name_option = click.option(
-    "--name",
-    help=(
-        "The name of the workflow. If specified, the workflow directory will be "
-        "`path` joined with `name`. If not specified the workflow template name "
-        "will be used, in combination with a date-timestamp."
-    ),
-)
-overwrite_option = click.option(
-    "--overwrite",
-    is_flag=True,
-    default=False,
-    help=(
-        "If True and the workflow directory (`path` + `name`) already exists, "
-        "the existing directory will be overwritten."
-    ),
-)
-store_option = click.option(
-    "--store",
-    type=click.Choice(ALL_STORE_FORMATS),
-    help="The persistent store type to use.",
-    default=DEFAULT_STORE_FORMAT,
-)
-ts_fmt_option = click.option(
-    "--ts-fmt",
-    help=(
-        "The datetime format to use for storing datetimes. Datetimes are always "
-        "stored in UTC (because Numpy does not store time zone info), so this "
-        "should not include a time zone name."
-    ),
-)
-ts_name_fmt_option = click.option(
-    "--ts-name-fmt",
-    help=(
-        "The datetime format to use when generating the workflow name, where it "
-        "includes a timestamp."
-    ),
-)
-js_parallelism_option = click.option(
-    "--js-parallelism",
-    help=(
-        "If True, allow multiple jobscripts to execute simultaneously. Raises if "
-        "set to True but the store type does not support the "
-        "`jobscript_parallelism` feature. If not set, jobscript parallelism will "
-        "be used if the store type supports it."
-    ),
-    type=click.BOOL,
-)
-wait_option = click.option(
-    "--wait",
-    help=("If True, this command will block until the workflow execution is complete."),
-    is_flag=True,
-    default=False,
 )
 workflow_ref_type_opt = click.option(
     "--ref-type",
@@ -223,7 +165,7 @@ def _make_API_CLI(app):
         if cmd.help:
             cmd.help = cmd.help.format(app_name=app.name)
 
-    if app.name != "hpcflow":
+    if app.name != "hpcFlow":
         # `test_hpcflow` is the same as `test` for the hpcflow app no need to add both:
         commands.append(test_hpcflow)
 
@@ -724,7 +666,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_data_dir(path=False):
-        dir_path = app.get_user_data_dir()
+        dir_path = app.user_data_dir
         if path:
             click.echo(dir_path)
         else:
@@ -737,6 +679,56 @@ def _make_open_CLI(app):
     return open_file
 
 
+def _make_manage_CLI(app):
+    """Generate the CLI for infrequent app management tasks."""
+
+    @click.group()
+    def manage():
+        """Infrequent app management tasks.
+
+        App config is not loaded.
+
+        """
+        pass
+
+    @manage.command()
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file to be reset.",
+    )
+    def reset_config(config_dir):
+        """Reset the configuration file to defaults.
+
+        This can be used if the current configuration file is invalid."""
+        app.reset_config(config_dir)
+
+    @manage.command()
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file whose path is to be returned.",
+    )
+    def get_config_path(config_dir):
+        """Print the config file path without loading the config.
+
+        This can be used instead of `{app_name} open config --path` if the config file
+        is invalid, because this command does not load the config.
+
+        """
+        click.echo(app.get_config_path(config_dir))
+
+    @manage.command("clear-known-subs")
+    def clear_known_subs():
+        """Delete the contents of the known-submissions file."""
+        app.clear_known_submissions_file()
+
+    @manage.command("clear-temp-dir")
+    def clear_runtime_dir():
+        """Delete all files in the user runtime directory."""
+        app.clear_user_runtime_dir()
+
+    return manage
+
+
 def make_cli(app):
     """Generate the root CLI for the app."""
 
@@ -747,13 +739,6 @@ def make_cli(app):
         if not value or ctx.resilient_parsing:
             return
         app.run_time_info.show()
-        ctx.exit()
-
-    def clear_known_subs_file_callback(ctx, param, value):
-        app.run_time_info.from_CLI = True
-        if not value or ctx.resilient_parsing:
-            return
-        app.clear_known_submissions_file()
         ctx.exit()
 
     @click.group(name=app.name)
@@ -779,14 +764,6 @@ def make_cli(app):
         expose_value=False,
         callback=run_time_info_callback,
     )
-    @click.option(
-        "--clear-known-subs",
-        help="Delete the contents of the known-submissions file",
-        is_flag=True,
-        is_eager=True,
-        expose_value=False,
-        callback=clear_known_subs_file_callback,
-    )
     @click.option("--config-dir", help="Set the configuration directory.")
     @click.option("--config-key", help="Set the configuration invocation key.")
     @click.option(
@@ -798,8 +775,8 @@ def make_cli(app):
     @click.pass_context
     def new_CLI(ctx, config_dir, config_key, with_config):
         app.run_time_info.from_CLI = True
-        if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
-            # don't load the config if we are resetting it - it could be invalid
+        if ctx.invoked_subcommand != "manage":
+            # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}
             try:
                 app.load_config(
@@ -811,35 +788,12 @@ def make_cli(app):
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
 
-    @new_CLI.command
-    @click.option(
-        "--config-dir",
-        help="The directory containing the config file to be reset.",
-    )
-    def reset_config(config_dir):
-        """Reset the configuration file to defaults.
-
-        This can be used if the current configuration file is invalid."""
-        app.reset_config(config_dir)
-
-    @new_CLI.command
-    @click.option(
-        "--config-dir",
-        help="The directory containing the config file whose path is to be returned.",
-    )
-    def get_config_path(config_dir):
-        """Print the config file path without loading the config.
-
-        This can be used instead of `{app_name} open config --path` if the config file
-        is invalid, because this command does not load the config.
-
-        """
-        click.echo(app.get_config_path(config_dir))
-
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))
     new_CLI.add_command(get_demo_software_CLI(app))
+    new_CLI.add_command(get_demo_workflow_CLI(app))
     new_CLI.add_command(get_helper_CLI(app))
+    new_CLI.add_command(_make_manage_CLI(app))
     new_CLI.add_command(_make_workflow_CLI(app))
     new_CLI.add_command(_make_submission_CLI(app))
     new_CLI.add_command(_make_internal_CLI(app))

@@ -338,19 +338,25 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
-def read_YAML(loadable_yaml):
-    yaml = YAML(typ="safe")
+def read_YAML(loadable_yaml, typ="safe"):
+    yaml = YAML(typ=typ)
     return yaml.load(loadable_yaml)
 
 
-def read_YAML_file(path: PathLike):
+def read_YAML_file(path: PathLike, typ="safe"):
     if is_fsspec_url(str(path)):
         with fsspec.open(path, "rt") as f:
             data = f.read()
         loadable_yaml = data
     else:
         loadable_yaml = Path(path)
-    return read_YAML(loadable_yaml)
+    return read_YAML(loadable_yaml, typ=typ)
+
+
+def write_YAML_file(obj, path: PathLike, typ="safe"):
+    yaml = YAML(typ=typ)
+    with Path(path).open("wt") as fp:
+        yaml.dump(obj, fp)
 
 
 def read_JSON_string(string: str):
@@ -360,6 +366,11 @@ def read_JSON_string(string: str):
 def read_JSON_file(path):
     with Path(path).open("rt") as fh:
         return json.load(fh)
+
+
+def write_JSON_file(obj, path: PathLike):
+    with Path(path).open("wt") as fp:
+        json.dump(obj, fp)
 
 
 def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):

@@ -1,19 +1,23 @@
 """An hpcflow application."""
 from __future__ import annotations
+
 from collections import defaultdict
 from datetime import datetime, timezone
 import enum
+import shutil
 from functools import wraps
 from importlib import resources, import_module
 from logging import Logger
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import socket
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
-from platformdirs import user_data_dir
+from platformdirs import user_data_dir, user_runtime_path
 from reretry import retry
 from rich.console import Console, Group
+from rich.syntax import Syntax
 from rich.table import Table, box
 from rich.text import Text
 from rich.padding import Padding
@@ -26,13 +30,16 @@ from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
-from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
-from hpcflow.sdk import sdk_objs, sdk_classes, sdk_funcs, get_SDK_logger
-from hpcflow.sdk.config import Config, ConfigFile
-from hpcflow.sdk.core import (
-    ALL_TEMPLATE_FORMATS,
-    DEFAULT_TEMPLATE_FORMAT,
+from hpcflow.sdk.core.utils import (
+    read_YAML,
+    read_YAML_file,
+    read_JSON_file,
+    write_YAML_file,
+    write_JSON_file,
 )
+from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
+from hpcflow.sdk.config import Config, ConfigFile
+from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.log import AppLog
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
@@ -47,6 +54,7 @@ from hpcflow.sdk.submission.shells.os_version import (
 from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
+DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 
 def __getattr__(name):
@@ -70,7 +78,7 @@ def get_app_attribute(name):
 
 
 def get_app_module_all():
-    return ["app"] + list(sdk_objs.keys())
+    return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
 
 
 def get_app_module_dir():
@@ -123,6 +131,7 @@ class BaseApp(metaclass=Singleton):
         description,
         config_options,
         scripts_dir,
+        workflows_dir: str = None,
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
@@ -138,6 +147,7 @@ class BaseApp(metaclass=Singleton):
         self.config_options = config_options
         self.pytest_args = pytest_args
         self.scripts_dir = scripts_dir
+        self.workflows_dir = workflows_dir
         self.docs_import_conv = docs_import_conv
 
         self.cli = make_cli(self)
@@ -165,6 +175,11 @@ class BaseApp(metaclass=Singleton):
 
         self._app_attr_cache = {}
 
+        # assigned on first access to respective properties
+        self._user_data_dir = None
+        self._user_data_hostname_dir = None
+        self._user_runtime_dir = None
+
     def __getattr__(self, name):
         if name in sdk_classes:
             return self._get_app_core_class(name)
@@ -176,13 +191,10 @@ class BaseApp(metaclass=Singleton):
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
-    def _get_app_attribute(self, name: str) -> Type:
-        obj_mod = import_module(sdk_objs[name])
-        return getattr(obj_mod, name)
-
     def _get_app_core_class(self, name: str) -> Type:
         if name not in self._app_attr_cache:
-            cls = self._get_app_attribute(name)
+            obj_mod = import_module(sdk_classes[name])
+            cls = getattr(obj_mod, name)
             if issubclass(cls, enum.Enum):
                 sub_cls = cls
             else:
@@ -440,8 +452,73 @@ class BaseApp(metaclass=Singleton):
             logger=self.persistence_logger,
         )
 
+    @property
+    def user_data_dir(self) -> Path:
+        if self._user_data_dir is None:
+            self._user_data_dir = Path(user_data_dir(appname=self.package_name))
+        return self._user_data_dir
+
+    @property
+    def user_data_hostname_dir(self) -> Path:
+        """We segregate by hostname to account for the case where multiple machines might
+        use the same shared file system"""
+
+        # This might need to cover e.g. multiple login nodes, as described in the
+        # config file:
+        if self._user_data_hostname_dir is None:
+            machine_name = self.config.get("machine")
+            self._user_data_hostname_dir = self.user_data_dir.joinpath(machine_name)
+        return self._user_data_hostname_dir
+
+    @property
+    def user_runtime_dir(self) -> Path:
+        """Retrieve a temporary directory."""
+        if self._user_runtime_dir is None:
+            self._user_runtime_dir = Path(user_runtime_path(appname=self.package_name))
+        return self._user_runtime_dir
+
+    def _ensure_user_data_dir(self) -> Path:
+        """Ensure a user data directory exists."""
+        if not self.user_data_dir.exists():
+            self.user_data_dir.mkdir(parents=True)
+            self.logger.info(f"Created user data directory: {self.user_data_dir!r}.")
+        return self.user_data_dir
+
+    def _ensure_user_data_hostname_dir(self) -> Path:
+        """Ensure a user data directory for this machine exists (used by the helper
+        process and the known-submissions file)."""
+        if not self.user_data_hostname_dir.exists():
+            self.user_data_hostname_dir.mkdir(parents=True)
+            self.logger.info(
+                f"Created user data hostname directory: {self.user_data_hostname_dir!r}."
+            )
+        return self.user_data_hostname_dir
+
+    def _ensure_user_runtime_dir(self) -> Path:
+        """Generate a user runtime directory for this machine in which we can create
+        semi-persistent temporary files.
+
+        Note: unlike `_ensure_user_data_dir`, and `_ensure_user_data_hostname_dir`, this
+        method is not invoked on config load, because it might need to be created after
+        each reboot, and it is not routinely used.
+
+        """
+        if not self.user_runtime_dir.exists():
+            self.user_runtime_dir.mkdir(parents=True)
+            self.logger.info(
+                f"Created user runtime directory: {self.user_runtime_dir!r}."
+            )
+        return self.user_runtime_dir
+
+    def clear_user_runtime_dir(self):
+        """Delete the contents of the user runtime directory."""
+        if self.user_runtime_dir.exists():
+            shutil.rmtree(self.user_runtime_dir)
+            self._ensure_user_runtime_dir()
+
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
+        self._ensure_user_data_dir()
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
             logger=self.config_logger,
@@ -469,7 +546,7 @@ class BaseApp(metaclass=Singleton):
             level=self.config.get("log_file_level"),
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
-        self.config._init_user_data_dir()
+        self._ensure_user_data_hostname_dir()
 
     def load_config(
         self,
@@ -571,6 +648,139 @@ class BaseApp(metaclass=Singleton):
 
         return scripts
 
+    def _get_demo_workflows(self) -> Dict[str, Path]:
+        """Get all builtin demo workflow template file paths."""
+        templates = {}
+        pkg = f"{self.package_name}.{self.workflows_dir}"
+        try:
+            files = resources.files(pkg).iterdir()
+        except AttributeError:
+            # python 3.8; `resources.contents` deprecated since 3.11
+            files = resources.contents(pkg)
+        for i in files:
+            if i.suffix in (".yaml", ".yml", ".json", ".jsonc"):
+                templates[i.stem] = i
+        return templates
+
+    def list_demo_workflows(self) -> Tuple[str]:
+        """Return a list of demo workflow templates included in the app."""
+        return tuple(self._get_demo_workflows().keys())
+
+    @contextmanager
+    def get_demo_workflow_template_file(
+        self, name: str, doc: bool = True, delete: bool = True
+    ) -> Path:
+        """Context manager to get a (temporary) file path to an included demo workflow
+        template.
+
+        Parameters
+        ----------
+        name
+            Name of the builtin demo workflow template whose file path is to be retrieved.
+        doc
+            If False, the yielded path will be to a file without the `doc` attribute (if
+            originally present).
+        delete
+            If True, remove the temporary file on exit.
+
+        """
+        tmp_dir = self._ensure_user_runtime_dir()
+        builtin_path = self._get_demo_workflows()[name]
+        path = tmp_dir / builtin_path.name
+
+        if doc:
+            # copy the file to the temp location:
+            path.write_text(builtin_path.read_text())
+        else:
+            # load the file, modify, then dump to temp location:
+            if builtin_path.suffix in (".yaml", ".yml"):
+                # use round-trip loader to preserve comments:
+                data = read_YAML_file(builtin_path, typ="rt")
+                data.pop("doc", None)
+                write_YAML_file(data, path, typ="rt")
+
+            elif builtin_path.suffix in (".json", ".jsonc"):
+                data = read_JSON_file(builtin_path)
+                data.pop("doc", None)
+                write_JSON_file(data, path)
+
+        yield path
+
+        if delete:
+            path.unlink()
+
+    def copy_demo_workflow(
+        self, name: str, dst: Optional[PathLike] = None, doc: bool = True
+    ) -> None:
+        """Copy a builtin demo workflow to the specified location.
+
+        Parameters
+        ----------
+        name
+            The name of the demo workflow to copy
+        dst
+            Directory or full file path to copy the demo workflow to. If not specified,
+            the current working directory will be used.
+        doc
+            If False, the copied workflow template file will not include the `doc`
+            attribute (if originally present).
+        """
+
+        dst = dst or Path(".")
+        with self.get_demo_workflow_template_file(name, doc=doc) as src:
+            shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
+
+    def show_demo_workflow(self, name: str, syntax: bool = True, doc: bool = False):
+        """Print the contents of a builtin demo workflow template file.
+
+        Parameters
+        ----------
+        name
+            The name of the demo workflow file to print.
+        syntax
+            If True, use rich to syntax-highlight the output.
+        doc
+            If False, the printed workflow template file contents will not include the
+            `doc` attribute (if originally present).
+        """
+        with self.get_demo_workflow_template_file(name, doc=doc) as path:
+            with path.open("rt") as fp:
+                contents = fp.read()
+
+            if syntax:
+                fmt = DEMO_WK_FORMATS[path.suffix]
+                contents = Syntax(contents, fmt)
+                console = Console()
+                console.print(contents)
+            else:
+                print(contents)
+
+    def load_demo_workflow(self, name: str) -> get_app_attribute("WorkflowTemplate"):
+        """Load a WorkflowTemplate object from a builtin demo template file."""
+        with self.get_demo_workflow_template_file(name) as path:
+            return self.WorkflowTemplate.from_file(path)
+
+    def _load_all_demo_workflows(self, include_file_data: bool = False) -> Dict:
+        """Load WorkflowTemplate objects from all builtin demo template files."""
+        out = {}
+        for name in self.list_demo_workflows():
+            value = self.load_demo_workflow(name)
+            if include_file_data:
+                # get a version of the template file without the doc attribute and without
+                # deleting:
+                with self.get_demo_workflow_template_file(
+                    name, delete=False, doc=False
+                ) as path:
+                    with path.open("rt") as fh:
+                        file_str = fh.read()
+                value = {
+                    "obj": value,
+                    "file_path": str(path),
+                    "file_name": str(path.name),
+                }
+            out[name] = value
+        return out
+
     def template_components_from_json_like(self, json_like) -> None:
         cls_lookup = {
             "parameters": self.ParametersList,
@@ -613,22 +823,13 @@ class BaseApp(metaclass=Singleton):
             "is_frozen": self.run_time_info.is_frozen,
         }
 
-    def get_user_data_dir(self):
-        """We segregate by hostname to account for the case where multiple machines might
-        use the same shared file system"""
-
-        # This might need to cover e.g. multiple login nodes, as described in the
-        # config file:
-        machine_name = self.config.get("machine")
-        return Path(user_data_dir(appname=self.package_name)).joinpath(machine_name)
-
     @property
     def known_subs_file_name(self):
         return self._known_subs_file_name
 
     @property
     def known_subs_file_path(self):
-        return self.get_user_data_dir() / self.known_subs_file_name
+        return self.user_data_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
         self, local_id, workflow_id, submit_time, sub_idx, is_active, wk_path
@@ -824,7 +1025,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: Union[PathLike, str],
         is_string: Optional[bool] = False,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -889,9 +1090,15 @@ class BaseApp(metaclass=Singleton):
         elif template_format == "yaml":
             wk = self.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
 
+        elif not template_format:
+            raise ValueError(
+                f"Must specify `template_format` if parsing a workflow template from a "
+                f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
+            )
+
         else:
             raise ValueError(
-                f"Template format {template_format} not understood. Available template "
+                f"Template format {template_format!r} not understood. Available template "
                 f"formats are {ALL_TEMPLATE_FORMATS!r}."
             )
         return wk
@@ -900,7 +1107,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: Union[PathLike, str],
         is_string: Optional[bool] = False,
-        template_format: Optional[str] = DEFAULT_TEMPLATE_FORMAT,
+        template_format: Optional[str] = None,
         path: Optional[PathLike] = None,
         name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -955,6 +1162,126 @@ class BaseApp(metaclass=Singleton):
         wk = self.make_workflow(
             template_file_or_str=template_file_or_str,
             is_string=is_string,
+            template_format=template_format,
+            path=path,
+            name=name,
+            overwrite=overwrite,
+            store=store,
+            ts_fmt=ts_fmt,
+            ts_name_fmt=ts_name_fmt,
+        )
+        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+
+    def _make_demo_workflow(
+        self,
+        workflow_name: str,
+        template_format: Optional[str] = None,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+    ) -> get_app_attribute("Workflow"):
+        """Generate a new {app_name} workflow from a builtin demo workflow template.
+
+        Parameters
+        ----------
+        workflow_name
+            Name of the demo workflow to make.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the workflow template name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store type to use.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        """
+
+        self.API_logger.info("make_demo_workflow called")
+
+        with self.get_demo_workflow_template_file(workflow_name) as template_path:
+            wk = self.Workflow.from_file(
+                template_path=template_path,
+                template_format=template_format,
+                path=path,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
+            )
+        return wk
+
+    def _make_and_submit_demo_workflow(
+        self,
+        workflow_name: str,
+        template_format: Optional[str] = None,
+        path: Optional[PathLike] = None,
+        name: Optional[str] = None,
+        overwrite: Optional[bool] = False,
+        store: Optional[str] = DEFAULT_STORE_FORMAT,
+        ts_fmt: Optional[str] = None,
+        ts_name_fmt: Optional[str] = None,
+        JS_parallelism: Optional[bool] = None,
+        wait: Optional[bool] = False,
+    ) -> Dict[int, int]:
+        """Generate and submit a new {app_name} workflow from a file or string containing a
+        workflow template parametrisation.
+
+        Parameters
+        ----------
+        workflow_name
+            Name of the demo workflow to make.
+        template_format
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store
+            The persistent store to use for this workflow.
+        ts_fmt
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        JS_parallelism
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        wait
+            If True, this command will block until the workflow execution is complete.
+        """
+
+        self.API_logger.info("make_and_submit_demo_workflow called")
+
+        wk = self.make_demo_workflow(
+            workflow_name=workflow_name,
             template_format=template_format,
             path=path,
             name=name,

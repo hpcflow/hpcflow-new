@@ -720,10 +720,8 @@ class Config:
         """Retrieve (and set if non-existent) a unique user ID that is independent of the
         config directory."""
 
-        uid_file_dir = Path(user_data_dir(appname=self._app.package_name))
-        uid_file_path = uid_file_dir.joinpath("user_id.txt")
+        uid_file_path = self._app.user_data_dir.joinpath("user_id.txt")
         if not uid_file_path.exists():
-            uid_file_dir.mkdir(exist_ok=True, parents=True)
             uid = str(uuid.uuid4())
             with uid_file_path.open("wt") as fh:
                 fh.write(uid)
@@ -737,14 +735,6 @@ class Config:
         """Reset to the default configuration."""
         self._logger.info(f"Resetting config file to defaults.")
         self._app.reset_config()
-
-    def _init_user_data_dir(self):
-        """Generate a user data directory for this machine (used by the helper process and
-        the known-submissions file."""
-        user_dat_dir = self._app.get_user_data_dir()
-        if not user_dat_dir.exists():
-            user_dat_dir.mkdir()
-            self._logger.info(f"Created user data directory: {user_dat_dir!r}.")
 
     def add_scheduler(self, scheduler, **kwargs):
         if scheduler in self.get("schedulers"):

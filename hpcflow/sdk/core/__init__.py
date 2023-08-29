@@ -8,6 +8,5 @@ https://tldp.org/LDP/abs/html/exitcodes.html
 
 """
 
-DEFAULT_TEMPLATE_FORMAT = "yaml"
 ALL_TEMPLATE_FORMATS = ("yaml", "json")
 ABORT_EXIT_CODE = 64
