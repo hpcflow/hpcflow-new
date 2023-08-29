@@ -118,6 +118,7 @@ class WorkflowTemplate(JSONLike):
     )
 
     name: str
+    doc: Optional[Union[List[str], str]] = field(repr=False, default=None)
     tasks: Optional[List[app.Task]] = field(default_factory=lambda: [])
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
@@ -132,6 +133,9 @@ class WorkflowTemplate(JSONLike):
         for task in self.tasks:
             for element_set in task.element_sets:
                 element_set.resources.merge_template_resources(self.resources)
+
+        if self.doc and not isinstance(self.doc, list):
+            self.doc = [self.doc]
 
     @classmethod
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:

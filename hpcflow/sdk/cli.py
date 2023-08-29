@@ -679,6 +679,56 @@ def _make_open_CLI(app):
     return open_file
 
 
+def _make_manage_CLI(app):
+    """Generate the CLI for infrequent app management tasks."""
+
+    @click.group()
+    def manage():
+        """Infrequent app management tasks.
+
+        App config is not loaded.
+
+        """
+        pass
+
+    @manage.command()
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file to be reset.",
+    )
+    def reset_config(config_dir):
+        """Reset the configuration file to defaults.
+
+        This can be used if the current configuration file is invalid."""
+        app.reset_config(config_dir)
+
+    @manage.command()
+    @click.option(
+        "--config-dir",
+        help="The directory containing the config file whose path is to be returned.",
+    )
+    def get_config_path(config_dir):
+        """Print the config file path without loading the config.
+
+        This can be used instead of `{app_name} open config --path` if the config file
+        is invalid, because this command does not load the config.
+
+        """
+        click.echo(app.get_config_path(config_dir))
+
+    @manage.command("clear-known-subs")
+    def clear_known_subs():
+        """Delete the contents of the known-submissions file."""
+        app.clear_known_submissions_file()
+
+    @manage.command("clear-temp-dir")
+    def clear_runtime_dir():
+        """Delete all files in the user runtime directory."""
+        app.clear_user_runtime_dir()
+
+    return manage
+
+
 def make_cli(app):
     """Generate the root CLI for the app."""
 
@@ -689,13 +739,6 @@ def make_cli(app):
         if not value or ctx.resilient_parsing:
             return
         app.run_time_info.show()
-        ctx.exit()
-
-    def clear_known_subs_file_callback(ctx, param, value):
-        app.run_time_info.from_CLI = True
-        if not value or ctx.resilient_parsing:
-            return
-        app.clear_known_submissions_file()
         ctx.exit()
 
     @click.group(name=app.name)
@@ -721,14 +764,6 @@ def make_cli(app):
         expose_value=False,
         callback=run_time_info_callback,
     )
-    @click.option(
-        "--clear-known-subs",
-        help="Delete the contents of the known-submissions file",
-        is_flag=True,
-        is_eager=True,
-        expose_value=False,
-        callback=clear_known_subs_file_callback,
-    )
     @click.option("--config-dir", help="Set the configuration directory.")
     @click.option("--config-key", help="Set the configuration invocation key.")
     @click.option(
@@ -740,8 +775,8 @@ def make_cli(app):
     @click.pass_context
     def new_CLI(ctx, config_dir, config_key, with_config):
         app.run_time_info.from_CLI = True
-        if ctx.invoked_subcommand not in ("reset-config", "get-config-path"):
-            # don't load the config if we are resetting it - it could be invalid
+        if ctx.invoked_subcommand != "manage":
+            # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}
             try:
                 app.load_config(
@@ -753,36 +788,12 @@ def make_cli(app):
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
 
-    @new_CLI.command
-    @click.option(
-        "--config-dir",
-        help="The directory containing the config file to be reset.",
-    )
-    def reset_config(config_dir):
-        """Reset the configuration file to defaults.
-
-        This can be used if the current configuration file is invalid."""
-        app.reset_config(config_dir)
-
-    @new_CLI.command
-    @click.option(
-        "--config-dir",
-        help="The directory containing the config file whose path is to be returned.",
-    )
-    def get_config_path(config_dir):
-        """Print the config file path without loading the config.
-
-        This can be used instead of `{app_name} open config --path` if the config file
-        is invalid, because this command does not load the config.
-
-        """
-        click.echo(app.get_config_path(config_dir))
-
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))
     new_CLI.add_command(get_demo_software_CLI(app))
     new_CLI.add_command(get_demo_workflow_CLI(app))
     new_CLI.add_command(get_helper_CLI(app))
+    new_CLI.add_command(_make_manage_CLI(app))
     new_CLI.add_command(_make_workflow_CLI(app))
     new_CLI.add_command(_make_submission_CLI(app))
     new_CLI.add_command(_make_internal_CLI(app))

@@ -9,6 +9,7 @@ from functools import wraps
 from importlib import resources, import_module
 from logging import Logger
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import socket
 from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
@@ -29,7 +30,13 @@ from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
-from hpcflow.sdk.core.utils import read_YAML, read_YAML_file
+from hpcflow.sdk.core.utils import (
+    read_YAML,
+    read_YAML_file,
+    read_JSON_file,
+    write_YAML_file,
+    write_JSON_file,
+)
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
@@ -503,6 +510,12 @@ class BaseApp(metaclass=Singleton):
             )
         return self.user_runtime_dir
 
+    def clear_user_runtime_dir(self):
+        """Delete the contents of the user runtime directory."""
+        if self.user_runtime_dir.exists():
+            shutil.rmtree(self.user_runtime_dir)
+            self._ensure_user_runtime_dir()
+
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._ensure_user_data_dir()
@@ -636,8 +649,9 @@ class BaseApp(metaclass=Singleton):
         return scripts
 
     def _get_demo_workflows(self) -> Dict[str, Path]:
+        """Get all builtin demo workflow template file paths."""
         templates = {}
-        pkg = f"hpcflow.{self.workflows_dir}"
+        pkg = f"{self.package_name}.{self.workflows_dir}"
         try:
             files = resources.files(pkg).iterdir()
         except AttributeError:
@@ -652,11 +666,52 @@ class BaseApp(metaclass=Singleton):
         """Return a list of demo workflow templates included in the app."""
         return tuple(self._get_demo_workflows().keys())
 
-    def get_demo_workflow_template_file(self, name: str) -> Path:
-        """Return the file path to an included demo workflow template."""
-        return self._get_demo_workflows()[name]
+    @contextmanager
+    def get_demo_workflow_template_file(
+        self, name: str, doc: bool = True, delete: bool = True
+    ) -> Path:
+        """Context manager to get a (temporary) file path to an included demo workflow
+        template.
 
-    def copy_demo_workflow(self, name: str, dst: Optional[PathLike] = None) -> None:
+        Parameters
+        ----------
+        name
+            Name of the builtin demo workflow template whose file path is to be retrieved.
+        doc
+            If False, the yielded path will be to a file without the `doc` attribute (if
+            originally present).
+        delete
+            If True, remove the temporary file on exit.
+
+        """
+        tmp_dir = self._ensure_user_runtime_dir()
+        builtin_path = self._get_demo_workflows()[name]
+        path = tmp_dir / builtin_path.name
+
+        if doc:
+            # copy the file to the temp location:
+            path.write_text(builtin_path.read_text())
+        else:
+            # load the file, modify, then dump to temp location:
+            if builtin_path.suffix in (".yaml", ".yml"):
+                # use round-trip loader to preserve comments:
+                data = read_YAML_file(builtin_path, typ="rt")
+                data.pop("doc", None)
+                write_YAML_file(data, path, typ="rt")
+
+            elif builtin_path.suffix in (".json", ".jsonc"):
+                data = read_JSON_file(builtin_path)
+                data.pop("doc", None)
+                write_JSON_file(data, path)
+
+        yield path
+
+        if delete:
+            path.unlink()
+
+    def copy_demo_workflow(
+        self, name: str, dst: Optional[PathLike] = None, doc: bool = True
+    ) -> None:
         """Copy a builtin demo workflow to the specified location.
 
         Parameters
@@ -666,14 +721,16 @@ class BaseApp(metaclass=Singleton):
         dst
             Directory or full file path to copy the demo workflow to. If not specified,
             the current working directory will be used.
-
+        doc
+            If False, the copied workflow template file will not include the `doc`
+            attribute (if originally present).
         """
 
         dst = dst or Path(".")
-        src = self.get_demo_workflow_template_file(name)
-        shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
+        with self.get_demo_workflow_template_file(name, doc=doc) as src:
+            shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
 
-    def show_demo_workflow(self, name: str, syntax: bool = True):
+    def show_demo_workflow(self, name: str, syntax: bool = True, doc: bool = False):
         """Print the contents of a builtin demo workflow template file.
 
         Parameters
@@ -682,18 +739,44 @@ class BaseApp(metaclass=Singleton):
             The name of the demo workflow file to print.
         syntax
             If True, use rich to syntax-highlight the output.
+        doc
+            If False, the printed workflow template file contents will not include the
+            `doc` attribute (if originally present).
         """
-        file_path = self.get_demo_workflow_template_file(name)
-        with file_path.open("rt") as fp:
-            contents = fp.read()
+        with self.get_demo_workflow_template_file(name, doc=doc) as path:
+            with path.open("rt") as fp:
+                contents = fp.read()
 
-        if syntax:
-            fmt = DEMO_WK_FORMATS[file_path.suffix]
-            contents = Syntax(contents, fmt)
-            console = Console()
-            console.print(contents)
-        else:
-            print(contents)
+            if syntax:
+                fmt = DEMO_WK_FORMATS[path.suffix]
+                contents = Syntax(contents, fmt)
+                console = Console()
+                console.print(contents)
+            else:
+                print(contents)
+
+    def load_demo_workflow(self, name: str) -> get_app_attribute("WorkflowTemplate"):
+        """Load a WorkflowTemplate object from a builtin demo template file."""
+        with self.get_demo_workflow_template_file(name) as path:
+            return self.WorkflowTemplate.from_file(path)
+
+    def load_all_demo_workflows(self, include_file: bool = False) -> Dict:
+        """Load WorkflowTemplate objects from all builtin demo template files."""
+        out = {}
+        for name in self.list_demo_workflows():
+            with self.get_demo_workflow_template_file(name, delete=False) as path:
+                value = self.WorkflowTemplate.from_file(path)
+                with path.open("rt") as fh:
+                    file_str = fh.read()
+                if include_file:
+                    value = {
+                        "obj": value,
+                        "file_string": file_str,
+                        "file_path": str(path),
+                        "file_name": str(path.name),
+                    }
+                out[name] = value
+        return out
 
     def template_components_from_json_like(self, json_like) -> None:
         cls_lookup = {
@@ -1129,17 +1212,17 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("make_demo_workflow called")
 
-        template_path = self.get_demo_workflow_template_file(workflow_name)
-        wk = self.Workflow.from_file(
-            template_path=template_path,
-            template_format=template_format,
-            path=path,
-            name=name,
-            overwrite=overwrite,
-            store=store,
-            ts_fmt=ts_fmt,
-            ts_name_fmt=ts_name_fmt,
-        )
+        with self.get_demo_workflow_template_file(workflow_name) as template_path:
+            wk = self.Workflow.from_file(
+                template_path=template_path,
+                template_format=template_format,
+                path=path,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
+            )
         return wk
 
     def _make_and_submit_demo_workflow(

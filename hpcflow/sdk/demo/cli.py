@@ -156,13 +156,15 @@ def get_demo_workflow_CLI(app):
     @demo_workflow.command("copy")
     @click.argument("workflow_name")
     @click.argument("destination")
-    def copy_demo_workflow(workflow_name, destination):
-        app.copy_demo_workflow(name=workflow_name, dst=destination)
+    @click.option("--doc/--no-doc", default=True)
+    def copy_demo_workflow(workflow_name, destination, doc):
+        app.copy_demo_workflow(name=workflow_name, dst=destination, doc=doc)
 
     @demo_workflow.command("show")
     @click.argument("workflow_name")
     @click.option("--syntax/--no-syntax", default=True)
-    def show_demo_workflow(workflow_name, syntax):
-        app.show_demo_workflow(workflow_name, syntax=syntax)
+    @click.option("--doc/--no-doc", default=True)
+    def show_demo_workflow(workflow_name, syntax, doc):
+        app.show_demo_workflow(workflow_name, syntax=syntax, doc=doc)
 
     return demo_workflow
