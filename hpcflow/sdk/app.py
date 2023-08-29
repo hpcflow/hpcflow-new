@@ -711,7 +711,7 @@ class BaseApp(metaclass=Singleton):
 
     def copy_demo_workflow(
         self, name: str, dst: Optional[PathLike] = None, doc: bool = True
-    ) -> None:
+    ) -> str:
         """Copy a builtin demo workflow to the specified location.
 
         Parameters
@@ -729,6 +729,8 @@ class BaseApp(metaclass=Singleton):
         dst = dst or Path(".")
         with self.get_demo_workflow_template_file(name, doc=doc) as src:
             shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
+
+        return src.name
 
     def show_demo_workflow(self, name: str, syntax: bool = True, doc: bool = False):
         """Print the contents of a builtin demo workflow template file.
