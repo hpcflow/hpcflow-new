@@ -1,4 +1,35 @@
 
+<a name="v0.2.0a89"></a>
+## [v0.2.0a89](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a88...v0.2.0a89) - 2023.08.29
+
+### ♻ Code Refactoring
+
+* user data dirs creation logic; and add user runtime dir
+* remove another unused
+* remove unused
+* remove name from demo workflow_1
+* remove unused module
+* remove single-use method
+
+### ✨ Features
+
+* add WorkflowTemplate.doc attribute
+* add demo-workflow API/CLI
+
+### 🐛 Bug Fixes
+
+* add missing CSS
+* BaseApp._load_all_demo_workflows for sphinx config
+* App logger reference
+* do not use a default template_format (yaml/json)
+* do not show test-hpcflow CLI command in hpcflow app
+* **config:** import rename option could not be set to False
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a88"></a>
 ## [v0.2.0a88](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a87...v0.2.0a88) - 2023.08.27
 
