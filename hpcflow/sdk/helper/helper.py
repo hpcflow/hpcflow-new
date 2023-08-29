@@ -43,17 +43,17 @@ def kill_proc_tree(
 
 def get_PID_file_path(app):
     """Get the path to the file containing the process ID of the helper, if running."""
-    return app.get_user_data_dir() / "pid.txt"
+    return app.user_data_dir / "pid.txt"
 
 
 def get_watcher_file_path(app):
     """Get the path to the watcher file, which contains a list of workflows to watch."""
-    return app.get_user_data_dir() / "watch_workflows.txt"
+    return app.user_data_dir / "watch_workflows.txt"
 
 
 def get_helper_log_path(app):
     """Get the log file path for the helper."""
-    return app.get_user_data_dir() / "helper.log"
+    return app.user_data_dir / "helper.log"
 
 
 def get_helper_watch_list(app):

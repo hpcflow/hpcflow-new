@@ -666,7 +666,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_data_dir(path=False):
-        dir_path = app.get_user_data_dir()
+        dir_path = app.user_data_dir
         if path:
             click.echo(dir_path)
         else:

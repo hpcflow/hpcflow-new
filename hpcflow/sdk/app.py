@@ -13,7 +13,7 @@ from pathlib import Path
 import socket
 from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
-from platformdirs import user_data_dir
+from platformdirs import user_data_dir, user_runtime_path
 from reretry import retry
 from rich.console import Console, Group
 from rich.syntax import Syntax
@@ -167,6 +167,11 @@ class BaseApp(metaclass=Singleton):
         self._scripts = None
 
         self._app_attr_cache = {}
+
+        # assigned on first access to respective properties
+        self._user_data_dir = None
+        self._user_data_hostname_dir = None
+        self._user_runtime_dir = None
 
     def __getattr__(self, name):
         if name in sdk_classes:
@@ -440,8 +445,67 @@ class BaseApp(metaclass=Singleton):
             logger=self.persistence_logger,
         )
 
+    @property
+    def user_data_dir(self) -> Path:
+        if self._user_data_dir is None:
+            self._user_data_dir = Path(user_data_dir(appname=self.package_name))
+        return self._user_data_dir
+
+    @property
+    def user_data_hostname_dir(self) -> Path:
+        """We segregate by hostname to account for the case where multiple machines might
+        use the same shared file system"""
+
+        # This might need to cover e.g. multiple login nodes, as described in the
+        # config file:
+        if self._user_data_hostname_dir is None:
+            machine_name = self.config.get("machine")
+            self._user_data_hostname_dir = self.user_data_dir.joinpath(machine_name)
+        return self._user_data_hostname_dir
+
+    @property
+    def user_runtime_dir(self) -> Path:
+        """Retrieve a temporary directory."""
+        if self._user_runtime_dir is None:
+            self._user_runtime_dir = Path(user_runtime_path(appname=self.package_name))
+        return self._user_runtime_dir
+
+    def _ensure_user_data_dir(self) -> Path:
+        """Ensure a user data directory exists."""
+        if not self.user_data_dir.exists():
+            self.user_data_dir.mkdir(parents=True)
+            self._logger.info(f"Created user data directory: {self.user_data_dir!r}.")
+        return self.user_data_dir
+
+    def _ensure_user_data_hostname_dir(self) -> Path:
+        """Ensure a user data directory for this machine exists (used by the helper
+        process and the known-submissions file)."""
+        if not self.user_data_hostname_dir.exists():
+            self.user_data_hostname_dir.mkdir(parents=True)
+            self._logger.info(
+                f"Created user data hostname directory: {self.user_data_hostname_dir!r}."
+            )
+        return self.user_data_hostname_dir
+
+    def _ensure_user_runtime_dir(self) -> Path:
+        """Generate a user runtime directory for this machine in which we can create
+        semi-persistent temporary files.
+
+        Note: unlike `_ensure_user_data_dir`, and `_ensure_user_data_hostname_dir`, this
+        method is not invoked on config load, because it might need to be created after
+        each reboot, and it is not routinely used.
+
+        """
+        if not self.user_runtime_dir.exists():
+            self.user_runtime_dir.mkdir(parents=True)
+            self._logger.info(
+                f"Created user runtime directory: {self.user_runtime_dir!r}."
+            )
+        return self.user_runtime_dir
+
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
+        self._ensure_user_data_dir()
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
             logger=self.config_logger,
@@ -469,7 +533,7 @@ class BaseApp(metaclass=Singleton):
             level=self.config.get("log_file_level"),
         )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
-        self.config._init_user_data_dir()
+        self._ensure_user_data_hostname_dir()
 
     def load_config(
         self,
@@ -673,22 +737,13 @@ class BaseApp(metaclass=Singleton):
             "is_frozen": self.run_time_info.is_frozen,
         }
 
-    def get_user_data_dir(self):
-        """We segregate by hostname to account for the case where multiple machines might
-        use the same shared file system"""
-
-        # This might need to cover e.g. multiple login nodes, as described in the
-        # config file:
-        machine_name = self.config.get("machine")
-        return Path(user_data_dir(appname=self.package_name)).joinpath(machine_name)
-
     @property
     def known_subs_file_name(self):
         return self._known_subs_file_name
 
     @property
     def known_subs_file_path(self):
-        return self.get_user_data_dir() / self.known_subs_file_name
+        return self.user_data_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
         self, local_id, workflow_id, submit_time, sub_idx, is_active, wk_path
