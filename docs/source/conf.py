@@ -136,6 +136,23 @@ def generate_parameter_validation_schemas(app):
             jinja_contexts["first_ctx"]["tree_files"][param.typ] = str(full_path)
 
 
+def copy_all_demo_workflows(app):
+    """Load WorkflowTemplate objects and copy template files from all builtin demo
+    template files."""
+    out = {}
+    for name in app.list_demo_workflows():
+        obj = app.load_demo_workflow(name)
+        dst = Path(f"_static/demo_workflow_{name}").resolve()
+        app.copy_demo_workflow(name, dst=dst, doc=False)
+        value = {
+            "obj": obj,
+            "file_path": str(dst),
+            "file_name": str(dst.name),
+        }
+        out[name] = value
+    return out
+
+
 # -------- app-specific content START ----------------------------------------------------
 
 from hpcflow import __version__
@@ -215,7 +232,7 @@ jinja_contexts = {
 jinja_globals = {
     "get_classmethods": get_classmethods,
     "parameter_task_schema_map": app.get_parameter_task_schema_map(),
-    "demo_workflows": app._load_all_demo_workflows(include_file_data=True),
+    "demo_workflows": copy_all_demo_workflows(app),
 }
 
 # see: https://stackoverflow.com/a/62613202/5042280 for autosummary strategy

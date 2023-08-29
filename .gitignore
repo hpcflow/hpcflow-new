@@ -149,4 +149,6 @@ docs/source/reference/_autosummary/
 # generated via conf.py
 docs/source/reference/_generated
 
+docs/source/_static/demo_workflow*
+
 *.pptx
