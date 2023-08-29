@@ -760,22 +760,25 @@ class BaseApp(metaclass=Singleton):
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def load_all_demo_workflows(self, include_file: bool = False) -> Dict:
+    def _load_all_demo_workflows(self, include_file_data: bool = False) -> Dict:
         """Load WorkflowTemplate objects from all builtin demo template files."""
         out = {}
         for name in self.list_demo_workflows():
-            with self.get_demo_workflow_template_file(name, delete=False) as path:
-                value = self.WorkflowTemplate.from_file(path)
-                with path.open("rt") as fh:
-                    file_str = fh.read()
-                if include_file:
-                    value = {
-                        "obj": value,
-                        "file_string": file_str,
-                        "file_path": str(path),
-                        "file_name": str(path.name),
-                    }
-                out[name] = value
+            value = self.load_demo_workflow(name)
+            if include_file_data:
+                # get a version of the template file without the doc attribute and without
+                # deleting:
+                with self.get_demo_workflow_template_file(
+                    name, delete=False, doc=False
+                ) as path:
+                    with path.open("rt") as fh:
+                        file_str = fh.read()
+                value = {
+                    "obj": value,
+                    "file_path": str(path),
+                    "file_name": str(path.name),
+                }
+            out[name] = value
         return out
 
     def template_components_from_json_like(self, json_like) -> None:
