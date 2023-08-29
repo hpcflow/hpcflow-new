@@ -474,7 +474,7 @@ class BaseApp(metaclass=Singleton):
         """Ensure a user data directory exists."""
         if not self.user_data_dir.exists():
             self.user_data_dir.mkdir(parents=True)
-            self._logger.info(f"Created user data directory: {self.user_data_dir!r}.")
+            self.logger.info(f"Created user data directory: {self.user_data_dir!r}.")
         return self.user_data_dir
 
     def _ensure_user_data_hostname_dir(self) -> Path:
@@ -482,7 +482,7 @@ class BaseApp(metaclass=Singleton):
         process and the known-submissions file)."""
         if not self.user_data_hostname_dir.exists():
             self.user_data_hostname_dir.mkdir(parents=True)
-            self._logger.info(
+            self.logger.info(
                 f"Created user data hostname directory: {self.user_data_hostname_dir!r}."
             )
         return self.user_data_hostname_dir
@@ -498,7 +498,7 @@ class BaseApp(metaclass=Singleton):
         """
         if not self.user_runtime_dir.exists():
             self.user_runtime_dir.mkdir(parents=True)
-            self._logger.info(
+            self.logger.info(
                 f"Created user runtime directory: {self.user_runtime_dir!r}."
             )
         return self.user_runtime_dir
