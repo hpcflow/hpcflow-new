@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a90"></a>
+## [v0.2.0a90](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a89...v0.2.0a90) - 2023.08.29
+
+### 🐛 Bug Fixes
+
+* demo workflow file output in docs
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a89"></a>
 ## [v0.2.0a89](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a88...v0.2.0a89) - 2023.08.29
 
