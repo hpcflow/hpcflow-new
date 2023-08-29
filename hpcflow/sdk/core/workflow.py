@@ -14,7 +14,6 @@ from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem
 from fsspec.implementations.zip import ZipFileSystem
-from platformdirs import user_data_dir
 import numpy as np
 from fsspec.core import url_to_fs
 import rich.console
