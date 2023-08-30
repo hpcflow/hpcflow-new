@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
@@ -1873,7 +1874,7 @@ class Workflow:
 
         if not sub_js:
             # find any active jobscripts first:
-            sub_js = {}
+            sub_js = defaultdict(list)
             for sub in self.submissions:
                 for js_idx in sub.get_active_jobscripts():
                     sub_js[sub.index].append(js_idx)

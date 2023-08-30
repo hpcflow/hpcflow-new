@@ -38,9 +38,9 @@ workflow_ref_type_opt = click.option(
 )
 
 
-def parse_jobscript_wait_spec(sub_js_idx: str) -> Dict[int, List[int]]:
+def parse_jobscript_wait_spec(jobscripts: str) -> Dict[int, List[int]]:
     sub_js_idx_dct = {}
-    for sub_i in sub_js_idx.split(";"):
+    for sub_i in jobscripts.split(";"):
         sub_idx_str, js_idx_lst_str = sub_i.split(":")
         sub_js_idx_dct[int(sub_idx_str)] = [int(i) for i in js_idx_lst_str.split(",")]
     return sub_js_idx_dct
@@ -288,10 +288,21 @@ def _make_workflow_CLI(app):
         ctx.obj["workflow"].submit(JS_parallelism=js_parallelism, wait=wait)
 
     @workflow.command(name="wait")
-    @click.argument("sub_js_idx")
+    @click.option(
+        "-j",
+        "--jobscripts",
+        help=(
+            "Wait for only these jobscripts to finish. Jobscripts should be specified by "
+            "their submission index, followed by a colon, followed by a comma-separated "
+            "list of jobscript indices within that submission (no spaces are allowed). "
+            "To specify jobscripts across multiple submissions, use a semicolon to "
+            "separate patterns like these."
+        ),
+    )
     @click.pass_context
-    def wait(ctx, sub_js_idx):
-        ctx.obj["workflow"].wait(parse_jobscript_wait_spec(sub_js_idx))
+    def wait(ctx, jobscripts):
+        js_spec = parse_jobscript_wait_spec(jobscripts) if jobscripts else None
+        ctx.obj["workflow"].wait(sub_js=js_spec)
 
     @workflow.command(name="get-param")
     @click.argument("index", type=click.INT)

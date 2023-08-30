@@ -42,7 +42,7 @@ class Shell(ABC):
     def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Dict):
         if deps:
             return (
-                f'{workflow_app_alias} workflow $WK_PATH_ARG wait "{sub_idx}:'
+                f'{workflow_app_alias} workflow $WK_PATH_ARG wait --jobscripts "{sub_idx}:'
                 + ",".join(str(i) for i in deps.keys())
                 + '"'
             )
