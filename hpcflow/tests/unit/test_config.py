@@ -5,7 +5,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.config.errors import ConfigFileValidationError, ConfigItemCallbackError
 
 
-def test_reset_config(null_config):
+def test_reset_config(new_null_config):
     cfg_dir = hf.config.get("config_directory")
     machine_name = hf.config.get("machine")
     new_machine_name = machine_name + "123"
