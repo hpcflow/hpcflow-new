@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a94"></a>
+## [v0.2.0a94](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a93...v0.2.0a94) - 2023.08.30
+
+### 🐛 Bug Fixes
+
+* test_run_abort when slow
+
+
 <a name="v0.2.0a93"></a>
 ## [v0.2.0a93](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a92...v0.2.0a93) - 2023.08.30
 
