@@ -1068,7 +1068,8 @@ class Jobscript(JSONLike):
                 err_args["stderr"] = stderr
                 if print_stdout and stdout:
                     print(stdout)
-
+                if stderr:
+                    print(stderr)
             else:
                 if os.name == "nt":
                     process_ID = self._launch_direct_js_win()
