@@ -327,3 +327,7 @@ class MissingParameterData(_MissingStoreItemError):
 
 class NotSubmitMachineError(RuntimeError):
     pass
+
+
+class RunNotAbortableError(ValueError):
+    pass

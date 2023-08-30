@@ -1,5 +1,6 @@
 from importlib import resources
 import sys
+import time
 import pytest
 from hpcflow.app import app as hf
 
@@ -10,3 +11,14 @@ def test_workflow_1(tmp_path, new_null_config):
         wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
     wk.submit(wait=True)
     assert wk.tasks[0].elements[0].outputs.p2.value == "201"
+
+
+def test_run_abort(tmp_path, new_null_config):
+    package = "hpcflow.sdk.demo.data"
+    with resources.path(package=package, resource="workflow_test_run_abort.yaml") as path:
+        wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
+    wk.submit()  # TODO: add a `wait_to_start=RUN_ID` method
+    time.sleep(15)  # wait for the run to start
+    wk.abort_run()  # single task and element so no need to disambiguate
+    wk.wait()
+    assert wk.tasks[0].outputs.is_finished[0].value == "true"

@@ -304,6 +304,19 @@ def _make_workflow_CLI(app):
         js_spec = parse_jobscript_wait_spec(jobscripts) if jobscripts else None
         ctx.obj["workflow"].wait(sub_js=js_spec)
 
+    @workflow.command(name="abort-run")
+    @click.option("--submission", type=click.INT, default=-1)
+    @click.option("--task", type=click.INT)
+    @click.option("--element", type=click.INT)
+    @click.pass_context
+    def abort_run(ctx, submission, task, element):
+        """Abort the specified run."""
+        ctx.obj["workflow"].abort_run(
+            submission_idx=submission,
+            task_idx=task,
+            element_idx=element,
+        )
+
     @workflow.command(name="get-param")
     @click.argument("index", type=click.INT)
     @click.pass_context
