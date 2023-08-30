@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a93"></a>
+## [v0.2.0a93](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a92...v0.2.0a93) - 2023.08.30
+
+### ✨ Features
+
+* add abort-run API/CLI
+
+### 🐛 Bug Fixes
+
+* **CLI:** wait command without args
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a92"></a>
 ## [v0.2.0a92](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a91...v0.2.0a92) - 2023.08.30
 
