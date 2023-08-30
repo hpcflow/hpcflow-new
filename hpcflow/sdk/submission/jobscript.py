@@ -332,8 +332,13 @@ class Jobscript(JSONLike):
     ):
         self._task_insert_IDs = task_insert_IDs
         self._task_loop_idx = task_loop_idx
+
+        # [ [task insert ID, action_idx, index into task_loop_idx] for each JS_ACTION_IDX ]:
         self._task_actions = task_actions
+
+        # {JS_ELEMENT_IDX: [TASK_ELEMENT_IDX for each TASK_INSERT_ID] }:
         self._task_elements = task_elements
+
         self._EAR_ID = EAR_ID
         self._resources = resources
         self._dependencies = dependencies

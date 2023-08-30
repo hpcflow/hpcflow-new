@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from datetime import datetime, timedelta, timezone
 import enum
+import os
 from pathlib import Path
 from textwrap import indent
 from typing import Dict, List, Optional, Tuple
@@ -225,6 +226,7 @@ class Submission(JSONLike):
         self,
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
+        # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
@@ -237,6 +239,26 @@ class Submission(JSONLike):
         with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
             # write a single line for each EAR currently in the workflow:
             fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
+
+    def _set_run_abort(self, run_ID: int):
+        """Modify the abort runs file to indicate a specified run should be aborted."""
+        with self.abort_EARs_file_path.open(mode="rt", newline="\n") as fp:
+            lines = fp.readlines()
+
+        lines[run_ID] = "1"
+
+        # write a new temporary run-abort file:
+        tmp_suffix = self.abort_EARs_file_path.suffix + ".tmp"
+        tmp = self.abort_EARs_file_path.with_suffix(tmp_suffix)
+        self.app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
+        with tmp.open(mode="wt", newline="\n") as fp:
+            fp.write("\n".join(i for i in lines))
+
+        # atomic rename, overwriting original:
+        self.app.submission_logger.debug(
+            "Replacing original run abort file with new temporary file."
+        )
+        os.replace(src=tmp, dst=self.abort_EARs_file_path)
 
     @staticmethod
     def get_unique_schedulers_of_jobscripts(

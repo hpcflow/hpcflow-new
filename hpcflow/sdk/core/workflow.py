@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
 )
+from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
@@ -33,6 +35,7 @@ from hpcflow.sdk.submission.jobscript import (
     merge_jobscripts_across_tasks,
     resolve_jobscript_dependencies,
 )
+from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -46,6 +49,7 @@ from .utils import (
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
+    RunNotAbortableError,
     SubmissionFailure,
     WorkflowSubmissionFailure,
 )
@@ -1873,7 +1877,7 @@ class Workflow:
 
         if not sub_js:
             # find any active jobscripts first:
-            sub_js = {}
+            sub_js = defaultdict(list)
             for sub in self.submissions:
                 for js_idx in sub.get_active_jobscripts():
                     sub_js[sub.index].append(js_idx)
@@ -1922,6 +1926,119 @@ class Workflow:
             print("No longer waiting (workflow execution will continue).")
         else:
             print("Specified submissions have finished.")
+
+    def get_running_elements(
+        self,
+        submission_idx: int = -1,
+        task_idx: Optional[int] = None,
+        task_insert_ID: Optional[int] = None,
+    ) -> List[app.Element]:
+        """Retrieve elements that are running according to the scheduler."""
+
+        if task_idx is not None and task_insert_ID is not None:
+            raise ValueError("Specify at most one of `task_insert_ID` and `task_idx`.")
+
+        # keys are task_insert_IDs, values are element indices:
+        active_elems = defaultdict(set)
+        sub = self.submissions[submission_idx]
+        for js_idx, states in sub.get_active_jobscripts().items():
+            js = sub.jobscripts[js_idx]
+            for js_elem_idx, state in states.items():
+                if state is JobscriptElementState.running:
+                    for task_iID, elem_idx in zip(
+                        js.task_insert_IDs, js.task_elements[js_elem_idx]
+                    ):
+                        active_elems[task_iID].add(elem_idx)
+
+        # retrieve Element objects:
+        out = []
+        for task_iID, elem_idx in active_elems.items():
+            if task_insert_ID is not None and task_iID != task_insert_ID:
+                continue
+            task = self.tasks.get(insert_ID=task_iID)
+            if task_idx is not None and task_idx != task.index:
+                continue
+            for idx_i in elem_idx:
+                out.append(task.elements[idx_i])
+
+        return out
+
+    def get_running_runs(
+        self,
+        submission_idx: int = -1,
+        task_idx: Optional[int] = None,
+        task_insert_ID: Optional[int] = None,
+        element_idx: int = None,
+    ) -> List[app.ElementActionRun]:
+        """Retrieve runs that are running according to the scheduler."""
+
+        elems = self.get_running_elements(
+            submission_idx=submission_idx,
+            task_idx=task_idx,
+            task_insert_ID=task_insert_ID,
+        )
+        out = []
+        for elem in elems:
+            if element_idx is not None and elem.index == element_idx:
+                continue
+            # for a given element, only one iteration will be running (assume for now the
+            # this is the latest iteration, as provided by `action_runs`):
+            for act_run in elem.action_runs:
+                if act_run.status is EARStatus.running:
+                    out.append(act_run)
+                    break  # only one element action may be running at a time
+        return out
+
+    def _abort_run_ID(self, submission_idx, run_ID: int):
+        """Modify the submission abort runs text file to signal that a run should be
+        aborted."""
+        self.submissions[submission_idx]._set_run_abort(run_ID)
+
+    def abort_run(
+        self,
+        submission_idx: int = -1,
+        task_idx: Optional[int] = None,
+        task_insert_ID: Optional[int] = None,
+        element_idx: int = None,
+    ):
+        """Abort the currently running action-run of the specified task/element.
+
+        Parameters
+        ----------
+        task_idx
+            The parent task of the run to abort.
+        element_idx
+            For multi-element tasks, the parent element of the run to abort.
+        submission_idx
+            Defaults to the most-recent submission.
+
+        """
+        running = self.get_running_runs(
+            submission_idx=submission_idx,
+            task_idx=task_idx,
+            task_insert_ID=task_insert_ID,
+            element_idx=element_idx,
+        )
+        if not running:
+            raise ValueError("Specified run is not running.")
+
+        elif len(running) > 1:
+            if element_idx is None:
+                elem_idx = tuple(i.element.index for i in running)
+                raise ValueError(
+                    f"Multiple elements are running (indices: {elem_idx!r}). Specify "
+                    f"which element index you want to abort."
+                )
+            else:
+                raise RuntimeError(f"Multiple running runs.")
+
+        run = running[0]
+        if not run.action.abortable:
+            raise RunNotAbortableError(
+                "The run is not defined as abortable in the task schema, so it cannot "
+                "be aborted."
+            )
+        self._abort_run_ID(submission_idx, run.id_)
 
     def cancel(self, hard=False):
         """Cancel any running jobscripts."""
