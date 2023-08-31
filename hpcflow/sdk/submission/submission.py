@@ -337,8 +337,9 @@ class Submission(JSONLike):
     def submit(
         self,
         status,
-        ignore_errors=False,
-        print_stdout=False,
+        ignore_errors: Optional[bool] = False,
+        print_stdout: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> List[int]:
         """Generate and submit the jobscripts of this submission."""
 
@@ -441,12 +442,13 @@ class Submission(JSONLike):
                 submitted_js_idx=submitted_js_idx,
             )
             # add a record of the submission part to the known-submissions file
-            self.app._add_to_known_submissions(
-                wk_path=self.workflow.path,
-                wk_id=self.workflow.id_,
-                sub_idx=self.index,
-                sub_time=dt_str,
-            )
+            if add_to_known:
+                self.app._add_to_known_submissions(
+                    wk_path=self.workflow.path,
+                    wk_id=self.workflow.id_,
+                    sub_idx=self.index,
+                    sub_time=dt_str,
+                )
 
         if errs and not ignore_errors:
             status.stop()

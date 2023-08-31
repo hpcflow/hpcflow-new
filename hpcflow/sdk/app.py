@@ -1097,6 +1097,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1136,6 +1137,9 @@ class BaseApp(metaclass=Singleton):
             not set, jobscript parallelism will be used if the store type supports it.
         wait
             If True, this command will block until the workflow execution is complete.
+        add_to_known
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1151,7 +1155,11 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
         )
-        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+        return wk.submit(
+            JS_parallelism=JS_parallelism,
+            wait=wait,
+            add_to_known=add_to_known,
+        )
 
     def _make_demo_workflow(
         self,
@@ -1221,6 +1229,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1257,6 +1266,9 @@ class BaseApp(metaclass=Singleton):
             not set, jobscript parallelism will be used if the store type supports it.
         wait
             If True, this command will block until the workflow execution is complete.
+        add_to_known
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1271,7 +1283,11 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
         )
-        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+        return wk.submit(
+            JS_parallelism=JS_parallelism,
+            wait=wait,
+            add_to_known=add_to_known,
+        )
 
     def _submit_workflow(
         self,

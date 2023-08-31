@@ -1752,6 +1752,7 @@ class Workflow:
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Tuple[List[Exception], Dict[int, int]]:
         """Submit outstanding EARs for execution."""
 
@@ -1784,6 +1785,7 @@ class Workflow:
                     status=status,
                     ignore_errors=ignore_errors,
                     print_stdout=print_stdout,
+                    add_to_known=add_to_known,
                 )
                 submitted_js[sub.index] = sub_js_idx
             except SubmissionFailure as exc:
@@ -1796,9 +1798,28 @@ class Workflow:
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
-        wait: bool = False,
+        wait: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Dict[int, int]:
-        """"""
+        """Submit the workflow for execution.
+
+        Parameters
+        ----------
+        ignore_errors
+            If True, ignore jobscript submission errors. If False (the default) jobscript
+            submission will halt when a jobscript fails to submit.
+        JS_parallelism
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature.
+            If not set, jobscript parallelism will be used if the store type supports it.
+        print_stdout
+            If True, print any jobscript submission standard output, otherwise hide it.
+        wait
+            If True, this command will block until the workflow execution is complete.
+        add_to_known
+            If True, add the submitted submissions to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
+        """
 
         console = rich.console.Console()
         status = console.status("Submitting workflow...")
@@ -1816,6 +1837,7 @@ class Workflow:
                         JS_parallelism=JS_parallelism,
                         print_stdout=print_stdout,
                         status=status,
+                        add_to_known=add_to_known,
                     )
                 except Exception:
                     status.stop()

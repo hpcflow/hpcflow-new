@@ -74,3 +74,8 @@ wait_option = click.option(
     is_flag=True,
     default=False,
 )
+add_to_known_opt = click.option(
+    "--add-to-known/--no-add-to-known",
+    default=True,
+    help="If True, add this submission to the known-submissions file.",
+)
