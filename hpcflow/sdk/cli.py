@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, List
 import click
@@ -415,6 +416,23 @@ def _make_submission_CLI(app):
     def get_login_nodes(ctx):
         scheduler = ctx.obj["scheduler_obj"]
         pprint(scheduler.get_login_nodes())
+
+    @submission.command()
+    @click.option(
+        "as_json",
+        "--json",
+        is_flag=True,
+        default=False,
+        help="Do not format and only show JSON-compatible information.",
+    )
+    @click.pass_context
+    def get_known(ctx, as_json=False):
+        """Print known-submissions information as a formatted Python object."""
+        out = app.get_known_submissions(as_json=as_json)
+        if as_json:
+            click.echo(json.dumps(out))
+        else:
+            pprint(out)
 
     return submission
 

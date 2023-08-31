@@ -223,14 +223,14 @@ class Submission(JSONLike):
         return self.path / self.abort_EARs_file_name
 
     def get_active_jobscripts(
-        self,
+        self, as_json: bool = False
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
         # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
-            active_states = js.get_active_states()
+            active_states = js.get_active_states(as_json=as_json)
             if active_states:
                 out[js.index] = active_states
         return out

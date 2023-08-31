@@ -36,6 +36,10 @@ def infer_store(path: str, fs) -> str:
         fsspec file system
 
     """
+
+    # TODO: raise WorkflowNotFoundError if the path does not exist
+    # TODO: raise MalformedWorkflowError if a known store type cannot be inferred
+
     # try to identify store type just from the path string:
     if path.endswith(".zip"):
         store_fmt = "zip"
