@@ -1577,13 +1577,18 @@ class BaseApp(metaclass=Singleton):
         status = console.status("Retrieving data...")
         status.start()
 
-        run_dat = self._get_known_submissions(
-            max_recent=max_recent,
-            no_update=no_update,
-        )
-        if not run_dat:
+        try:
+            run_dat = self._get_known_submissions(
+                max_recent=max_recent,
+                no_update=no_update,
+            )
+        except Exception:
             status.stop()
-            return
+            raise
+        else:
+            if not run_dat:
+                status.stop()
+                return
 
         status.update("Formatting...")
         table = Table(box=box.SQUARE, expand=False)
