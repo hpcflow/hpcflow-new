@@ -223,14 +223,14 @@ class Submission(JSONLike):
         return self.path / self.abort_EARs_file_name
 
     def get_active_jobscripts(
-        self,
+        self, as_json: bool = False
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
         # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
-            active_states = js.get_active_states()
+            active_states = js.get_active_states(as_json=as_json)
             if active_states:
                 out[js.index] = active_states
         return out
@@ -337,8 +337,9 @@ class Submission(JSONLike):
     def submit(
         self,
         status,
-        ignore_errors=False,
-        print_stdout=False,
+        ignore_errors: Optional[bool] = False,
+        print_stdout: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> List[int]:
         """Generate and submit the jobscripts of this submission."""
 
@@ -441,12 +442,13 @@ class Submission(JSONLike):
                 submitted_js_idx=submitted_js_idx,
             )
             # add a record of the submission part to the known-submissions file
-            self.app._add_to_known_submissions(
-                wk_path=self.workflow.path,
-                wk_id=self.workflow.id_,
-                sub_idx=self.index,
-                sub_time=dt_str,
-            )
+            if add_to_known:
+                self.app._add_to_known_submissions(
+                    wk_path=self.workflow.path,
+                    wk_id=self.workflow.id_,
+                    sub_idx=self.index,
+                    sub_time=dt_str,
+                )
 
         if errs and not ignore_errors:
             status.stop()

@@ -1097,6 +1097,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1136,6 +1137,9 @@ class BaseApp(metaclass=Singleton):
             not set, jobscript parallelism will be used if the store type supports it.
         wait
             If True, this command will block until the workflow execution is complete.
+        add_to_known
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1151,7 +1155,11 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
         )
-        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+        return wk.submit(
+            JS_parallelism=JS_parallelism,
+            wait=wait,
+            add_to_known=add_to_known,
+        )
 
     def _make_demo_workflow(
         self,
@@ -1221,6 +1229,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
+        add_to_known: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1257,6 +1266,9 @@ class BaseApp(metaclass=Singleton):
             not set, jobscript parallelism will be used if the store type supports it.
         wait
             If True, this command will block until the workflow execution is complete.
+        add_to_known
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1271,7 +1283,11 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
         )
-        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+        return wk.submit(
+            JS_parallelism=JS_parallelism,
+            wait=wait,
+            add_to_known=add_to_known,
+        )
 
     def _submit_workflow(
         self,
@@ -1347,7 +1363,9 @@ class BaseApp(metaclass=Singleton):
         )
         return shell.get_version_info(exclude_os)
 
-    def _get_known_submissions(self, max_recent: int = 3, no_update: bool = False):
+    def _get_known_submissions(
+        self, max_recent: int = 3, no_update: bool = False, as_json: bool = False
+    ):
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
 
@@ -1361,6 +1379,9 @@ class BaseApp(metaclass=Singleton):
         no_update
             If True, do not update the known-submissions file to set submissions that are
             now inactive.
+        as_json
+            If True, only include JSON-compatible information. This will exclude the
+            `submission` key, for instance.
 
         """
 
@@ -1378,31 +1399,45 @@ class BaseApp(metaclass=Singleton):
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
             submit_time_str = file_dat_i["submit_time"]
+            submit_time_obj = datetime.strptime(submit_time_str, self._submission_ts_fmt)
+            submit_time_obj = submit_time_obj.replace(tzinfo=timezone.utc).astimezone()
             out_item = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
                 "workflow_path": file_dat_i["path"],
                 "submit_time": submit_time_str,
+                "submit_time_obj": submit_time_obj,
                 "sub_idx": file_dat_i["sub_idx"],
                 "jobscripts": [],
                 "active_jobscripts": {},
                 "deleted": False,
+                "unloadable": False,
             }
             if file_dat_i["path"] in loaded_workflows:
                 wk_i = loaded_workflows[file_dat_i["path"]]
             else:
-                try:
-                    wk_i = self.Workflow(file_dat_i["path"])
-                except WorkflowNotFoundError:
-                    # might have been moved/archived/deleted
-                    wk_i = None
-                    out_item["deleted"] = True
-                    if file_dat_i["is_active"]:
-                        inactive_IDs.append(file_dat_i["local_id"])
-                        file_dat_i["is_active"] = False
+                # might have been moved/archived/deleted:
+                path_exists = Path(file_dat_i["path"]).exists()
+                out_item["deleted"] = not path_exists
+                if path_exists:
+                    try:
+                        wk_i = self.Workflow(file_dat_i["path"])
+                    except Exception:
+                        wk_i = None
+                        self.submission_logger.info(
+                            f"cannot load workflow from known-submissions file: "
+                            f"{file_dat_i['path']!r}!"
+                        )
+                        out_item["unloadable"] = True
+                        if file_dat_i["is_active"]:
+                            inactive_IDs.append(file_dat_i["local_id"])
+                            file_dat_i["is_active"] = False
+
+                    else:
+                        # cache:
+                        loaded_workflows[file_dat_i["path"]] = wk_i
                 else:
-                    # cache:
-                    loaded_workflows[file_dat_i["path"]] = wk_i
+                    wk_i = None
 
             if wk_i:
                 if wk_i.id_ != file_dat_i["workflow_id"]:
@@ -1427,7 +1462,7 @@ class BaseApp(metaclass=Singleton):
                         if run_key in active_jobscripts:
                             act_i_js = active_jobscripts[run_key]
                         else:
-                            act_i_js = sub.get_active_jobscripts()
+                            act_i_js = sub.get_active_jobscripts(as_json=as_json)
                             active_jobscripts[run_key] = act_i_js
 
                         out_item["active_jobscripts"] = {
@@ -1446,26 +1481,30 @@ class BaseApp(metaclass=Singleton):
 
         # sort inactive by most-recently finished, then deleted:
         out_inactive = [i for i in out if not i["active_jobscripts"]]
-        out_deleted = [i for i in out_inactive if i["deleted"]]
-        out_not_deleted = [i for i in out_inactive if not i["deleted"]]
+        out_no_access = [i for i in out_inactive if (i["deleted"] or i["unloadable"])]
+        out_access = [i for i in out_inactive if not (i["deleted"] or i["unloadable"])]
 
-        # sort non-deleted inactive by end time or start time or submit time:
-        out_not_deleted = sorted(
-            out_not_deleted,
+        # sort loadable inactive by end time or start time or submit time:
+        out_access = sorted(
+            out_access,
             key=lambda i: (
                 i["submission"].end_time
                 or i["submission"].start_time
-                or i["submission"].submit_time
+                or i["submit_time_obj"]
             ),
             reverse=True,
         )
-        out_inactive = (out_not_deleted + out_deleted)[:max_recent]
+        out_inactive = (out_no_access + out_access)[:max_recent]
 
         out_active = [i for i in out if i["active_jobscripts"]]
 
         # show active submissions first:
         out = out_active + out_inactive
 
+        if as_json:
+            for idx, _ in enumerate(out):
+                out[idx].pop("submission", None)
+                out[idx].pop("submit_time_obj")
         return out
 
     def _show_legend(self):
@@ -1577,13 +1616,18 @@ class BaseApp(metaclass=Singleton):
         status = console.status("Retrieving data...")
         status.start()
 
-        run_dat = self._get_known_submissions(
-            max_recent=max_recent,
-            no_update=no_update,
-        )
-        if not run_dat:
+        try:
+            run_dat = self._get_known_submissions(
+                max_recent=max_recent,
+                no_update=no_update,
+            )
+        except Exception:
             status.stop()
-            return
+            raise
+        else:
+            if not run_dat:
+                status.stop()
+                return
 
         status.update("Formatting...")
         table = Table(box=box.SQUARE, expand=False)
@@ -1594,10 +1638,12 @@ class BaseApp(metaclass=Singleton):
 
         for dat_i in run_dat:
             deleted = dat_i["deleted"]
+            unloadable = dat_i["unloadable"]
+            no_access = deleted or unloadable
             act_js = dat_i["active_jobscripts"]
-            style = "grey42" if (deleted or not act_js) else ""
+            style = "grey42" if (no_access or not act_js) else ""
             style_wk_name = "grey42 strike" if deleted else style
-            style_it = "italic grey42" if (deleted or not act_js) else "italic"
+            style_it = "italic grey42" if (no_access or not act_js) else "italic"
 
             all_cells = {}
             if "status" in columns:
@@ -1607,9 +1653,13 @@ class BaseApp(metaclass=Singleton):
                         f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
                     )
                 else:
-                    status_text = Text(
-                        "deleted" if deleted else "inactive", style=style_it
-                    )
+                    if deleted:
+                        txt = "deleted"
+                    elif unloadable:
+                        txt = "unloadable"
+                    else:
+                        txt = "inactive"
+                    status_text = Text(txt, style=style_it)
                 all_cells["status"] = status_text
 
             if "id" in columns:
@@ -1621,12 +1671,12 @@ class BaseApp(metaclass=Singleton):
                 )
 
             start_time, end_time = None, None
-            if not deleted:
+            if not no_access:
                 start_time = dat_i["submission"].start_time
                 end_time = dat_i["submission"].end_time if not act_js else None
 
             if "actions" in columns:
-                if not deleted:
+                if not no_access:
                     task_tab = Table(box=None, show_header=False)
                     task_tab.add_column()
                     task_tab.add_column()
@@ -1651,7 +1701,7 @@ class BaseApp(metaclass=Singleton):
                 all_cells["actions"] = Padding(task_tab, (0, 0, row_pad, 0))
 
             if "actions_compact" in columns:
-                if not deleted:
+                if not no_access:
                     EAR_stat_count = defaultdict(int)
                     for _, elements in dat_i["submission"].EARs_by_elements.items():
                         for elem_idx, EARs in elements.items():

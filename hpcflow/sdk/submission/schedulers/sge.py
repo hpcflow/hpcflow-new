@@ -112,12 +112,12 @@ class SGEPosix(Scheduler):
                 )
         else:
             # find the first compatible PE:
-            pe_match = None
+            pe_match = -1  # pe_name might be `None`
             for pe_name, pe_info in para_envs.items():
                 if cls.is_num_cores_supported(resources.num_cores, pe_info["num_cores"]):
                     pe_match = pe_name
                     break
-            if pe_match:
+            if pe_match != -1:
                 resources.SGE_parallel_env = pe_name
             else:
                 raise NoCompatibleSGEPEError(

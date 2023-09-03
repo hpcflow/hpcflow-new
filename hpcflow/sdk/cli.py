@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, List
 import click
@@ -20,6 +21,7 @@ from hpcflow.sdk.cli_common import (
     ts_name_fmt_option,
     js_parallelism_option,
     wait_option,
+    add_to_known_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.submission.shells import ALL_SHELLS
@@ -101,6 +103,7 @@ def _make_API_CLI(app):
     @ts_name_fmt_option
     @js_parallelism_option
     @wait_option
+    @add_to_known_opt
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -113,6 +116,7 @@ def _make_API_CLI(app):
         ts_name_fmt=None,
         js_parallelism=None,
         wait=False,
+        add_to_known=True,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -132,6 +136,7 @@ def _make_API_CLI(app):
             ts_name_fmt=ts_name_fmt,
             JS_parallelism=js_parallelism,
             wait=wait,
+            add_to_known=add_to_known,
         )
 
     @click.command(context_settings={"ignore_unknown_options": True})
@@ -282,10 +287,15 @@ def _make_workflow_CLI(app):
     @workflow.command(name="submit")
     @js_parallelism_option
     @wait_option
+    @add_to_known_opt
     @click.pass_context
-    def submit_workflow(ctx, js_parallelism=None, wait=False):
+    def submit_workflow(ctx, js_parallelism=None, wait=False, add_to_known=True):
         """Submit the workflow."""
-        ctx.obj["workflow"].submit(JS_parallelism=js_parallelism, wait=wait)
+        ctx.obj["workflow"].submit(
+            JS_parallelism=js_parallelism,
+            wait=wait,
+            add_to_known=add_to_known,
+        )
 
     @workflow.command(name="wait")
     @click.option(
@@ -406,6 +416,23 @@ def _make_submission_CLI(app):
     def get_login_nodes(ctx):
         scheduler = ctx.obj["scheduler_obj"]
         pprint(scheduler.get_login_nodes())
+
+    @submission.command()
+    @click.option(
+        "as_json",
+        "--json",
+        is_flag=True,
+        default=False,
+        help="Do not format and only show JSON-compatible information.",
+    )
+    @click.pass_context
+    def get_known(ctx, as_json=False):
+        """Print known-submissions information as a formatted Python object."""
+        out = app.get_known_submissions(as_json=as_json)
+        if as_json:
+            click.echo(json.dumps(out))
+        else:
+            pprint(out)
 
     return submission
 

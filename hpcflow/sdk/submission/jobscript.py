@@ -1068,7 +1068,8 @@ class Jobscript(JSONLike):
                 err_args["stderr"] = stderr
                 if print_stdout and stdout:
                     print(stdout)
-
+                if stderr:
+                    print(stderr)
             else:
                 if os.name == "nt":
                     process_ID = self._launch_direct_js_win()
@@ -1134,7 +1135,9 @@ class Jobscript(JSONLike):
             out["num_js_elements"] = self.num_elements
         return out
 
-    def get_active_states(self) -> Dict[int, JobscriptElementState]:
+    def get_active_states(
+        self, as_json: bool = False
+    ) -> Dict[int, JobscriptElementState]:
         """If this jobscript is active on this machine, return the state information from
         the scheduler."""
 
@@ -1164,6 +1167,8 @@ class Jobscript(JSONLike):
                 out = self.scheduler.get_job_state_info(**self.scheduler_ref)
                 if out:
                     out = out[next(iter(out))]  # first item only
+                    if as_json:
+                        out = {k: v.name for k, v in out.items()}
 
             else:
                 raise NotSubmitMachineError(

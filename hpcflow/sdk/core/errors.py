@@ -115,6 +115,10 @@ class WorkflowNotFoundError(Exception):
     pass
 
 
+class MalformedWorkflowError(Exception):
+    pass
+
+
 class ValuesAlreadyPersistentError(Exception):
     pass
 

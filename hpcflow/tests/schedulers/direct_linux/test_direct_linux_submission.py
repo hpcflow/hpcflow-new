@@ -9,4 +9,4 @@ def test_workflow_1(tmp_path, null_config):
     ts = hf.TaskSchema(objective="hello", actions=[act])
     wkt = hf.WorkflowTemplate(name="greetings", tasks=[hf.Task(schemas=[ts])])
     wf = hf.Workflow.from_template(name="saludos", template=wkt)
-    wf.submit(wait=True)
+    wf.submit(wait=True, add_to_known=False)

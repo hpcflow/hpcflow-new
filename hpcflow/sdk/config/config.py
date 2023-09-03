@@ -21,6 +21,7 @@ from rich.pretty import Pretty
 from rich.panel import Panel
 from rich import print as rich_print
 from fsspec.registry import known_implementations as fsspec_protocols
+from fsspec.implementations.local import LocalFileSystem
 from platformdirs import user_data_dir
 from valida.schema import Schema
 from hpcflow.sdk.core.utils import get_in_container, read_YAML_file, set_in_container
@@ -842,8 +843,10 @@ class Config:
         self._logger.debug(f"init with `path` = {path!r}")
 
         fs = fsspec.open(path).fs
-        files = fs.glob("*.yaml") + fs.glob("*.yml")
+        local_path = f"{path}/" if isinstance(fs, LocalFileSystem) else ""
+        files = fs.glob(f"{local_path}*.yaml") + fs.glob(f"{local_path}*.yml")
         self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
+
         files = [i for i in files if Path(i).stem.startswith(known_name)]
         if not files:
             print(f"No configuration-import files found matching name {known_name!r}.")

@@ -777,21 +777,93 @@ class ValueSequence(JSONLike):
         return np.linspace(start, stop, num=num, **kwargs).tolist()
 
     @classmethod
+    def _values_from_geometric_space(cls, start, stop, num, **kwargs):
+        return np.geomspace(start, stop, num=num, **kwargs).tolist()
+
+    @classmethod
+    def _values_from_log_space(cls, start, stop, num, base=10.0, **kwargs):
+        return np.logspace(start, stop, num=num, base=base, **kwargs).tolist()
+
+    @classmethod
     def _values_from_range(cls, start, stop, step, **kwargs):
         return np.arange(start, stop, step, **kwargs).tolist()
 
     @classmethod
-    def from_linear_space(cls, start, stop, nesting_order, num=50, path=None, **kwargs):
+    def from_linear_space(
+        cls,
+        path,
+        start,
+        stop,
+        num,
+        nesting_order,
+        label=None,
+        **kwargs,
+    ):
         # TODO: save persistently as an array?
         args = {"start": start, "stop": stop, "num": num, **kwargs}
         values = cls._values_from_linear_space(**args)
-        obj = cls(values=values, path=path, nesting_order=nesting_order)
+        obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
         obj._values_method = "from_linear_space"
         obj._values_method_args = args
         return obj
 
     @classmethod
-    def from_range(cls, start, stop, nesting_order, step=1, path=None, **kwargs):
+    def from_geometric_space(
+        cls,
+        path,
+        start,
+        stop,
+        num,
+        nesting_order,
+        endpoint=True,
+        label=None,
+        **kwargs,
+    ):
+        args = {"start": start, "stop": stop, "num": num, "endpoint": endpoint, **kwargs}
+        values = cls._values_from_geometric_space(**args)
+        obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
+        obj._values_method = "from_geometric_space"
+        obj._values_method_args = args
+        return obj
+
+    @classmethod
+    def from_log_space(
+        cls,
+        path,
+        start,
+        stop,
+        num,
+        nesting_order,
+        base=10.0,
+        endpoint=True,
+        label=None,
+        **kwargs,
+    ):
+        args = {
+            "start": start,
+            "stop": stop,
+            "num": num,
+            "endpoint": endpoint,
+            "base": base,
+            **kwargs,
+        }
+        values = cls._values_from_log_space(**args)
+        obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
+        obj._values_method = "from_log_space"
+        obj._values_method_args = args
+        return obj
+
+    @classmethod
+    def from_range(
+        cls,
+        path,
+        start,
+        stop,
+        nesting_order,
+        step=1,
+        label=None,
+        **kwargs,
+    ):
         # TODO: save persistently as an array?
         args = {"start": start, "stop": stop, "step": step, **kwargs}
         if isinstance(step, int):
@@ -809,6 +881,7 @@ class ValueSequence(JSONLike):
             values=values,
             path=path,
             nesting_order=nesting_order,
+            label=label,
         )
         obj._values_method = "from_range"
         obj._values_method_args = args
