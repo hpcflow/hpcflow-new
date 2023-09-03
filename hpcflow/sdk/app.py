@@ -1399,11 +1399,14 @@ class BaseApp(metaclass=Singleton):
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
             submit_time_str = file_dat_i["submit_time"]
+            submit_time_obj = datetime.strptime(submit_time_str, self._submission_ts_fmt)
+            submit_time_obj = submit_time_obj.replace(tzinfo=timezone.utc).astimezone()
             out_item = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
                 "workflow_path": file_dat_i["path"],
                 "submit_time": submit_time_str,
+                "submit_time_obj": submit_time_obj,
                 "sub_idx": file_dat_i["sub_idx"],
                 "jobscripts": [],
                 "active_jobscripts": {},
@@ -1426,12 +1429,11 @@ class BaseApp(metaclass=Singleton):
                             f"{file_dat_i['path']!r}!"
                         )
                         out_item["unloadable"] = True
-
-                    else:
                         if file_dat_i["is_active"]:
                             inactive_IDs.append(file_dat_i["local_id"])
                             file_dat_i["is_active"] = False
 
+                    else:
                         # cache:
                         loaded_workflows[file_dat_i["path"]] = wk_i
                 else:
@@ -1488,7 +1490,7 @@ class BaseApp(metaclass=Singleton):
             key=lambda i: (
                 i["submission"].end_time
                 or i["submission"].start_time
-                or i["submission"].submit_time
+                or i["submit_time_obj"]
             ),
             reverse=True,
         )
@@ -1502,7 +1504,7 @@ class BaseApp(metaclass=Singleton):
         if as_json:
             for idx, _ in enumerate(out):
                 out[idx].pop("submission", None)
-
+                out[idx].pop("submit_time_obj")
         return out
 
     def _show_legend(self):
