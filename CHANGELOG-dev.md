@@ -1,4 +1,26 @@
 
+<a name="v0.2.0a95"></a>
+## [v0.2.0a95](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a94...v0.2.0a95) - 2023.09.03
+
+### ✨ Features
+
+* add as_json opt to get_known_submissions
+* add ValueSequence.from_geometric_space and from_log_space
+
+### 🐛 Bug Fixes
+
+* App.show always reports submissions as inactive
+* add_to_known option in Workflow.submit [#483](https://github.com/hpcflow/hpcflow-new/issues/483)
+* try fix [#490](https://github.com/hpcflow/hpcflow-new/issues/490)
+* print scheduler submission stderr
+* SGEPosix.process_resources
+* Config.init path arg if local
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a94"></a>
 ## [v0.2.0a94](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a93...v0.2.0a94) - 2023.08.30
 
