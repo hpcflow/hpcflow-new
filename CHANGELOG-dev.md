@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a97"></a>
+## [v0.2.0a97](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a96...v0.2.0a97) - 2023.09.06
+
+### 🐛 Bug Fixes
+
+* add double quotes to path args in bash jobscripts to support spaces
+* process spaces in invocation command executable fix [#498](https://github.com/hpcflow/hpcflow-new/issues/498)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a96"></a>
 ## [v0.2.0a96](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a95...v0.2.0a96) - 2023.09.06
 
