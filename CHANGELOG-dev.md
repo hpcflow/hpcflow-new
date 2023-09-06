@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a96"></a>
+## [v0.2.0a96](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a95...v0.2.0a96) - 2023.09.06
+
+### 🐛 Bug Fixes
+
+* NullScheduler.is_num_cores_supported for unspecified max and step
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a95"></a>
 ## [v0.2.0a95](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a94...v0.2.0a95) - 2023.09.03
 
