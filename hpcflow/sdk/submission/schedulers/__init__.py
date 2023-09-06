@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 import time
 from typing import Any, List, Tuple
 
@@ -32,7 +33,9 @@ class NullScheduler:
 
     @staticmethod
     def is_num_cores_supported(num_cores, core_range: List[int]):
-        return num_cores in range(core_range[0], core_range[2] + 1, core_range[1])
+        step = core_range[1] if core_range[1] is not None else 1
+        upper = core_range[2] + 1 if core_range[2] is not None else sys.maxsize
+        return num_cores in range(core_range[0], upper, step)
 
 
 class Scheduler(NullScheduler):
