@@ -32,7 +32,7 @@ class Bash(Shell):
         }}
 
         WK_PATH=`pwd`
-        WK_PATH_ARG=$WK_PATH
+        WK_PATH_ARG="$WK_PATH"
         SUB_IDX={sub_idx}
         JS_IDX={js_idx}
         EAR_ID_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{EAR_file_name}"
@@ -57,8 +57,8 @@ class Bash(Shell):
     )
     JS_MAIN = dedent(
         """\
-        elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" $EAR_ID_FILE`
-        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" $ELEM_RUN_DIR_FILE`
+        elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
+        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
 
         for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
@@ -69,10 +69,10 @@ class Bash(Shell):
           fi
 
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
-          cd $WK_PATH/$run_dir
+          cd "$WK_PATH/$run_dir"
           app_stream_file="`pwd`/{app_package_name}_std.txt"
 
-          skip=`{workflow_app_alias} internal workflow $WK_PATH_ARG get-ear-skipped $EAR_ID 2>> $app_stream_file`
+          skip=`{workflow_app_alias} internal workflow "$WK_PATH_ARG" get-ear-skipped $EAR_ID 2>> "$app_stream_file"`
           exc_sk=$?
 
           if [ $exc_sk -eq 0 ]; then
@@ -81,10 +81,10 @@ class Bash(Shell):
                   continue
               fi
 
-              {workflow_app_alias} internal workflow $WK_PATH_ARG write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> $app_stream_file 2>&1
+              {workflow_app_alias} internal workflow "$WK_PATH_ARG" write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> "$app_stream_file" 2>&1
               exc_wc=$?
 
-              {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-start $EAR_ID >> $app_stream_file 2>&1
+              {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-start $EAR_ID >> "$app_stream_file" 2>&1
               exc_se=$?
 
               if [ $exc_wc -eq 0 ] && [ $exc_se -eq 0 ]; then
@@ -98,7 +98,7 @@ class Bash(Shell):
               exit_code=$exc_sk
           fi
 
-          {workflow_app_alias} internal workflow $WK_PATH_ARG set-ear-end $JS_IDX $JS_act_idx $EAR_ID $exit_code >> $app_stream_file 2>&1
+          {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-end $JS_IDX $JS_act_idx $EAR_ID $exit_code >> "$app_stream_file" 2>&1
 
         done
     """
@@ -109,14 +109,14 @@ class Bash(Shell):
         do
         {main}
         done
-        cd $WK_PATH
+        cd "$WK_PATH"
     """
     )
     JS_ELEMENT_ARRAY = dedent(
         """\
         JS_elem_idx=$(({scheduler_array_item_var} - 1))
         {main}
-        cd $WK_PATH
+        cd "$WK_PATH"
     """
     )
 
@@ -162,6 +162,12 @@ class Bash(Shell):
 
         return out
 
+    @staticmethod
+    def process_app_invoc_executable(app_invoc_exe):
+        # escape spaces with a back slash:
+        app_invoc_exe = app_invoc_exe.replace(" ", r"\ ")
+        return app_invoc_exe
+
     def format_stream_assignment(self, shell_var_name, command):
         return f"{shell_var_name}=`{command}`"
 
@@ -170,8 +176,8 @@ class Bash(Shell):
     ):
         return (
             f"{workflow_app_alias}"
-            f" internal workflow $WK_PATH_ARG save-parameter {param_name} ${shell_var_name}"
-            f" {EAR_ID} >> $app_stream_file 2>&1"
+            f' internal workflow "$WK_PATH_ARG" save-parameter {param_name} ${shell_var_name}'
+            f' {EAR_ID} >> "$app_stream_file" 2>&1'
             f"\n"
         )
 
@@ -200,7 +206,7 @@ class Bash(Shell):
                         exitcode=$?
                         break
                     elif [ "$is_abort" = "1" ]; then
-                        echo "Abort instruction received; stopping commands..." >> $app_stream_file
+                        echo "Abort instruction received; stopping commands..." >> "$app_stream_file"
                         kill $pid
                         wait $pid 2>/dev/null
                         exitcode={abort_exit_code}
@@ -226,8 +232,8 @@ class WSLBash(Bash):
     DEFAULT_WSL_EXE = "wsl"
 
     JS_HEADER = Bash.JS_HEADER.replace(
-        "WK_PATH_ARG=$WK_PATH",
-        "WK_PATH_ARG=`wslpath -m $WK_PATH`",
+        'WK_PATH_ARG="$WK_PATH"',
+        'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',
     ).replace(
         '--with-config log_file_path "`pwd`',
         '--with-config log_file_path "$(wslpath -m `pwd`)',

@@ -49,8 +49,12 @@ class Shell(ABC):
         else:
             return ""
 
+    @staticmethod
+    def process_app_invoc_executable(app_invoc_exe):
+        return app_invoc_exe
+
     def process_JS_header_args(self, header_args: Dict) -> Dict:
-        app_invoc = header_args["app_invoc"][0]
+        app_invoc = self.process_app_invoc_executable(header_args["app_invoc"][0])
         if len(header_args["app_invoc"]) > 1:
             app_invoc += ' "' + header_args["app_invoc"][1] + '"'
 

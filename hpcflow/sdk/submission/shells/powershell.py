@@ -164,6 +164,13 @@ class WindowsPowerShell(Shell):
 
         return out
 
+    @staticmethod
+    def process_app_invoc_executable(app_invoc_exe):
+        if " " in app_invoc_exe:
+            # use call operator and single-quote the executable path:
+            app_invoc_exe = f"& '{app_invoc_exe}'"
+        return app_invoc_exe
+
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
 
