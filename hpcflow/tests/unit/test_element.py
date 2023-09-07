@@ -56,3 +56,28 @@ def test_element_dependent_elements(workflow_w1):
             workflow_w1.tasks.t1.elements[1].get_dependent_elements() == [3],
         )
     )
+
+
+def test_equivalence_single_labelled_schema_input_element_get_label_and_non_label(
+    new_null_config, tmp_path
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"), labels={"one": {}})],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(command="Write-Output (<<parameter:p1[one]>> + 100)")
+                ]
+            )
+        ],
+    )
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", label="one", value=101)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    assert wk.tasks.t1.elements[0].get("inputs.p1") == wk.tasks.t1.elements[0].get(
+        "inputs.p1[one]"
+    )

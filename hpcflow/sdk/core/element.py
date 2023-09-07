@@ -626,6 +626,9 @@ class ElementIteration:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
             # remove the trivial label:
             for key in list(data_idx.keys()):
+                if path.startswith(key):
+                    # `path` uses labelled type, so no need to convert to non-labelled
+                    continue
                 lookup_val = single_label_lookup.get(key)
                 if lookup_val:
                     data_idx[lookup_val] = data_idx.pop(key)

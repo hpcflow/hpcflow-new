@@ -82,8 +82,9 @@ class Command(JSONLike):
         # substitute input parameters in command:
         for cmd_inp in EAR.action.get_command_input_types():
             inp_val = EAR.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
+            pattern_i = param_regex.format(re.escape(cmd_inp))
             cmd_str = re.sub(
-                pattern=param_regex.format(cmd_inp),
+                pattern=pattern_i,
                 repl=str(inp_val),
                 string=cmd_str,
             )
