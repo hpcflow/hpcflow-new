@@ -81,3 +81,40 @@ def test_equivalence_single_labelled_schema_input_element_get_label_and_non_labe
     assert wk.tasks.t1.elements[0].get("inputs.p1") == wk.tasks.t1.elements[0].get(
         "inputs.p1[one]"
     )
+
+
+def test_element_dependencies_inputs_only_schema(new_null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            inputs=[hf.InputValue("p1", value=101)],
+        ),
+        hf.Task(schemas=s2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    assert wk.tasks.t1.elements[0].get_dependent_elements() == [1]
+    assert wk.tasks.t2.elements[0].get_element_dependencies() == [0]
+    assert wk.tasks.t2.elements[0].get_EAR_dependencies() == [0]

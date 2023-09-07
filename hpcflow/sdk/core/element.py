@@ -647,14 +647,28 @@ class ElementIteration:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
-        out = sorted(
-            set(
-                EAR_ID
-                for i in self.action_runs
-                for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                if not EAR_ID in self.EAR_IDs_flat
+        if self.action_runs:
+            out = sorted(
+                set(
+                    EAR_ID
+                    for i in self.action_runs
+                    for EAR_ID in i.get_EAR_dependencies(as_objects=False)
+                    if not EAR_ID in self.EAR_IDs_flat
+                )
             )
-        )
+        else:
+            # if an "input-only" task schema, then there will be no action runs, but the
+            # ElementIteration can still depend on other EARs if inputs are sourced from
+            # upstream tasks:
+            out = []
+            for src in self.get_parameter_sources(typ="EAR_output").values():
+                if not isinstance(src, list):
+                    src = [src]
+                for src_i in src:
+                    EAR_ID_i = src_i["EAR_ID"]
+                    out.append(EAR_ID_i)
+            out = sorted(set(out))
+
         if as_objects:
             out = self.workflow.get_EARs_from_IDs(out)
         return out
