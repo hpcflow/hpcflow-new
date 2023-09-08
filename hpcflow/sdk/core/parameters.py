@@ -1555,8 +1555,19 @@ class InputSource(JSONLike):
         task_source_type=None,
         element_iters=None,
         path=None,
-        where=None,
+        where: Optional[
+            Union[dict, app.Rule, List[dict], List[app.Rule], app.ElementFilter]
+        ] = None,
     ):
+        if where is not None and not isinstance(where, app.ElementFilter):
+            rules = where
+            if not isinstance(rules, list):
+                rules = [rules]
+            for idx, i in enumerate(rules):
+                if not isinstance(i, app.Rule):
+                    rules[idx] = app.Rule(**i)
+            where = app.ElementFilter(rules=rules)
+
         self.source_type = self._validate_source_type(source_type)
         self.import_ref = import_ref
         self.task_ref = task_ref
@@ -1607,7 +1618,11 @@ class InputSource(JSONLike):
         else:
             args = ""
 
-        out = f"{self.__class__.__name__}.{cls_method_name}({args})"
+        where_str = ""
+        if self.where is not None:
+            where_str += f", where={self.where!r}"
+
+        out = f"{self.__class__.__name__}.{cls_method_name}({args}{where_str})"
 
         return out
 
@@ -1740,24 +1755,27 @@ class InputSource(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     @classmethod
-    def import_(cls, import_ref):
-        return cls(source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref)
+    def import_(cls, import_ref, where=None):
+        return cls(
+            source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref, where=where
+        )
 
     @classmethod
-    def local(cls):
-        return cls(source_type=cls.app.InputSourceType.LOCAL)
+    def local(cls, where=None):
+        return cls(source_type=cls.app.InputSourceType.LOCAL, where=where)
 
     @classmethod
     def default(cls):
         return cls(source_type=cls.app.InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, element_iters=None):
+    def task(cls, task_ref, task_source_type=None, where=None, element_iters=None):
         if not task_source_type:
             task_source_type = cls.app.TaskSourceType.OUTPUT
         return cls(
             source_type=cls.app.InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
+            where=where,
             element_iters=element_iters,
         )

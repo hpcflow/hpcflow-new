@@ -1,6 +1,6 @@
 from __future__ import annotations
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -9,7 +9,7 @@ from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
-from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParallelMode
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.shells import get_shell
@@ -1255,8 +1255,11 @@ class ElementParameter:
         raise NotImplementedError
 
 
-class ElementFilter(Rule):
-    pass
+@dataclass
+class ElementFilter(JSONLike):
+    _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
+
+    rules: List[app.Rule] = field(default_factory=list)
 
 
 @dataclass

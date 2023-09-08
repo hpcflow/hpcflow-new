@@ -307,3 +307,13 @@ def test_no_sourceable_elements_so_default_used(
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
 
     assert wk.tasks[1].elements[0].input_sources["inputs.p3"] == "default"
+
+
+def test_equivalent_where_args():
+    rule_args = {"path": "inputs.p1", "condition": {"value.equal_to": 1}}
+    i1 = hf.InputSource.task(task_ref=0, where=rule_args)
+    i2 = hf.InputSource.task(task_ref=0, where=[rule_args])
+    i3 = hf.InputSource.task(task_ref=0, where=hf.Rule(**rule_args))
+    i4 = hf.InputSource.task(task_ref=0, where=[hf.Rule(**rule_args)])
+    i5 = hf.InputSource.task(task_ref=0, where=hf.ElementFilter([hf.Rule(**rule_args)]))
+    assert i1 == i2 == i3 == i4 == i5
