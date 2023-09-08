@@ -10,6 +10,7 @@ sdk_classes = {
     "ActionScopeType": "hpcflow.sdk.core.actions",
     "ActionScope": "hpcflow.sdk.core.actions",
     "ActionRule": "hpcflow.sdk.core.actions",
+    "Rule": "hpcflow.sdk.core.rule",
     "Action": "hpcflow.sdk.core.actions",
     "ActionEnvironment": "hpcflow.sdk.core.actions",
     "ElementActionRun": "hpcflow.sdk.core.actions",

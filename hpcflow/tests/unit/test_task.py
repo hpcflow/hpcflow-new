@@ -2,7 +2,6 @@ import copy
 import os
 import pytest
 
-from valida.rules import Rule
 from valida.conditions import Value
 
 from hpcflow.app import app as hf
@@ -1475,10 +1474,10 @@ def test_parameter_two_modifying_actions_expected_data_indices(
 def test_conditional_shell_schema_single_initialised_action(null_config, tmp_path, store):
     rules = {
         "posix": hf.ActionRule(
-            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("posix"))
+            rule=hf.Rule(path="resources.os_name", condition=Value.equal_to("posix"))
         ),
         "nt": hf.ActionRule(
-            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("nt"))
+            rule=hf.Rule(path="resources.os_name", condition=Value.equal_to("nt"))
         ),
     }
     s1 = hf.TaskSchema(
@@ -1610,7 +1609,7 @@ def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
                 ],
                 rules=[
                     hf.ActionRule(
-                        rule=Rule(path=["inputs.p2"], condition=Value.less_than(500))
+                        rule=hf.Rule(path="inputs.p2", condition=Value.less_than(500))
                     )
                 ],
             ),
@@ -1636,10 +1635,10 @@ def test_element_iteration_EARs_initialised_on_make_workflow_with_no_valid_actio
 ):
     rules = {
         "posix": hf.ActionRule(
-            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("posix"))
+            rule=hf.Rule(path="resources.os_name", condition=Value.equal_to("posix"))
         ),
         "nt": hf.ActionRule(
-            rule=Rule(path=["resources.os_name"], condition=Value.equal_to("nt"))
+            rule=hf.Rule(path="resources.os_name", condition=Value.equal_to("nt"))
         ),
     }
     s1 = hf.TaskSchema(

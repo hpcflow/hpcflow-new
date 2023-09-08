@@ -859,8 +859,7 @@ class ElementIteration:
             resources.update({k: v for k, v in scope_res.items() if v is not None})
 
         if set_defaults:
-            # this is used in e.g. `WorkflowTask.test_action_rule` if testing action rules
-            # that concern resources:
+            # used in e.g. `Rule.test` if testing resource rules on element iterations:
             if "os_name" not in resources:
                 resources["os_name"] = self.app.ElementResources.get_default_os_name()
             if "shell" not in resources:

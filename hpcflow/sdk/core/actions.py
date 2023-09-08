@@ -1075,36 +1075,31 @@ class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
-    _app_attr = "app"
+    _child_objects = (
+        ChildObjectSpec(name="rule", class_name="Rule"),
+        ChildObjectSpec(name="action", class_name="Action"),
+    )
 
-    _child_objects = (ChildObjectSpec(name="rule", class_obj=Rule),)
+    rule: app.Rule
+    action: Optional[app.Action] = None  # assigned by parent action
 
-    check_exists: Optional[str] = None
-    check_missing: Optional[str] = None
-    rule: Optional[Rule] = None
+    def __eq__(self, other):
+        if type(other) is not self.__class__:
+            return False
+        if self.rule == other.rule:
+            return True
+        return False
 
-    def __post_init__(self):
-        if (
-            self.check_exists is not None
-            and self.check_missing is not None
-            and self.rule is not None
-        ) or (
-            self.check_exists is None and self.check_missing is None and self.rule is None
-        ):
-            raise ValueError(
-                "Specify exactly one of `check_exists`, `check_missing` and `rule`."
-            )
+    def test(self, element_iteration: app.ElementIteration) -> bool:
+        return self.rule.test(element_like=element_iteration, action=self.action)
 
-    def __repr__(self):
-        out = f"{self.__class__.__name__}("
-        if self.check_exists:
-            out += f"check_exists={self.check_exists!r}"
-        elif self.check_missing:
-            out += f"check_missing={self.check_missing!r}"
-        else:
-            out += f"rule={self.rule}"
-        out += ")"
-        return out
+    @classmethod
+    def check_exists(cls, check_exists):
+        return cls(rule=app.Rule(check_exists=check_exists))
+
+    @classmethod
+    def check_missing(cls, check_missing):
+        return cls(rule=app.Rule(check_missing=check_missing))
 
 
 class Action(JSONLike):
@@ -1150,6 +1145,7 @@ class Action(JSONLike):
             name="rules",
             class_name="ActionRule",
             is_multiple=True,
+            parent_ref="action",
         ),
     )
 
@@ -1185,6 +1181,8 @@ class Action(JSONLike):
 
         self._task_schema = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
+
+        self._set_parent_refs()
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1383,7 +1381,7 @@ class Action(JSONLike):
             # always run OPs, for now
 
             out_file_rules = [
-                self.app.ActionRule(check_missing=f"output_files.{j.label}")
+                self.app.ActionRule.check_missing(f"output_files.{j.label}")
                 for i in self.output_file_parsers
                 for j in i.output_files
             ]
@@ -1762,3 +1760,7 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
+
+    def test_rules(self, element_iter) -> List[bool]:
+        """Test all rules against the specified element iteration."""
+        return [i.test(element_iteration=element_iter) for i in self.rules]

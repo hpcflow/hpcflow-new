@@ -1646,7 +1646,7 @@ class WorkflowTask:
                         self._initialise_element_iter_EARs(iter_i)
                         initialised.append(iter_i.id_)
                     except UnsetParameterDataError:
-                        # raised by `test_action_rule`; cannot yet initialise EARs
+                        # raised by `Action.test_rules`; cannot yet initialise EARs
                         pass
                     else:
                         iter_i._EARs_initialised = True
@@ -1668,13 +1668,10 @@ class WorkflowTask:
                 f"element {element_iter.element.index} of task {self.unique_name!r}."
             )
             # TODO: when we support adding new runs, we will probably pass additional
-            # run-specific data index to `test_action_rule` and `generate_data_index`
+            # run-specific data index to `test_rules` and `generate_data_index`
             # (e.g. if we wanted to increase the memory requirements of a action because
             # it previously failed)
-            rules_valid = [
-                self.test_action_rule(action=action, act_rule=i, elem_iter=element_iter)
-                for i in action.rules
-            ]
+            rules_valid = action.test_rules(element_iter=element_iter)
             if all(rules_valid):
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
@@ -2178,53 +2175,6 @@ class WorkflowTask:
                 current_value = current_value_
 
         return current_value
-
-    def test_action_rule(
-        self,
-        action: app.Action,
-        act_rule: app.ActionRule,
-        elem_iter: app.ElementIteration,
-    ) -> bool:
-        schema_data_idx = elem_iter.data_idx
-        check = act_rule.check_exists or act_rule.check_missing
-        if check:
-            param_s = check.split(".")
-            if len(param_s) > 2:
-                # sub-parameter, so need to try to retrieve parameter data
-                try:
-                    self._get_merged_parameter_data(
-                        schema_data_idx, raise_on_missing=True
-                    )
-                    return True if act_rule.check_exists else False
-                except ValueError:
-                    return False if act_rule.check_exists else True
-            else:
-                if act_rule.check_exists:
-                    return act_rule.check_exists in schema_data_idx
-                elif act_rule.check_missing:
-                    return act_rule.check_missing not in schema_data_idx
-
-        else:
-            rule = act_rule.rule
-            param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
-            if param_path.startswith("resources."):
-                elem_res = elem_iter.get_resources(action=action, set_defaults=True)
-                res_path = param_path.split(".")[1:]
-                element_dat = get_in_container(
-                    cont=elem_res, path=res_path, cast_indices=True
-                )
-            else:
-                element_dat = self._get_merged_parameter_data(
-                    schema_data_idx,
-                    path=param_path,
-                    raise_on_missing=True,
-                    raise_on_unset=True,
-                )
-            # test the rule:
-            # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
-            # path to first element (see: https://github.com/hpcflow/valida/issues/9):
-            rule = Rule(path=[0], condition=rule.condition, cast=rule.cast)
-            return rule.test([element_dat]).is_valid
 
 
 class Elements:
