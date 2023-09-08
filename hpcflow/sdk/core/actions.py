@@ -11,7 +11,8 @@ import subprocess
 from textwrap import indent, dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from valida.rules import Rule
+from valida.conditions import ConditionLike
+
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
@@ -1070,18 +1071,42 @@ class ActionEnvironment(JSONLike):
             self.scope = self.app.ActionScope.any()
 
 
-@dataclass
 class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
-    _child_objects = (
-        ChildObjectSpec(name="rule", class_name="Rule"),
-        ChildObjectSpec(name="action", class_name="Action"),
-    )
+    _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
 
-    rule: app.Rule
-    action: Optional[app.Action] = None  # assigned by parent action
+    def __init__(
+        self,
+        rule: Optional[app.Rule] = None,
+        check_exists: Optional[str] = None,
+        check_missing: Optional[str] = None,
+        path: Optional[str] = None,
+        condition: Optional[Union[Dict, ConditionLike]] = None,
+        cast: Optional[str] = None,
+        doc: Optional[str] = None,
+    ):
+        if rule is None:
+            rule = app.Rule(
+                check_exists=check_exists,
+                check_missing=check_missing,
+                path=path,
+                condition=condition,
+                cast=cast,
+                doc=doc,
+            )
+        elif any(
+            i is not None
+            for i in (check_exists, check_missing, path, condition, cast, doc)
+        ):
+            raise TypeError(
+                f"{self.__class__.__name__} `rule` specified in addition to rule "
+                f"constructor arguments."
+            )
+
+        self.rule = rule
+        self.action = None  # assigned by parent action
 
     def __eq__(self, other):
         if type(other) is not self.__class__:
