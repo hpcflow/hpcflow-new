@@ -1261,6 +1261,15 @@ class ElementFilter(JSONLike):
 
     rules: List[app.Rule] = field(default_factory=list)
 
+    def filter(
+        self, element_iters: List[app.ElementIteration]
+    ) -> List[app.ElementIteration]:
+        out = []
+        for i in element_iters:
+            if all(rule_j.test(i) for rule_j in self.rules):
+                out.append(i)
+        return out
+
 
 @dataclass
 class ElementGroup(JSONLike):

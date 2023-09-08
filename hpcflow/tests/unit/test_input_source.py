@@ -317,3 +317,58 @@ def test_equivalent_where_args():
     i4 = hf.InputSource.task(task_ref=0, where=[hf.Rule(**rule_args)])
     i5 = hf.InputSource.task(task_ref=0, where=hf.ElementFilter([hf.Rule(**rule_args)]))
     assert i1 == i2 == i3 == i4 == i5
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(path="inputs.p1", values=[1, 2], nesting_order=0)
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(path="inputs.p1", condition={"value.equal_to": 2}),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )

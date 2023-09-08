@@ -1604,25 +1604,26 @@ class InputSource(JSONLike):
     def __repr__(self) -> str:
         cls_method_name = self.source_type.name.lower()
 
+        args_lst = []
+
         if self.source_type is InputSourceType.IMPORT:
             cls_method_name += "_"
-            args = f"import_ref={self.import_ref}"
+            args_lst.append(f"import_ref={self.import_ref}")
 
         elif self.source_type is InputSourceType.TASK:
-            args = (
-                f"task_ref={self.task_ref}, "
-                f"task_source_type={self.task_source_type.name.lower()!r}"
+            args_lst += (
+                f"task_ref={self.task_ref}",
+                f"task_source_type={self.task_source_type.name.lower()!r}",
             )
-            if self.element_iters:
-                args += f", element_iters={self.element_iters}"
-        else:
-            args = ""
 
-        where_str = ""
+        if self.element_iters:
+            args_lst.append(f"element_iters={self.element_iters}")
+
         if self.where is not None:
-            where_str += f", where={self.where!r}"
+            args_lst.append(f"where={self.where!r}")
 
-        out = f"{self.__class__.__name__}.{cls_method_name}({args}{where_str})"
+        args = ", ".join(args_lst)
+        out = f"{self.__class__.__name__}.{cls_method_name}({args})"
 
         return out
 
@@ -1636,7 +1637,7 @@ class InputSource(JSONLike):
 
     def is_in(self, other_input_sources: List[app.InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
-        considering the `element_iters` attribute."""
+        considering the `element_iters` and `where` attributes."""
 
         for idx, other in enumerate(other_input_sources):
             if (
@@ -1644,7 +1645,6 @@ class InputSource(JSONLike):
                 and self.import_ref == other.import_ref
                 and self.task_ref == other.task_ref
                 and self.task_source_type == other.task_source_type
-                and self.where == other.where
                 and self.path == other.path
             ):
                 return idx
@@ -1755,21 +1755,24 @@ class InputSource(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     @classmethod
-    def import_(cls, import_ref, where=None):
+    def import_(cls, import_ref, element_iters=None, where=None):
         return cls(
-            source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref, where=where
+            source_type=cls.app.InputSourceType.IMPORT,
+            import_ref=import_ref,
+            element_iters=element_iters,
+            where=where,
         )
 
     @classmethod
-    def local(cls, where=None):
-        return cls(source_type=cls.app.InputSourceType.LOCAL, where=where)
+    def local(cls):
+        return cls(source_type=cls.app.InputSourceType.LOCAL)
 
     @classmethod
     def default(cls):
         return cls(source_type=cls.app.InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, where=None, element_iters=None):
+    def task(cls, task_ref, task_source_type=None, element_iters=None, where=None):
         if not task_source_type:
             task_source_type = cls.app.TaskSourceType.OUTPUT
         return cls(
