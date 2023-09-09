@@ -11,6 +11,7 @@ from hpcflow.sdk.core.errors import (
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
+    UnsetParameterDataError,
 )
 from hpcflow.sdk.core.parameters import NullDefault
 from hpcflow.sdk.core.test_utils import make_schemas, make_tasks, make_workflow
@@ -1665,3 +1666,337 @@ def test_element_iteration_EARs_initialised_on_make_workflow_with_no_valid_actio
     action_runs = wk.tasks[0].elements[0].iterations[0].action_runs
     assert len(action_runs) == 0
     assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_unset_data_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx = wk.tasks.t1.elements[0].get_data_idx()
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t1._get_merged_parameter_data(
+            data_index=data_idx,
+            path="outputs.p2",
+            raise_on_unset=True,
+        )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_unset_data_no_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx = wk.tasks.t1.elements[0].get_data_idx()
+    assert None == wk.tasks.t1._get_merged_parameter_data(
+        data_index=data_idx,
+        path="outputs.p2",
+        raise_on_unset=False,
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_missing_data_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx = wk.tasks.t1.elements[0].get_data_idx()
+    with pytest.raises(ValueError):
+        wk.tasks.t1._get_merged_parameter_data(
+            data_index=data_idx,
+            path="inputs.p4",
+            raise_on_missing=True,
+        )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_missing_data_no_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx = wk.tasks.t1.elements[0].get_data_idx()
+    assert None == wk.tasks.t1._get_merged_parameter_data(
+        data_index=data_idx,
+        path="inputs.p4",
+        raise_on_missing=False,
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_group_unset_data_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(schemas=s2)
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx_t1 = wk.tasks.t1.elements[0].get_data_idx()
+    data_idx_t2 = wk.tasks.t2.elements[0].get_data_idx()
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t1._get_merged_parameter_data(
+            data_index=data_idx_t1,
+            path="outputs.p2",
+            raise_on_unset=True,
+        )
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t2._get_merged_parameter_data(
+            data_index=data_idx_t2,
+            path="inputs.p2",
+            raise_on_unset=True,
+        )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_group_unset_data_no_raise(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(schemas=s2)
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx_t1 = wk.tasks.t1.elements[0].get_data_idx()
+    data_idx_t2 = wk.tasks.t2.elements[0].get_data_idx()
+    assert None == wk.tasks.t1._get_merged_parameter_data(
+        data_index=data_idx_t1,
+        path="outputs.p2",
+        raise_on_unset=False,
+    )
+    assert [None, None] == wk.tasks.t2._get_merged_parameter_data(
+        data_index=data_idx_t2,
+        path="inputs.p2",
+        raise_on_unset=False,
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_group_missing_data_raise(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(schemas=s2)
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx_t1 = wk.tasks.t1.elements[0].get_data_idx()
+    data_idx_t2 = wk.tasks.t2.elements[0].get_data_idx()
+    with pytest.raises(ValueError):
+        wk.tasks.t1._get_merged_parameter_data(
+            data_index=data_idx_t1,
+            path="outputs.p4",
+            raise_on_missing=True,
+        )
+    with pytest.raises(ValueError):
+        wk.tasks.t2._get_merged_parameter_data(
+            data_index=data_idx_t2,
+            path="inputs.p4",
+            raise_on_missing=True,
+        )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_get_merged_parameter_data_group_missing_data_no_raise(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(schemas=s2)
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+        store=store,
+    )
+    data_idx_t1 = wk.tasks.t1.elements[0].get_data_idx()
+    data_idx_t2 = wk.tasks.t2.elements[0].get_data_idx()
+    assert None == wk.tasks.t1._get_merged_parameter_data(
+        data_index=data_idx_t1,
+        path="outputs.p4",
+        raise_on_missing=False,
+    )
+    assert None == wk.tasks.t2._get_merged_parameter_data(
+        data_index=data_idx_t2,
+        path="inputs.p4",
+        raise_on_missing=False,
+    )
