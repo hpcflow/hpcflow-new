@@ -164,3 +164,7 @@ class P1_parameter_cls(ParameterValue):
     @classmethod
     def from_data(cls, b, c):
         return cls(a=b + c)
+
+    @property
+    def twice_a(self):
+        return self.a * 2

@@ -335,6 +335,7 @@ class ElementActionRun:
         path: str = None,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ):
         return self.element_iteration.get(
             path=path,
@@ -342,6 +343,7 @@ class ElementActionRun:
             run_idx=self.index,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_EAR_dependencies(self, as_objects=False):
@@ -814,6 +816,7 @@ class ElementAction:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ):
         return self.element_iteration.get(
             path=path,
@@ -821,6 +824,7 @@ class ElementAction:
             run_idx=run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_parameter_names(self, prefix):

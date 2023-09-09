@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import MissingInputs
+from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 
 
 def test_input_source_class_method_local():
@@ -355,6 +356,128 @@ def test_input_source_where(null_config, tmp_path, store):
                     hf.InputSource.task(
                         task_ref=0,
                         where=hf.Rule(path="inputs.p1", condition={"value.equal_to": 2}),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where_parameter_value_class_sub_parameter(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(
+                    path="inputs.p1", values=[P1(a=1), P1(a=2)], nesting_order=0
+                )
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(
+                            path="inputs.p1.a", condition={"value.equal_to": 2}
+                        ),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where_parameter_value_class_sub_parameter_property(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(
+                    path="inputs.p1", values=[P1(a=1), P1(a=2)], nesting_order=0
+                )
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(
+                            path="inputs.p1.twice_a", condition={"value.equal_to": 4}
+                        ),
                     )
                 ]
             },

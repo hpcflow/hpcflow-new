@@ -613,6 +613,7 @@ class ElementIteration:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ) -> Any:
         """Get element data from the persistent store."""
         # TODO include a "stats" parameter which when set we know the run has been
@@ -637,6 +638,7 @@ class ElementIteration:
             data_index=data_idx,
             path=path,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
             default=default,
         )
 
@@ -1112,6 +1114,7 @@ class Element:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ) -> Any:
         """Get element data of the most recent iteration from the persistent store."""
         return self.latest_iteration.get(
@@ -1120,6 +1123,7 @@ class Element:
             run_idx=run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_EAR_dependencies(

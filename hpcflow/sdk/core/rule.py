@@ -111,9 +111,8 @@ class Rule(JSONLike):
                     cont=elem_res, path=res_path, cast_indices=True
                 )
             else:
-                element_dat = task._get_merged_parameter_data(
-                    schema_data_idx,
-                    path=self.path,
+                element_dat = element_like.get(
+                    self.path,
                     raise_on_missing=True,
                     raise_on_unset=True,
                 )

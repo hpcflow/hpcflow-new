@@ -1607,11 +1607,7 @@ def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
                         stdout="<<parameter:p3>>",
                     )
                 ],
-                rules=[
-                    hf.ActionRule(
-                        rule=hf.Rule(path="inputs.p2", condition=Value.less_than(500))
-                    )
-                ],
+                rules=[hf.ActionRule(path="inputs.p2", condition=Value.less_than(500))],
             ),
         ],
     )

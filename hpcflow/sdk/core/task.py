@@ -1660,6 +1660,9 @@ class WorkflowTask:
                         initialised.append(iter_i.id_)
                     except UnsetParameterDataError:
                         # raised by `Action.test_rules`; cannot yet initialise EARs
+                        self.app.logger.debug(
+                            f"UnsetParameterDataError raised: cannot yet initialise runs."
+                        )
                         pass
                     else:
                         iter_i._EARs_initialised = True
@@ -2080,6 +2083,12 @@ class WorkflowTask:
         path = [] if not path else path.split(".")
 
         parameter = self._path_to_parameter(path)
+
+        # also support retrieving object properties as the final component, so we need
+        # to also see if the parent is a parameter:
+        direct_parent_param = self._path_to_parameter(path[:-1])
+        property_name = None
+
         sources = []
         current_value = None
         is_cur_val_assigned = False
@@ -2124,7 +2133,13 @@ class WorkflowTask:
                         data_j = data_j.as_posix()
                     else:
                         data_j = param_j.data
-                        if parameter and len(path_i) == 2:
+                        if param_j.is_pending:
+                            # pending StoreParameter's will not yet be encoded:
+                            try:
+                                data_j = data_j.__dict__
+                            except AttributeError:
+                                pass
+                        if (parameter or direct_parent_param) and len(path_i) == 2:
                             # retrieve the source if this is a non-sub parameter, so we can,
                             # in the case that there is an associated `ParameterValue` class,
                             # get the class method that should be invoked to initialise the
@@ -2149,6 +2164,11 @@ class WorkflowTask:
                     current_value = get_in_container(data, rel_path, cast_indices=True)
                     is_cur_val_assigned = True
                 except (KeyError, IndexError, ValueError):
+                    if len(rel_path) == 1:
+                        current_value = data
+                        is_cur_val_assigned = True
+                        property_name = rel_path[0]
+
                     continue
 
             elif is_update:
@@ -2164,6 +2184,10 @@ class WorkflowTask:
             else:
                 current_value = default
 
+        if direct_parent_param:
+            # this is assigned if we weren't able to retrieve the final component of the
+            # path, which means it could be a ParameterValue object property
+            parameter = direct_parent_param
         if parameter and parameter._value_class:
             # TODO: retrieve value class method case-insensitively!
             if isinstance(current_value, dict):
@@ -2186,6 +2210,16 @@ class WorkflowTask:
                         method = parameter._value_class
                     current_value_.append(method(**cur_val))
                 current_value = current_value_
+
+        if direct_parent_param and property_name:
+            try:
+                current_value = getattr(current_value, property_name)
+            except AttributeError:
+                if raise_on_missing:
+                    # TODO: custom exception?
+                    raise ValueError(f"Path {path!r} does not exist in the element data.")
+                else:
+                    current_value = default
 
         return current_value
 
@@ -2265,6 +2299,7 @@ class Parameters:
     path: str
     return_element_parameters: bool
     raise_on_missing: Optional[bool] = False
+    raise_on_unset: Optional[bool] = False
     default: Optional[Any] = None
 
     def islice(self, start=None, end=None):
@@ -2316,6 +2351,7 @@ class Parameters:
                 i.get(
                     path=self.path,
                     raise_on_missing=self.raise_on_missing,
+                    raise_on_unset=self.raise_on_unset,
                     default=self.default,
                 )
                 for i in elements
