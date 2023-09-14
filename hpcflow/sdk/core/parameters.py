@@ -91,11 +91,15 @@ class Parameter(JSONLike):
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
+        self._set_value_class()
+
+    def _set_value_class(self):
         # custom parameter classes must inherit from `ParameterValue` not the app
         # subclass:
-        for i in ParameterValue.__subclasses__():
-            if i._typ == self.typ:
-                self._value_class = i
+        if self._value_class is None:
+            for i in ParameterValue.__subclasses__():
+                if i._typ == self.typ:
+                    self._value_class = i
 
     def __lt__(self, other):
         return self.typ < other.typ
