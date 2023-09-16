@@ -342,8 +342,7 @@ class NoCLIFormatMethodError(AttributeError):
 
 
 class ContainerKeyError(KeyError):
-    def __init__(self, err: KeyError, path: List[str]) -> None:
-        self.err = err
+    def __init__(self, path: List[str]) -> None:
         self.path = path
         super().__init__()
 

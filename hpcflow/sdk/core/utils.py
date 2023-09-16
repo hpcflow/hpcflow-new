@@ -173,8 +173,8 @@ def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
         elif isinstance(cur_data, dict):
             try:
                 cur_data = cur_data[path_comp]
-            except KeyError as err:
-                raise ContainerKeyError(err=err, path=path[: idx + 1])
+            except KeyError:
+                raise ContainerKeyError(path=path[: idx + 1])
         elif allow_getattr:
             try:
                 cur_data = getattr(cur_data, path_comp)

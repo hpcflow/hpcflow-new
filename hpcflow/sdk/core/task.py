@@ -16,6 +16,7 @@ from .element import ElementGroup
 from .errors import (
     ContainerKeyError,
     ExtraInputs,
+    MayNeedObjectError,
     MissingInputs,
     TaskTemplateInvalidNesting,
     TaskTemplateMultipleInputValues,
@@ -2260,7 +2261,8 @@ class WorkflowTask:
 
         relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
         _validate_data_idx(relevant_data_idx)
-        PV_classes = self._paths_to_PV_classes(relevant_paths)
+        PV_cls_paths = list(relevant_paths.keys()) + ([path] if path else [])
+        PV_classes = self._paths_to_PV_classes(PV_cls_paths)
         relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
 
         current_val = None
