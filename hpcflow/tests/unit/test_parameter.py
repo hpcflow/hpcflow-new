@@ -37,6 +37,30 @@ def test_submission_with_specified_parameter_class_module(null_config, tmp_path,
                         stdout="<<parameter:p2>>",
                     )
                 ],
+                rules=[
+                    hf.ActionRule(
+                        rule=hf.Rule(
+                            path="resources.os_name",
+                            condition={"value.equal_to": "nt"},
+                        )
+                    )
+                ],
+            ),
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command='echo "$((<<parameter:p1_test>> + 100))"',
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+                rules=[
+                    hf.ActionRule(
+                        rule=hf.Rule(
+                            path="resources.os_name",
+                            condition={"value.equal_to": "posix"},
+                        )
+                    )
+                ],
             ),
         ],
         parameter_class_modules=["hpcflow.tests.unit.test_parameter"],
