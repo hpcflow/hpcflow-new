@@ -118,3 +118,38 @@ def test_element_dependencies_inputs_only_schema(new_null_config, tmp_path):
     assert wk.tasks.t1.elements[0].get_dependent_elements() == [1]
     assert wk.tasks.t2.elements[0].get_element_dependencies() == [0]
     assert wk.tasks.t2.elements[0].get_EAR_dependencies() == [0]
+
+
+def test_element_get_empty_path_single_labelled_input(null_config, tmp_path):
+    p1_val = 101
+    label = "my_label"
+    s1 = hf.TaskSchema(
+        objective="t1", inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})]
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+    )
+    assert wk.tasks[0].elements[0].get() == {
+        "resources": {"any": {}},
+        "inputs": {"p1": p1_val},
+    }
+
+
+def test_element_get_labelled_non_labelled_equivalence(null_config, tmp_path):
+    p1_val = 101
+    label = "my_label"
+    s1 = hf.TaskSchema(
+        objective="t1", inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})]
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+    )
+    assert wk.tasks[0].elements[0].get("inputs.p1") == wk.tasks[0].elements[0].get(
+        f"inputs.p1[{label}]"
+    )

@@ -122,10 +122,10 @@ def test_resources_value_sequence_path_attributes():
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_value_sequence_object_values_during_workflow_init(null_config, tmp_path, store):
-    p1 = hf.Parameter("p1")
+    p1 = hf.Parameter("p1c")
     s1 = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput(parameter=p1)])
     obj = P1(a=101)
-    seq = hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)
+    seq = hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
@@ -155,10 +155,10 @@ def test_value_sequence_object_values_during_workflow_init(null_config, tmp_path
 def test_value_sequence_object_values_class_method_during_workflow_init(
     null_config, tmp_path, store
 ):
-    p1 = hf.Parameter("p1")
+    p1 = hf.Parameter("p1c")
     s1 = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput(parameter=p1)])
     obj = P1.from_data(b=50, c=51)
-    seq = hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)
+    seq = hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
@@ -188,11 +188,11 @@ def test_value_sequence_object_values_class_method_during_workflow_init(
 def test_value_sequence_object_values_named_class_method_during_workflow_init(
     null_config, tmp_path, store
 ):
-    p1 = hf.Parameter("p1")
+    p1 = hf.Parameter("p1c")
     s1 = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput(parameter=p1)])
     data = {"b": 50, "c": 51}
     seq = hf.ValueSequence(
-        path="inputs.p1", values=[data], nesting_order=0, value_class_method="from_data"
+        path="inputs.p1c", values=[data], nesting_order=0, value_class_method="from_data"
     )
     values_exp = [data]
 

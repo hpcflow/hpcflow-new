@@ -2,6 +2,7 @@ import pytest
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import InputValueDuplicateSequenceAddress
+from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 
 
 @pytest.fixture
@@ -135,3 +136,14 @@ def test_from_json_like_with_label(null_config):
     assert inp.parameter.typ == hf.Parameter("p1").typ
     assert inp.value == 101
     assert inp.label == "1"
+
+
+def test_value_is_dict_check_success(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class, so data should be a dict:
+    hf.InputValue("p1c", {"a": 101})
+
+
+def test_value_is_dict_check_raise(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class so data should be a dict:
+    with pytest.raises(ValueError):
+        hf.InputValue("p1c", 101)

@@ -3,7 +3,7 @@ import copy
 from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from valida.rules import Rule
 
@@ -14,6 +14,7 @@ from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
+    ContainerKeyError,
     ExtraInputs,
     MissingInputs,
     TaskTemplateInvalidNesting,
@@ -24,7 +25,7 @@ from .errors import (
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
-from .parameters import InputSourceType
+from .parameters import InputSourceType, ParameterValue
 from .utils import (
     get_duplicate_items,
     get_in_container,
@@ -1375,7 +1376,7 @@ class WorkflowTask:
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
 
         # sort smallest to largest path, so more-specific items overwrite less-specific
-        # items parameter retrieval:
+        # items in parameter retrieval in `WorkflowTask._get_merged_parameter_data`:
         input_data_idx = dict(sorted(input_data_idx.items()))
 
         return (input_data_idx, sequence_idx, source_idx)
@@ -2050,25 +2051,61 @@ class WorkflowTask:
             default=default,
         )
 
-    def _path_to_parameter(self, path):
-        if len(path) != 2 or path[0] == "resources":
-            return
+    def _paths_to_PV_classes(self, paths: Iterable[str]) -> Dict:
+        """Return a dict mapping dot-delimited string input paths to `ParameterValue`
+        classes."""
 
-        if path[0] == "inputs":
-            try:
-                path_1 = path[1].split("[")[0]
-            except IndexError:
-                path_1 = path[1]
-            for i in self.template.schemas:
-                for j in i.inputs:
-                    if j.parameter.typ == path_1:
-                        return j.parameter
+        params = {}
+        for path in paths:
+            path_split = path.split(".")
+            if len(path_split) == 1 or path_split[0] not in ("inputs", "outputs"):
+                continue
 
-        elif path[0] == "outputs":
-            for i in self.template.schemas:
-                for j in i.outputs:
-                    if j.parameter.typ == path[1]:
-                        return j.parameter
+            # top-level parameter can be found via the task schema:
+            key_0 = ".".join(path_split[:2])
+
+            if key_0 not in params:
+                if path_split[0] == "inputs":
+                    try:
+                        path_1 = path_split[1].split("[")[0]
+                    except IndexError:
+                        path_1 = path_split[1]
+                    for i in self.template.schemas:
+                        for j in i.inputs:
+                            if j.parameter.typ == path_1 and j.parameter._value_class:
+                                params[key_0] = j.parameter._value_class
+
+                elif path_split[0] == "outputs":
+                    for i in self.template.schemas:
+                        for j in i.outputs:
+                            if (
+                                j.parameter.typ == path_split[1]
+                                and j.parameter._value_class
+                            ):
+                                params[key_0] = j.parameter._value_class
+
+            if path_split[2:]:
+                pv_classes = ParameterValue.__subclasses__()
+
+            # now proceed by searching for sub-parameters in each ParameterValue
+            # sub-class:
+            for idx, part_i in enumerate(path_split[2:], start=2):
+                parent = path_split[:idx]  # e.g. ["inputs", "p1"]
+                child = path_split[: idx + 1]  # e.g. ["inputs", "p1", "sub_param"]
+                key_i = ".".join(child)
+                if key_i in params:
+                    continue
+                parent_param = params.get(".".join(parent))
+                if parent_param:
+                    for attr_name, sub_type in parent_param._sub_parameters.items():
+                        if part_i == attr_name:
+                            # find the class with this `typ` attribute:
+                            for cls_i in pv_classes:
+                                if cls_i._typ == sub_type:
+                                    params[key_i] = cls_i
+                                    break
+
+        return params
 
     def _get_merged_parameter_data(
         self,
@@ -2080,148 +2117,198 @@ class WorkflowTask:
     ):
         """Get element data from the persistent store."""
 
-        path = [] if not path else path.split(".")
-
-        parameter = self._path_to_parameter(path)
-
-        # also support retrieving object properties as the final component, so we need
-        # to also see if the parent is a parameter:
-        direct_parent_param = self._path_to_parameter(path[:-1])
-        property_name = None
-
-        sources = []
-        current_value = None
-        is_cur_val_assigned = False
-        is_obj_multi = False
-        for path_i, data_idx_i in data_index.items():
-            path_i = path_i.split(".")
-            is_parent = False
-            is_update = False
-            try:
-                rel_path = get_relative_path(path, path_i)
-                is_parent = True
-            except ValueError:
+        def _get_relevant_paths(
+            data_index: Dict, path: List[str], children_of: str = None
+        ):
+            relevant_paths = {}
+            # first extract out relevant paths in `data_index`:
+            for path_i in data_index:
+                path_i_split = path_i.split(".")
                 try:
-                    update_path = get_relative_path(path_i, path)
-                    is_update = True
-
+                    rel_path = get_relative_path(path, path_i_split)
+                    relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
                 except ValueError:
-                    # no intersection between paths
-                    continue
+                    try:
+                        update_path = get_relative_path(path_i_split, path)
+                        relevant_paths[path_i] = {
+                            "type": "update",
+                            "update_path": update_path,
+                        }
+                    except ValueError:
+                        # no intersection between paths
+                        if children_of and path_i.startswith(children_of):
+                            relevant_paths[path_i] = {"type": "sibling"}
+                        continue
 
-            is_multi = False
-            if isinstance(data_idx_i, list):
-                is_multi = True
-                if path_i == path:
-                    # print(f"{is_obj_multi=}")
-                    is_obj_multi = True
-            else:
-                data_idx_i = [data_idx_i]
+            return relevant_paths
 
-            data = []
-            for data_idx_i_j in data_idx_i:
-                if path_i[0] == "repeats":
-                    # data is an integer repeats index, rather than a parameter ID:
-                    data_j = data_idx_i_j
-                else:
-                    param_j = self.workflow.get_parameter(data_idx_i_j)
-                    if param_j.file:
-                        if param_j.file["store_contents"]:
-                            data_j = Path(self.workflow.path) / param_j.file["path"]
-                        else:
-                            data_j = Path(param_j.file["path"])
-                        data_j = data_j.as_posix()
-                    else:
-                        data_j = param_j.data
-                        if param_j.is_pending:
-                            # pending StoreParameter's will not yet be encoded:
-                            try:
-                                data_j = data_j.__dict__
-                            except AttributeError:
-                                pass
-                        if (parameter or direct_parent_param) and len(path_i) == 2:
-                            # retrieve the source if this is a non-sub parameter, so we can,
-                            # in the case that there is an associated `ParameterValue` class,
-                            # get the class method that should be invoked to initialise the
-                            # object:
-                            if is_multi:
-                                sources.append(param_j.source)
-                            else:
-                                sources = param_j.source
-                    if raise_on_unset and not param_j.is_set:
-                        raise UnsetParameterDataError(
-                            f"Element data path {path!r} resolves to unset data for (at "
-                            f"least) data index path: {path_i!r}."
-                        )
+        def _get_relevant_data(relevant_data_idx: Dict, raise_on_unset: bool, path: str):
+            relevant_data = {}
+            for path_i, data_idx_i in relevant_data_idx.items():
+                is_multi = isinstance(data_idx_i, list)
                 if not is_multi:
-                    data = data_j
-                else:
-                    data.append(data_j)
+                    data_idx_i = [data_idx_i]
 
-            if is_parent:
-                # replace current value:
-                try:
-                    current_value = get_in_container(data, rel_path, cast_indices=True)
-                    is_cur_val_assigned = True
-                except (KeyError, IndexError, ValueError):
-                    if len(rel_path) == 1:
-                        current_value = data
-                        is_cur_val_assigned = True
-                        property_name = rel_path[0]
-
-                    continue
-
-            elif is_update:
-                # update sub-part of current value
-                current_value = current_value or {}
-                set_in_container(current_value, update_path, data, ensure_path=True)
-                is_cur_val_assigned = True
-
-        if not is_cur_val_assigned:
-            if raise_on_missing:
-                # TODO: custom exception?
-                raise ValueError(f"Path {path!r} does not exist in the element data.")
-            else:
-                current_value = default
-
-        if direct_parent_param:
-            # this is assigned if we weren't able to retrieve the final component of the
-            # path, which means it could be a ParameterValue object property
-            parameter = direct_parent_param
-        if parameter and parameter._value_class:
-            # TODO: retrieve value class method case-insensitively!
-            if isinstance(current_value, dict):
-                # return a ParameterValue instance:
-                method_name = sources.get("value_class_method")
-                if method_name:
-                    method = getattr(parameter._value_class, method_name)
-                else:
-                    method = parameter._value_class
-                current_value = method(**current_value)
-
-            elif is_obj_multi and isinstance(current_value[0], dict):
-                # return a list of ParameterValue instances:
-                current_value_ = []
-                for cur_val, src in zip(current_value, sources):
-                    method_name = src.get("value_class_method")
-                    if method_name:
-                        method = getattr(parameter._value_class, method_name)
+                data_i = []
+                methods_i = []
+                for data_idx_ij in data_idx_i:
+                    meth_i = None
+                    if path_i[0] == "repeats":
+                        # data is an integer repeats index, rather than a parameter ID:
+                        data_j = data_idx_ij
                     else:
-                        method = parameter._value_class
-                    current_value_.append(method(**cur_val))
-                current_value = current_value_
+                        param_j = self.workflow.get_parameter(data_idx_ij)
+                        if param_j.file:
+                            if param_j.file["store_contents"]:
+                                data_j = Path(self.workflow.path) / param_j.file["path"]
+                            else:
+                                data_j = Path(param_j.file["path"])
+                            data_j = data_j.as_posix()
+                        else:
+                            meth_i = param_j.source.get("value_class_method")
+                            if param_j.is_pending:
+                                # if pending, we need to convert `ParameterValue` objects
+                                # to their dict representation, so they can be merged with
+                                # other data:
+                                try:
+                                    data_j = param_j.data.to_dict()
+                                except AttributeError:
+                                    data_j = param_j.data
+                            else:
+                                # if not pending, data will be the result of an encode-
+                                # decode cycle, and it will not be initialised as an
+                                # object if the parameter is associated with a
+                                # `ParameterValue` class.
+                                data_j = param_j.data
+                        if raise_on_unset and not param_j.is_set:
+                            raise UnsetParameterDataError(
+                                f"Element data path {path!r} resolves to unset data for "
+                                f"(at least) data-index path: {path_i!r}."
+                            )
+                    if is_multi:
+                        data_i.append(data_j)
+                        methods_i.append(meth_i)
+                    else:
+                        data_i = data_j
+                        methods_i = meth_i
 
-        if direct_parent_param and property_name:
+                relevant_data[path_i] = {"data": data_i, "value_class_method": methods_i}
+            return relevant_data
+
+        def _merge_relevant_data(
+            relevant_data, relevant_paths, PV_classes, path: str, raise_on_missing: bool
+        ):
+            current_val = None
+            val_cls_method = None
+            # TODO: option to just merge the data for a given path, and then init?
+            for path_i, data_info_i in relevant_data.items():
+                data_i = data_info_i["data"]
+                if path_i == path:
+                    val_cls_method = data_info_i["value_class_method"]
+                path_info = relevant_paths[path_i]
+                path_type = path_info["type"]
+                if path_type == "parent":
+                    try:
+                        current_val = get_in_container(
+                            data_i,
+                            path_info["relative_path"],
+                            cast_indices=True,
+                        )
+                    except ContainerKeyError as err:
+                        if path_i in PV_classes:
+                            err_path = ".".join([path_i] + err.path[:-1])
+                            raise MayNeedObjectError(path=err_path)
+                        continue
+                    except (IndexError, ValueError) as err:
+                        if raise_on_missing:
+                            raise err
+                        continue
+                elif path_type == "update":
+                    current_val = current_val or {}
+                    set_in_container(
+                        current_val,
+                        path_info["update_path"],
+                        data_i,
+                        ensure_path=True,
+                    )
+            if path in PV_classes:
+                PV_cls = PV_classes[path]
+                method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
+                current_val = method(**current_val)
+
+            return current_val
+
+        def _validate_data_idx(data_idx):
+            has_group = sum(isinstance(i, list) for i in data_idx.values()) > 0
+            if has_group and len(data_idx) > 1:
+                # TODO: test
+                raise NotImplementedError(
+                    "Cannot yet combine group data with any other (group or non-group) "
+                    "data."
+                )
+
+        # TODO: custom exception?
+        missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
+
+        path_split = [] if not path else path.split(".")
+
+        relevant_paths = _get_relevant_paths(data_index, path_split)
+        if not relevant_paths:
+            if raise_on_missing:
+                raise missing_err
+            return default
+
+        relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
+        _validate_data_idx(relevant_data_idx)
+        PV_classes = self._paths_to_PV_classes(relevant_paths)
+        relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
+
+        current_val = None
+        is_assigned = False
+        try:
+            current_val = _merge_relevant_data(
+                relevant_data, relevant_paths, PV_classes, path, raise_on_missing
+            )
+        except MayNeedObjectError as err:
+            path_to_init = err.path
+            path_to_init_split = path_to_init.split(".")
+            relevant_paths = _get_relevant_paths(data_index, path_to_init_split)
+            PV_cls_paths = list(relevant_paths.keys()) + [path_to_init]
+            PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+            relevant_data_idx = {
+                k: v for k, v in data_index.items() if k in relevant_paths
+            }
+            _validate_data_idx(relevant_data_idx)
+            relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
+            # merge the parent data
+            current_val = _merge_relevant_data(
+                relevant_data, relevant_paths, PV_classes, path_to_init, raise_on_missing
+            )
+            # try to retrieve attributes via the initialised object:
+            rel_path_split = get_relative_path(path_split, path_to_init_split)
             try:
-                current_value = getattr(current_value, property_name)
-            except AttributeError:
-                if raise_on_missing:
-                    # TODO: custom exception?
-                    raise ValueError(f"Path {path!r} does not exist in the element data.")
-                else:
-                    current_value = default
+                current_val = get_in_container(
+                    current_val,
+                    rel_path_split,
+                    cast_indices=True,
+                    allow_getattr=True,
+                )
+            except (KeyError, IndexError, ValueError):
+                pass
+            else:
+                is_assigned = True
 
-        return current_value
+        except (KeyError, IndexError, ValueError):
+            pass
+        else:
+            is_assigned = True
+
+        if not is_assigned:
+            if raise_on_missing:
+                raise missing_err
+            current_val = default
+
+        return current_val
 
 
 class Elements:

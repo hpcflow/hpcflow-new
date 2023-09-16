@@ -155,3 +155,23 @@ def test_action_scope_from_json_like_string_and_dict_equality():
         },
     }
     assert hf.ActionScope.from_json_like(as1_js) == hf.ActionScope.from_json_like(as2_js)
+
+
+def test_get_command_input_types_sub_parameters_true_no_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1",)
+
+
+def test_get_command_input_types_sub_parameters_true_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1.a>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1.a",)
+
+
+def test_get_command_input_types_sub_parameters_false_no_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1",)
+
+
+def test_get_command_input_types_sub_parameters_false_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1.a>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1",)

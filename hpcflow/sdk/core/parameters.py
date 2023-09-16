@@ -26,6 +26,7 @@ Numeric = Union[int, float, np.number]
 
 class ParameterValue:
     _typ = None
+    _sub_parameters = {}
 
     def to_dict(self):
         if hasattr(self, "__dict__"):
@@ -1018,6 +1019,7 @@ class InputValue(AbstractInputValue):
         label: Optional[str] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
+        __check_obj: Optional[bool] = True,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
@@ -1040,6 +1042,28 @@ class InputValue(AbstractInputValue):
         # record if a ParameterValue sub-class is passed for value, which allows us
         # to re-init the object on `.value`:
         self._value_is_obj = isinstance(value, ParameterValue)
+        if __check_obj:
+            self._check_dict_value_if_object()
+
+    def _check_dict_value_if_object(self):
+        """For non-persistent input values, check that, if a matching `ParameterValue`
+        class exists and the specified value is not of that type, then the specified
+        value is a dict, which can later be passed to the ParameterValue sub-class
+        to initialise the object.
+        """
+        if (
+            self._value_group_idx is None
+            and not self._value_is_obj
+            and self.parameter._value_class
+            and not isinstance(self._value, dict)
+        ):
+            # TODO: what about if the value is `None`? Is that an issue?
+            raise ValueError(
+                f"{self.__class__.__name__} with specified value {self._value!r} is "
+                f"associated with a ParameterValue subclass "
+                f"({self.parameter._value_class!r}), but the value data type is not a "
+                f"dict."
+            )
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1047,7 +1071,7 @@ class InputValue(AbstractInputValue):
         kwargs.pop("_schema_input", None)
         _value_group_idx = kwargs.pop("_value_group_idx")
         _value_is_obj = kwargs.pop("_value_is_obj")
-        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj = self.__class__(**copy.deepcopy(kwargs, memo), _InputValue__check_obj=False)
         obj._value = _value
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
@@ -1098,10 +1122,10 @@ class InputValue(AbstractInputValue):
         if "_value" in json_like:
             json_like["value"] = json_like.pop("_value")
 
-        obj = cls(**json_like)
+        obj = cls(**json_like, _InputValue__check_obj=False)
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
-
+        obj._check_dict_value_if_object()
         return obj
 
     @property

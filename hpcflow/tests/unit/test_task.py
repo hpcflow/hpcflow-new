@@ -14,7 +14,14 @@ from hpcflow.sdk.core.errors import (
     UnsetParameterDataError,
 )
 from hpcflow.sdk.core.parameters import NullDefault
-from hpcflow.sdk.core.test_utils import make_schemas, make_tasks, make_workflow
+from hpcflow.sdk.core.test_utils import (
+    make_schemas,
+    make_tasks,
+    make_workflow,
+    P1_parameter_cls as P1,
+    P1_sub_parameter_cls as P1_sub_param,
+    P1_sub_parameter_cls_2 as P1_sub_param_2,
+)
 
 
 @pytest.fixture
@@ -2000,3 +2007,79 @@ def test_get_merged_parameter_data_group_missing_data_no_raise(
         path="inputs.p4",
         raise_on_missing=False,
     )
+
+
+@pytest.fixture
+def path_to_PV_classes_workflow(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"))],
+        actions=[
+            hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1c>> + 100)")])
+        ],
+    )
+    p1_value = P1(a=10, sub_param=P1_sub_param(e=5))
+    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        overwrite=True,
+        path=tmp_path,
+    )
+    return wk
+
+
+def test_path_to_PV_classes(path_to_PV_classes_workflow):
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(["inputs.p1c"]) == {
+        "inputs.p1c": P1,
+    }
+
+
+def test_path_to_PV_classes_sub_data(path_to_PV_classes_workflow):
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
+        ["inputs.p1c.a"]
+    ) == {
+        "inputs.p1c": P1,
+    }
+
+
+def test_path_to_PV_classes_sub_parameter(path_to_PV_classes_workflow):
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
+        ["inputs.p1c.sub_param"]
+    ) == {
+        "inputs.p1c": P1,
+        "inputs.p1c.sub_param": P1_sub_param,
+    }
+
+
+def test_path_to_PV_classes_multiple_sub_parameters(path_to_PV_classes_workflow):
+    paths = ["inputs.p1c.sub_param", "inputs.p1c.sub_param_2"]
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths) == {
+        "inputs.p1c": P1,
+        "inputs.p1c.sub_param": P1_sub_param,
+        "inputs.p1c.sub_param_2": P1_sub_param_2,
+    }
+
+
+def test_path_to_PV_classes_multiple_sub_parameter_attr(path_to_PV_classes_workflow):
+    paths = ["inputs.p1c.sub_param.e"]
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths) == {
+        "inputs.p1c": P1,
+        "inputs.p1c.sub_param": P1_sub_param,
+    }
+
+
+def test_path_to_PV_classes_inputs_only_path_ignored(path_to_PV_classes_workflow):
+    paths_1 = ["inputs", "inputs.p1c"]
+    paths_2 = ["inputs.p1c"]
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
+        paths_1
+    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths_2)
+
+
+def test_path_to_PV_classes_resources_path_ignored(path_to_PV_classes_workflow):
+    paths_1 = ["resources", "inputs.p1c"]
+    paths_2 = ["inputs.p1c"]
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
+        paths_1
+    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths_2)

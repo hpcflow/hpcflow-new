@@ -1538,17 +1538,29 @@ class Action(JSONLike):
 
             return cmd_acts
 
-    def get_command_input_types(self) -> Tuple[str]:
-        """Get parameter types from commands."""
+    def get_command_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
+        """Get parameter types from commands.
+
+        Parameters
+        ----------
+        sub_parameters
+            If True, sub-parameters (i.e. dot-delimited parameter types) will be returned
+            untouched. If False (default), only return the root parameter type and
+            disregard the sub-parameter part.
+        """
         params = []
         # note: we use "parameter" rather than "input", because it could be a schema input
         # or schema output.
         vars_regex = r"\<\<parameter:(.*?)\>\>"
         for command in self.commands:
             for val in re.findall(vars_regex, command.command or ""):
+                if not sub_parameters:
+                    val = val.split(".")[0]
                 params.append(val)
             for arg in command.arguments or []:
                 for val in re.findall(vars_regex, arg):
+                    if not sub_parameters:
+                        val = val.split(".")[0]
                     params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
@@ -1578,9 +1590,17 @@ class Action(JSONLike):
 
         return tuple(set(params))
 
-    def get_input_types(self) -> Tuple[str]:
+    def get_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
         """Get the input types that are consumed by commands and input file generators of
-        this action."""
+        this action.
+
+        Parameters
+        ----------
+        sub_parameters
+            If True, sub-parameters (i.e. dot-delimited parameter types) in command line
+            inputs will be returned untouched. If False (default), only return the root
+            parameter type and disregard the sub-parameter part.
+        """
         is_script = (
             self.script
             and not self.input_file_generators
@@ -1589,7 +1609,7 @@ class Action(JSONLike):
         if is_script:
             params = self.task_schema.input_types
         else:
-            params = list(self.get_command_input_types())
+            params = list(self.get_command_input_types(sub_parameters))
             for i in self.input_file_generators:
                 params.extend([j.typ for j in i.inputs])
             for i in self.output_file_parsers:

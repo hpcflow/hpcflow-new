@@ -1,5 +1,5 @@
 import os
-from typing import Iterable
+from typing import Iterable, List
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
@@ -335,3 +335,20 @@ class NotSubmitMachineError(RuntimeError):
 
 class RunNotAbortableError(ValueError):
     pass
+
+
+class NoCLIFormatMethodError(AttributeError):
+    pass
+
+
+class ContainerKeyError(KeyError):
+    def __init__(self, err: KeyError, path: List[str]) -> None:
+        self.err = err
+        self.path = path
+        super().__init__()
+
+
+class MayNeedObjectError(Exception):
+    def __init__(self, path):
+        self.path = path
+        super().__init__()

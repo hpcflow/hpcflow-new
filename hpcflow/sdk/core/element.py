@@ -96,7 +96,7 @@ class _ElementPrefixedParameter:
 
     def __repr__(self):
         # If there are one or more labels present, then replace with a single name
-        # indicating there could be multiple (using `multi_prefix` prefix):
+        # indicating there could be multiple (using a `*` prefix):
         names = []
         for unlabelled, labels in self.prefixed_names_unlabelled.items():
             name_i = unlabelled
@@ -627,7 +627,7 @@ class ElementIteration:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
             # remove the trivial label:
             for key in list(data_idx.keys()):
-                if path.startswith(key):
+                if (path or "").startswith(key):
                     # `path` uses labelled type, so no need to convert to non-labelled
                     continue
                 lookup_val = single_label_lookup.get(key)

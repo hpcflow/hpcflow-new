@@ -442,13 +442,13 @@ def test_input_source_where_parameter_value_class_sub_parameter_property(
 ):
     s1 = hf.TaskSchema(
         objective="t1",
-        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"))],
         outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
         actions=[
             hf.Action(
                 commands=[
                     hf.Command(
-                        command="Write-Output (<<parameter:p1>> + 100)",
+                        command="Write-Output (<<parameter:p1c>> + 100)",
                         stdout="<<parameter:p2>>",
                     )
                 ]
@@ -464,7 +464,7 @@ def test_input_source_where_parameter_value_class_sub_parameter_property(
             schemas=s1,
             sequences=[
                 hf.ValueSequence(
-                    path="inputs.p1", values=[P1(a=1), P1(a=2)], nesting_order=0
+                    path="inputs.p1c", values=[P1(a=1), P1(a=2)], nesting_order=0
                 )
             ],
         ),
@@ -476,7 +476,7 @@ def test_input_source_where_parameter_value_class_sub_parameter_property(
                     hf.InputSource.task(
                         task_ref=0,
                         where=hf.Rule(
-                            path="inputs.p1.twice_a", condition={"value.equal_to": 4}
+                            path="inputs.p1c.twice_a", condition={"value.equal_to": 4}
                         ),
                     )
                 ]

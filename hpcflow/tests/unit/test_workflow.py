@@ -49,6 +49,11 @@ def param_p1(null_config):
 
 
 @pytest.fixture
+def param_p1c(null_config):
+    return hf.Parameter("p1c")
+
+
+@pytest.fixture
 def param_p2():
     return hf.Parameter("p2")
 
@@ -129,6 +134,23 @@ def schema_s4(
             hf.Action(
                 environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
                 commands=[hf.Command("Write-Output '<<parameter:p1>>'")],
+            )
+        ],
+    )
+
+
+@pytest.fixture
+def schema_s4c(
+    null_config,
+    param_p1c,
+):
+    return hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=param_p1c)],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[hf.Command("Write-Output '<<parameter:p1c>>'")],
             )
         ],
     )
@@ -324,17 +346,17 @@ def test_equivalent_element_input_parameter_value_class_and_kwargs(
     null_config,
     tmp_path,
     store,
-    schema_s4,
-    param_p1,
+    schema_s4c,
+    param_p1c,
 ):
     a_value = 101
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value=P1(a=a_value))],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value=P1(a=a_value))],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value={"a": a_value})],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value={"a": a_value})],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
@@ -343,8 +365,8 @@ def test_equivalent_element_input_parameter_value_class_and_kwargs(
         store=store,
     )
     assert (
-        wk.tasks.t1_1.elements[0].inputs.p1.value
-        == wk.tasks.t1_2.elements[0].inputs.p1.value
+        wk.tasks.t1_1.elements[0].inputs.p1c.value
+        == wk.tasks.t1_2.elements[0].inputs.p1c.value
     )
 
 
@@ -353,21 +375,21 @@ def test_equivalent_element_input_parameter_value_class_method_and_kwargs(
     null_config,
     tmp_path,
     store,
-    schema_s4,
-    param_p1,
+    schema_s4c,
+    param_p1c,
 ):
     b_val = 50
     c_val = 51
     expected_a_val = b_val + c_val
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value=P1.from_data(b=b_val, c=c_val))],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value=P1.from_data(b=b_val, c=c_val))],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
+        schemas=[schema_s4c],
         inputs=[
             hf.InputValue(
-                parameter=param_p1,
+                parameter=param_p1c,
                 value={"b": b_val, "c": c_val},
                 value_class_method="from_data",
             )
@@ -379,27 +401,27 @@ def test_equivalent_element_input_parameter_value_class_method_and_kwargs(
         template_name="temp",
         store=store,
     )
-    assert wk.tasks.t1_1.elements[0].inputs.p1.value.a == expected_a_val
+    assert wk.tasks.t1_1.elements[0].inputs.p1c.value.a == expected_a_val
     assert (
-        wk.tasks.t1_1.elements[0].inputs.p1.value
-        == wk.tasks.t1_2.elements[0].inputs.p1.value
+        wk.tasks.t1_1.elements[0].inputs.p1c.value
+        == wk.tasks.t1_2.elements[0].inputs.p1c.value
     )
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_input_value_class_expected_value(
-    null_config, tmp_path, store, schema_s4, param_p1
+    null_config, tmp_path, store, schema_s4c, param_p1c
 ):
     a_value = 101
     t1_value_exp = P1(a=a_value)
     t2_value_exp = {"a": a_value}
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value=t1_value_exp)],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value=t1_value_exp)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value=t2_value_exp)],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value=t2_value_exp)],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
@@ -415,21 +437,21 @@ def test_input_value_class_expected_value(
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_input_value_class_method_expected_value(
-    null_config, tmp_path, store, schema_s4, param_p1
+    null_config, tmp_path, store, schema_s4c, param_p1c
 ):
     b_val = 50
     c_val = 51
     t1_value_exp = P1.from_data(b=b_val, c=c_val)
     t2_value_exp = {"b": b_val, "c": c_val}
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value=t1_value_exp)],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value=t1_value_exp)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
+        schemas=[schema_s4c],
         inputs=[
             hf.InputValue(
-                parameter=param_p1,
+                parameter=param_p1c,
                 value=t2_value_exp,
                 value_class_method="from_data",
             )
@@ -449,17 +471,17 @@ def test_input_value_class_method_expected_value(
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs(
-    null_config, tmp_path, store, schema_s4
+    null_config, tmp_path, store, schema_s4c
 ):
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[data], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[data], nesting_order=0)],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
@@ -467,26 +489,26 @@ def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs(
         template_name="temp",
         store=store,
     )
-    val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
-    val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
+    val_1 = wk.tasks.t1_1.elements[0].inputs.p1c.value
+    val_2 = wk.tasks.t1_2.elements[0].inputs.p1c.value
     assert val_1 == val_2 == obj
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwargs(
-    null_config, tmp_path, store, schema_s4
+    null_config, tmp_path, store, schema_s4c
 ):
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
+        schemas=[schema_s4c],
         sequences=[
             hf.ValueSequence(
-                path="inputs.p1",
+                path="inputs.p1c",
                 values=[data],
                 value_class_method="from_data",
                 nesting_order=0,
@@ -499,22 +521,22 @@ def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwar
         template_name="temp",
         store=store,
     )
-    val_1 = wk.tasks.t1_1.elements[0].inputs.p1.value
-    val_2 = wk.tasks.t1_2.elements[0].inputs.p1.value
+    val_1 = wk.tasks.t1_1.elements[0].inputs.p1c.value
+    val_2 = wk.tasks.t1_2.elements[0].inputs.p1c.value
     assert val_1 == val_2 == obj
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_sequence_value_class_expected_value(null_config, tmp_path, store, schema_s4):
+def test_sequence_value_class_expected_value(null_config, tmp_path, store, schema_s4c):
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[data], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[data], nesting_order=0)],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1_1, t1_2],
@@ -530,19 +552,19 @@ def test_sequence_value_class_expected_value(null_config, tmp_path, store, schem
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_sequence_value_class_method_expected_value(
-    null_config, tmp_path, store, schema_s4
+    null_config, tmp_path, store, schema_s4c
 ):
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4],
-        sequences=[hf.ValueSequence(path="inputs.p1", values=[obj], nesting_order=0)],
+        schemas=[schema_s4c],
+        sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4],
+        schemas=[schema_s4c],
         sequences=[
             hf.ValueSequence(
-                path="inputs.p1",
+                path="inputs.p1c",
                 values=[data],
                 nesting_order=0,
                 value_class_method="from_data",
@@ -563,16 +585,18 @@ def test_sequence_value_class_method_expected_value(
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_expected_element_input_parameter_value_class_merge_sequence(
-    null_config, tmp_path, store, schema_s4, param_p1
+    null_config, tmp_path, store, schema_s4c, param_p1c
 ):
     a_val = 101
     d_val = 201
     obj_exp = P1(a=a_val, d=d_val)
 
     t1 = hf.Task(
-        schemas=[schema_s4],
-        inputs=[hf.InputValue(parameter=param_p1, value={"a": a_val})],
-        sequences=[hf.ValueSequence(path="inputs.p1.d", values=[d_val], nesting_order=0)],
+        schemas=[schema_s4c],
+        inputs=[hf.InputValue(parameter=param_p1c, value={"a": a_val})],
+        sequences=[
+            hf.ValueSequence(path="inputs.p1c.d", values=[d_val], nesting_order=0)
+        ],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
@@ -581,25 +605,27 @@ def test_expected_element_input_parameter_value_class_merge_sequence(
         store=store,
     )
     wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
-    assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
+    assert wk.tasks.t1.elements[0].inputs.p1c.value == obj_exp
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_expected_element_input_parameter_value_class_method_merge_sequence(
-    null_config, tmp_path, store, schema_s4, param_p1
+    null_config, tmp_path, store, schema_s4c, param_p1c
 ):
     b_val = 50
     c_val = 51
     obj_exp = P1.from_data(b=b_val, c=c_val)
 
     t1 = hf.Task(
-        schemas=[schema_s4],
+        schemas=[schema_s4c],
         inputs=[
             hf.InputValue(
-                parameter=param_p1, value={"b": b_val}, value_class_method="from_data"
+                parameter=param_p1c, value={"b": b_val}, value_class_method="from_data"
             )
         ],
-        sequences=[hf.ValueSequence(path="inputs.p1.c", values=[c_val], nesting_order=0)],
+        sequences=[
+            hf.ValueSequence(path="inputs.p1c.c", values=[c_val], nesting_order=0)
+        ],
     )
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
@@ -608,7 +634,7 @@ def test_expected_element_input_parameter_value_class_method_merge_sequence(
         store=store,
     )
     wk.tasks.t1.template.element_sets[0].sequences[0].values[0]
-    assert wk.tasks.t1.elements[0].inputs.p1.value == obj_exp
+    assert wk.tasks.t1.elements[0].inputs.p1c.value == obj_exp
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])

@@ -1,9 +1,12 @@
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 import re
 from typing import Dict, List, Any, Optional, Tuple
+from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 
 from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.parameters import ParameterValue
 
 
 @dataclass
@@ -57,7 +60,26 @@ class Command(JSONLike):
                 out = EAR.action.get_script_name(val)
             return out
 
-        param_regex = r"(\<\<parameter:{}\>\>?)"
+        def input_param_repl(match_obj, inp_val):
+            if isinstance(inp_val, ParameterValue):
+                all_group, method, method_kwargs = match_obj.groups()
+                if not method:
+                    method = "CLI_format"
+                if not hasattr(inp_val, method):
+                    raise NoCLIFormatMethodError(
+                        f"No CLI format method {method!r} exists for the "
+                        f"object {inp_val!r}."
+                    )
+                kwargs = {}
+                if method_kwargs:
+                    args_split = [i.strip() for i in method_kwargs.split(",")]
+                    for i in args_split:
+                        arg_i, val_i = i.split("=")
+                        kwargs[arg_i.strip()] = val_i.strip()
+
+                inp_val = getattr(inp_val, method)(**kwargs)
+            return str(inp_val)
+
         file_regex = r"(\<\<file:{}\>\>?)"
         exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
 
@@ -80,12 +102,20 @@ class Command(JSONLike):
                     cmd_str = cmd_str.rstrip()
 
         # substitute input parameters in command:
-        for cmd_inp in EAR.action.get_command_input_types():
+        param_regex = r"(\<\<parameter:{}(?:\.(\w+)\((.*)\))?\>\>?)"
+        for cmd_inp_full in EAR.action.get_command_input_types(sub_parameters=True):
+            # remove any CLI formatting method, which will be the final component and will
+            # include parentheses:
+            cmd_inp_parts = cmd_inp_full.split(".")
+            if "(" in cmd_inp_parts[-1]:
+                cmd_inp = ".".join(cmd_inp_parts[:-1])
+            else:
+                cmd_inp = cmd_inp_full
             inp_val = EAR.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
             pattern_i = param_regex.format(re.escape(cmd_inp))
             cmd_str = re.sub(
                 pattern=pattern_i,
-                repl=str(inp_val),
+                repl=partial(input_param_repl, inp_val=inp_val),
                 string=cmd_str,
             )
 

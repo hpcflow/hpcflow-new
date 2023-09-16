@@ -155,11 +155,40 @@ def make_workflow(
 
 
 @dataclass
+class P1_sub_parameter_cls(ParameterValue):
+    _typ = "p1_sub"
+
+    e: int
+
+    def CLI_format(self) -> str:
+        return str(self.e)
+
+    @property
+    def twice_e(self):
+        return self.e * 2
+
+
+@dataclass
+class P1_sub_parameter_cls_2(ParameterValue):
+    _typ = "p1_sub_2"
+
+    f: int
+
+
+@dataclass
 class P1_parameter_cls(ParameterValue):
-    _typ = "p1"
+    _typ = "p1c"
+    _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 
     a: int
     d: Optional[int] = None
+    sub_param: Optional[P1_sub_parameter_cls] = None
+
+    def __post_init__(self):
+        if self.sub_param is not None and not isinstance(
+            self.sub_param, P1_sub_parameter_cls
+        ):
+            self.sub_param = P1_sub_parameter_cls(**self.sub_param)
 
     @classmethod
     def from_data(cls, b, c):
@@ -168,3 +197,25 @@ class P1_parameter_cls(ParameterValue):
     @property
     def twice_a(self):
         return self.a * 2
+
+    @property
+    def sub_param_prop(self):
+        return P1_sub_parameter_cls(e=4 * self.a)
+
+    def CLI_format(self) -> str:
+        return str(self.a)
+
+    @staticmethod
+    def CLI_format_group(*objs) -> str:
+        pass
+
+    @staticmethod
+    def sum(*objs, **kwargs) -> str:
+        return str(sum(i.a for i in objs))
+
+    def custom_CLI_format(
+        self, add: Optional[str] = None, sub: Optional[str] = None
+    ) -> str:
+        add = 4 if add is None else int(add)
+        sub = 0 if sub is None else int(sub)
+        return str(self.a + add - sub)
