@@ -3,6 +3,9 @@ from functools import partial
 from pathlib import Path
 import re
 from typing import Dict, List, Any, Optional, Tuple
+
+import numpy as np
+
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 
 from hpcflow.sdk.core.json_like import JSONLike
@@ -138,7 +141,7 @@ class Command(JSONLike):
             # assign stdout to a shell variable if required:
             param_name = f"outputs.{out_types['stdout']}"
             shell_var_name = f"parameter_{out_types['stdout']}"
-            shell_vars.append((param_name, shell_var_name))
+            shell_vars.append((param_name, shell_var_name, "stdout"))
             cmd_str = shell.format_stream_assignment(
                 shell_var_name=shell_var_name,
                 command=cmd_str,
@@ -154,11 +157,14 @@ class Command(JSONLike):
     def get_output_types(self):
         # note: we use "parameter" rather than "output", because it could be a schema
         # output or schema input.
-        vars_regex = r"\<\<parameter:(.*?)\>\>"
+        pattern = (
+            r"(?:\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(\w+)"
+            r"(?:\.(?:\w+)\((?:.*?)\))?\)?\>\>?)"
+        )
         out = {"stdout": None, "stderr": None}
         for i, label in zip((self.stdout, self.stderr), ("stdout", "stderr")):
             if i:
-                match = re.search(vars_regex, i)
+                match = re.search(pattern, i)
                 if match:
                     param_typ = match.group(1)
                     if match.span(0) != (0, len(i)):
@@ -169,3 +175,84 @@ class Command(JSONLike):
                         )
                     out[label] = param_typ
         return out
+
+    def process_std_stream(self, name: str, value: str, stderr: bool):
+        def _parse_list(lst_str: str, item_type: str = "str", delim: str = " "):
+            return [parse_types[item_type](i) for i in lst_str.split(delim)]
+
+        def _parse_array(arr_str: str, item_type: str = "float", delim: str = " "):
+            return np.array(
+                _parse_list(lst_str=arr_str, item_type=item_type, delim=delim)
+            )
+
+        def _parse_bool(bool_str):
+            bool_str = bool_str.lower()
+            if bool_str in ("true", "1"):
+                return True
+            elif bool_str in ("false", "0"):
+                return False
+            else:
+                raise ValueError(
+                    f"Cannot parse value {bool_str!r} as a boolean in command "
+                    f"{'stderr' if stderr else 'stdout'}: "
+                    f"{self.stderr if stderr else self.stdout!r}."
+                )
+
+        def _prepare_kwargs(args_str: str):
+            # deal with the "delim" argument first if it exists; the value should be
+            # double-quoted:
+            kwargs = {}
+            delim_pat = r'.*(delim="(.*)").*'
+            match = re.match(delim_pat, args_str)
+            if match:
+                delim_str, delim = match.groups()
+                args_str = args_str.replace(delim_str, "")
+                kwargs["delim"] = delim
+
+            args_str = args_str.strip().strip(",")
+            if args_str:
+                for i in args_str.split(","):
+                    i_split = i.split("=")
+                    name_i = i_split[0].strip()
+                    value = i_split[1].strip()
+                    kwargs[name_i] = value
+            return kwargs
+
+        parse_types = {
+            "str": str,
+            "int": int,
+            "float": float,
+            "bool": _parse_bool,
+            "list": _parse_list,
+            "array": _parse_array,
+        }
+        types_pattern = "|".join(parse_types)
+
+        out_name = name.replace("outputs.", "")
+        pattern = (
+            r"(\<\<(?:({types_pattern})(?:\[(.*)\])?\()?parameter:{name}(?:\.(\w+)"
+            r"\((.*?)\))?\)?\>\>?)"
+        )
+        pattern = pattern.format(types_pattern=types_pattern, name=out_name)
+        spec = self.stderr if stderr else self.stdout
+        self.app.submission_logger.info(
+            f"processing shell standard stream according to spec: {spec!r}"
+        )
+        param = self.app.Parameter(out_name)
+        match = re.match(pattern, spec)
+        try:
+            groups = match.groups()
+        except AttributeError:
+            return value
+        else:
+            parse_type, parse_args_str = groups[1:3]
+            parse_args = _prepare_kwargs(parse_args_str) if parse_args_str else {}
+            if param._value_class:
+                method, method_args_str = groups[3:5]
+                method_args = _prepare_kwargs(method_args_str) if method_args_str else {}
+                method = method or "CLI_parse"
+                value = getattr(param._value_class, method)(value, **method_args)
+            if parse_type:
+                value = parse_types[parse_type](value, **parse_args)
+
+        return value

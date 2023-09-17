@@ -657,7 +657,7 @@ class ElementActionRun:
 
     def compose_commands(
         self, jobscript: app.Jobscript, JS_action_idx: int
-    ) -> Tuple[str, List[str]]:
+    ) -> Tuple[str, List[str], List[int]]:
         """
         Returns
         -------
@@ -684,16 +684,18 @@ class ElementActionRun:
             command_lns += list(env.setup)
 
         shell_vars = []
-        for command in self.action.commands:
+        cmd_indices = []
+        for cmd_idx, command in enumerate(self.action.commands):
             cmd_str, shell_vars_i = command.get_command_line(
                 EAR=self, shell=jobscript.shell, env=env
             )
             shell_vars.extend(shell_vars_i)
+            cmd_indices.append(cmd_idx)
             command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
 
-        return commands, shell_vars
+        return commands, shell_vars, cmd_indices
 
 
 class ElementAction:

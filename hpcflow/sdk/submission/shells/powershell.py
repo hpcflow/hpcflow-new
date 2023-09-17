@@ -175,12 +175,22 @@ class WindowsPowerShell(Shell):
         return f"${shell_var_name} = {command}"
 
     def format_save_parameter(
-        self, workflow_app_alias, param_name, shell_var_name, EAR_ID
+        self,
+        workflow_app_alias: str,
+        param_name: str,
+        shell_var_name: str,
+        EAR_ID: int,
+        cmd_idx: int,
+        stderr: bool,
     ):
+        # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
+        #   and test.
+        stderr_str = " --stderr" if stderr else ""
         return (
-            f"{workflow_app_alias}"
-            f" internal workflow $WK_PATH save-parameter {param_name} ${shell_var_name}"
-            f" {EAR_ID} 2>&1 >> $app_stream_file"
+            f"{workflow_app_alias} "
+            f"internal workflow $WK_PATH save-parameter "
+            f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
+            f"2>&1 >> $app_stream_file"
             f"\n"
         )
 

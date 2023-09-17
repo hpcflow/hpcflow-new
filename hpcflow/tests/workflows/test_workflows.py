@@ -1,4 +1,5 @@
 from importlib import resources
+import os
 import sys
 import time
 import pytest
@@ -47,3 +48,44 @@ def test_run_abort(tmp_path, new_null_config):
 
     wk.wait()
     assert wk.tasks[0].outputs.is_finished[0].value == "true"
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
+    if os.name == "nt":
+        cmds = [
+            "Write-Output (<<parameter:p1>> + 100)",
+            "Write-Output (<<parameter:p1>> + 200)",
+        ]
+    else:
+        cmds = [
+            'echo "$((<<parameter:p1>> + 100))"',
+            'echo "$((<<parameter:p1>> + 200))"',
+        ]
+    act = hf.Action(
+        commands=[
+            hf.Command(
+                command=cmds[0],
+                stdout="<<int(parameter:p2)>>",
+            ),
+            hf.Command(
+                command=cmds[1],
+                stdout="<<float(parameter:p3)>>",
+            ),
+        ]
+    )
+    s1 = hf.TaskSchema(
+        objective="t1",
+        actions=[act],
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2"), hf.SchemaOutput("p3")],
+    )
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 1)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="wk2",
+        path=tmp_path,
+        store=store,
+    )
+    wk.submit(wait=True)
+    assert wk.tasks.t1.elements[0].get("outputs") == {"p2": 101, "p3": 201.0}

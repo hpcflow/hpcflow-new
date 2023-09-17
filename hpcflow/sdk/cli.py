@@ -487,14 +487,32 @@ def _make_internal_CLI(app):
     @click.argument("name")
     @click.argument("value")
     @click.argument("ear_id", type=click.INT)
+    @click.argument("cmd_idx", type=click.INT)
+    @click.option("--stderr", is_flag=True, default=False)
     def save_parameter(
         ctx,
         name: str,
         value: str,
         ear_id: int,
+        cmd_idx: int,
+        stderr: bool,
     ):
-        app.CLI_logger.info(f"save parameter {name!r} for EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].save_parameter(name, value, ear_id))
+        app.CLI_logger.info(
+            f"save parameter {name!r} for EAR ID {ear_id!r} and command index "
+            f"{cmd_idx!r} (stderr={stderr!r})"
+        )
+        app.CLI_logger.debug(f"save parameter value is: {value!r}")
+        wk = ctx.obj["workflow"]
+        with wk._store.cached_load():
+            value = wk.process_shell_parameter_output(
+                name=name,
+                value=value,
+                EAR_ID=ear_id,
+                cmd_idx=cmd_idx,
+                stderr=stderr,
+            )
+            app.CLI_logger.debug(f"save parameter processed value is: {value!r}")
+            ctx.exit(wk.save_parameter(name=name, value=value, EAR_ID=ear_id))
 
     @workflow.command()
     @click.pass_context

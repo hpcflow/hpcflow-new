@@ -219,3 +219,10 @@ class P1_parameter_cls(ParameterValue):
         add = 4 if add is None else int(add)
         sub = 0 if sub is None else int(sub)
         return str(self.a + add - sub)
+
+    @classmethod
+    def CLI_parse(cls, a_str: str, double: Optional[str] = ""):
+        a = int(a_str)
+        if double.lower() == "true":
+            a *= 2
+        return cls(a=a)

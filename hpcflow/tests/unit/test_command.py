@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.submission.shells import ALL_SHELLS
@@ -344,3 +345,164 @@ def test_get_command_line_parameter_value_sub_object_attr(null_config, tmp_path)
     cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
 
     assert cmd_str == f"Write-Output ({p1_value.sub_param.e} + 100)"
+
+
+def test_process_std_stream_int(null_config):
+    cmd = hf.Command(command="", stdout="<<int(parameter:p2)>>")
+    assert cmd.process_std_stream(name="p2", value="101", stderr=False) == 101
+
+
+def test_process_std_stream_stderr_int(null_config):
+    cmd = hf.Command(command="", stderr="<<int(parameter:p2)>>")
+    assert cmd.process_std_stream(name="p2", value="101", stderr=True) == 101
+
+
+def test_process_std_stream_float(null_config):
+    cmd = hf.Command(command="", stdout="<<float(parameter:p2)>>")
+    assert cmd.process_std_stream(name="p2", value="3.1415", stderr=False) == 3.1415
+
+
+def test_process_std_stream_bool_true(null_config):
+    cmd = hf.Command(command="", stdout="<<bool(parameter:p2)>>")
+    for value in ("true", "True", "1"):
+        assert cmd.process_std_stream(name="p2", value=value, stderr=False) == True
+
+
+def test_process_std_stream_bool_false(null_config):
+    cmd = hf.Command(command="", stdout="<<bool(parameter:p2)>>")
+    for value in ("false", "False", "0"):
+        assert cmd.process_std_stream(name="p2", value=value, stderr=False) == False
+
+
+def test_process_std_stream_bool_raise(null_config):
+    cmd = hf.Command(command="", stdout="<<bool(parameter:p2)>>")
+    for value in ("hi", "120", "-1"):
+        with pytest.raises(ValueError):
+            cmd.process_std_stream(name="p2", value=value, stderr=False)
+
+
+def test_process_std_stream_list(null_config):
+    cmd = hf.Command(command="", stdout="<<list(parameter:p2)>>")
+    assert cmd.process_std_stream(name="p2", value="1 2 3", stderr=False) == [
+        "1",
+        "2",
+        "3",
+    ]
+
+
+def test_process_std_stream_list_int(null_config):
+    cmd = hf.Command(command="", stdout="<<list[item_type=int](parameter:p2)>>")
+    assert cmd.process_std_stream(name="p2", value="1 2 3", stderr=False) == [1, 2, 3]
+
+
+def test_process_std_stream_list_delim(null_config):
+    cmd = hf.Command(command="", stdout='<<list[delim=","](parameter:p2)>>')
+    assert cmd.process_std_stream(name="p2", value="1,2,3", stderr=False) == [
+        "1",
+        "2",
+        "3",
+    ]
+
+
+def test_process_std_stream_list_int_delim(null_config):
+    cmd = hf.Command(
+        command="", stdout='<<list[item_type=int, delim=","](parameter:p2)>>'
+    )
+    assert cmd.process_std_stream(name="p2", value="1,2,3", stderr=False) == [1, 2, 3]
+
+
+def test_process_std_stream_list_float_delim_colon(null_config):
+    cmd = hf.Command(
+        command="", stdout='<<list[item_type=float, delim=":"](parameter:p2)>>'
+    )
+    assert cmd.process_std_stream(name="p2", value="1.1:2.2:3.3", stderr=False) == [
+        1.1,
+        2.2,
+        3.3,
+    ]
+
+
+def test_process_std_stream_array(null_config):
+    cmd = hf.Command(command="", stdout="<<array(parameter:p2)>>")
+    assert np.allclose(
+        cmd.process_std_stream(name="p2", value="1 2 3", stderr=False),
+        np.array([1, 2, 3]),
+    )
+
+
+def test_process_std_stream_array_delim(null_config):
+    cmd = hf.Command(command="", stdout='<<array[delim=","](parameter:p2)>>')
+    assert np.allclose(
+        cmd.process_std_stream(name="p2", value="1,2,3", stderr=False),
+        np.array([1, 2, 3]),
+    )
+
+
+def test_process_std_stream_array_dtype_int(null_config):
+    cmd = hf.Command(command="", stdout="<<array[item_type=int](parameter:p2)>>")
+    arr = cmd.process_std_stream(name="p2", value="1 2 3", stderr=False)
+    assert arr.dtype == np.dtype("int")
+
+
+def test_process_std_stream_array_dtype_float(null_config):
+    cmd = hf.Command(command="", stdout="<<array[item_type=float](parameter:p2)>>")
+    arr = cmd.process_std_stream(name="p2", value="1 2 3", stderr=False)
+    assert arr.dtype == np.dtype("float")
+
+
+def test_process_std_stream_object(null_config):
+    cmd = hf.Command(command="", stdout="<<parameter:p1c>>")
+    a_val = 12
+    assert cmd.process_std_stream(name="p1c", value=str(a_val), stderr=False) == P1(
+        a=a_val
+    )
+
+
+def test_process_std_stream_object_kwargs(null_config):
+    cmd = hf.Command(command="", stdout="<<parameter:p1c.CLI_parse(double=true)>>")
+    a_val = 12
+    expected = 2 * a_val
+    assert cmd.process_std_stream(name="p1c", value=str(a_val), stderr=False) == P1(
+        a=expected
+    )
+
+
+def test_get_output_types(null_config):
+    cmd = hf.Command(command="", stdout="<<parameter:p1_test_123>>")
+    assert cmd.get_output_types() == {"stdout": "p1_test_123", "stderr": None}
+
+
+def test_get_output_types_int(null_config):
+    cmd = hf.Command(command="", stdout="<<int(parameter:p1_test_123)>>")
+    assert cmd.get_output_types() == {"stdout": "p1_test_123", "stderr": None}
+
+
+def test_get_output_types_object_with_args(null_config):
+    cmd = hf.Command(
+        command="", stdout="<<parameter:p1_test_123.CLI_parse(double=true)>>"
+    )
+    assert cmd.get_output_types() == {"stdout": "p1_test_123", "stderr": None}
+
+
+def test_get_output_types_list(null_config):
+    cmd = hf.Command(
+        command="", stdout="<<list[item_type=int, delim=" "](parameter:p1_test_123)>>"
+    )
+    assert cmd.get_output_types() == {"stdout": "p1_test_123", "stderr": None}
+
+
+def test_get_output_types_no_match(null_config):
+    cmd = hf.Command(command="", stdout="parameter:p1_test_123")
+    assert cmd.get_output_types() == {"stdout": None, "stderr": None}
+
+
+def test_get_output_types_raise_with_extra_substring_start(null_config):
+    cmd = hf.Command(command="", stdout="hello: <<parameter:p1_test_123>>")
+    with pytest.raises(ValueError):
+        cmd.get_output_types()
+
+
+def test_get_output_types_raise_with_extra_substring_end(null_config):
+    cmd = hf.Command(command="", stdout="<<parameter:p1_test_123>> hello")
+    with pytest.raises(ValueError):
+        cmd.get_output_types()
