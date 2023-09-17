@@ -1053,6 +1053,7 @@ class InputValue(AbstractInputValue):
         """
         if (
             self._value_group_idx is None
+            and not self.path
             and not self._value_is_obj
             and self.parameter._value_class
             and not isinstance(self._value, dict)

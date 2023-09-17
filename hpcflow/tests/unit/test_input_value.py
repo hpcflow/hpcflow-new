@@ -147,3 +147,9 @@ def test_value_is_dict_check_raise(null_config):
     # Parameter("p1c") has an associated `ParameterValue` class so data should be a dict:
     with pytest.raises(ValueError):
         hf.InputValue("p1c", 101)
+
+
+def test_value_is_dict_check_no_raise_if_sub_parameter(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class, but the specified value
+    # is for some sub-data:
+    hf.InputValue("p1c", path="a", value=101)
