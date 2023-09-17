@@ -1,6 +1,10 @@
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.test_utils import make_schemas
+from hpcflow.sdk.core.test_utils import (
+    make_schemas,
+    P1_parameter_cls as P1,
+    P1_sub_parameter_cls as P1_sub,
+)
 
 
 @pytest.fixture
@@ -153,3 +157,94 @@ def test_element_get_labelled_non_labelled_equivalence(null_config, tmp_path):
     assert wk.tasks[0].elements[0].get("inputs.p1") == wk.tasks[0].elements[0].get(
         f"inputs.p1[{label}]"
     )
+
+
+@pytest.fixture
+def element_get_wk(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1"), hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + <<parameter:p1c>>)",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    p1_value = 100
+    p1c_value = P1(a=10, sub_param=P1_sub(e=5))
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue("p1", value=p1_value),
+            hf.InputValue("p1c", value=p1c_value),
+        ],
+        sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        path=tmp_path,
+    )
+    return wk
+
+
+def test_element_get_simple(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1") == 100
+    assert element_get_wk.tasks.t1.elements[1].get("inputs.p1") == 100
+
+
+def test_element_get_obj(element_get_wk):
+    obj_0 = P1(a=20, sub_param=P1_sub(e=5))
+    obj_1 = P1(a=30, sub_param=P1_sub(e=5))
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1c") == obj_0
+    assert element_get_wk.tasks.t1.elements[1].get("inputs.p1c") == obj_1
+
+
+def test_element_get_sub_obj(element_get_wk):
+    sub_obj = P1_sub(e=5)
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1c.sub_param") == sub_obj
+    assert element_get_wk.tasks.t1.elements[1].get("inputs.p1c.sub_param") == sub_obj
+
+
+def test_element_get_sub_obj_attr(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1c.sub_param.e") == 5
+    assert element_get_wk.tasks.t1.elements[1].get("inputs.p1c.sub_param.e") == 5
+
+
+def test_element_get_sub_obj_property(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1c.sub_param.twice_e") == 10
+    assert element_get_wk.tasks.t1.elements[1].get("inputs.p1c.sub_param.twice_e") == 10
+
+
+def test_element_get_obj_no_raise_missing_attr(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("inputs.p1c.b") is None
+
+
+def test_element_get_obj_raise_missing_attr(element_get_wk):
+    with pytest.raises(ValueError):
+        element_get_wk.tasks.t1.elements[0].get("inputs.p1c.b", raise_on_missing=True)
+
+
+def test_element_get_obj_raise_missing_nested_attr(element_get_wk):
+    with pytest.raises(ValueError):
+        element_get_wk.tasks.t1.elements[0].get("inputs.p1c.a.b", raise_on_missing=True)
+
+
+def test_element_get_raise_missing_root(element_get_wk):
+    with pytest.raises(ValueError):
+        element_get_wk.tasks.t1.elements[0].get("blah", raise_on_missing=True)
+
+
+def test_element_get_no_raise_missing_root(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("blah") is None
+
+
+def test_element_get_expected_default(element_get_wk):
+    assert element_get_wk.tasks.t1.elements[0].get("blah", default={}) == {}
