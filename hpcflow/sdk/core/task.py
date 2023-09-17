@@ -1461,7 +1461,10 @@ class WorkflowTask:
 
                     element_set.input_sources[path_i][s_idx] = available_source
 
-        unsourced_inputs = req_types - set(element_set.input_sources.keys())
+        # sorting ensures that root parameters come before sub-parameters, which is
+        # necessary when considering if we want to include a sub-parameter, when setting
+        # missing sources below:
+        unsourced_inputs = sorted(req_types - set(element_set.input_sources.keys()))
 
         extra_types = set(k for k, v in all_stats.items() if v.is_extra)
         if extra_types:
