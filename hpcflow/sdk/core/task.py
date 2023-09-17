@@ -26,7 +26,7 @@ from .errors import (
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
-from .parameters import InputSourceType, ParameterValue
+from .parameters import InputSourceType, ParameterValue, TaskSourceType
 from .utils import (
     get_duplicate_items,
     get_in_container,
@@ -1476,7 +1476,12 @@ class WorkflowTask:
 
         # set source for any unsourced inputs:
         missing = []
+        # track which root params we have set according to default behaviour (not
+        # specified by user):
+        set_root_params = []
         for input_type in unsourced_inputs:
+            input_split = input_type.split(".")
+            has_root_param = input_split[0] if len(input_split) > 1 else None
             inp_i_sources = available_sources.get(input_type, [])
 
             source = None
@@ -1488,7 +1493,26 @@ class WorkflowTask:
                 missing.append(input_type)
 
             if source is not None:
+                if has_root_param and has_root_param in set_root_params:
+                    # this is a sub-parameter, and the associated root parameter was not
+                    # specified by the user either, so we previously set it according to
+                    # default behaviour
+                    root_src = element_set.input_sources[has_root_param][0]
+                    # do not set a default task-input type source for this sub-parameter
+                    # if the associated root parameter has a default-set task-output
+                    # source from the same task:
+                    if (
+                        source.source_type is InputSourceType.TASK
+                        and source.task_source_type is TaskSourceType.INPUT
+                        and root_src.source_type is InputSourceType.TASK
+                        and root_src.task_source_type is TaskSourceType.OUTPUT
+                        and source.task_ref == root_src.task_ref
+                    ):
+                        continue
+
                 element_set.input_sources.update({input_type: [source]})
+                if not has_root_param:
+                    set_root_params.append(input_type)
 
         # TODO: collate all input sources separately, then can fall back to a different
         # input source (if it was not specified manually) and if the "top" input source
