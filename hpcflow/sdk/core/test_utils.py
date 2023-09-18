@@ -221,8 +221,12 @@ class P1_parameter_cls(ParameterValue):
         return str(self.a + add - sub)
 
     @classmethod
-    def CLI_parse(cls, a_str: str, double: Optional[str] = ""):
+    def CLI_parse(cls, a_str: str, double: Optional[str] = "", e: Optional[str] = None):
         a = int(a_str)
         if double.lower() == "true":
             a *= 2
-        return cls(a=a)
+        if e:
+            sub_param = P1_sub_parameter_cls(e=int(e))
+        else:
+            sub_param = None
+        return cls(a=a, sub_param=sub_param)

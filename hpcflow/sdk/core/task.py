@@ -1057,11 +1057,6 @@ class Task(JSONLike):
             if inp_j.typ in self.undefined_input_types
         ]
 
-    @property
-    def unsourced_inputs(self):
-        """Get schema input types for which no input sources are currently specified."""
-        return self.all_schema_input_types - set(self.input_sources.keys())
-
     def provides_parameters(self) -> Tuple[Tuple[str, str]]:
         """Get all provided parameter labelled types and whether they are inputs and
         outputs, considering all element sets.
@@ -2179,13 +2174,16 @@ class WorkflowTask:
 
                 data_i = []
                 methods_i = []
+                is_param_set_i = []
                 for data_idx_ij in data_idx_i:
                     meth_i = None
+                    is_set_i = True
                     if path_i[0] == "repeats":
                         # data is an integer repeats index, rather than a parameter ID:
                         data_j = data_idx_ij
                     else:
                         param_j = self.workflow.get_parameter(data_idx_ij)
+                        is_set_i = param_j.is_set
                         if param_j.file:
                             if param_j.file["store_contents"]:
                                 data_j = Path(self.workflow.path) / param_j.file["path"]
@@ -2208,7 +2206,7 @@ class WorkflowTask:
                                 # object if the parameter is associated with a
                                 # `ParameterValue` class.
                                 data_j = param_j.data
-                        if raise_on_unset and not param_j.is_set:
+                        if raise_on_unset and not is_set_i:
                             raise UnsetParameterDataError(
                                 f"Element data path {path!r} resolves to unset data for "
                                 f"(at least) data-index path: {path_i!r}."
@@ -2216,32 +2214,69 @@ class WorkflowTask:
                     if is_multi:
                         data_i.append(data_j)
                         methods_i.append(meth_i)
+                        is_param_set_i.append(is_set_i)
                     else:
                         data_i = data_j
                         methods_i = meth_i
+                        is_param_set_i = is_set_i
 
-                relevant_data[path_i] = {"data": data_i, "value_class_method": methods_i}
+                relevant_data[path_i] = {
+                    "data": data_i,
+                    "value_class_method": methods_i,
+                    "is_set": is_param_set_i,
+                    "is_multi": is_multi,
+                }
+            if not raise_on_unset:
+                to_remove = []
+                for key, dat_info in relevant_data.items():
+                    if not dat_info["is_set"] and ((path and path in key) or not path):
+                        # remove sub-paths, as they cannot be merged with this parent
+                        to_remove.extend(
+                            k for k in relevant_data if k != key and k.startswith(key)
+                        )
+                relevant_data = {
+                    k: v for k, v in relevant_data.items() if k not in to_remove
+                }
+
             return relevant_data
 
         def _merge_relevant_data(
             relevant_data, relevant_paths, PV_classes, path: str, raise_on_missing: bool
         ):
             current_val = None
+            assigned_from_parent = False
             val_cls_method = None
-            # TODO: option to just merge the data for a given path, and then init?
+            path_is_multi = False
+            path_is_set = False
             for path_i, data_info_i in relevant_data.items():
                 data_i = data_info_i["data"]
                 if path_i == path:
                     val_cls_method = data_info_i["value_class_method"]
+                    path_is_multi = data_info_i["is_multi"]
+                    path_is_set = data_info_i["is_set"]
+
                 path_info = relevant_paths[path_i]
                 path_type = path_info["type"]
                 if path_type == "parent":
                     try:
-                        current_val = get_in_container(
-                            data_i,
-                            path_info["relative_path"],
-                            cast_indices=True,
-                        )
+                        if data_info_i["is_multi"]:
+                            current_val = [
+                                get_in_container(
+                                    i,
+                                    path_info["relative_path"],
+                                    cast_indices=True,
+                                )
+                                for i in data_i
+                            ]
+                            path_is_multi = True
+                            path_is_set = data_info_i["is_set"]
+                            val_cls_method = data_info_i["value_class_method"]
+                        else:
+                            current_val = get_in_container(
+                                data_i,
+                                path_info["relative_path"],
+                                cast_indices=True,
+                            )
                     except ContainerKeyError as err:
                         if path_i in PV_classes:
                             err_path = ".".join([path_i] + err.path[:-1])
@@ -2251,6 +2286,8 @@ class WorkflowTask:
                         if raise_on_missing:
                             raise err
                         continue
+                    else:
+                        assigned_from_parent = True
                 elif path_type == "update":
                     current_val = current_val or {}
                     set_in_container(
@@ -2260,26 +2297,45 @@ class WorkflowTask:
                         ensure_path=True,
                     )
             if path in PV_classes:
+                if path not in relevant_data:
+                    # requested data must be a sub-path of relevant data, so we can assume
+                    # path is set (if the parent was not set the sub-paths would be
+                    # removed in `_get_relevant_data`):
+                    path_is_set = path_is_set or True
+
+                    if not assigned_from_parent:
+                        # search for unset parents in `relevant_data`:
+                        path_split = path.split(".")
+                        for parent_i_span in range(len(path_split) - 1, 1, -1):
+                            parent_path_i = ".".join(path_split[0:parent_i_span])
+                            relevant_par = relevant_data.get(parent_path_i)
+                            par_is_set = relevant_par["is_set"]
+                            if not par_is_set or any(not i for i in par_is_set):
+                                val_cls_method = relevant_par["value_class_method"]
+                                path_is_multi = relevant_par["is_multi"]
+                                path_is_set = relevant_par["is_set"]
+                                current_val = relevant_par["data"]
+                                break
+
+                # initialise objects
                 PV_cls = PV_classes[path]
                 if path_is_multi:
-                    method = [getattr(PV_cls, i) if i else PV_cls for i in val_cls_method]
-                    current_val = [
-                        meth_i(**val_i) for meth_i, val_i in zip(method, current_val)
-                    ]
-                else:
+                    _current_val = []
+                    for set_i, meth_i, val_i in zip(
+                        path_is_set, val_cls_method, current_val
+                    ):
+                        if set_i and isinstance(val_i, dict):
+                            method_i = getattr(PV_cls, meth_i) if meth_i else PV_cls
+                            _cur_val_i = method_i(**val_i)
+                        else:
+                            _cur_val_i = None
+                        _current_val.append(_cur_val_i)
+                    current_val = _current_val
+                elif path_is_set and isinstance(current_val, dict):
                     method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
                     current_val = method(**current_val)
 
             return current_val
-
-        def _validate_data_idx(data_idx):
-            has_group = sum(isinstance(i, list) for i in data_idx.values()) > 0
-            if has_group and len(data_idx) > 1:
-                # TODO: test
-                raise NotImplementedError(
-                    "Cannot yet combine group data with any other (group or non-group) "
-                    "data."
-                )
 
         # TODO: custom exception?
         missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
@@ -2293,7 +2349,6 @@ class WorkflowTask:
             return default
 
         relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
-        _validate_data_idx(relevant_data_idx)
         PV_cls_paths = list(relevant_paths.keys()) + ([path] if path else [])
         PV_classes = self._paths_to_PV_classes(PV_cls_paths)
         relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
@@ -2313,7 +2368,6 @@ class WorkflowTask:
             relevant_data_idx = {
                 k: v for k, v in data_index.items() if k in relevant_paths
             }
-            _validate_data_idx(relevant_data_idx)
             relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
             # merge the parent data
             current_val = _merge_relevant_data(

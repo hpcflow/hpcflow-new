@@ -302,3 +302,141 @@ def test_element_get_part_unset(null_config, tmp_path):
 
     with pytest.raises(UnsetParameterDataError):
         wk.tasks.t2.elements[0].get("inputs.p2", raise_on_unset=True)
+
+
+def test_element_get_unset_object(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p1c>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1", value=1)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t1.elements[0].get("outputs.p1c") == None
+
+
+def test_element_get_unset_sub_object(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse(e=10)>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1", value=1)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t1.elements[0].get("outputs.p1c.sub_param") == None
+
+
+def test_element_get_unset_object_group(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse()>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"), group="my_group")],
+    )
+
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
+        sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        nesting_order={"inputs.p1c": 0},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t2.elements[0].get("inputs.p1c") == [None, None]
+
+
+def test_element_get_unset_sub_object_group(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse(e=10)>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"), group="my_group")],
+    )
+
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
+        sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        nesting_order={"inputs.p1c": 0},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t2.elements[0].get("inputs.p1c.sub_param") == [None, None]
