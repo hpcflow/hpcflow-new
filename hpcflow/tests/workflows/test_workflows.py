@@ -248,7 +248,7 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
     else:
         cmds = [
             'echo "$((<<parameter:p1>> + 100))"',
-            'echo "$((<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>))',
+            'echo "$((<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>))"',
         ]
     s1 = hf.TaskSchema(
         objective="t1",
