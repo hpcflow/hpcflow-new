@@ -18,6 +18,7 @@ from .errors import (
     ExtraInputs,
     MayNeedObjectError,
     MissingInputs,
+    NoAvailableElementSetsError,
     TaskTemplateInvalidNesting,
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
@@ -747,6 +748,40 @@ class Task(JSONLike):
     def _element_indices(self):
         return self.workflow_template.workflow.tasks[self.index].element_indices
 
+    def _get_task_source_element_iters(
+        self, in_or_out: str, src_task, labelled_path, element_set
+    ) -> List[int]:
+        if in_or_out == "input":
+            # input parameter might not be provided e.g. if it only used
+            # to generate an input file, and that input file is passed
+            # directly, so consider only source task element sets that
+            # provide the input locally:
+            es_idx = src_task.get_param_provided_element_sets(labelled_path)
+        else:
+            # outputs are always available, so consider all source task
+            # element sets:
+            es_idx = list(range(src_task.num_element_sets))
+
+        if not es_idx:
+            raise NoAvailableElementSetsError()
+        else:
+            src_elem_iters = []
+            for es_idx_i in es_idx:
+                es_i = src_task.element_sets[es_idx_i]
+                src_elem_iters += es_i.elem_iter_IDs
+
+        if element_set.sourceable_elem_iters is not None:
+            # can only use a subset of element iterations (this is the
+            # case where this element set is generated from an upstream
+            # element set, in which case we only want to consider newly
+            # added upstream elements when adding elements from this
+            # element set):
+            src_elem_iters = list(
+                set(element_set.sourceable_elem_iters) & set(src_elem_iters)
+            )
+
+        return src_elem_iters
+
     def get_available_task_input_sources(
         self,
         element_set: app.ElementSet,
@@ -786,41 +821,17 @@ class Task(JSONLike):
                 ):
                     if inputs_path in labelled_path:
                         avail_src_path = labelled_path
-                        if in_or_out == "input":
-                            # input parameter might not be provided e.g. if it only used
-                            # to generate an input file, and that input file is passed
-                            # directly, so consider only source task element sets that
-                            # provide the input locally:
-                            es_idx = src_task_i.get_param_provided_element_sets(
-                                labelled_path
+                        try:
+                            src_elem_iters = self._get_task_source_element_iters(
+                                in_or_out=in_or_out,
+                                src_task=src_task_i,
+                                labelled_path=labelled_path,
+                                element_set=element_set,
                             )
-                        else:
-                            # outputs are always available, so consider all source task
-                            # element sets:
-                            es_idx = list(range(src_task_i.num_element_sets))
-
-                        if not es_idx:
+                        except NoAvailableElementSetsError:
                             continue
-                        else:
-                            src_elem_iters = []
-                            for es_idx_i in es_idx:
-                                es_i = src_task_i.element_sets[es_idx_i]
-                                src_elem_iters += es_i.elem_iter_IDs
-
-                        if element_set.sourceable_elem_iters is not None:
-                            # can only use a subset of element iterations (this is the
-                            # case where this element set is generated from an upstream
-                            # element set, in which case we only want to consider newly
-                            # added upstream elements when adding elements from this
-                            # element set):
-                            src_elem_iters = list(
-                                set(element_set.sourceable_elem_iters)
-                                & set(src_elem_iters)
-                            )
-
-                    elif labelled_path in inputs_path and in_or_out == "output":
+                    elif labelled_path in inputs_path:
                         avail_src_path = inputs_path
-
                         inputs_path_label = None
                         out_label = None
                         try:
@@ -831,7 +842,7 @@ class Task(JSONLike):
                             for out_lab_i in src_task_i.output_labels:
                                 if out_lab_i.label == inputs_path_label:
                                     out_label = out_lab_i
-                        if out_label:
+                        if out_label and in_or_out == "output":
                             # find element iteration IDs that match the output label
                             # filter:
                             param_path = ".".join(
@@ -845,7 +856,8 @@ class Task(JSONLike):
                                 params = getattr(elem_i, param_path_split[0])
                                 param_dat = getattr(params, param_path_split[1]).value
 
-                                # for remaining paths components try both getattr and getitem:
+                                # for remaining paths components try both getattr and
+                                # getitem:
                                 for path_k in param_path_split[2:]:
                                     try:
                                         param_dat = param_dat[path_k]
@@ -859,7 +871,13 @@ class Task(JSONLike):
                                 )
                                 if rule.test([param_dat]).is_valid:
                                     src_elem_iters.append(elem_i.iterations[0].id_)
-
+                        else:
+                            src_elem_iters = self._get_task_source_element_iters(
+                                in_or_out=in_or_out,
+                                src_task=src_task_i,
+                                labelled_path=labelled_path,
+                                element_set=element_set,
+                            )
                     else:
                         continue
 

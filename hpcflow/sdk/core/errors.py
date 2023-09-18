@@ -351,3 +351,7 @@ class MayNeedObjectError(Exception):
     def __init__(self, path):
         self.path = path
         super().__init__()
+
+
+class NoAvailableElementSetsError(Exception):
+    pass

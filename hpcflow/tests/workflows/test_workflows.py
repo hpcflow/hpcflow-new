@@ -236,3 +236,99 @@ def test_element_get_sub_data_group(null_config, tmp_path):
     wk.submit(wait=True)
     assert wk.tasks.t2.num_elements == 1
     assert wk.tasks.t2.elements[0].get("inputs.p1c.a") == [120, 130]
+
+
+def test_input_source_labels_and_groups():
+    """This is structurally the same as the `fit_yield_functions` MatFlow workflow."""
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter="p1")],
+        outputs=[hf.SchemaInput(parameter="p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[
+            hf.SchemaInput(
+                parameter="p2",
+                multiple=True,
+                labels={"one": {}, "two": {"group": "my_group"}},
+            ),
+        ],
+        outputs=[hf.SchemaInput(parameter="p3")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>)",
+                        stdout="<<int(parameter:p3)>>",
+                    ),
+                ]
+            )
+        ],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            element_sets=[
+                hf.ElementSet(inputs=[hf.InputValue("p1", 1)]),
+                hf.ElementSet(
+                    sequences=[
+                        hf.ValueSequence(
+                            path="inputs.p1",
+                            values=[2, 3, 4],
+                            nesting_order=0,
+                        ),
+                    ],
+                    groups=[hf.ElementGroup(name="my_group")],
+                ),
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p1": 0},
+        ),
+        hf.Task(
+            schemas=s3,
+            input_sources={
+                "p2[one]": [
+                    hf.InputSource.task(
+                        task_ref=1,
+                        where=hf.Rule(path="inputs.p1", condition={"value.equal_to": 1}),
+                    )
+                ],
+                "p2[two]": [
+                    hf.InputSource.task(
+                        task_ref=1,
+                        where=hf.Rule(
+                            path="inputs.p1", condition={"value.not_equal_to": 1}
+                        ),
+                    )
+                ],
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=".",
+        template_name="wk0",
+        workflow_name="wk0",
+        overwrite=True,
+    )
+    wk.submit(wait=True)
+    assert wk.tasks.t2.num_elements == 4
+    assert wk.tasks.t3.num_elements == 1
+    assert wk.tasks.t3.elements[0].outputs.p3.value == 410
