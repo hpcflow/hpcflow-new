@@ -238,8 +238,18 @@ def test_element_get_sub_data_group(null_config, tmp_path):
     assert wk.tasks.t2.elements[0].get("inputs.p1c.a") == [120, 130]
 
 
-def test_input_source_labels_and_groups():
+def test_input_source_labels_and_groups(null_config, tmp_path):
     """This is structurally the same as the `fit_yield_functions` MatFlow workflow."""
+    if os.name == "nt":
+        cmds = [
+            "Write-Output (<<parameter:p1>> + 100)",
+            "Write-Output (<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>)",
+        ]
+    else:
+        cmds = [
+            'echo "$((<<parameter:p1>> + 100))"',
+            'echo "$((<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>))',
+        ]
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
@@ -250,12 +260,7 @@ def test_input_source_labels_and_groups():
         outputs=[hf.SchemaInput(parameter="p2")],
         actions=[
             hf.Action(
-                commands=[
-                    hf.Command(
-                        command="Write-Output (<<parameter:p1>> + 100)",
-                        stdout="<<int(parameter:p2)>>",
-                    )
-                ]
+                commands=[hf.Command(command=cmds[0], stdout="<<int(parameter:p2)>>")]
             )
         ],
     )
@@ -271,12 +276,7 @@ def test_input_source_labels_and_groups():
         outputs=[hf.SchemaInput(parameter="p3")],
         actions=[
             hf.Action(
-                commands=[
-                    hf.Command(
-                        command="Write-Output (<<parameter:p2[one]>> + <<sum(parameter:p2[two])>>)",
-                        stdout="<<int(parameter:p3)>>",
-                    ),
-                ]
+                commands=[hf.Command(command=cmds[1], stdout="<<int(parameter:p3)>>")]
             )
         ],
     )
@@ -323,10 +323,8 @@ def test_input_source_labels_and_groups():
     ]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
-        path=".",
+        path=tmp_path,
         template_name="wk0",
-        workflow_name="wk0",
-        overwrite=True,
     )
     wk.submit(wait=True)
     assert wk.tasks.t2.num_elements == 4
