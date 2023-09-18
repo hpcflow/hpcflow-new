@@ -97,6 +97,10 @@ def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_element_get_group(null_config, tmp_path, store):
+    if os.name == "nt":
+        cmd = "Write-Output (<<parameter:p1c>> + 100)"
+    else:
+        cmd = 'echo "$((<<parameter:p1c>> + 100))"'
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter="p1c")],
@@ -105,7 +109,7 @@ def test_element_get_group(null_config, tmp_path, store):
             hf.Action(
                 commands=[
                     hf.Command(
-                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        command=cmd,
                         stdout="<<parameter:p1c.CLI_parse()>>",
                     )
                 ],
@@ -140,6 +144,10 @@ def test_element_get_group(null_config, tmp_path, store):
 
 
 def test_element_get_sub_object_group(null_config, tmp_path):
+    if os.name == "nt":
+        cmd = "Write-Output (<<parameter:p1c>> + 100)"
+    else:
+        cmd = 'echo "$((<<parameter:p1c>> + 100))"'
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter="p1c")],
@@ -148,7 +156,7 @@ def test_element_get_sub_object_group(null_config, tmp_path):
             hf.Action(
                 commands=[
                     hf.Command(
-                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        command=cmd,
                         stdout="<<parameter:p1c.CLI_parse(e=10)>>",
                     )
                 ],
@@ -185,6 +193,10 @@ def test_element_get_sub_object_group(null_config, tmp_path):
 
 
 def test_element_get_sub_data_group(null_config, tmp_path):
+    if os.name == "nt":
+        cmd = "Write-Output (<<parameter:p1c>> + 100)"
+    else:
+        cmd = 'echo "$((<<parameter:p1c>> + 100))"'
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter="p1c")],
@@ -193,7 +205,7 @@ def test_element_get_sub_data_group(null_config, tmp_path):
             hf.Action(
                 commands=[
                     hf.Command(
-                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        command=cmd,
                         stdout="<<parameter:p1c.CLI_parse(e=10)>>",
                     )
                 ],
