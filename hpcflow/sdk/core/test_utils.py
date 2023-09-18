@@ -220,6 +220,17 @@ class P1_parameter_cls(ParameterValue):
         sub = 0 if sub is None else int(sub)
         return str(self.a + add - sub)
 
+    def custom_CLI_format_prep(self, reps: Optional[str] = None) -> List[int]:
+        """Used for testing custom object CLI formatting.
+
+        For example, with a command like this:
+
+        `<<join[delim=","](parameter:p1c.custom_CLI_format_prep(reps=4))>>`.
+
+        """
+        reps = 1 if reps is None else int(reps)
+        return [self.a] * reps
+
     @classmethod
     def CLI_parse(cls, a_str: str, double: Optional[str] = "", e: Optional[str] = None):
         a = int(a_str)

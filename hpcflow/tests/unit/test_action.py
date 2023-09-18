@@ -175,3 +175,43 @@ def test_get_command_input_types_sub_parameters_false_no_sub_parameter():
 def test_get_command_input_types_sub_parameters_false_with_sub_parameter():
     act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1.a>> + 100)")])
     assert act.get_command_input_types(sub_parameters=False) == ("p1",)
+
+
+def test_get_command_input_types_sum_sub_parameters_true_no_sub_param():
+    act = hf.Action(commands=[hf.Command("Write-Output <<sum(parameter:p1)>>")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1",)
+
+
+def test_get_command_input_types_sum_sub_parameters_true_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output <<sum(parameter:p1.a)>>")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1.a",)
+
+
+def test_get_command_input_types_sum_sub_parameters_false_no_sub_param():
+    act = hf.Action(commands=[hf.Command("Write-Output <<sum(parameter:p1)>>")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1",)
+
+
+def test_get_command_input_types_sum_sub_parameters_false_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output <<sum(parameter:p1.a)>>")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1",)
+
+
+def test_get_command_input_types_label_sub_parameters_true_no_sub_param():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1[one]>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1[one]",)
+
+
+def test_get_command_input_types_label_sub_parameters_true_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1[one].a>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=True) == ("p1[one].a",)
+
+
+def test_get_command_input_types_label_sub_parameters_false_no_sub_param():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1[one]>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1[one]",)
+
+
+def test_get_command_input_types_label_sub_parameters_false_with_sub_parameter():
+    act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1[one].a>> + 100)")])
+    assert act.get_command_input_types(sub_parameters=False) == ("p1[one]",)

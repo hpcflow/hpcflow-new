@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 import re
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -51,6 +51,17 @@ class Command(JSONLike):
         else:
             cmd_str = self.executable or ""
 
+        def _format_sum(iterable: Iterable) -> str:
+            return str(sum(iterable))
+
+        def _join(iterable: Iterable, delim: str) -> str:
+            return delim.join(str(i) for i in iterable)
+
+        parse_types = {
+            "sum": _format_sum,
+            "join": _join,
+        }
+
         def exec_script_repl(match_obj):
             typ, val = match_obj.groups()
             if typ == "executable":
@@ -64,8 +75,9 @@ class Command(JSONLike):
             return out
 
         def input_param_repl(match_obj, inp_val):
+            _, func, func_kwargs, method, method_kwargs = match_obj.groups()
+
             if isinstance(inp_val, ParameterValue):
-                all_group, method, method_kwargs = match_obj.groups()
                 if not method:
                     method = "CLI_format"
                 if not hasattr(inp_val, method):
@@ -73,14 +85,16 @@ class Command(JSONLike):
                         f"No CLI format method {method!r} exists for the "
                         f"object {inp_val!r}."
                     )
-                kwargs = {}
-                if method_kwargs:
-                    args_split = [i.strip() for i in method_kwargs.split(",")]
-                    for i in args_split:
-                        arg_i, val_i = i.split("=")
-                        kwargs[arg_i.strip()] = val_i.strip()
-
+                kwargs = self._prepare_kwargs_from_string(args_str=method_kwargs)
                 inp_val = getattr(inp_val, method)(**kwargs)
+
+            if func:
+                kwargs = self._prepare_kwargs_from_string(
+                    args_str=func_kwargs,
+                    doubled_quoted_args=["delim"],
+                )
+                inp_val = parse_types[func](inp_val, **kwargs)
+
             return str(inp_val)
 
         file_regex = r"(\<\<file:{}\>\>?)"
@@ -105,7 +119,12 @@ class Command(JSONLike):
                     cmd_str = cmd_str.rstrip()
 
         # substitute input parameters in command:
-        param_regex = r"(\<\<parameter:{}(?:\.(\w+)\((.*)\))?\>\>?)"
+        types_pattern = "|".join(parse_types)
+        pattern = (
+            r"(\<\<(?:({types_pattern})(?:\[(.*)\])?\()?parameter:{name}(?:\.(\w+)"
+            r"\((.*?)\))?\)?\>\>?)"
+        )
+
         for cmd_inp_full in EAR.action.get_command_input_types(sub_parameters=True):
             # remove any CLI formatting method, which will be the final component and will
             # include parentheses:
@@ -115,7 +134,10 @@ class Command(JSONLike):
             else:
                 cmd_inp = cmd_inp_full
             inp_val = EAR.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
-            pattern_i = param_regex.format(re.escape(cmd_inp))
+            pattern_i = pattern.format(
+                types_pattern=types_pattern,
+                name=re.escape(cmd_inp),
+            )
             cmd_str = re.sub(
                 pattern=pattern_i,
                 repl=partial(input_param_repl, inp_val=inp_val),
@@ -176,6 +198,30 @@ class Command(JSONLike):
                     out[label] = param_typ
         return out
 
+    @staticmethod
+    def _prepare_kwargs_from_string(args_str: Union[str, None], doubled_quoted_args=None):
+        kwargs = {}
+        if args_str is None:
+            return kwargs
+
+        # deal with specified double-quoted arguments first if it exists:
+        for quote_arg in doubled_quoted_args or []:
+            quote_pat = r'.*({quote_arg}="(.*)").*'.format(quote_arg=quote_arg)
+            match = re.match(quote_pat, args_str)
+            if match:
+                quote_str, quote_contents = match.groups()
+                args_str = args_str.replace(quote_str, "")
+                kwargs[quote_arg] = quote_contents
+
+        args_str = args_str.strip().strip(",")
+        if args_str:
+            for i in args_str.split(","):
+                i_split = i.split("=")
+                name_i = i_split[0].strip()
+                value = i_split[1].strip()
+                kwargs[name_i] = value
+        return kwargs
+
     def process_std_stream(self, name: str, value: str, stderr: bool):
         def _parse_list(lst_str: str, item_type: str = "str", delim: str = " "):
             return [parse_types[item_type](i) for i in lst_str.split(delim)]
@@ -197,26 +243,6 @@ class Command(JSONLike):
                     f"{'stderr' if stderr else 'stdout'}: "
                     f"{self.stderr if stderr else self.stdout!r}."
                 )
-
-        def _prepare_kwargs(args_str: str):
-            # deal with the "delim" argument first if it exists; the value should be
-            # double-quoted:
-            kwargs = {}
-            delim_pat = r'.*(delim="(.*)").*'
-            match = re.match(delim_pat, args_str)
-            if match:
-                delim_str, delim = match.groups()
-                args_str = args_str.replace(delim_str, "")
-                kwargs["delim"] = delim
-
-            args_str = args_str.strip().strip(",")
-            if args_str:
-                for i in args_str.split(","):
-                    i_split = i.split("=")
-                    name_i = i_split[0].strip()
-                    value = i_split[1].strip()
-                    kwargs[name_i] = value
-            return kwargs
 
         parse_types = {
             "str": str,
@@ -246,10 +272,16 @@ class Command(JSONLike):
             return value
         else:
             parse_type, parse_args_str = groups[1:3]
-            parse_args = _prepare_kwargs(parse_args_str) if parse_args_str else {}
+            parse_args = self._prepare_kwargs_from_string(
+                args_str=parse_args_str,
+                doubled_quoted_args=["delim"],
+            )
             if param._value_class:
                 method, method_args_str = groups[3:5]
-                method_args = _prepare_kwargs(method_args_str) if method_args_str else {}
+                method_args = self._prepare_kwargs_from_string(
+                    args_str=method_args_str,
+                    doubled_quoted_args=["delim"],
+                )
                 method = method or "CLI_parse"
                 value = getattr(param._value_class, method)(value, **method_args)
             if parse_type:

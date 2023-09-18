@@ -180,6 +180,120 @@ def test_get_command_line_sub_parameter(null_config, tmp_path):
     assert cmd_str == f"Write-Output ({p1_value['a']} + 100)"
 
 
+def test_get_command_line_sum(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(command="Write-Output (<<sum(parameter:p1)>> + 100)"),
+                ],
+            )
+        ],
+    )
+    p1_value = [1, 2, 3]
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    run = wk.tasks.t1.elements[0].iterations[0].action_runs[0]
+    cmd = run.action.commands[0]
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
+
+    assert cmd_str == f"Write-Output ({sum(p1_value)} + 100)"
+
+
+def test_get_command_line_join(null_config, tmp_path):
+    delim = ","
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command=f'Write-Output (<<join[delim="{delim}"](parameter:p1)>> + 100)'
+                    ),
+                ],
+            )
+        ],
+    )
+    p1_value = [1, 2, 3]
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    run = wk.tasks.t1.elements[0].iterations[0].action_runs[0]
+    cmd = run.action.commands[0]
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
+
+    assert cmd_str == f"Write-Output ({delim.join(str(i) for i in p1_value)} + 100)"
+
+
+def test_get_command_line_sum_sub_data(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(command="Write-Output (<<sum(parameter:p1.a)>> + 100)"),
+                ],
+            )
+        ],
+    )
+    p1_value = {"a": [1, 2, 3]}
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    run = wk.tasks.t1.elements[0].iterations[0].action_runs[0]
+    cmd = run.action.commands[0]
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
+
+    assert cmd_str == f"Write-Output ({sum(p1_value['a'])} + 100)"
+
+
+def test_get_command_line_join_sub_data(null_config, tmp_path):
+    delim = ","
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command=f'Write-Output (<<join[delim="{delim}"](parameter:p1.a)>> + 100)'
+                    ),
+                ],
+            )
+        ],
+    )
+    p1_value = {"a": [1, 2, 3]}
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    run = wk.tasks.t1.elements[0].iterations[0].action_runs[0]
+    cmd = run.action.commands[0]
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
+
+    assert cmd_str == f"Write-Output ({delim.join(str(i) for i in p1_value['a'])} + 100)"
+
+
 def test_get_command_line_parameter_value(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1",
@@ -208,6 +322,37 @@ def test_get_command_line_parameter_value(null_config, tmp_path):
     cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
 
     assert cmd_str == f"Write-Output ({p1_value.a} + 100)"
+
+
+def test_get_command_line_parameter_value_join(null_config, tmp_path):
+    delim = ","
+    cmd = (
+        f"Write-Output "
+        f'<<join[delim="{delim}"](parameter:p1c.custom_CLI_format_prep(reps=4))>>'
+    )
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(command=cmd),
+                ],
+            )
+        ],
+    )
+    p1_value = P1(a=4)
+    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+    )
+    run = wk.tasks.t1.elements[0].iterations[0].action_runs[0]
+    cmd = run.action.commands[0]
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    cmd_str, _ = cmd.get_command_line(EAR=run, shell=shell, env=run.get_environment())
+    assert cmd_str == f"Write-Output 4,4,4,4"
 
 
 def test_get_command_line_parameter_value_custom_method(null_config, tmp_path):
