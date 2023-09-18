@@ -1553,7 +1553,7 @@ class Action(JSONLike):
         params = []
         # note: we use "parameter" rather than "input", because it could be a schema input
         # or schema output.
-        vars_regex = r"\<\<parameter:(.*?)\>\>"
+        vars_regex = r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>"
         for command in self.commands:
             for val in re.findall(vars_regex, command.command or ""):
                 if not sub_parameters:
