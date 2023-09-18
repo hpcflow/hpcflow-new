@@ -4,6 +4,10 @@ import sys
 import time
 import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.test_utils import (
+    P1_parameter_cls as P1,
+    P1_sub_parameter_cls as P1_sub,
+)
 
 
 def test_workflow_1(tmp_path, new_null_config):
@@ -89,3 +93,47 @@ def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
     )
     wk.submit(wait=True)
     assert wk.tasks.t1.elements[0].get("outputs") == {"p2": 101, "p3": 201.0}
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_element_get_group(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse()>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"), group="my_group")],
+    )
+
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
+        sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        nesting_order={"inputs.p1c": 0},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+        store=store,
+    )
+    wk.submit(wait=True)
+    assert wk.tasks.t2.num_elements == 1
+    assert wk.tasks.t2.elements[0].get("inputs.p1c") == [P1(a=120), P1(a=130)]

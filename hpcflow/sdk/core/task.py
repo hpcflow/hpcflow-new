@@ -2261,8 +2261,14 @@ class WorkflowTask:
                     )
             if path in PV_classes:
                 PV_cls = PV_classes[path]
-                method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
-                current_val = method(**current_val)
+                if path_is_multi:
+                    method = [getattr(PV_cls, i) if i else PV_cls for i in val_cls_method]
+                    current_val = [
+                        meth_i(**val_i) for meth_i, val_i in zip(method, current_val)
+                    ]
+                else:
+                    method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
+                    current_val = method(**current_val)
 
             return current_val
 

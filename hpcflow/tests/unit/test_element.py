@@ -1,5 +1,6 @@
 import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.errors import UnsetParameterDataError
 from hpcflow.sdk.core.test_utils import (
     make_schemas,
     P1_parameter_cls as P1,
@@ -248,3 +249,56 @@ def test_element_get_no_raise_missing_root(element_get_wk):
 
 def test_element_get_expected_default(element_get_wk):
     assert element_get_wk.tasks.t1.elements[0].get("blah", default={}) == {}
+
+
+def test_element_get_part_unset(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1")],
+        outputs=[hf.SchemaOutput(parameter="p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(objective="t2", inputs=[hf.SchemaInput(parameter="p2")])
+
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[hf.InputValue("p1", value=1)],
+    )
+    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue("p2", path="a", value=2)])
+
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+
+    # "inputs.p2.a" is set (local) but "inputs.p2" is unset (from task 1), so value of
+    # "p2" should be `None`:
+    assert wk.tasks.t2.elements[0].get() == {
+        "resources": {"any": {}},
+        "inputs": {"p2": None},
+    }
+    assert wk.tasks.t2.elements[0].get("inputs") == {"p2": None}
+    assert wk.tasks.t2.elements[0].get("inputs.p2") == None
+
+    # but value of "p2.a" should be accessible:
+    assert wk.tasks.t2.elements[0].get("inputs.p2.a") == 2
+
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t2.elements[0].get(raise_on_unset=True)
+
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t2.elements[0].get("inputs", raise_on_unset=True)
+
+    with pytest.raises(UnsetParameterDataError):
+        wk.tasks.t2.elements[0].get("inputs.p2", raise_on_unset=True)
