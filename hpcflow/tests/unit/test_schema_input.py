@@ -169,23 +169,25 @@ def test_get_input_values_for_multiple_schema_input_with_object(null_config, tmp
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[
-            hf.SchemaInput(parameter="p1", labels={label: {}}, multiple=True),
+            hf.SchemaInput(parameter="p1c", labels={label: {}}, multiple=True),
             hf.SchemaInput(parameter="p2", default_value=201),
         ],
         actions=[
             hf.Action(
                 environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
                 commands=[
-                    hf.Command(command=f"echo <<parameter:p1[{label}]>> <<parameter:p2>>")
+                    hf.Command(
+                        command=f"echo <<parameter:p1c[{label}]>> <<parameter:p2>>"
+                    )
                 ],
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1c", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
         template_name="temp",
     )
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    assert run.get_input_values() == {"p2": 201, "p1": {label: p1_val}}
+    assert run.get_input_values() == {"p2": 201, "p1c": {label: p1_val}}

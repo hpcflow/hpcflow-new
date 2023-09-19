@@ -155,12 +155,89 @@ def make_workflow(
 
 
 @dataclass
+class P1_sub_parameter_cls(ParameterValue):
+    _typ = "p1_sub"
+
+    e: int
+
+    def CLI_format(self) -> str:
+        return str(self.e)
+
+    @property
+    def twice_e(self):
+        return self.e * 2
+
+
+@dataclass
+class P1_sub_parameter_cls_2(ParameterValue):
+    _typ = "p1_sub_2"
+
+    f: int
+
+
+@dataclass
 class P1_parameter_cls(ParameterValue):
-    _typ = "p1"
+    _typ = "p1c"
+    _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 
     a: int
     d: Optional[int] = None
+    sub_param: Optional[P1_sub_parameter_cls] = None
+
+    def __post_init__(self):
+        if self.sub_param is not None and not isinstance(
+            self.sub_param, P1_sub_parameter_cls
+        ):
+            self.sub_param = P1_sub_parameter_cls(**self.sub_param)
 
     @classmethod
     def from_data(cls, b, c):
         return cls(a=b + c)
+
+    @property
+    def twice_a(self):
+        return self.a * 2
+
+    @property
+    def sub_param_prop(self):
+        return P1_sub_parameter_cls(e=4 * self.a)
+
+    def CLI_format(self) -> str:
+        return str(self.a)
+
+    @staticmethod
+    def CLI_format_group(*objs) -> str:
+        pass
+
+    @staticmethod
+    def sum(*objs, **kwargs) -> str:
+        return str(sum(i.a for i in objs))
+
+    def custom_CLI_format(
+        self, add: Optional[str] = None, sub: Optional[str] = None
+    ) -> str:
+        add = 4 if add is None else int(add)
+        sub = 0 if sub is None else int(sub)
+        return str(self.a + add - sub)
+
+    def custom_CLI_format_prep(self, reps: Optional[str] = None) -> List[int]:
+        """Used for testing custom object CLI formatting.
+
+        For example, with a command like this:
+
+        `<<join[delim=","](parameter:p1c.custom_CLI_format_prep(reps=4))>>`.
+
+        """
+        reps = 1 if reps is None else int(reps)
+        return [self.a] * reps
+
+    @classmethod
+    def CLI_parse(cls, a_str: str, double: Optional[str] = "", e: Optional[str] = None):
+        a = int(a_str)
+        if double.lower() == "true":
+            a *= 2
+        if e:
+            sub_param = P1_sub_parameter_cls(e=int(e))
+        else:
+            sub_param = None
+        return cls(a=a, sub_param=sub_param)

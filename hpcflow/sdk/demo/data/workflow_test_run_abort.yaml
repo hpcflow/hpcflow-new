@@ -14,29 +14,25 @@ task_schemas:
     actions:
       - abortable: true
         rules:
-          - rule:
-              path: [resources.os_name]
-              condition: { value.equal_to: posix }
+          - path: resources.os_name
+            condition: { value.equal_to: posix }
         commands:
           - command: sleep <<parameter:sleep_time_seconds>>
       - abortable: true
         rules:
-          - rule:
-              path: [resources.os_name]
-              condition: { value.equal_to: nt }
+          - path: resources.os_name
+            condition: { value.equal_to: nt }
         commands:
           - command: Start-Sleep <<parameter:sleep_time_seconds>>
       - rules:
-          - rule:
-              path: [resources.os_name]
-              condition: { value.equal_to: posix }
+          - path: resources.os_name
+            condition: { value.equal_to: posix }
         commands:
           - command: echo "true"
             stdout: <<parameter:is_finished>>
       - rules:
-          - rule:
-              path: [resources.os_name]
-              condition: { value.equal_to: nt }
+          - path: resources.os_name
+            condition: { value.equal_to: nt }
         commands:
           - command: Write-Output "true"
             stdout: <<parameter:is_finished>>

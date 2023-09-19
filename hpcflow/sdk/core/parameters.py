@@ -26,6 +26,7 @@ Numeric = Union[int, float, np.number]
 
 class ParameterValue:
     _typ = None
+    _sub_parameters = {}
 
     def to_dict(self):
         if hasattr(self, "__dict__"):
@@ -91,11 +92,15 @@ class Parameter(JSONLike):
 
     def __post_init__(self):
         self.typ = check_valid_py_identifier(self.typ)
+        self._set_value_class()
+
+    def _set_value_class(self):
         # custom parameter classes must inherit from `ParameterValue` not the app
         # subclass:
-        for i in ParameterValue.__subclasses__():
-            if i._typ == self.typ:
-                self._value_class = i
+        if self._value_class is None:
+            for i in ParameterValue.__subclasses__():
+                if i._typ == self.typ:
+                    self._value_class = i
 
     def __lt__(self, other):
         return self.typ < other.typ
@@ -1014,6 +1019,7 @@ class InputValue(AbstractInputValue):
         label: Optional[str] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
+        __check_obj: Optional[bool] = True,
     ):
         if isinstance(parameter, str):
             parameter = self.app.parameters.get(parameter)
@@ -1036,6 +1042,29 @@ class InputValue(AbstractInputValue):
         # record if a ParameterValue sub-class is passed for value, which allows us
         # to re-init the object on `.value`:
         self._value_is_obj = isinstance(value, ParameterValue)
+        if __check_obj:
+            self._check_dict_value_if_object()
+
+    def _check_dict_value_if_object(self):
+        """For non-persistent input values, check that, if a matching `ParameterValue`
+        class exists and the specified value is not of that type, then the specified
+        value is a dict, which can later be passed to the ParameterValue sub-class
+        to initialise the object.
+        """
+        if (
+            self._value_group_idx is None
+            and not self.path
+            and not self._value_is_obj
+            and self.parameter._value_class
+            and not isinstance(self._value, dict)
+        ):
+            # TODO: what about if the value is `None`? Is that an issue?
+            raise ValueError(
+                f"{self.__class__.__name__} with specified value {self._value!r} is "
+                f"associated with a ParameterValue subclass "
+                f"({self.parameter._value_class!r}), but the value data type is not a "
+                f"dict."
+            )
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1043,7 +1072,7 @@ class InputValue(AbstractInputValue):
         kwargs.pop("_schema_input", None)
         _value_group_idx = kwargs.pop("_value_group_idx")
         _value_is_obj = kwargs.pop("_value_is_obj")
-        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj = self.__class__(**copy.deepcopy(kwargs, memo), _InputValue__check_obj=False)
         obj._value = _value
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
@@ -1094,10 +1123,10 @@ class InputValue(AbstractInputValue):
         if "_value" in json_like:
             json_like["value"] = json_like.pop("_value")
 
-        obj = cls(**json_like)
+        obj = cls(**json_like, _InputValue__check_obj=False)
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
-
+        obj._check_dict_value_if_object()
         return obj
 
     @property
@@ -1555,8 +1584,19 @@ class InputSource(JSONLike):
         task_source_type=None,
         element_iters=None,
         path=None,
-        where=None,
+        where: Optional[
+            Union[dict, app.Rule, List[dict], List[app.Rule], app.ElementFilter]
+        ] = None,
     ):
+        if where is not None and not isinstance(where, app.ElementFilter):
+            rules = where
+            if not isinstance(rules, list):
+                rules = [rules]
+            for idx, i in enumerate(rules):
+                if not isinstance(i, app.Rule):
+                    rules[idx] = app.Rule(**i)
+            where = app.ElementFilter(rules=rules)
+
         self.source_type = self._validate_source_type(source_type)
         self.import_ref = import_ref
         self.task_ref = task_ref
@@ -1593,20 +1633,25 @@ class InputSource(JSONLike):
     def __repr__(self) -> str:
         cls_method_name = self.source_type.name.lower()
 
+        args_lst = []
+
         if self.source_type is InputSourceType.IMPORT:
             cls_method_name += "_"
-            args = f"import_ref={self.import_ref}"
+            args_lst.append(f"import_ref={self.import_ref}")
 
         elif self.source_type is InputSourceType.TASK:
-            args = (
-                f"task_ref={self.task_ref}, "
-                f"task_source_type={self.task_source_type.name.lower()!r}"
+            args_lst += (
+                f"task_ref={self.task_ref}",
+                f"task_source_type={self.task_source_type.name.lower()!r}",
             )
-            if self.element_iters:
-                args += f", element_iters={self.element_iters}"
-        else:
-            args = ""
 
+        if self.element_iters:
+            args_lst.append(f"element_iters={self.element_iters}")
+
+        if self.where is not None:
+            args_lst.append(f"where={self.where!r}")
+
+        args = ", ".join(args_lst)
         out = f"{self.__class__.__name__}.{cls_method_name}({args})"
 
         return out
@@ -1621,7 +1666,7 @@ class InputSource(JSONLike):
 
     def is_in(self, other_input_sources: List[app.InputSource]) -> Union[None, int]:
         """Check if this input source is in a list of other input sources, without
-        considering the `element_iters` attribute."""
+        considering the `element_iters` and `where` attributes."""
 
         for idx, other in enumerate(other_input_sources):
             if (
@@ -1629,7 +1674,6 @@ class InputSource(JSONLike):
                 and self.import_ref == other.import_ref
                 and self.task_ref == other.task_ref
                 and self.task_source_type == other.task_source_type
-                and self.where == other.where
                 and self.path == other.path
             ):
                 return idx
@@ -1740,8 +1784,13 @@ class InputSource(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     @classmethod
-    def import_(cls, import_ref):
-        return cls(source_type=cls.app.InputSourceType.IMPORT, import_ref=import_ref)
+    def import_(cls, import_ref, element_iters=None, where=None):
+        return cls(
+            source_type=cls.app.InputSourceType.IMPORT,
+            import_ref=import_ref,
+            element_iters=element_iters,
+            where=where,
+        )
 
     @classmethod
     def local(cls):
@@ -1752,12 +1801,13 @@ class InputSource(JSONLike):
         return cls(source_type=cls.app.InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, element_iters=None):
+    def task(cls, task_ref, task_source_type=None, element_iters=None, where=None):
         if not task_source_type:
             task_source_type = cls.app.TaskSourceType.OUTPUT
         return cls(
             source_type=cls.app.InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=cls._validate_task_source_type(task_source_type),
+            where=where,
             element_iters=element_iters,
         )

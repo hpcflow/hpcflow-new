@@ -11,7 +11,8 @@ import subprocess
 from textwrap import indent, dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from valida.rules import Rule
+from valida.conditions import ConditionLike
+
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
@@ -334,6 +335,7 @@ class ElementActionRun:
         path: str = None,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ):
         return self.element_iteration.get(
             path=path,
@@ -341,6 +343,7 @@ class ElementActionRun:
             run_idx=self.index,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_EAR_dependencies(self, as_objects=False):
@@ -654,7 +657,7 @@ class ElementActionRun:
 
     def compose_commands(
         self, jobscript: app.Jobscript, JS_action_idx: int
-    ) -> Tuple[str, List[str]]:
+    ) -> Tuple[str, List[str], List[int]]:
         """
         Returns
         -------
@@ -681,16 +684,18 @@ class ElementActionRun:
             command_lns += list(env.setup)
 
         shell_vars = []
-        for command in self.action.commands:
+        cmd_indices = []
+        for cmd_idx, command in enumerate(self.action.commands):
             cmd_str, shell_vars_i = command.get_command_line(
                 EAR=self, shell=jobscript.shell, env=env
             )
             shell_vars.extend(shell_vars_i)
+            cmd_indices.append(cmd_idx)
             command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
 
-        return commands, shell_vars
+        return commands, shell_vars, cmd_indices
 
 
 class ElementAction:
@@ -813,6 +818,7 @@ class ElementAction:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ):
         return self.element_iteration.get(
             path=path,
@@ -820,6 +826,7 @@ class ElementAction:
             run_idx=run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_parameter_names(self, prefix):
@@ -1070,41 +1077,60 @@ class ActionEnvironment(JSONLike):
             self.scope = self.app.ActionScope.any()
 
 
-@dataclass
 class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
-    _app_attr = "app"
+    _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
 
-    _child_objects = (ChildObjectSpec(name="rule", class_obj=Rule),)
-
-    check_exists: Optional[str] = None
-    check_missing: Optional[str] = None
-    rule: Optional[Rule] = None
-
-    def __post_init__(self):
-        if (
-            self.check_exists is not None
-            and self.check_missing is not None
-            and self.rule is not None
-        ) or (
-            self.check_exists is None and self.check_missing is None and self.rule is None
+    def __init__(
+        self,
+        rule: Optional[app.Rule] = None,
+        check_exists: Optional[str] = None,
+        check_missing: Optional[str] = None,
+        path: Optional[str] = None,
+        condition: Optional[Union[Dict, ConditionLike]] = None,
+        cast: Optional[str] = None,
+        doc: Optional[str] = None,
+    ):
+        if rule is None:
+            rule = app.Rule(
+                check_exists=check_exists,
+                check_missing=check_missing,
+                path=path,
+                condition=condition,
+                cast=cast,
+                doc=doc,
+            )
+        elif any(
+            i is not None
+            for i in (check_exists, check_missing, path, condition, cast, doc)
         ):
-            raise ValueError(
-                "Specify exactly one of `check_exists`, `check_missing` and `rule`."
+            raise TypeError(
+                f"{self.__class__.__name__} `rule` specified in addition to rule "
+                f"constructor arguments."
             )
 
-    def __repr__(self):
-        out = f"{self.__class__.__name__}("
-        if self.check_exists:
-            out += f"check_exists={self.check_exists!r}"
-        elif self.check_missing:
-            out += f"check_missing={self.check_missing!r}"
-        else:
-            out += f"rule={self.rule}"
-        out += ")"
-        return out
+        self.rule = rule
+        self.action = None  # assigned by parent action
+
+    def __eq__(self, other):
+        if type(other) is not self.__class__:
+            return False
+        if self.rule == other.rule:
+            return True
+        return False
+
+    def test(self, element_iteration: app.ElementIteration) -> bool:
+        return self.rule.test(element_like=element_iteration, action=self.action)
+
+    @classmethod
+    def check_exists(cls, check_exists):
+        return cls(rule=app.Rule(check_exists=check_exists))
+
+    @classmethod
+    def check_missing(cls, check_missing):
+        return cls(rule=app.Rule(check_missing=check_missing))
 
 
 class Action(JSONLike):
@@ -1150,6 +1176,7 @@ class Action(JSONLike):
             name="rules",
             class_name="ActionRule",
             is_multiple=True,
+            parent_ref="action",
         ),
     )
 
@@ -1185,6 +1212,8 @@ class Action(JSONLike):
 
         self._task_schema = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
+
+        self._set_parent_refs()
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1383,7 +1412,7 @@ class Action(JSONLike):
             # always run OPs, for now
 
             out_file_rules = [
-                self.app.ActionRule(check_missing=f"output_files.{j.label}")
+                self.app.ActionRule.check_missing(f"output_files.{j.label}")
                 for i in self.output_file_parsers
                 for j in i.output_files
             ]
@@ -1511,17 +1540,29 @@ class Action(JSONLike):
 
             return cmd_acts
 
-    def get_command_input_types(self) -> Tuple[str]:
-        """Get parameter types from commands."""
+    def get_command_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
+        """Get parameter types from commands.
+
+        Parameters
+        ----------
+        sub_parameters
+            If True, sub-parameters (i.e. dot-delimited parameter types) will be returned
+            untouched. If False (default), only return the root parameter type and
+            disregard the sub-parameter part.
+        """
         params = []
         # note: we use "parameter" rather than "input", because it could be a schema input
         # or schema output.
-        vars_regex = r"\<\<parameter:(.*?)\>\>"
+        vars_regex = r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>"
         for command in self.commands:
             for val in re.findall(vars_regex, command.command or ""):
+                if not sub_parameters:
+                    val = val.split(".")[0]
                 params.append(val)
             for arg in command.arguments or []:
                 for val in re.findall(vars_regex, arg):
+                    if not sub_parameters:
+                        val = val.split(".")[0]
                     params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
@@ -1551,9 +1592,17 @@ class Action(JSONLike):
 
         return tuple(set(params))
 
-    def get_input_types(self) -> Tuple[str]:
+    def get_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
         """Get the input types that are consumed by commands and input file generators of
-        this action."""
+        this action.
+
+        Parameters
+        ----------
+        sub_parameters
+            If True, sub-parameters (i.e. dot-delimited parameter types) in command line
+            inputs will be returned untouched. If False (default), only return the root
+            parameter type and disregard the sub-parameter part.
+        """
         is_script = (
             self.script
             and not self.input_file_generators
@@ -1562,7 +1611,7 @@ class Action(JSONLike):
         if is_script:
             params = self.task_schema.input_types
         else:
-            params = list(self.get_command_input_types())
+            params = list(self.get_command_input_types(sub_parameters))
             for i in self.input_file_generators:
                 params.extend([j.typ for j in i.inputs])
             for i in self.output_file_parsers:
@@ -1762,3 +1811,7 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
+
+    def test_rules(self, element_iter) -> List[bool]:
+        """Test all rules against the specified element iteration."""
+        return [i.test(element_iteration=element_iter) for i in self.rules]

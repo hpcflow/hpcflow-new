@@ -3,7 +3,7 @@ import copy
 from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 from valida.rules import Rule
 
@@ -14,8 +14,11 @@ from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
+    ContainerKeyError,
     ExtraInputs,
+    MayNeedObjectError,
     MissingInputs,
+    NoAvailableElementSetsError,
     TaskTemplateInvalidNesting,
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
@@ -24,7 +27,7 @@ from .errors import (
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
-from .parameters import InputSourceType
+from .parameters import InputSourceType, ParameterValue, TaskSourceType
 from .utils import (
     get_duplicate_items,
     get_in_container,
@@ -745,6 +748,40 @@ class Task(JSONLike):
     def _element_indices(self):
         return self.workflow_template.workflow.tasks[self.index].element_indices
 
+    def _get_task_source_element_iters(
+        self, in_or_out: str, src_task, labelled_path, element_set
+    ) -> List[int]:
+        if in_or_out == "input":
+            # input parameter might not be provided e.g. if it only used
+            # to generate an input file, and that input file is passed
+            # directly, so consider only source task element sets that
+            # provide the input locally:
+            es_idx = src_task.get_param_provided_element_sets(labelled_path)
+        else:
+            # outputs are always available, so consider all source task
+            # element sets:
+            es_idx = list(range(src_task.num_element_sets))
+
+        if not es_idx:
+            raise NoAvailableElementSetsError()
+        else:
+            src_elem_iters = []
+            for es_idx_i in es_idx:
+                es_i = src_task.element_sets[es_idx_i]
+                src_elem_iters += es_i.elem_iter_IDs
+
+        if element_set.sourceable_elem_iters is not None:
+            # can only use a subset of element iterations (this is the
+            # case where this element set is generated from an upstream
+            # element set, in which case we only want to consider newly
+            # added upstream elements when adding elements from this
+            # element set):
+            src_elem_iters = list(
+                set(element_set.sourceable_elem_iters) & set(src_elem_iters)
+            )
+
+        return src_elem_iters
+
     def get_available_task_input_sources(
         self,
         element_set: app.ElementSet,
@@ -784,41 +821,17 @@ class Task(JSONLike):
                 ):
                     if inputs_path in labelled_path:
                         avail_src_path = labelled_path
-                        if in_or_out == "input":
-                            # input parameter might not be provided e.g. if it only used
-                            # to generate an input file, and that input file is passed
-                            # directly, so consider only source task element sets that
-                            # provide the input locally:
-                            es_idx = src_task_i.get_param_provided_element_sets(
-                                labelled_path
+                        try:
+                            src_elem_iters = self._get_task_source_element_iters(
+                                in_or_out=in_or_out,
+                                src_task=src_task_i,
+                                labelled_path=labelled_path,
+                                element_set=element_set,
                             )
-                        else:
-                            # outputs are always available, so consider all source task
-                            # element sets:
-                            es_idx = list(range(src_task_i.num_element_sets))
-
-                        if not es_idx:
+                        except NoAvailableElementSetsError:
                             continue
-                        else:
-                            src_elem_iters = []
-                            for es_idx_i in es_idx:
-                                es_i = src_task_i.element_sets[es_idx_i]
-                                src_elem_iters += es_i.elem_iter_IDs
-
-                        if element_set.sourceable_elem_iters is not None:
-                            # can only use a subset of element iterations (this is the
-                            # case where this element set is generated from an upstream
-                            # element set, in which case we only want to consider newly
-                            # added upstream elements when adding elements from this
-                            # element set):
-                            src_elem_iters = list(
-                                set(element_set.sourceable_elem_iters)
-                                & set(src_elem_iters)
-                            )
-
-                    elif labelled_path in inputs_path and in_or_out == "output":
+                    elif labelled_path in inputs_path:
                         avail_src_path = inputs_path
-
                         inputs_path_label = None
                         out_label = None
                         try:
@@ -829,7 +842,7 @@ class Task(JSONLike):
                             for out_lab_i in src_task_i.output_labels:
                                 if out_lab_i.label == inputs_path_label:
                                     out_label = out_lab_i
-                        if out_label:
+                        if out_label and in_or_out == "output":
                             # find element iteration IDs that match the output label
                             # filter:
                             param_path = ".".join(
@@ -843,7 +856,8 @@ class Task(JSONLike):
                                 params = getattr(elem_i, param_path_split[0])
                                 param_dat = getattr(params, param_path_split[1]).value
 
-                                # for remaining paths components try both getattr and getitem:
+                                # for remaining paths components try both getattr and
+                                # getitem:
                                 for path_k in param_path_split[2:]:
                                     try:
                                         param_dat = param_dat[path_k]
@@ -857,7 +871,13 @@ class Task(JSONLike):
                                 )
                                 if rule.test([param_dat]).is_valid:
                                     src_elem_iters.append(elem_i.iterations[0].id_)
-
+                        else:
+                            src_elem_iters = self._get_task_source_element_iters(
+                                in_or_out=in_or_out,
+                                src_task=src_task_i,
+                                labelled_path=labelled_path,
+                                element_set=element_set,
+                            )
                     else:
                         continue
 
@@ -1054,11 +1074,6 @@ class Task(JSONLike):
             for inp_j in schema_i.inputs
             if inp_j.typ in self.undefined_input_types
         ]
-
-    @property
-    def unsourced_inputs(self):
-        """Get schema input types for which no input sources are currently specified."""
-        return self.all_schema_input_types - set(self.input_sources.keys())
 
     def provides_parameters(self) -> Tuple[Tuple[str, str]]:
         """Get all provided parameter labelled types and whether they are inputs and
@@ -1375,7 +1390,7 @@ class WorkflowTask:
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
 
         # sort smallest to largest path, so more-specific items overwrite less-specific
-        # items parameter retrieval:
+        # items in parameter retrieval in `WorkflowTask._get_merged_parameter_data`:
         input_data_idx = dict(sorted(input_data_idx.items()))
 
         return (input_data_idx, sequence_idx, source_idx)
@@ -1435,6 +1450,7 @@ class WorkflowTask:
                     specified_source, self.unique_name
                 )
                 avail_idx = specified_source.is_in(avail_i)
+                available_source = avail_i[avail_idx]
                 if avail_idx is None:
                     raise ValueError(
                         f"The input source {specified_source.to_string()!r} is not "
@@ -1442,11 +1458,26 @@ class WorkflowTask:
                         f"input sources are: {[i.to_string() for i in avail_i]}."
                     )
                 else:
-                    # overwrite with the source from available_sources, since it will have
-                    # the `element_iters` attribute assigned:
-                    element_set.input_sources[path_i][s_idx] = avail_i[avail_idx]
+                    # overwrite with the source from available_sources, since it may have
+                    # the `element_iters` attribute assigned, but first check if we need
+                    # to filter:
+                    filtered_IDs = None
+                    if specified_source.where:
+                        elem_iters = self.workflow.get_element_iterations_from_IDs(
+                            available_source.element_iters
+                        )
+                        filtered = specified_source.where.filter(elem_iters)
+                        filtered_IDs = [i.id_ for i in filtered]
 
-        unsourced_inputs = req_types - set(element_set.input_sources.keys())
+                    if filtered_IDs is not None:
+                        available_source.element_iters = filtered_IDs
+
+                    element_set.input_sources[path_i][s_idx] = available_source
+
+        # sorting ensures that root parameters come before sub-parameters, which is
+        # necessary when considering if we want to include a sub-parameter, when setting
+        # missing sources below:
+        unsourced_inputs = sorted(req_types - set(element_set.input_sources.keys()))
 
         extra_types = set(k for k, v in all_stats.items() if v.is_extra)
         if extra_types:
@@ -1461,7 +1492,12 @@ class WorkflowTask:
 
         # set source for any unsourced inputs:
         missing = []
+        # track which root params we have set according to default behaviour (not
+        # specified by user):
+        set_root_params = []
         for input_type in unsourced_inputs:
+            input_split = input_type.split(".")
+            has_root_param = input_split[0] if len(input_split) > 1 else None
             inp_i_sources = available_sources.get(input_type, [])
 
             source = None
@@ -1473,7 +1509,26 @@ class WorkflowTask:
                 missing.append(input_type)
 
             if source is not None:
+                if has_root_param and has_root_param in set_root_params:
+                    # this is a sub-parameter, and the associated root parameter was not
+                    # specified by the user either, so we previously set it according to
+                    # default behaviour
+                    root_src = element_set.input_sources[has_root_param][0]
+                    # do not set a default task-input type source for this sub-parameter
+                    # if the associated root parameter has a default-set task-output
+                    # source from the same task:
+                    if (
+                        source.source_type is InputSourceType.TASK
+                        and source.task_source_type is TaskSourceType.INPUT
+                        and root_src.source_type is InputSourceType.TASK
+                        and root_src.task_source_type is TaskSourceType.OUTPUT
+                        and source.task_ref == root_src.task_ref
+                    ):
+                        continue
+
                 element_set.input_sources.update({input_type: [source]})
+                if not has_root_param:
+                    set_root_params.append(input_type)
 
         # TODO: collate all input sources separately, then can fall back to a different
         # input source (if it was not specified manually) and if the "top" input source
@@ -1646,7 +1701,10 @@ class WorkflowTask:
                         self._initialise_element_iter_EARs(iter_i)
                         initialised.append(iter_i.id_)
                     except UnsetParameterDataError:
-                        # raised by `test_action_rule`; cannot yet initialise EARs
+                        # raised by `Action.test_rules`; cannot yet initialise EARs
+                        self.app.logger.debug(
+                            f"UnsetParameterDataError raised: cannot yet initialise runs."
+                        )
                         pass
                     else:
                         iter_i._EARs_initialised = True
@@ -1668,13 +1726,10 @@ class WorkflowTask:
                 f"element {element_iter.element.index} of task {self.unique_name!r}."
             )
             # TODO: when we support adding new runs, we will probably pass additional
-            # run-specific data index to `test_action_rule` and `generate_data_index`
+            # run-specific data index to `test_rules` and `generate_data_index`
             # (e.g. if we wanted to increase the memory requirements of a action because
             # it previously failed)
-            rules_valid = [
-                self.test_action_rule(action=action, act_rule=i, elem_iter=element_iter)
-                for i in action.rules
-            ]
+            rules_valid = action.test_rules(element_iter=element_iter)
             if all(rules_valid):
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
@@ -2037,25 +2092,61 @@ class WorkflowTask:
             default=default,
         )
 
-    def _path_to_parameter(self, path):
-        if len(path) != 2 or path[0] == "resources":
-            return
+    def _paths_to_PV_classes(self, paths: Iterable[str]) -> Dict:
+        """Return a dict mapping dot-delimited string input paths to `ParameterValue`
+        classes."""
 
-        if path[0] == "inputs":
-            try:
-                path_1 = path[1].split("[")[0]
-            except IndexError:
-                path_1 = path[1]
-            for i in self.template.schemas:
-                for j in i.inputs:
-                    if j.parameter.typ == path_1:
-                        return j.parameter
+        params = {}
+        for path in paths:
+            path_split = path.split(".")
+            if len(path_split) == 1 or path_split[0] not in ("inputs", "outputs"):
+                continue
 
-        elif path[0] == "outputs":
-            for i in self.template.schemas:
-                for j in i.outputs:
-                    if j.parameter.typ == path[1]:
-                        return j.parameter
+            # top-level parameter can be found via the task schema:
+            key_0 = ".".join(path_split[:2])
+
+            if key_0 not in params:
+                if path_split[0] == "inputs":
+                    try:
+                        path_1 = path_split[1].split("[")[0]
+                    except IndexError:
+                        path_1 = path_split[1]
+                    for i in self.template.schemas:
+                        for j in i.inputs:
+                            if j.parameter.typ == path_1 and j.parameter._value_class:
+                                params[key_0] = j.parameter._value_class
+
+                elif path_split[0] == "outputs":
+                    for i in self.template.schemas:
+                        for j in i.outputs:
+                            if (
+                                j.parameter.typ == path_split[1]
+                                and j.parameter._value_class
+                            ):
+                                params[key_0] = j.parameter._value_class
+
+            if path_split[2:]:
+                pv_classes = ParameterValue.__subclasses__()
+
+            # now proceed by searching for sub-parameters in each ParameterValue
+            # sub-class:
+            for idx, part_i in enumerate(path_split[2:], start=2):
+                parent = path_split[:idx]  # e.g. ["inputs", "p1"]
+                child = path_split[: idx + 1]  # e.g. ["inputs", "p1", "sub_param"]
+                key_i = ".".join(child)
+                if key_i in params:
+                    continue
+                parent_param = params.get(".".join(parent))
+                if parent_param:
+                    for attr_name, sub_type in parent_param._sub_parameters.items():
+                        if part_i == attr_name:
+                            # find the class with this `typ` attribute:
+                            for cls_i in pv_classes:
+                                if cls_i._typ == sub_type:
+                                    params[key_i] = cls_i
+                                    break
+
+        return params
 
     def _get_merged_parameter_data(
         self,
@@ -2067,164 +2158,264 @@ class WorkflowTask:
     ):
         """Get element data from the persistent store."""
 
-        path = [] if not path else path.split(".")
-
-        parameter = self._path_to_parameter(path)
-        sources = []
-        current_value = None
-        is_cur_val_assigned = False
-        is_obj_multi = False
-        for path_i, data_idx_i in data_index.items():
-            path_i = path_i.split(".")
-            is_parent = False
-            is_update = False
-            try:
-                rel_path = get_relative_path(path, path_i)
-                is_parent = True
-            except ValueError:
+        def _get_relevant_paths(
+            data_index: Dict, path: List[str], children_of: str = None
+        ):
+            relevant_paths = {}
+            # first extract out relevant paths in `data_index`:
+            for path_i in data_index:
+                path_i_split = path_i.split(".")
                 try:
-                    update_path = get_relative_path(path_i, path)
-                    is_update = True
-
+                    rel_path = get_relative_path(path, path_i_split)
+                    relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
                 except ValueError:
-                    # no intersection between paths
-                    continue
+                    try:
+                        update_path = get_relative_path(path_i_split, path)
+                        relevant_paths[path_i] = {
+                            "type": "update",
+                            "update_path": update_path,
+                        }
+                    except ValueError:
+                        # no intersection between paths
+                        if children_of and path_i.startswith(children_of):
+                            relevant_paths[path_i] = {"type": "sibling"}
+                        continue
 
-            is_multi = False
-            if isinstance(data_idx_i, list):
-                is_multi = True
-                if path_i == path:
-                    # print(f"{is_obj_multi=}")
-                    is_obj_multi = True
-            else:
-                data_idx_i = [data_idx_i]
+            return relevant_paths
 
-            data = []
-            for data_idx_i_j in data_idx_i:
-                if path_i[0] == "repeats":
-                    # data is an integer repeats index, rather than a parameter ID:
-                    data_j = data_idx_i_j
-                else:
-                    param_j = self.workflow.get_parameter(data_idx_i_j)
-                    if param_j.file:
-                        if param_j.file["store_contents"]:
-                            data_j = Path(self.workflow.path) / param_j.file["path"]
-                        else:
-                            data_j = Path(param_j.file["path"])
-                        data_j = data_j.as_posix()
-                    else:
-                        data_j = param_j.data
-                        if parameter and len(path_i) == 2:
-                            # retrieve the source if this is a non-sub parameter, so we can,
-                            # in the case that there is an associated `ParameterValue` class,
-                            # get the class method that should be invoked to initialise the
-                            # object:
-                            if is_multi:
-                                sources.append(param_j.source)
-                            else:
-                                sources = param_j.source
-                    if raise_on_unset and not param_j.is_set:
-                        raise UnsetParameterDataError(
-                            f"Element data path {path!r} resolves to unset data for (at "
-                            f"least) data index path: {path_i!r}."
-                        )
+        def _get_relevant_data(relevant_data_idx: Dict, raise_on_unset: bool, path: str):
+            relevant_data = {}
+            for path_i, data_idx_i in relevant_data_idx.items():
+                is_multi = isinstance(data_idx_i, list)
                 if not is_multi:
-                    data = data_j
-                else:
-                    data.append(data_j)
+                    data_idx_i = [data_idx_i]
 
-            if is_parent:
-                # replace current value:
-                try:
-                    current_value = get_in_container(data, rel_path, cast_indices=True)
-                    is_cur_val_assigned = True
-                except (KeyError, IndexError, ValueError):
-                    continue
-
-            elif is_update:
-                # update sub-part of current value
-                current_value = current_value or {}
-                set_in_container(current_value, update_path, data, ensure_path=True)
-                is_cur_val_assigned = True
-
-        if not is_cur_val_assigned:
-            if raise_on_missing:
-                # TODO: custom exception?
-                raise ValueError(f"Path {path!r} does not exist in the element data.")
-            else:
-                current_value = default
-
-        if parameter and parameter._value_class:
-            # TODO: retrieve value class method case-insensitively!
-            if isinstance(current_value, dict):
-                # return a ParameterValue instance:
-                method_name = sources.get("value_class_method")
-                if method_name:
-                    method = getattr(parameter._value_class, method_name)
-                else:
-                    method = parameter._value_class
-                current_value = method(**current_value)
-
-            elif is_obj_multi and isinstance(current_value[0], dict):
-                # return a list of ParameterValue instances:
-                current_value_ = []
-                for cur_val, src in zip(current_value, sources):
-                    method_name = src.get("value_class_method")
-                    if method_name:
-                        method = getattr(parameter._value_class, method_name)
+                data_i = []
+                methods_i = []
+                is_param_set_i = []
+                for data_idx_ij in data_idx_i:
+                    meth_i = None
+                    is_set_i = True
+                    if path_i[0] == "repeats":
+                        # data is an integer repeats index, rather than a parameter ID:
+                        data_j = data_idx_ij
                     else:
-                        method = parameter._value_class
-                    current_value_.append(method(**cur_val))
-                current_value = current_value_
+                        param_j = self.workflow.get_parameter(data_idx_ij)
+                        is_set_i = param_j.is_set
+                        if param_j.file:
+                            if param_j.file["store_contents"]:
+                                data_j = Path(self.workflow.path) / param_j.file["path"]
+                            else:
+                                data_j = Path(param_j.file["path"])
+                            data_j = data_j.as_posix()
+                        else:
+                            meth_i = param_j.source.get("value_class_method")
+                            if param_j.is_pending:
+                                # if pending, we need to convert `ParameterValue` objects
+                                # to their dict representation, so they can be merged with
+                                # other data:
+                                try:
+                                    data_j = param_j.data.to_dict()
+                                except AttributeError:
+                                    data_j = param_j.data
+                            else:
+                                # if not pending, data will be the result of an encode-
+                                # decode cycle, and it will not be initialised as an
+                                # object if the parameter is associated with a
+                                # `ParameterValue` class.
+                                data_j = param_j.data
+                        if raise_on_unset and not is_set_i:
+                            raise UnsetParameterDataError(
+                                f"Element data path {path!r} resolves to unset data for "
+                                f"(at least) data-index path: {path_i!r}."
+                            )
+                    if is_multi:
+                        data_i.append(data_j)
+                        methods_i.append(meth_i)
+                        is_param_set_i.append(is_set_i)
+                    else:
+                        data_i = data_j
+                        methods_i = meth_i
+                        is_param_set_i = is_set_i
 
-        return current_value
+                relevant_data[path_i] = {
+                    "data": data_i,
+                    "value_class_method": methods_i,
+                    "is_set": is_param_set_i,
+                    "is_multi": is_multi,
+                }
+            if not raise_on_unset:
+                to_remove = []
+                for key, dat_info in relevant_data.items():
+                    if not dat_info["is_set"] and ((path and path in key) or not path):
+                        # remove sub-paths, as they cannot be merged with this parent
+                        to_remove.extend(
+                            k for k in relevant_data if k != key and k.startswith(key)
+                        )
+                relevant_data = {
+                    k: v for k, v in relevant_data.items() if k not in to_remove
+                }
 
-    def test_action_rule(
-        self,
-        action: app.Action,
-        act_rule: app.ActionRule,
-        elem_iter: app.ElementIteration,
-    ) -> bool:
-        schema_data_idx = elem_iter.data_idx
-        check = act_rule.check_exists or act_rule.check_missing
-        if check:
-            param_s = check.split(".")
-            if len(param_s) > 2:
-                # sub-parameter, so need to try to retrieve parameter data
-                try:
-                    self._get_merged_parameter_data(
-                        schema_data_idx, raise_on_missing=True
+            return relevant_data
+
+        def _merge_relevant_data(
+            relevant_data, relevant_paths, PV_classes, path: str, raise_on_missing: bool
+        ):
+            current_val = None
+            assigned_from_parent = False
+            val_cls_method = None
+            path_is_multi = False
+            path_is_set = False
+            for path_i, data_info_i in relevant_data.items():
+                data_i = data_info_i["data"]
+                if path_i == path:
+                    val_cls_method = data_info_i["value_class_method"]
+                    path_is_multi = data_info_i["is_multi"]
+                    path_is_set = data_info_i["is_set"]
+
+                path_info = relevant_paths[path_i]
+                path_type = path_info["type"]
+                if path_type == "parent":
+                    try:
+                        if data_info_i["is_multi"]:
+                            current_val = [
+                                get_in_container(
+                                    i,
+                                    path_info["relative_path"],
+                                    cast_indices=True,
+                                )
+                                for i in data_i
+                            ]
+                            path_is_multi = True
+                            path_is_set = data_info_i["is_set"]
+                            val_cls_method = data_info_i["value_class_method"]
+                        else:
+                            current_val = get_in_container(
+                                data_i,
+                                path_info["relative_path"],
+                                cast_indices=True,
+                            )
+                    except ContainerKeyError as err:
+                        if path_i in PV_classes:
+                            err_path = ".".join([path_i] + err.path[:-1])
+                            raise MayNeedObjectError(path=err_path)
+                        continue
+                    except (IndexError, ValueError) as err:
+                        if raise_on_missing:
+                            raise err
+                        continue
+                    else:
+                        assigned_from_parent = True
+                elif path_type == "update":
+                    current_val = current_val or {}
+                    set_in_container(
+                        current_val,
+                        path_info["update_path"],
+                        data_i,
+                        ensure_path=True,
                     )
-                    return True if act_rule.check_exists else False
-                except ValueError:
-                    return False if act_rule.check_exists else True
-            else:
-                if act_rule.check_exists:
-                    return act_rule.check_exists in schema_data_idx
-                elif act_rule.check_missing:
-                    return act_rule.check_missing not in schema_data_idx
+            if path in PV_classes:
+                if path not in relevant_data:
+                    # requested data must be a sub-path of relevant data, so we can assume
+                    # path is set (if the parent was not set the sub-paths would be
+                    # removed in `_get_relevant_data`):
+                    path_is_set = path_is_set or True
 
-        else:
-            rule = act_rule.rule
-            param_path = ".".join(i.condition.callable.kwargs["value"] for i in rule.path)
-            if param_path.startswith("resources."):
-                elem_res = elem_iter.get_resources(action=action, set_defaults=True)
-                res_path = param_path.split(".")[1:]
-                element_dat = get_in_container(
-                    cont=elem_res, path=res_path, cast_indices=True
+                    if not assigned_from_parent:
+                        # search for unset parents in `relevant_data`:
+                        path_split = path.split(".")
+                        for parent_i_span in range(len(path_split) - 1, 1, -1):
+                            parent_path_i = ".".join(path_split[0:parent_i_span])
+                            relevant_par = relevant_data.get(parent_path_i)
+                            par_is_set = relevant_par["is_set"]
+                            if not par_is_set or any(not i for i in par_is_set):
+                                val_cls_method = relevant_par["value_class_method"]
+                                path_is_multi = relevant_par["is_multi"]
+                                path_is_set = relevant_par["is_set"]
+                                current_val = relevant_par["data"]
+                                break
+
+                # initialise objects
+                PV_cls = PV_classes[path]
+                if path_is_multi:
+                    _current_val = []
+                    for set_i, meth_i, val_i in zip(
+                        path_is_set, val_cls_method, current_val
+                    ):
+                        if set_i and isinstance(val_i, dict):
+                            method_i = getattr(PV_cls, meth_i) if meth_i else PV_cls
+                            _cur_val_i = method_i(**val_i)
+                        else:
+                            _cur_val_i = None
+                        _current_val.append(_cur_val_i)
+                    current_val = _current_val
+                elif path_is_set and isinstance(current_val, dict):
+                    method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
+                    current_val = method(**current_val)
+
+            return current_val
+
+        # TODO: custom exception?
+        missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
+
+        path_split = [] if not path else path.split(".")
+
+        relevant_paths = _get_relevant_paths(data_index, path_split)
+        if not relevant_paths:
+            if raise_on_missing:
+                raise missing_err
+            return default
+
+        relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
+        PV_cls_paths = list(relevant_paths.keys()) + ([path] if path else [])
+        PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+        relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
+
+        current_val = None
+        is_assigned = False
+        try:
+            current_val = _merge_relevant_data(
+                relevant_data, relevant_paths, PV_classes, path, raise_on_missing
+            )
+        except MayNeedObjectError as err:
+            path_to_init = err.path
+            path_to_init_split = path_to_init.split(".")
+            relevant_paths = _get_relevant_paths(data_index, path_to_init_split)
+            PV_cls_paths = list(relevant_paths.keys()) + [path_to_init]
+            PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+            relevant_data_idx = {
+                k: v for k, v in data_index.items() if k in relevant_paths
+            }
+            relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
+            # merge the parent data
+            current_val = _merge_relevant_data(
+                relevant_data, relevant_paths, PV_classes, path_to_init, raise_on_missing
+            )
+            # try to retrieve attributes via the initialised object:
+            rel_path_split = get_relative_path(path_split, path_to_init_split)
+            try:
+                current_val = get_in_container(
+                    current_val,
+                    rel_path_split,
+                    cast_indices=True,
+                    allow_getattr=True,
                 )
+            except (KeyError, IndexError, ValueError):
+                pass
             else:
-                element_dat = self._get_merged_parameter_data(
-                    schema_data_idx,
-                    path=param_path,
-                    raise_on_missing=True,
-                    raise_on_unset=True,
-                )
-            # test the rule:
-            # note: valida can't `rule.test` scalars yet, so wrap it in a list and set
-            # path to first element (see: https://github.com/hpcflow/valida/issues/9):
-            rule = Rule(path=[0], condition=rule.condition, cast=rule.cast)
-            return rule.test([element_dat]).is_valid
+                is_assigned = True
+
+        except (KeyError, IndexError, ValueError):
+            pass
+        else:
+            is_assigned = True
+
+        if not is_assigned:
+            if raise_on_missing:
+                raise missing_err
+            current_val = default
+
+        return current_val
 
 
 class Elements:
@@ -2302,6 +2493,7 @@ class Parameters:
     path: str
     return_element_parameters: bool
     raise_on_missing: Optional[bool] = False
+    raise_on_unset: Optional[bool] = False
     default: Optional[Any] = None
 
     def islice(self, start=None, end=None):
@@ -2353,6 +2545,7 @@ class Parameters:
                 i.get(
                     path=self.path,
                     raise_on_missing=self.raise_on_missing,
+                    raise_on_unset=self.raise_on_unset,
                     default=self.default,
                 )
                 for i in elements

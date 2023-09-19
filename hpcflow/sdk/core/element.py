@@ -1,6 +1,6 @@
 from __future__ import annotations
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -9,7 +9,7 @@ from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
-from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParallelMode
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.shells import get_shell
@@ -96,7 +96,7 @@ class _ElementPrefixedParameter:
 
     def __repr__(self):
         # If there are one or more labels present, then replace with a single name
-        # indicating there could be multiple (using `multi_prefix` prefix):
+        # indicating there could be multiple (using a `*` prefix):
         names = []
         for unlabelled, labels in self.prefixed_names_unlabelled.items():
             name_i = unlabelled
@@ -613,6 +613,7 @@ class ElementIteration:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ) -> Any:
         """Get element data from the persistent store."""
         # TODO include a "stats" parameter which when set we know the run has been
@@ -626,6 +627,9 @@ class ElementIteration:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
             # remove the trivial label:
             for key in list(data_idx.keys()):
+                if (path or "").startswith(key):
+                    # `path` uses labelled type, so no need to convert to non-labelled
+                    continue
                 lookup_val = single_label_lookup.get(key)
                 if lookup_val:
                     data_idx[lookup_val] = data_idx.pop(key)
@@ -634,6 +638,7 @@ class ElementIteration:
             data_index=data_idx,
             path=path,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
             default=default,
         )
 
@@ -644,14 +649,28 @@ class ElementIteration:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
-        out = sorted(
-            set(
-                EAR_ID
-                for i in self.action_runs
-                for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                if not EAR_ID in self.EAR_IDs_flat
+        if self.action_runs:
+            out = sorted(
+                set(
+                    EAR_ID
+                    for i in self.action_runs
+                    for EAR_ID in i.get_EAR_dependencies(as_objects=False)
+                    if not EAR_ID in self.EAR_IDs_flat
+                )
             )
-        )
+        else:
+            # if an "input-only" task schema, then there will be no action runs, but the
+            # ElementIteration can still depend on other EARs if inputs are sourced from
+            # upstream tasks:
+            out = []
+            for src in self.get_parameter_sources(typ="EAR_output").values():
+                if not isinstance(src, list):
+                    src = [src]
+                for src_i in src:
+                    EAR_ID_i = src_i["EAR_ID"]
+                    out.append(EAR_ID_i)
+            out = sorted(set(out))
+
         if as_objects:
             out = self.workflow.get_EARs_from_IDs(out)
         return out
@@ -842,8 +861,7 @@ class ElementIteration:
             resources.update({k: v for k, v in scope_res.items() if v is not None})
 
         if set_defaults:
-            # this is used in e.g. `WorkflowTask.test_action_rule` if testing action rules
-            # that concern resources:
+            # used in e.g. `Rule.test` if testing resource rules on element iterations:
             if "os_name" not in resources:
                 resources["os_name"] = self.app.ElementResources.get_default_os_name()
             if "shell" not in resources:
@@ -1096,6 +1114,7 @@ class Element:
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
     ) -> Any:
         """Get element data of the most recent iteration from the persistent store."""
         return self.latest_iteration.get(
@@ -1104,6 +1123,7 @@ class Element:
             run_idx=run_idx,
             default=default,
             raise_on_missing=raise_on_missing,
+            raise_on_unset=raise_on_unset,
         )
 
     def get_EAR_dependencies(
@@ -1239,8 +1259,20 @@ class ElementParameter:
         raise NotImplementedError
 
 
-class ElementFilter(Rule):
-    pass
+@dataclass
+class ElementFilter(JSONLike):
+    _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
+
+    rules: List[app.Rule] = field(default_factory=list)
+
+    def filter(
+        self, element_iters: List[app.ElementIteration]
+    ) -> List[app.ElementIteration]:
+        out = []
+        for i in element_iters:
+            if all(rule_j.test(i) for rule_j in self.rules):
+                out.append(i)
+        return out
 
 
 @dataclass

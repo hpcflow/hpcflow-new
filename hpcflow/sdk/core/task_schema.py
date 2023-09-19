@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Dict, List, Optional, Tuple, Union
 
 from rich import print as rich_print
@@ -79,6 +80,7 @@ class TaskSchema(JSONLike):
         inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
         outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
         version: Optional[str] = None,
+        parameter_class_modules: Optional[List[str]] = None,
         _hash_value: Optional[str] = None,
     ):
         self.objective = objective
@@ -87,6 +89,7 @@ class TaskSchema(JSONLike):
         self.implementation = implementation
         self.inputs = inputs or []
         self.outputs = outputs or []
+        self.parameter_class_modules = parameter_class_modules or []
         self._hash_value = _hash_value
 
         self._set_parent_refs()
@@ -95,6 +98,8 @@ class TaskSchema(JSONLike):
         self.actions = self._expand_actions()
         self.version = version
         self._task_template = None  # assigned by parent Task
+
+        self._update_parameter_value_classes()
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
@@ -266,6 +271,20 @@ class TaskSchema(JSONLike):
         """Create new actions for input file generators and output parsers in existing
         actions."""
         return [j for i in self.actions for j in i.expand()]
+
+    def _update_parameter_value_classes(self):
+        # ensure any referenced parameter_class_modules are imported:
+        for module in self.parameter_class_modules:
+            import_module(module)
+
+        # TODO: support specifying file paths in addition to (instead of?) importable
+        # module paths
+
+        for inp in self.inputs:
+            inp.parameter._set_value_class()
+
+        for out in self.outputs:
+            out.parameter._set_value_class()
 
     def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
         new_refs = []

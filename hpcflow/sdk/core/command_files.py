@@ -129,7 +129,7 @@ class InputFileGenerator(JSONLike):
     def get_action_rule(self):
         """Get the rule that allows testing if this input file generator must be
         run or not for a given element."""
-        return self.app.ActionRule(check_missing=f"input_files.{self.input_file.label}")
+        return self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
 
     def compose_source(self, action) -> str:
         """Generate the file contents of this input file generator source."""

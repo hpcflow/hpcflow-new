@@ -2246,13 +2246,15 @@ class Workflow:
         with self._store.cached_load():
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-            commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
-            for param_name, shell_var_name in shell_vars:
+            commands, shell_vars, indices = EAR.compose_commands(jobscript, JS_action_idx)
+            for cmd_idx, (param_name, shell_var_name, st_typ) in zip(indices, shell_vars):
                 commands += jobscript.shell.format_save_parameter(
                     workflow_app_alias=jobscript.workflow_app_alias,
                     param_name=param_name,
                     shell_var_name=shell_var_name,
                     EAR_ID=EAR_ID,
+                    cmd_idx=cmd_idx,
+                    stderr=(st_typ == "stderr"),
                 )
             commands = jobscript.shell.wrap_in_subshell(commands, EAR.action.abortable)
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
@@ -2260,12 +2262,25 @@ class Workflow:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands)
 
+    def process_shell_parameter_output(
+        self, name: str, value: str, EAR_ID: int, cmd_idx: int, stderr: bool = False
+    ) -> Any:
+        """Process the shell stdout/stderr stream according to the associated Command
+        object."""
+        with self._store.cached_load():
+            with self.batch_update():
+                EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+                command = EAR.action.commands[cmd_idx]
+                return command.process_std_stream(name, value, stderr)
+
     def save_parameter(
         self,
         name: str,
         value: Any,
         EAR_ID: int,
     ):
+        self.app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
+        self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
         with self._store.cached_load():
             with self.batch_update():
                 EAR = self.get_EARs_from_IDs([EAR_ID])[0]

@@ -2,6 +2,10 @@ import numpy as np
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import MissingInputs
+from hpcflow.sdk.core.test_utils import (
+    P1_parameter_cls as P1,
+    P1_sub_parameter_cls as P1_sub,
+)
 
 
 def test_input_source_class_method_local():
@@ -307,3 +311,352 @@ def test_no_sourceable_elements_so_default_used(
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
 
     assert wk.tasks[1].elements[0].input_sources["inputs.p3"] == "default"
+
+
+def test_equivalent_where_args():
+    rule_args = {"path": "inputs.p1", "condition": {"value.equal_to": 1}}
+    i1 = hf.InputSource.task(task_ref=0, where=rule_args)
+    i2 = hf.InputSource.task(task_ref=0, where=[rule_args])
+    i3 = hf.InputSource.task(task_ref=0, where=hf.Rule(**rule_args))
+    i4 = hf.InputSource.task(task_ref=0, where=[hf.Rule(**rule_args)])
+    i5 = hf.InputSource.task(task_ref=0, where=hf.ElementFilter([hf.Rule(**rule_args)]))
+    assert i1 == i2 == i3 == i4 == i5
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where(null_config, tmp_path, store):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(path="inputs.p1", values=[1, 2], nesting_order=0)
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(path="inputs.p1", condition={"value.equal_to": 2}),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where_parameter_value_class_sub_parameter(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(
+                    path="inputs.p1", values=[P1(a=1), P1(a=2)], nesting_order=0
+                )
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(
+                            path="inputs.p1.a", condition={"value.equal_to": 2}
+                        ),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_input_source_where_parameter_value_class_sub_parameter_property(
+    null_config, tmp_path, store
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1c"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[
+                hf.ValueSequence(
+                    path="inputs.p1c", values=[P1(a=1), P1(a=2)], nesting_order=0
+                )
+            ],
+        ),
+        hf.Task(
+            schemas=s2,
+            nesting_order={"inputs.p2": 0},
+            input_sources={
+                "p2": [
+                    hf.InputSource.task(
+                        task_ref=0,
+                        where=hf.Rule(
+                            path="inputs.p1c.twice_a", condition={"value.equal_to": 4}
+                        ),
+                    )
+                ]
+            },
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        path=tmp_path,
+        template_name="wk0",
+        overwrite=True,
+        store=store,
+    )
+    assert wk.tasks.t2.num_elements == 1
+    assert (
+        wk.tasks.t2.elements[0].get_data_idx("inputs.p2")["inputs.p2"]
+        == wk.tasks.t1.elements[1].get_data_idx("outputs.p2")["outputs.p2"]
+    )
+
+
+def test_sub_parameter_task_input_source_excluded_when_root_parameter_is_task_output_source(
+    null_config, tmp_path
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse()>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[
+            hf.SchemaInput(parameter=hf.Parameter("p1c")),
+            hf.SchemaInput(parameter=hf.Parameter("p2")),
+        ],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
+            hf.InputValue("p1c", path="a", value=20),
+        ],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        inputs=[hf.InputValue("p2", value=201)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+    # "p1c.a" source should not be included, because it would be a task-input source, which
+    # should be overridden by the "p1c" task-output source:
+    assert wk.tasks.t2.template.element_sets[0].input_sources == {
+        "p1c": [
+            hf.InputSource.task(task_ref=0, task_source_type="output", element_iters=[0])
+        ],
+        "p2": [hf.InputSource.local()],
+    }
+
+
+def test_sub_parameter_task_input_source_included_when_root_parameter_is_task_input_source(
+    null_config, tmp_path
+):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[
+            hf.SchemaInput(parameter=hf.Parameter("p1c")),
+            hf.SchemaInput(parameter=hf.Parameter("p2")),
+        ],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
+            hf.InputValue("p1c", path="a", value=20),
+        ],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        inputs=[hf.InputValue("p2", value=201)],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t2.template.element_sets[0].input_sources == {
+        "p1c": [
+            hf.InputSource.task(task_ref=0, task_source_type="input", element_iters=[0])
+        ],
+        "p1c.a": [
+            hf.InputSource.task(task_ref=0, task_source_type="input", element_iters=[0])
+        ],
+        "p2": [hf.InputSource.local()],
+    }
+
+
+def test_sub_parameter_task_input_source_allowed_when_root_parameter_is_task_output_source(
+    null_config, tmp_path
+):
+    """Check we can override the default behaviour and specify that the sub-parameter
+    task-input source should be used despite the root-parameter being a task-output
+    source."""
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        outputs=[hf.SchemaOutput(parameter="p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Output (<<parameter:p1c>> + 100)",
+                        stdout="<<parameter:p1c.CLI_parse()>>",
+                    )
+                ],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[
+            hf.SchemaInput(parameter=hf.Parameter("p1c")),
+            hf.SchemaInput(parameter=hf.Parameter("p2")),
+        ],
+    )
+    t1 = hf.Task(
+        schemas=s1,
+        inputs=[
+            hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
+            hf.InputValue("p1c", path="a", value=20),
+        ],
+    )
+    t2 = hf.Task(
+        schemas=s2,
+        inputs=[hf.InputValue("p2", value=201)],
+        input_sources={
+            "p1c.a": [hf.InputSource.task(task_ref=0, task_source_type="input")]
+        },
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1, t2],
+        template_name="w1",
+        path=tmp_path,
+    )
+    assert wk.tasks.t2.template.element_sets[0].input_sources == {
+        "p1c": [
+            hf.InputSource.task(task_ref=0, task_source_type="output", element_iters=[0])
+        ],
+        "p1c.a": [
+            hf.InputSource.task(task_ref=0, task_source_type="input", element_iters=[0])
+        ],
+        "p2": [hf.InputSource.local()],
+    }

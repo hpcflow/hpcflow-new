@@ -21,7 +21,11 @@ from ruamel.yaml import YAML
 import sentry_sdk
 from watchdog.utils.dirsnapshot import DirectorySnapshot
 
-from hpcflow.sdk.core.errors import FromSpecMissingObjectError, InvalidIdentifier
+from hpcflow.sdk.core.errors import (
+    ContainerKeyError,
+    FromSpecMissingObjectError,
+    InvalidIdentifier,
+)
 from hpcflow.sdk.typing import PathLike
 
 
@@ -145,8 +149,12 @@ def group_by_dict_key_values(lst, *keys):
     return grouped
 
 
-def get_in_container(cont, path, cast_indices=False):
+def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
     cur_data = cont
+    err_msg = (
+        "Data at path {path_comps!r} is not a sequence, but is of type "
+        "{cur_data_type!r} and so sub-data cannot be extracted."
+    )
     for idx, path_comp in enumerate(path):
         if isinstance(cur_data, (list, tuple)):
             if not isinstance(path_comp, int):
@@ -162,12 +170,21 @@ def get_in_container(cont, path, cast_indices=False):
                 else:
                     raise TypeError(msg)
             cur_data = cur_data[path_comp]
-        elif isinstance(cur_data, Mapping):
-            cur_data = cur_data[path_comp]
+        elif isinstance(cur_data, dict):
+            try:
+                cur_data = cur_data[path_comp]
+            except KeyError:
+                raise ContainerKeyError(path=path[: idx + 1])
+        elif allow_getattr:
+            try:
+                cur_data = getattr(cur_data, path_comp)
+            except AttributeError:
+                raise ValueError(
+                    err_msg.format(cur_data_type=type(cur_data), path_comps=path[:idx])
+                )
         else:
             raise ValueError(
-                f"Data at path {path[:idx]} is not a sequence, but is of type "
-                f"{type(cur_data)!r} and so sub-data cannot be extracted."
+                err_msg.format(cur_data_type=type(cur_data), path_comps=path[:idx])
             )
     return cur_data
 

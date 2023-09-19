@@ -114,7 +114,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose --exitfirst
+          poetry run python -m pytest --verbose
 
   test-units-CentOS:
     needs: pre-commit
@@ -149,7 +149,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose --exitfirst
+          poetry run python -m pytest --verbose
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
