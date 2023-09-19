@@ -1056,9 +1056,9 @@ class InputValue(AbstractInputValue):
             and not self.path
             and not self._value_is_obj
             and self.parameter._value_class
+            and self._value is not None
             and not isinstance(self._value, dict)
         ):
-            # TODO: what about if the value is `None`? Is that an issue?
             raise ValueError(
                 f"{self.__class__.__name__} with specified value {self._value!r} is "
                 f"associated with a ParameterValue subclass "
