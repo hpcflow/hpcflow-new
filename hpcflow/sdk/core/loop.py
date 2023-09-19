@@ -4,7 +4,7 @@ import copy
 from typing import Dict, List, Optional, Tuple, Union
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier
@@ -29,6 +29,7 @@ from hpcflow.sdk.core.utils import check_valid_py_identifier
 
 class Loop(JSONLike):
     _app_attr = "app"
+    _child_objects = (ChildObjectSpec(name="termination", class_name="Rule"),)
 
     def __init__(
         self,
@@ -36,6 +37,7 @@ class Loop(JSONLike):
         num_iterations: int,
         name: Optional[str] = None,
         non_iterable_parameters: Optional[List[str]] = None,
+        termination: Optional[app.Rule] = None,
     ) -> None:
         """
 
@@ -47,6 +49,8 @@ class Loop(JSONLike):
             List of task insert IDs or WorkflowTask objects
         non_iterable_parameters
             Specify input parameters that should not iterate.
+        termination
+            Stopping criterion, expressed as a rule.
 
         """
 
@@ -66,6 +70,7 @@ class Loop(JSONLike):
         self._num_iterations = num_iterations
         self._name = check_valid_py_identifier(name) if name else name
         self._non_iterable_parameters = non_iterable_parameters or []
+        self._termination = termination
 
         self._workflow_template = None  # assigned by parent WorkflowTemplate
 
@@ -99,6 +104,10 @@ class Loop(JSONLike):
     @property
     def non_iterable_parameters(self):
         return self._non_iterable_parameters
+
+    @property
+    def termination(self):
+        return self._termination
 
     @property
     def workflow_template(self):
@@ -470,3 +479,10 @@ class WorkflowLoop:
             index=self.index,
             num_iters=self.num_added_iterations,
         )
+
+    def test_termination(self, element_iter):
+        """Check if a loop should terminate, given the specified completed element
+        iteration."""
+        if self.template.termination:
+            return self.template.termination.test(element_iter)
+        return False
