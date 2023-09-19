@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a98"></a>
+## [v0.2.0a98](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a97...v0.2.0a98) - 2023.09.18
+
+### 🐛 Bug Fixes
+
+* previously added comments about importlib.resources
+* previously added comments about importlib.resources
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a97"></a>
 ## [v0.2.0a97](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a96...v0.2.0a97) - 2023.09.06
 

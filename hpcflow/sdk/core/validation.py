@@ -9,7 +9,7 @@ def get_schema(filename):
     try:
         fh = resources.files(package).joinpath(filename).open("rt")
     except AttributeError:
-        # < python 3.8; `resource.open_text` deprecated since 3.11
+        # < python 3.9; `resource.open_text` deprecated since 3.11
         fh = resources.open_text(package, filename)
     schema_dat = fh.read()
     fh.close()

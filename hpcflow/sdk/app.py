@@ -320,7 +320,7 @@ class BaseApp(metaclass=Singleton):
             try:
                 fh = resources.files(package).joinpath(resource).open("rt")
             except AttributeError:
-                # < python 3.8; `resource.open_text` deprecated since 3.11
+                # < python 3.9; `resource.open_text` deprecated since 3.11
                 fh = resources.open_text(package, resource)
             SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
             comp_dat = fh.read()
@@ -627,7 +627,7 @@ class BaseApp(metaclass=Singleton):
                 _is_rsrc = lambda pkg, name: resources.files(pkg).joinpath(name).is_file()
 
             except AttributeError:
-                # < python 3.8; `resource.contents` deprecated since 3.11
+                # < python 3.9; `resource.contents` deprecated since 3.11
                 contents = resources.contents(pkg)
                 _is_rsrc = lambda pkg, name: resources.is_resource(pkg, name)
 
@@ -640,7 +640,7 @@ class BaseApp(metaclass=Singleton):
                 try:
                     script_ctx = resources.as_file(resources.files(pkg).joinpath(i))
                 except AttributeError:
-                    # < python 3.8; `resource.path` deprecated since 3.11
+                    # < python 3.9; `resource.path` deprecated since 3.11
                     script_ctx = resources.path(pkg, i)
 
                 with script_ctx as script:
