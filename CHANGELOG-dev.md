@@ -1,4 +1,46 @@
 
+<a name="v0.2.0a99"></a>
+## [v0.2.0a99](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a98...v0.2.0a99) - 2023.09.19
+
+### ♻ Code Refactoring
+
+* of `WorkflowTask._get_merged_parameter_data`
+* add Rule class
+
+### ✨ Features
+
+* support sourcing labelled inputs from non-labelled upstream tasks
+* add `sum()` and `join()` processing functions when formatting command line parameters
+* support parsing shell stdout into different data types
+* add `TaskSchema.parameter_class_modules` list to specify importable modules container `ParameterValue` classes
+* support retrieving `ParameterValue` object properties with e.g. `Element.get`
+* allow filtering input sources in the specified task
+* use/expect `ElementFilter` in InputSource.where
+* allow defining `ActionRule` with `Rule` args
+
+### 🐛 Bug Fixes
+
+* add missing quote
+* test
+* regex pattern in `Action.get_command_input_types`
+* tests for multiple OSes
+* improve retrieval of group data when data is unset
+* get_merged_parameter_data for a group of PV objects
+* add missing sorted
+* refine default behaviour if a sub-parameter and root parameter are available as upstream task sources
+* do not check dict `InputValue.value` if sub-parameter
+* use conditional actions in test failing on posix
+* add missing import
+* invoc tests
+* fix [#501](https://github.com/hpcflow/hpcflow-new/issues/501)
+* fix [#500](https://github.com/hpcflow/hpcflow-new/issues/500)
+
+### 👷 Build changes
+
+* merge
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a98"></a>
 ## [v0.2.0a98](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a97...v0.2.0a98) - 2023.09.18
 
