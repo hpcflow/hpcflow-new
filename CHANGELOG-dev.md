@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a100"></a>
+## [v0.2.0a100](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a99...v0.2.0a100) - 2023.09.19
+
+### 🐛 Bug Fixes
+
+* allow None value in `InputValue._check_dict_value_if_object`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a99"></a>
 ## [v0.2.0a99](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a98...v0.2.0a99) - 2023.09.19
 
