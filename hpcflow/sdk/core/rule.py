@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Dict, Optional, Union
 
 from valida.conditions import ConditionLike
@@ -53,9 +54,9 @@ class Rule(JSONLike):
         return out
 
     def __eq__(self, other):
-        if type(other) is not self.__class__:
+        if not isinstance(other, Rule):
             return False
-        if (
+        elif (
             self.check_exists == other.check_exists
             and self.check_missing == other.check_missing
             and self.path == other.path
@@ -64,7 +65,8 @@ class Rule(JSONLike):
             and self.doc == other.doc
         ):
             return True
-        return False
+        else:
+            return False
 
     def test(
         self,

@@ -10,7 +10,7 @@ from valida.rules import Rule
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.parameters import ParallelMode
+from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.shells import get_shell
 
