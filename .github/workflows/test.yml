@@ -4,7 +4,7 @@ concurrency:
   ci-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION_PRE_COMMIT: "3.11"
   POETRY_VERSION: "1.4"
 
 on:
@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION_PRE_COMMIT }}
 
       - name: pre-commit
         # avoid exit code 1 (which halts GH actions) from pre-commit run command by
@@ -114,7 +114,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose
+          poetry run python -m pytest --verbose --exitfirst
 
   test-units-CentOS:
     needs: pre-commit
@@ -149,7 +149,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest --verbose
+          poetry run python -m pytest --verbose --exitfirst
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
@@ -181,7 +181,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-linux--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-linux-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -283,7 +283,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-macos--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-macos-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |
@@ -385,7 +385,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ./.venv
-          key: venv-test-invocation-windows--${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-test-invocation-windows-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: |

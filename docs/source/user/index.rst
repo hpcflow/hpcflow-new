@@ -1,7 +1,7 @@
 User Guide
 ##########
 
-hpcFlow is a computational workflow management package.
+{{ app_description }}
 
 .. toctree::
    :maxdepth: 3
