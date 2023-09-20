@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a101"></a>
+## [v0.2.0a101](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a100...v0.2.0a101) - 2023.09.20
+
+### ✨ Features
+
+* Adds script to configure and sync remotes
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a100"></a>
 ## [v0.2.0a100](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a99...v0.2.0a100) - 2023.09.19
 
