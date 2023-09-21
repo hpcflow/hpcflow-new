@@ -1666,13 +1666,14 @@ class WorkflowTask:
 
         """
 
-        # order by nesting order (so lower nesting orders will be fastest-varying):
+        # order by nesting order (lower nesting orders will be slowest-varying):
         multi_srt = sorted(multiplicities, key=lambda x: x["nesting_order"])
         multi_srt_grp = group_by_dict_key_values(
             multi_srt, "nesting_order"
         )  # TODO: is tested?
 
         element_dat_idx = [{}]
+        last_nest_ord = None
         for para_sequences in multi_srt_grp:
             # check all equivalent nesting_orders have equivalent multiplicities
             all_multis = {i["multiplicity"] for i in para_sequences}
@@ -1685,16 +1686,28 @@ class WorkflowTask:
                     f"multiplicities {[i['multiplicity'] for i in para_sequences]}."
                 )
 
+            cur_nest_ord = para_sequences[0]["nesting_order"]
             new_elements = []
-            for val_idx in range(para_sequences[0]["multiplicity"]):
-                for element in element_dat_idx:
+            for elem_idx, element in enumerate(element_dat_idx):
+                if last_nest_ord is not None and int(cur_nest_ord) == int(last_nest_ord):
+                    # merge in parallel with existing elements:
                     new_elements.append(
                         {
                             **element,
-                            **{i["path"]: val_idx for i in para_sequences},
+                            **{i["path"]: elem_idx for i in para_sequences},
                         }
                     )
+                else:
+                    for val_idx in range(para_sequences[0]["multiplicity"]):
+                        # nest with existing elements:
+                        new_elements.append(
+                            {
+                                **element,
+                                **{i["path"]: val_idx for i in para_sequences},
+                            }
+                        )
             element_dat_idx = new_elements
+            last_nest_ord = cur_nest_ord
 
         return element_dat_idx
 

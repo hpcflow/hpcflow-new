@@ -456,8 +456,8 @@ class ValueSequence(JSONLike):
     def __init__(
         self,
         path: str,
-        nesting_order: int,
         values: List[Any],
+        nesting_order: Optional[int] = 0,
         label: Optional[str] = None,
         value_class_method: Optional[str] = None,
     ):
