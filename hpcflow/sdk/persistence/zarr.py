@@ -186,7 +186,7 @@ class ZarrStoreElementIter(StoreElementIter):
             "EAR_IDs": {i[0]: i[1] for i in iter_dat[3]} if iter_dat[3] else None,
             "data_idx": {attrs["parameter_paths"][i[0]]: i[1] for i in iter_dat[4]},
             "schema_parameters": [attrs["schema_parameters"][i] for i in iter_dat[5]],
-            "loop_idx": {i[0]: i[1] for i in iter_dat[6]},
+            "loop_idx": {attrs["loops"][i[0]]: i[1] for i in iter_dat[6]},
         }
         return cls(is_pending=False, **obj_dat)
 

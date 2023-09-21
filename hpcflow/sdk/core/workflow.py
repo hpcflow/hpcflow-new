@@ -1691,7 +1691,8 @@ class Workflow:
                 self._store.set_EAR_end(EAR_ID, exit_code, success)
 
     def set_EAR_skip(self, EAR_ID: int) -> None:
-        """Record that an EAR is to be skipped due to an upstream failure."""
+        """Record that an EAR is to be skipped due to an upstream failure or loop
+        termination condition being met."""
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_EAR_skip(EAR_ID)
@@ -2257,6 +2258,19 @@ class Workflow:
                     stderr=(st_typ == "stderr"),
                 )
             commands = jobscript.shell.wrap_in_subshell(commands, EAR.action.abortable)
+
+            # add loop-check command if this is the last action of this loop iteration for
+            # this element:
+            final_runs = self.get_iteration_final_run_IDs(id_lst=jobscript.all_EAR_IDs)
+            for loop_name, run_IDs in final_runs.items():
+                if EAR.id_ in run_IDs:
+                    loop_cmd = jobscript.shell.format_loop_check(
+                        workflow_app_alias=jobscript.workflow_app_alias,
+                        loop_name=loop_name,
+                        run_ID=EAR.id_,
+                    )
+                    commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
+
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
@@ -2346,6 +2360,66 @@ class Workflow:
                         f"Input source {input_source.to_string()!r} refers to a missing "
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
+
+    def get_all_submission_run_IDs(self) -> List[int]:
+        id_lst = []
+        for sub in self.submissions:
+            id_lst.extend(list(sub.all_EAR_IDs))
+        return id_lst
+
+    def check_loop_termination(self, loop_name: str, run_ID: int) -> bool:
+        """Check if a loop should terminate, given the specified completed run, and if so,
+        set downstream iteration runs to be skipped."""
+        loop = self.loops.get(loop_name)
+        elem_iter = self.get_EARs_from_IDs([run_ID])[0].element_iteration
+        if loop.test_termination(elem_iter):
+            to_skip = []  # run IDs of downstream iterations that can be skipped
+            elem_id = elem_iter.element.id_
+            loop_map = self.get_loop_map()  # over all jobscripts
+            for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():
+                if iter_idx > elem_iter.index:
+                    to_skip.extend([i[0] for i in iter_dat])
+            self.app.logger.info(
+                f"Loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
+            )
+            for run_ID in to_skip:
+                self.set_EAR_skip(run_ID)
+
+    def get_loop_map(self, id_lst: Optional[List[int]] = None):
+        # TODO: test this works across multiple jobscripts
+        if id_lst is None:
+            id_lst = self.get_all_submission_run_IDs()
+        loop_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        runs = self.get_EARs_from_IDs(id_lst)
+        for i in runs:
+            for loop_name, iter_idx in i.element_iteration.loop_idx.items():
+                act_idx = i.element_action.action_idx
+                loop_map[loop_name][i.element.id_][iter_idx].append((i.id_, act_idx))
+        return loop_map
+
+    def get_iteration_final_run_IDs(
+        self,
+        loop_map: Optional[Dict] = None,
+        id_lst: Optional[List[int]] = None,
+    ) -> Dict[str, List[int]]:
+        """Retrieve the run IDs of those runs that correspond to the final action within
+        a named loop iteration.
+
+        These runs represent the final action of a given element-iteration; this is used to
+        identify which commands file to append a loop-termination check to.
+
+        """
+        loop_map = loop_map or self.get_loop_map(id_lst)
+
+        # find final EARs for each loop:
+        final_runs = defaultdict(list)
+        for loop_name, dat in loop_map.items():
+            for _, elem_dat in dat.items():
+                for _, iter_dat in elem_dat.items():
+                    # sort by largest action index first, so we get save only the final EAR
+                    final = sorted(iter_dat, key=lambda x: x[1], reverse=True)[0]
+                    final_runs[loop_name].append(final[0])
+        return dict(final_runs)
 
 
 @dataclass

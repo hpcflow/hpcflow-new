@@ -4,6 +4,7 @@ import sys
 import time
 import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
@@ -330,3 +331,83 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
     assert wk.tasks.t2.num_elements == 4
     assert wk.tasks.t3.num_elements == 1
     assert wk.tasks.t3.elements[0].outputs.p3.value == 410
+
+
+def test_loop_simple(null_config, tmp_path):
+    if os.name == "nt":
+        cmd = "Write-Output (<<parameter:p1>> + 100)"
+    else:
+        cmd = 'echo "$((<<parameter:p1>> + 100))"'
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(commands=[hf.Command(command=cmd, stdout="<<int(parameter:p1)>>")]),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])],
+        loops=[hf.Loop(tasks=[0], num_iterations=3)],
+        path=tmp_path,
+        template_name="wk0",
+    )
+    wk.submit(wait=True)
+    assert wk.tasks.t1.elements[0].get("outputs.p1") == 301
+
+
+def test_loop_termination_multi_element(null_config, tmp_path):
+    if os.name == "nt":
+        cmds = [
+            "Write-Output (<<parameter:p1>> + 100)",
+            "Write-Output 'Hello from the second action!'",
+        ]
+    else:
+        cmds = [
+            'echo "$((<<parameter:p1>> + 100))"',
+            'echo "Hello from the second action!"',
+        ]
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[hf.Command(command=cmds[0], stdout="<<int(parameter:p1)>>")]
+            ),
+            hf.Action(commands=[hf.Command(command=cmds[1])]),
+        ],
+    )
+    tasks = [
+        hf.Task(
+            schemas=s1,
+            sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
+        ),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        loops=[
+            hf.Loop(
+                tasks=[0],
+                num_iterations=3,
+                termination=hf.Rule(
+                    path="outputs.p1", condition={"value.greater_than": 201}
+                ),
+            )
+        ],
+        path=tmp_path,
+        template_name="wk0",
+    )
+    wk.submit(wait=True)
+    elem_0 = wk.tasks.t1.elements[0]
+    elem_1 = wk.tasks.t1.elements[1]
+
+    # all three iterations needed for first element:
+    assert elem_0.iterations[0].action_runs[0].status is EARStatus.success
+    assert elem_0.iterations[1].action_runs[0].status is EARStatus.success
+    assert elem_0.iterations[2].action_runs[0].status is EARStatus.success
+
+    # only first two iterations needed for second element:
+    assert elem_1.iterations[0].action_runs[0].status is EARStatus.success
+    assert elem_1.iterations[1].action_runs[0].status is EARStatus.success
+    assert elem_1.iterations[2].action_runs[0].status is EARStatus.skipped

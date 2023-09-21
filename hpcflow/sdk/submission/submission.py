@@ -201,7 +201,7 @@ class Submission(JSONLike):
 
     @property
     def all_EAR_IDs(self):
-        return [i for js in self.jobscripts for i in js.EAR_ID.flatten()]
+        return [i for js in self.jobscripts for i in js.all_EAR_IDs]
 
     @property
     def all_EARs(self):

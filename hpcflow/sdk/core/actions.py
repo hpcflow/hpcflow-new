@@ -81,7 +81,10 @@ class EARStatus(enum.Enum):
         4,
         "■",
         "dark_orange",
-        "Not attempted due to a failure of an upstream action on which this depends.",
+        (
+            "Not attempted due to a failure of an upstream action on which this depends, "
+            "or a loop termination condition being satisfied."
+        ),
     )
     aborted = (
         5,

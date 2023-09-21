@@ -191,6 +191,15 @@ class Bash(Shell):
             f"\n"
         )
 
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+        return (
+            f"{workflow_app_alias} "
+            f'internal workflow "$WK_PATH_ARG" check-loop '
+            f"{loop_name} {run_ID} "
+            f'>> "$app_stream_file" 2>&1'
+            f"\n"
+        )
+
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a subshell.
 
