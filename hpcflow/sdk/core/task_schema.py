@@ -116,38 +116,54 @@ class TaskSchema(JSONLike):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
     def _show_info(self, include=None):
+        def _get_param_type_str(parameter):
+            type_fmt = "-"
+            if parameter._validation:
+                try:
+                    type_fmt = parameter._validation.to_tree()[0]["type_fmt"]
+                except Exception:
+                    pass
+            elif parameter._value_class:
+                param_cls = parameter._value_class
+                cls_url = (
+                    f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                    f"{param_cls.__name__}"
+                )
+                type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
+            return type_fmt
+
         if not include:
             include = ("inputs", "outputs", "actions")
 
-        tab = Table(show_header=False, box=None, padding=(1, 1), collapse_padding=True)
+        tab = Table(show_header=False, box=None, padding=(0, 0), collapse_padding=True)
         tab.add_column(justify="right")
         tab.add_column()
 
+        from rich.table import box
+
+        tab_ins_outs = None
+        if "inputs" in include or "outputs" in include:
+            tab_ins_outs = Table(
+                show_header=False,
+                box=None,
+                padding=(0, 1),
+            )
+
+            tab_ins_outs.add_column(justify="left")  # row heading ("Inputs" or "Outputs")
+            tab_ins_outs.add_column()  # parameter name
+            tab_ins_outs.add_column()  # type if available
+            tab_ins_outs.add_column()  # default value (inputs only)
+            tab_ins_outs.add_row()
+
         if "inputs" in include:
-            tab_ins = Table(show_header=False, box=None)
-            tab_ins.add_column()  # parameter name
-            tab_ins.add_column()  # type if available
-            tab_ins.add_column()  # default value
             if self.inputs:
-                tab_ins.add_row(
+                tab_ins_outs.add_row(
                     "",
+                    Text("parameter", style="italic grey50"),
                     Text("type", style="italic grey50"),
                     Text("default", style="italic grey50"),
                 )
-            for inp in self.inputs:
-                type_fmt = "-"
-                if inp.parameter._validation:
-                    try:
-                        type_fmt = inp.parameter._validation.to_tree()[0]["type_fmt"]
-                    except Exception:
-                        pass
-                elif inp.parameter._value_class:
-                    param_cls = inp.parameter._value_class
-                    cls_url = (
-                        f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
-                        f"{param_cls.__name__}"
-                    )
-                    type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
+            for inp_idx, inp in enumerate(self.inputs):
                 def_str = "-"
                 if not inp.multiple:
                     if inp.default_value is not NullDefault.NULL:
@@ -159,31 +175,44 @@ class TaskSchema(JSONLike):
                     f"{self.app.docs_url}/reference/template_components/"
                     f"parameters.html#{inp.parameter.url_slug}"
                 )
-                tab_ins.add_row(
+                tab_ins_outs.add_row(
+                    "" if inp_idx > 0 else "[bold]Inputs[/bold]",
                     f"[link={param_url}]{inp.parameter.typ}[/link]",
-                    type_fmt,
+                    _get_param_type_str(inp.parameter),
                     def_str,
                 )
-            tab.add_row("Inputs", tab_ins)
 
         if "outputs" in include:
-            tab_outs = Table(show_header=False, box=None)
-            tab_outs.add_column()
-            for out in self.outputs:
+            if "inputs" in include:
+                tab_ins_outs.add_row()  # for spacing
+            else:
+                tab_ins_outs.add_row(
+                    "",
+                    Text("parameter", style="italic grey50"),
+                    Text("type", style="italic grey50"),
+                    "",
+                )
+            for out_idx, out in enumerate(self.outputs):
                 param_url = (
                     f"{self.app.docs_url}/reference/template_components/"
                     f"parameters.html#{out.parameter.url_slug}"
                 )
-                tab_outs.add_row(f"[link={param_url}]{out.parameter.typ}[/link]")
-            if not self.outputs:
-                tab_outs.add_row("-")
-            tab.add_row("Outputs", tab_outs)
+                tab_ins_outs.add_row(
+                    "" if out_idx > 0 else "[bold]Outputs[/bold]",
+                    f"[link={param_url}]{out.parameter.typ}[/link]",
+                    _get_param_type_str(out.parameter),
+                    "",
+                )
+
+        if tab_ins_outs:
+            tab.add_row(tab_ins_outs)
 
         if "actions" in include:
             tab_acts = Table(
                 show_header=False, box=None, padding=(1, 1), collapse_padding=True
             )
             tab_acts.add_column()
+            tab_acts.add_row("[bold]Actions[/bold]")
             for act in self.actions:
                 tab_cmds_i = Table(show_header=False, box=None)
                 tab_cmds_i.add_column(justify="right")
@@ -210,7 +239,9 @@ class TaskSchema(JSONLike):
                         )
 
                 tab_acts.add_row(tab_cmds_i)
-            tab.add_row("Actions", tab_acts)
+            tab.add_row(tab_acts)
+        else:
+            tab.add_row()
 
         panel = Panel(tab, title=f"Task schema: {escape(self.objective.name)!r}")
         rich_print(panel)
