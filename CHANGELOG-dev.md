@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a104"></a>
+## [v0.2.0a104](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a103...v0.2.0a104) - 2023.09.21
+
+### ✨ Features
+
+* improve `TaskSchema._show_info`
+
+### 🐛 Bug Fixes
+
+* `SchemaInput.default_value` property
+* do not load task schemas when loading app envs
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a103"></a>
 ## [v0.2.0a103](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a102...v0.2.0a103) - 2023.09.21
 
