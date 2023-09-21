@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a105"></a>
+## [v0.2.0a105](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a104...v0.2.0a105) - 2023.09.21
+
+### 🐛 Bug Fixes
+
+* add a test skip on macos due to failures that require investigation
+
+
 <a name="v0.2.0a104"></a>
 ## [v0.2.0a104](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a103...v0.2.0a104) - 2023.09.21
 
