@@ -35,4 +35,5 @@ app: sdk_app.BaseApp = sdk_app.BaseApp(
     template_components=template_components,
     scripts_dir="sdk.demo.scripts",  # relative to root package
     workflows_dir="sdk.demo.workflows",  # relative to root package
+    docs_url="https://hpcflow.github.io/docs/stable",
 )  #: |app|

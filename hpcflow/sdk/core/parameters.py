@@ -121,6 +121,10 @@ class Parameter(JSONLike):
         dct.pop("_task_schema", None)  # TODO: how do we have a _task_schema ref?
         return dct
 
+    @property
+    def url_slug(self) -> str:
+        return self.typ.lower().replace("_", "-")
+
 
 @dataclass
 class SubParameter:
@@ -351,8 +355,11 @@ class SchemaInput(SchemaParameter):
 
     @property
     def default_value(self):
-        if not self.multiple and "default" in self.single_labelled_data:
-            return self.single_labelled_data["default"]
+        if not self.multiple:
+            if "default_value" in self.single_labelled_data:
+                return self.single_labelled_data["default_value"]
+            else:
+                return NullDefault.NULL
 
     @property
     def task_schema(self):

@@ -1,6 +1,7 @@
 import pytest
 
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.parameters import NullDefault
 from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 
 
@@ -14,6 +15,12 @@ def test_null_default_value(null_config):
     p1 = hf.Parameter("p1")
     p1_inp = hf.SchemaInput(parameter=p1)
     assert "default_value" not in p1_inp.labels[""]
+
+
+def test_null_default_value_property(null_config):
+    p1 = hf.Parameter("p1")
+    p1_inp = hf.SchemaInput(parameter=p1)
+    assert p1_inp.default_value is NullDefault.NULL
 
 
 def test_none_default_value(null_config):

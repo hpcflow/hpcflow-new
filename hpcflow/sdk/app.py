@@ -136,6 +136,7 @@ class BaseApp(metaclass=Singleton):
         pytest_args=None,
         package_name=None,
         docs_import_conv=None,
+        docs_url=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
@@ -149,6 +150,7 @@ class BaseApp(metaclass=Singleton):
         self.scripts_dir = scripts_dir
         self.workflows_dir = workflows_dir
         self.docs_import_conv = docs_import_conv
+        self.docs_url = docs_url
 
         self.cli = make_cli(self)
 

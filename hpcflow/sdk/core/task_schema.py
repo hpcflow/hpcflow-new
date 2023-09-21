@@ -6,6 +6,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from rich import print as rich_print
 from rich.table import Table
+from rich.panel import Panel
+from rich.markup import escape
+from rich.text import Text
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.parameters import Parameter
@@ -112,32 +115,115 @@ class TaskSchema(JSONLike):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
+    def _show_info(self, include=None):
+        if not include:
+            include = ("inputs", "outputs", "actions")
+
+        tab = Table(show_header=False, box=None, padding=(1, 1), collapse_padding=True)
+        tab.add_column(justify="right")
+        tab.add_column()
+
+        if "inputs" in include:
+            tab_ins = Table(show_header=False, box=None)
+            tab_ins.add_column()  # parameter name
+            tab_ins.add_column()  # type if available
+            tab_ins.add_column()  # default value
+            if self.inputs:
+                tab_ins.add_row(
+                    "",
+                    Text("type", style="italic grey50"),
+                    Text("default", style="italic grey50"),
+                )
+            for inp in self.inputs:
+                type_fmt = "-"
+                if inp.parameter._validation:
+                    try:
+                        type_fmt = inp.parameter._validation.to_tree()[0]["type_fmt"]
+                    except Exception:
+                        pass
+                elif inp.parameter._value_class:
+                    param_cls = inp.parameter._value_class
+                    cls_url = (
+                        f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                        f"{param_cls.__name__}"
+                    )
+                    type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
+                def_str = "-"
+                if not inp.multiple:
+                    if inp.default_value is not NullDefault.NULL:
+                        if inp.default_value.value is None:
+                            def_str = "None"
+                        else:
+                            def_str = f"{escape(str(inp.default_value.value))!r}"
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{inp.parameter.url_slug}"
+                )
+                tab_ins.add_row(
+                    f"[link={param_url}]{inp.parameter.typ}[/link]",
+                    type_fmt,
+                    def_str,
+                )
+            tab.add_row("Inputs", tab_ins)
+
+        if "outputs" in include:
+            tab_outs = Table(show_header=False, box=None)
+            tab_outs.add_column()
+            for out in self.outputs:
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{out.parameter.url_slug}"
+                )
+                tab_outs.add_row(f"[link={param_url}]{out.parameter.typ}[/link]")
+            if not self.outputs:
+                tab_outs.add_row("-")
+            tab.add_row("Outputs", tab_outs)
+
+        if "actions" in include:
+            tab_acts = Table(
+                show_header=False, box=None, padding=(1, 1), collapse_padding=True
+            )
+            tab_acts.add_column()
+            for act in self.actions:
+                tab_cmds_i = Table(show_header=False, box=None)
+                tab_cmds_i.add_column(justify="right")
+                tab_cmds_i.add_column()
+                tab_cmds_i.add_row(
+                    "[italic]scope:[/italic]",
+                    escape(act.get_precise_scope().to_string()),
+                )
+                for cmd in act.commands:
+                    cmd_str = "cmd" if cmd.command else "exe"
+                    tab_cmds_i.add_row(
+                        f"[italic]{cmd_str}:[/italic]",
+                        escape(cmd.command or cmd.executable),
+                    )
+                    if cmd.stdout:
+                        tab_cmds_i.add_row(
+                            "[italic]out:[/italic]",
+                            escape(cmd.stdout),
+                        )
+                    if cmd.stderr:
+                        tab_cmds_i.add_row(
+                            "[italic]err:[/italic]",
+                            escape(cmd.stderr),
+                        )
+
+                tab_acts.add_row(tab_cmds_i)
+            tab.add_row("Actions", tab_acts)
+
+        panel = Panel(tab, title=f"Task schema: {escape(self.objective.name)!r}")
+        rich_print(panel)
+
+    @property
+    def basic_info(self):
+        """Show inputs and outputs, formatted in a table."""
+        return self._show_info(include=("inputs", "outputs"))
+
     @property
     def info(self):
-        """Show attributes of the task schema."""
-        tab = Table(show_header=False)
-        tab.add_column()
-        tab.add_column()
-        tab.add_row("Objective", self.objective.name)
-        tab.add_row("Actions", str(self.actions))
-
-        tab_ins = Table(show_header=False, box=None)
-        tab_ins.add_column()
-        for inp in self.inputs:
-            def_str = ""
-            if not inp.multiple:
-                if inp.default_value is not NullDefault.NULL:
-                    def_str = f" [i]default[/i]={inp.default_value}"
-            tab_ins.add_row(inp.parameter.typ + def_str)
-
-        tab_outs = Table(show_header=False, box=None)
-        tab_outs.add_column()
-        for out in self.outputs:
-            tab_outs.add_row(out.parameter.typ)
-
-        tab.add_row("Inputs", tab_ins)
-        tab.add_row("Outputs", tab_outs)
-        rich_print(tab)
+        """Show inputs, outputs, and actions, formatted in a table."""
+        return self._show_info()
 
     def __eq__(self, other):
         if type(other) is not self.__class__:
