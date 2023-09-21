@@ -1,4 +1,25 @@
 
+<a name="v0.2.0a103"></a>
+## [v0.2.0a103](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a102...v0.2.0a103) - 2023.09.21
+
+### ✨ Features
+
+* add termination condition to Loop
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a102"></a>
+## [v0.2.0a102](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a101...v0.2.0a102) - 2023.09.20
+
+### 🐛 Bug Fixes
+
+* test-hpcflow in downstream apps
+
+
 <a name="v0.2.0a101"></a>
 ## [v0.2.0a101](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a100...v0.2.0a101) - 2023.09.20
 

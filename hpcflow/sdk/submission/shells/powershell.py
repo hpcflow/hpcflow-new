@@ -194,6 +194,15 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+        return (
+            f"{workflow_app_alias} "
+            f"internal workflow $WK_PATH check-loop "
+            f"{loop_name} {run_ID} "
+            f"2>&1 >> $app_stream_file"
+            f"\n"
+        )
+
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a child scope.
 
