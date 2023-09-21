@@ -6,6 +6,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from rich import print as rich_print
 from rich.table import Table
+from rich.panel import Panel
+from rich.markup import escape
+from rich.text import Text
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.parameters import Parameter
@@ -112,32 +115,146 @@ class TaskSchema(JSONLike):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
+    def _show_info(self, include=None):
+        def _get_param_type_str(parameter):
+            type_fmt = "-"
+            if parameter._validation:
+                try:
+                    type_fmt = parameter._validation.to_tree()[0]["type_fmt"]
+                except Exception:
+                    pass
+            elif parameter._value_class:
+                param_cls = parameter._value_class
+                cls_url = (
+                    f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                    f"{param_cls.__name__}"
+                )
+                type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
+            return type_fmt
+
+        if not include:
+            include = ("inputs", "outputs", "actions")
+
+        tab = Table(show_header=False, box=None, padding=(0, 0), collapse_padding=True)
+        tab.add_column(justify="right")
+        tab.add_column()
+
+        from rich.table import box
+
+        tab_ins_outs = None
+        if "inputs" in include or "outputs" in include:
+            tab_ins_outs = Table(
+                show_header=False,
+                box=None,
+                padding=(0, 1),
+            )
+
+            tab_ins_outs.add_column(justify="left")  # row heading ("Inputs" or "Outputs")
+            tab_ins_outs.add_column()  # parameter name
+            tab_ins_outs.add_column()  # type if available
+            tab_ins_outs.add_column()  # default value (inputs only)
+            tab_ins_outs.add_row()
+
+        if "inputs" in include:
+            if self.inputs:
+                tab_ins_outs.add_row(
+                    "",
+                    Text("parameter", style="italic grey50"),
+                    Text("type", style="italic grey50"),
+                    Text("default", style="italic grey50"),
+                )
+            for inp_idx, inp in enumerate(self.inputs):
+                def_str = "-"
+                if not inp.multiple:
+                    if inp.default_value is not NullDefault.NULL:
+                        if inp.default_value.value is None:
+                            def_str = "None"
+                        else:
+                            def_str = f"{escape(str(inp.default_value.value))!r}"
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{inp.parameter.url_slug}"
+                )
+                tab_ins_outs.add_row(
+                    "" if inp_idx > 0 else "[bold]Inputs[/bold]",
+                    f"[link={param_url}]{inp.parameter.typ}[/link]",
+                    _get_param_type_str(inp.parameter),
+                    def_str,
+                )
+
+        if "outputs" in include:
+            if "inputs" in include:
+                tab_ins_outs.add_row()  # for spacing
+            else:
+                tab_ins_outs.add_row(
+                    "",
+                    Text("parameter", style="italic grey50"),
+                    Text("type", style="italic grey50"),
+                    "",
+                )
+            for out_idx, out in enumerate(self.outputs):
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{out.parameter.url_slug}"
+                )
+                tab_ins_outs.add_row(
+                    "" if out_idx > 0 else "[bold]Outputs[/bold]",
+                    f"[link={param_url}]{out.parameter.typ}[/link]",
+                    _get_param_type_str(out.parameter),
+                    "",
+                )
+
+        if tab_ins_outs:
+            tab.add_row(tab_ins_outs)
+
+        if "actions" in include:
+            tab_acts = Table(
+                show_header=False, box=None, padding=(1, 1), collapse_padding=True
+            )
+            tab_acts.add_column()
+            tab_acts.add_row("[bold]Actions[/bold]")
+            for act in self.actions:
+                tab_cmds_i = Table(show_header=False, box=None)
+                tab_cmds_i.add_column(justify="right")
+                tab_cmds_i.add_column()
+                tab_cmds_i.add_row(
+                    "[italic]scope:[/italic]",
+                    escape(act.get_precise_scope().to_string()),
+                )
+                for cmd in act.commands:
+                    cmd_str = "cmd" if cmd.command else "exe"
+                    tab_cmds_i.add_row(
+                        f"[italic]{cmd_str}:[/italic]",
+                        escape(cmd.command or cmd.executable),
+                    )
+                    if cmd.stdout:
+                        tab_cmds_i.add_row(
+                            "[italic]out:[/italic]",
+                            escape(cmd.stdout),
+                        )
+                    if cmd.stderr:
+                        tab_cmds_i.add_row(
+                            "[italic]err:[/italic]",
+                            escape(cmd.stderr),
+                        )
+
+                tab_acts.add_row(tab_cmds_i)
+            tab.add_row(tab_acts)
+        else:
+            tab.add_row()
+
+        panel = Panel(tab, title=f"Task schema: {escape(self.objective.name)!r}")
+        rich_print(panel)
+
+    @property
+    def basic_info(self):
+        """Show inputs and outputs, formatted in a table."""
+        return self._show_info(include=("inputs", "outputs"))
+
     @property
     def info(self):
-        """Show attributes of the task schema."""
-        tab = Table(show_header=False)
-        tab.add_column()
-        tab.add_column()
-        tab.add_row("Objective", self.objective.name)
-        tab.add_row("Actions", str(self.actions))
-
-        tab_ins = Table(show_header=False, box=None)
-        tab_ins.add_column()
-        for inp in self.inputs:
-            def_str = ""
-            if not inp.multiple:
-                if inp.default_value is not NullDefault.NULL:
-                    def_str = f" [i]default[/i]={inp.default_value}"
-            tab_ins.add_row(inp.parameter.typ + def_str)
-
-        tab_outs = Table(show_header=False, box=None)
-        tab_outs.add_column()
-        for out in self.outputs:
-            tab_outs.add_row(out.parameter.typ)
-
-        tab.add_row("Inputs", tab_ins)
-        tab.add_row("Outputs", tab_outs)
-        rich_print(tab)
+        """Show inputs, outputs, and actions, formatted in a table."""
+        return self._show_info()
 
     def __eq__(self, other):
         if type(other) is not self.__class__:

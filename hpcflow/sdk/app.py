@@ -136,6 +136,7 @@ class BaseApp(metaclass=Singleton):
         pytest_args=None,
         package_name=None,
         docs_import_conv=None,
+        docs_url=None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
@@ -149,6 +150,7 @@ class BaseApp(metaclass=Singleton):
         self.scripts_dir = scripts_dir
         self.workflows_dir = workflows_dir
         self.docs_import_conv = docs_import_conv
+        self.docs_url = docs_url
 
         self.cli = make_cli(self)
 
@@ -242,9 +244,9 @@ class BaseApp(metaclass=Singleton):
             self._load_template_components()
         return self._template_components
 
-    def _ensure_template_components(self) -> None:
+    def _ensure_template_components(self, exclude=None) -> None:
         if not self.is_template_components_loaded:
-            self._load_template_components()
+            self._load_template_components(exclude)
 
     def load_template_components(self, warn=True) -> None:
         if warn and self.is_template_components_loaded:
@@ -256,53 +258,61 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
-    def _load_template_components(self) -> None:
+    def _load_template_components(self, exclude=None) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
 
-        params = self._builtin_template_components.get("parameters", [])
-        for path in self.config.parameter_sources:
-            params.extend(read_YAML_file(path))
-
-        cmd_files = self._builtin_template_components.get("command_files", [])
-        for path in self.config.command_file_sources:
-            cmd_files.extend(read_YAML_file(path))
-
-        envs = []
-        builtin_envs = self._builtin_template_components.get("environments", [])
-        for path in self.config.environment_sources:
-            envs_i_lst = read_YAML_file(path)
-            for env_j in envs_i_lst:
-                for b_idx, builtin_env in enumerate(list(builtin_envs)):
-                    # overwrite builtin envs with user-supplied:
-                    if builtin_env["name"] == env_j["name"]:
-                        builtin_envs.pop(b_idx)
-                envs.append(env_j)
-        envs = builtin_envs + envs
-
-        schemas = self._builtin_template_components.get("task_schemas", [])
-        for path in self.config.task_schema_sources:
-            schemas.extend(read_YAML_file(path))
+        include = ["parameters", "command_files", "environments", "task_schemas"]
+        for i in exclude or []:
+            include.pop(include.index(i))
 
         self_tc = self._template_components
-        self_tc["parameters"] = self.ParametersList.from_json_like(
-            params, shared_data=self_tc
-        )
-        self_tc["command_files"] = self.CommandFilesList.from_json_like(
-            cmd_files, shared_data=self_tc
-        )
-        self_tc["environments"] = self.EnvironmentsList.from_json_like(
-            envs, shared_data=self_tc
-        )
-        self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
-            schemas, shared_data=self_tc
-        )
-        self_tc["scripts"] = self._load_scripts()
 
-        self._parameters = self_tc["parameters"]
-        self._command_files = self_tc["command_files"]
-        self._environments = self_tc["environments"]
-        self._task_schemas = self_tc["task_schemas"]
+        if "parameters" in include:
+            params = self._builtin_template_components.get("parameters", [])
+            for path in self.config.parameter_sources:
+                params.extend(read_YAML_file(path))
+            self_tc["parameters"] = self.ParametersList.from_json_like(
+                params, shared_data=self_tc
+            )
+            self._parameters = self_tc["parameters"]
+
+        if "command_files" in include:
+            cmd_files = self._builtin_template_components.get("command_files", [])
+            for path in self.config.command_file_sources:
+                cmd_files.extend(read_YAML_file(path))
+            self_tc["command_files"] = self.CommandFilesList.from_json_like(
+                cmd_files, shared_data=self_tc
+            )
+            self._command_files = self_tc["command_files"]
+
+        if "environments" in include:
+            envs = []
+            builtin_envs = self._builtin_template_components.get("environments", [])
+            for path in self.config.environment_sources:
+                envs_i_lst = read_YAML_file(path)
+                for env_j in envs_i_lst:
+                    for b_idx, builtin_env in enumerate(list(builtin_envs)):
+                        # overwrite builtin envs with user-supplied:
+                        if builtin_env["name"] == env_j["name"]:
+                            builtin_envs.pop(b_idx)
+                    envs.append(env_j)
+            envs = builtin_envs + envs
+            self_tc["environments"] = self.EnvironmentsList.from_json_like(
+                envs, shared_data=self_tc
+            )
+            self._environments = self_tc["environments"]
+
+        if "task_schemas" in include:
+            schemas = self._builtin_template_components.get("task_schemas", [])
+            for path in self.config.task_schema_sources:
+                schemas.extend(read_YAML_file(path))
+            self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
+                schemas, shared_data=self_tc
+            )
+            self._task_schemas = self_tc["task_schemas"]
+
+        self_tc["scripts"] = self._load_scripts()
         self._scripts = self_tc["scripts"]
 
         self.logger.info("Template components loaded.")
@@ -341,7 +351,7 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def envs(self) -> get_app_attribute("EnvironmentsList"):
-        self._ensure_template_components()
+        self._ensure_template_components(exclude=("task_schemas",))
         return self._environments
 
     @property
