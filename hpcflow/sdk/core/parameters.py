@@ -9,12 +9,15 @@ import numpy as np
 import valida
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.element import ElementFilter
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.parallel import ParallelMode
+from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
@@ -1056,9 +1059,9 @@ class InputValue(AbstractInputValue):
             and not self.path
             and not self._value_is_obj
             and self.parameter._value_class
+            and self._value is not None
             and not isinstance(self._value, dict)
         ):
-            # TODO: what about if the value is `None`? Is that an issue?
             raise ValueError(
                 f"{self.__class__.__name__} with specified value {self._value!r} is "
                 f"associated with a ParameterValue subclass "
@@ -1175,12 +1178,6 @@ class InputValue(AbstractInputValue):
         Sub-values are not added to the base parameter data, but are interpreted as
         single-value sequences."""
         return True if self.path else False
-
-
-class ParallelMode(enum.Enum):
-    DISTRIBUTED = 0
-    SHARED = 1
-    HYBRID = 2
 
 
 class ResourceSpec(JSONLike):
@@ -1588,12 +1585,12 @@ class InputSource(JSONLike):
             Union[dict, app.Rule, List[dict], List[app.Rule], app.ElementFilter]
         ] = None,
     ):
-        if where is not None and not isinstance(where, app.ElementFilter):
+        if where is not None and not isinstance(where, ElementFilter):
             rules = where
             if not isinstance(rules, list):
                 rules = [rules]
             for idx, i in enumerate(rules):
-                if not isinstance(i, app.Rule):
+                if not isinstance(i, Rule):
                     rules[idx] = app.Rule(**i)
             where = app.ElementFilter(rules=rules)
 
