@@ -3,6 +3,6 @@ resources:
   any:
     shell: WSL
 tasks:
-  - schemas: [test_t1_bash]
+  - schema: test_t1_bash
     inputs:
       p1: 101

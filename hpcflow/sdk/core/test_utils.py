@@ -115,7 +115,7 @@ def make_tasks(
         res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
 
         task = hf.Task(
-            schemas=[s],
+            schema=s,
             inputs=inputs,
             sequences=seqs,
             resources=res,

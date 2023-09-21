@@ -129,7 +129,7 @@ def test_value_sequence_object_values_during_workflow_init(null_config, tmp_path
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:
@@ -162,7 +162,7 @@ def test_value_sequence_object_values_class_method_during_workflow_init(
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:
@@ -197,7 +197,7 @@ def test_value_sequence_object_values_named_class_method_during_workflow_init(
     values_exp = [data]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:

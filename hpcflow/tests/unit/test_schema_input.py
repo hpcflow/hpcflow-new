@@ -51,7 +51,7 @@ def test_element_get_removes_schema_param_trivial_label(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1", inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})]
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -74,7 +74,7 @@ def test_element_inputs_removes_schema_param_trivial_label(null_config, tmp_path
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -98,7 +98,7 @@ def test_element_get_does_not_removes_multiple_schema_param_label(null_config, t
         objective="t1",
         inputs=[hf.SchemaInput(parameter="p1", labels={label: {}}, multiple=True)],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -123,7 +123,7 @@ def test_element_inputs_does_not_remove_multiple_schema_param_label(
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -160,7 +160,7 @@ def test_get_input_values_for_multiple_schema_input(null_config, tmp_path):
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -190,7 +190,7 @@ def test_get_input_values_for_multiple_schema_input_with_object(null_config, tmp
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1c", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1c", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,

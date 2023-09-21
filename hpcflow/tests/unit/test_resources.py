@@ -62,7 +62,7 @@ def test_use_persistent_resource_spec(null_config, tmp_path, store):
         store=store,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_ps],
+                schema=[hf.task_schemas.test_t1_ps],
                 inputs=[hf.InputValue("p1", 101)],
                 resources={"any": {"num_cores": num_cores_check}},
             )
@@ -76,7 +76,7 @@ def test_use_persistent_resource_spec(null_config, tmp_path, store):
         store=store,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_ps],
+                schema=[hf.task_schemas.test_t1_ps],
                 inputs=[hf.InputValue("p1", 101)],
             ),
         ],
@@ -96,7 +96,7 @@ def test_use_persistent_resource_list(null_config, tmp_path, store):
         store=store,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_ps],
+                schema=[hf.task_schemas.test_t1_ps],
                 inputs=[hf.InputValue("p1", 101)],
                 resources={"any": {"num_cores": num_cores_check}},
             )
@@ -110,7 +110,7 @@ def test_use_persistent_resource_list(null_config, tmp_path, store):
         store=store,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_ps],
+                schema=[hf.task_schemas.test_t1_ps],
                 inputs=[hf.InputValue("p1", 101)],
             ),
         ],
@@ -128,7 +128,7 @@ def test_default_scheduler_set(new_null_config, tmp_path, store):
         store=store,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_bash],
+                schema=[hf.task_schemas.test_t1_bash],
                 inputs=[hf.InputValue("p1", 101)],
             ),
         ],
@@ -192,7 +192,7 @@ def test_raise_on_unsupported_scheduler(new_null_config, tmp_path):
         path=tmp_path,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_bash],
+                schema=[hf.task_schemas.test_t1_bash],
                 inputs=[hf.InputValue("p1", 101)],
                 resources=[hf.ResourceSpec(scheduler="slurm")],
             )
@@ -215,7 +215,7 @@ def test_can_use_non_default_scheduler(new_null_config, tmp_path):
         path=tmp_path,
         tasks=[
             hf.Task(
-                schemas=[hf.task_schemas.test_t1_bash],
+                schema=[hf.task_schemas.test_t1_bash],
                 inputs=[hf.InputValue("p1", 101)],
                 resources=[hf.ResourceSpec(scheduler=opt_scheduler)],
             )

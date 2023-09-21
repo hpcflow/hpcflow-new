@@ -47,8 +47,8 @@ def param_p3():
 
 @pytest.fixture
 def workflow_w0(null_config, tmp_path):
-    t1 = hf.Task(schemas=[hf.TaskSchema(objective="t1", actions=[])])
-    t2 = hf.Task(schemas=[hf.TaskSchema(objective="t2", actions=[])])
+    t1 = hf.Task(schema=[hf.TaskSchema(objective="t1", actions=[])])
+    t2 = hf.Task(schema=[hf.TaskSchema(objective="t2", actions=[])])
 
     wkt = hf.WorkflowTemplate(name="workflow_w0", tasks=[t1, t2])
     return hf.Workflow.from_template(wkt, path=tmp_path)
@@ -60,10 +60,10 @@ def workflow_w1(null_config, tmp_path, param_p1, param_p2):
     s2 = hf.TaskSchema("t2", actions=[], inputs=[param_p2])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
     )
-    t2 = hf.Task(schemas=s2, nesting_order={"inputs.p2": 1})
+    t2 = hf.Task(schema=s2, nesting_order={"inputs.p2": 1})
 
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1, t2])
     return hf.Workflow.from_template(wkt, path=tmp_path)
@@ -75,11 +75,11 @@ def workflow_w2(null_config, tmp_path, param_p1, param_p2):
     s2 = hf.TaskSchema("t2", actions=[], inputs=[param_p2, param_p3])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         sequences=[
             hf.ValueSequence("inputs.p3", values=[301, 302, 303], nesting_order=1)
         ],
@@ -96,12 +96,12 @@ def workflow_w3(null_config, tmp_path, param_p1, param_p2, param_p3, param_p4):
     s2 = hf.TaskSchema("t2", actions=[], inputs=[param_p2, param_p3], outputs=[param_p4])
     s3 = hf.TaskSchema("t3", actions=[], inputs=[param_p3, param_p4])
 
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue(param_p1, 101)])
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         sequences=[hf.ValueSequence("inputs.p2", values=[201, 202], nesting_order=1)],
     )
-    t3 = hf.Task(schemas=s3, nesting_order={"inputs.p3": 0, "inputs.p4": 1})
+    t3 = hf.Task(schema=s3, nesting_order={"inputs.p3": 0, "inputs.p4": 1})
 
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1, t2, t3])
     return hf.Workflow.from_template(wkt, name=wkt.name, overwrite=True)
@@ -140,7 +140,7 @@ def schema_s3(param_p1, param_p2, act_3):
 
 @pytest.fixture
 def workflow_w4(null_config, tmp_path, schema_s3, param_p1):
-    t1 = hf.Task(schemas=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1])
     return hf.Workflow.from_template(wkt, path=tmp_path)
 
@@ -199,7 +199,7 @@ def test_task_get_available_task_input_sources_expected_return_first_task_local_
     schema_s1,
     param_p1,
 ):
-    t1 = hf.Task(schemas=schema_s1, inputs=[hf.InputValue(param_p1, value=101)])
+    t1 = hf.Task(schema=schema_s1, inputs=[hf.InputValue(param_p1, value=101)])
 
     available = t1.get_available_task_input_sources(
         element_set=t1.element_sets[0],
@@ -213,7 +213,7 @@ def test_task_get_available_task_input_sources_expected_return_first_task_local_
 def test_task_get_available_task_input_sources_expected_return_first_task_default_value(
     schema_s2,
 ):
-    t1 = hf.Task(schemas=schema_s2)
+    t1 = hf.Task(schema=schema_s2)
     available = t1.get_available_task_input_sources(element_set=t1.element_sets[0])
     available_exp = {"p1": [hf.InputSource(source_type=hf.InputSourceType.DEFAULT)]}
 
@@ -463,8 +463,8 @@ def test_get_task_unique_names_two_tasks_no_repeats():
     s1 = hf.TaskSchema("t1", actions=[])
     s2 = hf.TaskSchema("t2", actions=[])
 
-    t1 = hf.Task(schemas=s1)
-    t2 = hf.Task(schemas=s2)
+    t1 = hf.Task(schema=s1)
+    t2 = hf.Task(schema=s2)
 
     assert hf.Task.get_task_unique_names([t1, t2]) == ["t1", "t2"]
 
@@ -472,8 +472,8 @@ def test_get_task_unique_names_two_tasks_no_repeats():
 def test_get_task_unique_names_two_tasks_with_repeat():
     s1 = hf.TaskSchema("t1", actions=[])
 
-    t1 = hf.Task(schemas=s1)
-    t2 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
+    t2 = hf.Task(schema=s1)
 
     assert hf.Task.get_task_unique_names([t1, t2]) == ["t1_1", "t1_2"]
 
@@ -482,7 +482,7 @@ def test_raise_on_multiple_schema_objectives():
     s1 = hf.TaskSchema("t1", actions=[])
     s2 = hf.TaskSchema("t2", actions=[])
     with pytest.raises(TaskTemplateMultipleSchemaObjectives):
-        hf.Task(schemas=[s1, s2])
+        hf.Task(schema=[s1, s2])
 
 
 def test_raise_on_unexpected_inputs(param_p1, param_p2):
@@ -490,7 +490,7 @@ def test_raise_on_unexpected_inputs(param_p1, param_p2):
 
     with pytest.raises(TaskTemplateUnexpectedInput):
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[
                 hf.InputValue(param_p1, value=101),
                 hf.InputValue(param_p2, value=4),
@@ -503,7 +503,7 @@ def test_raise_on_multiple_input_values(param_p1):
 
     with pytest.raises(TaskTemplateMultipleInputValues):
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[
                 hf.InputValue(param_p1, value=101),
                 hf.InputValue(param_p1, value=7),
@@ -519,7 +519,7 @@ def test_raise_on_multiple_input_values_same_label(param_p1):
 
     with pytest.raises(TaskTemplateMultipleInputValues):
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[
                 hf.InputValue(param_p1, value=101, label=0),
                 hf.InputValue(param_p1, value=101, label=0),
@@ -539,7 +539,7 @@ def test_multiple_input_values_different_labels(param_p1):
         ],
     )
     hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[
             hf.InputValue(param_p1, value=101, label=0),
             hf.InputValue(param_p1, value=101, label=1),
@@ -550,7 +550,7 @@ def test_multiple_input_values_different_labels(param_p1):
 def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
     s1 = make_schemas([[{"p1": None, "p2": None}, ()]])
 
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue(param_p1, value=101)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue(param_p1, value=101)])
     element_set = t1.element_sets[0]
     assert element_set.defined_input_types == {
         param_p1.typ
@@ -559,7 +559,7 @@ def test_expected_return_defined_and_undefined_input_types(param_p1, param_p2):
 
 def test_expected_return_all_schema_input_types_single_schema(param_p1, param_p2):
     s1 = make_schemas([[{"p1": None, "p2": None}, ()]])
-    t1 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
 
     assert t1.all_schema_input_types == {param_p1.typ, param_p2.typ}
 
@@ -571,88 +571,88 @@ def test_expected_return_all_schema_input_types_multiple_schemas(
         [[{"p1": None, "p2": None}, (), "t1"], [{"p1": None, "p3": None}, (), "t1"]]
     )
 
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
 
     assert t1.all_schema_input_types == {param_p1.typ, param_p2.typ, param_p3.typ}
 
 
 def test_expected_name_single_schema():
     s1 = hf.TaskSchema("t1", actions=[])
-    t1 = hf.Task(schemas=[s1])
+    t1 = hf.Task(schema=[s1])
     assert t1.name == "t1"
 
 
 def test_expected_name_single_schema_with_method():
     s1 = hf.TaskSchema("t1", method="m1", actions=[])
-    t1 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
     assert t1.name == "t1_m1"
 
 
 def test_expected_name_single_schema_with_implementation():
     s1 = hf.TaskSchema("t1", implementation="i1", actions=[])
-    t1 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
     assert t1.name == "t1_i1"
 
 
 def test_expected_name_single_schema_with_method_and_implementation():
     s1 = hf.TaskSchema("t1", method="m1", implementation="i1", actions=[])
-    t1 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
     assert t1.name == "t1_m1_i1"
 
 
 def test_expected_name_multiple_schemas():
     s1 = hf.TaskSchema("t1", actions=[])
     s2 = hf.TaskSchema("t1", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1"
 
 
 def test_expected_name_two_schemas_first_with_method():
     s1 = hf.TaskSchema("t1", method="m1", actions=[])
     s2 = hf.TaskSchema("t1", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_m1"
 
 
 def test_expected_name_two_schemas_first_with_method_and_implementation():
     s1 = hf.TaskSchema("t1", method="m1", implementation="i1", actions=[])
     s2 = hf.TaskSchema("t1", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_m1_i1"
 
 
 def test_expected_name_two_schemas_both_with_method():
     s1 = hf.TaskSchema("t1", method="m1", actions=[])
     s2 = hf.TaskSchema("t1", method="m2", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_m1_and_m2"
 
 
 def test_expected_name_two_schemas_first_with_method_second_with_implementation():
     s1 = hf.TaskSchema("t1", method="m1", actions=[])
     s2 = hf.TaskSchema("t1", implementation="i2", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_m1_and_i2"
 
 
 def test_expected_name_two_schemas_first_with_implementation_second_with_method():
     s1 = hf.TaskSchema("t1", implementation="i1", actions=[])
     s2 = hf.TaskSchema("t1", method="m2", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_i1_and_m2"
 
 
 def test_expected_name_two_schemas_both_with_method_and_implementation():
     s1 = hf.TaskSchema("t1", method="m1", implementation="i1", actions=[])
     s2 = hf.TaskSchema("t1", method="m2", implementation="i2", actions=[])
-    t1 = hf.Task(schemas=[s1, s2])
+    t1 = hf.Task(schema=[s1, s2])
     assert t1.name == "t1_m1_i1_and_m2_i2"
 
 
 def test_raise_on_negative_nesting_order():
     s1 = make_schemas([[{"p1": None}, ()]])
     with pytest.raises(TaskTemplateInvalidNesting):
-        hf.Task(schemas=s1, nesting_order={"p1": -1})
+        hf.Task(schema=s1, nesting_order={"p1": -1})
 
 
 # TODO: test resolution of elements and with raise MissingInputs
@@ -661,7 +661,7 @@ def test_raise_on_negative_nesting_order():
 def test_empty_task_init():
     """Check we can init a hf.Task with no input values."""
     s1 = make_schemas([[{"p1": None}, ()]])
-    t1 = hf.Task(schemas=s1)
+    t1 = hf.Task(schema=s1)
 
 
 def test_task_task_dependencies(tmp_path):
@@ -1338,7 +1338,7 @@ def test_no_change_to_tasks_metadata_on_add_task_failure(tmp_path):
     tasks_meta = copy.deepcopy(wk._store.get_tasks())
 
     s2 = make_schemas([[{"p1": NullDefault.NULL, "p3": NullDefault.NULL}, ()]])
-    t2 = hf.Task(schemas=s2)
+    t2 = hf.Task(schema=s2)
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
 
@@ -1355,7 +1355,7 @@ def test_no_change_to_parameter_data_on_add_task_failure(tmp_path, param_p2, par
     s2 = make_schemas(
         [[{"p1": NullDefault.NULL, "p2": NullDefault.NULL, "p3": NullDefault.NULL}, ()]]
     )
-    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p2, 201)])
+    t2 = hf.Task(schema=s2, inputs=[hf.InputValue(param_p2, 201)])
     with pytest.raises(MissingInputs) as exc_info:
         wk.add_task(t2)
 
@@ -1371,7 +1371,7 @@ def test_expected_additional_parameter_data_on_add_task(tmp_path, param_p3):
     param_data = copy.deepcopy(wk.get_all_parameter_data())
 
     s2 = make_schemas([[{"p1": NullDefault.NULL, "p3": NullDefault.NULL}, ()]])
-    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
+    t2 = hf.Task(schema=s2, inputs=[hf.InputValue(param_p3, 301)])
     wk.add_task(t2)
 
     param_data_new = wk.get_all_parameter_data()
@@ -1391,7 +1391,7 @@ def test_parameters_accepted_on_add_task(tmp_path, param_p3):
         path=tmp_path,
     )
     s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
-    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
+    t2 = hf.Task(schema=s2, inputs=[hf.InputValue(param_p3, 301)])
     wk.add_task(t2)
     assert not wk._store._pending.add_parameters
 
@@ -1403,32 +1403,32 @@ def test_parameters_pending_during_add_task(tmp_path, param_p3):
         path=tmp_path,
     )
     s2 = make_schemas([[{"p1": None, "p3": None}, ()]])
-    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue(param_p3, 301)])
+    t2 = hf.Task(schema=s2, inputs=[hf.InputValue(param_p3, 301)])
     with wk.batch_update():
         wk.add_task(t2)
         assert wk._store._pending.add_parameters
 
 
 def test_add_task_after(workflow_w0):
-    new_task = hf.Task(schemas=hf.TaskSchema(objective="after_t1", actions=[]))
+    new_task = hf.Task(schema=hf.TaskSchema(objective="after_t1", actions=[]))
     workflow_w0.add_task_after(new_task, workflow_w0.tasks.t1)
     assert [i.name for i in workflow_w0.tasks] == ["t1", "after_t1", "t2"]
 
 
 def test_add_task_after_no_ref(workflow_w0):
-    new_task = hf.Task(schemas=hf.TaskSchema(objective="at_end", actions=[]))
+    new_task = hf.Task(schema=hf.TaskSchema(objective="at_end", actions=[]))
     workflow_w0.add_task_after(new_task)
     assert [i.name for i in workflow_w0.tasks] == ["t1", "t2", "at_end"]
 
 
 def test_add_task_before(workflow_w0):
-    new_task = hf.Task(schemas=hf.TaskSchema(objective="before_t2", actions=[]))
+    new_task = hf.Task(schema=hf.TaskSchema(objective="before_t2", actions=[]))
     workflow_w0.add_task_before(new_task, workflow_w0.tasks.t2)
     assert [i.name for i in workflow_w0.tasks] == ["t1", "before_t2", "t2"]
 
 
 def test_add_task_before_no_ref(workflow_w0):
-    new_task = hf.Task(schemas=hf.TaskSchema(objective="at_start", actions=[]))
+    new_task = hf.Task(schema=hf.TaskSchema(objective="at_start", actions=[]))
     workflow_w0.add_task_before(new_task)
     assert [i.name for i in workflow_w0.tasks] == ["at_start", "t1", "t2"]
 
@@ -1456,7 +1456,7 @@ def test_parameter_two_modifying_actions_expected_data_indices(
     )
 
     s1 = hf.TaskSchema("t1", actions=[act1, act2], inputs=[param_p1], outputs=[param_p1])
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue(param_p1, 101)])
 
     wkt = hf.WorkflowTemplate(name="w3", tasks=[t1])
     wk = hf.Workflow.from_template(template=wkt, path=tmp_path)
@@ -1515,7 +1515,7 @@ def test_conditional_shell_schema_single_initialised_action(null_config, tmp_pat
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 101)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1549,7 +1549,7 @@ def test_element_iteration_EARs_initialised_on_make_workflow(
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 101)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1570,7 +1570,7 @@ def test_element_iteration_EARs_initialised_on_make_workflow_with_no_actions(
         inputs=[hf.SchemaInput("p1")],
         actions=[],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 101)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1619,8 +1619,8 @@ def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
-    t2 = hf.Task(schemas=[s2])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 101)])
+    t2 = hf.Task(schema=[s2])
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
         template_name="w1",
@@ -1662,7 +1662,7 @@ def test_element_iteration_EARs_initialised_on_make_workflow_with_no_valid_actio
             ),
         ],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 101)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1692,7 +1692,7 @@ def test_get_merged_parameter_data_unset_data_raise(null_config, tmp_path, store
             )
         ],
     )
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=1)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1726,7 +1726,7 @@ def test_get_merged_parameter_data_unset_data_no_raise(null_config, tmp_path, st
             )
         ],
     )
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=1)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1759,7 +1759,7 @@ def test_get_merged_parameter_data_missing_data_raise(null_config, tmp_path, sto
             )
         ],
     )
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=1)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1793,7 +1793,7 @@ def test_get_merged_parameter_data_missing_data_no_raise(null_config, tmp_path, 
             )
         ],
     )
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=1)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",
@@ -1831,11 +1831,11 @@ def test_get_merged_parameter_data_group_unset_data_raise(null_config, tmp_path,
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
-    t2 = hf.Task(schemas=s2)
+    t2 = hf.Task(schema=s2)
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
         template_name="w1",
@@ -1883,11 +1883,11 @@ def test_get_merged_parameter_data_group_unset_data_no_raise(
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
-    t2 = hf.Task(schemas=s2)
+    t2 = hf.Task(schema=s2)
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
         template_name="w1",
@@ -1931,11 +1931,11 @@ def test_get_merged_parameter_data_group_missing_data_raise(null_config, tmp_pat
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
-    t2 = hf.Task(schemas=s2)
+    t2 = hf.Task(schema=s2)
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
         template_name="w1",
@@ -1983,11 +1983,11 @@ def test_get_merged_parameter_data_group_missing_data_no_raise(
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"), group="my_group")],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
-    t2 = hf.Task(schemas=s2)
+    t2 = hf.Task(schema=s2)
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
         template_name="w1",
@@ -2019,7 +2019,7 @@ def path_to_PV_classes_workflow(null_config, tmp_path):
         ],
     )
     p1_value = P1(a=10, sub_param=P1_sub_param(e=5))
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",

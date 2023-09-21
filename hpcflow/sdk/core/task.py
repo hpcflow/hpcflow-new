@@ -456,15 +456,15 @@ class Task(JSONLike):
 
     Parameters
     ----------
-    schemas
-        A `TaskSchema` object of a list of `TaskSchema` objects.
+    schema
+        A `TaskSchema` object or a list of `TaskSchema` objects.
     inputs
         A list of `InputValue` objects.
     """
 
     _child_objects = (
         ChildObjectSpec(
-            name="schemas",
+            name="schema",
             class_name="TaskSchema",
             is_multiple=True,
             shared_data_name="task_schemas",
@@ -486,7 +486,7 @@ class Task(JSONLike):
 
     def __init__(
         self,
-        schemas: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
+        schema: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
         repeats: Optional[List[Dict]] = None,
         groups: Optional[List[app.ElementGroup]] = None,
         resources: Optional[Dict[str, Dict]] = None,
@@ -524,11 +524,11 @@ class Task(JSONLike):
         #   'simulate_VE_loading_taylor_damask'
         # ])
 
-        if not isinstance(schemas, list):
-            schemas = [schemas]
+        if not isinstance(schema, list):
+            schema = [schema]
 
         _schemas = []
-        for i in schemas:
+        for i in schema:
             if isinstance(i, str):
                 try:
                     i = self.app.TaskSchema.get_by_key(
@@ -566,7 +566,7 @@ class Task(JSONLike):
         self._insert_ID = None
         self._dir_name = None
 
-        self._set_parent_refs()
+        self._set_parent_refs({"schema": "schemas"})
 
     def _reset_pending_element_sets(self):
         self._pending_element_sets = []
@@ -629,6 +629,7 @@ class Task(JSONLike):
 
     def to_dict(self):
         out = super().to_dict()
+        out["_schema"] = out.pop("_schemas")
         return {
             k.lstrip("_"): v
             for k, v in out.items()
@@ -903,8 +904,19 @@ class Task(JSONLike):
         return available
 
     @property
-    def schemas(self):
+    def schemas(self) -> List[app.TaskSchema]:
         return self._schemas
+
+    @property
+    def schema(self) -> app.TaskSchema:
+        """Returns the single task schema, if only one, else raises."""
+        if len(self._schemas) == 1:
+            return self._schemas[0]
+        else:
+            raise ValueError(
+                "Multiple task schemas are associated with this task. Access the list "
+                "via the `schemas` property."
+            )
 
     @property
     def element_sets(self):

@@ -210,13 +210,13 @@ def test_specified_sourceable_elements_subset(
     s2 = hf.TaskSchema("ts2", actions=[], inputs=[param_p2, param_p3])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[
             hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=0),
         ],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue(param_p2, 201)],
         sourceable_elements=[0],
         nesting_order={"inputs.p3": 1},
@@ -243,13 +243,13 @@ def test_specified_sourceable_elements_all_available(
     s2 = hf.TaskSchema("ts2", actions=[], inputs=[param_p2, param_p3])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[
             hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=0),
         ],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue(param_p2, 201)],
         sourceable_elements=[0, 1],
         nesting_order={"inputs.p3": 1},
@@ -276,9 +276,9 @@ def test_no_sourceable_elements_so_raise_missing(
     s1 = hf.TaskSchema("ts1", actions=[], inputs=[param_p1], outputs=[param_p3])
     s2 = hf.TaskSchema("ts2", actions=[], inputs=[param_p2, param_p3])
 
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue(param_p1, 101)])
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue(param_p2, 201)],
         sourceable_elements=[],
     )
@@ -300,9 +300,9 @@ def test_no_sourceable_elements_so_default_used(
     s1 = hf.TaskSchema("ts1", actions=[], inputs=[param_p1], outputs=[param_p3])
     s2 = hf.TaskSchema("ts2", actions=[], inputs=[param_p2, param_p3])
 
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue(param_p1, 101)])
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue(param_p2, 201)],
         sourceable_elements=[],
     )
@@ -346,13 +346,13 @@ def test_input_source_where(null_config, tmp_path, store):
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             sequences=[
                 hf.ValueSequence(path="inputs.p1", values=[1, 2], nesting_order=0)
             ],
         ),
         hf.Task(
-            schemas=s2,
+            schema=s2,
             nesting_order={"inputs.p2": 0},
             input_sources={
                 "p2": [
@@ -403,7 +403,7 @@ def test_input_source_where_parameter_value_class_sub_parameter(
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             sequences=[
                 hf.ValueSequence(
                     path="inputs.p1", values=[P1(a=1), P1(a=2)], nesting_order=0
@@ -411,7 +411,7 @@ def test_input_source_where_parameter_value_class_sub_parameter(
             ],
         ),
         hf.Task(
-            schemas=s2,
+            schema=s2,
             nesting_order={"inputs.p2": 0},
             input_sources={
                 "p2": [
@@ -464,7 +464,7 @@ def test_input_source_where_parameter_value_class_sub_parameter_property(
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             sequences=[
                 hf.ValueSequence(
                     path="inputs.p1c", values=[P1(a=1), P1(a=2)], nesting_order=0
@@ -472,7 +472,7 @@ def test_input_source_where_parameter_value_class_sub_parameter_property(
             ],
         ),
         hf.Task(
-            schemas=s2,
+            schema=s2,
             nesting_order={"inputs.p2": 0},
             input_sources={
                 "p2": [
@@ -527,14 +527,14 @@ def test_sub_parameter_task_input_source_excluded_when_root_parameter_is_task_ou
         ],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[
             hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
             hf.InputValue("p1c", path="a", value=20),
         ],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue("p2", value=201)],
     )
     wk = hf.Workflow.from_template_data(
@@ -577,14 +577,14 @@ def test_sub_parameter_task_input_source_included_when_root_parameter_is_task_in
         ],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[
             hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
             hf.InputValue("p1c", path="a", value=20),
         ],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue("p2", value=201)],
     )
     wk = hf.Workflow.from_template_data(
@@ -633,14 +633,14 @@ def test_sub_parameter_task_input_source_allowed_when_root_parameter_is_task_out
         ],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[
             hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5))),
             hf.InputValue("p1c", path="a", value=20),
         ],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         inputs=[hf.InputValue("p2", value=201)],
         input_sources={
             "p1c.a": [hf.InputSource.task(task_ref=0, task_source_type="input")]
