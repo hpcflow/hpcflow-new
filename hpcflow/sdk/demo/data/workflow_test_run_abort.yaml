@@ -38,6 +38,6 @@ task_schemas:
             stdout: <<parameter:is_finished>>
 
 tasks:
-  - schemas: [sleep]
+  - schema: sleep
     inputs:
       sleep_time_seconds: 3600 # 1 hour

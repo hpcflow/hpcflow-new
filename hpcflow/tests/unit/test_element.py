@@ -24,10 +24,10 @@ def workflow_w1(null_config, tmp_path):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
     )
-    t2 = hf.Task(schemas=s2, nesting_order={"inputs.p2": 1})
+    t2 = hf.Task(schema=s2, nesting_order={"inputs.p2": 1})
 
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1, t2])
     return hf.Workflow.from_template(wkt, path=tmp_path)
@@ -77,7 +77,7 @@ def test_equivalence_single_labelled_schema_input_element_get_label_and_non_labe
             )
         ],
     )
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", label="one", value=101)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", label="one", value=101)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -110,10 +110,10 @@ def test_element_dependencies_inputs_only_schema(new_null_config, tmp_path):
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[hf.InputValue("p1", value=101)],
         ),
-        hf.Task(schemas=s2),
+        hf.Task(schema=s2),
     ]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
@@ -131,7 +131,7 @@ def test_element_get_empty_path_single_labelled_input(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1", inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})]
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -149,7 +149,7 @@ def test_element_get_labelled_non_labelled_equivalence(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1", inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})]
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label=label)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -181,7 +181,7 @@ def element_get_wk(null_config, tmp_path):
     p1_value = 100
     p1c_value = P1(a=10, sub_param=P1_sub(e=5))
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[
             hf.InputValue("p1", value=p1_value),
             hf.InputValue("p1c", value=p1c_value),
@@ -271,10 +271,10 @@ def test_element_get_part_unset(null_config, tmp_path):
     s2 = hf.TaskSchema(objective="t2", inputs=[hf.SchemaInput(parameter="p2")])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1", value=1)],
     )
-    t2 = hf.Task(schemas=s2, inputs=[hf.InputValue("p2", path="a", value=2)])
+    t2 = hf.Task(schema=s2, inputs=[hf.InputValue("p2", path="a", value=2)])
 
     wk = hf.Workflow.from_template_data(
         tasks=[t1, t2],
@@ -322,7 +322,7 @@ def test_element_get_unset_object(null_config, tmp_path):
         parameter_class_modules=["hpcflow.sdk.core.test_utils"],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1", value=1)],
     )
     wk = hf.Workflow.from_template_data(
@@ -351,7 +351,7 @@ def test_element_get_unset_sub_object(null_config, tmp_path):
         parameter_class_modules=["hpcflow.sdk.core.test_utils"],
     )
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1", value=1)],
     )
     wk = hf.Workflow.from_template_data(
@@ -385,13 +385,13 @@ def test_element_get_unset_object_group(null_config, tmp_path):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
         sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         nesting_order={"inputs.p1c": 0},
     )
     wk = hf.Workflow.from_template_data(
@@ -425,13 +425,13 @@ def test_element_get_unset_sub_object_group(null_config, tmp_path):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
         sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         nesting_order={"inputs.p1c": 0},
     )
     wk = hf.Workflow.from_template_data(

@@ -29,10 +29,10 @@ def workflow_w1(null_config, tmp_path, param_p1, param_p2):
     s2 = hf.TaskSchema("t2", actions=[], inputs=[param_p2])
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         sequences=[hf.ValueSequence("inputs.p1", values=[101, 102], nesting_order=1)],
     )
-    t2 = hf.Task(schemas=s2, nesting_order={"inputs.p2": 1})
+    t2 = hf.Task(schema=s2, nesting_order={"inputs.p2": 1})
 
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1, t2])
     return hf.Workflow.from_template(wkt, path=tmp_path)

@@ -372,18 +372,19 @@ class BaseJSONLike:
 
         return obj
 
-    def _set_parent_refs(self):
+    def _set_parent_refs(self, child_name_attrs=None):
         """Assign references to self on child objects that declare a parent ref
         attribute."""
 
         for chd in self._child_objects:
             if chd.parent_ref:
+                chd_name = (child_name_attrs or {}).get(chd.name, chd.name)
                 if chd.is_multiple:
-                    for chd_obj in getattr(self, chd.name):
+                    for chd_obj in getattr(self, chd_name):
                         if chd_obj:
                             setattr(chd_obj, chd.parent_ref, self)
                 else:
-                    chd_obj = getattr(self, chd.name)
+                    chd_obj = getattr(self, chd_name)
                     if chd_obj:
                         setattr(chd_obj, chd.parent_ref, self)
 

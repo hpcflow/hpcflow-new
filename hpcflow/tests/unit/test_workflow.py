@@ -27,7 +27,7 @@ def modify_workflow_metadata_on_disk(workflow):
 def make_workflow_w1_with_config_kwargs(config_kwargs, path, param_p1, param_p2):
     hf.load_config(**config_kwargs)
     s1 = hf.TaskSchema("ts1", actions=[], inputs=[param_p1], outputs=[param_p2])
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue(param_p1, 101)])
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1])
     return hf.Workflow.from_template(wkt, path=path)
 
@@ -158,7 +158,7 @@ def schema_s4c(
 
 @pytest.fixture
 def workflow_w1(null_config, tmp_path, schema_s3, param_p1):
-    t1 = hf.Task(schemas=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
+    t1 = hf.Task(schema=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1])
     return hf.Workflow.from_template(wkt, path=tmp_path)
 
@@ -173,13 +173,13 @@ def test_raise_on_missing_workflow(null_config, tmp_path):
 
 
 def test_add_empty_task(empty_workflow, schema_s1):
-    t1 = hf.Task(schemas=schema_s1)
+    t1 = hf.Task(schema=schema_s1)
     wk_t1 = empty_workflow._add_empty_task(t1)
     assert len(empty_workflow.tasks) == 1 and wk_t1.index == 0 and wk_t1.name == "ts1"
 
 
 def test_raise_on_missing_inputs_add_first_task(empty_workflow, schema_s1, param_p1):
-    t1 = hf.Task(schemas=schema_s1)
+    t1 = hf.Task(schema=schema_s1)
     with pytest.raises(MissingInputs) as exc_info:
         empty_workflow.add_task(t1)
 
@@ -187,7 +187,7 @@ def test_raise_on_missing_inputs_add_first_task(empty_workflow, schema_s1, param
 
 
 def test_raise_on_missing_inputs_add_second_task(workflow_w1, schema_s2, param_p3):
-    t2 = hf.Task(schemas=schema_s2)
+    t2 = hf.Task(schema=schema_s2)
     with pytest.raises(MissingInputs) as exc_info:
         workflow_w1.add_task(t2)
 
@@ -205,7 +205,7 @@ def test_WorkflowTemplate_from_YAML_string(null_config):
         name: simple_workflow
 
         tasks:
-        - schemas: [dummy_task_1]
+        - schema: dummy_task_1
           element_sets:
           - inputs:
               p2: 201
@@ -225,7 +225,7 @@ def test_WorkflowTemplate_from_YAML_string_without_element_sets(null_config):
         name: simple_workflow
 
         tasks:
-        - schemas: [dummy_task_1]
+        - schema: dummy_task_1
           inputs:
             p2: 201
             p5: 501
@@ -246,7 +246,7 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
         name: simple_workflow
 
         tasks:
-        - schemas: [dummy_task_1]
+        - schema: dummy_task_1
           element_sets:
             - inputs:
                 p2: 201
@@ -262,7 +262,7 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
         name: simple_workflow
 
         tasks:
-        - schemas: [dummy_task_1]
+        - schema: dummy_task_1
           inputs:
             p2: 201
             p5: 501
@@ -278,7 +278,7 @@ def test_WorkflowTemplate_from_YAML_string_with_and_without_element_sets_equival
 
 
 def test_store_has_pending_during_add_task(workflow_w1, schema_s2, param_p3):
-    t2 = hf.Task(schemas=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
+    t2 = hf.Task(schema=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
     with workflow_w1.batch_update():
         workflow_w1.add_task(t2)
         assert workflow_w1._store.has_pending
@@ -299,7 +299,7 @@ def test_is_modified_on_disk_when_metadata_changed(workflow_w1):
 
 @pytest.mark.skip("need to re-implement `is_modified_on_disk`")
 def test_batch_update_abort_if_modified_on_disk(workflow_w1, schema_s2, param_p3):
-    t2 = hf.Task(schemas=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
+    t2 = hf.Task(schema=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
     with pytest.raises(WorkflowBatchUpdateFailedError):
         with workflow_w1._store.cached_load():
             with workflow_w1.batch_update():
@@ -327,9 +327,7 @@ def test_WorkflowTemplate_from_JSON_string_without_element_sets(null_config):
             "name": "test_wk",
             "tasks": [
                 {
-                    "schemas": [
-                        "test_t1_bash"
-                    ],
+                    "schema": "test_t1_bash",
                     "inputs": {
                         "p1": 101
                     }
@@ -351,11 +349,11 @@ def test_equivalent_element_input_parameter_value_class_and_kwargs(
 ):
     a_value = 101
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value=P1(a=a_value))],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value={"a": a_value})],
     )
     wk = hf.Workflow.from_template_data(
@@ -382,11 +380,11 @@ def test_equivalent_element_input_parameter_value_class_method_and_kwargs(
     c_val = 51
     expected_a_val = b_val + c_val
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value=P1.from_data(b=b_val, c=c_val))],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[
             hf.InputValue(
                 parameter=param_p1c,
@@ -416,11 +414,11 @@ def test_input_value_class_expected_value(
     t1_value_exp = P1(a=a_value)
     t2_value_exp = {"a": a_value}
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value=t1_value_exp)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value=t2_value_exp)],
     )
     wk = hf.Workflow.from_template_data(
@@ -444,11 +442,11 @@ def test_input_value_class_method_expected_value(
     t1_value_exp = P1.from_data(b=b_val, c=c_val)
     t2_value_exp = {"b": b_val, "c": c_val}
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value=t1_value_exp)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[
             hf.InputValue(
                 parameter=param_p1c,
@@ -476,11 +474,11 @@ def test_equivalent_element_input_sequence_parameter_value_class_and_kwargs(
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[data], nesting_order=0)],
     )
     wk = hf.Workflow.from_template_data(
@@ -501,11 +499,11 @@ def test_equivalent_element_input_sequence_parameter_value_class_method_and_kwar
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[
             hf.ValueSequence(
                 path="inputs.p1c",
@@ -531,11 +529,11 @@ def test_sequence_value_class_expected_value(null_config, tmp_path, store, schem
     data = {"a": 101}
     obj = P1(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[data], nesting_order=0)],
     )
     wk = hf.Workflow.from_template_data(
@@ -557,11 +555,11 @@ def test_sequence_value_class_method_expected_value(
     data = {"b": 50, "c": 51}
     obj = P1.from_data(**data)
     t1_1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[hf.ValueSequence(path="inputs.p1c", values=[obj], nesting_order=0)],
     )
     t1_2 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         sequences=[
             hf.ValueSequence(
                 path="inputs.p1c",
@@ -592,7 +590,7 @@ def test_expected_element_input_parameter_value_class_merge_sequence(
     obj_exp = P1(a=a_val, d=d_val)
 
     t1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[hf.InputValue(parameter=param_p1c, value={"a": a_val})],
         sequences=[
             hf.ValueSequence(path="inputs.p1c.d", values=[d_val], nesting_order=0)
@@ -617,7 +615,7 @@ def test_expected_element_input_parameter_value_class_method_merge_sequence(
     obj_exp = P1.from_data(b=b_val, c=c_val)
 
     t1 = hf.Task(
-        schemas=[schema_s4c],
+        schema=[schema_s4c],
         inputs=[
             hf.InputValue(
                 parameter=param_p1c, value={"b": b_val}, value_class_method="from_data"
@@ -648,8 +646,8 @@ def test_upstream_input_source_merge_with_current_input_modification(
         objective="t2", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
     )
     tasks = [
-        hf.Task(schemas=s1, inputs=[hf.InputValue("p2", {"a": 101})]),
-        hf.Task(schemas=s2, inputs=[hf.InputValue("p2", value=102, path="b")]),
+        hf.Task(schema=s1, inputs=[hf.InputValue("p2", {"a": 101})]),
+        hf.Task(schema=s2, inputs=[hf.InputValue("p2", value=102, path="b")]),
     ]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
@@ -670,13 +668,13 @@ def test_upstream_input_source_with_sub_parameter(null_config, tmp_path, store):
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[
                 hf.InputValue("p2", {"a": 101}),
                 hf.InputValue("p2", value=102, path="b"),
             ],
         ),
-        hf.Task(schemas=s2),
+        hf.Task(schema=s2),
     ]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
@@ -690,7 +688,7 @@ def test_upstream_input_source_with_sub_parameter(null_config, tmp_path, store):
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_from_template_data_workflow_reload(null_config, tmp_path, store):
     wk_name = "temp"
-    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=hf.task_schemas.test_t1_ps, inputs=[hf.InputValue("p1", 101)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         path=tmp_path,
@@ -707,7 +705,7 @@ def test_from_template_data_workflow_reload(null_config, tmp_path, store):
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_from_template_workflow_reload(null_config, tmp_path, store):
     wk_name = "temp"
-    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=hf.task_schemas.test_t1_ps, inputs=[hf.InputValue("p1", 101)])
     wkt = hf.WorkflowTemplate(name=wk_name, tasks=[t1])
     wk = hf.Workflow.from_template(
         template=wkt,
@@ -727,7 +725,7 @@ def test_from_YAML_str_template_workflow_reload(null_config, tmp_path, store):
         """
     name: temp
     tasks: 
-      - schemas: [test_t1_ps]
+      - schema: test_t1_ps
         inputs:
           p1: 101
     """
@@ -747,7 +745,7 @@ def test_from_YAML_str_template_workflow_reload(null_config, tmp_path, store):
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_from_template_workflow_add_task_reload(null_config, tmp_path, store):
     wk_name = "temp"
-    t1 = hf.Task(schemas=[hf.task_schemas.test_t1_ps], inputs=[hf.InputValue("p1", 101)])
+    t1 = hf.Task(schema=hf.task_schemas.test_t1_ps, inputs=[hf.InputValue("p1", 101)])
     wkt = hf.WorkflowTemplate(name=wk_name)
     wk = hf.Workflow.from_template(
         template=wkt,

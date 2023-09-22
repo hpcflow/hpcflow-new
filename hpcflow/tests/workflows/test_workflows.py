@@ -89,7 +89,7 @@ def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
         inputs=[hf.SchemaInput("p1")],
         outputs=[hf.SchemaOutput("p2"), hf.SchemaOutput("p3")],
     )
-    t1 = hf.Task(schemas=[s1], inputs=[hf.InputValue("p1", 1)])
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", 1)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="wk2",
@@ -128,13 +128,13 @@ def test_element_get_group(null_config, tmp_path, store):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
         sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         nesting_order={"inputs.p1c": 0},
     )
     wk = hf.Workflow.from_template_data(
@@ -175,13 +175,13 @@ def test_element_get_sub_object_group(null_config, tmp_path):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
         sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         nesting_order={"inputs.p1c": 0},
     )
     wk = hf.Workflow.from_template_data(
@@ -224,13 +224,13 @@ def test_element_get_sub_data_group(null_config, tmp_path):
     )
 
     t1 = hf.Task(
-        schemas=s1,
+        schema=s1,
         inputs=[hf.InputValue("p1c", value=P1(a=10, sub_param=P1_sub(e=5)))],
         sequences=[hf.ValueSequence("inputs.p1c.a", values=[20, 30], nesting_order=0)],
         groups=[hf.ElementGroup(name="my_group")],
     )
     t2 = hf.Task(
-        schemas=s2,
+        schema=s2,
         nesting_order={"inputs.p1c": 0},
     )
     wk = hf.Workflow.from_template_data(
@@ -287,7 +287,7 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             element_sets=[
                 hf.ElementSet(inputs=[hf.InputValue("p1", 1)]),
                 hf.ElementSet(
@@ -303,11 +303,11 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
             ],
         ),
         hf.Task(
-            schemas=s2,
+            schema=s2,
             nesting_order={"inputs.p1": 0},
         ),
         hf.Task(
-            schemas=s3,
+            schema=s3,
             input_sources={
                 "p2[one]": [
                     hf.InputSource.task(
@@ -351,7 +351,7 @@ def test_loop_simple(null_config, tmp_path):
         ],
     )
     wk = hf.Workflow.from_template_data(
-        tasks=[hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=1)])],
+        tasks=[hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=1)])],
         loops=[hf.Loop(tasks=[0], num_iterations=3)],
         path=tmp_path,
         template_name="wk0",
@@ -384,7 +384,7 @@ def test_loop_termination_multi_element(null_config, tmp_path):
     )
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             sequences=[hf.ValueSequence("inputs.p1", values=[1, 2], nesting_order=0)],
         ),
     ]

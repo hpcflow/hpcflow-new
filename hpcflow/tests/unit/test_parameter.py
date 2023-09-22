@@ -66,7 +66,7 @@ def test_submission_with_specified_parameter_class_module(null_config, tmp_path,
         parameter_class_modules=["hpcflow.tests.unit.test_parameter"],
     )
     p1_value = MyParameterP1(a=10)
-    t1 = hf.Task(schemas=s1, inputs=[hf.InputValue("p1_test", value=p1_value)])
+    t1 = hf.Task(schema=s1, inputs=[hf.InputValue("p1_test", value=p1_value)])
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         template_name="w1",

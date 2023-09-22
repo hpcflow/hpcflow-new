@@ -145,12 +145,16 @@ class WorkflowTemplate(JSONLike):
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
-            if "element_sets" not in task_dat:
-                # add a single element set:
-                schemas = task_dat.pop("schemas")
+            schema = task_dat.pop("schema")
+            schema = schema if isinstance(schema, list) else [schema]
+            if "element_sets" in task_dat:
+                # just update the schema to a list:
+                data["tasks"][task_idx]["schema"] = schema
+            else:
+                # add a single element set, and update the schema to a list:
                 out_labels = task_dat.pop("output_labels", [])
                 data["tasks"][task_idx] = {
-                    "schemas": schemas,
+                    "schema": schema,
                     "element_sets": [task_dat],
                     "output_labels": out_labels,
                 }

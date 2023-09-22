@@ -129,7 +129,7 @@ def test_value_sequence_object_values_during_workflow_init(null_config, tmp_path
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:
@@ -162,7 +162,7 @@ def test_value_sequence_object_values_class_method_during_workflow_init(
     values_exp = [P1(a=101, d=None)]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:
@@ -197,7 +197,7 @@ def test_value_sequence_object_values_named_class_method_during_workflow_init(
     values_exp = [data]
 
     t1 = hf.Task(
-        schemas=[s1],
+        schema=[s1],
         sequences=[seq],
     )
     # before workflow initialisation:
@@ -217,3 +217,190 @@ def test_value_sequence_object_values_named_class_method_during_workflow_init(
 
     # after initialisation and store commit:
     assert wk.tasks[0].template.element_sets[0].sequences[0].values == values_exp
+
+
+def test_nesting_order_two_seqs_parallel(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=0),
+            hf.ValueSequence("inputs.p2", values=["c", "d"], nesting_order=0),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 2
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "b", "p2": "d"}
+
+
+def test_nesting_order_two_seqs_parallel_decimal_equiv(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=1.0),
+            hf.ValueSequence("inputs.p2", values=["c", "d"], nesting_order=1.0),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 2
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "b", "p2": "d"}
+
+
+def test_nesting_order_two_seqs_nested(
+    null_config,
+    tmp_path,
+):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=0),
+            hf.ValueSequence("inputs.p2", values=["c", "d"], nesting_order=1),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 4
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "a", "p2": "d"}
+    assert wk.tasks.test.elements[2].get("inputs") == {"p1": "b", "p2": "c"}
+    assert wk.tasks.test.elements[3].get("inputs") == {"p1": "b", "p2": "d"}
+
+
+def test_nesting_order_two_seqs_default_nesting_order(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"]),
+            hf.ValueSequence("inputs.p2", values=["c", "d"]),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 2
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "b", "p2": "d"}
+
+
+def test_raise_nesting_order_two_seqs_default_nesting_order(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"]),
+            hf.ValueSequence("inputs.p2", values=["c", "d", "e"]),
+        ],
+    )
+    with pytest.raises(ValueError):
+        wk = hf.Workflow.from_template_data(
+            template_name="test",
+            tasks=[t1],
+            path=tmp_path,
+        )
+
+
+def test_raise_nesting_order_two_seqs_default_nesting_order_decimal(
+    null_config, tmp_path
+):
+    ts = hf.TaskSchema(
+        objective="test", inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")]
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=0.0),
+            hf.ValueSequence("inputs.p2", values=["c", "d", "e"], nesting_order=0.0),
+        ],
+    )
+    with pytest.raises(ValueError):
+        wk = hf.Workflow.from_template_data(
+            template_name="test",
+            tasks=[t1],
+            path=tmp_path,
+        )
+
+
+def test_nesting_order_three_seqs_decimal(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test",
+        inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2"), hf.SchemaInput("p3")],
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=0),
+            hf.ValueSequence("inputs.p2", values=["c", "d", "e"], nesting_order=1),
+            hf.ValueSequence(
+                "inputs.p3", values=["f", "g", "h", "i", "j", "k"], nesting_order=1.5
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 6
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c", "p3": "f"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "a", "p2": "d", "p3": "g"}
+    assert wk.tasks.test.elements[2].get("inputs") == {"p1": "a", "p2": "e", "p3": "h"}
+    assert wk.tasks.test.elements[3].get("inputs") == {"p1": "b", "p2": "c", "p3": "i"}
+    assert wk.tasks.test.elements[4].get("inputs") == {"p1": "b", "p2": "d", "p3": "j"}
+    assert wk.tasks.test.elements[5].get("inputs") == {"p1": "b", "p2": "e", "p3": "k"}
+
+
+def test_nesting_order_three_seqs_all_decimal(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="test",
+        inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2"), hf.SchemaInput("p3")],
+    )
+    t1 = hf.Task(
+        schema=ts,
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=["a", "b"], nesting_order=0.5),
+            hf.ValueSequence("inputs.p2", values=["c", "d", "e"], nesting_order=1.2),
+            hf.ValueSequence(
+                "inputs.p3", values=["f", "g", "h", "i", "j", "k"], nesting_order=1.5
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        tasks=[t1],
+        path=tmp_path,
+    )
+    assert wk.tasks.test.num_elements == 6
+    assert wk.tasks.test.elements[0].get("inputs") == {"p1": "a", "p2": "c", "p3": "f"}
+    assert wk.tasks.test.elements[1].get("inputs") == {"p1": "a", "p2": "d", "p3": "g"}
+    assert wk.tasks.test.elements[2].get("inputs") == {"p1": "a", "p2": "e", "p3": "h"}
+    assert wk.tasks.test.elements[3].get("inputs") == {"p1": "b", "p2": "c", "p3": "i"}
+    assert wk.tasks.test.elements[4].get("inputs") == {"p1": "b", "p2": "d", "p3": "j"}
+    assert wk.tasks.test.elements[5].get("inputs") == {"p1": "b", "p2": "e", "p3": "k"}

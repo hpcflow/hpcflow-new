@@ -7,6 +7,6 @@ from hpcflow.app import app as hf
 def test_workflow_1(tmp_path, null_config):
     act = hf.Action(commands=[hf.Command("echo 'Buenas!'")])
     ts = hf.TaskSchema(objective="hello", actions=[act])
-    wkt = hf.WorkflowTemplate(name="greetings", tasks=[hf.Task(schemas=[ts])])
+    wkt = hf.WorkflowTemplate(name="greetings", tasks=[hf.Task(schema=ts)])
     wf = hf.Workflow.from_template(name="saludos", template=wkt)
     wf.submit(wait=True, add_to_known=False)

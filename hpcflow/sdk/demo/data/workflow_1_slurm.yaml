@@ -3,6 +3,6 @@ resources:
   any:
     scheduler: slurm
 tasks:
-  - schemas: [test_t1_conditional_OS]
+  - schema: test_t1_conditional_OS
     inputs:
       p1: 101

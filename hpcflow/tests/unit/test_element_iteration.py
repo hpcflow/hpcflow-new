@@ -20,7 +20,7 @@ def test_decode(null_config, tmp_path, store):
         ],
     )
     wk = hf.Workflow.from_template_data(
-        tasks=[hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=101)])],
+        tasks=[hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=101)])],
         loops=[hf.Loop(tasks=[0], num_iterations=1)],
         path=tmp_path,
         template_name="wk0",

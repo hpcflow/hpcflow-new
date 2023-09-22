@@ -23,7 +23,7 @@ def test_get_command_line(null_config, tmp_path):
         ],
     )
     p1_value = 1
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -56,7 +56,7 @@ def test_get_command_line_with_stdout(null_config, tmp_path, shell_args):
         ],
     )
     p1_value = 1
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -91,7 +91,7 @@ def test_get_command_line_single_labelled_input(null_config, tmp_path):
     )
     p1_value = 1
     tasks = [
-        hf.Task(schemas=s1, inputs=[hf.InputValue("p1", label="one", value=p1_value)])
+        hf.Task(schema=s1, inputs=[hf.InputValue("p1", label="one", value=p1_value)])
     ]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
@@ -129,7 +129,7 @@ def test_get_command_line_multiple_labelled_input(null_config, tmp_path):
     p1_two_value = 2
     tasks = [
         hf.Task(
-            schemas=s1,
+            schema=s1,
             inputs=[
                 hf.InputValue("p1", label="one", value=p1_one_value),
                 hf.InputValue("p1", label="two", value=p1_two_value),
@@ -165,7 +165,7 @@ def test_get_command_line_sub_parameter(null_config, tmp_path):
         ],
     )
     p1_value = {"a": 1}
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -193,7 +193,7 @@ def test_get_command_line_sum(null_config, tmp_path):
         ],
     )
     p1_value = [1, 2, 3]
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -223,7 +223,7 @@ def test_get_command_line_join(null_config, tmp_path):
         ],
     )
     p1_value = [1, 2, 3]
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -250,7 +250,7 @@ def test_get_command_line_sum_sub_data(null_config, tmp_path):
         ],
     )
     p1_value = {"a": [1, 2, 3]}
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -280,7 +280,7 @@ def test_get_command_line_join_sub_data(null_config, tmp_path):
         ],
     )
     p1_value = {"a": [1, 2, 3]}
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -309,7 +309,7 @@ def test_get_command_line_parameter_value(null_config, tmp_path):
         ],
     )
     p1_value = P1(a=1)  # has a `CLI_format` method defined which returns `str(a)`
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -342,7 +342,7 @@ def test_get_command_line_parameter_value_join(null_config, tmp_path):
         ],
     )
     p1_value = P1(a=4)
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -370,7 +370,7 @@ def test_get_command_line_parameter_value_custom_method(null_config, tmp_path):
         ],
     )
     p1_value = P1(a=1)
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -401,7 +401,7 @@ def test_get_command_line_parameter_value_custom_method_with_args(null_config, t
         ],
     )
     p1_value = P1(a=1)
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -431,7 +431,7 @@ def test_get_command_line_parameter_value_custom_method_with_two_args(
         actions=[hf.Action(commands=[hf.Command(command=cmd)])],
     )
     p1_value = P1(a=1)
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -454,7 +454,7 @@ def test_get_command_line_parameter_value_sub_object(null_config, tmp_path):
         actions=[hf.Action(commands=[hf.Command(command=cmd)])],
     )
     p1_value = P1(a=1, sub_param=P1_sub(e=5))
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
@@ -477,7 +477,7 @@ def test_get_command_line_parameter_value_sub_object_attr(null_config, tmp_path)
         actions=[hf.Action(commands=[hf.Command(command=cmd)])],
     )
     p1_value = P1(a=1, sub_param=P1_sub(e=5))
-    tasks = [hf.Task(schemas=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
+    tasks = [hf.Task(schema=s1, inputs=[hf.InputValue("p1c", value=p1_value)])]
     wk = hf.Workflow.from_template_data(
         tasks=tasks,
         path=tmp_path,
