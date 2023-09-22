@@ -866,6 +866,22 @@ def make_cli(app):
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
 
+    @new_CLI.command()
+    @click.argument("name")
+    @click.option("--use-current-env", is_flag=True, default=False)
+    @click.option("--setup", type=click.STRING)
+    @click.option("--env-source-file", type=click.STRING)
+    def configure_env(name, use_current_env, setup=None, env_source_file=None):
+        """Configure an app environment, using, for example, the currently activated
+        Python environment."""
+        app.configure_env(
+            name=name,
+            setup=setup,
+            executables=None,
+            use_current_env=use_current_env,
+            env_source_file=env_source_file,
+        )
+
     new_CLI.__doc__ = app.description
     new_CLI.add_command(get_config_CLI(app))
     new_CLI.add_command(get_demo_software_CLI(app))

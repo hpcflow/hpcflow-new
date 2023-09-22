@@ -11,7 +11,7 @@ from logging import Logger
 import os
 from contextlib import contextmanager
 from pathlib import Path
-import socket
+import sys
 from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
 from platformdirs import user_data_dir, user_runtime_path
@@ -1856,6 +1856,75 @@ class BaseApp(metaclass=Singleton):
         """
         path = self._resolve_workflow_reference(workflow_ref, ref_is_path)
         self.Workflow(path).cancel()
+
+    def configure_env(
+        self,
+        name,
+        setup=None,
+        executables=None,
+        use_current_env=False,
+        env_source_file=None,
+    ):
+        if not setup:
+            setup = []
+        if not executables:
+            executables = []
+        if not env_source_file:
+            env_source_file = self.config.get("config_directory").joinpath(
+                "configured_envs.yaml"
+            )
+        if use_current_env:
+            if self.run_time_info.is_conda_venv:
+                # use the currently activated conda environment for the new app environment:
+                conda_exe = os.environ.get("CONDA_EXE", os.environ.get("MAMBA_EXE"))
+                setup.append(f"{conda_exe} activate {os.environ['CONDA_PREFIX']}")
+            elif self.run_time_info.is_venv:
+                if os.name == "posix":
+                    cmd = f"source {self.run_time_info.venv_path}/bin/activate"
+                elif os.name == "nt":
+                    cmd = f"{self.run_time_info.venv_path}\\Scripts\\activate.ps1"
+                setup.append(cmd)
+
+            executables = [
+                self.Executable(
+                    label="python_script",
+                    instances=[
+                        self.ExecutableInstance(
+                            command=f"{sys.executable} <<script_name>> <<args>>",
+                            num_cores=1,
+                            parallel_mode=None,
+                        ),
+                    ],
+                ),
+            ]
+
+        new_env = self.Environment(name=name, setup=setup, executables=executables)
+        new_env_dat = new_env.to_json_like(exclude="_hash_value")[0]
+        if env_source_file.exists():
+            existing_env_dat = read_YAML_file(env_source_file, typ="rt")
+            if name in [i["name"] for i in existing_env_dat]:
+                # TODO: this doesn't check all app envs, just those added with this method
+                raise ValueError(f"Environment {name!r} already exists.")
+
+            all_env_dat = existing_env_dat + [new_env_dat]
+
+            # write a new temporary config file
+            tmp_file = env_source_file.with_suffix(env_source_file.suffix + ".tmp")
+            self.logger.debug(f"Creating temporary env source file: {tmp_file!r}.")
+            write_YAML_file(all_env_dat, tmp_file, typ="rt")
+
+            # atomic rename, overwriting original:
+            self.logger.debug("Replacing original env source file with temporary file.")
+            os.replace(src=tmp_file, dst=env_source_file)
+
+        else:
+            all_env_dat = [new_env_dat]
+            write_YAML_file(all_env_dat, env_source_file, typ="rt")
+
+        cur_env_source_files = self.config.get("environment_sources")
+        if env_source_file not in cur_env_source_files:
+            self.config.append("environment_sources", str(env_source_file))
+            self.config.save()
 
 
 class App(BaseApp):
