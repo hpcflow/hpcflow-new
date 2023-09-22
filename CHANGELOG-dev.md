@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a107"></a>
+## [v0.2.0a107](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a106...v0.2.0a107) - 2023.09.22
+
+### ✨ Features
+
+* add `App.configure_env` and CLI
+
+### 👷 Build changes
+
+* merge from develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a106"></a>
 ## [v0.2.0a106](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a105...v0.2.0a106) - 2023.09.22
 
