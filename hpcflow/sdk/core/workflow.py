@@ -127,7 +127,7 @@ class WorkflowTemplate(JSONLike):
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
-    source_file: Optional[str] = None
+    source_file: Optional[str] = field(default=None, compare=False)
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
