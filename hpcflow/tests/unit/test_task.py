@@ -2083,3 +2083,10 @@ def test_path_to_PV_classes_resources_path_ignored(path_to_PV_classes_workflow):
     assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
         paths_1
     ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths_2)
+
+
+def test_input_values_specified_by_dict(null_config):
+    ts = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput("p1")])
+    t1 = hf.Task(schema=ts, inputs=[hf.InputValue(parameter="p1", value=101)])
+    t2 = hf.Task(schema=ts, inputs={"p1": 101})
+    assert t1 == t2
