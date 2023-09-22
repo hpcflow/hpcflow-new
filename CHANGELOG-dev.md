@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a106"></a>
+## [v0.2.0a106](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a105...v0.2.0a106) - 2023.09.22
+
+### 🐛 Bug Fixes
+
+* sequence nesting for combining nesting and then parallel-merging
+* change `schemas` arg in `Task` to singular `schema`, but store internally as a list
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a105"></a>
 ## [v0.2.0a105](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a104...v0.2.0a105) - 2023.09.21
 
