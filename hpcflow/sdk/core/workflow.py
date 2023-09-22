@@ -127,6 +127,7 @@ class WorkflowTemplate(JSONLike):
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
+    source_file: Optional[str] = None
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
@@ -230,6 +231,7 @@ class WorkflowTemplate(JSONLike):
         cls.app.logger.debug("parsing workflow template from a YAML file")
         data = read_YAML_file(path)
         cls._check_name(data, path)
+        data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
@@ -257,6 +259,7 @@ class WorkflowTemplate(JSONLike):
         cls.app.logger.debug("parsing workflow template from a JSON file")
         data = read_JSON_file(path)
         cls._check_name(data, path)
+        data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
@@ -1358,6 +1361,11 @@ class Workflow:
 
         # actually make template inputs/resources persistent, now the workflow exists:
         wk_dummy.make_persistent(wk)
+
+        if template.source_file:
+            wk.artifacts_path.mkdir(exist_ok=False)
+            src = Path(template.source_file)
+            wk.artifacts_path.joinpath(src.name).write_text(src.read_text())
 
         return wk
 
