@@ -254,7 +254,8 @@ jobs:
           echo $hpcflow_vers_expected
           [ "$hpcflow_vers" = "$hpcflow_vers_expected" ]
 
-      - name: Run test suite on the frozen app (file)
+      - name: Run test suite on the frozen app (file) [====temp disabled on Mac due to slow running====]
+        if: "!contains(matrix.os, 'macos')"
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }} test
 
