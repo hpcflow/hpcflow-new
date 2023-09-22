@@ -14,6 +14,7 @@ from hpcflow.sdk.cli_common import (
     js_parallelism_option,
     wait_option,
     add_to_known_opt,
+    print_idx_opt,
 )
 
 
@@ -130,6 +131,7 @@ def get_demo_workflow_CLI(app):
     @js_parallelism_option
     @wait_option
     @add_to_known_opt
+    @print_idx_opt
     def make_and_submit_demo_workflow(
         workflow_name,
         format,
@@ -142,8 +144,9 @@ def get_demo_workflow_CLI(app):
         js_parallelism=None,
         wait=False,
         add_to_known=True,
+        print_idx=False,
     ):
-        app.make_and_submit_demo_workflow(
+        out = app.make_and_submit_demo_workflow(
             workflow_name=workflow_name,
             template_format=format,
             path=path,
@@ -155,7 +158,10 @@ def get_demo_workflow_CLI(app):
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,
+            return_idx=print_idx,
         )
+        if print_idx:
+            click.echo(out)
 
     @demo_workflow.command("copy")
     @click.argument("workflow_name")

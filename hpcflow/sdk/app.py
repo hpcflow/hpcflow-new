@@ -1108,6 +1108,7 @@ class BaseApp(metaclass=Singleton):
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
+        return_idx: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1150,6 +1151,9 @@ class BaseApp(metaclass=Singleton):
         add_to_known
             If True, add the new submission to the known-submissions file, which is
             used by the `show` command to monitor current and recent submissions.
+        return_idx
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1169,6 +1173,7 @@ class BaseApp(metaclass=Singleton):
             JS_parallelism=JS_parallelism,
             wait=wait,
             add_to_known=add_to_known,
+            return_idx=return_idx,
         )
 
     def _make_demo_workflow(
@@ -1240,6 +1245,7 @@ class BaseApp(metaclass=Singleton):
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
+        return_idx: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1279,6 +1285,9 @@ class BaseApp(metaclass=Singleton):
         add_to_known
             If True, add the new submission to the known-submissions file, which is
             used by the `show` command to monitor current and recent submissions.
+        return_idx
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1297,6 +1306,7 @@ class BaseApp(metaclass=Singleton):
             JS_parallelism=JS_parallelism,
             wait=wait,
             add_to_known=add_to_known,
+            return_idx=return_idx,
         )
 
     def _submit_workflow(
@@ -1304,6 +1314,7 @@ class BaseApp(metaclass=Singleton):
         workflow_path: PathLike,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
+        return_idx: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Submit an existing {app_name} workflow.
 
@@ -1319,7 +1330,7 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("submit_workflow called")
         wk = self.Workflow(workflow_path)
-        return wk.submit(JS_parallelism=JS_parallelism, wait=wait)
+        return wk.submit(JS_parallelism=JS_parallelism, wait=wait, return_idx=return_idx)
 
     def _run_hpcflow_tests(self, *args):
         """Run hpcflow test suite. This function is only available from derived apps."""

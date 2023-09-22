@@ -1805,6 +1805,7 @@ class Workflow:
         print_stdout: Optional[bool] = False,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
+        return_idx: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Submit the workflow for execution.
 
@@ -1824,6 +1825,9 @@ class Workflow:
         add_to_known
             If True, add the submitted submissions to the known-submissions file, which is
             used by the `show` command to monitor current and recent submissions.
+        return_idx
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
         """
 
         console = rich.console.Console()
@@ -1858,7 +1862,8 @@ class Workflow:
         if wait:
             self.wait(submitted_js)
 
-        return submitted_js
+        if return_idx:
+            return submitted_js
 
     def wait(self, sub_js: Optional[Dict] = None):
         """Wait for the completion of specified/all submitted jobscripts."""

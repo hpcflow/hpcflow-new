@@ -22,6 +22,7 @@ from hpcflow.sdk.cli_common import (
     js_parallelism_option,
     wait_option,
     add_to_known_opt,
+    print_idx_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.submission.shells import ALL_SHELLS
@@ -288,14 +289,20 @@ def _make_workflow_CLI(app):
     @js_parallelism_option
     @wait_option
     @add_to_known_opt
+    @print_idx_opt
     @click.pass_context
-    def submit_workflow(ctx, js_parallelism=None, wait=False, add_to_known=True):
+    def submit_workflow(
+        ctx, js_parallelism=None, wait=False, add_to_known=True, print_idx=False
+    ):
         """Submit the workflow."""
-        ctx.obj["workflow"].submit(
+        out = ctx.obj["workflow"].submit(
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,
+            return_idx=print_idx,
         )
+        if print_idx:
+            click.echo(out)
 
     @workflow.command(name="wait")
     @click.option(
