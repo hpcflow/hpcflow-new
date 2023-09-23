@@ -289,7 +289,32 @@ def get_config_CLI(app):
             defaults = json.loads(defaults)
         else:
             defaults = {}
-        ctx.obj["config"].add_scheduler(name, defaults=defaults)
+        ctx.obj["config"].add_scheduler(name, **defaults)
+        ctx.obj["config"].save()
+
+    @config.command()
+    @click.argument("name")
+    @click.option("--defaults")
+    @click.pass_context
+    @CLI_exception_wrapper_gen(ConfigError)
+    def add_shell(ctx, name, defaults):
+        if defaults:
+            defaults = json.loads(defaults)
+        else:
+            defaults = {}
+        ctx.obj["config"].add_shell(name, **defaults)
+        ctx.obj["config"].save()
+
+    @config.command()
+    @click.option("--defaults")
+    @click.pass_context
+    @CLI_exception_wrapper_gen(ConfigError)
+    def add_shell_wsl(ctx, defaults):
+        if defaults:
+            defaults = json.loads(defaults)
+        else:
+            defaults = {}
+        ctx.obj["config"].add_shell_WSL(**defaults)
         ctx.obj["config"].save()
 
     @config.command()

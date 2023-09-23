@@ -737,11 +737,24 @@ class Config:
         self._logger.info(f"Resetting config file to defaults.")
         self._app.reset_config()
 
-    def add_scheduler(self, scheduler, **kwargs):
+    def add_scheduler(self, scheduler, **defaults):
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
             return
-        self.update(f"schedulers.{scheduler}", kwargs)
+        self.update(f"schedulers.{scheduler}.defaults", defaults)
+
+    def add_shell(self, shell, **defaults):
+        if shell in self.get("shells"):
+            return
+        if shell.lower() == "wsl":
+            # check direct_posix scheduler is added:
+            self.add_scheduler("direct_posix")
+        self.update(f"shells.{shell}.defaults", defaults)
+
+    def add_shell_WSL(self, **defaults):
+        if "WSL_executable" not in defaults:
+            defaults["WSL_executable"] = "wsl.exe"
+        self.add_shell("wsl", **defaults)
 
     def import_from_file(self, file_path, rename=True, make_new=False):
         """Import config items from a (remote or local) YAML file. Existing config items
