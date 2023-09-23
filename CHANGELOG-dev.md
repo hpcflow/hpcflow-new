@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a108"></a>
+## [v0.2.0a108](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a107...v0.2.0a108) - 2023.09.23
+
+### ✨ Features
+
+* add `Config.add_shell`
+* support passing input values in a dict
+* copy template file to artifacts dir
+
+### 🐛 Bug Fixes
+
+* test
+* submit return indices is now optional - missing change
+* submit return indices is now optional
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a107"></a>
 ## [v0.2.0a107](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a106...v0.2.0a107) - 2023.09.22
 
