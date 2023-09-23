@@ -79,3 +79,9 @@ add_to_known_opt = click.option(
     default=True,
     help="If True, add this submission to the known-submissions file.",
 )
+print_idx_opt = click.option(
+    "--print-idx",
+    help="If True, print the submitted jobscript indices for each submission index.",
+    is_flag=True,
+    default=False,
+)

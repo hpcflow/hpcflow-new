@@ -222,6 +222,17 @@ class ElementSet(JSONLike):
         return tuple(self._element_local_idx_range)
 
     def _validate(self):
+
+        # support inputs passed as a dict:
+        _inputs = []
+        try:
+            for k, v in self.inputs.items():
+                _inputs.append(self.app.InputValue(parameter=k, value=v))
+        except AttributeError:
+            pass
+        else:
+            self.inputs = _inputs
+
         inp_paths = [i.normalised_inputs_path for i in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)
         if dup_inp_paths:

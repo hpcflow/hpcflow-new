@@ -127,6 +127,7 @@ class WorkflowTemplate(JSONLike):
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
+    source_file: Optional[str] = field(default=None, compare=False)
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
@@ -230,6 +231,7 @@ class WorkflowTemplate(JSONLike):
         cls.app.logger.debug("parsing workflow template from a YAML file")
         data = read_YAML_file(path)
         cls._check_name(data, path)
+        data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
@@ -257,6 +259,7 @@ class WorkflowTemplate(JSONLike):
         cls.app.logger.debug("parsing workflow template from a JSON file")
         data = read_JSON_file(path)
         cls._check_name(data, path)
+        data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
@@ -1359,6 +1362,11 @@ class Workflow:
         # actually make template inputs/resources persistent, now the workflow exists:
         wk_dummy.make_persistent(wk)
 
+        if template.source_file:
+            wk.artifacts_path.mkdir(exist_ok=False)
+            src = Path(template.source_file)
+            wk.artifacts_path.joinpath(src.name).write_text(src.read_text())
+
         return wk
 
     def to_zip(self, log=None) -> str:
@@ -1805,6 +1813,7 @@ class Workflow:
         print_stdout: Optional[bool] = False,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
+        return_idx: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Submit the workflow for execution.
 
@@ -1824,6 +1833,9 @@ class Workflow:
         add_to_known
             If True, add the submitted submissions to the known-submissions file, which is
             used by the `show` command to monitor current and recent submissions.
+        return_idx
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
         """
 
         console = rich.console.Console()
@@ -1858,7 +1870,8 @@ class Workflow:
         if wait:
             self.wait(submitted_js)
 
-        return submitted_js
+        if return_idx:
+            return submitted_js
 
     def wait(self, sub_js: Optional[Dict] = None):
         """Wait for the completion of specified/all submitted jobscripts."""
