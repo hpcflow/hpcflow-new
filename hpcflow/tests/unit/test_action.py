@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 
 from hpcflow.app import app as hf
@@ -241,14 +242,13 @@ def test_is_snippet_script(null_config):
 
 def test_get_snippet_script_path(null_config):
     expected = {
-        "<<script:/software/hello.py>>": "/software/hello.py",
-        "<<script:software/hello.py>>": "software/hello.py",
-        r"<<script:C:\long\path\to\script.py>>": r"C:\long\path\to\script.py",
+        "<<script:/software/hello.py>>": Path("/software/hello.py"),
+        "<<script:software/hello.py>>": Path("software/hello.py"),
+        r"<<script:C:\long\path\to\script.py>>": Path(r"C:\long\path\to\script.py"),
     }
     for k, v in expected.items():
         assert hf.Action.get_snippet_script_path(k) == v
 
 
-def test_get_snippet_script_path_raises(null_config):
-    with pytest.raises(ValueError):
-        hf.Action.get_snippet_script_path("/path/to/script.py")
+def test_get_snippet_script_path_False(null_config):
+    assert not hf.Action.get_snippet_script_path("/path/to/script.py")
