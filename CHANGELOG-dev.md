@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a109"></a>
+## [v0.2.0a109](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a108...v0.2.0a109) - 2023.09.24
+
+### ✨ Features
+
+* support passing arbitrary paths in a <<script:>> pattern
+* add rules to TaskSchema.info actions list
+
+### 🐛 Bug Fixes
+
+* failing tests
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a108"></a>
 ## [v0.2.0a108](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a107...v0.2.0a108) - 2023.09.23
 
