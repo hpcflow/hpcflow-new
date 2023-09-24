@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 
 from hpcflow.app import app as hf
@@ -215,3 +216,39 @@ def test_get_command_input_types_label_sub_parameters_false_no_sub_param():
 def test_get_command_input_types_label_sub_parameters_false_with_sub_parameter():
     act = hf.Action(commands=[hf.Command("Write-Output (<<parameter:p1[one].a>> + 100)")])
     assert act.get_command_input_types(sub_parameters=False) == ("p1[one]",)
+
+
+def test_get_script_name(null_config):
+    expected = {
+        "<<script:/software/hello.py>>": "hello.py",
+        "<<script:software/hello.py>>": "hello.py",
+        r"<<script:C:\long\path\to\script.py>>": "script.py",
+        "/path/to/script.py": "/path/to/script.py",
+    }
+    for k, v in expected.items():
+        assert hf.Action.get_script_name(k) == v
+
+
+def test_is_snippet_script(null_config):
+    expected = {
+        "<<script:/software/hello.py>>": True,
+        "<<script:software/hello.py>>": True,
+        r"<<script:C:\long\path\to\script.py>>": True,
+        "/path/to/script.py": False,
+    }
+    for k, v in expected.items():
+        assert hf.Action.is_snippet_script(k) == v
+
+
+def test_get_snippet_script_path(null_config):
+    expected = {
+        "<<script:/software/hello.py>>": Path("/software/hello.py"),
+        "<<script:software/hello.py>>": Path("software/hello.py"),
+        r"<<script:C:\long\path\to\script.py>>": Path(r"C:\long\path\to\script.py"),
+    }
+    for k, v in expected.items():
+        assert hf.Action.get_snippet_script_path(k) == v
+
+
+def test_get_snippet_script_path_False(null_config):
+    assert not hf.Action.get_snippet_script_path("/path/to/script.py")

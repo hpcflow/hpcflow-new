@@ -217,6 +217,27 @@ class TaskSchema(JSONLike):
                 tab_cmds_i = Table(show_header=False, box=None)
                 tab_cmds_i.add_column(justify="right")
                 tab_cmds_i.add_column()
+                if act.rules:
+                    seen_rules = []  # bug: some rules seem to be repeated
+                    for act_rule_j in act.rules:
+                        if act_rule_j.rule in seen_rules:
+                            continue
+                        else:
+                            seen_rules.append(act_rule_j.rule)
+                        r_path = ""
+                        if act_rule_j.rule.check_missing:
+                            r_cond = f"check missing: {act_rule_j.rule.check_missing}"
+                        elif act_rule_j.rule.check_exists:
+                            r_cond = f"check exists: {act_rule_j.rule.check_exists}"
+                        elif act_rule_j.rule.condition:
+                            r_path = f"{act_rule_j.rule.path}: "
+                            r_cond = str(act_rule_j.rule.condition.to_json_like())
+                        else:
+                            continue
+                        tab_cmds_i.add_row(
+                            "[italic]rule:[/italic]",
+                            escape(f"{r_path}{r_cond}"),
+                        )
                 tab_cmds_i.add_row(
                     "[italic]scope:[/italic]",
                     escape(act.get_precise_scope().to_string()),
