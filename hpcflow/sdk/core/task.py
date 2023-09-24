@@ -222,7 +222,6 @@ class ElementSet(JSONLike):
         return tuple(self._element_local_idx_range)
 
     def _validate(self):
-
         # support inputs passed as a dict:
         _inputs = []
         try:
@@ -742,6 +741,27 @@ class Task(JSONLike):
                     "path": path_i,
                 }
             )
+
+        # if all inputs with non-unit multiplicity have the same multiplicity and a
+        # default nesting order of -1 or 0 (which will have probably been set by a
+        # `ValueSequence` default), set the non-unit multiplicity inputs to a nesting
+        # order of zero:
+        non_unit_multis = {}
+        unit_multis = []
+        change = True
+        for idx, i in enumerate(multiplicities):
+            if i["multiplicity"] == 1:
+                unit_multis.append(idx)
+            else:
+                if i["nesting_order"] in (-1, 0):
+                    non_unit_multis[idx] = i["multiplicity"]
+                else:
+                    change = False
+                    break
+
+        if change and len(set(non_unit_multis.values())) == 1:
+            for i_idx in non_unit_multis:
+                multiplicities[i_idx]["nesting_order"] = 0
 
         return multiplicities
 
