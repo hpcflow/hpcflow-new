@@ -513,16 +513,14 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
-    def compose_source(self) -> str:
+    def compose_source(self, snip_path: Path) -> str:
         """Generate the file contents of this source."""
 
-        script_name = self.action.get_script_name(self.action.script)
-        script_key = self.action.get_app_data_script_path(self.action.script)
-        script_path = self.app.scripts.get(script_key)
-        with script_path.open("rt") as fp:
+        script_name = snip_path.name
+        with snip_path.open("rt") as fp:
             script_str = fp.read()
 
-        is_python = script_path.suffix == ".py"
+        is_python = snip_path.suffix == ".py"
         if is_python:
             py_imports = dedent(
                 """\
@@ -639,10 +637,12 @@ class ElementActionRun:
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
-        if self.action.script and self.action.is_app_data_script(self.action.script):
-            script_name = self.action.get_script_name(self.action.script)
+        snip_path = self.action.get_snippet_script_path(self.action.script)
+        if snip_path:
+            script_name = snip_path.name
+            source_str = self.compose_source(snip_path)
             with Path(script_name).open("wt", newline="\n") as fp:
-                fp.write(self.compose_source())
+                fp.write(source_str)
 
     def _param_dump_JSON(self, dump_path: Path):
         with dump_path.open("wt") as fp:
@@ -1358,15 +1358,16 @@ class Action(JSONLike):
         )
 
     @staticmethod
-    def is_app_data_script(script: str) -> bool:
+    def is_snippet_script(script: str) -> bool:
+        """Returns True if the provided script string represents a script snippets that is
+        to be modified before execution (e.g. to receive and provide parameter data)."""
         return script.startswith("<<script:")
 
     @classmethod
     def get_script_name(cls, script: str) -> str:
         """Return the script name."""
-        if cls.is_app_data_script(script):
-            # an app data script:
-            pattern = r"\<\<script:(?:.*\/)*(.*:?)\>\>"
+        if cls.is_snippet_script(script):
+            pattern = r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
             match_obj = re.match(pattern, script)
             return match_obj.group(1)
         else:
@@ -1374,8 +1375,8 @@ class Action(JSONLike):
             return script
 
     @classmethod
-    def get_app_data_script_path(cls, script) -> str:
-        if not cls.is_app_data_script(script):
+    def get_snippet_script_str(cls, script) -> str:
+        if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
                 f"<<script:path/to/app/data/script.py>>), but received {script}"
@@ -1383,6 +1384,17 @@ class Action(JSONLike):
         pattern = r"\<\<script:(.*:?)\>\>"
         match_obj = re.match(pattern, script)
         return match_obj.group(1)
+
+    @classmethod
+    def get_snippet_script_path(cls, script_path) -> Path:
+        if not cls.is_snippet_script(script_path):
+            return False
+
+        path = cls.get_snippet_script_str(script_path)
+        if path in cls.app.scripts:
+            path = cls.app.scripts.get(path)
+
+        return Path(path)
 
     @staticmethod
     def get_param_dump_file_stem(js_idx: int, js_act_idx: int):

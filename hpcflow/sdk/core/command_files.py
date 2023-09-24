@@ -134,12 +134,9 @@ class InputFileGenerator(JSONLike):
     def compose_source(self, action) -> str:
         """Generate the file contents of this input file generator source."""
 
-        script_name = self.script
-        script_key = action.get_app_data_script_path(self.script)
-        script_path = self.app.scripts.get(script_key)
-        script_main_func = Path(script_name).stem
-
-        with script_path.open("rt") as fp:
+        snip_path = action.get_snippet_script_path(self.script)
+        script_main_func = snip_path.stem
+        with snip_path.open("rt") as fp:
             script_str = fp.read()
 
         main_block = dedent(
@@ -261,12 +258,9 @@ class OutputFileParser(JSONLike):
     def compose_source(self, action) -> str:
         """Generate the file contents of this output file parser source."""
 
-        script_name = self.script
-        script_key = action.get_app_data_script_path(self.script)
-        script_path = self.app.scripts.get(script_key)
-        script_main_func = Path(script_name).stem
-
-        with script_path.open("rt") as fp:
+        snip_path = action.get_snippet_script_path(self.script)
+        script_main_func = snip_path.stem
+        with snip_path.open("rt") as fp:
             script_str = fp.read()
 
         main_block = dedent(
