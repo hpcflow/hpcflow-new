@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a111"></a>
+## [v0.2.0a111](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a110...v0.2.0a111) - 2023.09.25
+
+### ✨ Features
+
+* allow output file parser with no output, for saving files only
+
+### 🐛 Bug Fixes
+
+* IFGs/OFPs when spaces in workflow path
+* use MAMBA_EXE first in configure_env
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a110"></a>
 ## [v0.2.0a110](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a109...v0.2.0a110) - 2023.09.25
 
