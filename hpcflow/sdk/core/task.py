@@ -232,6 +232,16 @@ class ElementSet(JSONLike):
         else:
             self.inputs = _inputs
 
+        # support repeats as an int:
+        if isinstance(self.repeats, int):
+            self.repeats = [
+                {
+                    "name": "",
+                    "number": self.repeats,
+                    "nesting_order": 0,
+                }
+            ]
+
         inp_paths = [i.normalised_inputs_path for i in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)
         if dup_inp_paths:
