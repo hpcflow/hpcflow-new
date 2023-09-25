@@ -355,3 +355,7 @@ class MayNeedObjectError(Exception):
 
 class NoAvailableElementSetsError(Exception):
     pass
+
+
+class OutputFileParserNoOutputError(ValueError):
+    pass

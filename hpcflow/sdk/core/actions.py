@@ -17,7 +17,10 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.core.errors import MissingCompatibleActionEnvironment
+from hpcflow.sdk.core.errors import (
+    MissingCompatibleActionEnvironment,
+    OutputFileParserNoOutputError,
+)
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
@@ -676,6 +679,8 @@ class ElementActionRun:
 
         for ofp in self.action.output_file_parsers:
             # TODO: there should only be one at this stage if expanded?
+            if ofp.output is None:
+                raise OutputFileParserNoOutputError()
             ofp.write_source(self.action)
 
         if self.action.script:
@@ -1251,10 +1256,13 @@ class Action(JSONLike):
             i.input_file.label: [j.typ for j in i.inputs]
             for i in self.input_file_generators
         }
-        OFPs = {
-            i.output.typ: [j.label for j in i.output_files]
-            for i in self.output_file_parsers
-        }
+        OFPs = {}
+        for idx, i in enumerate(self.output_file_parsers):
+            if i.output is not None:
+                key = i.output.typ
+            else:
+                key = f"OFP_{idx}"
+            OFPs[key] = [j.label for j in i.output_files]
 
         out = []
         if self.commands:
@@ -1318,7 +1326,11 @@ class Action(JSONLike):
             if input_file_generator:
                 msg = f"input file generator {input_file_generator.input_file.label!r}"
             elif output_file_parser:
-                msg = f"output file parser {output_file_parser.output.typ!r}"
+                if output_file_parser.output is not None:
+                    ofp_id = output_file_parser.output.typ
+                else:
+                    ofp_id = "<unnamed>"
+                msg = f"output file parser {ofp_id!r}"
             else:
                 msg = f"commands {commands!r}"
             raise MissingCompatibleActionEnvironment(
@@ -1646,7 +1658,8 @@ class Action(JSONLike):
         else:
             params = list(self.get_command_output_types())
             for i in self.output_file_parsers:
-                params.append(i.output.typ)
+                if i.output is not None:
+                    params.append(i.output.typ)
                 params.extend([j for j in i.outputs or []])
         return tuple(set(params))
 
@@ -1794,9 +1807,12 @@ class Action(JSONLike):
                 file=self.input_file_generators[0].input_file.label
             )
         elif self.output_file_parsers:
-            return self.app.ActionScope.output_file_parser(
-                output=self.output_file_parsers[0].output.typ
-            )
+            if self.output_file_parsers[0].output is not None:
+                return self.app.ActionScope.output_file_parser(
+                    output=self.output_file_parsers[0].output
+                )
+            else:
+                return self.app.ActionScope.output_file_parser()
         else:
             return self.app.ActionScope.main()
 

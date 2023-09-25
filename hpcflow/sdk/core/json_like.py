@@ -445,6 +445,8 @@ class BaseJSONLike:
 
                 shared_keys = []
                 for i in chd_obj_js:
+                    if i is None:
+                        continue
                     i.pop("_hash_value", None)
                     hash_i = self._get_hash_from_json_like(i)
                     shared_keys.append(f"hash:{hash_i}")
@@ -453,7 +455,10 @@ class BaseJSONLike:
                         shared_data[chd.shared_data_name].update({hash_i: i})
 
                 if not chd.is_multiple:
-                    shared_keys = shared_keys[0]
+                    try:
+                        shared_keys = shared_keys[0]
+                    except IndexError:
+                        shared_keys = None
 
                 json_like[chd.json_like_name] = shared_keys
 
