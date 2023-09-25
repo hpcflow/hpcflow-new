@@ -225,8 +225,8 @@ class OutputFileParser(JSONLike):
         ),
     )
 
-    output: app.Parameter
     output_files: List[app.FileSpec]
+    output: Optional[app.Parameter] = None
     script: str = None
     environment: Environment = None
     inputs: List[str] = None
@@ -257,6 +257,10 @@ class OutputFileParser(JSONLike):
 
     def compose_source(self, action) -> str:
         """Generate the file contents of this output file parser source."""
+
+        if self.output is None:
+            # might be used just for saving files:
+            return
 
         snip_path = action.get_snippet_script_path(self.script)
         script_main_func = snip_path.stem
@@ -307,6 +311,9 @@ class OutputFileParser(JSONLike):
         return out
 
     def write_source(self, action):
+        if self.output is None:
+            # might be used just for saving files:
+            return
         script_path = action.get_script_name(self.script)
         with Path(script_path).open("wt", newline="\n") as fp:
             fp.write(self.compose_source(action))

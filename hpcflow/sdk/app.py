@@ -1887,7 +1887,7 @@ class BaseApp(metaclass=Singleton):
         if use_current_env:
             if self.run_time_info.is_conda_venv:
                 # use the currently activated conda environment for the new app environment:
-                conda_exe = os.environ.get("CONDA_EXE", os.environ.get("MAMBA_EXE"))
+                conda_exe = os.environ.get("MAMBA_EXE", os.environ.get("CONDA_EXE"))
                 setup.append(f"{conda_exe} activate {os.environ['CONDA_PREFIX']}")
             elif self.run_time_info.is_venv:
                 if os.name == "posix":

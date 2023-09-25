@@ -118,6 +118,9 @@ class Command(JSONLike):
                 if ends_in_args and not args_str:
                     cmd_str = cmd_str.rstrip()
 
+        # remove any left over "<<args>>" and "<<script_name>>"s:
+        cmd_str = cmd_str.replace("<<args>>", "").replace("<<script_name>>", "")
+
         # substitute input parameters in command:
         types_pattern = "|".join(parse_types)
         pattern = (

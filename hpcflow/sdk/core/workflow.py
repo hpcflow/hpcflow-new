@@ -49,6 +49,7 @@ from .utils import (
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
     LoopAlreadyExistsError,
+    OutputFileParserNoOutputError,
     RunNotAbortableError,
     SubmissionFailure,
     WorkflowSubmissionFailure,
@@ -1678,6 +1679,9 @@ class Workflow:
                             param_id = None
 
                         file_paths = save_file_j.value()
+                        self.app.logger.debug(
+                            f"Saving EAR output file paths: {file_paths!r}"
+                        )
                         if not isinstance(file_paths, list):
                             file_paths = [file_paths]
 
@@ -2264,29 +2268,47 @@ class Workflow:
         with self._store.cached_load():
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-            commands, shell_vars, indices = EAR.compose_commands(jobscript, JS_action_idx)
-            for cmd_idx, (param_name, shell_var_name, st_typ) in zip(indices, shell_vars):
-                commands += jobscript.shell.format_save_parameter(
-                    workflow_app_alias=jobscript.workflow_app_alias,
-                    param_name=param_name,
-                    shell_var_name=shell_var_name,
-                    EAR_ID=EAR_ID,
-                    cmd_idx=cmd_idx,
-                    stderr=(st_typ == "stderr"),
+            write_commands = True
+            try:
+                commands, shell_vars, indices = EAR.compose_commands(
+                    jobscript, JS_action_idx
                 )
-            commands = jobscript.shell.wrap_in_subshell(commands, EAR.action.abortable)
+            except OutputFileParserNoOutputError:
+                # no commands to write
+                write_commands = False
 
-            # add loop-check command if this is the last action of this loop iteration for
-            # this element:
-            final_runs = self.get_iteration_final_run_IDs(id_lst=jobscript.all_EAR_IDs)
-            for loop_name, run_IDs in final_runs.items():
-                if EAR.id_ in run_IDs:
-                    loop_cmd = jobscript.shell.format_loop_check(
+            if write_commands:
+                for cmd_idx, (param_name, shell_var_name, st_typ) in zip(
+                    indices, shell_vars
+                ):
+                    commands += jobscript.shell.format_save_parameter(
                         workflow_app_alias=jobscript.workflow_app_alias,
-                        loop_name=loop_name,
-                        run_ID=EAR.id_,
+                        param_name=param_name,
+                        shell_var_name=shell_var_name,
+                        EAR_ID=EAR_ID,
+                        cmd_idx=cmd_idx,
+                        stderr=(st_typ == "stderr"),
                     )
-                    commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
+                commands = jobscript.shell.wrap_in_subshell(
+                    commands, EAR.action.abortable
+                )
+
+                # add loop-check command if this is the last action of this loop iteration
+                # for this element:
+                final_runs = self.get_iteration_final_run_IDs(
+                    id_lst=jobscript.all_EAR_IDs
+                )
+                for loop_name, run_IDs in final_runs.items():
+                    if EAR.id_ in run_IDs:
+                        loop_cmd = jobscript.shell.format_loop_check(
+                            workflow_app_alias=jobscript.workflow_app_alias,
+                            loop_name=loop_name,
+                            run_ID=EAR.id_,
+                        )
+                        commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
+            else:
+                # still need to write the file, the jobscript is expecting it.
+                commands = ""
 
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
