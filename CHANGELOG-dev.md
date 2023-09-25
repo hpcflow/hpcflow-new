@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a110"></a>
+## [v0.2.0a110](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a109...v0.2.0a110) - 2023.09.25
+
+### ✨ Features
+
+* support specifying repeats as a single number
+* provide default nesting order for upstream inputs
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a109"></a>
 ## [v0.2.0a109](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a108...v0.2.0a109) - 2023.09.24
 
