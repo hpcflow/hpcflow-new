@@ -1330,7 +1330,7 @@ class Workflow:
         # make template-level inputs/resources think they are persistent:
         wk_dummy = _DummyPersistentWorkflow()
         param_src = {"type": "workflow_resources"}
-        for res_i in template.resources:
+        for res_i in copy.deepcopy(template.resources):
             res_i.make_persistent(wk_dummy, param_src)
 
         template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])

@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import random
+import string
 
 import pytest
 
@@ -75,3 +77,36 @@ def test_submission_with_specified_parameter_class_module(null_config, tmp_path,
     )
     wk.submit(wait=True)
     assert wk.tasks.t1.elements[0].get("outputs.p2") == "110"
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
+def test_unseen_parameter(null_config, tmp_path, store):
+    """Test we can generate a workflow that uses an unseen parameter type."""
+
+    random_str = "".join(random.choice(string.ascii_letters) for _ in range(10))
+    p_type = f"p_{random_str}"
+    act = hf.Action(
+        commands=[
+            hf.Command(
+                command=f'echo "$((<<parameter:{p_type}>> + 1))"',
+                stdout=f"<<int(parameter:{p_type})>>",
+            )
+        ]
+    )
+    ts = hf.TaskSchema(
+        objective="add_one",
+        actions=[act],
+        inputs=[hf.SchemaInput(p_type)],
+        outputs=[hf.SchemaOutput(p_type)],
+    )
+    wkt = hf.WorkflowTemplate(
+        name="increment_number",
+        tasks=[
+            hf.Task(
+                schema=ts,
+                inputs={p_type: 5},
+            )
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path, store=store)
+    assert wk.tasks[0].elements[0].get(f"inputs.{p_type}") == 5
