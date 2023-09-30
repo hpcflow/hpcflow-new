@@ -233,7 +233,7 @@ class SchemaInput(SchemaParameter):
             try:
                 parameter = self.app.parameters.get(parameter)
             except ValueError:
-                parameter = app.Parameter(parameter)
+                parameter = self.app.Parameter(parameter)
 
         self.parameter = parameter
         self.multiple = multiple
@@ -1035,7 +1035,10 @@ class InputValue(AbstractInputValue):
         __check_obj: Optional[bool] = True,
     ):
         if isinstance(parameter, str):
-            parameter = self.app.parameters.get(parameter)
+            try:
+                parameter = self.app.parameters.get(parameter)
+            except ValueError:
+                parameter = self.app.Parameter(parameter)
         elif isinstance(parameter, SchemaInput):
             parameter = parameter.parameter
 
