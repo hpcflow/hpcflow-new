@@ -229,8 +229,11 @@ class SchemaInput(SchemaParameter):
         # TODO: test we allow unlabelled with accepts-multiple True.
         # TODO: test we allow a single labelled with accepts-multiple False.
 
-        if not isinstance(parameter, Parameter):
-            parameter = app.Parameter(parameter)
+        if isinstance(parameter, str):
+            try:
+                parameter = self.app.parameters.get(parameter)
+            except ValueError:
+                parameter = app.Parameter(parameter)
 
         self.parameter = parameter
         self.multiple = multiple
