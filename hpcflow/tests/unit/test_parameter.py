@@ -110,3 +110,37 @@ def test_unseen_parameter(null_config, tmp_path, store):
     )
     wk = hf.Workflow.from_template(wkt, path=tmp_path, store=store)
     assert wk.tasks[0].elements[0].get(f"inputs.{p_type}") == 5
+
+
+def test_iter(null_config, tmp_path):
+    values = [1, 2, 3]
+    wkt = hf.WorkflowTemplate(
+        name="test",
+        tasks=[
+            hf.Task(
+                schema=hf.task_schemas.test_t1_ps,
+                sequences=[hf.ValueSequence(path="inputs.p1", values=values)],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    for idx, param_p1_i in enumerate(wk.tasks[0].inputs.p1):
+        assert param_p1_i.value == values[idx]
+
+
+def test_slice(null_config, tmp_path):
+    values = [1, 2, 3]
+    wkt = hf.WorkflowTemplate(
+        name="test",
+        tasks=[
+            hf.Task(
+                schema=hf.task_schemas.test_t1_ps,
+                sequences=[hf.ValueSequence(path="inputs.p1", values=values)],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    p1_params = wk.tasks[0].inputs.p1[0::2]
+    assert len(p1_params) == 2
+    assert p1_params[0].value == values[0]
+    assert p1_params[1].value == values[2]

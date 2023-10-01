@@ -440,3 +440,35 @@ def test_element_get_unset_sub_object_group(null_config, tmp_path):
         path=tmp_path,
     )
     assert wk.tasks.t2.elements[0].get("inputs.p1c.sub_param") == [None, None]
+
+
+def test_iter(null_config, tmp_path):
+    wkt = hf.WorkflowTemplate(
+        name="test",
+        tasks=[
+            hf.Task(
+                schema=hf.task_schemas.test_t1_ps,
+                sequences=[hf.ValueSequence(path="inputs.p1", values=[1, 2, 3])],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    for idx, elem_i in enumerate(wk.tasks[0].elements):
+        assert elem_i.index == idx
+
+
+def test_slice(null_config, tmp_path):
+    wkt = hf.WorkflowTemplate(
+        name="test",
+        tasks=[
+            hf.Task(
+                schema=hf.task_schemas.test_t1_ps,
+                sequences=[hf.ValueSequence(path="inputs.p1", values=[1, 2, 3])],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    elems = wk.tasks[0].elements[0::2]
+    assert len(elems) == 2
+    assert elems[0].index == 0
+    assert elems[1].index == 2
