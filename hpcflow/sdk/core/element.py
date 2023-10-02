@@ -211,7 +211,7 @@ class ElementResources(JSONLike):
             self.num_cores = 1
 
         if self.parallel_mode:
-            self.parallel_mode = get_enum_by_name_or_val(self.parallel_mode)
+            self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
         self.scheduler_args = self.scheduler_args or {}
         self.shell_args = self.shell_args or {}
