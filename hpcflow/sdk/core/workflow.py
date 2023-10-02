@@ -2270,25 +2270,22 @@ class Workflow:
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
             write_commands = True
             try:
-                commands, shell_vars, indices = EAR.compose_commands(
-                    jobscript, JS_action_idx
-                )
+                commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
             except OutputFileParserNoOutputError:
                 # no commands to write
                 write_commands = False
 
             if write_commands:
-                for cmd_idx, (param_name, shell_var_name, st_typ) in zip(
-                    indices, shell_vars
-                ):
-                    commands += jobscript.shell.format_save_parameter(
-                        workflow_app_alias=jobscript.workflow_app_alias,
-                        param_name=param_name,
-                        shell_var_name=shell_var_name,
-                        EAR_ID=EAR_ID,
-                        cmd_idx=cmd_idx,
-                        stderr=(st_typ == "stderr"),
-                    )
+                for cmd_idx, var_dat in shell_vars.items():
+                    for param_name, shell_var_name, st_typ in var_dat:
+                        commands += jobscript.shell.format_save_parameter(
+                            workflow_app_alias=jobscript.workflow_app_alias,
+                            param_name=param_name,
+                            shell_var_name=shell_var_name,
+                            EAR_ID=EAR_ID,
+                            cmd_idx=cmd_idx,
+                            stderr=(st_typ == "stderr"),
+                        )
                 commands = jobscript.shell.wrap_in_subshell(
                     commands, EAR.action.abortable
                 )
