@@ -98,6 +98,9 @@ class WorkflowTemplate(JSONLike):
         Template-level resources to apply to all tasks as default values. This can be a
         dict that maps action scopes to resources (e.g. `{{"any": {{"num_cores": 2}}}}`)
         or a list of `ResourceSpec` objects, or a `ResourceList` object.
+    merge_resources
+        If True, merge template-level `resources` into element set resources. If False,
+        template-level resources are ignored.
     """
 
     _app_attr = "app"
@@ -129,16 +132,20 @@ class WorkflowTemplate(JSONLike):
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
     source_file: Optional[str] = field(default=None, compare=False)
+    merge_resources: Optional[bool] = True
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
         # merge template-level `resources` into task element set resources (this mutates
-        # `tasks`):
-        for task in self.tasks:
-            for element_set in task.element_sets:
-                element_set.resources.merge_template_resources(self.resources)
+        # `tasks`, and should only happen on creation of the workflow template, not on
+        # re-initialisation from a persistent workflow):
+        if self.merge_resources:
+            for task in self.tasks:
+                for element_set in task.element_sets:
+                    element_set.resources.merge_template_resources(self.resources)
+            self.merge_resources = False
 
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
