@@ -1499,13 +1499,26 @@ class BaseApp(metaclass=Singleton):
                         if run_key in active_jobscripts:
                             act_i_js = active_jobscripts[run_key]
                         else:
-                            act_i_js = sub.get_active_jobscripts(as_json=as_json)
-                            active_jobscripts[run_key] = act_i_js
+                            try:
+                                act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                            except Exception:
+                                self.submission_logger.info(
+                                    f"failed to retrieve active jobscripts from workflow "
+                                    f"at: {file_dat_i['path']!r}!"
+                                )
+                                out_item["unloadable"] = True
+                                act_i_js = {}
+                            else:
+                                active_jobscripts[run_key] = act_i_js
 
                         out_item["active_jobscripts"] = {
                             k: v for k, v in act_i_js.items() if k in all_jobscripts
                         }
-                        if not act_i_js and file_dat_i["is_active"]:
+                        if (
+                            not out_item["unloadable"]
+                            and not act_i_js
+                            and file_dat_i["is_active"]
+                        ):
                             inactive_IDs.append(file_dat_i["local_id"])
 
             out.append(out_item)
