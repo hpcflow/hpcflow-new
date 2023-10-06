@@ -9,12 +9,6 @@ from hpcflow.sdk.core.test_utils import (
 
 
 @pytest.fixture
-def null_config(tmp_path):
-    if not hf.is_config_loaded:
-        hf.load_config(config_dir=tmp_path)
-
-
-@pytest.fixture
 def workflow_w1(null_config, tmp_path):
     s1, s2 = make_schemas(
         [
@@ -442,7 +436,7 @@ def test_element_get_unset_sub_object_group(null_config, tmp_path):
     assert wk.tasks.t2.elements[0].get("inputs.p1c.sub_param") == [None, None]
 
 
-def test_iter(null_config, tmp_path):
+def test_iter(new_null_config, tmp_path):
     wkt = hf.WorkflowTemplate(
         name="test",
         tasks=[
@@ -457,7 +451,7 @@ def test_iter(null_config, tmp_path):
         assert elem_i.index == idx
 
 
-def test_slice(null_config, tmp_path):
+def test_slice(new_null_config, tmp_path):
     wkt = hf.WorkflowTemplate(
         name="test",
         tasks=[

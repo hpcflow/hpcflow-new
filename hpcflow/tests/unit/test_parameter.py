@@ -112,7 +112,7 @@ def test_unseen_parameter(null_config, tmp_path, store):
     assert wk.tasks[0].elements[0].get(f"inputs.{p_type}") == 5
 
 
-def test_iter(null_config, tmp_path):
+def test_iter(new_null_config, tmp_path):
     values = [1, 2, 3]
     wkt = hf.WorkflowTemplate(
         name="test",
@@ -128,7 +128,7 @@ def test_iter(null_config, tmp_path):
         assert param_p1_i.value == values[idx]
 
 
-def test_slice(null_config, tmp_path):
+def test_slice(new_null_config, tmp_path):
     values = [1, 2, 3]
     wkt = hf.WorkflowTemplate(
         name="test",
