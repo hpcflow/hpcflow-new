@@ -1,4 +1,27 @@
 
+<a name="v0.2.0a112"></a>
+## [v0.2.0a112](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a111...v0.2.0a112) - 2023.10.08
+
+### 🐛 Bug Fixes
+
+* in show, list inactive before unloadable/deleted submissions
+* known_subs_file_path should be in user_data_hostname_dir
+* only merge template-level resources on initial template creation
+* handle exception when getting active jobscripts in show
+* update template-component-loading logic to fix tests
+* missing arg to `get_enum_by_name_or_val` in `ElementResources`
+* incorrect shell vars return from `EAR.compose_command`
+* iter method of `Elements` and `Parameters`
+* do not create non-existent hyperlink in `TaskSchema._show_info`; fix [#520](https://github.com/hpcflow/hpcflow-new/issues/520)
+* copy template-level resources on workflow creation; fix [#461](https://github.com/hpcflow/hpcflow-new/issues/461)
+* allow using parameter types that are not pre-defined; finish fix (with previous) [#518](https://github.com/hpcflow/hpcflow-new/issues/518)
+* check app data for parameter type in `SchemaInput`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a111"></a>
 ## [v0.2.0a111](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a110...v0.2.0a111) - 2023.09.25
 
