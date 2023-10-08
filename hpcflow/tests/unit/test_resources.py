@@ -53,6 +53,25 @@ def test_merge_template_resources_multi_scope():
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
+def test_merge_template_resources_persistent_workflow_reload(
+    null_config, tmp_path, store
+):
+    wkt = hf.WorkflowTemplate(
+        name="test_load",
+        resources={"any": {"num_cores": 2}},
+        tasks=[
+            hf.Task(
+                schema=hf.task_schemas.test_t1_ps,
+                inputs={"p1": 101},
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path, store=store)
+    wk = hf.Workflow(wk.path)
+    assert wk.template.tasks[0].element_sets[0].resources[0].num_cores == 2
+
+
+@pytest.mark.parametrize("store", ["json", "zarr"])
 def test_use_persistent_resource_spec(null_config, tmp_path, store):
     # create a workflow from which we can use a resource spec in a new workflow:
     num_cores_check = 2

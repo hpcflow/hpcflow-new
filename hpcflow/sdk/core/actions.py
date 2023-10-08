@@ -669,8 +669,9 @@ class ElementActionRun:
         -------
         commands
         shell_vars
-            List of shell variable names that must be saved as workflow parameter data
-            as strings.
+            Dict whose keys are command indices, and whose values are lists of tuples,
+            where each tuple contains: (parameter name, shell variable name,
+            "stdout"/"stderr").
         """
 
         for ifg in self.action.input_file_generators:
@@ -691,19 +692,17 @@ class ElementActionRun:
         if env.setup:
             command_lns += list(env.setup)
 
-        shell_vars = []
-        cmd_indices = []
+        shell_vars = {}  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
             cmd_str, shell_vars_i = command.get_command_line(
                 EAR=self, shell=jobscript.shell, env=env
             )
-            shell_vars.extend(shell_vars_i)
-            cmd_indices.append(cmd_idx)
+            shell_vars[cmd_idx] = shell_vars_i
             command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
 
-        return commands, shell_vars, cmd_indices
+        return commands, shell_vars
 
 
 class ElementAction:

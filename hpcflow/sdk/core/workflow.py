@@ -98,6 +98,9 @@ class WorkflowTemplate(JSONLike):
         Template-level resources to apply to all tasks as default values. This can be a
         dict that maps action scopes to resources (e.g. `{{"any": {{"num_cores": 2}}}}`)
         or a list of `ResourceSpec` objects, or a `ResourceList` object.
+    merge_resources
+        If True, merge template-level `resources` into element set resources. If False,
+        template-level resources are ignored.
     """
 
     _app_attr = "app"
@@ -129,16 +132,20 @@ class WorkflowTemplate(JSONLike):
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
     source_file: Optional[str] = field(default=None, compare=False)
+    merge_resources: Optional[bool] = True
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
         # merge template-level `resources` into task element set resources (this mutates
-        # `tasks`):
-        for task in self.tasks:
-            for element_set in task.element_sets:
-                element_set.resources.merge_template_resources(self.resources)
+        # `tasks`, and should only happen on creation of the workflow template, not on
+        # re-initialisation from a persistent workflow):
+        if self.merge_resources:
+            for task in self.tasks:
+                for element_set in task.element_sets:
+                    element_set.resources.merge_template_resources(self.resources)
+            self.merge_resources = False
 
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
@@ -1330,7 +1337,7 @@ class Workflow:
         # make template-level inputs/resources think they are persistent:
         wk_dummy = _DummyPersistentWorkflow()
         param_src = {"type": "workflow_resources"}
-        for res_i in template.resources:
+        for res_i in copy.deepcopy(template.resources):
             res_i.make_persistent(wk_dummy, param_src)
 
         template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
@@ -2270,25 +2277,22 @@ class Workflow:
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
             write_commands = True
             try:
-                commands, shell_vars, indices = EAR.compose_commands(
-                    jobscript, JS_action_idx
-                )
+                commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
             except OutputFileParserNoOutputError:
                 # no commands to write
                 write_commands = False
 
             if write_commands:
-                for cmd_idx, (param_name, shell_var_name, st_typ) in zip(
-                    indices, shell_vars
-                ):
-                    commands += jobscript.shell.format_save_parameter(
-                        workflow_app_alias=jobscript.workflow_app_alias,
-                        param_name=param_name,
-                        shell_var_name=shell_var_name,
-                        EAR_ID=EAR_ID,
-                        cmd_idx=cmd_idx,
-                        stderr=(st_typ == "stderr"),
-                    )
+                for cmd_idx, var_dat in shell_vars.items():
+                    for param_name, shell_var_name, st_typ in var_dat:
+                        commands += jobscript.shell.format_save_parameter(
+                            workflow_app_alias=jobscript.workflow_app_alias,
+                            param_name=param_name,
+                            shell_var_name=shell_var_name,
+                            EAR_ID=EAR_ID,
+                            cmd_idx=cmd_idx,
+                            stderr=(st_typ == "stderr"),
+                        )
                 commands = jobscript.shell.wrap_in_subshell(
                     commands, EAR.action.abortable
                 )

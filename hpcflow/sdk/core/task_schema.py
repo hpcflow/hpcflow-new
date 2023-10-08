@@ -116,7 +116,7 @@ class TaskSchema(JSONLike):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
     def _show_info(self, include=None):
-        def _get_param_type_str(parameter):
+        def _get_param_type_str(parameter) -> str:
             type_fmt = "-"
             if parameter._validation:
                 try:
@@ -131,6 +131,16 @@ class TaskSchema(JSONLike):
                 )
                 type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
             return type_fmt
+
+        def _format_parameter_type(param) -> str:
+            param_typ_fmt = param.typ
+            if param.typ in self.app.parameters.list_attrs():
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{param.url_slug}"
+                )
+                param_typ_fmt = f"[link={param_url}]{param_typ_fmt}[/link]"
+            return param_typ_fmt
 
         if not include:
             include = ("inputs", "outputs", "actions")
@@ -171,13 +181,9 @@ class TaskSchema(JSONLike):
                             def_str = "None"
                         else:
                             def_str = f"{escape(str(inp.default_value.value))!r}"
-                param_url = (
-                    f"{self.app.docs_url}/reference/template_components/"
-                    f"parameters.html#{inp.parameter.url_slug}"
-                )
                 tab_ins_outs.add_row(
                     "" if inp_idx > 0 else "[bold]Inputs[/bold]",
-                    f"[link={param_url}]{inp.parameter.typ}[/link]",
+                    _format_parameter_type(inp.parameter),
                     _get_param_type_str(inp.parameter),
                     def_str,
                 )
@@ -193,13 +199,9 @@ class TaskSchema(JSONLike):
                     "",
                 )
             for out_idx, out in enumerate(self.outputs):
-                param_url = (
-                    f"{self.app.docs_url}/reference/template_components/"
-                    f"parameters.html#{out.parameter.url_slug}"
-                )
                 tab_ins_outs.add_row(
                     "" if out_idx > 0 else "[bold]Outputs[/bold]",
-                    f"[link={param_url}]{out.parameter.typ}[/link]",
+                    _format_parameter_type(out.parameter),
                     _get_param_type_str(out.parameter),
                     "",
                 )

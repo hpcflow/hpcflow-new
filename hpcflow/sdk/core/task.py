@@ -2523,20 +2523,13 @@ class Elements:
 
         return selection, length
 
-    def islice(
-        self,
-        start: int = None,
-        end: int = None,
-    ) -> Iterator[app.Element]:
-        selection, _ = self._get_selection(slice(start, end))
-        for i in self.task.workflow.get_task_elements_islice(self.task, selection):
-            yield i
-
     def __len__(self):
         return self.task.num_elements
 
     def __iter__(self):
-        return self.islice()
+        all_elems = self.task.workflow.get_task_elements(self.task, slice(None))
+        for i in all_elems:
+            yield i
 
     def __getitem__(
         self,
@@ -2562,12 +2555,6 @@ class Parameters:
     raise_on_unset: Optional[bool] = False
     default: Optional[Any] = None
 
-    def islice(self, start=None, end=None):
-        for i in self.task.workflow.pIO.task_parameter_islice(
-            self.task, self.path, start, end
-        ):
-            yield i
-
     def _get_selection(self, selection):
         if isinstance(selection, int):
             start, stop, step = selection, selection + 1, 1
@@ -2590,7 +2577,8 @@ class Parameters:
         return selection, length
 
     def __iter__(self):
-        return self.islice()
+        for i in self.__getitem__(slice(None)):
+            yield i
 
     def __getitem__(self, selection: Union[int, slice]) -> Union[Any, List[Any]]:
         selection, length = self._get_selection(selection)

@@ -1,4 +1,4 @@
-import hpcflow.app as hf
+from hpcflow.app import app as hf
 
 
 def test_in_pytest_if_not_frozen():

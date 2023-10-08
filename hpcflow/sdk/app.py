@@ -244,27 +244,41 @@ class BaseApp(metaclass=Singleton):
             self._load_template_components()
         return self._template_components
 
-    def _ensure_template_components(self, exclude=None) -> None:
-        if not self.is_template_components_loaded:
-            self._load_template_components(exclude)
+    def _ensure_template_component(self, name) -> None:
+        """Invoked by access to individual template components (e.g. parameters)"""
+        if not getattr(self, f"_{name}"):
+            self._load_template_components(name)
+        else:
+            self.logger.debug(f"Template component {name!r} already loaded")
 
     def load_template_components(self, warn=True) -> None:
+        """Load all template component data, warning by default if already loaded."""
         if warn and self.is_template_components_loaded:
             warnings.warn("Template components already loaded; reloading now.")
         self._load_template_components()
 
     def reload_template_components(self, warn=True) -> None:
+        """Reload all template component data, warning by default if not already
+        loaded."""
         if warn and not self.is_template_components_loaded:
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
-    def _load_template_components(self, exclude=None) -> None:
+    def _load_template_components(self, *include) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
 
-        include = ["parameters", "command_files", "environments", "task_schemas"]
-        for i in exclude or []:
-            include.pop(include.index(i))
+        if not include or "task_schemas" in include:
+            # task schemas require all other template components to be loaded first
+            include = [
+                "parameters",
+                "command_files",
+                "environments",
+                "task_schemas",
+                "scripts",
+            ]
+
+        self.logger.debug(f"Loading template components: {include!r}.")
 
         self_tc = self._template_components
 
@@ -312,10 +326,11 @@ class BaseApp(metaclass=Singleton):
             )
             self._task_schemas = self_tc["task_schemas"]
 
-        self_tc["scripts"] = self._load_scripts()
-        self._scripts = self_tc["scripts"]
+        if "scripts" in include:
+            self_tc["scripts"] = self._load_scripts()
+            self._scripts = self_tc["scripts"]
 
-        self.logger.info("Template components loaded.")
+        self.logger.info(f"Template components loaded ({include!r}).")
 
     @classmethod
     def load_builtin_template_component_data(
@@ -341,27 +356,27 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def parameters(self) -> get_app_attribute("ParametersList"):
-        self._ensure_template_components()
+        self._ensure_template_component("parameters")
         return self._parameters
 
     @property
     def command_files(self) -> get_app_attribute("CommandFilesList"):
-        self._ensure_template_components()
+        self._ensure_template_component("command_files")
         return self._command_files
 
     @property
     def envs(self) -> get_app_attribute("EnvironmentsList"):
-        self._ensure_template_components(exclude=("task_schemas",))
+        self._ensure_template_component("environments")
         return self._environments
 
     @property
     def scripts(self):
-        self._ensure_template_components()
+        self._ensure_template_component("scripts")
         return self._scripts
 
     @property
     def task_schemas(self) -> get_app_attribute("TaskSchemasList"):
-        self._ensure_template_components()
+        self._ensure_template_component("task_schemas")
         return self._task_schemas
 
     @property
@@ -398,7 +413,8 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def is_template_components_loaded(self) -> bool:
-        return bool(self._parameters)
+        """Return True if any template component (e.g. parameters) has been loaded."""
+        return bool(self._template_components)
 
     @property
     def config(self) -> Config:
@@ -820,7 +836,7 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def known_subs_file_path(self):
-        return self.user_data_dir / self.known_subs_file_name
+        return self.user_data_hostname_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
         self, local_id, workflow_id, submit_time, sub_idx, is_active, wk_path
@@ -1483,13 +1499,26 @@ class BaseApp(metaclass=Singleton):
                         if run_key in active_jobscripts:
                             act_i_js = active_jobscripts[run_key]
                         else:
-                            act_i_js = sub.get_active_jobscripts(as_json=as_json)
-                            active_jobscripts[run_key] = act_i_js
+                            try:
+                                act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                            except Exception:
+                                self.submission_logger.info(
+                                    f"failed to retrieve active jobscripts from workflow "
+                                    f"at: {file_dat_i['path']!r}!"
+                                )
+                                out_item["unloadable"] = True
+                                act_i_js = {}
+                            else:
+                                active_jobscripts[run_key] = act_i_js
 
                         out_item["active_jobscripts"] = {
                             k: v for k, v in act_i_js.items() if k in all_jobscripts
                         }
-                        if not act_i_js and file_dat_i["is_active"]:
+                        if (
+                            not out_item["unloadable"]
+                            and not act_i_js
+                            and file_dat_i["is_active"]
+                        ):
                             inactive_IDs.append(file_dat_i["local_id"])
 
             out.append(out_item)
@@ -1515,7 +1544,7 @@ class BaseApp(metaclass=Singleton):
             ),
             reverse=True,
         )
-        out_inactive = (out_no_access + out_access)[:max_recent]
+        out_inactive = (out_access + out_no_access)[:max_recent]
 
         out_active = [i for i in out if i["active_jobscripts"]]
 

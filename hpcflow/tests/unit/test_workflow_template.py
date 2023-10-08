@@ -4,12 +4,6 @@ import pytest
 from hpcflow.app import app as hf
 
 
-@pytest.fixture
-def null_config(tmp_path):
-    if not hf.is_config_loaded:
-        hf.load_config(config_dir=tmp_path)
-
-
 def test_merge_template_level_resources_into_element_set(null_config):
     wkt = hf.WorkflowTemplate(
         name="w1",
@@ -30,3 +24,10 @@ def test_equivalence_from_YAML_and_JSON_files(null_config):
         wkt_json = hf.WorkflowTemplate.from_file(path)
 
     assert wkt_json == wkt_yaml
+
+
+def test_reuse(null_config, tmp_path):
+    """Test we can re-use a template that has already been made persistent."""
+    wkt = hf.WorkflowTemplate(name="test", tasks=[])
+    wk1 = hf.Workflow.from_template(wkt, name="test_1", path=tmp_path)
+    wk2 = hf.Workflow.from_template(wkt, name="test_2", path=tmp_path)
