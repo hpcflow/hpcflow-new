@@ -1544,7 +1544,7 @@ class BaseApp(metaclass=Singleton):
             ),
             reverse=True,
         )
-        out_inactive = (out_no_access + out_access)[:max_recent]
+        out_inactive = (out_access + out_no_access)[:max_recent]
 
         out_active = [i for i in out if i["active_jobscripts"]]
 
