@@ -836,7 +836,7 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def known_subs_file_path(self):
-        return self.user_data_dir / self.known_subs_file_name
+        return self.user_data_hostname_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
         self, local_id, workflow_id, submit_time, sub_idx, is_active, wk_path
