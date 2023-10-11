@@ -1777,6 +1777,7 @@ class Workflow:
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
+        tasks: Optional[List[int]] = None,
     ) -> Tuple[List[Exception], Dict[int, int]]:
         """Submit outstanding EARs for execution."""
 
@@ -1784,7 +1785,7 @@ class Workflow:
         pending = [i for i in self.submissions if i.needs_submit]
         if not pending:
             status.update("Adding new submission...")
-            new_sub = self._add_submission(JS_parallelism=JS_parallelism)
+            new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
             if not new_sub:
                 status.stop()
                 raise ValueError("No pending element action runs to submit!")
@@ -1825,6 +1826,7 @@ class Workflow:
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
+        tasks: Optional[List[int]] = None,
     ) -> Dict[int, int]:
         """Submit the workflow for execution.
 
@@ -1847,6 +1849,10 @@ class Workflow:
         return_idx
             If True, return a dict representing the jobscript indices submitted for each
             submission.
+        tasks
+            List of task indices to include in the new submission if no submissions
+            already exist. By default all tasks are included if a new submission is
+            created.
         """
 
         console = rich.console.Console()
@@ -1866,6 +1872,7 @@ class Workflow:
                         print_stdout=print_stdout,
                         status=status,
                         add_to_known=add_to_known,
+                        tasks=tasks,
                     )
                 except Exception:
                     status.stop()
@@ -2096,18 +2103,22 @@ class Workflow:
         for sub in self.submissions:
             sub.cancel()
 
-    def add_submission(self, JS_parallelism: Optional[bool] = None) -> app.Submission:
+    def add_submission(
+        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
+    ) -> app.Submission:
         with self._store.cached_load():
             with self.batch_update():
-                return self._add_submission(JS_parallelism)
+                return self._add_submission(tasks, JS_parallelism)
 
-    def _add_submission(self, JS_parallelism: Optional[bool] = None) -> app.Submission:
+    def _add_submission(
+        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
+    ) -> app.Submission:
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
         sub_obj = self.app.Submission(
             index=new_idx,
             workflow=self,
-            jobscripts=self.resolve_jobscripts(),
+            jobscripts=self.resolve_jobscripts(tasks),
             JS_parallelism=JS_parallelism,
         )
         all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.EAR_ID.flatten()]
@@ -2135,8 +2146,10 @@ class Workflow:
 
         return self.submissions[new_idx]
 
-    def resolve_jobscripts(self) -> List[app.Jobscript]:
-        js, element_deps = self._resolve_singular_jobscripts()
+    def resolve_jobscripts(
+        self, tasks: Optional[List[int]] = None
+    ) -> List[app.Jobscript]:
+        js, element_deps = self._resolve_singular_jobscripts(tasks)
         js_deps = resolve_jobscript_dependencies(js, element_deps)
 
         for js_idx in js:
@@ -2149,7 +2162,9 @@ class Workflow:
 
         return js_objs
 
-    def _resolve_singular_jobscripts(self) -> Tuple[Dict[int, Dict], Dict]:
+    def _resolve_singular_jobscripts(
+        self, tasks: Optional[List[int]] = None
+    ) -> Tuple[Dict[int, Dict], Dict]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
         by EAR idx in the `EARs` dict.
@@ -2162,12 +2177,16 @@ class Workflow:
             jobscript, this is a list of EAR IDs dependencies of that element.
 
         """
+        if not tasks:
+            tasks = list(range(self.num_tasks))
 
         submission_jobscripts = {}
         all_element_deps = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
             task = self.tasks.get(insert_ID=task_iID)
+            if task.index not in tasks:
+                continue
             res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
@@ -2209,48 +2228,14 @@ class Workflow:
                     all_EAR_IDs = []
                     for act_idx in act_indices:
                         EAR_ID_i = EAR_map[act_idx, elem_idx].item()
-                        # EAR_idx, run_idx, iter_idx = (
-                        #     i.item() for i in EAR_map[act_idx, elem_idx]
-                        # )
-                        # construct EAR_ID object so we can retrieve the EAR objects and
-                        # so their dependencies:
-                        # EAR_id = EAR_ID(
-                        #     task_insert_ID=task.insert_ID,
-                        #     element_idx=elem_idx,
-                        #     iteration_idx=iter_idx,
-                        #     action_idx=act_idx,
-                        #     run_idx=run_idx,
-                        #     EAR_idx=EAR_idx,
-                        # )
                         all_EAR_IDs.append(EAR_ID_i)
-                        # js_i["EARs"][(task.insert_ID, elem_idx, EAR_idx)] = (
-                        #     iter_idx,
-                        #     act_idx,
-                        #     run_idx,
-                        # )
-
                         js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
-                        # js_i["EAR_idx"][js_act_idx][js_elem_idx] = EAR_idx
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:
                     EAR_objs = self.get_EARs_from_IDs(all_EAR_IDs)
                     EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
                     EAR_deps_flat = [j for i in EAR_deps for j in i]
-
-                    # print(f"{EAR_deps=}")
-                    # print(f"{EAR_deps_flat=}")
-
-                    # represent EAR dependencies of this jobscripts using the same key
-                    # format as in the "EARs" dict, to allow for quick lookup when
-                    # resolving dependencies between jobscripts; also, no need to include
-                    # EAR dependencies that are in this jobscript:
-                    # EAR_deps_EAR_idx = [
-                    #     (i.task_insert_ID, i.element_idx, i.EAR_idx)
-                    #     for i in EAR_deps_flat
-                    #     if (i.task_insert_ID, i.element_idx, i.EAR_idx)
-                    #     not in js_i["EARs"]
-                    # ]
                     EAR_deps_EAR_idx = [
                         i for i in EAR_deps_flat if i not in js_i["EAR_ID"]
                     ]

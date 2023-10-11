@@ -23,6 +23,7 @@ from hpcflow.sdk.cli_common import (
     wait_option,
     add_to_known_opt,
     print_idx_opt,
+    tasks_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.submission.shells import ALL_SHELLS
@@ -106,6 +107,7 @@ def _make_API_CLI(app):
     @wait_option
     @add_to_known_opt
     @print_idx_opt
+    @tasks_opt
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -120,6 +122,7 @@ def _make_API_CLI(app):
         wait=False,
         add_to_known=True,
         print_idx=False,
+        tasks=None,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -127,6 +130,7 @@ def _make_API_CLI(app):
         format, or a YAML/JSON string.
 
         """
+        # TODO: allow submitting a persistent workflow via this command?
         out = app.make_and_submit_workflow(
             template_file_or_str=template_file_or_str,
             is_string=string,
@@ -141,6 +145,7 @@ def _make_API_CLI(app):
             wait=wait,
             add_to_known=add_to_known,
             return_idx=print_idx,
+            tasks=tasks,
         )
         if print_idx:
             click.echo(out)
@@ -295,9 +300,15 @@ def _make_workflow_CLI(app):
     @wait_option
     @add_to_known_opt
     @print_idx_opt
+    @tasks_opt
     @click.pass_context
     def submit_workflow(
-        ctx, js_parallelism=None, wait=False, add_to_known=True, print_idx=False
+        ctx,
+        js_parallelism=None,
+        wait=False,
+        add_to_known=True,
+        print_idx=False,
+        tasks=None,
     ):
         """Submit the workflow."""
         out = ctx.obj["workflow"].submit(
@@ -305,6 +316,7 @@ def _make_workflow_CLI(app):
             wait=wait,
             add_to_known=add_to_known,
             return_idx=print_idx,
+            tasks=tasks,
         )
         if print_idx:
             click.echo(out)
