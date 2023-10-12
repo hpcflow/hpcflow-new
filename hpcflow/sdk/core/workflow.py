@@ -2121,8 +2121,8 @@ class Workflow:
             jobscripts=self.resolve_jobscripts(tasks),
             JS_parallelism=JS_parallelism,
         )
+        sub_obj._set_environments()
         all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.EAR_ID.flatten()]
-        # EAR_indices = sub_obj.prepare_EAR_submission_idx_update()
         if not all_EAR_ID:
             print(
                 f"There are no pending element action runs, so a new submission was not "
@@ -2134,8 +2134,6 @@ class Workflow:
             with self.batch_update():
                 for i in all_EAR_ID:
                     self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
-
-        # self.set_EAR_submission_indices(sub_idx=new_idx, EAR_indices=EAR_indices)
 
         sub_obj_js, _ = sub_obj.to_json_like()
         self._submissions.append(sub_obj)

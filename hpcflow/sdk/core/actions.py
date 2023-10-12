@@ -445,14 +445,11 @@ class ElementActionRun:
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
 
-    def get_environment(self):
-        if not self.action._from_expand:
-            raise RuntimeError(
-                f"Cannot choose a single environment from this EAR because the "
-                f"associated action is not expanded, meaning multiple action "
-                f"environments might exist."
-            )
-        return self.action.environments[0].environment
+    def get_environment_label(self) -> str:
+        return self.action.get_environment_label()
+
+    def get_environment(self) -> app.Environment:
+        return self.action.get_environment()
 
     def get_input_values(self) -> Dict[str, Any]:
         out = {}
@@ -688,7 +685,8 @@ class ElementActionRun:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         command_lns = []
-        env = self.get_environment()
+        env_label = self.action.get_environment_label()
+        env = jobscript.submission.environments.get(env_label)
         if env.setup:
             command_lns += list(env.setup)
 
@@ -1068,15 +1066,15 @@ class ActionEnvironment(JSONLike):
             name="scope",
             class_name="ActionScope",
         ),
-        ChildObjectSpec(
-            name="environment",
-            class_name="Environment",
-            shared_data_name="environments",
-            shared_data_primary_key="name",
-        ),
+        # ChildObjectSpec(
+        #     name="environment",
+        #     class_name="Environment",
+        #     shared_data_name="environments",
+        #     shared_data_primary_key="name",
+        # ),
     )
 
-    environment: app.Environment
+    environment: str  # app.Environment
     scope: Optional[app.ActionScope] = None
 
     def __post_init__(self):
@@ -1208,7 +1206,7 @@ class Action(JSONLike):
         self.script_data_out = script_data_out.lower() if script_data_out else None
         self.script_exe = script_exe.lower() if script_exe else None
         self.environments = environments or [
-            self.app.ActionEnvironment(environment=self.app.envs.null_env)
+            self.app.ActionEnvironment(environment="null_env")
         ]
         self.abortable = abortable
         self.input_file_generators = input_file_generators or []
@@ -1367,6 +1365,17 @@ class Action(JSONLike):
             relevant_scopes=(ActionScopeType.ANY, ActionScopeType.MAIN),
             commands=self.commands,
         )
+
+    def get_environment_label(self) -> str:
+        if not self._from_expand:
+            raise RuntimeError(
+                f"Cannot choose a single environment from this action because it is not "
+                f"expanded, meaning multiple action environments might exist."
+            )
+        return self.environments[0].environment
+
+    def get_environment(self) -> app.Environment:
+        return self.app.envs.get(self.get_environment_label())
 
     @staticmethod
     def is_snippet_script(script: str) -> bool:
@@ -1539,15 +1548,6 @@ class Action(JSONLike):
                 ]
 
             # TODO: store script_args? and build command with executable syntax?
-            env__ = """
-                - name: matlab_env
-                  executables:
-                    - label: matlab
-                      instances:
-                        - command: matlab -batch "<<script_no_ext>> <<script_args_single_quotes>>"
-                          num_cores: 1
-                          parallel_mode: null
-            """
             main_act = self.app.Action(
                 commands=commands,
                 script=self.script,
@@ -1846,3 +1846,10 @@ class Action(JSONLike):
     def test_rules(self, element_iter) -> List[bool]:
         """Test all rules against the specified element iteration."""
         return [i.test(element_iteration=element_iter) for i in self.rules]
+
+    def get_required_executables(self) -> Tuple[str]:
+        """Return executable labels required by this action."""
+        exec_labs = []
+        for command in self.commands:
+            exec_labs.extend(command.get_required_executables())
+        return tuple(set(exec_labs))

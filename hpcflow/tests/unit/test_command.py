@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import pytest
 from hpcflow.app import app as hf
@@ -651,3 +652,13 @@ def test_get_output_types_raise_with_extra_substring_end(null_config):
     cmd = hf.Command(command="", stdout="<<parameter:p1_test_123>> hello")
     with pytest.raises(ValueError):
         cmd.get_output_types()
+
+
+def test_extract_executable_labels(null_config):
+    tests = {
+        "<<executable:m1>> and <<executable:12>>": ["m1", "12"],
+        "<<executable:m1>> hi": ["m1"],
+        "<<executable:m1": [],
+    }
+    for k, v in tests.items():
+        assert hf.Command._extract_executable_labels(k) == v

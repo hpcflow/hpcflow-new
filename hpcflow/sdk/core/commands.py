@@ -43,13 +43,20 @@ class Command(JSONLike):
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 
-    def get_command_line(self, EAR, shell, env) -> Tuple[str, List[Tuple[str, str]]]:
-        """Return the resolved command line."""
-
+    def _get_initial_command_line(self) -> str:
         if self.command:
-            cmd_str = self.command
+            return self.command
         else:
-            cmd_str = self.executable or ""
+            return self.executable or ""
+
+    def get_command_line(self, EAR, shell, env) -> Tuple[str, List[Tuple[str, str]]]:
+        """Return the resolved command line.
+
+        This is ordinarily called at run-time by `Workflow.write_commands`.
+
+        """
+
+        cmd_str = self._get_initial_command_line()
 
         def _format_sum(iterable: Iterable) -> str:
             return str(sum(iterable))
@@ -291,3 +298,15 @@ class Command(JSONLike):
                 value = parse_types[parse_type](value, **parse_args)
 
         return value
+
+    @staticmethod
+    def _extract_executable_labels(cmd_str) -> List[str]:
+        exe_regex = r"\<\<(?:executable):(.*?)\>\>"
+        return re.findall(exe_regex, cmd_str)
+
+    def get_required_executables(self) -> List[str]:
+        """Return executable labels required by this command."""
+        # an executable label might appear in the `command` or `executable` attribute:
+        cmd_str = self._get_initial_command_line()
+        exe_labels = self._extract_executable_labels(cmd_str)
+        return exe_labels
