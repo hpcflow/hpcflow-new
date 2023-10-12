@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a114"></a>
+## [v0.2.0a114](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a113...v0.2.0a114) - 2023.10.12
+
+### ✨ Features
+
+* allow selecting a subset of tasks to submit
+
+### 🐛 Bug Fixes
+
+* resolve environments at submit-time; fix [#524](https://github.com/hpcflow/hpcflow-new/issues/524)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a113"></a>
 ## [v0.2.0a113](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a112...v0.2.0a113) - 2023.10.12
 
