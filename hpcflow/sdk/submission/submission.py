@@ -9,7 +9,12 @@ from textwrap import indent
 from typing import Dict, List, Optional, Tuple
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, SubmissionFailure
+from hpcflow.sdk.core.errors import (
+    JobscriptSubmissionFailure,
+    MissingEnvironmentError,
+    MissingEnvironmentExecutableError,
+    SubmissionFailure,
+)
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
 
@@ -43,6 +48,10 @@ class Submission(JSONLike):
             is_multiple=True,
             parent_ref="_submission",
         ),
+        ChildObjectSpec(
+            name="environments",
+            class_name="EnvironmentsList",
+        ),
     )
 
     def __init__(
@@ -52,11 +61,13 @@ class Submission(JSONLike):
         workflow: Optional[app.Workflow] = None,
         submission_parts: Optional[Dict] = None,
         JS_parallelism: Optional[bool] = None,
+        environments: Optional[app.EnvironmentsList] = None,
     ):
         self._index = index
         self._jobscripts = jobscripts
         self._submission_parts = submission_parts or {}
         self._JS_parallelism = JS_parallelism
+        self._environments = environments
 
         self._submission_parts_lst = None  # assigned on first access; datetime objects
 
@@ -67,6 +78,39 @@ class Submission(JSONLike):
 
         for js_idx, js in enumerate(self.jobscripts):
             js._index = js_idx
+
+    def _set_environments(self):
+        # retrieve required environments and executable labels for these runs:
+        req_envs = defaultdict(list)
+        for run in self.all_EARs:
+            env_label = run.action.get_environment_label()
+            req_envs[env_label].extend(run.action.get_required_executables())
+
+        # check these envs/execs exist in app data:
+        envs = []
+        for env_lab, execs in req_envs.items():
+            try:
+                env_i = self.app.envs.get(env_lab)
+            except ValueError:
+                raise MissingEnvironmentError(
+                    f"The environment {env_lab!r} is not defined on this machine, so the "
+                    f"submission cannot be created."
+                ) from None
+            else:
+                envs.append(env_i)
+
+            for exec_i in execs:
+                try:
+                    env_i.executables.get(exec_i)
+                except ValueError:
+                    raise MissingEnvironmentExecutableError(
+                        f"The environment {env_lab!r} as defined on this machine has no "
+                        f"executable labelled {exec_i!r}, which is required for this "
+                        f"submission, so the submission cannot be created."
+                    ) from None
+
+        # save env definitions to the environments attribute:
+        self._environments = self.app.EnvironmentsList(envs)
 
     def to_dict(self):
         dct = super().to_dict()
@@ -79,6 +123,10 @@ class Submission(JSONLike):
     @property
     def index(self) -> int:
         return self._index
+
+    @property
+    def environments(self) -> app.EnvironmentsList:
+        return self._environments
 
     @property
     def submission_parts(self) -> List[Dict]:

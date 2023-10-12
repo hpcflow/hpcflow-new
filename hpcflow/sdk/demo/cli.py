@@ -15,6 +15,7 @@ from hpcflow.sdk.cli_common import (
     wait_option,
     add_to_known_opt,
     print_idx_opt,
+    tasks_opt,
 )
 
 
@@ -132,6 +133,7 @@ def get_demo_workflow_CLI(app):
     @wait_option
     @add_to_known_opt
     @print_idx_opt
+    @tasks_opt
     def make_and_submit_demo_workflow(
         workflow_name,
         format,
@@ -145,6 +147,7 @@ def get_demo_workflow_CLI(app):
         wait=False,
         add_to_known=True,
         print_idx=False,
+        tasks=None,
     ):
         out = app.make_and_submit_demo_workflow(
             workflow_name=workflow_name,
@@ -159,6 +162,7 @@ def get_demo_workflow_CLI(app):
             wait=wait,
             add_to_known=add_to_known,
             return_idx=print_idx,
+            tasks=tasks,
         )
         if print_idx:
             click.echo(out)

@@ -6,6 +6,11 @@ from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 
 
+def sub_tasks_callback(ctx, param, value):
+    if value:
+        return [int(i) for i in value.split(",")]
+
+
 format_option = click.option(
     "--format",
     type=click.Choice(ALL_TEMPLATE_FORMATS),
@@ -84,4 +89,12 @@ print_idx_opt = click.option(
     help="If True, print the submitted jobscript indices for each submission index.",
     is_flag=True,
     default=False,
+)
+tasks_opt = click.option(
+    "--tasks",
+    help=(
+        "List of comma-separated task indices to include in this submission. By default "
+        "all tasks are included."
+    ),
+    callback=sub_tasks_callback,
 )

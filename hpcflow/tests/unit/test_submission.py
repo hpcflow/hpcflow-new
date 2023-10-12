@@ -3,6 +3,10 @@ from datetime import timedelta
 import pytest
 
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.errors import (
+    MissingEnvironmentError,
+    MissingEnvironmentExecutableError,
+)
 from hpcflow.sdk.submission.jobscript import group_resource_map_into_jobscripts
 from hpcflow.sdk.submission.submission import timedelta_format, timedelta_parse
 
@@ -177,3 +181,73 @@ def test_timedelta_parse_format_round_trip(null_config):
     td = timedelta(days=2, hours=25, minutes=92, seconds=77)
     td_str = timedelta_format(td)
     assert td_str == timedelta_format(timedelta_parse(td_str))
+
+
+def test_raise_missing_env_executable(null_config, tmp_path):
+    exec_name = (
+        "my_executable"  # null_env (the default) has no executable "my_executable"
+    )
+    ts = hf.TaskSchema(
+        objective="test_sub",
+        actions=[hf.Action(commands=[hf.Command(command=f"<<executable:{exec_name}>>")])],
+    )
+    t1 = hf.Task(schema=ts)
+    wkt = hf.WorkflowTemplate(
+        name="test_sub",
+        tasks=[t1],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    with pytest.raises(MissingEnvironmentExecutableError):
+        wk.add_submission()
+
+
+def test_raise_missing_env(null_config, tmp_path):
+    env_name = "my_hpcflow_env"
+    ts = hf.TaskSchema(
+        objective="test_sub",
+        actions=[hf.Action(environments=[hf.ActionEnvironment(environment=env_name)])],
+    )
+    t1 = hf.Task(schema=ts)
+    wkt = hf.WorkflowTemplate(
+        name="test_sub",
+        tasks=[t1],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    with pytest.raises(MissingEnvironmentError):
+        wk.add_submission()
+
+
+def test_custom_env_and_executable(new_null_config, tmp_path):
+    env_name = "my_hpcflow_env"
+    exec_label = "my_exec_name"
+    env = hf.Environment(
+        name=env_name,
+        executables=[
+            hf.Executable(
+                label=exec_label,
+                instances=[
+                    hf.ExecutableInstance(
+                        command="command", num_cores=1, parallel_mode=None
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(env, skip_duplicates=True)
+
+    ts = hf.TaskSchema(
+        objective="test_sub",
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=env_name)],
+                commands=[hf.Command(command=f"<<executable:{exec_label}>>")],
+            )
+        ],
+    )
+    t1 = hf.Task(schema=ts)
+    wkt = hf.WorkflowTemplate(
+        name="test_sub",
+        tasks=[t1],
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    wk.add_submission()

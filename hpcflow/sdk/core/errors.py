@@ -359,3 +359,15 @@ class NoAvailableElementSetsError(Exception):
 
 class OutputFileParserNoOutputError(ValueError):
     pass
+
+
+class SubmissionEnvironmentError(ValueError):
+    """Raised when submitting a workflow on a machine without a compatible environment."""
+
+
+class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
+    pass
+
+
+class MissingEnvironmentError(SubmissionEnvironmentError):
+    pass
