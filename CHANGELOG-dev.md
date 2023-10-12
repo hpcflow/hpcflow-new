@@ -1,4 +1,23 @@
 
+<a name="v0.2.0a113"></a>
+## [v0.2.0a113](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a112...v0.2.0a113) - 2023.10.12
+
+### ♻ Code Refactoring
+
+* Sync workflows and docs with remotes.
+* conf.py include only app specific, and imports config_common
+
+### 🐛 Bug Fixes
+
+* replaced head_ref with ref_name to prevent fail if branch is deleted
+* test_direct_sub schemas to schema
+* "path: resources.os_name"
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a112"></a>
 ## [v0.2.0a112](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a111...v0.2.0a112) - 2023.10.08
 
