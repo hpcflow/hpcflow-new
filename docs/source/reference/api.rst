@@ -1,9 +1,11 @@
-Python API
-==========
+.. jinja:: first_ctx
 
-.. autosummary::
-   :toctree: _autosummary
-   :template: custom-module-template.rst
-   :recursive:
+   Python API
+   ==========
 
-   hpcflow.app
+   .. autosummary::
+      :toctree: _autosummary
+      :template: custom-module-template.rst
+      :recursive:
+
+      {{ app_module }}
