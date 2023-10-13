@@ -372,17 +372,24 @@ class Workflow:
 
     def __init__(
         self,
-        path: Union[str, Path],
+        workflow_ref: Union[str, Path, int],
         store_fmt: Optional[str] = None,
         fs_kwargs: Optional[Dict] = None,
     ):
         """
         Parameters
         ----------
-
-        path :
+        workflow_ref
+            Either the path to a persistent workflow, or an integer that will interpreted
+            as the local ID of a workflow submission, as reported by the app `show`
+            command.
 
         """
+
+        if isinstance(workflow_ref, int):
+            path = self.app._get_workflow_path_from_local_ID(workflow_ref)
+        else:
+            path = workflow_ref
 
         self.app.logger.info(f"loading workflow from path: {path}")
         fs_path = str(path)

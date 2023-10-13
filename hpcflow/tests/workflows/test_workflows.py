@@ -96,7 +96,7 @@ def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
         path=tmp_path,
         store=store,
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t1.elements[0].get("outputs") == {"p2": 101, "p3": 201.0}
 
 
@@ -143,7 +143,7 @@ def test_element_get_group(null_config, tmp_path, store):
         path=tmp_path,
         store=store,
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t2.num_elements == 1
     assert wk.tasks.t2.elements[0].get("inputs.p1c") == [P1(a=120), P1(a=130)]
 
@@ -189,7 +189,7 @@ def test_element_get_sub_object_group(null_config, tmp_path):
         template_name="w1",
         path=tmp_path,
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t2.num_elements == 1
     assert wk.tasks.t2.elements[0].get("inputs.p1c.sub_param") == [
         P1_sub(e=10),
@@ -238,7 +238,7 @@ def test_element_get_sub_data_group(null_config, tmp_path):
         template_name="w1",
         path=tmp_path,
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t2.num_elements == 1
     assert wk.tasks.t2.elements[0].get("inputs.p1c.a") == [120, 130]
 
@@ -331,7 +331,7 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
         path=tmp_path,
         template_name="wk0",
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t2.num_elements == 4
     assert wk.tasks.t3.num_elements == 1
     assert wk.tasks.t3.elements[0].outputs.p3.value == 410
@@ -356,7 +356,7 @@ def test_loop_simple(null_config, tmp_path):
         path=tmp_path,
         template_name="wk0",
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t1.elements[0].get("outputs.p1") == 301
 
 
@@ -402,7 +402,7 @@ def test_loop_termination_multi_element(null_config, tmp_path):
         path=tmp_path,
         template_name="wk0",
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     elem_0 = wk.tasks.t1.elements[0]
     elem_1 = wk.tasks.t1.elements[1]
 
