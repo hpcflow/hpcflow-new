@@ -1,4 +1,21 @@
 
+<a name="v0.2.0a115"></a>
+## [v0.2.0a115](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a114...v0.2.0a115) - 2023.10.13
+
+### ✨ Features
+
+* load workflow from local submission ID
+* return Parameter objects that don't exist in ParameterList
+
+### 🐛 Bug Fixes
+
+* failing tests
+
+### 👷 Build changes
+
+* update lock
+
+
 <a name="v0.2.0a114"></a>
 ## [v0.2.0a114](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a113...v0.2.0a114) - 2023.10.12
 
