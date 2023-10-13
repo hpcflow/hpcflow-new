@@ -75,7 +75,7 @@ def test_submission_with_specified_parameter_class_module(null_config, tmp_path,
         path=tmp_path,
         store=store,
     )
-    wk.submit(wait=True)
+    wk.submit(wait=True, add_to_known=False)
     assert wk.tasks.t1.elements[0].get("outputs.p2") == "110"
 
 

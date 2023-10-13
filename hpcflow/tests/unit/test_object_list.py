@@ -83,3 +83,29 @@ def test_get_obj_attr_custom_callable(null_config):
 def test_get_with_missing_key(null_config):
     o1 = ObjectList([{"a": 1}, {"b": 2}])
     assert o1.get(a=1) == {"a": 1}
+
+
+def test_parameters_list_get_equivalence(null_config):
+    p_name = "p12334567898765432101"
+    hf.parameters.add_object(hf.Parameter(p_name))
+    assert p_name in hf.parameters.list_attrs()
+    assert (
+        getattr(hf.parameters, p_name)
+        == hf.parameters.get(p_name)
+        == hf.parameters.get_all(p_name)[0]
+        == hf.parameters.get(typ=p_name)
+    )
+
+
+def test_parameters_list_get_equivalence_non_existent(new_null_config):
+    # non-existent parameters should be created, unlike other ObjectList sub-classes,
+    # which raise
+    hf.reload_template_components()
+    p_name = "p12334567898765432101"
+    assert p_name not in hf.parameters.list_attrs()
+    assert (
+        getattr(hf.parameters, p_name)
+        == hf.parameters.get(p_name)
+        == hf.parameters.get_all(p_name)[0]
+        == hf.parameters.get(typ=p_name)
+    )

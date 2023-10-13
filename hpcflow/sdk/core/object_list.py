@@ -118,7 +118,8 @@ class ObjectList(JSONLike):
             for obj in self._objects:
                 available.append({k: getattr(obj, k) for k in kwargs})
             raise ValueError(
-                f"No {self._descriptor} objects with attributes: {kwargs}. Available objects have attributes: {tuple(available)!r}."
+                f"No {self._descriptor} objects with attributes: {kwargs}. Available "
+                f"objects have attributes: {tuple(available)!r}."
             )
 
         elif len(result) > 1:
@@ -416,6 +417,25 @@ class ParametersList(AppDataList):
 
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="typ", descriptor="parameter")
+
+    def __getattr__(self, attribute):
+        """Overridden to provide a default Parameter object if none exists."""
+        try:
+            return super().__getattr__(attribute)
+        except (AttributeError, ValueError):
+            return self._app.Parameter(typ=attribute)
+
+    def get_all(self, access_attribute_value=None, **kwargs):
+        """Overridden to provide a default Parameter object if none exists."""
+        typ = access_attribute_value if access_attribute_value else kwargs.get("typ")
+        try:
+            all_out = super().get_all(access_attribute_value, **kwargs)
+        except ValueError:
+            return [self._app.Parameter(typ=typ)]
+        else:
+            # `get_all` will not raise `ValueError` if `access_attribute_value` is
+            # None and the parameter `typ` is specified in `kwargs` instead:
+            return all_out or [self._app.Parameter(typ=typ)]
 
 
 class CommandFilesList(AppDataList):
