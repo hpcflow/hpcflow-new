@@ -97,9 +97,10 @@ def test_parameters_list_get_equivalence(null_config):
     )
 
 
-def test_parameters_list_get_equivalence_non_existent(null_config):
+def test_parameters_list_get_equivalence_non_existent(new_null_config):
     # non-existent parameters should be created, unlike other ObjectList sub-classes,
     # which raise
+    hf.reload_template_components()
     p_name = "p12334567898765432101"
     assert p_name not in hf.parameters.list_attrs()
     assert (

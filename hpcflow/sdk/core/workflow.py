@@ -830,7 +830,7 @@ class Workflow:
 
     def _add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
-        new_wk_task._add_elements(element_sets=task.element_sets)  # TODO
+        new_wk_task._add_elements(element_sets=task.element_sets)
 
     def add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
         with self._store.cached_load():

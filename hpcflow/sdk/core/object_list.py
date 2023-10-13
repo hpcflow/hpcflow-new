@@ -427,7 +427,7 @@ class ParametersList(AppDataList):
 
     def get_all(self, access_attribute_value=None, **kwargs):
         """Overridden to provide a default Parameter object if none exists."""
-        typ = access_attribute_value if access_attribute_value else kwargs["typ"]
+        typ = access_attribute_value if access_attribute_value else kwargs.get("typ")
         try:
             all_out = super().get_all(access_attribute_value, **kwargs)
         except ValueError:
