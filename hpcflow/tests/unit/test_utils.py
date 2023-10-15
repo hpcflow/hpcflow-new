@@ -14,6 +14,7 @@ from hpcflow.sdk.core.utils import (
     replace_items,
     check_valid_py_identifier,
     reshape,
+    split_param_label,
 )
 
 
@@ -335,6 +336,15 @@ def test_JSONLikeDirSnapShot_round_trip(tmpdir):
     js_0 = snap_0.to_json_like()
     snap_0_rl = JSONLikeDirSnapShot(**js_0)
     assert snap_0._stat_info == snap_0_rl._stat_info
+
+
+def test_split_param_label(null_config):
+    assert split_param_label("inputs.p1") == ("inputs.p1", None)
+    assert split_param_label("inputs.p1[one]") == ("inputs.p1", "one")
+    assert split_param_label("p1") == ("p1", None)
+    assert split_param_label("p1[one]") == ("p1", "one")
+    assert split_param_label("p1.sub.data") == ("p1.sub.data", None)
+    assert split_param_label("p1.sub.data[one]") == ("p1.sub.data", "one")
 
 
 # from hpcflow.utils import (

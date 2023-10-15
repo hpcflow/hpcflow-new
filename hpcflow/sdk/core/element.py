@@ -11,7 +11,11 @@ from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.core.utils import (
+    check_valid_py_identifier,
+    get_enum_by_name_or_val,
+    split_param_label,
+)
 from hpcflow.sdk.submission.shells import get_shell
 
 
@@ -114,11 +118,10 @@ class _ElementPrefixedParameter:
         all_names = {}
         for i in list(names):
             if "[" in i:
-                unlab_i, rem = i.split("[")
-                label = rem.split("]")[0]
+                unlab_i, label_i = split_param_label(i)
                 if unlab_i not in all_names:
                     all_names[unlab_i] = []
-                all_names[unlab_i].append(label)
+                all_names[unlab_i].append(label_i)
             else:
                 all_names[i] = []
         return all_names

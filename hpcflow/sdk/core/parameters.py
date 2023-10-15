@@ -18,7 +18,11 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
-from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.core.utils import (
+    check_valid_py_identifier,
+    get_enum_by_name_or_val,
+    split_param_label,
+)
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
 
@@ -636,17 +640,15 @@ class ValueSequence(JSONLike):
                 f"`path` must be a string, but given path has type {type(path)} with value "
                 f"{path!r}."
             )
-        path_split = path.lower().split(".")
+        path_l = path.lower()
+        path_split = path_l.split(".")
         if not path_split[0] in ("inputs", "resources"):
             raise MalformedParameterPathError(
                 f'`path` must start with "inputs", "outputs", or "resources", but given path '
                 f"is: {path!r}."
             )
 
-        try:
-            label_from_path = path_split[1].split("[")[1].split("]")[0]
-        except IndexError:
-            label_from_path = None
+        _, label_from_path = split_param_label(path_l)
 
         if path_split[0] == "inputs":
             if label_arg:
@@ -1167,8 +1169,8 @@ class InputValue(AbstractInputValue):
     def from_json_like(cls, json_like, shared_data=None):
         if "[" in json_like["parameter"]:
             # extract out the parameter label:
-            label = json_like["parameter"].split("[")[1].split("]")[0]
-            json_like["parameter"] = json_like["parameter"].replace(f"[{label}]", "")
+            param, label = split_param_label(json_like["parameter"])
+            json_like["parameter"] = param
             json_like["label"] = label
 
         if "::" in json_like["parameter"]:

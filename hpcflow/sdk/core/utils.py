@@ -14,7 +14,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Type, Union, List, Mapping
+from typing import Tuple, Type, Union, List
 import fsspec
 
 from ruamel.yaml import YAML
@@ -684,3 +684,10 @@ def get_enum_by_name_or_val(enum_cls: Type, key: Union[str, None]) -> enum.Enum:
             raise ValueError(err)
     else:
         raise ValueError(err)
+
+
+def split_param_label(param_path: str) -> Tuple[Union[str, None]]:
+    """Split a parameter path into the path and the label, if present."""
+    pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
+    match = re.match(pattern, param_path)
+    return match.group(1), match.group(2)
