@@ -416,6 +416,10 @@ class Workflow:
         # store indices of updates during batch update, so we can revert on failure:
         self._pending = self._get_empty_pending()
 
+    def reload(self):
+        """Reload the workflow from disk."""
+        return self.__class__(self.path)
+
     @property
     def name(self):
         """The workflow name may be different from the template name, as it includes the
