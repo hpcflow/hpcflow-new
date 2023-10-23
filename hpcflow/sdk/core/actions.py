@@ -501,123 +501,6 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
-    def compose_source(self, snip_path: Path) -> str:
-        """Generate the file contents of this source."""
-
-        script_name = snip_path.name
-        with snip_path.open("rt") as fp:
-            script_str = fp.read()
-
-        is_python = snip_path.suffix == ".py"
-        if is_python:
-            py_imports = dedent(
-                """\
-                import sys
-                from pathlib import Path
-
-                cmdline_args = sys.argv[1:]
-                """
-            )
-        else:
-            return script_str
-
-        # if either script_data_in or script_data_out is direct (must be python):
-        if "direct" in (self.action.script_data_in, self.action.script_data_out):
-            py_main_block_workflow_load = dedent(
-                """\
-                    import {app_module} as app
-                    app.load_config(
-                        log_file_path=Path("{app_package_name}.log").resolve(),
-                        config_dir=r"{cfg_dir}",
-                        config_key=r"{cfg_invoc_key}",
-                    )
-                    wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
-                    EAR_ID = int(EAR_ID)
-                    wk = app.Workflow(wk_path)
-                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
-                """
-            ).format(
-                app_package_name=self.app.package_name,
-                app_module=self.app.module,
-                cfg_dir=self.app.config.config_directory,
-                cfg_invoc_key=self.app.config.config_key,
-            )
-        else:
-            py_main_block_workflow_load = ""
-
-        dump_name_lookup = {"json": "inputs_JSON_path"}
-        load_name_lookup = {"json": "outputs_JSON_path", "hdf5": "outputs_HDF5_path"}
-        load_path = "Path(cmdline_args.pop(0))"
-        dump_path = "Path(cmdline_args.pop(0))"
-
-        if self.action.script_data_in == "direct":
-            if self.action.script_data_out == "direct":
-                py_main_block_inputs = "inputs = EAR.get_input_values()"
-            else:
-                load_name = load_name_lookup[self.action.script_data_out]
-                py_main_block_inputs = (
-                    f"inputs = {{"
-                    f"**EAR.get_input_values(), "
-                    f'"{load_name}": {load_path}'
-                    f"}}"
-                )
-        else:
-            dump_name = dump_name_lookup[self.action.script_data_in]
-            if self.action.script_data_out == "direct":
-                py_main_block_inputs = f'inputs = {{"{dump_name}": {dump_path}}}'
-            else:
-                load_name = load_name_lookup[self.action.script_data_out]
-                py_main_block_inputs = (
-                    f"inputs = {{"
-                    f'"{dump_name}": {dump_path}, '
-                    f'"{load_name}": {load_path}'
-                    f"}}"
-                )
-
-        script_main_func = Path(script_name).stem
-        if self.action.script_data_out == "direct":
-            py_main_block_invoke = f"outputs = {script_main_func}(**inputs)"
-            py_main_block_outputs = dedent(
-                """\
-                outputs = {"outputs." + k: v for k, v in outputs.items()}
-                for name_i, out_i in outputs.items():
-                    wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
-                """
-            )
-        else:
-            py_main_block_invoke = f"{script_main_func}(**inputs)"
-            py_main_block_outputs = ""
-
-        tab_indent = "    "
-        py_main_block = dedent(
-            """\
-            if __name__ == "__main__":
-            {py_imports}
-            {wk_load}
-            {inputs}
-            {invoke}
-            {outputs}
-            """
-        ).format(
-            py_imports=indent(py_imports, tab_indent),
-            wk_load=indent(py_main_block_workflow_load, tab_indent),
-            inputs=indent(py_main_block_inputs, tab_indent),
-            invoke=indent(py_main_block_invoke, tab_indent),
-            outputs=indent(py_main_block_outputs, tab_indent),
-        )
-
-        out = dedent(
-            """\
-            {script_str}
-            {main_block}
-        """
-        ).format(
-            script_str=script_str,
-            main_block=py_main_block,
-        )
-
-        return out
-
     def write_source(self, js_idx: int, js_act_idx: int):
         if self.action.script_data_in == "json":
             dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
@@ -628,7 +511,7 @@ class ElementActionRun:
         snip_path = self.action.get_snippet_script_path(self.action.script)
         if snip_path:
             script_name = snip_path.name
-            source_str = self.compose_source(snip_path)
+            source_str = self.action.compose_source(snip_path)
             with Path(script_name).open("wt", newline="\n") as fp:
                 fp.write(source_str)
 
@@ -1718,3 +1601,120 @@ class Action(JSONLike):
         for command in self.commands:
             exec_labs.extend(command.get_required_executables())
         return tuple(set(exec_labs))
+
+    def compose_source(self, snip_path: Path) -> str:
+        """Generate the file contents of this source."""
+
+        script_name = snip_path.name
+        with snip_path.open("rt") as fp:
+            script_str = fp.read()
+
+        is_python = snip_path.suffix == ".py"
+        if is_python:
+            py_imports = dedent(
+                """\
+                import sys
+                from pathlib import Path
+
+                cmdline_args = sys.argv[1:]
+                """
+            )
+        else:
+            return script_str
+
+        # if either script_data_in or script_data_out is direct (must be python):
+        if "direct" in (self.script_data_in, self.script_data_out):
+            py_main_block_workflow_load = dedent(
+                """\
+                    import {app_module} as app
+                    app.load_config(
+                        log_file_path=Path("{app_package_name}.log").resolve(),
+                        config_dir=r"{cfg_dir}",
+                        config_key=r"{cfg_invoc_key}",
+                    )
+                    wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
+                    EAR_ID = int(EAR_ID)
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                """
+            ).format(
+                app_package_name=self.app.package_name,
+                app_module=self.app.module,
+                cfg_dir=self.app.config.config_directory,
+                cfg_invoc_key=self.app.config.config_key,
+            )
+        else:
+            py_main_block_workflow_load = ""
+
+        dump_name_lookup = {"json": "inputs_JSON_path"}
+        load_name_lookup = {"json": "outputs_JSON_path", "hdf5": "outputs_HDF5_path"}
+        load_path = "Path(cmdline_args.pop(0))"
+        dump_path = "Path(cmdline_args.pop(0))"
+
+        if self.script_data_in == "direct":
+            if self.script_data_out == "direct":
+                py_main_block_inputs = "inputs = EAR.get_input_values()"
+            else:
+                load_name = load_name_lookup[self.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f"**EAR.get_input_values(), "
+                    f'"{load_name}": {load_path}'
+                    f"}}"
+                )
+        else:
+            dump_name = dump_name_lookup[self.script_data_in]
+            if self.script_data_out == "direct":
+                py_main_block_inputs = f'inputs = {{"{dump_name}": {dump_path}}}'
+            else:
+                load_name = load_name_lookup[self.script_data_out]
+                py_main_block_inputs = (
+                    f"inputs = {{"
+                    f'"{dump_name}": {dump_path}, '
+                    f'"{load_name}": {load_path}'
+                    f"}}"
+                )
+
+        script_main_func = Path(script_name).stem
+        if self.script_data_out == "direct":
+            py_main_block_invoke = f"outputs = {script_main_func}(**inputs)"
+            py_main_block_outputs = dedent(
+                """\
+                outputs = {"outputs." + k: v for k, v in outputs.items()}
+                for name_i, out_i in outputs.items():
+                    wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
+                """
+            )
+        else:
+            py_main_block_invoke = f"{script_main_func}(**inputs)"
+            py_main_block_outputs = ""
+
+        tab_indent = "    "
+        py_main_block = dedent(
+            """\
+            if __name__ == "__main__":
+            {py_imports}
+            {wk_load}
+            {inputs}
+            {invoke}
+            {outputs}
+            """
+        ).format(
+            py_imports=indent(py_imports, tab_indent),
+            wk_load=indent(py_main_block_workflow_load, tab_indent),
+            inputs=indent(py_main_block_inputs, tab_indent),
+            invoke=indent(py_main_block_invoke, tab_indent),
+            outputs=indent(py_main_block_outputs, tab_indent),
+        )
+
+        out = dedent(
+            """\
+            {script_str}
+            {main_block}
+        """
+        ).format(
+            script_str=script_str,
+            main_block=py_main_block,
+        )
+
+        return out
