@@ -2586,9 +2586,8 @@ class Parameters:
                 self._app.ElementParameter(
                     task=self.task,
                     path=self.path,
-                    parent=self,
+                    parent=i,
                     element=i,
-                    data_idx=i.get_data_idx(self.path),
                 )
                 for i in elements
             ]

@@ -49,22 +49,19 @@ class _ElementPrefixedParameter:
             out = {}
             for label_i in labels:
                 path_i = f"{self._prefix}.{name}[{label_i}]"
-                data_idx = self._parent.get_data_idx(path=path_i)
                 out[label_i] = self._app.ElementParameter(
                     path=path_i,
                     task=self._task,
-                    data_idx=data_idx,
                     parent=self._parent,
                     element=self._element_iteration_obj,
                 )
 
         else:
+            # could be labelled still, but with `multiple=False`
             path_i = f"{self._prefix}.{name}"
-            data_idx = self._parent.get_data_idx(path=path_i)
             out = self._app.ElementParameter(
                 path=path_i,
                 task=self._task,
-                data_idx=data_idx,
                 parent=self._parent,
                 element=self._element_iteration_obj,
             )
@@ -504,7 +501,7 @@ class ElementIteration:
         if path:
             data_idx = {k: v for k, v in data_idx.items() if k.startswith(path)}
 
-        return data_idx
+        return copy.deepcopy(data_idx)
 
     def get_parameter_sources(
         self,
@@ -1225,19 +1222,20 @@ class Element:
 
 @dataclass
 class ElementParameter:
-    # TODO: do we need `parent` attribute?
-
     _app_attr = "app"
 
     task: app.WorkflowTask
     path: str
     parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
     element: Element
-    data_idx: Dict[str, int]
 
     @property
-    def value(self):
-        return self.task._get_merged_parameter_data(self.data_idx, self.path)
+    def data_idx(self):
+        return self.parent.get_data_idx(path=self.path)
+
+    @property
+    def value(self) -> Any:
+        return self.parent.get(path=self.path)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={self.element!r}, path={self.path!r})"
