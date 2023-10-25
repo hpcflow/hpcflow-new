@@ -1154,6 +1154,24 @@ class Task(JSONLike):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
 
+    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+        """Get a mapping between schema input types that have a single label (i.e.
+        labelled but with `multiple=False`) and the non-labelled type string.
+
+        For example, if a task schema has a schema input like:
+        `SchemaInput(parameter="p1", labels={"one": {}}, multiple=False)`, this method
+        would return a dict that includes: `{"p1[one]": "p1"}`. If the `prefix` argument
+        is provided, this will be added to map key and value (and a terminating period
+        will be added to the end of the prefix if it does not already end in one). For
+        example, with `prefix="inputs"`, this method might return:
+        `{"inputs.p1[one]": "inputs.p1"}`.
+
+        """
+        lookup = {}
+        for i in self.schemas:
+            lookup.update(i._get_single_label_lookup(prefix=prefix))
+        return lookup
+
 
 class WorkflowTask:
     """Class to represent a Task that is bound to a Workflow."""

@@ -489,3 +489,25 @@ class TaskSchema(JSONLike):
 
     def get_key(self):
         return (str(self.objective), self.method, self.implementation)
+
+    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+        """Get a mapping between schema input types that have a single label (i.e.
+        labelled but with `multiple=False`) and the non-labelled type string.
+
+        For example, if a task schema has a schema input like:
+        `SchemaInput(parameter="p1", labels={"one": {}}, multiple=False)`, this method
+        would return a dict that includes: `{"p1[one]": "p1"}`. If the `prefix` argument
+        is provided, this will be added to map key and value (and a terminating period
+        will be added to the end of the prefix if it does not already end in one). For
+        example, with `prefix="inputs"`, this method might return:
+        `{"inputs.p1[one]": "inputs.p1"}`.
+
+        """
+        lookup = {}
+        if prefix and not prefix.endswith("."):
+            prefix += "."
+        for sch_inp in self.inputs:
+            if not sch_inp.multiple and sch_inp.single_label:
+                labelled_type = sch_inp.single_labelled_type
+                lookup[f"{prefix}{labelled_type}"] = f"{prefix}{sch_inp.typ}"
+        return lookup

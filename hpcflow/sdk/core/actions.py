@@ -298,8 +298,19 @@ class ElementActionRun:
 
         return EARStatus.pending
 
-    def get_parameter_names(self, prefix):
-        return self.element_action.get_parameter_names(prefix)
+    def get_parameter_names(self, prefix: str) -> List[str]:
+        """Get parameter types associated with a given prefix.
+
+        For inputs, labels are ignored. See `Action.get_parameter_names` for more
+        information.
+
+        Parameters
+        ----------
+        prefix
+            One of "inputs", "outputs", "input_files", "output_files".
+
+        """
+        return self.action.get_parameter_names(prefix)
 
     def get_data_idx(self, path: str = None):
         return self.element_iteration.get_data_idx(
@@ -705,17 +716,19 @@ class ElementAction:
             raise_on_unset=raise_on_unset,
         )
 
-    def get_parameter_names(self, prefix):
-        if prefix == "inputs":
-            single_lab_lookup = self.element_iteration._get_single_label_lookup()
-            out = list(single_lab_lookup.get(i, i) for i in self.action.get_input_types())
-        elif prefix == "outputs":
-            out = list(f"{i}" for i in self.action.get_output_types())
-        elif prefix == "input_files":
-            out = list(f"{i}" for i in self.action.get_input_file_labels())
-        elif prefix == "output_files":
-            out = list(f"{i}" for i in self.action.get_output_file_labels())
-        return out
+    def get_parameter_names(self, prefix: str) -> List[str]:
+        """Get parameter types associated with a given prefix.
+
+        For inputs, labels are ignored. See `Action.get_parameter_names` for more
+        information.
+
+        Parameters
+        ----------
+        prefix
+            One of "inputs", "outputs", "input_files", "output_files".
+
+        """
+        return self.action.get_parameter_names(prefix)
 
 
 class ActionScope(JSONLike):
@@ -1717,4 +1730,34 @@ class Action(JSONLike):
             main_block=py_main_block,
         )
 
+        return out
+
+    def get_parameter_names(self, prefix: str) -> List[str]:
+        """Get parameter types associated with a given prefix.
+
+        For example, with the prefix "inputs", this would return `['p1', 'p2']` for an
+        action that has input types `p1` and `p2`. For inputs, labels are ignored. For
+        example, for an action that accepts two inputs of the same type `p1`, with labels
+        `one` and `two`, this method would return (for the "inputs" prefix):
+        `['p1[one]', 'p1[two]']`.
+
+        This method is distinct from `TaskSchema.get_parameter_names` in that it
+        returns action-level input/output/file types/labels, whereas
+        `TaskSchema.get_parameter_names` returns schema-level inputs/outputs.
+
+        Parameters
+        ----------
+        prefix
+            One of "inputs", "outputs", "input_files", "output_files".
+
+        """
+        if prefix == "inputs":
+            single_lab_lookup = self.task_schema._get_single_label_lookup()
+            out = list(single_lab_lookup.get(i, i) for i in self.get_input_types())
+        elif prefix == "outputs":
+            out = list(f"{i}" for i in self.get_output_types())
+        elif prefix == "input_files":
+            out = list(f"{i}" for i in self.get_input_file_labels())
+        elif prefix == "output_files":
+            out = list(f"{i}" for i in self.get_output_file_labels())
         return out

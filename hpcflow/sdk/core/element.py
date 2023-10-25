@@ -86,7 +86,13 @@ class _ElementPrefixedParameter:
         return self._parent.task
 
     @property
-    def prefixed_names_unlabelled(self):
+    def prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
+        """Get a mapping between inputs types and associated labels.
+
+        If the schema input for a given input type has `multiple=False` (even if a label
+        is defined), the values for that input type will be an empty list.
+
+        """
         if self._prefixed_names_unlabelled is None:
             self._prefixed_names_unlabelled = self._get_prefixed_names_unlabelled()
         return self._prefixed_names_unlabelled
@@ -458,7 +464,25 @@ class ElementIteration:
         return self._output_files
 
     def get_parameter_names(self, prefix: str) -> List[str]:
-        single_label_lookup = self._get_single_label_lookup("inputs")
+        """Get parameter types associated with a given prefix.
+
+        For example, with the prefix "inputs", this would return `['p1', 'p2']` for a task
+        schema that has input types `p1` and `p2`. For inputs, labels are ignored. For
+        example, for a task schema that accepts two inputs of the same type `p1`, with
+        labels `one` and `two`, this method would return (for the "inputs" prefix):
+        `['p1[one]', 'p1[two]']`.
+
+        This method is distinct from `Action.get_parameter_names` in that it returns
+        schema-level inputs/outputs, whereas `Action.get_parameter_names` returns
+        action-level input/output/file types/labels.
+
+        Parameters
+        ----------
+        prefix
+            One of "inputs", "outputs".
+
+        """
+        single_label_lookup = self.task.template._get_single_label_lookup("inputs")
         return list(
             ".".join(single_label_lookup.get(i, i).split(".")[1:])
             for i in self.schema_parameters
@@ -596,16 +620,6 @@ class ElementIteration:
 
         return out
 
-    def _get_single_label_lookup(self, prefix=""):
-        lookup = {}
-        if prefix and not prefix.endswith("."):
-            prefix += "."
-        for sch_inp in self.task.template.all_schema_inputs:
-            if not sch_inp.multiple and sch_inp.single_label:
-                labelled_type = sch_inp.single_labelled_type
-                lookup[f"{prefix}{labelled_type}"] = f"{prefix}{sch_inp.typ}"
-        return lookup
-
     def get(
         self,
         path: str = None,
@@ -621,7 +635,7 @@ class ElementIteration:
         # failed.)
 
         data_idx = self.get_data_idx(action_idx=action_idx, run_idx=run_idx)
-        single_label_lookup = self._get_single_label_lookup(prefix="inputs")
+        single_label_lookup = self.task.template._get_single_label_lookup(prefix="inputs")
 
         if single_label_lookup:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
