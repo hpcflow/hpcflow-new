@@ -41,6 +41,20 @@ class ParameterValue:
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
 
+    def prepare_JSON_dump(self) -> Dict:
+        raise NotImplementedError
+
+    def dump_to_HDF5_group(self, group):
+        raise NotImplementedError
+
+    @classmethod
+    def save_from_HDF5_group(cls, group, param_id: int, workflow):
+        raise NotImplementedError
+
+    @classmethod
+    def save_from_JSON(cls, data, param_id: int, workflow):
+        raise NotImplementedError
+
 
 class ParameterPropagationMode(enum.Enum):
     IMPLICIT = 0

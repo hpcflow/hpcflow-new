@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 
@@ -167,6 +167,12 @@ class P1_sub_parameter_cls(ParameterValue):
     def twice_e(self):
         return self.e * 2
 
+    def prepare_JSON_dump(self) -> Dict:
+        return {"e": self.e}
+
+    def dump_to_HDF5_group(self, group):
+        group.attrs["e"] = self.e
+
 
 @dataclass
 class P1_sub_parameter_cls_2(ParameterValue):
@@ -241,3 +247,36 @@ class P1_parameter_cls(ParameterValue):
         else:
             sub_param = None
         return cls(a=a, sub_param=sub_param)
+
+    def prepare_JSON_dump(self) -> Dict:
+        sub_param_js = self.sub_param.prepare_JSON_dump() if self.sub_param else None
+        return {"a": self.a, "d": self.d, "sub_param": sub_param_js}
+
+    def dump_to_HDF5_group(self, group):
+        group.attrs["a"] = self.a
+        if self.d is not None:
+            group.attrs["d"] = self.d
+        if self.sub_param:
+            sub_group = group.add_group("sub_param")
+            self.sub_param.dump_to_HDF5_group(sub_group)
+
+    @classmethod
+    def save_from_JSON(cls, data, param_id: int, workflow):
+        obj = cls(**data)  # TODO: pass sub-param
+        workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)
+
+    @classmethod
+    def save_from_HDF5_group(cls, group, param_id: int, workflow):
+        a = group.attrs["a"].item()
+        if "d" in group.attrs:
+            d = group.attrs["d"].item()
+        else:
+            d = None
+        if "sub_param" in group:
+            sub_group = group.get("sub_param")
+            e = sub_group.attrs["e"].item()
+            sub_param = P1_sub_parameter_cls(e=e)
+        else:
+            sub_param = None
+        obj = cls(a=a, d=d, sub_param=sub_param)
+        workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)

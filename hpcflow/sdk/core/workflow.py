@@ -1673,14 +1673,8 @@ class Workflow:
                             path=Path(path_i).resolve(),
                         )
 
-                if EAR.action.script and EAR.action.script_data_out != "direct":
-                    # parse outputs from a generated HDF5 file:
-                    if EAR.action.script_data_out == "hdf5":
-                        EAR._param_save_HDF5(
-                            js_idx=js_idx,
-                            js_act_idx=js_act_idx,
-                            workflow=self,
-                        )
+                if EAR.action.script_data_out_has_files:
+                    EAR._param_save(js_idx=js_idx, js_act_idx=js_act_idx)
 
                 for OFP_i in EAR.action.output_file_parsers:
                     for save_file_j in OFP_i.save_files:

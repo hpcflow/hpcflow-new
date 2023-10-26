@@ -20,9 +20,15 @@ from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
     MissingCompatibleActionEnvironment,
     OutputFileParserNoOutputError,
+    UnknownScriptDataParameter,
+    UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
+from hpcflow.sdk.core.utils import (
+    JSONLikeDirSnapShot,
+    group_dict_by_values,
+    split_param_label,
+)
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
@@ -450,19 +456,41 @@ class ElementActionRun:
     def get_environment(self) -> app.Environment:
         return self.action.get_environment()
 
-    def get_input_values(self) -> Dict[str, Any]:
+    def get_input_values(
+        self, inputs: Optional[List[str]] = None, label_dict: bool = True
+    ) -> Dict[str, Any]:
+        """Get a dict of (optionally a subset of) inputs values for this run.
+
+        Parameters
+        ----------
+        inputs
+            If specified, a list of input parameter types to include. For schema inputs
+            that have `multiple=True`, the input type should be labelled.
+        label_dict
+            If True, arrange the values of schema inputs with multiple=True as a dict whose
+            keys are the labels. If False, labels will be included in the top level keys.
+
+        """
         out = {}
-        for name in self.inputs.prefixed_names_unlabelled:
-            i = getattr(self.inputs, name)
-            try:
-                value = i.value
-            except AttributeError:
-                value = {}
-                for k, v in i.items():
-                    value[k] = v.value
-            out[name] = value
+        for inp_name in self.get_parameter_names("inputs"):
+            if inputs and inp_name not in inputs:
+                continue
+            path_i, label_i = split_param_label(inp_name)
+            val_i = self.get(f"inputs.{inp_name}")
+            if label_dict and label_i:
+                if path_i not in out:
+                    out[path_i] = {}
+                out[path_i][label_i] = val_i
+            else:
+                out[inp_name] = val_i
 
         return out
+
+    def get_input_values_direct(self, label_dict: bool = True):
+        """Get a dict of input values that are to be passed directly to a Python script
+        function."""
+        inputs = self.action.script_data_in_grouped.get("direct", [])
+        return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
     def get_IFG_input_values(self) -> Dict[str, Any]:
         if not self.action._from_expand:
@@ -513,9 +541,28 @@ class ElementActionRun:
         return outputs
 
     def write_source(self, js_idx: int, js_act_idx: int):
-        if self.action.script_data_in == "json":
-            dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
-            self._param_dump_JSON(dump_path)
+        for fmt, ins in self.action.script_data_in_grouped.items():
+            if fmt == "json":
+                in_vals = self.get_input_values(inputs=ins, label_dict=False)
+                dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
+                in_vals_processed = {}
+                for k, v in in_vals.items():
+                    try:
+                        v = v.prepare_JSON_dump()
+                    except (AttributeError, NotImplementedError):
+                        pass
+                    in_vals_processed[k] = v
+
+                with dump_path.open("wt") as fp:
+                    json.dump(in_vals_processed, fp)
+
+            elif fmt == "hdf5":
+                in_vals = self.get_input_values(inputs=ins, label_dict=False)
+                dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
+                with h5py.File(dump_path, mode="w") as f:
+                    for k, v in in_vals.items():
+                        grp_k = f.create_group(k)
+                        v.dump_to_HDF5_group(grp_k)
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -526,19 +573,34 @@ class ElementActionRun:
             with Path(script_name).open("wt", newline="\n") as fp:
                 fp.write(source_str)
 
-    def _param_dump_JSON(self, dump_path: Path):
-        with dump_path.open("wt") as fp:
-            json.dump(self.get_input_values(), fp)
+    def _param_save(self, js_idx: int, js_act_idx: int):
+        """Save script-generated parameters that are stored within the supported script
+        data output formats (HDF5, JSON, etc)."""
+        for fmt in self.action.script_data_out_grouped:
+            if fmt == "json":
+                load_path = self.action.get_param_load_file_path_JSON(js_idx, js_act_idx)
+                with load_path.open(mode="rt") as f:
+                    file_data = json.load(f)
+                    for param_name, param_dat in file_data.items():
+                        param_id = self.data_idx[f"outputs.{param_name}"]
+                        param_cls = self.app.parameters.get(param_name)._value_class
+                        try:
+                            param_cls.save_from_JSON(param_dat, param_id, self.workflow)
+                            continue
+                        except (AttributeError, NotImplementedError):
+                            pass
+                        # try to save as a primitive:
+                        self.workflow.set_parameter_value(
+                            param_id=param_id, value=param_dat
+                        )
 
-    def _param_save_HDF5(self, js_idx: int, js_act_idx: int, workflow):
-        """Save parameters stored in HDF5 groups to the workflow."""
-        load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
-        with h5py.File(load_path, mode="r") as f:
-            for param_name, h5_grp in f.items():
-                param_id = self.data_idx[f"outputs.{param_name}"]
-                param_cls = self.app.parameters.get(param_name)._value_class
-                if param_cls:
-                    param_cls.save_from_HDF5_group(h5_grp, param_id, workflow)
+            elif fmt == "hdf5":
+                load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
+                with h5py.File(load_path, mode="r") as f:
+                    for param_name, h5_grp in f.items():
+                        param_id = self.data_idx[f"outputs.{param_name}"]
+                        param_cls = self.app.parameters.get(param_name)._value_class
+                        param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
 
     def compose_commands(
         self, jobscript: app.Jobscript, JS_action_idx: int
@@ -945,6 +1007,7 @@ class Action(JSONLike):
             parent_ref="action",
         ),
     )
+    _script_data_formats = ("direct", "json", "hdf5")
 
     def __init__(
         self,
@@ -963,8 +1026,8 @@ class Action(JSONLike):
     ):
         self.commands = commands or []
         self.script = script
-        self.script_data_in = script_data_in.lower() if script_data_in else None
-        self.script_data_out = script_data_out.lower() if script_data_out else None
+        self.script_data_in = script_data_in
+        self.script_data_out = script_data_out
         self.script_exe = script_exe.lower() if script_exe else None
         self.environments = environments or [
             self.app.ActionEnvironment(environment="null_env")
@@ -980,6 +1043,108 @@ class Action(JSONLike):
         self._from_expand = False  # assigned on creation of new Action by `expand`
 
         self._set_parent_refs()
+
+    def process_script_data_formats(self):
+        self.script_data_in = self._process_script_data_in(self.script_data_in)
+        self.script_data_out = self._process_script_data_out(self.script_data_out)
+
+    def _process_script_data_format(
+        self, data_fmt: Union[str, Dict[str, str]], prefix: str
+    ) -> Dict[str, str]:
+        if not data_fmt:
+            return {}
+
+        _all_other_sym = "*"
+        param_names = self.get_parameter_names(prefix)
+        if isinstance(data_fmt, str):
+            # include all input parameters, using specified data format
+            data_fmt = data_fmt.lower()
+            all_params = {k: data_fmt for k in param_names}
+        else:
+            all_params = copy.copy(data_fmt)
+            if prefix == "inputs":
+                # expand unlabelled-multiple inputs to multiple labelled inputs:
+                multi_types = self.task_schema.multi_input_types
+                multis = {}
+                for k in list(all_params.keys()):
+                    if k in multi_types:
+                        k_fmt = all_params.pop(k)
+                        for i in param_names:
+                            if i.startswith(k):
+                                multis[i] = k_fmt
+                all_params = {
+                    **multis,
+                    **all_params,
+                }
+
+            if _all_other_sym in data_fmt:
+                # replace catch-all with all other input/output names:
+                all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
+                other = set(param_names) - set(all_params.keys())
+                for i in other:
+                    all_params[i] = data_fmt[_all_other_sym].lower()
+
+        # validation:
+        for k, v in all_params.items():
+            # validate parameter name:
+            if k not in param_names:
+                raise UnknownScriptDataParameter(
+                    f"Script data parameter {k!r} is not a known parameter of the "
+                    f"action. Parameters ({prefix}) are: {param_names!r}."
+                )
+            # validate format:
+            if v not in self._script_data_formats:
+                raise UnsupportedScriptDataFormat(
+                    f"Script data format {v!r} for {prefix[:-1]} parameter {k!r} is not "
+                    f"understood. Available script data formats are: "
+                    f"{self._script_data_formats!r}."
+                )
+
+        return all_params
+
+    def _process_script_data_in(
+        self, data_fmt: Union[str, Dict[str, str]]
+    ) -> Dict[str, str]:
+        return self._process_script_data_format(data_fmt, "inputs")
+
+    def _process_script_data_out(
+        self, data_fmt: Union[str, Dict[str, str]]
+    ) -> Dict[str, str]:
+        return self._process_script_data_format(data_fmt, "outputs")
+
+    @property
+    def script_data_in_grouped(self) -> Dict[str, List[str]]:
+        """Get input parameter types by script data-in format."""
+        return group_dict_by_values(self.script_data_in)  # TODO: test
+
+    @property
+    def script_data_out_grouped(self) -> Dict[str, List[str]]:
+        """Get output parameter types by script data-out format."""
+        return group_dict_by_values(self.script_data_out)  # TODO: test
+
+    @property
+    def script_data_in_has_files(self) -> bool:
+        """Return True if the script requires some inputs to be passed via an
+        intermediate file format."""
+        return bool(set(self.script_data_in_grouped.keys()) - {"direct"})  # TODO: test
+
+    @property
+    def script_data_out_has_files(self) -> bool:
+        """Return True if the script produces some outputs via an intermediate file
+        format."""
+        return bool(set(self.script_data_out_grouped.keys()) - {"direct"})  # TODO: test
+
+    @property
+    def script_data_in_has_direct(self) -> bool:
+        """Return True if the script requires some inputs to be passed directly from the
+        app."""
+        return "direct" in self.script_data_in_grouped  # TODO: test
+
+    @property
+    def script_data_out_has_direct(self) -> bool:
+        """Return True if the script produces some outputs to be passed directly to the
+        app."""
+        return "direct" in self.script_data_out_grouped  # TODO: test
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1188,6 +1353,9 @@ class Action(JSONLike):
     def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
 
+    def get_param_dump_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
+
     def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
 
@@ -1222,7 +1390,12 @@ class Action(JSONLike):
             inp_acts = []
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
-                args = ['"$WK_PATH"', "$EAR_ID"]  # WK_PATH could have a space in it
+                args = [
+                    "--wk-path",
+                    '"$WK_PATH"',
+                    "--run-id",
+                    "$EAR_ID",
+                ]  # WK_PATH could have a space in it
                 if ifg.script:
                     script_name = self.get_script_name(ifg.script)
                     variables = {
@@ -1250,7 +1423,12 @@ class Action(JSONLike):
             out_acts = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
-                args = ['"$WK_PATH"', "$EAR_ID"]  # WK_PATH could have a space in it
+                args = [
+                    "--wk-path",
+                    '"$WK_PATH"',
+                    "--run-id",
+                    "$EAR_ID",
+                ]  # WK_PATH could have a space in it
                 if ofp.script:
                     script_name = self.get_script_name(ofp.script)
                     variables = {
@@ -1287,22 +1465,43 @@ class Action(JSONLike):
                     }
                 else:
                     variables = {}
-                if "direct" in (self.script_data_in, self.script_data_out):
+                if self.script_data_in_has_direct or self.script_data_out_has_direct:
                     # WK_PATH could have a space in it:
-                    args.extend(['"$WK_PATH"', "$EAR_ID"])
+                    args.extend(["--wk-path", '"$WK_PATH"', "--run-id", "$EAR_ID"])
 
                 fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
 
-                if self.script_data_in:
-                    if self.script_data_in == "json":
-                        args.append(str(self.get_param_dump_file_path_JSON(**fn_args)))
+                for fmt in self.script_data_in_grouped:
+                    if fmt == "json":
+                        args.extend(
+                            [
+                                "--inputs-json",
+                                str(self.get_param_dump_file_path_JSON(**fn_args)),
+                            ]
+                        )
+                    elif fmt == "hdf5":
+                        args.extend(
+                            [
+                                "--inputs-hdf5",
+                                str(self.get_param_dump_file_path_HDF5(**fn_args)),
+                            ]
+                        )
 
-                if self.script_data_out:
-                    if self.script_data_out == "json":
-                        args.append(str(self.get_param_load_file_path_JSON(**fn_args)))
-
-                    elif self.script_data_out == "hdf5":
-                        args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
+                for fmt in self.script_data_out_grouped:
+                    if fmt == "json":
+                        args.extend(
+                            [
+                                "--outputs-json",
+                                str(self.get_param_load_file_path_JSON(**fn_args)),
+                            ]
+                        )
+                    elif fmt == "hdf5":
+                        args.extend(
+                            [
+                                "--outputs-hdf5",
+                                str(self.get_param_load_file_path_HDF5(**fn_args)),
+                            ]
+                        )
 
                 commands += [
                     self.app.Command(executable=exe, arguments=args, variables=variables)
@@ -1623,20 +1822,28 @@ class Action(JSONLike):
             script_str = fp.read()
 
         is_python = snip_path.suffix == ".py"
-        if is_python:
-            py_imports = dedent(
-                """\
-                import sys
-                from pathlib import Path
-
-                cmdline_args = sys.argv[1:]
-                """
-            )
-        else:
+        if not is_python:
             return script_str
 
-        # if either script_data_in or script_data_out is direct (must be python):
-        if "direct" in (self.script_data_in, self.script_data_out):
+        py_imports = dedent(
+            """\
+            import argparse, sys
+            from pathlib import Path
+
+            parser = argparse.ArgumentParser()
+            parser.add_argument("--wk-path")
+            parser.add_argument("--run-id", type=int)
+            parser.add_argument("--inputs-json")
+            parser.add_argument("--inputs-hdf5")
+            parser.add_argument("--outputs-json")
+            parser.add_argument("--outputs-hdf5")
+            args = parser.parse_args()
+            
+            """
+        )
+
+        # if any direct inputs/outputs, we must load the workflow (must be python):
+        if self.script_data_in_has_direct or self.script_data_out_has_direct:
             py_main_block_workflow_load = dedent(
                 """\
                     import {app_module} as app
@@ -1645,8 +1852,7 @@ class Action(JSONLike):
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
-                    wk_path, EAR_ID = cmdline_args.pop(0), cmdline_args.pop(0)
-                    EAR_ID = int(EAR_ID)
+                    wk_path, EAR_ID = args.wk_path, args.run_id
                     wk = app.Workflow(wk_path)
                     EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
                 """
@@ -1659,38 +1865,51 @@ class Action(JSONLike):
         else:
             py_main_block_workflow_load = ""
 
-        dump_name_lookup = {"json": "inputs_JSON_path"}
-        load_name_lookup = {"json": "outputs_JSON_path", "hdf5": "outputs_HDF5_path"}
-        load_path = "Path(cmdline_args.pop(0))"
-        dump_path = "Path(cmdline_args.pop(0))"
-
-        if self.script_data_in == "direct":
-            if self.script_data_out == "direct":
-                py_main_block_inputs = "inputs = EAR.get_input_values()"
-            else:
-                load_name = load_name_lookup[self.script_data_out]
-                py_main_block_inputs = (
-                    f"inputs = {{"
-                    f"**EAR.get_input_values(), "
-                    f'"{load_name}": {load_path}'
-                    f"}}"
-                )
+        func_kwargs_lst = []
+        if "direct" in self.script_data_in_grouped:
+            direct_ins_str = "direct_ins = EAR.get_input_values_direct()"
+            direct_ins_arg_str = "**direct_ins"
+            func_kwargs_lst.append(direct_ins_arg_str)
         else:
-            dump_name = dump_name_lookup[self.script_data_in]
-            if self.script_data_out == "direct":
-                py_main_block_inputs = f'inputs = {{"{dump_name}": {dump_path}}}'
-            else:
-                load_name = load_name_lookup[self.script_data_out]
-                py_main_block_inputs = (
-                    f"inputs = {{"
-                    f'"{dump_name}": {dump_path}, '
-                    f'"{load_name}": {load_path}'
-                    f"}}"
-                )
+            direct_ins_str = ""
+
+        if self.script_data_in_has_files:
+            # need to pass "_input_files" keyword argument to script main function:
+            input_files_str = dedent(
+                """\
+                inp_files = {}
+                if args.inputs_json:
+                    inp_files["json"] = Path(args.inputs_json)
+                if args.inputs_hdf5:
+                    inp_files["hdf5"] = Path(args.inputs_hdf5)
+            """
+            )
+            input_files_arg_str = "_input_files=inp_files"
+            func_kwargs_lst.append(input_files_arg_str)
+        else:
+            input_files_str = ""
+
+        if self.script_data_out_has_files:
+            # need to pass "_output_files" keyword argument to script main function:
+            output_files_str = dedent(
+                """\
+                out_files = {}
+                if args.outputs_json:
+                    out_files["json"] = Path(args.outputs_json)
+                if args.outputs_hdf5:
+                    out_files["hdf5"] = Path(args.outputs_hdf5)
+            """
+            )
+            output_files_arg_str = "_output_files=out_files"
+            func_kwargs_lst.append(output_files_arg_str)
+
+        else:
+            output_files_str = ""
 
         script_main_func = Path(script_name).stem
-        if self.script_data_out == "direct":
-            py_main_block_invoke = f"outputs = {script_main_func}(**inputs)"
+        func_invoke_str = f"{script_main_func}({', '.join(func_kwargs_lst)})"
+        if "direct" in self.script_data_out_grouped:
+            py_main_block_invoke = f"outputs = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\
                 outputs = {"outputs." + k: v for k, v in outputs.items()}
@@ -1699,7 +1918,7 @@ class Action(JSONLike):
                 """
             )
         else:
-            py_main_block_invoke = f"{script_main_func}(**inputs)"
+            py_main_block_invoke = func_invoke_str
             py_main_block_outputs = ""
 
         tab_indent = "    "
@@ -1708,14 +1927,18 @@ class Action(JSONLike):
             if __name__ == "__main__":
             {py_imports}
             {wk_load}
-            {inputs}
+            {direct_ins}
+            {in_files}
+            {out_files}
             {invoke}
             {outputs}
             """
         ).format(
             py_imports=indent(py_imports, tab_indent),
             wk_load=indent(py_main_block_workflow_load, tab_indent),
-            inputs=indent(py_main_block_inputs, tab_indent),
+            direct_ins=indent(direct_ins_str, tab_indent),
+            in_files=indent(input_files_str, tab_indent),
+            out_files=indent(output_files_str, tab_indent),
             invoke=indent(py_main_block_invoke, tab_indent),
             outputs=indent(py_main_block_outputs, tab_indent),
         )

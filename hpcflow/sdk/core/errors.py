@@ -371,3 +371,11 @@ class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
 
 class MissingEnvironmentError(SubmissionEnvironmentError):
     pass
+
+
+class UnsupportedScriptDataFormat(ValueError):
+    pass
+
+
+class UnknownScriptDataParameter(ValueError):
+    pass

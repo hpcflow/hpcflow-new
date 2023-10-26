@@ -170,6 +170,101 @@ def test_get_input_values_for_multiple_schema_input_single_label(null_config, tm
     assert run.get_input_values() == {"p2": 201, "p1": 101}
 
 
+def test_get_input_values_subset(null_config, tmp_path):
+    p1_val = 101
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(parameter="p1"),
+            hf.SchemaInput(parameter="p2", default_value=201),
+        ],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[hf.Command(command=f"echo <<parameter:p1>> <<parameter:p2>>")],
+            ),
+        ],
+    )
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val)])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+    )
+    run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
+    assert run.get_input_values(inputs=("p1")) == {"p1": 101}
+
+
+def test_get_input_values_subset_labelled_label_dict_False(null_config, tmp_path):
+    p1_val = 101
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(parameter="p1", labels={"one": {}}, multiple=True),
+            hf.SchemaInput(
+                parameter="p2",
+                labels={"two": {}},
+                multiple=False,
+                default_value=201,
+            ),
+        ],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command=f"echo <<parameter:p1[one]>> <<parameter:p2[two]>>"
+                    )
+                ],
+            ),
+        ],
+    )
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label="one")])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+    )
+    run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
+    assert run.get_input_values(inputs=("p1[one]"), label_dict=False) == {"p1[one]": 101}
+
+
+def test_get_input_values_subset_labelled_label_dict_True(null_config, tmp_path):
+    p1_val = 101
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(parameter="p1", labels={"one": {}}, multiple=True),
+            hf.SchemaInput(
+                parameter="p2",
+                labels={"two": {}},
+                multiple=False,
+                default_value=201,
+            ),
+        ],
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                commands=[
+                    hf.Command(
+                        command=f"echo <<parameter:p1[one]>> <<parameter:p2[two]>>"
+                    )
+                ],
+            ),
+        ],
+    )
+    t1 = hf.Task(schema=[s1], inputs=[hf.InputValue("p1", p1_val, label="one")])
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        path=tmp_path,
+        template_name="temp",
+    )
+    run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
+    assert run.get_input_values(inputs=("p1[one]"), label_dict=True) == {
+        "p1": {"one": 101}
+    }
+
+
 def test_get_input_values_for_multiple_schema_input(null_config, tmp_path):
     p1_val = 101
     label = "my_label"

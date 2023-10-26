@@ -149,6 +149,24 @@ def group_by_dict_key_values(lst, *keys):
     return grouped
 
 
+def group_dict_by_values(dct):
+    """
+    Return a new dict whose keys are the unique values of the original dict and whose
+    values and lists of the original keys.
+
+    Examples
+    --------
+    >>> group_dict_by_values({'a': 'A', 'b': 'A', 'c': 'B', 'd': 'A'})
+    {'A': ['a', 'b', 'd'], 'B': ['c']}
+
+    """
+    grouped = {}
+    keys = set(dct.values())
+    for k in keys:
+        grouped[k] = [k_2 for k_2, v_2 in dct.items() if v_2 == k]
+    return dict(sorted(grouped.items()))
+
+
 def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
     cur_data = cont
     err_msg = (

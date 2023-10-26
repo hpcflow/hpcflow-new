@@ -97,6 +97,10 @@ class TaskSchema(JSONLike):
 
         self._set_parent_refs()
 
+        # process `Action` script_data_in/out formats:
+        for i in self.actions:
+            i.process_script_data_formats()
+
         self._validate()
         self.actions = self._expand_actions()
         self.version = version
@@ -511,3 +515,12 @@ class TaskSchema(JSONLike):
                 labelled_type = sch_inp.single_labelled_type
                 lookup[f"{prefix}{labelled_type}"] = f"{prefix}{sch_inp.typ}"
         return lookup
+
+    @property
+    def multi_input_types(self) -> List[str]:
+        """Get a list of input types that have multiple labels."""
+        out = []
+        for inp in self.inputs:
+            if inp.multiple:
+                out.append(inp.parameter.typ)
+        return out
