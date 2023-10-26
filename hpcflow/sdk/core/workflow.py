@@ -1676,6 +1676,33 @@ class Workflow:
                 if EAR.action.script_data_out_has_files:
                     EAR._param_save(js_idx=js_idx, js_act_idx=js_act_idx)
 
+                # Save action-level files: (TODO: refactor with below for OFPs)
+                for save_file_j in EAR.action.save_files:
+                    self.app.logger.debug(
+                        f"Saving file: {save_file_j.label!r} for EAR ID " f"{EAR_ID!r}."
+                    )
+                    try:
+                        param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
+                    except KeyError:
+                        # We might be saving a file that is not a defined
+                        # "output file"; this will avoid saving a reference in the
+                        # parameter data:
+                        param_id = None
+
+                    file_paths = save_file_j.value()
+                    self.app.logger.debug(f"Saving output file paths: {file_paths!r}")
+                    if not isinstance(file_paths, list):
+                        file_paths = [file_paths]
+
+                    for path_i in file_paths:
+                        self._set_file(
+                            param_id=param_id,
+                            store_contents=True,
+                            is_input=False,
+                            path=Path(path_i).resolve(),
+                            clean_up=(save_file_j in EAR.action.clean_up),
+                        )
+
                 for OFP_i in EAR.action.output_file_parsers:
                     for save_file_j in OFP_i.save_files:
                         self.app.logger.debug(

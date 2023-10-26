@@ -1006,6 +1006,20 @@ class Action(JSONLike):
             is_multiple=True,
             parent_ref="action",
         ),
+        ChildObjectSpec(
+            name="save_files",
+            class_name="FileSpec",
+            is_multiple=True,
+            shared_data_primary_key="label",
+            shared_data_name="command_files",
+        ),
+        ChildObjectSpec(
+            name="clean_up",
+            class_name="FileSpec",
+            is_multiple=True,
+            shared_data_primary_key="label",
+            shared_data_name="command_files",
+        ),
     )
     _script_data_formats = ("direct", "json", "hdf5")
 
@@ -1016,6 +1030,7 @@ class Action(JSONLike):
         script: Optional[str] = None,
         script_data_in: Optional[str] = None,
         script_data_out: Optional[str] = None,
+        script_data_files_use_opt: Optional[bool] = False,
         script_exe: Optional[str] = None,
         abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
@@ -1023,11 +1038,27 @@ class Action(JSONLike):
         input_files: Optional[List[app.FileSpec]] = None,
         output_files: Optional[List[app.FileSpec]] = None,
         rules: Optional[List[app.ActionRule]] = None,
+        save_files: Optional[List[str]] = None,
+        clean_up: Optional[List[str]] = None,
     ):
+        """
+        Parameters
+        ----------
+        script_data_files_use_opt
+            If True, script data input and output file paths will be passed to the script
+            execution command line with an option like `--input-json` or `--output-hdf5`
+            etc. If False, the file paths will be passed on their own. For Python scripts,
+            options are always passed, and this parameter is overwritten to be True,
+            regardless of its initial value.
+
+        """
         self.commands = commands or []
         self.script = script
         self.script_data_in = script_data_in
         self.script_data_out = script_data_out
+        self.script_data_files_use_opt = (
+            script_data_files_use_opt if not self.script_is_python else True
+        )
         self.script_exe = script_exe.lower() if script_exe else None
         self.environments = environments or [
             self.app.ActionEnvironment(environment="null_env")
@@ -1038,6 +1069,8 @@ class Action(JSONLike):
         self.input_files = self._resolve_input_files(input_files or [])
         self.output_files = self._resolve_output_files(output_files or [])
         self.rules = rules or []
+        self.save_files = save_files or []
+        self.clean_up = clean_up or []
 
         self._task_schema = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
@@ -1145,6 +1178,15 @@ class Action(JSONLike):
         """Return True if the script produces some outputs to be passed directly to the
         app."""
         return "direct" in self.script_data_out_grouped  # TODO: test
+
+    @property
+    def script_is_python(self) -> bool:
+        """Return True if the script is a Python script (determined by the file
+        extension)"""
+        if self.script:
+            snip_path = self.get_snippet_script_path(self.script)
+            if snip_path:
+                return snip_path.suffix == ".py"
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1469,35 +1511,23 @@ class Action(JSONLike):
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
-                        args.extend(
-                            [
-                                "--inputs-json",
-                                str(self.get_param_dump_file_path_JSON(**fn_args)),
-                            ]
-                        )
+                        if self.script_data_files_use_opt:
+                            args.append("--inputs-json")
+                        args.append(str(self.get_param_dump_file_path_JSON(**fn_args)))
                     elif fmt == "hdf5":
-                        args.extend(
-                            [
-                                "--inputs-hdf5",
-                                str(self.get_param_dump_file_path_HDF5(**fn_args)),
-                            ]
-                        )
+                        if self.script_data_files_use_opt:
+                            args.append("--inputs-hdf5")
+                        args.append(str(self.get_param_dump_file_path_HDF5(**fn_args)))
 
                 for fmt in self.script_data_out_grouped:
                     if fmt == "json":
-                        args.extend(
-                            [
-                                "--outputs-json",
-                                str(self.get_param_load_file_path_JSON(**fn_args)),
-                            ]
-                        )
+                        if self.script_data_files_use_opt:
+                            args.append("--outputs-json")
+                        args.append(str(self.get_param_load_file_path_JSON(**fn_args)))
                     elif fmt == "hdf5":
-                        args.extend(
-                            [
-                                "--outputs-hdf5",
-                                str(self.get_param_load_file_path_HDF5(**fn_args)),
-                            ]
-                        )
+                        if self.script_data_files_use_opt:
+                            args.append("--outputs-hdf5")
+                        args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
 
                 commands += [
                     self.app.Command(executable=exe, arguments=args, variables=variables)
@@ -1515,6 +1545,8 @@ class Action(JSONLike):
                 rules=main_rules,
                 input_files=inp_files,
                 output_files=out_files,
+                save_files=self.save_files,
+                clean_up=self.clean_up,
             )
             main_act._task_schema = self.task_schema
             main_act._from_expand = True
@@ -1817,8 +1849,7 @@ class Action(JSONLike):
         with snip_path.open("rt") as fp:
             script_str = fp.read()
 
-        is_python = snip_path.suffix == ".py"
-        if not is_python:
+        if not self.script_is_python:
             return script_str
 
         py_imports = dedent(
