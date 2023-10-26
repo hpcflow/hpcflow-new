@@ -1,8 +1,13 @@
-import numpy as np
+import pytest
+
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 
+# note: when testing the frozen app, we might not have MatFlow installed in the built in
+# python_env MatFlow environment, so we should skip these tests.
 
+
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_direct_out(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1",
@@ -27,6 +32,7 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_direct_out_single_label(null_config, tmp_path):
     """This uses the same test script as the `test_script_direct_in_direct_out` test;
     single labels are trivial and need not be referenced in the script."""
@@ -54,6 +60,7 @@ def test_script_direct_in_direct_out_single_label(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_direct_out_labels(null_config, tmp_path):
     p1_label_1 = "one"
     p1_label_2 = "two"
@@ -93,6 +100,7 @@ def test_script_direct_in_direct_out_labels(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_1_val + p1_2_val
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_in_json_out(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1",
@@ -117,6 +125,7 @@ def test_script_json_in_json_out(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_in_json_out_labels(null_config, tmp_path):
     p1_label_1 = "one"
     p1_label_2 = "two"
@@ -156,6 +165,7 @@ def test_script_json_in_json_out_labels(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_1_val + p1_2_val
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_and_direct_in_json_out(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1",
@@ -184,6 +194,7 @@ def test_script_json_and_direct_in_json_out(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p3.value == p1_val + p2_val
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_in_json_and_direct_out(null_config, tmp_path):
     s1 = hf.TaskSchema(
         objective="t1",
@@ -212,6 +223,7 @@ def test_script_json_in_json_and_direct_out(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p3.value == p1_val + 200
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_in_obj(null_config, tmp_path):
     """Use a custom JSON dumper defined in the P1 class."""
     s1 = hf.TaskSchema(
@@ -238,6 +250,7 @@ def test_script_json_in_obj(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == a_val + 100
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_hdf5_in_obj(null_config, tmp_path):
     """Use a custom HDF5 dumper defined in the P1 class."""
     s1 = hf.TaskSchema(
@@ -264,6 +277,7 @@ def test_script_hdf5_in_obj(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p2.value == a_val + 100
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_json_out_obj(null_config, tmp_path):
     """Use a custom JSON saver defined in the P1 class."""
     s1 = hf.TaskSchema(
@@ -290,6 +304,7 @@ def test_script_json_out_obj(null_config, tmp_path):
     assert wk.tasks[0].elements[0].outputs.p1c.value == P1(a=p1_val + 100)
 
 
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_hdf5_out_obj(null_config, tmp_path):
     """Use a custom HDF5 saver defined in the P1 class."""
     s1 = hf.TaskSchema(
