@@ -1391,9 +1391,7 @@ class Action(JSONLike):
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
                 args = [
-                    "--wk-path",
                     '"$WK_PATH"',
-                    "--run-id",
                     "$EAR_ID",
                 ]  # WK_PATH could have a space in it
                 if ifg.script:
@@ -1424,9 +1422,7 @@ class Action(JSONLike):
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
                 args = [
-                    "--wk-path",
                     '"$WK_PATH"',
-                    "--run-id",
                     "$EAR_ID",
                 ]  # WK_PATH could have a space in it
                 if ofp.script:
