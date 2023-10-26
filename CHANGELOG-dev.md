@@ -1,4 +1,32 @@
 
+<a name="v0.2.0a116"></a>
+## [v0.2.0a116](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a115...v0.2.0a116) - 2023.10.26
+
+### ♻ Code Refactoring
+
+* move `get_parameter_names` to `Action`
+* move `ElementActionRun.compose_source` to `Action`
+* remove unused
+
+### ✨ Features
+
+* support mixed formats in `Action.script_data_in/out`
+* add `Workflow.reload`
+
+### 🐛 Bug Fixes
+
+* skip script tests if frozen for now
+* add `Action.script_data_files_use_opt`, `Action.save_files`, and `Action.clean_up`
+* do not pass CLI option strings for IFGs and OFPs
+* add python_env
+* get_input_values for single-labelled schema input
+* allow passing labelled Task inputs via a dict
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a115"></a>
 ## [v0.2.0a115](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a114...v0.2.0a115) - 2023.10.13
 
