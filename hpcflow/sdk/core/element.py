@@ -11,7 +11,11 @@ from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.utils import check_valid_py_identifier, get_enum_by_name_or_val
+from hpcflow.sdk.core.utils import (
+    check_valid_py_identifier,
+    get_enum_by_name_or_val,
+    split_param_label,
+)
 from hpcflow.sdk.submission.shells import get_shell
 
 
@@ -45,22 +49,19 @@ class _ElementPrefixedParameter:
             out = {}
             for label_i in labels:
                 path_i = f"{self._prefix}.{name}[{label_i}]"
-                data_idx = self._parent.get_data_idx(path=path_i)
                 out[label_i] = self._app.ElementParameter(
                     path=path_i,
                     task=self._task,
-                    data_idx=data_idx,
                     parent=self._parent,
                     element=self._element_iteration_obj,
                 )
 
         else:
+            # could be labelled still, but with `multiple=False`
             path_i = f"{self._prefix}.{name}"
-            data_idx = self._parent.get_data_idx(path=path_i)
             out = self._app.ElementParameter(
                 path=path_i,
                 task=self._task,
-                data_idx=data_idx,
                 parent=self._parent,
                 element=self._element_iteration_obj,
             )
@@ -85,7 +86,13 @@ class _ElementPrefixedParameter:
         return self._parent.task
 
     @property
-    def prefixed_names_unlabelled(self):
+    def prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
+        """Get a mapping between inputs types and associated labels.
+
+        If the schema input for a given input type has `multiple=False` (even if a label
+        is defined), the values for that input type will be an empty list.
+
+        """
         if self._prefixed_names_unlabelled is None:
             self._prefixed_names_unlabelled = self._get_prefixed_names_unlabelled()
         return self._prefixed_names_unlabelled
@@ -114,11 +121,10 @@ class _ElementPrefixedParameter:
         all_names = {}
         for i in list(names):
             if "[" in i:
-                unlab_i, rem = i.split("[")
-                label = rem.split("]")[0]
+                unlab_i, label_i = split_param_label(i)
                 if unlab_i not in all_names:
                     all_names[unlab_i] = []
-                all_names[unlab_i].append(label)
+                all_names[unlab_i].append(label_i)
             else:
                 all_names[i] = []
         return all_names
@@ -458,7 +464,25 @@ class ElementIteration:
         return self._output_files
 
     def get_parameter_names(self, prefix: str) -> List[str]:
-        single_label_lookup = self._get_single_label_lookup("inputs")
+        """Get parameter types associated with a given prefix.
+
+        For example, with the prefix "inputs", this would return `['p1', 'p2']` for a task
+        schema that has input types `p1` and `p2`. For inputs, labels are ignored. For
+        example, for a task schema that accepts two inputs of the same type `p1`, with
+        labels `one` and `two`, this method would return (for the "inputs" prefix):
+        `['p1[one]', 'p1[two]']`.
+
+        This method is distinct from `Action.get_parameter_names` in that it returns
+        schema-level inputs/outputs, whereas `Action.get_parameter_names` returns
+        action-level input/output/file types/labels.
+
+        Parameters
+        ----------
+        prefix
+            One of "inputs", "outputs".
+
+        """
+        single_label_lookup = self.task.template._get_single_label_lookup("inputs")
         return list(
             ".".join(single_label_lookup.get(i, i).split(".")[1:])
             for i in self.schema_parameters
@@ -501,7 +525,7 @@ class ElementIteration:
         if path:
             data_idx = {k: v for k, v in data_idx.items() if k.startswith(path)}
 
-        return data_idx
+        return copy.deepcopy(data_idx)
 
     def get_parameter_sources(
         self,
@@ -596,16 +620,6 @@ class ElementIteration:
 
         return out
 
-    def _get_single_label_lookup(self, prefix=""):
-        lookup = {}
-        if prefix and not prefix.endswith("."):
-            prefix += "."
-        for sch_inp in self.task.template.all_schema_inputs:
-            if not sch_inp.multiple and sch_inp.single_label:
-                labelled_type = sch_inp.single_labelled_type
-                lookup[f"{prefix}{labelled_type}"] = f"{prefix}{sch_inp.typ}"
-        return lookup
-
     def get(
         self,
         path: str = None,
@@ -621,7 +635,7 @@ class ElementIteration:
         # failed.)
 
         data_idx = self.get_data_idx(action_idx=action_idx, run_idx=run_idx)
-        single_label_lookup = self._get_single_label_lookup(prefix="inputs")
+        single_label_lookup = self.task.template._get_single_label_lookup(prefix="inputs")
 
         if single_label_lookup:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
@@ -1222,19 +1236,20 @@ class Element:
 
 @dataclass
 class ElementParameter:
-    # TODO: do we need `parent` attribute?
-
     _app_attr = "app"
 
     task: app.WorkflowTask
     path: str
     parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
     element: Element
-    data_idx: Dict[str, int]
 
     @property
-    def value(self):
-        return self.task._get_merged_parameter_data(self.data_idx, self.path)
+    def data_idx(self):
+        return self.parent.get_data_idx(path=self.path)
+
+    @property
+    def value(self) -> Any:
+        return self.parent.get(path=self.path)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(element={self.element!r}, path={self.path!r})"

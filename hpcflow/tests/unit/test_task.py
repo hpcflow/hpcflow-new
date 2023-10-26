@@ -2090,3 +2090,12 @@ def test_input_values_specified_by_dict(null_config):
     t1 = hf.Task(schema=ts, inputs=[hf.InputValue(parameter="p1", value=101)])
     t2 = hf.Task(schema=ts, inputs={"p1": 101})
     assert t1 == t2
+
+
+def test_labelled_input_values_specified_by_dict(null_config):
+    ts = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput("p1", labels={"one": {}})])
+    t1 = hf.Task(
+        schema=ts, inputs=[hf.InputValue(parameter="p1", label="one", value=101)]
+    )
+    t2 = hf.Task(schema=ts, inputs={"p1[one]": 101})
+    assert t1 == t2

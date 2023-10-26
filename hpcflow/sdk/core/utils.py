@@ -14,7 +14,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Type, Union, List, Mapping
+from typing import Tuple, Type, Union, List
 import fsspec
 
 from ruamel.yaml import YAML
@@ -147,6 +147,24 @@ def group_by_dict_key_values(lst, *keys):
             grouped.append([lst_item])
 
     return grouped
+
+
+def group_dict_by_values(dct):
+    """
+    Return a new dict whose keys are the unique values of the original dict and whose
+    values and lists of the original keys.
+
+    Examples
+    --------
+    >>> group_dict_by_values({'a': 'A', 'b': 'A', 'c': 'B', 'd': 'A'})
+    {'A': ['a', 'b', 'd'], 'B': ['c']}
+
+    """
+    grouped = {}
+    keys = set(dct.values())
+    for k in keys:
+        grouped[k] = [k_2 for k_2, v_2 in dct.items() if v_2 == k]
+    return dict(sorted(grouped.items()))
 
 
 def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
@@ -684,3 +702,10 @@ def get_enum_by_name_or_val(enum_cls: Type, key: Union[str, None]) -> enum.Enum:
             raise ValueError(err)
     else:
         raise ValueError(err)
+
+
+def split_param_label(param_path: str) -> Tuple[Union[str, None]]:
+    """Split a parameter path into the path and the label, if present."""
+    pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
+    match = re.match(pattern, param_path)
+    return match.group(1), match.group(2)

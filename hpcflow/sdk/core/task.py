@@ -35,6 +35,7 @@ from .utils import (
     get_relative_path,
     group_by_dict_key_values,
     set_in_container,
+    split_param_label,
 )
 
 
@@ -226,7 +227,8 @@ class ElementSet(JSONLike):
         _inputs = []
         try:
             for k, v in self.inputs.items():
-                _inputs.append(self.app.InputValue(parameter=k, value=v))
+                param, label = split_param_label(k)
+                _inputs.append(self.app.InputValue(parameter=param, label=label, value=v))
         except AttributeError:
             pass
         else:
@@ -876,10 +878,7 @@ class Task(JSONLike):
                         avail_src_path = inputs_path
                         inputs_path_label = None
                         out_label = None
-                        try:
-                            inputs_path_label = inputs_path.split("[")[1].split("]")[0]
-                        except IndexError:
-                            pass
+                        _, inputs_path_label = split_param_label(inputs_path)
                         if inputs_path_label:
                             for out_lab_i in src_task_i.output_labels:
                                 if out_lab_i.label == inputs_path_label:
@@ -1154,6 +1153,24 @@ class Task(JSONLike):
     ):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
+
+    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+        """Get a mapping between schema input types that have a single label (i.e.
+        labelled but with `multiple=False`) and the non-labelled type string.
+
+        For example, if a task schema has a schema input like:
+        `SchemaInput(parameter="p1", labels={"one": {}}, multiple=False)`, this method
+        would return a dict that includes: `{"p1[one]": "p1"}`. If the `prefix` argument
+        is provided, this will be added to map key and value (and a terminating period
+        will be added to the end of the prefix if it does not already end in one). For
+        example, with `prefix="inputs"`, this method might return:
+        `{"inputs.p1[one]": "inputs.p1"}`.
+
+        """
+        lookup = {}
+        for i in self.schemas:
+            lookup.update(i._get_single_label_lookup(prefix=prefix))
+        return lookup
 
 
 class WorkflowTask:
@@ -1605,7 +1622,7 @@ class WorkflowTask:
                 seen_labelled = {}
                 for src_i in sources.keys():
                     if "[" in src_i:
-                        unlabelled = src_i.split("[")[0]
+                        unlabelled, _ = split_param_label(src_i)
                         if unlabelled not in seen_labelled:
                             seen_labelled[unlabelled] = 1
                         else:
@@ -2173,10 +2190,9 @@ class WorkflowTask:
 
             if key_0 not in params:
                 if path_split[0] == "inputs":
-                    try:
-                        path_1 = path_split[1].split("[")[0]
-                    except IndexError:
-                        path_1 = path_split[1]
+                    path_1, _ = split_param_label(
+                        path_split[1]
+                    )  # remove label if present
                     for i in self.template.schemas:
                         for j in i.inputs:
                             if j.parameter.typ == path_1 and j.parameter._value_class:
@@ -2588,9 +2604,8 @@ class Parameters:
                 self._app.ElementParameter(
                     task=self.task,
                     path=self.path,
-                    parent=self,
+                    parent=i,
                     element=i,
-                    data_idx=i.get_data_idx(self.path),
                 )
                 for i in elements
             ]

@@ -1,1 +1,9 @@
 - name: null_env
+
+- name: python_env
+  executables:
+    - label: python_script
+      instances:
+        - command: python <<script_name>> <<args>>
+          num_cores: 1
+          parallel_mode: null
