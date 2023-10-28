@@ -272,3 +272,27 @@ def test_abort_EARs_file_creation(null_config, tmp_path):
         lines = fp.read()
 
     assert lines == "0\n0\n0\n"
+
+
+def test_abort_EARs_file_update(null_config, tmp_path):
+    wk_name = "temp"
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2, 3])],
+    )
+    wkt = hf.WorkflowTemplate(name=wk_name, tasks=[t1])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    wk.submissions_path.mkdir(exist_ok=True, parents=True)
+    sub.path.mkdir(exist_ok=True)
+    sub._write_abort_EARs_file()
+
+    sub._set_run_abort(2)
+
+    with sub.abort_EARs_file_path.open("rt") as fp:
+        lines = fp.read()
+
+    assert lines == "0\n0\n1\n"
