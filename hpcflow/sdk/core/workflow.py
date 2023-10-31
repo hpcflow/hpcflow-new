@@ -1388,8 +1388,11 @@ class Workflow:
 
         return wk
 
-    def to_zip(self, log=None) -> str:
-        return self._store.to_zip(log=log)
+    def zip(self, log=None) -> str:
+        return self._store.zip(log=log)
+
+    def unzip(self, log=None) -> str:
+        return self._store.unzip(log=log)
 
     def copy(self, path=None) -> str:
         """Copy the workflow to a new path and return the copied workflow path."""

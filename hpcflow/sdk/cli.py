@@ -388,7 +388,15 @@ def _make_workflow_CLI(app):
     @click.option("--log")
     @click.pass_context
     def zip_workflow(ctx, log=None):
-        ctx.obj["workflow"].to_zip(log=log)
+        ctx.obj["workflow"].zip(log=log)
+
+    @click.command(name="unzip")
+    @click.option("--log")
+    @click.pass_context
+    def unzip_workflow(ctx, log=None):
+        """Generate a copy of the specified zipped workflow in the submittable Zarr
+        format."""
+        ctx.obj["workflow"].unzip(log=log)
 
     workflow.help = workflow.help.format(app_name=app.name)
 
@@ -668,7 +676,16 @@ def _make_zip_CLI(app):
         """
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
-        wk.to_zip(log=log)
+        wk.zip(log=log)
+
+    @click.command(name="unzip")
+    @click.argument("workflow_path")
+    @click.option("--log")
+    def unzip_workflow(workflow_path, log=None):
+        """Generate a copy of the specified zipped workflow in the submittable Zarr
+        format."""
+        wk = app.Workflow(workflow_path)
+        wk.unzip(log=log)
 
     return zip_workflow
 
