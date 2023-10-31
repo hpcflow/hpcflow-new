@@ -300,7 +300,7 @@ class Submission(JSONLike):
         tmp = self.abort_EARs_file_path.with_suffix(tmp_suffix)
         self.app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
         with tmp.open(mode="wt", newline="\n") as fp:
-            fp.write("\n".join(i for i in lines))
+            fp.write("".join(i for i in lines) + "\n")
 
         # atomic rename, overwriting original:
         self.app.submission_logger.debug(
