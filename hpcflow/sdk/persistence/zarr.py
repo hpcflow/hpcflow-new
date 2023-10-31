@@ -1016,7 +1016,7 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["fs_path"]
 
-    def to_zip(self, log=None):
+    def zip(self, log=None):
         # TODO: need to update `fs_path` in the new store (because this used to get
         # `Workflow.name`), but can't seem to open `dst_zarr_store` below:
         console = Console()
@@ -1058,8 +1058,16 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
 
     # TODO: enforce read-only nature
 
-    def to_zip(self):
-        raise NotImplementedError("Already a zip store!")
+    def zip(self):
+        raise ValueError("Already a zip store!")
+
+    def unzip(self, log=None):
+        src_zarr_store = self.zarr_store
+        new_fs_path = self.workflow.fs_path.rstrip(".zip")
+        dst_zarr_store = zarr.storage.FSStore(url=new_fs_path)
+        zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
+        zarr.open(dst_zarr_store).attrs["fs_path"] = new_fs_path
+        return new_fs_path
 
     def copy(self, path=None) -> str:
         # not sure how to do this.
