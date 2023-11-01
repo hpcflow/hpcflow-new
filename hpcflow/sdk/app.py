@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 import enum
+import json
 import shutil
 from functools import wraps
 from importlib import resources, import_module
@@ -12,9 +13,11 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
-from platformdirs import user_data_dir, user_runtime_path
+import zipfile
+from platformdirs import user_cache_path, user_data_dir, user_runtime_path
 from reretry import retry
 from rich.console import Console, Group
 from rich.syntax import Syntax
@@ -23,6 +26,9 @@ from rich.text import Text
 from rich.padding import Padding
 from rich.panel import Panel
 from rich import print as rich_print
+from fsspec.core import url_to_fs
+from fsspec.implementations.local import LocalFileSystem
+
 
 from setuptools import find_packages
 
@@ -129,9 +135,13 @@ class BaseApp(metaclass=Singleton):
         version,
         module,
         description,
+        gh_org,
+        gh_repo,
         config_options,
         scripts_dir,
         workflows_dir: str = None,
+        demo_data_dir: str = None,
+        demo_data_manifest_dir: str = None,
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
@@ -145,10 +155,14 @@ class BaseApp(metaclass=Singleton):
         self.version = version
         self.module = module
         self.description = description
+        self.gh_org = gh_org
+        self.gh_repo = gh_repo
         self.config_options = config_options
         self.pytest_args = pytest_args
         self.scripts_dir = scripts_dir
         self.workflows_dir = workflows_dir
+        self.demo_data_dir = demo_data_dir
+        self.demo_data_manifest_dir = demo_data_manifest_dir
         self.docs_import_conv = docs_import_conv
         self.docs_url = docs_url
 
@@ -179,8 +193,11 @@ class BaseApp(metaclass=Singleton):
 
         # assigned on first access to respective properties
         self._user_data_dir = None
-        self._user_data_hostname_dir = None
+        self._user_cache_dir = None
         self._user_runtime_dir = None
+        self._user_data_hostname_dir = None
+        self._user_cache_hostname_dir = None
+        self._demo_data_cache_dir = None
 
     def __getattr__(self, name):
         if name in sdk_classes:
@@ -485,6 +502,27 @@ class BaseApp(metaclass=Singleton):
         return self._user_data_dir
 
     @property
+    def user_cache_dir(self) -> Path:
+        """Retrieve the app cache directory."""
+        if self._user_cache_dir is None:
+            self._user_cache_dir = Path(user_cache_path(appname=self.package_name))
+        return self._user_cache_dir
+
+    @property
+    def user_runtime_dir(self) -> Path:
+        """Retrieve a temporary directory."""
+        if self._user_runtime_dir is None:
+            self._user_runtime_dir = Path(user_runtime_path(appname=self.package_name))
+        return self._user_runtime_dir
+
+    @property
+    def demo_data_cache_dir(self) -> Path:
+        """Retrieve a directory for example data caching."""
+        if self._demo_data_cache_dir is None:
+            self._demo_data_cache_dir = self.user_cache_dir.joinpath("demo_data")
+        return self._demo_data_cache_dir
+
+    @property
     def user_data_hostname_dir(self) -> Path:
         """We segregate by hostname to account for the case where multiple machines might
         use the same shared file system"""
@@ -497,11 +535,12 @@ class BaseApp(metaclass=Singleton):
         return self._user_data_hostname_dir
 
     @property
-    def user_runtime_dir(self) -> Path:
-        """Retrieve a temporary directory."""
-        if self._user_runtime_dir is None:
-            self._user_runtime_dir = Path(user_runtime_path(appname=self.package_name))
-        return self._user_runtime_dir
+    def user_cache_hostname_dir(self) -> Path:
+        """Retrieve the hostname-scoped app cache directory."""
+        if self._user_cache_hostname_dir is None:
+            machine_name = self.config.get("machine")
+            self._user_cache_hostname_dir = self.user_cache_dir.joinpath(machine_name)
+        return self._user_cache_hostname_dir
 
     def _ensure_user_data_dir(self) -> Path:
         """Ensure a user data directory exists."""
@@ -509,16 +548,6 @@ class BaseApp(metaclass=Singleton):
             self.user_data_dir.mkdir(parents=True)
             self.logger.info(f"Created user data directory: {self.user_data_dir!r}.")
         return self.user_data_dir
-
-    def _ensure_user_data_hostname_dir(self) -> Path:
-        """Ensure a user data directory for this machine exists (used by the helper
-        process and the known-submissions file)."""
-        if not self.user_data_hostname_dir.exists():
-            self.user_data_hostname_dir.mkdir(parents=True)
-            self.logger.info(
-                f"Created user data hostname directory: {self.user_data_hostname_dir!r}."
-            )
-        return self.user_data_hostname_dir
 
     def _ensure_user_runtime_dir(self) -> Path:
         """Generate a user runtime directory for this machine in which we can create
@@ -536,11 +565,65 @@ class BaseApp(metaclass=Singleton):
             )
         return self.user_runtime_dir
 
+    def _ensure_user_cache_dir(self) -> Path:
+        """Ensure a cache directory exists."""
+        if not self.user_cache_dir.exists():
+            self.user_cache_dir.mkdir(parents=True)
+            self.logger.info(f"Created user cache directory: {self.user_cache_dir!r}.")
+        return self.user_cache_dir
+
+    def _ensure_demo_data_cache_dir(self) -> Path:
+        """Ensure a cache directory for example data files exists."""
+        if not self.demo_data_cache_dir.exists():
+            self.demo_data_cache_dir.mkdir(parents=True)
+            self.logger.info(
+                f"Created example data cache directory: " f"{self.demo_data_cache_dir!r}."
+            )
+        return self.demo_data_cache_dir
+
+    def _ensure_user_data_hostname_dir(self) -> Path:
+        """Ensure a user data directory for this machine exists (used by the helper
+        process and the known-submissions file)."""
+        if not self.user_data_hostname_dir.exists():
+            self.user_data_hostname_dir.mkdir(parents=True)
+            self.logger.info(
+                f"Created user data hostname directory: {self.user_data_hostname_dir!r}."
+            )
+        return self.user_data_hostname_dir
+
+    def _ensure_user_cache_hostname_dir(self) -> Path:
+        """Ensure a cache directory exists."""
+        if not self.user_cache_hostname_dir.exists():
+            self.user_cache_hostname_dir.mkdir(parents=True)
+            self.logger.info(
+                f"Created hostname-scoped user cache directory: "
+                f"{self.user_cache_hostname_dir!r}."
+            )
+        return self.user_cache_hostname_dir
+
     def clear_user_runtime_dir(self):
         """Delete the contents of the user runtime directory."""
         if self.user_runtime_dir.exists():
             shutil.rmtree(self.user_runtime_dir)
             self._ensure_user_runtime_dir()
+
+    def clear_user_cache_dir(self):
+        """Delete the contents of the cache directory."""
+        if self.user_cache_dir.exists():
+            shutil.rmtree(self.user_cache_dir)
+            self._ensure_user_cache_dir()
+
+    def clear_demo_data_cache_dir(self):
+        """Delete the contents of the example data files cache directory."""
+        if self.demo_data_cache_dir.exists():
+            shutil.rmtree(self.demo_data_cache_dir)
+            self._ensure_demo_data_cache_dir()
+
+    def clear_user_cache_hostname_dir(self):
+        """Delete the contents of the hostname-scoped cache directory."""
+        if self.user_cache_hostname_dir.exists():
+            shutil.rmtree(self.user_cache_hostname_dir)
+            self._ensure_user_cache_hostname_dir()
 
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
@@ -1984,6 +2067,218 @@ class BaseApp(metaclass=Singleton):
         if env_source_file not in cur_env_source_files:
             self.config.append("environment_sources", str(env_source_file))
             self.config.save()
+
+    def get_demo_data_files_manifest(self) -> Dict[str, Union[None, str]]:
+        """Get a dict whose keys are example data file names and whose values are the
+        source files if the source file required unzipping or `None` otherwise.
+
+        If the config item `demo_data_manifest_file` is set, this is used as the manifest
+        file path. Otherwise, the app attribute `demo_data_manifest_dir` is used, and is
+        expected to be the package/directory in the source code within which a file
+        `demo_data_manifest.json` is expected.
+
+        """
+        if self.config.demo_data_manifest_file:
+            self.logger.debug(
+                f"loading example data files manifest from the config item "
+                f"`demo_data_manifest_file`: "
+                f"{self.config.demo_data_manifest_file!r}."
+            )
+            fs, url_path = url_to_fs(str(self.config.demo_data_manifest_file))
+            with fs.open(url_path) as fh:
+                manifest = json.load(fh)
+        else:
+            self.logger.debug(
+                f"loading example data files manifest from the app attribute "
+                f"`demo_data_manifest_dir`: "
+                f"{self.demo_data_manifest_dir!r}."
+            )
+            package = self.demo_data_manifest_dir
+            resource = "demo_data_manifest.json"
+            try:
+                fh = resources.files(package).joinpath(resource).open("rt")
+            except AttributeError:
+                # < python 3.9; `resource.open_text` deprecated since 3.11
+                fh = resources.open_text(package, resource)
+            manifest = json.load(fh)
+            fh.close()
+        return manifest
+
+    def list_demo_data_files(self) -> Tuple[str]:
+        """List available example data files."""
+        return tuple(self.get_demo_data_files_manifest().keys())
+
+    def _get_demo_data_file_source_path(self, file_name) -> Tuple[Path, bool, bool]:
+        """Get the full path to an example data file on the local file system, whether
+        the file must be unpacked, and whether the file should be deleted.
+
+        If `config.demo_data_dir` is set, this directory will be used as the example data
+        file source directory. This could be set to a local path or an fsspec URL. This
+        directory is expected to contain `file_name` if `file_name` exists in the
+        manifest. If this points to a remote file system (e.g. GitHub), the file will be
+        copied from the remote file system to a temporary local file, which should then be
+        deleted at a later point.
+
+        If `config.demo_data_dir` is not set, we use the app attribute
+        `app.demo_data_dir`, which should point to a package resource within the source
+        code tree. It may be that this package resource is not present in the case of
+        using the frozen app, or installing via PyPI. In this case, we then set a default
+        value of `config.demo_data_dir` (without saving to the persistent config file),
+        and then retrieve the example data file path as above. The default value is set to
+        the GitHub repo of the app using the current tag/version.
+
+        """
+
+        def _retrieve_source_path_from_config(src_fn):
+            fs, url_path = url_to_fs(self.config.demo_data_dir)
+            if isinstance(fs, LocalFileSystem):
+                out = url_path
+                delete = False
+            else:
+                # download to a temporary directory:
+                temp_path = self.user_runtime_dir.joinpath(src_fn)
+                self.logger.debug(
+                    f"downloading example data file source {src_fn!r} from remote file "
+                    f"system {fs!r} at remote path {url_path!r} to a temporary "
+                    f"directory file {temp_path!r}."
+                )
+                if temp_path.is_file():
+                    temp_path.unlink()
+                self._ensure_user_runtime_dir()
+                fs.get(rpath=f"{url_path}/{src_fn}", lpath=str(temp_path))
+                delete = True
+                out = temp_path
+            return out, delete
+
+        manifest = self.get_demo_data_files_manifest()
+        if file_name not in manifest:
+            raise ValueError(f"No such example data file {file_name!r}.")
+
+        spec = manifest[file_name]
+        requires_unpack = bool(spec)
+        src_fn = spec["in_zip"] if requires_unpack else file_name
+
+        if self.config.demo_data_dir:
+            self.logger.info(
+                f"using config item `demo_data_dir` as example data file source "
+                f"directory: {self.config.demo_data_dir!r}."
+            )
+            # use this directory (could be local or remote)
+            out, delete = _retrieve_source_path_from_config(src_fn)
+
+        else:
+            self.logger.info(
+                f"trying to use app attribute `demo_data_dir` as example data file "
+                f"source directory: {self.demo_data_dir!r}."
+            )
+            # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
+            package = self.demo_data_dir
+            resource_exists = True
+            delete = False
+            try:
+                ctx_man = resources.as_file(resources.files(package).joinpath(src_fn))
+                # raises ModuleNotFoundError
+            except AttributeError:
+                # < python 3.9
+                try:
+                    ctx_man = resources.path(package, src_fn)
+                except ModuleNotFoundError:
+                    resource_exists = False
+            except ModuleNotFoundError:
+                resource_exists = False
+
+            if resource_exists:
+                with ctx_man as path:
+                    out = path
+            else:
+                # example data not included (e.g. frozen, or installed via PyPI/conda), so
+                # set a default value for `config.demo_data_dir` (point to the package
+                # GitHub repo for the current tag):
+                path = "/".join(package.split(".")) + f"/{src_fn}"
+                # sha = f"v{self.version}"
+                sha = "a702ec33c9a22064fdcab973804a5d875651544e"  # TEMP
+                url = f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
+                self.logger.info(
+                    f"path {path!r} does not exist as a package resource (example data "
+                    f"was probably not included in the app), so non-persistently setting "
+                    f"the config item `demo_data_dir` to the app's GitHub repo path: "
+                    f"{url!r}."
+                )
+                self.config.demo_data_dir = url
+                out, delete = _retrieve_source_path_from_config(src_fn)
+
+        return out, requires_unpack, delete
+
+    def get_demo_data_file_path(self, file_name) -> Path:
+        """Get the full path to an example data file in the app cache directory.
+
+        If the file does not already exist in the app cache directory, it will be added
+        (and unzipped if required). The file may first be downloaded from a remote file
+        system such as GitHub (see `_get_demo_data_file_source_path` for details).
+
+        """
+
+        # check if file exists in cache dir already
+        cache_file_path = self.demo_data_cache_dir.joinpath(file_name)
+        if cache_file_path.exists():
+            self.logger.info(
+                f"example data file {file_name!r} is already in the cache: "
+                f"{cache_file_path!r}."
+            )
+        else:
+            self.logger.info(
+                f"example data file {file_name!r} is not in the cache, so copying to the "
+                f"cache: {cache_file_path!r}."
+            )
+            self._ensure_demo_data_cache_dir()
+            src, unpack, delete = self._get_demo_data_file_source_path(file_name)
+            if unpack:
+                # extract file to cache dir:
+                self.logger.debug(
+                    f"extracting example data file {file_name!r} source file {src!r}."
+                )
+                with TemporaryDirectory() as temp_dir:
+                    with zipfile.ZipFile(src, "r") as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    extracted = Path(temp_dir).joinpath(file_name)
+                    shutil.copy(extracted, cache_file_path)
+            else:
+                # copy to cache dir:
+                shutil.copy(src, cache_file_path)
+            if delete:
+                # e.g. `src` is in a temporary directory because it was downloaded from
+                # GitHub:
+                self.logger.debug(
+                    f"deleting example data file {file_name!r} source file {src!r}."
+                )
+                src.unlink()
+        return cache_file_path
+
+    def cache_demo_data_file(self, file_name) -> Path:
+        return self.get_demo_data_file_path(file_name)
+
+    def cache_all_demo_data_files(self) -> List[Path]:
+        return [self.get_demo_data_file_path(i) for i in self.list_demo_data_files()]
+
+    def copy_demo_data(
+        self, file_name: str, dst: Optional[PathLike] = None, doc: bool = True
+    ) -> str:
+        """Copy a builtin demo data file to the specified location.
+
+        Parameters
+        ----------
+        file_name
+            The name of the demo data file to copy
+        dst
+            Directory or full file path to copy the demo data file to. If not specified,
+            the current working directory will be used.
+        """
+
+        dst = dst or Path(".")
+        src = self.get_demo_data_file_path(file_name)
+        shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
+
+        return src.name
 
 
 class App(BaseApp):

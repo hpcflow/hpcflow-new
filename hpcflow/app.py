@@ -31,9 +31,13 @@ app: sdk_app.BaseApp = sdk_app.BaseApp(
     module=__name__,
     docs_import_conv="hf",
     description="Computational workflow management",
+    gh_org="hpcflow",
+    gh_repo="hpcflow-new",
     config_options=config_options,
     template_components=template_components,
     scripts_dir="sdk.demo.scripts",  # relative to root package
     workflows_dir="sdk.demo.workflows",  # relative to root package
+    demo_data_dir="hpcflow.sdk.demo.workflow_data_files",
+    demo_data_manifest_dir="hpcflow.sdk.demo",
     docs_url="https://hpcflow.github.io/docs/stable",
 )  #: |app|

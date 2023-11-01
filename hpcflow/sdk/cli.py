@@ -791,11 +791,110 @@ def _make_open_CLI(app):
         else:
             utils.open_file(dir_path)
 
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_cache_dir(path=False):
+        dir_path = app.user_cache_dir
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_runtime_dir(path=False):
+        dir_path = app.user_runtime_dir
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_data_hostname_dir(path=False):
+        dir_path = app.user_data_hostname_dir
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def user_cache_hostname_dir(path=False):
+        dir_path = app.user_cache_hostname_dir
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
+    @open_file.command()
+    @click.option("--path", is_flag=True, default=False)
+    def demo_data_cache_dir(path=False):
+        dir_path = app.demo_data_cache_dir
+        if path:
+            click.echo(dir_path)
+        else:
+            utils.open_file(dir_path)
+
     open_file.help = open_file.help.format(app_name=app.name)
     log.help = log.help.format(app_name=app.name)
     config.help = config.help.format(app_name=app.name)
 
     return open_file
+
+
+def _make_demo_data_CLI(app):
+    """Generate the CLI for interacting with example data files that are used in demo
+    workflows."""
+
+    def list_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        # TODO: format with Rich with a one-line description
+        click.echo("\n".join(app.list_demo_data_files()))
+        ctx.exit()
+
+    def cache_all_callback(ctx, param, value):
+        if not value or ctx.resilient_parsing:
+            return
+        app.cache_all_demo_data_files()
+        ctx.exit()
+
+    @click.group()
+    @click.option(
+        "-l",
+        "--list",
+        help="Print available example data files.",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=list_callback,
+    )
+    def demo_data():
+        """Interact with builtin demo data files."""
+
+    @demo_data.command("copy")
+    @click.argument("file_name")
+    @click.argument("destination")
+    def copy_demo_data(file_name, destination):
+        """Copy a demo data file to the specified location."""
+        app.copy_demo_data(file_name=file_name, dst=destination)
+
+    @demo_data.command("cache")
+    @click.option(
+        "--all",
+        help="Cache all demo data files.",
+        is_flag=True,
+        is_eager=True,
+        expose_value=False,
+        callback=cache_all_callback,
+    )
+    @click.argument("file_name")
+    def cache_demo_data(file_name):
+        """Ensure a demo data file is in the demo data cache."""
+        app.cache_demo_data_file(file_name)
+
+    return demo_data
 
 
 def _make_manage_CLI(app):
@@ -844,6 +943,20 @@ def _make_manage_CLI(app):
     def clear_runtime_dir():
         """Delete all files in the user runtime directory."""
         app.clear_user_runtime_dir()
+
+    @manage.command("clear-cache")
+    @click.option("--hostname", is_flag=True, default=False)
+    def clear_cache(hostname):
+        """Delete the app cache directory."""
+        if hostname:
+            app.clear_user_cache_hostname_dir()
+        else:
+            app.clear_user_cache_dir()
+
+    @manage.command("clear-demo-data-cache")
+    def clear_demo_data_cache():
+        """Delete the app demo data cache directory."""
+        app.clear_demo_data_cache_dir()
 
     return manage
 
@@ -928,6 +1041,7 @@ def make_cli(app):
     new_CLI.add_command(get_demo_software_CLI(app))
     new_CLI.add_command(get_demo_workflow_CLI(app))
     new_CLI.add_command(get_helper_CLI(app))
+    new_CLI.add_command(_make_demo_data_CLI(app))
     new_CLI.add_command(_make_manage_CLI(app))
     new_CLI.add_command(_make_workflow_CLI(app))
     new_CLI.add_command(_make_submission_CLI(app))
