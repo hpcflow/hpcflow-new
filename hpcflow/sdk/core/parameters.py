@@ -1126,7 +1126,7 @@ class InputValue(AbstractInputValue):
             label_str = f", label={self.label!r}"
 
         try:
-            value_str = f", value={self.value}"
+            value_str = f", value={self.value!r}"
         except WorkflowParameterMissingError:
             value_str = ""
 
