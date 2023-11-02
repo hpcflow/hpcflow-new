@@ -34,7 +34,7 @@ Contribute
    ```
    and pasting this at the end of the file:
    ```
-   export PATH="/home/ubuntu/.local/bin:$PATH"
+   export PATH=${HOME}/.local/bin:$PATH
    ```
    Now you should be able to run this command:
    ```
@@ -117,7 +117,7 @@ Contribute
    To be able to work with hpcflow and immediately see the changes reflected in matflow you need to reconfigure the hpcflow dependency to point to your local copy of hpcflow. 
    To do this, run
    ```
-   poetry add --editable /home/ubuntu/hpcflow-new/
+   poetry add --editable ${HOME}/hpcflow-new/
    ```
    This will update the hpcflow-new dependency to point to your local copy.
 
@@ -128,7 +128,7 @@ Contribute
    ```
    with
    ```
-   hpcflow-new2 = {path = "/home/ubuntu/hpcflow-new", develop = true}
+   hpcflow-new2 = {path = "${HOME}/hpcflow-new", develop = true}
    ```
    Then, you need to update your poetry environment accordingly, by first removing the lock file
    ```
