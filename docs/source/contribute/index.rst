@@ -28,7 +28,7 @@ Contribute
    sudo apt upgrade
    curl -sSL https://install.python-poetry.org | python3 -
    ```
-   It will prompt you to add powtry to the PATH, which you can do with
+   It will prompt you to add poetry to the PATH, which you can do with
    ```
    nano ~/.bashrc
    ```
