@@ -709,3 +709,26 @@ def split_param_label(param_path: str) -> Tuple[Union[str, None]]:
     pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
     match = re.match(pattern, param_path)
     return match.group(1), match.group(2)
+
+
+def process_string_nodes(data, str_processor):
+    """Walk through a nested data structure and process string nodes using a provided
+    callable."""
+
+    if isinstance(data, dict):
+        for k, v in data.items():
+            data[k] = process_string_nodes(v, str_processor)
+
+    elif isinstance(data, (list, tuple, set)):
+        _data = [process_string_nodes(i, str_processor) for i in data]
+        if isinstance(data, tuple):
+            data = tuple(_data)
+        elif isinstance(data, set):
+            data = set(_data)
+        else:
+            data = _data
+
+    elif isinstance(data, str):
+        data = str_processor(data)
+
+    return data

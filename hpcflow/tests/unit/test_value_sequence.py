@@ -404,3 +404,10 @@ def test_nesting_order_three_seqs_all_decimal(null_config, tmp_path):
     assert wk.tasks.test.elements[3].get("inputs") == {"p1": "b", "p2": "c", "p3": "i"}
     assert wk.tasks.test.elements[4].get("inputs") == {"p1": "b", "p2": "d", "p3": "j"}
     assert wk.tasks.test.elements[5].get("inputs") == {"p1": "b", "p2": "e", "p3": "k"}
+
+
+def test_demo_data_values(null_config):
+    name = "text_file.txt"
+    assert hf.ValueSequence(
+        path="inputs.p1", values=[f"<<demo_data_file:{name}>>"]
+    ).values[0] == str(hf.demo_data_cache_dir.joinpath(name))
