@@ -372,7 +372,9 @@ class SchemaInput(SchemaParameter):
                         "value": v["default_value"],
                         "label": k,
                     }
-                json_like["labels"][k]["default_value"] = InputValue.from_json_like(
+                json_like["labels"][k][
+                    "default_value"
+                ] = cls.app.InputValue.from_json_like(
                     json_like=inp_val_kwargs,
                     shared_data=shared_data,
                 )
@@ -506,7 +508,8 @@ class ValueSequence(JSONLike):
         self.nesting_order = nesting_order
         self.value_class_method = value_class_method
 
-        self._values = [_process_demo_data_strings(self.app, i) for i in values]
+        if values is not None:
+            self._values = [_process_demo_data_strings(self.app, i) for i in values]
 
         self._values_group_idx = None
         self._values_are_objs = None  # assigned initially on `make_persistent`
