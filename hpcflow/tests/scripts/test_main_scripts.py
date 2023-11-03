@@ -7,7 +7,7 @@ from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 # python_env MatFlow environment, so we should skip these tests.
 
 
-@pytest.mark.integration
+# @pytest.mark.integration
 @pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_direct_out(null_config, tmp_path):
     s1 = hf.TaskSchema(
