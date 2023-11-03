@@ -32,6 +32,7 @@ def test_script_direct_in_direct_out_UNIT(null_config, tmp_path):
     sub = wk.add_submission()
 
     wk.submit(add_to_known=False)
+    wk.wait()
     js_path = sub.jobscripts[0].submit_cmdline[-1]
     print(f"js_path = {js_path}")
     print(f"jobscript: ")
@@ -51,8 +52,6 @@ def test_script_direct_in_direct_out_UNIT(null_config, tmp_path):
         "execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt"
     ).open("rt") as fp:
         print(fp.read())
-
-    wk.wait()
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
@@ -84,6 +83,7 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
 
     wk.submit(add_to_known=False)
     js_path = sub.jobscripts[0].submit_cmdline[-1]
+    wk.wait()
     print(f"js_path = {js_path}")
     print(f"jobscript: ")
     with Path(js_path).open("rt") as fp:
@@ -102,8 +102,6 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
         "execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt"
     ).open("rt") as fp:
         print(fp.read())
-
-    wk.wait()
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
