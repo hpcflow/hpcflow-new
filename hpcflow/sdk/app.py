@@ -1466,7 +1466,6 @@ class BaseApp(metaclass=Singleton):
             raise RuntimeError(
                 f"{self.name} has not been built with testing dependencies."
             )
-
         test_args = (self.pytest_args or []) + list(args)
         pkg = self.package_name
         tests_dir = "tests"
