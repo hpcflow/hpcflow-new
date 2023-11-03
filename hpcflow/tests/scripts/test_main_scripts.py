@@ -39,15 +39,17 @@ def test_script_direct_in_direct_out_UNIT(null_config, tmp_path):
         print(fp.read())
 
     print(f"js_0_stdout.log:")
-    with sub.path.joinpath("js_0_stdout.log") as fp:
+    with sub.path.joinpath("js_0_stdout.log").open("rt") as fp:
         print(fp.read())
 
     print(f"js_0_stderr.log:")
-    with sub.path.joinpath("js_0_stderr.log") as fp:
+    with sub.path.joinpath("js_0_stderr.log").open("rt") as fp:
         print(fp.read())
 
     print(f"hpcflow_std.txt:")
-    with wk.path.joinpath("execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt") as fp:
+    with wk.path.joinpath("execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt").open(
+        "rt"
+    ) as fp:
         print(fp.read())
 
     wk.wait()
@@ -88,15 +90,17 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
         print(fp.read())
 
     print(f"js_0_stdout.log:")
-    with sub.path.joinpath("js_0_stdout.log") as fp:
+    with sub.path.joinpath("js_0_stdout.log").open("rt") as fp:
         print(fp.read())
 
     print(f"js_0_stderr.log:")
-    with sub.path.joinpath("js_0_stderr.log") as fp:
+    with sub.path.joinpath("js_0_stderr.log").open("rt") as fp:
         print(fp.read())
 
     print(f"hpcflow_std.txt:")
-    with wk.path.joinpath("execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt") as fp:
+    with wk.path.joinpath("execute", "task_0_t1", "e_0", "r_0", "hpcflow_std.txt").open(
+        "rt"
+    ) as fp:
         print(fp.read())
 
     wk.wait()
