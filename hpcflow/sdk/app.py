@@ -1469,7 +1469,13 @@ class BaseApp(metaclass=Singleton):
 
         test_args = (self.pytest_args or []) + list(args)
         pkg = self.package_name
-        with resources.as_file(resources.files(pkg).joinpath("tests")) as test_dir:
+        tests_dir = "tests"
+        try:
+            ctx_man = resources.as_file(resources.files(pkg).joinpath(tests_dir))
+        except AttributeError:
+            # < Python 3.9
+            ctx_man = resources.path(pkg, tests_dir)
+        with ctx_man as test_dir:
             return pytest.main([str(test_dir)] + test_args)
 
     def _get_OS_info(self) -> Dict:
