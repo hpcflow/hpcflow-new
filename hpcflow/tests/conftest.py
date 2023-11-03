@@ -21,6 +21,12 @@ def pytest_addoption(parser):
         default=False,
         help="run direct-linux submission tests",
     )
+    parser.addoption(
+        "--integration",
+        action="store_true",
+        default=False,
+        help="run integration-like workflow submission tests",
+    )
 
 
 def pytest_configure(config):
@@ -28,6 +34,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "wsl: mark test as wsl to run")
     config.addinivalue_line(
         "markers", "direct_linux: mark test as a direct-linux submission test to run"
+    )
+    config.addinivalue_line(
+        "markers",
+        "integration: mark test as an integration-like workflow submission test to run",
     )
     hf.run_time_info.in_pytest = True
 
@@ -50,6 +60,13 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(
                     pytest.mark.skip(reason="remove --direct-linux option to run")
                 )
+    elif config.getoption("--integration"):
+        # --integration in CLI: only run these tests
+        for item in items:
+            if "integration" not in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(reason="remove --integration option to run")
+                )
     else:
         # --slurm not given in cli: skip slurm tests and do not skip other tests
         for item in items:
@@ -60,6 +77,10 @@ def pytest_collection_modifyitems(config, items):
             elif "direct_linux" in item.keywords:
                 item.add_marker(
                     pytest.mark.skip(reason="add --direct_linux option to run")
+                )
+            elif "integration" in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(reason="add --integration option to run")
                 )
 
 

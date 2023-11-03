@@ -11,6 +11,7 @@ from hpcflow.sdk.core.test_utils import (
 )
 
 
+@pytest.mark.integration
 def test_workflow_1(tmp_path, new_null_config):
     package = "hpcflow.sdk.demo.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:
@@ -19,6 +20,7 @@ def test_workflow_1(tmp_path, new_null_config):
     assert wk.tasks[0].elements[0].outputs.p2.value == "201"
 
 
+@pytest.mark.integration
 def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     workflow_dir = tmp_path / "sub path with spaces"
     workflow_dir.mkdir()
@@ -29,6 +31,7 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     assert wk.tasks[0].elements[0].outputs.p2.value == "201"
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     sys.platform == "darwin",
     reason="Sometimes fails on MacOS GHAs runner; need to investigate.",
@@ -59,6 +62,7 @@ def test_run_abort(tmp_path, new_null_config):
     assert wk.tasks[0].outputs.is_finished[0].value == "true"
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
     if os.name == "nt":
@@ -100,6 +104,7 @@ def test_multi_command_action_stdout_parsing(null_config, tmp_path, store):
     assert wk.tasks.t1.elements[0].get("outputs") == {"p2": 101, "p3": 201.0}
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_element_get_group(null_config, tmp_path, store):
     if os.name == "nt":
@@ -148,6 +153,7 @@ def test_element_get_group(null_config, tmp_path, store):
     assert wk.tasks.t2.elements[0].get("inputs.p1c") == [P1(a=120), P1(a=130)]
 
 
+@pytest.mark.integration
 def test_element_get_sub_object_group(null_config, tmp_path):
     if os.name == "nt":
         cmd = "Write-Output (<<parameter:p1c>> + 100)"
@@ -197,6 +203,7 @@ def test_element_get_sub_object_group(null_config, tmp_path):
     ]
 
 
+@pytest.mark.integration
 def test_element_get_sub_data_group(null_config, tmp_path):
     if os.name == "nt":
         cmd = "Write-Output (<<parameter:p1c>> + 100)"
@@ -243,6 +250,7 @@ def test_element_get_sub_data_group(null_config, tmp_path):
     assert wk.tasks.t2.elements[0].get("inputs.p1c.a") == [120, 130]
 
 
+@pytest.mark.integration
 def test_input_source_labels_and_groups(null_config, tmp_path):
     """This is structurally the same as the `fit_yield_functions` MatFlow workflow."""
     if os.name == "nt":
@@ -337,6 +345,7 @@ def test_input_source_labels_and_groups(null_config, tmp_path):
     assert wk.tasks.t3.elements[0].outputs.p3.value == 410
 
 
+@pytest.mark.integration
 def test_loop_simple(null_config, tmp_path):
     if os.name == "nt":
         cmd = "Write-Output (<<parameter:p1>> + 100)"
@@ -360,6 +369,7 @@ def test_loop_simple(null_config, tmp_path):
     assert wk.tasks.t1.elements[0].get("outputs.p1") == 301
 
 
+@pytest.mark.integration
 def test_loop_termination_multi_element(null_config, tmp_path):
     if os.name == "nt":
         cmds = [
