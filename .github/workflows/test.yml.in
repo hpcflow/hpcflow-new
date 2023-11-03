@@ -200,7 +200,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest {{ pytest_args }} --integration
+          poetry run {{ executable_name }} test {{ pytest_args }} --integration
 
   test-integration-CentOS:
     needs: pre-commit
@@ -235,7 +235,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest {{ pytest_args }} --integration
+          poetry run {{ executable_name }} test {{ pytest_args }} --integration
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
