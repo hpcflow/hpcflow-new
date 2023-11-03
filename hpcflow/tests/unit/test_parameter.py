@@ -147,7 +147,7 @@ def test_slice(new_null_config, tmp_path):
     assert p1_params[1].value == values[2]
 
 
-def test_demo_data_substitution_param_value_class_method(null_config, tmp_path):
+def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_path):
     yaml_str = dedent(
         """\
         name: temp
@@ -169,7 +169,7 @@ def test_demo_data_substitution_param_value_class_method(null_config, tmp_path):
     }
 
 
-def test_demo_data_substitution_value_sequence_class_method(null_config, tmp_path):
+def test_demo_data_substitution_value_sequence_class_method(new_null_config, tmp_path):
     yaml_str = dedent(
         """\
         name: temp
