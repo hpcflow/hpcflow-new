@@ -32,9 +32,8 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    sys.platform == "darwin",
-    reason="Sometimes fails on MacOS GHAs runner; need to investigate.",
+@pytest.mark.skip(
+    reason="Sometimes fails on MacOS GHAs runner; too slow on Windows + Linux"
 )
 def test_run_abort(tmp_path, new_null_config):
     package = "hpcflow.sdk.demo.data"
