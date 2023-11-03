@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import random
 import string
+from textwrap import dedent
 
 import pytest
 
@@ -144,3 +145,56 @@ def test_slice(new_null_config, tmp_path):
     assert len(p1_params) == 2
     assert p1_params[0].value == values[0]
     assert p1_params[1].value == values[2]
+
+
+def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_path):
+    yaml_str = dedent(
+        """\
+        name: temp
+        task_schemas:
+          - objective: test
+            inputs:
+              - parameter: p1c
+            parameter_class_modules: [hpcflow.sdk.core.test_utils]
+        tasks: 
+          - schema: test
+            inputs:
+              p1c::from_file:
+                path: <<demo_data_file:text_file.txt>>
+    """
+    )
+    wk = hf.Workflow.from_YAML_string(YAML_str=yaml_str, path=tmp_path)
+    assert wk.tasks[0].template.element_sets[0].inputs[0].value == {
+        "path": str(hf.demo_data_cache_dir.joinpath("text_file.txt"))
+    }
+
+
+def test_demo_data_substitution_value_sequence_class_method(new_null_config, tmp_path):
+    yaml_str = dedent(
+        """\
+        name: temp
+        task_schemas:
+          - objective: test
+            inputs:
+              - parameter: p1
+        tasks:
+          - schema: test
+            sequences:
+              - path: inputs.p1
+                values::from_file:
+                  file_path: <<demo_data_file:text_file.txt>>
+    """
+    )
+    wk = hf.Workflow.from_YAML_string(YAML_str=yaml_str, path=tmp_path)
+    assert wk.tasks[0].template.element_sets[0].sequences[0].values == [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+    ]

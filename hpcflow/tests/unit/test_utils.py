@@ -11,6 +11,7 @@ from hpcflow.sdk.core.utils import (
     flatten,
     get_nested_indices,
     is_fsspec_url,
+    process_string_nodes,
     replace_items,
     check_valid_py_identifier,
     reshape,
@@ -345,6 +346,28 @@ def test_split_param_label(null_config):
     assert split_param_label("p1[one]") == ("p1", "one")
     assert split_param_label("p1.sub.data") == ("p1.sub.data", None)
     assert split_param_label("p1.sub.data[one]") == ("p1.sub.data", "one")
+
+
+def test_process_string_nodes(null_config):
+    str_processor = str.upper
+    data = {
+        "a": [1, 2, 3],
+        "b": "hello",
+        "c": {
+            "d": "hi",
+            "e": {"s1", "S2", "3s"},
+            "f": ("abc", "def"),
+        },
+    }
+    assert process_string_nodes(data, str_processor) == {
+        "a": [1, 2, 3],
+        "b": "HELLO",
+        "c": {
+            "d": "HI",
+            "e": {"S1", "S2", "3S"},
+            "f": ("ABC", "DEF"),
+        },
+    }
 
 
 # from hpcflow.utils import (

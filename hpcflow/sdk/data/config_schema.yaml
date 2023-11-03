@@ -19,6 +19,8 @@ rules:
         - default_shell
         - schedulers
         - shells
+        - demo_data_dir
+        - demo_data_manifest_file
   - path: []
     condition:
       value.required_keys:
@@ -219,3 +221,20 @@ rules:
         - WSL_executable
         - WSL_distribution
         - WSL_user
+
+  - path: [demo_data_dir]
+    doc: >
+      If provided, this will be used as the path to the directory containing demo data
+      files. This can be a local path or an fsspec URL.
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [demo_data_manifest_file]
+    doc: >
+      If provided, this will be used as the path to the manifest for the built-in example 
+      data files. It should point to a JSON file whose top-level keys are example data
+      file names. Each value should be an empty map/dict or a map like: `{"in_zip": "text_file.zip"}`,
+      where `text_file.zip` is the name of a zip archive that contains the example data
+      file. This can be a local path or an fsspec URL.
+    condition:
+      value.is_instance: [str, path]

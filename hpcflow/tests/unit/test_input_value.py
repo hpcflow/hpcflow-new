@@ -153,3 +153,10 @@ def test_value_is_dict_check_no_raise_if_sub_parameter(null_config):
     # Parameter("p1c") has an associated `ParameterValue` class, but the specified value
     # is for some sub-data:
     hf.InputValue("p1c", path="a", value=101)
+
+
+def test_demo_data_value(null_config):
+    name = "text_file.txt"
+    assert hf.InputValue("p1", value=f"<<demo_data_file:{name}>>").value == str(
+        hf.demo_data_cache_dir.joinpath(name)
+    )

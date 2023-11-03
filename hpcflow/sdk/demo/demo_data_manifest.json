@@ -1,0 +1,6 @@
+{
+    "text_file.txt": {
+        "in_zip": "text_file.zip"
+    },
+    "zip_file.zip": {}
+}

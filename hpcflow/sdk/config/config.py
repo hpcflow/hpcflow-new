@@ -188,6 +188,7 @@ class Config:
             "shells": (callback_lowercase,),
             "default_scheduler": (callback_lowercase, exists_in_schedulers),
             "default_shell": (callback_lowercase, callback_supported_shells),
+            "demo_data_manifest_file": (callback_file_paths,),
             **(callbacks or {}),
         }
 
@@ -202,6 +203,7 @@ class Config:
             "schedulers": (callback_supported_schedulers, callback_scheduler_set_up),
             "log_file_path": (set_callback_file_paths,),
             "log_console_level": (callback_update_log_console_level,),
+            "demo_data_manifest_file": (set_callback_file_paths,),
         }
 
         self._configurable_keys = self._options._configurable_keys

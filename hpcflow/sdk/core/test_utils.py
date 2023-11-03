@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
@@ -199,6 +200,13 @@ class P1_parameter_cls(ParameterValue):
     @classmethod
     def from_data(cls, b, c):
         return cls(a=b + c)
+
+    @classmethod
+    def from_file(cls, path):
+        with Path(path).open("rt") as fh:
+            lns = fh.readlines()
+            a = int(lns[0])
+        return cls(a=a)
 
     @property
     def twice_a(self):

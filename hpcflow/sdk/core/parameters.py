@@ -3,6 +3,8 @@ import copy
 from dataclasses import dataclass, field
 from datetime import timedelta
 import enum
+from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -21,6 +23,7 @@ from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_enum_by_name_or_val,
+    process_string_nodes,
     split_param_label,
 )
 from hpcflow.sdk.submission.shells import get_shell
@@ -29,6 +32,19 @@ from hpcflow.sdk.submission.submission import timedelta_format
 
 Address = List[Union[int, float, str]]
 Numeric = Union[int, float, np.number]
+
+
+def _process_demo_data_strings(app, value):
+    def string_processor(str_in):
+        demo_pattern = r"\<\<demo_data_file:(.*)\>\>"
+        str_out = re.sub(
+            pattern=demo_pattern,
+            repl=lambda x: str(app.get_demo_data_file_path(x.group(1))),
+            string=str_in,
+        )
+        return str_out
+
+    return process_string_nodes(value, string_processor)
 
 
 class ParameterValue:
@@ -356,7 +372,9 @@ class SchemaInput(SchemaParameter):
                         "value": v["default_value"],
                         "label": k,
                     }
-                json_like["labels"][k]["default_value"] = InputValue.from_json_like(
+                json_like["labels"][k][
+                    "default_value"
+                ] = cls.app.InputValue.from_json_like(
                     json_like=inp_val_kwargs,
                     shared_data=shared_data,
                 )
@@ -490,7 +508,8 @@ class ValueSequence(JSONLike):
         self.nesting_order = nesting_order
         self.value_class_method = value_class_method
 
-        self._values = values
+        if values is not None:
+            self._values = [_process_demo_data_strings(self.app, i) for i in values]
 
         self._values_group_idx = None
         self._values_are_objs = None  # assigned initially on `make_persistent`
@@ -567,9 +586,11 @@ class ValueSequence(JSONLike):
             if "values" in i:
                 val_key = i
         if "::" in val_key:
+            # class method (e.g. `from_range`, `from_file` etc):
             _, method = val_key.split("::")
             _values_method_args = json_like.pop(val_key)
             _values_method = f"_values_{method}"
+            _values_method_args = _process_demo_data_strings(cls.app, _values_method_args)
             json_like["values"] = getattr(cls, _values_method)(**_values_method_args)
 
         obj = super().from_json_like(json_like, shared_data)
@@ -823,13 +844,19 @@ class ValueSequence(JSONLike):
         return np.arange(start, stop, step, **kwargs).tolist()
 
     @classmethod
+    def _values_from_file(cls, file_path):
+        with Path(file_path).open("rt") as fh:
+            vals = [i.strip() for i in fh.readlines()]
+        return vals
+
+    @classmethod
     def from_linear_space(
         cls,
         path,
         start,
         stop,
         num,
-        nesting_order,
+        nesting_order=0,
         label=None,
         **kwargs,
     ):
@@ -848,7 +875,7 @@ class ValueSequence(JSONLike):
         start,
         stop,
         num,
-        nesting_order,
+        nesting_order=0,
         endpoint=True,
         label=None,
         **kwargs,
@@ -867,7 +894,7 @@ class ValueSequence(JSONLike):
         start,
         stop,
         num,
-        nesting_order,
+        nesting_order=0,
         base=10.0,
         endpoint=True,
         label=None,
@@ -893,7 +920,7 @@ class ValueSequence(JSONLike):
         path,
         start,
         stop,
-        nesting_order,
+        nesting_order=0,
         step=1,
         label=None,
         **kwargs,
@@ -918,6 +945,28 @@ class ValueSequence(JSONLike):
             label=label,
         )
         obj._values_method = "from_range"
+        obj._values_method_args = args
+        return obj
+
+    @classmethod
+    def from_file(
+        cls,
+        path,
+        file_path,
+        nesting_order=0,
+        label=None,
+        **kwargs,
+    ):
+        args = {"file_path": file_path, **kwargs}
+        values = cls._values_from_file(**args)
+        obj = cls(
+            values=values,
+            path=path,
+            nesting_order=nesting_order,
+            label=label,
+        )
+
+        obj._values_method = "from_file"
         obj._values_method_args = args
         return obj
 
@@ -1062,7 +1111,7 @@ class InputValue(AbstractInputValue):
         self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
-        self._value = value
+        self._value = _process_demo_data_strings(self.app, value)
 
         self._value_group_idx = None  # assigned by method make_persistent
         self._element_set = None  # assigned by parent ElementSet (if belonging)
@@ -1126,7 +1175,7 @@ class InputValue(AbstractInputValue):
             label_str = f", label={self.label!r}"
 
         try:
-            value_str = f", value={self.value}"
+            value_str = f", value={self.value!r}"
         except WorkflowParameterMissingError:
             value_str = ""
 
