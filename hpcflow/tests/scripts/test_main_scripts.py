@@ -8,7 +8,7 @@ from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 # python_env MatFlow environment, so we should skip these tests.
 
 
-def test_script_direct_in_direct_out_UNIT(null_config):
+def test_script_direct_in_direct_out_UNIT(null_config, tmp_path):
     print(f"hf.run_time_info.invocation_command = {hf.run_time_info.invocation_command}")
     s1 = hf.TaskSchema(
         objective="t1",
