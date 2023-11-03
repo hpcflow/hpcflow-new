@@ -158,7 +158,7 @@ jobs:
 
   test-integration:
     needs: pre-commit
-    if: github.event_name == 'pull_request' || github.event.inputs.unit_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.integration_tests == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -205,7 +205,7 @@ jobs:
   test-integration-CentOS:
     needs: pre-commit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event.inputs.unit_tests == 'true'
+    if: github.event_name == 'pull_request' || github.event.inputs.integration_tests == 'true'
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
