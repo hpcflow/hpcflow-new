@@ -1,4 +1,36 @@
 
+<a name="v0.2.0a119"></a>
+## [v0.2.0a119](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a118...v0.2.0a119) - 2023.11.03
+
+### ♻ Code Refactoring
+
+* move example data files
+
+### ✨ Features
+
+* substitute <<demo_data_file:FILE_NAME>> in various places
+* add initial demo data files support
+* add demo example data files and manifest
+
+### 🐛 Bug Fixes
+
+* skip test_run_abort for now on all platforms; too slow
+* integration test conditions
+* method `BaseApp._run_tests` on Python 3.8
+* change pytest invocation method to allow custom args
+* sync changes in GHAs
+* add __init__.py to demo data dir
+* reload template components in `new_null_config` fixture
+* try fix test_demo_data
+* fix `SchemaInput.from_json_like`
+* InputValue repr
+* do not package demo data files
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a118"></a>
 ## [v0.2.0a118](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a117...v0.2.0a118) - 2023.10.31
 
