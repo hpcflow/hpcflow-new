@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 
 from hpcflow.app import app as hf
@@ -7,9 +8,8 @@ from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 # python_env MatFlow environment, so we should skip these tests.
 
 
-# @pytest.mark.integration
-@pytest.mark.skipif("hf.run_time_info.is_frozen")
-def test_script_direct_in_direct_out(null_config, tmp_path):
+def test_script_direct_in_direct_out_UNIT(null_config):
+    print(f"hf.run_time_info.invocation_command = {hf.run_time_info.invocation_command}")
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
@@ -29,7 +29,51 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
     wk = hf.Workflow.from_template_data(
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
-    wk.submit(wait=True, add_to_known=False)
+    sub = wk.add_submission()
+
+    wk.submit(add_to_known=False)
+    js_path = sub.jobscripts[0].submit_cmdline[-1]
+    print(f"js_path = {js_path}")
+    print(f"jobscript: ")
+    with Path(js_path).open("rt") as fp:
+        print(fp.read())
+    wk.wait()
+    assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
+
+
+# TODO: BUG: Windows: this test works if invoked via `python -m pytest` i.e. in unit tests, but not via `poetry run hpcflow test --integration`
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_direct_in_direct_out(null_config, tmp_path):
+    print(f"hf.run_time_info.invocation_command = {hf.run_time_info.invocation_command}")
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_direct_in_direct_out.py>>",
+                script_data_in="direct",
+                script_data_out="direct",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1], template_name="main_script_test", path=tmp_path
+    )
+    sub = wk.add_submission()
+
+    wk.submit(add_to_known=False)
+    js_path = sub.jobscripts[0].submit_cmdline[-1]
+    print(f"js_path = {js_path}")
+    print(f"jobscript: ")
+    with Path(js_path).open("rt") as fp:
+        print(fp.read())
+    wk.wait()
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
