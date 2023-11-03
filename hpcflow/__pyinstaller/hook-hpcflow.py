@@ -17,6 +17,7 @@ hiddenimports += [
 ]
 
 datas = collect_data_files("hpcflow.sdk.data")
+datas += collect_data_files("hpcflow.sdk.demo")
 datas += collect_data_files("hpcflow.sdk.demo.data")
 datas += collect_data_files("hpcflow.sdk.demo.workflows")
 datas += collect_data_files("hpcflow.sdk.data.template_components")
