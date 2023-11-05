@@ -2196,7 +2196,7 @@ class BaseApp(metaclass=Singleton):
                 try:
                     with ctx_man as path:
                         out = path
-                except FileNotFoundError:
+                except (ModuleNotFoundError, FileNotFoundError):
                     # frozen app
                     resource_exists = False
 

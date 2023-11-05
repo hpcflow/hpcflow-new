@@ -13,7 +13,7 @@ from hpcflow.sdk.core.test_utils import (
 
 @pytest.mark.integration
 def test_workflow_1(tmp_path, new_null_config):
-    package = "hpcflow.sdk.demo.data"
+    package = "hpcflow.tests.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:
         wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
     wk.submit(wait=True, add_to_known=False)
@@ -24,7 +24,7 @@ def test_workflow_1(tmp_path, new_null_config):
 def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     workflow_dir = tmp_path / "sub path with spaces"
     workflow_dir.mkdir()
-    package = "hpcflow.sdk.demo.data"
+    package = "hpcflow.tests.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:
         wk = hf.Workflow.from_YAML_file(YAML_path=path, path=workflow_dir)
     wk.submit(wait=True, add_to_known=False)
@@ -36,7 +36,7 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     reason="Sometimes fails on MacOS GHAs runner; too slow on Windows + Linux"
 )
 def test_run_abort(tmp_path, new_null_config):
-    package = "hpcflow.sdk.demo.data"
+    package = "hpcflow.tests.data"
     with resources.path(package=package, resource="workflow_test_run_abort.yaml") as path:
         wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
     wk.submit(add_to_known=False)

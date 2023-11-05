@@ -81,3 +81,15 @@ def test_shared_data_from_json_like_with_shared_data_dependency(act_1):
     assert sh["parameters"] == hf.ParametersList([p1]) and sh[
         "task_schemas"
     ] == hf.TaskSchemasList([ts1])
+
+
+def test_get_demo_data_manifest(null_config):
+    hf.get_demo_data_files_manifest()
+
+
+def test_get_demo_data_cache(null_config):
+    hf.clear_demo_data_cache_dir()
+    hf.cache_demo_data_file("text_file.txt")
+    with hf.demo_data_cache_dir.joinpath("text_file.txt").open("rt") as fh:
+        contents = fh.read()
+    assert contents == "\n".join(f"{i}" for i in range(1, 11)) + "\n"
