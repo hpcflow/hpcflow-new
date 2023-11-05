@@ -201,7 +201,7 @@ class DotAccessObjectList(ObjectList):
                 )
             return self._get_item(self._objects[idx[0]])
 
-        else:
+        elif not attribute.startswith("__"):
             obj_list_fmt = ", ".join(
                 [f'"{getattr(i, self._access_attribute)}"' for i in self._objects]
             )
@@ -212,6 +212,8 @@ class DotAccessObjectList(ObjectList):
                 msg += "The object list is empty."
 
             raise AttributeError(msg)
+        else:
+            raise AttributeError
 
     def __dir__(self):
         return super().__dir__() + [
@@ -420,10 +422,12 @@ class ParametersList(AppDataList):
 
     def __getattr__(self, attribute):
         """Overridden to provide a default Parameter object if none exists."""
-        try:
-            return super().__getattr__(attribute)
-        except (AttributeError, ValueError):
-            return self._app.Parameter(typ=attribute)
+        if not attribute.startswith("__"):
+            try:
+                return super().__getattr__(attribute)
+            except (AttributeError, ValueError):
+                return self._app.Parameter(typ=attribute)
+        raise AttributeError
 
     def get_all(self, access_attribute_value=None, **kwargs):
         """Overridden to provide a default Parameter object if none exists."""
