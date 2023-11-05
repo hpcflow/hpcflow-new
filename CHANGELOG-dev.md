@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a122"></a>
+## [v0.2.0a122](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a121...v0.2.0a122) - 2023.11.05
+
+### 🐛 Bug Fixes
+
+* fix `ParametersList.__getattr__`
+* remove temp hardcoded SHA in `BaseApp._get_demo_data_file_source_path`
+
+### 👷 Build changes
+
+* merge upstream python-release-workflow
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a121"></a>
 ## [v0.2.0a121](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a120...v0.2.0a121) - 2023.11.04
 
