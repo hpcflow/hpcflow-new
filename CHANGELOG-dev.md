@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a123"></a>
+## [v0.2.0a123](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a122...v0.2.0a123) - 2023.11.05
+
+### 🐛 Bug Fixes
+
+* demo-data cache via GitHub filesystems in frozen app
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a122"></a>
 ## [v0.2.0a122](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a121...v0.2.0a122) - 2023.11.05
 
