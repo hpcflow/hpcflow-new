@@ -2193,13 +2193,18 @@ class BaseApp(metaclass=Singleton):
                 resource_exists = False
 
             if resource_exists:
-                with ctx_man as path:
-                    out = path
-            else:
+                try:
+                    with ctx_man as path:
+                        out = path
+                except FileNotFoundError:
+                    # frozen app
+                    resource_exists = False
+
+            if not resource_exists:
                 # example data not included (e.g. frozen, or installed via PyPI/conda), so
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
-                path = "/".join(package.split(".")) + f"/{src_fn}"
+                path = "/".join(package.split("."))
                 sha = f"v{self.version}"
                 url = f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
                 self.logger.info(
