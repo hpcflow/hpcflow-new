@@ -2200,8 +2200,7 @@ class BaseApp(metaclass=Singleton):
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
                 path = "/".join(package.split(".")) + f"/{src_fn}"
-                # sha = f"v{self.version}"
-                sha = "a702ec33c9a22064fdcab973804a5d875651544e"  # TEMP
+                sha = f"v{self.version}"
                 url = f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
                 self.logger.info(
                     f"path {path!r} does not exist as a package resource (example data "
