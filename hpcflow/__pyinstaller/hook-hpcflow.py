@@ -14,6 +14,8 @@ hiddenimports += [
     "hpcflow.sdk.demo.workflows",
     "hpcflow.sdk.core.test_utils",
     "click.testing",
+    "requests",  # for GitHub fsspec file system
+    "fsspec.implementations.github",  # for GitHub fsspec file system
 ]
 
 datas = collect_data_files("hpcflow.sdk.data")
