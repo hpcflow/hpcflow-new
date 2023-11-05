@@ -22,7 +22,6 @@ hiddenimports += [
 py_include_kwargs = dict(include_py_files=True, excludes=("**/__pycache__",))
 datas = (
     collect_data_files("hpcflow.sdk.data")
-    + collect_data_files("hpcflow.data.demo_data")
     + collect_data_files("hpcflow.data.demo_data_manifest")
     + collect_data_files("hpcflow.data.scripts", **py_include_kwargs)
     + collect_data_files("hpcflow.data.template_components")
