@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a127"></a>
+## [v0.2.0a127](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a126...v0.2.0a127) - 2023.11.06
+
+### 🐛 Bug Fixes
+
+* make_vers_switcher invocation
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a126"></a>
 ## [v0.2.0a126](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a125...v0.2.0a126) - 2023.11.06
 
