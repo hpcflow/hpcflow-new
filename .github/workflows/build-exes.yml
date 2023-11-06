@@ -171,7 +171,7 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
           sha=$(git rev-parse HEAD)
           echo "sha is: $sha"
-          echo "sha=$sha" >> $env:GITHUB_ENV
+          echo "sha=$sha" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for macOS (file)
         if: github.event.inputs.build_onefile == 'true'
@@ -266,7 +266,7 @@ jobs:
           echo "vers=$vers" >> $GITHUB_ENV
           sha=$(git rev-parse HEAD)
           echo "sha is: $sha"
-          echo "sha=$sha" >> $env:GITHUB_ENV
+          echo "sha=$sha" >> $GITHUB_ENV
 
       - name: Build with pyinstaller for CentOS (file)
         if: github.event.inputs.build_onefile == 'true'
