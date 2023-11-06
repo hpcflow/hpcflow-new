@@ -191,6 +191,7 @@ class ElementResources(JSONLike):
     scheduler: Optional[str] = None
     shell: Optional[str] = None
     use_job_array: Optional[bool] = None
+    max_array_items: Optional[int] = None
     time_limit: Optional[str] = None
 
     scheduler_args: Optional[Dict] = None
