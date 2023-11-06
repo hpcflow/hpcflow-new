@@ -1122,6 +1122,7 @@ class BaseApp(metaclass=Singleton):
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
@@ -1154,6 +1155,8 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
 
         self.API_logger.info("make_workflow called")
@@ -1165,6 +1168,7 @@ class BaseApp(metaclass=Singleton):
             "store": store,
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
+            "store_kwargs": store_kwargs,
         }
 
         if not is_string:
@@ -1204,6 +1208,7 @@ class BaseApp(metaclass=Singleton):
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
@@ -1242,6 +1247,8 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         JS_parallelism
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
@@ -1271,6 +1278,7 @@ class BaseApp(metaclass=Singleton):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            store_kwargs=store_kwargs,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,
@@ -1290,6 +1298,7 @@ class BaseApp(metaclass=Singleton):
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
@@ -1319,6 +1328,8 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
 
         self.API_logger.info("make_demo_workflow called")
@@ -1333,6 +1344,7 @@ class BaseApp(metaclass=Singleton):
                 store=store,
                 ts_fmt=ts_fmt,
                 ts_name_fmt=ts_name_fmt,
+                store_kwargs=store_kwargs,
             )
         return wk
 
@@ -1346,6 +1358,7 @@ class BaseApp(metaclass=Singleton):
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
@@ -1381,6 +1394,8 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         JS_parallelism
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
@@ -1409,6 +1424,7 @@ class BaseApp(metaclass=Singleton):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            store_kwargs=store_kwargs,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,

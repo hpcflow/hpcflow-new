@@ -132,6 +132,7 @@ class WorkflowTemplate(JSONLike):
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
     source_file: Optional[str] = field(default=None, compare=False)
+    store_kwargs: Optional[Dict] = field(default_factory=lambda: {})
     merge_resources: Optional[bool] = True
 
     def __post_init__(self):
@@ -445,6 +446,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from a `WorkflowTemplate` object.
 
@@ -471,6 +473,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         wk = cls._write_empty_workflow(
             template=template,
@@ -480,6 +484,7 @@ class Workflow:
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            store_kwargs=store_kwargs,
         )
         with wk._store.cached_load():
             with wk.batch_update(is_workflow_creation=True):
@@ -499,6 +504,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from a YAML file.
 
@@ -525,6 +531,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
         return cls.from_template(
@@ -535,6 +543,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     @classmethod
@@ -547,6 +556,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from a YAML string.
 
@@ -573,6 +583,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
         return cls.from_template(
@@ -583,6 +595,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     @classmethod
@@ -595,6 +608,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from a JSON file.
 
@@ -621,6 +635,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
         return cls.from_template(
@@ -631,6 +647,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     @classmethod
@@ -643,6 +660,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from a JSON string.
 
@@ -669,6 +687,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
         return cls.from_template(
@@ -679,6 +699,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     @classmethod
@@ -692,6 +713,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -722,6 +744,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
         return cls.from_template(
@@ -732,6 +756,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     @classmethod
@@ -747,6 +772,7 @@ class Workflow:
         store: Optional[str] = DEFAULT_STORE_FORMAT,
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """Generate from the data associated with a WorkflowTemplate object.
 
@@ -782,6 +808,8 @@ class Workflow:
         ts_name_fmt
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
+        store_kwargs
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate(
             template_name,
@@ -797,6 +825,7 @@ class Workflow:
             store,
             ts_fmt,
             ts_name_fmt,
+            store_kwargs,
         )
 
     def _add_empty_task(
@@ -1310,6 +1339,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         fs_kwargs: Optional[Dict] = None,
+        store_kwargs: Optional[Dict] = None,
     ) -> app.Workflow:
         """
         Parameters
@@ -1361,6 +1391,7 @@ class Workflow:
             "id": str(uuid4()),
         }
 
+        store_kwargs = store_kwargs if store_kwargs else template.store_kwargs
         store_cls = store_cls_from_str(store)
         store_cls.write_empty_workflow(
             app=cls.app,
@@ -1373,6 +1404,7 @@ class Workflow:
             creation_info=creation_info,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            **store_kwargs,
         )
 
         fs_kwargs = {"password": pw, **fs_kwargs}
