@@ -140,6 +140,8 @@ class SGEPosix(Scheduler):
             lns.append(
                 f"{self.js_cmd} -pe {resources.SGE_parallel_env} {resources.num_cores}"
             )
+        if resources.max_array_items:
+            lns.append(f"{self.js_cmd} -tc {resources.max_array_items}")
         return lns
 
     def format_array_request(self, num_elements):

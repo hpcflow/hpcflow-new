@@ -1278,6 +1278,7 @@ class ResourceSpec(JSONLike):
         "scheduler",
         "shell",
         "use_job_array",
+        "max_array_items",
         "time_limit",
         "scheduler_args",
         "shell_args",
@@ -1311,6 +1312,7 @@ class ResourceSpec(JSONLike):
         scheduler: Optional[str] = None,
         shell: Optional[str] = None,
         use_job_array: Optional[bool] = None,
+        max_array_items: Optional[int] = None,
         time_limit: Optional[Union[str, timedelta]] = None,
         scheduler_args: Optional[Dict] = None,
         shell_args: Optional[Dict] = None,
@@ -1344,6 +1346,7 @@ class ResourceSpec(JSONLike):
         self._shell = self._process_string(shell)
         self._os_name = self._process_string(os_name)
         self._use_job_array = use_job_array
+        self._max_array_items = max_array_items
         self._time_limit = time_limit
         self._scheduler_args = scheduler_args
         self._shell_args = shell_args
@@ -1471,6 +1474,7 @@ class ResourceSpec(JSONLike):
             self._scheduler = None
             self._shell = None
             self._use_job_array = None
+            self._max_array_items = None
             self._time_limit = None
             self._scheduler_args = None
             self._shell_args = None
@@ -1553,6 +1557,10 @@ class ResourceSpec(JSONLike):
     @property
     def use_job_array(self):
         return self._get_value("use_job_array")
+
+    @property
+    def max_array_items(self):
+        return self._get_value("max_array_items")
 
     @property
     def time_limit(self):

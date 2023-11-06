@@ -322,8 +322,11 @@ class SlurmPosix(Scheduler):
 
         return lns
 
-    def format_array_request(self, num_elements):
-        return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
+    def format_array_request(self, num_elements, resources):
+        # TODO: Slurm docs start indices at zero, why are we starting at one?
+        #   https://slurm.schedmd.com/sbatch.html#OPT_array
+        max_str = f"%{resources.max_array_items}" if resources.max_array_items else ""
+        return f"{self.js_cmd} {self.array_switch} 1-{num_elements}{max_str}"
 
     def format_std_stream_file_option_lines(self, is_array, sub_idx):
         base = r"%x_"
@@ -342,7 +345,7 @@ class SlurmPosix(Scheduler):
         opts = []
         opts.extend(self.format_core_request_lines(resources))
         if is_array:
-            opts.append(self.format_array_request(num_elements))
+            opts.append(self.format_array_request(num_elements, resources))
 
         opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
         opts.extend([f"{self.js_cmd} {opt}" for opt in self.options])
