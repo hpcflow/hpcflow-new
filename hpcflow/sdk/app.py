@@ -2205,8 +2205,7 @@ class BaseApp(metaclass=Singleton):
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
                 path = "/".join(package.split("."))
-                sha = f"v{self.version}"
-                url = f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
+                url = self._get_github_url(sha=self.version, path=path)
                 self.logger.info(
                     f"path {path!r} does not exist as a package resource (example data "
                     f"was probably not included in the app), so non-persistently setting "
@@ -2288,6 +2287,11 @@ class BaseApp(metaclass=Singleton):
         shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
 
         return src.name
+
+    def _get_github_url(self, sha: str, path: str):
+        """Return a fsspec URL for retrieving a file or directory on the app's GitHub
+        repository."""
+        return f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
 
 
 class App(BaseApp):

@@ -876,3 +876,15 @@ class Config:
         if self._config_key == "default":
             self.set("machine", "DEFAULT_MACHINE")
             self.save()
+
+    def set_github_demo_data_dir(self, sha):
+        """Set the `demo_data_dir` item, to an fsspec Github URL.
+
+        We use this (via the CLI) when testing the frozen app on Github, because, by
+        default, the SHA is set to the current version tag, which might not include recent
+        changes to the demo data.
+
+        """
+        path = "/".join(self._app.demo_data_dir.split("."))
+        url = self._app._get_github_url(sha=sha, path=path)
+        self.set("demo_data_dir", url)
