@@ -1,3 +1,4 @@
+from importlib import resources
 import pytest
 from hpcflow.sdk.persistence.base import StoreEAR, StoreElement, StoreElementIter
 from hpcflow.sdk.persistence.json import JSONPersistentStore
@@ -216,3 +217,25 @@ def test_get_task_elements_single_element_iter_EAR_pending(tmp_path):
             ],
         },
     ]
+
+
+def test_make_zarr_store_zstd_compressor(null_config, tmp_path):
+    package = "hpcflow.tests.data"
+    with resources.path(package=package, resource="workflow_1.yaml") as path:
+        wk = hf.Workflow.from_YAML_file(
+            YAML_path=path,
+            path=tmp_path,
+            store="zarr",
+            store_kwargs={"compressor": "zstd"},
+        )
+
+
+def test_make_zarr_store_no_compressor(null_config, tmp_path):
+    package = "hpcflow.tests.data"
+    with resources.path(package=package, resource="workflow_1.yaml") as path:
+        wk = hf.Workflow.from_YAML_file(
+            YAML_path=path,
+            path=tmp_path,
+            store="zarr",
+            store_kwargs={"compressor": None},
+        )

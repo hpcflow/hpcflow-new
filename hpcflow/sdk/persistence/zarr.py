@@ -1,16 +1,17 @@
 from __future__ import annotations
-from contextlib import contextmanager
 
 import copy
+from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
-import warnings
 
-from fsspec.implementations.zip import ZipFileSystem
 import numpy as np
+import zarr
+from fsspec.implementations.zip import ZipFileSystem
 from rich.console import Console
+from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd
 
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
@@ -33,9 +34,7 @@ from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 
-from numcodecs import MsgPack, VLenArray
-
-import zarr
+blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
@@ -350,6 +349,8 @@ class ZarrPersistentStore(PersistentStore):
         ts_fmt: str,
         ts_name_fmt: str,
         creation_info: Dict,
+        compressor: Optional[Union[str, None]] = "blosc",
+        compressor_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         attrs = {
             "fs_path": fs_path,
@@ -372,11 +373,21 @@ class ZarrPersistentStore(PersistentStore):
 
         md = root.create_group("metadata")
 
+        compressor_lookup = {
+            "blosc": Blosc,
+            "zstd": Zstd,
+        }
+        if compressor:
+            cmp = compressor_lookup[compressor.lower()](**(compressor_kwargs or {}))
+        else:
+            cmp = None
+
         tasks_arr = md.create_dataset(
             name=cls._task_arr_name,
             shape=0,
             dtype=object,
             object_codec=VLenArray(int),
+            compressor=cmp,
         )
 
         elems_arr = md.create_dataset(
@@ -385,6 +396,7 @@ class ZarrPersistentStore(PersistentStore):
             dtype=object,
             object_codec=MsgPack(),
             chunks=1000,
+            compressor=cmp,
         )
         elems_arr.attrs.update({"seq_idx": [], "src_idx": []})
 
@@ -394,6 +406,7 @@ class ZarrPersistentStore(PersistentStore):
             dtype=object,
             object_codec=MsgPack(),
             chunks=1000,
+            compressor=cmp,
         )
         elem_iters_arr.attrs.update(
             {
@@ -409,6 +422,7 @@ class ZarrPersistentStore(PersistentStore):
             dtype=object,
             object_codec=MsgPack(),
             chunks=1,  # single-chunk rows for multiprocess writing
+            compressor=cmp,
         )
         EARs_arr.attrs.update({"parameter_paths": []})
 
@@ -419,6 +433,7 @@ class ZarrPersistentStore(PersistentStore):
             dtype=object,
             object_codec=MsgPack(),
             chunks=1,
+            compressor=cmp,
         )
         parameter_data.create_dataset(
             name=cls._param_sources_arr_name,
@@ -426,6 +441,7 @@ class ZarrPersistentStore(PersistentStore):
             dtype=object,
             object_codec=MsgPack(),
             chunks=1000,  # TODO: check this is a sensible size with many parameters
+            compressor=cmp,
         )
         parameter_data.create_group(name=cls._param_user_arr_grp_name)
 
