@@ -18,6 +18,7 @@ class MyParameterP1(ParameterValue):
         return str(self.a)
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_submission_with_specified_parameter_class_module(null_config, tmp_path, store):
     """Test we can use a ParameterValue subclass that is defined separately from the main

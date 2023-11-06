@@ -16,7 +16,7 @@ def test_merge_template_level_resources_into_element_set(null_config):
 
 
 def test_equivalence_from_YAML_and_JSON_files(null_config):
-    package = "hpcflow.sdk.demo.data"
+    package = "hpcflow.tests.data"
     with resources.path(package=package, resource="workflow_1.yaml") as path:
         wkt_yaml = hf.WorkflowTemplate.from_file(path)
 

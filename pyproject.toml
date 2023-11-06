@@ -10,7 +10,7 @@ readme = "README.md"
 packages = [
     { include = "hpcflow" }
 ]
-exclude = ["hpcflow/sdk/demo/workflow_data_files"]
+exclude = ["hpcflow/data/demo_data"]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.13"

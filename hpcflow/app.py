@@ -21,7 +21,7 @@ config_options = ConfigOptions(
 
 # load built in template components (in this case, for demonstration purposes):
 template_components = sdk_app.BaseApp.load_builtin_template_component_data(
-    "hpcflow.sdk.data.template_components"
+    "hpcflow.data.template_components"
 )
 
 # initialise the App object:
@@ -35,9 +35,9 @@ app: sdk_app.BaseApp = sdk_app.BaseApp(
     gh_repo="hpcflow-new",
     config_options=config_options,
     template_components=template_components,
-    scripts_dir="sdk.demo.scripts",  # relative to root package
-    workflows_dir="sdk.demo.workflows",  # relative to root package
-    demo_data_dir="hpcflow.sdk.demo.workflow_data_files",
-    demo_data_manifest_dir="hpcflow.sdk.demo",
+    scripts_dir="data.scripts",  # relative to root package
+    workflows_dir="data.workflows",  # relative to root package
+    demo_data_dir="hpcflow.data.demo_data",
+    demo_data_manifest_dir="hpcflow.data.demo_data_manifest",
     docs_url="https://hpcflow.github.io/docs/stable",
 )  #: |app|

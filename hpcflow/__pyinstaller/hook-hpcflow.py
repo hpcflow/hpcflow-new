@@ -8,28 +8,24 @@ hiddenimports = list(sdk_classes.values())
 
 hiddenimports += [
     "hpcflow.sdk.data",
-    "hpcflow.sdk.data.template_components",
-    "hpcflow.sdk.demo.scripts",
-    "hpcflow.sdk.demo.data",
-    "hpcflow.sdk.demo.workflows",
+    "hpcflow.data.demo_data_manifest",
+    "hpcflow.data.scripts",
+    "hpcflow.data.template_components",
+    "hpcflow.data.workflows",
+    "hpcflow.tests.data",
     "hpcflow.sdk.core.test_utils",
     "click.testing",
     "requests",  # for GitHub fsspec file system
     "fsspec.implementations.github",  # for GitHub fsspec file system
 ]
 
-datas = collect_data_files("hpcflow.sdk.data")
-datas += collect_data_files("hpcflow.sdk.demo")
-datas += collect_data_files("hpcflow.sdk.demo.data")
-datas += collect_data_files("hpcflow.sdk.demo.workflows")
-datas += collect_data_files("hpcflow.sdk.data.template_components")
-datas += collect_data_files(
-    "hpcflow.tests",
-    include_py_files=True,
-    excludes=("**/__pycache__",),
-)
-datas += collect_data_files(
-    "hpcflow.sdk.demo.scripts",
-    include_py_files=True,
-    excludes=("**/__pycache__",),
+py_include_kwargs = dict(include_py_files=True, excludes=("**/__pycache__",))
+datas = (
+    collect_data_files("hpcflow.sdk.data")
+    + collect_data_files("hpcflow.data.demo_data_manifest")
+    + collect_data_files("hpcflow.data.scripts", **py_include_kwargs)
+    + collect_data_files("hpcflow.data.template_components")
+    + collect_data_files("hpcflow.data.workflows")
+    + collect_data_files("hpcflow.tests", **py_include_kwargs)
+    + collect_data_files("hpcflow.tests.data")
 )

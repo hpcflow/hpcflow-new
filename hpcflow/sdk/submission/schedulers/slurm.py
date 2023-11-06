@@ -251,6 +251,7 @@ class SlurmPosix(Scheduler):
                 )
         else:
             # find the first compatible partition if one exists:
+            # TODO: bug here? not finding correct partition?
             part_match = False
             for part_name, part_info in all_parts.items():
                 part_num_cores = part_info.get("num_cores")
