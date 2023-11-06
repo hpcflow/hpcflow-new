@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a128"></a>
+## [v0.2.0a128](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a127...v0.2.0a128) - 2023.11.06
+
+### ✨ Features
+
+* add `max_array_items` resource option
+* add option to choose zarr store compressor
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a127"></a>
 ## [v0.2.0a127](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a126...v0.2.0a127) - 2023.11.06
 
