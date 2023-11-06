@@ -119,7 +119,7 @@ jobs:
 
       - name: Set demo data Github URL using current git SHA # instead of default which is current version tag
         run: |
-          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe config set-github-demo-data-dir --sha ${{ env.sha }}
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe config set-github-demo-data-dir ${{ env.sha }}
 
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
@@ -213,7 +213,7 @@ jobs:
 
       - name: Set demo data Github URL using current git SHA # instead of default which is current version tag
         run: |
-          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS config set-github-demo-data-dir --sha ${{ env.sha }}
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS config set-github-demo-data-dir ${{ env.sha }}
 
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
@@ -308,7 +308,7 @@ jobs:
 
       - name: Set demo data Github URL using current git SHA # instead of default which is current version tag
         run: |
-          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux config set-github-demo-data-dir --sha ${{ env.sha }}
+          pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux config set-github-demo-data-dir ${{ env.sha }}
 
       - name: Run test suite on the frozen app (file)
         if: github.event.inputs.build_onefile == 'true'
