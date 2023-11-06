@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a125"></a>
+## [v0.2.0a125](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a124...v0.2.0a125) - 2023.11.06
+
+### 🐛 Bug Fixes
+
+* demo data github url sha
+
+
 <a name="v0.2.0a124"></a>
 ## [v0.2.0a124](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a123...v0.2.0a124) - 2023.11.06
 
