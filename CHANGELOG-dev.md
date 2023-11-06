@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a124"></a>
+## [v0.2.0a124](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a123...v0.2.0a124) - 2023.11.06
+
+### ♻ Code Refactoring
+
+* reorg data files
+
+### 🐛 Bug Fixes
+
+* build-exes
+* cli command invocation
+* set github demo data dir to latest SHA when testing frozen apps in build-exes
+* tests
+
+### 👷 Build changes
+
+* merge develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a123"></a>
 ## [v0.2.0a123](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a122...v0.2.0a123) - 2023.11.05
 
