@@ -2205,7 +2205,7 @@ class BaseApp(metaclass=Singleton):
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
                 path = "/".join(package.split("."))
-                url = self._get_github_url(sha=self.version, path=path)
+                url = self._get_github_url(sha=f"v{self.version}", path=path)
                 self.logger.info(
                     f"path {path!r} does not exist as a package resource (example data "
                     f"was probably not included in the app), so non-persistently setting "
