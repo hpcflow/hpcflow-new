@@ -542,6 +542,23 @@ class BaseApp(metaclass=Singleton):
             self._user_cache_hostname_dir = self.user_cache_dir.joinpath(machine_name)
         return self._user_cache_hostname_dir
 
+    def _get_alternative_runtime_dir(self) -> Path:
+        """If we cannot create `user_runtime_dir` on Linux, try an alternative path.
+
+        This is necessary for non-standard configurations (e.g. if `/run/user/$USER_ID` is
+        not user-writable).
+
+        """
+        if sys.platform not in ("win32", "darwin"):
+            if not self.config.alternative_unix_runtime_dir:
+                from os import getuid
+
+                self.config.alternative_unix_runtime_dir = f"/tmp/{getuid()}"
+                self.config.save()
+            return self.config.alternative_unix_runtime_dir.joinpath(self.package_name)
+        else:
+            raise RuntimeError("Cannot set runtime directory.")
+
     def _ensure_user_data_dir(self) -> Path:
         """Ensure a user data directory exists."""
         if not self.user_data_dir.exists():
@@ -559,7 +576,10 @@ class BaseApp(metaclass=Singleton):
 
         """
         if not self.user_runtime_dir.exists():
-            self.user_runtime_dir.mkdir(parents=True)
+            try:
+                self.user_runtime_dir.mkdir(parents=True)
+            except (PermissionError, FileNotFoundError):
+                self._user_runtime_dir = self._get_alternative_runtime_dir()
             self.logger.info(
                 f"Created user runtime directory: {self.user_runtime_dir!r}."
             )

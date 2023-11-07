@@ -189,6 +189,7 @@ class Config:
             "default_scheduler": (callback_lowercase, exists_in_schedulers),
             "default_shell": (callback_lowercase, callback_supported_shells),
             "demo_data_manifest_file": (callback_file_paths,),
+            "alternative_unix_runtime_dir": (callback_file_paths,),
             **(callbacks or {}),
         }
 
