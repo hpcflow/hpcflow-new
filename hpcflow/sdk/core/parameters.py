@@ -23,6 +23,7 @@ from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_enum_by_name_or_val,
+    linspace_rect,
     process_string_nodes,
     split_param_label,
 )
@@ -850,6 +851,15 @@ class ValueSequence(JSONLike):
         return vals
 
     @classmethod
+    def _values_from_rectangle(cls, start, stop, num, coord, **kwargs):
+        vals = linspace_rect(start=start, stop=stop, num=num, **kwargs)
+        if coord is not None:
+            vals = vals[coord].tolist()
+        else:
+            vals = (vals.T).tolist()
+        return vals
+
+    @classmethod
     def from_linear_space(
         cls,
         path,
@@ -967,6 +977,32 @@ class ValueSequence(JSONLike):
         )
 
         obj._values_method = "from_file"
+        obj._values_method_args = args
+        return obj
+
+    @classmethod
+    def from_rectangle(
+        cls,
+        path,
+        start,
+        stop,
+        num,
+        coord: Optional[int] = None,
+        nesting_order=0,
+        label=None,
+        **kwargs,
+    ):
+        """
+        Parameters
+        ----------
+        coord:
+            Which coordinate to use. Either 0, 1, or `None`, meaning each value will be
+            both coordinates.
+        """
+        args = {"start": start, "stop": stop, "num": num, "coord": coord, **kwargs}
+        values = cls._values_from_rectangle(**args)
+        obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
+        obj._values_method = "from_rectangle"
         obj._values_method_args = args
         return obj
 

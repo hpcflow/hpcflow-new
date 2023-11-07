@@ -11,6 +11,7 @@ from hpcflow.sdk.core.utils import (
     flatten,
     get_nested_indices,
     is_fsspec_url,
+    linspace_rect,
     process_string_nodes,
     replace_items,
     check_valid_py_identifier,
@@ -368,6 +369,28 @@ def test_process_string_nodes(null_config):
             "f": ("ABC", "DEF"),
         },
     }
+
+
+def test_linspace_rect_endpoint_true():
+    rect = linspace_rect(start=[0, 0], stop=[1, 10], num=[3, 3], endpoint=True)
+    expected = np.array(
+        [
+            [0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 5.0, 5.0],
+        ]
+    )
+    assert np.allclose(rect, expected)
+
+
+def test_linspace_rect_endpoint_false():
+    rect = linspace_rect(start=[0, 0], stop=[1, 10], num=[3, 3], endpoint=False)
+    expected = np.array(
+        [
+            [0.0, 0.33333333, 0.66666667, 0.0, 0.33333333, 0.66666667, 0.0, 0.66666667],
+            [0.0, 0.0, 0.0, 6.66666667, 6.66666667, 6.66666667, 3.33333333, 3.33333333],
+        ]
+    )
+    assert np.allclose(rect, expected)
 
 
 # from hpcflow.utils import (
