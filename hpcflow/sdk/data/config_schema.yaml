@@ -21,6 +21,7 @@ rules:
         - shells
         - demo_data_dir
         - demo_data_manifest_file
+        - alternative_unix_runtime_dir
   - path: []
     condition:
       value.required_keys:
@@ -236,5 +237,13 @@ rules:
       file names. Each value should be an empty map/dict or a map like: `{"in_zip": "text_file.zip"}`,
       where `text_file.zip` is the name of a zip archive that contains the example data
       file. This can be a local path or an fsspec URL.
+    condition:
+      value.is_instance: [str, path]
+
+  - path: [alternative_unix_runtime_dir]
+    doc: >
+      For linux systems, if the user runtime directory cannot be created, this directory
+      will be used instead. By default, this is set to `/tmp/$USER`. The app name (e.g.
+      hpcflow) is appended to this path to make the full runtime directory.
     condition:
       value.is_instance: [str, path]
