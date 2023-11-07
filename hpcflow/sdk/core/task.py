@@ -1089,7 +1089,7 @@ class Task(JSONLike):
                 )
 
         for inp_path in elem_set.get_defined_sub_parameter_types():
-            root_param = ".".join(inp_path.split(".")[:-1])
+            root_param = inp_path.split(".")[0]
             # If the root parameter is required then the sub-parameter should also be
             # required, otherwise there would be no point in specifying it:
             status[inp_path] = InputStatus(

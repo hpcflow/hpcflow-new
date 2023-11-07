@@ -485,3 +485,31 @@ def test_element_get_with_list_index_sequence(null_config, tmp_path):
     wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
     assert wk.tasks[0].elements[0].get("inputs.p1") == [9, 1]
+
+
+def test_element_get_with_list_index_sequence_two_parts(null_config, tmp_path):
+    wkt_yaml = dedent(
+        """\
+        name: test_list_idx_sequence
+        tasks:
+          - schema: test_t1_ps
+            inputs:
+              p1: [
+                [0, 1],
+                [2, 3],
+              ]
+            sequences:
+              - path: inputs.p1.0.1
+                values: [9, 99]
+    """
+    )
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert wk.tasks[0].elements[0].get("inputs.p1") == [
+        [0, 9],
+        [2, 3],
+    ]
+    assert wk.tasks[0].elements[1].get("inputs.p1") == [
+        [0, 99],
+        [2, 3],
+    ]
