@@ -1,3 +1,4 @@
+from textwrap import dedent
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import UnsetParameterDataError
@@ -466,3 +467,21 @@ def test_slice(new_null_config, tmp_path):
     assert len(elems) == 2
     assert elems[0].index == 0
     assert elems[1].index == 2
+
+
+def test_element_get_with_list_index_sequence(null_config, tmp_path):
+    wkt_yaml = dedent(
+        """\
+        name: test_list_idx_sequence
+        tasks:
+          - schema: test_t1_ps
+            inputs:
+              p1: [0, 1]
+            sequences:
+              - path: inputs.p1.0
+                values: [9]
+    """
+    )
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert wk.tasks[0].elements[0].get("inputs.p1") == [9, 1]

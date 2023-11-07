@@ -2395,6 +2395,7 @@ class WorkflowTask:
                         path_info["update_path"],
                         data_i,
                         ensure_path=True,
+                        cast_indices=True,
                     )
             if path in PV_classes:
                 if path not in relevant_data:
