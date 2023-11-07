@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 import enum
+import getpass
 import json
 import shutil
 from functools import wraps
@@ -551,9 +552,7 @@ class BaseApp(metaclass=Singleton):
         """
         if sys.platform not in ("win32", "darwin"):
             if not self.config.alternative_unix_runtime_dir:
-                from os import getuid
-
-                self.config.alternative_unix_runtime_dir = f"/tmp/{getuid()}"
+                self.config.alternative_unix_runtime_dir = f"/tmp/{getpass.getuser()}"
                 self.config.save()
             return self.config.alternative_unix_runtime_dir.joinpath(self.package_name)
         else:

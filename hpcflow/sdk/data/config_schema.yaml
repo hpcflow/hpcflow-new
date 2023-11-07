@@ -243,8 +243,7 @@ rules:
   - path: [alternative_unix_runtime_dir]
     doc: >
       For linux systems, if the user runtime directory cannot be created, this directory
-      will be used instead. By default, this is set to `/tmp/UID`, where `UID` is the user
-      ID. The app name (e.g. hpcflow) is appended to this path to make the full runtime
-      directory.
+      will be used instead. By default, this is set to `/tmp/$USER`. The app name (e.g.
+      hpcflow) is appended to this path to make the full runtime directory.
     condition:
       value.is_instance: [str, path]
