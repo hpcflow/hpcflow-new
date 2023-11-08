@@ -2348,12 +2348,22 @@ class WorkflowTask:
             val_cls_method = None
             path_is_multi = False
             path_is_set = False
+            all_multi_len = None
             for path_i, data_info_i in relevant_data.items():
                 data_i = data_info_i["data"]
                 if path_i == path:
                     val_cls_method = data_info_i["value_class_method"]
                     path_is_multi = data_info_i["is_multi"]
                     path_is_set = data_info_i["is_set"]
+                    if path_is_multi:
+                        # keep track of group lengths, only merge equal-length groups;
+                        all_multi_len = len(data_i)
+
+                elif all_multi_len and data_info_i["is_multi"]:
+                    if len(data_i) != all_multi_len:
+                        raise RuntimeError(
+                            f"Cannot merge group values of different lengths."
+                        )
 
                 path_info = relevant_paths[path_i]
                 path_type = path_info["type"]
@@ -2390,13 +2400,24 @@ class WorkflowTask:
                         assigned_from_parent = True
                 elif path_type == "update":
                     current_val = current_val or {}
-                    set_in_container(
-                        current_val,
-                        path_info["update_path"],
-                        data_i,
-                        ensure_path=True,
-                        cast_indices=True,
-                    )
+                    if all_multi_len:
+                        # update group:
+                        for i, j in zip(current_val, data_i):
+                            set_in_container(
+                                cont=i,
+                                path=path_info["update_path"],
+                                value=j,
+                                ensure_path=True,
+                                cast_indices=True,
+                            )
+                    else:
+                        set_in_container(
+                            current_val,
+                            path_info["update_path"],
+                            data_i,
+                            ensure_path=True,
+                            cast_indices=True,
+                        )
             if path in PV_classes:
                 if path not in relevant_data:
                     # requested data must be a sub-path of relevant data, so we can assume

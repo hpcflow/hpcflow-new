@@ -513,3 +513,33 @@ def test_element_get_with_list_index_sequence_two_parts(null_config, tmp_path):
         [0, 99],
         [2, 3],
     ]
+
+
+def test_element_get_group_sequence(null_config, tmp_path):
+    wkt_yaml = dedent(
+        """\
+        name: test_list_idx_sequence
+        task_schemas:
+          - objective: test_group_schema
+            inputs:
+              - parameter: p1
+                group: my_group
+        tasks:
+          - schema: test_t1_ps
+            inputs:
+              p1:
+                a: 1
+            sequences:
+              - path: inputs.p1.b
+                values: [8, 9]
+            groups:
+              - name: my_group
+          - schema: test_group_schema
+    """
+    )
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert wk.tasks[1].elements[0].get("inputs.p1") == [
+        {"a": 1, "b": 8},
+        {"a": 1, "b": 9},
+    ]
