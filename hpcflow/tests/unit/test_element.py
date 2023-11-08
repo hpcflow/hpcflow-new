@@ -539,7 +539,67 @@ def test_element_get_group_sequence(null_config, tmp_path):
     )
     wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert wk.tasks[1].elements[0].get("inputs") == {
+        "p1": [{"a": 1, "b": 8}, {"a": 1, "b": 9}]
+    }
     assert wk.tasks[1].elements[0].get("inputs.p1") == [
         {"a": 1, "b": 8},
         {"a": 1, "b": 9},
+    ]
+    assert wk.tasks[1].elements[0].get("inputs.p1.b") == [
+        8,
+        9,
+    ]
+
+
+def test_element_get_group_sequence_obj(new_null_config, tmp_path):
+    wkt_yaml = dedent(
+        """\
+        name: test_list_idx_sequence
+        task_schemas:
+          - objective: test_t1_ps_obj
+            parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
+            inputs:
+              - parameter: p1c
+            outputs:
+              - parameter: p2
+            actions:
+              - environments:
+                  - scope:
+                      type: any
+                    environment: null_env
+                commands:
+                  - command: Write-Output ((<<parameter:p1c>> + 100))
+                    stdout: <<parameter:p2>>
+          - objective: test_group_schema
+            parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
+            inputs:
+              - parameter: p1c
+                group: my_group
+
+        tasks:
+          - schema: test_t1_ps_obj
+            inputs:
+              p1c:
+                a: 1
+            sequences:
+              - path: inputs.p1c.d
+                values: [8, 9]
+            groups:
+              - name: my_group
+          - schema: test_group_schema
+    """
+    )
+    wkt = hf.WorkflowTemplate.from_YAML_string(wkt_yaml)
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert wk.tasks[1].elements[0].get("inputs") == {
+        "p1c": [{"a": 1, "d": 8}, {"a": 1, "d": 9}]
+    }
+    assert wk.tasks[1].elements[0].get("inputs.p1c") == [
+        P1(a=1, d=8),
+        P1(a=1, d=9),
+    ]
+    assert wk.tasks[1].elements[0].get("inputs.p1c.d") == [
+        8,
+        9,
     ]
