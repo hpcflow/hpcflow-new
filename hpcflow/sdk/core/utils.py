@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import sys
 from typing import Tuple, Type, Union, List
 import fsspec
+import numpy as np
 
 from ruamel.yaml import YAML
 import sentry_sdk
@@ -732,3 +733,41 @@ def process_string_nodes(data, str_processor):
         data = str_processor(data)
 
     return data
+
+
+def linspace_rect(start: List[float], stop: List[float], num: List[float], **kwargs):
+    """Generate a linear space around a rectangle.
+
+    Parameters
+    ----------
+    start
+        Two start values; one for each dimension of the rectangle.
+    stop
+        Two stop values; one for each dimension of the rectangle.
+    num
+        Two number values; one for each dimension of the rectangle.
+
+    Returns
+    -------
+    rect
+        Coordinates of the rectangle perimeter.
+
+    """
+
+    if num[0] == 1 or num[1] == 1:
+        raise ValueError("Both values in `num` must be greater than 1.")
+
+    c0_range = np.linspace(start=start[0], stop=stop[0], num=num[0], **kwargs)
+    c1_range_all = np.linspace(start=start[1], stop=stop[1], num=num[1], **kwargs)
+    c1_range = c1_range_all[1:-1]
+
+    c0_range_c1_start = np.vstack([c0_range, np.repeat(start[1], num[0])])
+    c0_range_c1_stop = np.vstack([c0_range, np.repeat(c1_range_all[-1], num[0])])
+
+    c1_range_c0_start = np.vstack([np.repeat(start[0], num[1] - 2), c1_range])
+    c1_range_c0_stop = np.vstack([np.repeat(c0_range[-1], num[1] - 2), c1_range])
+
+    rect = np.hstack(
+        [c0_range_c1_start, c0_range_c1_stop, c1_range_c0_start, c1_range_c0_stop]
+    )
+    return rect

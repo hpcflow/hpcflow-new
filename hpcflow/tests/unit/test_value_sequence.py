@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from hpcflow.app import app as hf
@@ -411,3 +412,33 @@ def test_demo_data_values(null_config):
     assert hf.ValueSequence(
         path="inputs.p1", values=[f"<<demo_data_file:{name}>>"]
     ).values[0] == str(hf.demo_data_cache_dir.joinpath(name))
+
+
+def test_from_linear_space(null_config):
+    seq = hf.ValueSequence.from_linear_space(path="inputs.p1", start=0, stop=1, num=6)
+    assert np.allclose(seq.values, [0, 0.2, 0.4, 0.6, 0.8, 1.0])
+
+
+def test_from_rectangle(null_config):
+    kwargs = dict(
+        path="inputs.p1",
+        start=[0, 0],
+        stop=[1, 1],
+        num=[2, 2],
+    )
+    seq_coord_0 = hf.ValueSequence.from_rectangle(**kwargs, coord=0)
+    seq_coord_1 = hf.ValueSequence.from_rectangle(**kwargs, coord=1)
+
+    assert np.allclose(seq_coord_0.values, [0, 1, 0, 1])
+    assert np.allclose(seq_coord_1.values, [0, 0, 1, 1])
+
+
+def test_from_rectangle_coord_none(null_config):
+    kwargs = dict(
+        path="inputs.p1",
+        start=[0, 0],
+        stop=[1, 1],
+        num=[2, 2],
+    )
+    seq = hf.ValueSequence.from_rectangle(**kwargs)
+    assert np.allclose(seq.values, [[0, 0], [1, 0], [0, 1], [1, 1]])
