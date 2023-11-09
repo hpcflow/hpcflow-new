@@ -321,3 +321,38 @@ def test_get_input_values_for_multiple_schema_input_with_object(null_config, tmp
     )
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
     assert run.get_input_values() == {"p2": 201, "p1c": {label: p1_val}}
+
+
+@pytest.mark.integration
+def test_get_input_values_all_iterations(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_direct_in_direct_out_all_iters_test.py>>",
+                script_data_in={"p1": {"format": "direct", "all_iterations": True}},
+                script_data_out="direct",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        template_name="main_script_test",
+        path=tmp_path,
+        tasks=[t1],
+        loops=[hf.Loop(tasks=[0], num_iterations=3)],
+    )
+    wk.submit(wait=True, add_to_known=False)
+    run = wk.tasks[0].elements[0].iterations[-1].actions[0].runs[-1]
+    assert run.get_input_values({"p1": {"all_iterations": True}}) == {
+        "p1": {
+            "iteration_0": {"loop_idx": {"loop_0": 0}, "value": 101},
+            "iteration_1": {"loop_idx": {"loop_0": 1}, "value": 102},
+            "iteration_2": {"loop_idx": {"loop_0": 2}, "value": 204},
+        }
+    }

@@ -1,3 +1,4 @@
+import copy
 import enum
 from functools import wraps
 import contextlib
@@ -150,22 +151,32 @@ def group_by_dict_key_values(lst, *keys):
     return grouped
 
 
-def group_dict_by_values(dct):
-    """
-    Return a new dict whose keys are the unique values of the original dict and whose
-    values and lists of the original keys.
+def swap_nested_dict_keys(dct, inner_key):
+    """Return a copy where top-level keys have been swapped with a second-level inner key.
 
-    Examples
-    --------
-    >>> group_dict_by_values({'a': 'A', 'b': 'A', 'c': 'B', 'd': 'A'})
-    {'A': ['a', 'b', 'd'], 'B': ['c']}
+    Examples:
+    ---------
+    >>> swap_nested_dict_keys(
+        dct={
+            'p1': {'format': 'direct', 'all_iterations': True},
+            'p2': {'format': 'json'},
+            'p3': {'format': 'direct'},
+        },
+        inner_key="format",
+    )
+    {
+        "direct": {"p1": {"all_iterations": True}, "p3": {}},
+        "json": {"p2": {}},
+    }
 
     """
-    grouped = {}
-    keys = set(dct.values())
-    for k in keys:
-        grouped[k] = [k_2 for k_2, v_2 in dct.items() if v_2 == k]
-    return dict(sorted(grouped.items()))
+    out = {}
+    for k, v in copy.deepcopy(dct).items():
+        inner_val = v.pop(inner_key)
+        if inner_val not in out:
+            out[inner_val] = {}
+        out[inner_val][k] = v
+    return out
 
 
 def get_in_container(cont, path, cast_indices=False, allow_getattr=False):

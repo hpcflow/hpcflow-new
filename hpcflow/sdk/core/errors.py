@@ -379,3 +379,7 @@ class UnsupportedScriptDataFormat(ValueError):
 
 class UnknownScriptDataParameter(ValueError):
     pass
+
+
+class UnknownScriptDataKey(ValueError):
+    pass
