@@ -422,26 +422,35 @@ class WorkflowLoop:
                             inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
 
                         elif orig_inp_src.source_type is InputSourceType.TASK:
-                            # same task/element, but update iteration to the just-added
-                            # iteration:
-                            for (tiID, e_idx), prev_dat_idx in all_new_data_idx.items():
-                                if tiID == orig_inp_src.task_ref:
-                                    # find which element in that task `element` depends
-                                    # on:
-                                    task_i = self.workflow.tasks.get(insert_ID=tiID)
-                                    elem_i = task_i.elements[e_idx]
-                                    src_elems_i = (
-                                        elem_i.get_dependent_elements_recursively(
-                                            task_insert_ID=task.insert_ID
+                            if orig_inp_src.task_ref not in self.task_insert_IDs:
+                                # source task not part of the loop; copy existing data idx:
+                                inp_dat_idx = element.iterations[0].get_data_idx()[
+                                    inp_key
+                                ]
+                            else:
+                                # same task/element, but update iteration to the just-added
+                                # iteration:
+                                for (
+                                    tiID,
+                                    e_idx,
+                                ), prev_dat_idx in all_new_data_idx.items():
+                                    if tiID == orig_inp_src.task_ref:
+                                        # find which element in that task `element` depends
+                                        # on:
+                                        task_i = self.workflow.tasks.get(insert_ID=tiID)
+                                        elem_i = task_i.elements[e_idx]
+                                        src_elems_i = (
+                                            elem_i.get_dependent_elements_recursively(
+                                                task_insert_ID=task.insert_ID
+                                            )
                                         )
-                                    )
-                                    if (
-                                        len(src_elems_i) == 1
-                                        and src_elems_i[0].id_ == element.id_
-                                    ):
-                                        inp_dat_idx = prev_dat_idx[
-                                            f"{orig_inp_src.task_source_type.name.lower()}s.{inp.typ}"
-                                        ]
+                                        if (
+                                            len(src_elems_i) == 1
+                                            and src_elems_i[0].id_ == element.id_
+                                        ):
+                                            inp_dat_idx = prev_dat_idx[
+                                                f"{orig_inp_src.task_source_type.name.lower()}s.{inp.typ}"
+                                            ]
 
                         if inp_dat_idx is None:
                             raise RuntimeError(
