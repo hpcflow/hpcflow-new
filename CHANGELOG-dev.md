@@ -1,4 +1,32 @@
 
+<a name="v0.2.0a130"></a>
+## [v0.2.0a130](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a129...v0.2.0a130) - 2023.11.09
+
+### ♻ Code Refactoring
+
+* remove unused
+
+### ✨ Features
+
+* option to pass all iterations to a script
+* add `ValueSequence.from_rectangle` for points around a rectangular perimeter
+
+### 🐛 Bug Fixes
+
+* fix failing tests
+* add local sub-parameters to new iterations
+* direct jobscript dependencies; need to commit process ID after each submission
+* add loop iteration when a param is sourced from an upstream non-loop task
+* object and sub-data retrieval
+* get group data that requires merge
+* correct `Task.get_input_statuses`
+* add `cast_indices=True` in `_get_merged_parameter_data`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a129"></a>
 ## [v0.2.0a129](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a128...v0.2.0a129) - 2023.11.07
 
