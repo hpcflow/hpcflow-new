@@ -1146,7 +1146,7 @@ class Action(JSONLike):
                         k_fmt = all_params.pop(k)
                         for i in param_names:
                             if i.startswith(k):
-                                multis[i] = k_fmt
+                                multis[i] = copy.deepcopy(k_fmt)
                 all_params = {
                     **multis,
                     **all_params,
