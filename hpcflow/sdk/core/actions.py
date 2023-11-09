@@ -889,12 +889,6 @@ class ActionEnvironment(JSONLike):
             name="scope",
             class_name="ActionScope",
         ),
-        # ChildObjectSpec(
-        #     name="environment",
-        #     class_name="Environment",
-        #     shared_data_name="environments",
-        #     shared_data_primary_key="name",
-        # ),
     )
 
     environment: str  # app.Environment
