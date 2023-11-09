@@ -2348,12 +2348,23 @@ class WorkflowTask:
             val_cls_method = None
             path_is_multi = False
             path_is_set = False
+            all_multi_len = None
             for path_i, data_info_i in relevant_data.items():
                 data_i = data_info_i["data"]
                 if path_i == path:
                     val_cls_method = data_info_i["value_class_method"]
                     path_is_multi = data_info_i["is_multi"]
                     path_is_set = data_info_i["is_set"]
+
+                if data_info_i["is_multi"]:
+                    if all_multi_len:
+                        if len(data_i) != all_multi_len:
+                            raise RuntimeError(
+                                f"Cannot merge group values of different lengths."
+                            )
+                    else:
+                        # keep track of group lengths, only merge equal-length groups;
+                        all_multi_len = len(data_i)
 
                 path_info = relevant_paths[path_i]
                 path_type = path_info["type"]
@@ -2390,13 +2401,47 @@ class WorkflowTask:
                         assigned_from_parent = True
                 elif path_type == "update":
                     current_val = current_val or {}
-                    set_in_container(
-                        current_val,
-                        path_info["update_path"],
-                        data_i,
-                        ensure_path=True,
-                        cast_indices=True,
-                    )
+                    if all_multi_len:
+                        if len(path_i.split(".")) == 2:
+                            # groups can only be "created" at the parameter level
+                            set_in_container(
+                                cont=current_val,
+                                path=path_info["update_path"],
+                                value=data_i,
+                                ensure_path=True,
+                                cast_indices=True,
+                            )
+                        else:
+                            # update group
+                            update_path = path_info["update_path"]
+                            if len(update_path) > 1:
+                                for idx, j in enumerate(data_i):
+                                    path_ij = update_path[0:1] + [idx] + update_path[1:]
+                                    set_in_container(
+                                        cont=current_val,
+                                        path=path_ij,
+                                        value=j,
+                                        ensure_path=True,
+                                        cast_indices=True,
+                                    )
+                            else:
+                                for idx, (i, j) in enumerate(zip(current_val, data_i)):
+                                    set_in_container(
+                                        cont=i,
+                                        path=update_path,
+                                        value=j,
+                                        ensure_path=True,
+                                        cast_indices=True,
+                                    )
+
+                    else:
+                        set_in_container(
+                            current_val,
+                            path_info["update_path"],
+                            data_i,
+                            ensure_path=True,
+                            cast_indices=True,
+                        )
             if path in PV_classes:
                 if path not in relevant_data:
                     # requested data must be a sub-path of relevant data, so we can assume
@@ -2436,7 +2481,7 @@ class WorkflowTask:
                     method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
                     current_val = method(**current_val)
 
-            return current_val
+            return current_val, all_multi_len
 
         # TODO: custom exception?
         missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
@@ -2457,7 +2502,7 @@ class WorkflowTask:
         current_val = None
         is_assigned = False
         try:
-            current_val = _merge_relevant_data(
+            current_val, _ = _merge_relevant_data(
                 relevant_data, relevant_paths, PV_classes, path, raise_on_missing
             )
         except MayNeedObjectError as err:
@@ -2471,18 +2516,29 @@ class WorkflowTask:
             }
             relevant_data = _get_relevant_data(relevant_data_idx, raise_on_unset, path)
             # merge the parent data
-            current_val = _merge_relevant_data(
+            current_val, group_len = _merge_relevant_data(
                 relevant_data, relevant_paths, PV_classes, path_to_init, raise_on_missing
             )
             # try to retrieve attributes via the initialised object:
             rel_path_split = get_relative_path(path_split, path_to_init_split)
             try:
-                current_val = get_in_container(
-                    current_val,
-                    rel_path_split,
-                    cast_indices=True,
-                    allow_getattr=True,
-                )
+                if group_len:
+                    current_val = [
+                        get_in_container(
+                            cont=i,
+                            path=rel_path_split,
+                            cast_indices=True,
+                            allow_getattr=True,
+                        )
+                        for i in current_val
+                    ]
+                else:
+                    current_val = get_in_container(
+                        cont=current_val,
+                        path=rel_path_split,
+                        cast_indices=True,
+                        allow_getattr=True,
+                    )
             except (KeyError, IndexError, ValueError):
                 pass
             else:
