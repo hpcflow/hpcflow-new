@@ -428,15 +428,26 @@ class WorkflowLoop:
                                     inp_key
                                 ]
                             else:
+                                is_group = False
+                                if (
+                                    not inp.multiple
+                                    and "group" in inp.single_labelled_data
+                                ):
+                                    # this input is a group, assume for now all elements:
+                                    is_group = True
+
                                 # same task/element, but update iteration to the just-added
                                 # iteration:
+                                key_prefix = orig_inp_src.task_source_type.name.lower()
+                                prev_dat_idx_key = f"{key_prefix}s.{inp.typ}"
+                                new_sources = []
                                 for (
                                     tiID,
                                     e_idx,
                                 ), prev_dat_idx in all_new_data_idx.items():
                                     if tiID == orig_inp_src.task_ref:
-                                        # find which element in that task `element` depends
-                                        # on:
+                                        # find which element in that task `element`
+                                        # depends on:
                                         task_i = self.workflow.tasks.get(insert_ID=tiID)
                                         elem_i = task_i.elements[e_idx]
                                         src_elems_i = (
@@ -448,9 +459,16 @@ class WorkflowLoop:
                                             len(src_elems_i) == 1
                                             and src_elems_i[0].id_ == element.id_
                                         ):
-                                            inp_dat_idx = prev_dat_idx[
-                                                f"{orig_inp_src.task_source_type.name.lower()}s.{inp.typ}"
-                                            ]
+                                            new_sources.append((tiID, e_idx))
+                                if is_group:
+                                    inp_dat_idx = [
+                                        all_new_data_idx[i][prev_dat_idx_key]
+                                        for i in new_sources
+                                    ]
+                                else:
+                                    assert len(new_sources) == 1
+                                    prev_dat_idx = all_new_data_idx[new_sources[0]]
+                                    inp_dat_idx = prev_dat_idx[prev_dat_idx_key]
 
                         if inp_dat_idx is None:
                             raise RuntimeError(

@@ -315,6 +315,103 @@ def test_wk_loop_input_sources_including_non_iteration_task_source(null_config, 
     assert t2_iter_1["inputs.p3"] == t3_iter_0["outputs.p3"]
 
 
+def test_wk_loop_input_sources_including_non_iteration_task_source_with_groups(
+    null_config, tmp_path
+):
+    act_env = hf.ActionEnvironment("null_env")
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p1>> + 100))",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2"), hf.SchemaInput("p3")],
+        outputs=[hf.SchemaOutput("p4")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p2>> + <<parameter:p3>>))",
+                        stdout="<<int(parameter:p4)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+    )
+    ts3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[
+            hf.SchemaInput("p3", labels={"": {"group": "my_group"}}),
+            hf.SchemaInput("p4", labels={"": {"group": "my_group"}}),
+        ],
+        outputs=[hf.SchemaOutput("p3")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<sum(parameter:p3)>> + <<sum(parameter:p4)>>))",
+                        stdout="<<int(parameter:p3)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(
+                schema=ts2,
+                sequences=[hf.ValueSequence(path="inputs.p3", values=[301, 302])],
+                groups=[hf.ElementGroup(name="my_group")],
+            ),
+            hf.Task(schema=ts3),
+        ],
+    )
+    wk.add_loop(hf.Loop(tasks=[1, 2], num_iterations=2))
+
+    t2_elem_0_iter_0 = wk.tasks.t2.elements[0].iterations[0].get_data_idx()
+    t2_elem_1_iter_0 = wk.tasks.t2.elements[1].iterations[0].get_data_idx()
+    t2_elem_0_iter_1 = wk.tasks.t2.elements[0].iterations[1].get_data_idx()
+    t2_elem_1_iter_1 = wk.tasks.t2.elements[1].iterations[1].get_data_idx()
+
+    t3_iter_0 = wk.tasks.t3.elements[0].iterations[0].get_data_idx()
+    t3_iter_1 = wk.tasks.t3.elements[0].iterations[1].get_data_idx()
+    assert len(t3_iter_0["inputs.p3"]) == len(t3_iter_1["inputs.p3"]) == 2
+    assert len(t3_iter_0["inputs.p4"]) == len(t3_iter_1["inputs.p4"]) == 2
+    assert t3_iter_0["inputs.p3"] == [
+        t2_elem_0_iter_0["inputs.p3"],
+        t2_elem_1_iter_0["inputs.p3"],
+    ]
+    assert t3_iter_0["inputs.p4"] == [
+        t2_elem_0_iter_0["outputs.p4"],
+        t2_elem_1_iter_0["outputs.p4"],
+    ]
+    assert t3_iter_1["inputs.p3"] == [
+        t2_elem_0_iter_1["inputs.p3"],
+        t2_elem_1_iter_1["inputs.p3"],
+    ]
+    assert t3_iter_1["inputs.p4"] == [
+        t2_elem_0_iter_1["outputs.p4"],
+        t2_elem_1_iter_1["outputs.p4"],
+    ]
+
+
 def test_loop_local_sub_parameters(null_config, tmp_path):
     act_env = hf.ActionEnvironment("null_env")
     ts1 = hf.TaskSchema(
