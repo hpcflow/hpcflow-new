@@ -40,7 +40,7 @@ def make_schemas(ins_outs, ret_list=False):
         act_i = hf.Action(
             commands=[cmd],
             output_file_parsers=out_file_parsers,
-            environments=[hf.ActionEnvironment(hf.Environment(name="env_1"))],
+            environments=[hf.ActionEnvironment("env_1")],
         )
         print(f"{ins_i=}")
         out.append(
@@ -61,8 +61,7 @@ def make_parameters(num):
 
 
 def make_actions(ins_outs: List[Tuple[Union[Tuple, str], str]]) -> List[hf.Action]:
-    env = hf.Environment("env1")
-    act_env = hf.ActionEnvironment(environment=env)
+    act_env = hf.ActionEnvironment(environment="env1")
     actions = []
     for ins_outs_i in ins_outs:
         if len(ins_outs_i) == 2:
