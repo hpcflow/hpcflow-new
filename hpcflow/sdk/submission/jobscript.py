@@ -1114,6 +1114,9 @@ class Jobscript(JSONLike):
         else:
             # direct submission
             self._set_process_ID(process_ID)
+            # a downstream direct jobscript might need to wait for this jobscript, which
+            # means this jobscript's process ID must be committed:
+            self.workflow._store._pending.commit_all()
             ref = process_ID
 
         self._set_submit_time(datetime.utcnow())
