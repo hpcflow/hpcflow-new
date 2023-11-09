@@ -7,7 +7,6 @@ import json
 import h5py
 from pathlib import Path
 import re
-import subprocess
 from textwrap import indent, dedent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -20,14 +19,15 @@ from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
     MissingCompatibleActionEnvironment,
     OutputFileParserNoOutputError,
+    UnknownScriptDataKey,
     UnknownScriptDataParameter,
     UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
-    group_dict_by_values,
     split_param_label,
+    swap_nested_dict_keys,
 )
 
 
@@ -456,19 +456,37 @@ class ElementActionRun:
     def get_environment(self) -> app.Environment:
         return self.action.get_environment()
 
+    def get_all_previous_iteration_runs(self, include_self: bool = True):
+        """Get a list of run over all iterations that correspond to this run, optionally
+        including this run."""
+        self_iter = self.element_iteration
+        self_elem = self_iter.element
+        self_act_idx = self.element_action.action_idx
+        max_idx = self_iter.index + 1 if include_self else self_iter.index
+        all_runs = []
+        for iter_i in self_elem.iterations[:max_idx]:
+            all_runs.append(iter_i.actions[self_act_idx].runs[-1])
+        return all_runs
+
     def get_input_values(
-        self, inputs: Optional[List[str]] = None, label_dict: bool = True
+        self,
+        inputs: Optional[Union[List[str], Dict[str, Dict]]] = None,
+        label_dict: bool = True,
     ) -> Dict[str, Any]:
         """Get a dict of (optionally a subset of) inputs values for this run.
 
         Parameters
         ----------
         inputs
-            If specified, a list of input parameter types to include. For schema inputs
-            that have `multiple=True`, the input type should be labelled.
+            If specified, a list of input parameter types to include, of a dict whose keys
+            are input parameter types to include. For schema inputs that have
+            `multiple=True`, the input type should be labelled. If a dict is passed, and
+            the key "all_iterations` is present and `True`, the return for that input
+            will be structured to include values for all previous iterations.
         label_dict
-            If True, arrange the values of schema inputs with multiple=True as a dict whose
-            keys are the labels. If False, labels will be included in the top level keys.
+            If True, arrange the values of schema inputs with multiple=True as a dict
+            whose keys are the labels. If False, labels will be included in the top level
+            keys.
 
         """
         out = {}
@@ -476,7 +494,24 @@ class ElementActionRun:
             if inputs and inp_name not in inputs:
                 continue
             path_i, label_i = split_param_label(inp_name)
-            val_i = self.get(f"inputs.{inp_name}")
+
+            try:
+                all_iters = inputs[inp_name]["all_iterations"]
+            except (TypeError, KeyError):
+                all_iters = False
+
+            if all_iters:
+                all_runs = self.get_all_previous_iteration_runs(include_self=True)
+                val_i = {
+                    f"iteration_{run_i.element_iteration.index}": {
+                        "loop_idx": run_i.element_iteration.loop_idx,
+                        "value": run_i.get(f"inputs.{inp_name}"),
+                    }
+                    for run_i in all_runs
+                }
+            else:
+                val_i = self.get(f"inputs.{inp_name}")
+
             if label_dict and label_i:
                 if path_i not in out:
                     out[path_i] = {}
@@ -489,7 +524,7 @@ class ElementActionRun:
     def get_input_values_direct(self, label_dict: bool = True):
         """Get a dict of input values that are to be passed directly to a Python script
         function."""
-        inputs = self.action.script_data_in_grouped.get("direct", [])
+        inputs = self.action.script_data_in_grouped.get("direct", {})
         return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
     def get_IFG_input_values(self) -> Dict[str, Any]:
@@ -1076,7 +1111,7 @@ class Action(JSONLike):
         self.script_data_out = self._process_script_data_out(self.script_data_out)
 
     def _process_script_data_format(
-        self, data_fmt: Union[str, Dict[str, str]], prefix: str
+        self, data_fmt: Union[str, Dict[str, Union[str, Dict[str, str]]]], prefix: str
     ) -> Dict[str, str]:
         if not data_fmt:
             return {}
@@ -1086,9 +1121,22 @@ class Action(JSONLike):
         if isinstance(data_fmt, str):
             # include all input parameters, using specified data format
             data_fmt = data_fmt.lower()
-            all_params = {k: data_fmt for k in param_names}
+            all_params = {k: {"format": data_fmt} for k in param_names}
         else:
             all_params = copy.copy(data_fmt)
+            for k, v in all_params.items():
+                # values might be strings, or dicts with "format" and potentially other
+                # kwargs:
+                try:
+                    fmt = v["format"]
+                except TypeError:
+                    fmt = v
+                    kwargs = {}
+                else:
+                    kwargs = {k2: v2 for k2, v2 in v.items() if k2 != "format"}
+                finally:
+                    all_params[k] = {"format": fmt.lower(), **kwargs}
+
             if prefix == "inputs":
                 # expand unlabelled-multiple inputs to multiple labelled inputs:
                 multi_types = self.task_schema.multi_input_types
@@ -1104,14 +1152,16 @@ class Action(JSONLike):
                     **all_params,
                 }
 
-            if _all_other_sym in data_fmt:
+            if _all_other_sym in all_params:
                 # replace catch-all with all other input/output names:
+                other_fmt = all_params[_all_other_sym]
                 all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
                 other = set(param_names) - set(all_params.keys())
                 for i in other:
-                    all_params[i] = data_fmt[_all_other_sym].lower()
+                    all_params[i] = copy.deepcopy(other_fmt)
 
         # validation:
+        allowed_keys = ("format", "all_iterations")
         for k, v in all_params.items():
             # validate parameter name:
             if k not in param_names:
@@ -1120,12 +1170,19 @@ class Action(JSONLike):
                     f"action. Parameters ({prefix}) are: {param_names!r}."
                 )
             # validate format:
-            if v not in self._script_data_formats:
+            if v["format"] not in self._script_data_formats:
                 raise UnsupportedScriptDataFormat(
                     f"Script data format {v!r} for {prefix[:-1]} parameter {k!r} is not "
                     f"understood. Available script data formats are: "
                     f"{self._script_data_formats!r}."
                 )
+
+            for k2 in v:
+                if k2 not in allowed_keys:
+                    raise UnknownScriptDataKey(
+                        f"Script data key {k2!r} is not understood. Allowed keys are: "
+                        f"{allowed_keys!r}."
+                    )
 
         return all_params
 
@@ -1142,12 +1199,12 @@ class Action(JSONLike):
     @property
     def script_data_in_grouped(self) -> Dict[str, List[str]]:
         """Get input parameter types by script data-in format."""
-        return group_dict_by_values(self.script_data_in)  # TODO: test
+        return swap_nested_dict_keys(dct=self.script_data_in, inner_key="format")
 
     @property
     def script_data_out_grouped(self) -> Dict[str, List[str]]:
         """Get output parameter types by script data-out format."""
-        return group_dict_by_values(self.script_data_out)  # TODO: test
+        return swap_nested_dict_keys(dct=self.script_data_out, inner_key="format")
 
     @property
     def script_data_in_has_files(self) -> bool:

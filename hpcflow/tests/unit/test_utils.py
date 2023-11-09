@@ -17,6 +17,7 @@ from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     reshape,
     split_param_label,
+    swap_nested_dict_keys,
 )
 
 
@@ -393,93 +394,13 @@ def test_linspace_rect_endpoint_false():
     assert np.allclose(rect, expected)
 
 
-# from hpcflow.utils import (
-#     get_duplicate_items,
-#     check_valid_py_identifier,
-#     group_by_dict_key_values,
-# )
-
-
-# def test_get_list_duplicate_items_no_duplicates():
-#     lst = [1, 2, 3]
-#     assert not get_duplicate_items(lst)
-
-
-# def test_get_list_duplicate_items_one_duplicate():
-#     lst = [1, 1, 3]
-#     assert get_duplicate_items(lst) == [1]
-
-
-# def test_get_list_duplicate_items_all_duplicates():
-#     lst = [1, 1, 1]
-#     assert get_duplicate_items(lst) == [1]
-
-
-# def test_expected_return_group_by_dict_key_values_single_key_items_single_key_passed():
-#     item_1 = {"b": 1}
-#     item_2 = {"b": 2}
-#     item_3 = {"b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "b") == [
-#         [item_1, item_3],
-#         [item_2],
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_multi_key_items_single_key_passed():
-#     item_1 = {"a": 9, "b": 1}
-#     item_2 = {"a": 8, "b": 2}
-#     item_3 = {"a": 9, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "b") == [
-#         [item_1, item_3],
-#         [item_2],
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_multi_key_items_multi_key_passed_two_groups():
-#     item_1 = {"a": 9, "b": 1}
-#     item_2 = {"a": 8, "b": 2}
-#     item_3 = {"a": 9, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-#         [item_1, item_3],
-#         [item_2],
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_multi_key_items_multi_key_passed_three_groups():
-#     item_1 = {"a": 9, "b": 1}
-#     item_2 = {"a": 9, "b": 2}
-#     item_3 = {"a": 8, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-#         [item_1],
-#         [item_2],
-#         [item_3],
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_multi_key_items_multi_key_passed_one_group():
-#     item_1 = {"a": 9, "b": 1}
-#     item_2 = {"a": 9, "b": 1}
-#     item_3 = {"a": 9, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-#         [item_1, item_2, item_3]
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_excluded_items_for_missing_keys_first_item():
-#     item_1 = {"a": 9}
-#     item_2 = {"a": 9, "b": 1}
-#     item_3 = {"a": 9, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-#         [item_1],
-#         [item_2, item_3],
-#     ]
-
-
-# def test_expected_return_group_by_dict_key_values_excluded_items_for_missing_keys_second_item():
-#     item_1 = {"a": 9, "b": 1}
-#     item_2 = {"a": 9}
-#     item_3 = {"a": 9, "b": 1}
-#     assert group_by_dict_key_values([item_1, item_2, item_3], "a", "b") == [
-#         [item_1, item_3],
-#         [item_2],
-#     ]
+def test_swap_nested_dict_keys():
+    dct = {
+        "p1": {"format": "direct", "all_iterations": True},
+        "p2": {"format": "json"},
+        "p3": {"format": "direct"},
+    }
+    assert swap_nested_dict_keys(dct, inner_key="format") == {
+        "direct": {"p1": {"all_iterations": True}, "p3": {}},
+        "json": {"p2": {}},
+    }
