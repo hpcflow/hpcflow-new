@@ -1,7 +1,7 @@
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import LoopAlreadyExistsError
-from hpcflow.sdk.core.test_utils import make_workflow
+from hpcflow.sdk.core.test_utils import P1_parameter_cls, make_workflow
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
@@ -241,7 +241,7 @@ def test_get_iteration_task_pathway_single_task_single_element_three_iters(
     ]
 
 
-def test_wk_loop_input_sources_including_non_iteration_task_source(tmp_path):
+def test_wk_loop_input_sources_including_non_iteration_task_source(null_config, tmp_path):
     act_env = hf.ActionEnvironment("null_env")
     ts1 = hf.TaskSchema(
         objective="t1",
@@ -313,3 +313,66 @@ def test_wk_loop_input_sources_including_non_iteration_task_source(tmp_path):
     assert t3_iter_1["inputs.p3"] == t2_iter_1["inputs.p3"]
     assert t3_iter_1["inputs.p4"] == t2_iter_1["outputs.p4"]
     assert t2_iter_1["inputs.p3"] == t3_iter_0["outputs.p3"]
+
+
+def test_loop_local_sub_parameters(null_config, tmp_path):
+    act_env = hf.ActionEnvironment("null_env")
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1c")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p1c.a>> + 100))",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p1c")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p2>> + 100))",
+                        stdout="<<parameter:p1c>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(
+                schema=ts1,
+                inputs=[
+                    hf.InputValue(parameter="p1c", value=P1_parameter_cls(a=101)),
+                    hf.InputValue(parameter="p1c", path="d", value=9),
+                ],
+            ),
+            hf.Task(schema=ts2),
+        ],
+    )
+    wk.add_loop(hf.Loop(tasks=[0, 1], num_iterations=2))
+
+    t1_iter_0 = wk.tasks.t1.elements[0].iterations[0].get_data_idx()
+    t2_iter_0 = wk.tasks.t2.elements[0].iterations[0].get_data_idx()
+    t1_iter_1 = wk.tasks.t1.elements[0].iterations[1].get_data_idx()
+    t2_iter_1 = wk.tasks.t2.elements[0].iterations[1].get_data_idx()
+
+    assert t2_iter_0["inputs.p2"] == t1_iter_0["outputs.p2"]
+    assert t1_iter_1["inputs.p1c"] == t2_iter_0["outputs.p1c"]
+    assert t2_iter_1["inputs.p2"] == t1_iter_1["outputs.p2"]
+    assert t1_iter_0["inputs.p1c.d"] == t1_iter_1["inputs.p1c.d"]

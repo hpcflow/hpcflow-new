@@ -344,7 +344,7 @@ class WorkflowLoop:
             for elem_idx in range(task.num_elements):
                 # element needs to take into account changes made in this code
                 element = task.elements[elem_idx]
-
+                inp_statuses = task.template.get_input_statuses(element.element_set)
                 new_data_idx = {}
 
                 # copy resources from zeroth iteration:
@@ -460,14 +460,16 @@ class WorkflowLoop:
 
                         new_data_idx[inp_key] = inp_dat_idx
 
+                # add any locally defined sub-parameters:
+                inp_status_inps = set([f"inputs.{i}" for i in inp_statuses])
+                sub_params = inp_status_inps - set(new_data_idx.keys())
+                for sub_param_i in sub_params:
+                    sub_param_data_idx = element.iterations[0].get_data_idx()[sub_param_i]
+                    new_data_idx[sub_param_i] = sub_param_data_idx
+
                 for out in task.template.all_schema_outputs:
                     path_i = f"outputs.{out.typ}"
-                    p_src = {
-                        "type": "EAR_output",
-                        # "task_insert_ID": task.insert_ID,
-                        # "element_idx": element.index,
-                        # "run_idx": 0,
-                    }
+                    p_src = {"type": "EAR_output"}
                     new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
 
                 schema_params = set(
