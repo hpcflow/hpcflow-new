@@ -62,6 +62,7 @@ from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
+NON_LINUX_PLATFORM = ("win32", "darwin")
 
 
 def __getattr__(name):
@@ -550,7 +551,7 @@ class BaseApp(metaclass=Singleton):
         not user-writable).
 
         """
-        if sys.platform not in ("win32", "darwin"):
+        if sys.platform not in NON_LINUX_PLATFORM:
             if not self.config.alternative_unix_runtime_dir:
                 self.config.alternative_unix_runtime_dir = f"/tmp/{getpass.getuser()}"
                 self.config.save()
@@ -577,8 +578,30 @@ class BaseApp(metaclass=Singleton):
         if not self.user_runtime_dir.exists():
             try:
                 self.user_runtime_dir.mkdir(parents=True)
-            except (PermissionError, FileNotFoundError):
+            except PermissionError:
+                self.logger.debug(
+                    f"Failed to create standard user runtime directory "
+                    f"{self.user_runtime_dir!r}. Attempting to create in alternative "
+                    f"location..."
+                )
                 self._user_runtime_dir = self._get_alternative_runtime_dir()
+                try:
+                    self.user_runtime_dir.mkdir(parents=True, exist_ok=True)
+                except PermissionError as err:
+                    msg = (
+                        f"Failed to create alternative user runtime directory: "
+                        f"{self.user_runtime_dir!r} due to a permission error: "
+                        f"{err.args!r}."
+                    )
+                    if sys.platform in NON_LINUX_PLATFORM:
+                        raise RuntimeError(msg)
+                    else:
+                        msg += (
+                            f" Try setting the configuration item "
+                            f"`alternative_unix_runtime_dir` to a user-writable "
+                            f"directory; by default this is set to `/tmp/$USER`."
+                        )
+                        raise PermissionError(msg)
             self.logger.info(
                 f"Created user runtime directory: {self.user_runtime_dir!r}."
             )
@@ -2176,6 +2199,7 @@ class BaseApp(metaclass=Singleton):
                 delete = False
             else:
                 # download to a temporary directory:
+                self._ensure_user_runtime_dir()
                 temp_path = self.user_runtime_dir.joinpath(src_fn)
                 self.logger.debug(
                     f"downloading example data file source {src_fn!r} from remote file "
@@ -2183,8 +2207,8 @@ class BaseApp(metaclass=Singleton):
                     f"directory file {temp_path!r}."
                 )
                 if temp_path.is_file():
+                    # overwrite if it already exists:
                     temp_path.unlink()
-                self._ensure_user_runtime_dir()
                 fs.get(rpath=f"{url_path}/{src_fn}", lpath=str(temp_path))
                 delete = True
                 out = temp_path
