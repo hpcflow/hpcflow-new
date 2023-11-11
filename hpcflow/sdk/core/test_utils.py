@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from hpcflow.app import app as hf
@@ -152,6 +153,32 @@ def make_workflow(
         store=store,
     )
     return wk
+
+
+def make_test_data_YAML_workflow(workflow_name, path, **kwargs):
+    """Generate a workflow whose template file is defined in the test data directory."""
+    pkg = "hpcflow.tests.data"
+    try:
+        script_ctx = resources.as_file(resources.files(pkg).joinpath(workflow_name))
+    except AttributeError:
+        # < python 3.9; `resource.path` deprecated since 3.11
+        script_ctx = resources.path(pkg, workflow_name)
+
+    with script_ctx as file_path:
+        return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
+
+
+def make_test_data_YAML_workflow_template(workflow_name, **kwargs):
+    """Generate a workflow template whose file is defined in the test data directory."""
+    pkg = "hpcflow.tests.data"
+    try:
+        script_ctx = resources.as_file(resources.files(pkg).joinpath(workflow_name))
+    except AttributeError:
+        # < python 3.9; `resource.path` deprecated since 3.11
+        script_ctx = resources.path(pkg, workflow_name)
+
+    with script_ctx as file_path:
+        return hf.WorkflowTemplate.from_file(path=file_path, **kwargs)
 
 
 @dataclass

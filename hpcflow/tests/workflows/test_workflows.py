@@ -1,6 +1,4 @@
-from importlib import resources
 import os
-import sys
 import time
 import pytest
 from hpcflow.app import app as hf
@@ -8,14 +6,13 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
+    make_test_data_YAML_workflow,
 )
 
 
 @pytest.mark.integration
 def test_workflow_1(tmp_path, new_null_config):
-    package = "hpcflow.tests.data"
-    with resources.path(package=package, resource="workflow_1.yaml") as path:
-        wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
+    wk = make_test_data_YAML_workflow("workflow_1.yaml", path=tmp_path)
     wk.submit(wait=True, add_to_known=False)
     assert wk.tasks[0].elements[0].outputs.p2.value == "201"
 
@@ -24,9 +21,7 @@ def test_workflow_1(tmp_path, new_null_config):
 def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     workflow_dir = tmp_path / "sub path with spaces"
     workflow_dir.mkdir()
-    package = "hpcflow.tests.data"
-    with resources.path(package=package, resource="workflow_1.yaml") as path:
-        wk = hf.Workflow.from_YAML_file(YAML_path=path, path=workflow_dir)
+    wk = make_test_data_YAML_workflow("workflow_1.yaml", path=workflow_dir)
     wk.submit(wait=True, add_to_known=False)
     assert wk.tasks[0].elements[0].outputs.p2.value == "201"
 
@@ -36,9 +31,7 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
     reason="Sometimes fails on MacOS GHAs runner; too slow on Windows + Linux"
 )
 def test_run_abort(tmp_path, new_null_config):
-    package = "hpcflow.tests.data"
-    with resources.path(package=package, resource="workflow_test_run_abort.yaml") as path:
-        wk = hf.Workflow.from_YAML_file(YAML_path=path, path=tmp_path)
+    wk = make_test_data_YAML_workflow("workflow_test_run_abort.yaml", path=tmp_path)
     wk.submit(add_to_known=False)
 
     # wait for the run to start;

@@ -1,7 +1,5 @@
-from importlib import resources
-import pytest
-
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.test_utils import make_test_data_YAML_workflow_template
 
 
 def test_merge_template_level_resources_into_element_set(null_config):
@@ -16,13 +14,8 @@ def test_merge_template_level_resources_into_element_set(null_config):
 
 
 def test_equivalence_from_YAML_and_JSON_files(null_config):
-    package = "hpcflow.tests.data"
-    with resources.path(package=package, resource="workflow_1.yaml") as path:
-        wkt_yaml = hf.WorkflowTemplate.from_file(path)
-
-    with resources.path(package=package, resource="workflow_1.json") as path:
-        wkt_json = hf.WorkflowTemplate.from_file(path)
-
+    wkt_yaml = make_test_data_YAML_workflow_template("workflow_1.yaml")
+    wkt_json = make_test_data_YAML_workflow_template("workflow_1.json")
     assert wkt_json == wkt_yaml
 
 
