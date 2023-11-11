@@ -390,7 +390,7 @@ def _make_workflow_CLI(app):
     def zip_workflow(ctx, log=None):
         ctx.obj["workflow"].zip(log=log)
 
-    @click.command(name="unzip")
+    @workflow.command(name="unzip")
     @click.option("--log")
     @click.pass_context
     def unzip_workflow(ctx, log=None):
@@ -678,16 +678,24 @@ def _make_zip_CLI(app):
         wk = app.Workflow(workflow_path)
         wk.zip(log=log)
 
+    return zip_workflow
+
+
+def _make_unzip_CLI(app):
     @click.command(name="unzip")
     @click.argument("workflow_path")
     @click.option("--log")
     def unzip_workflow(workflow_path, log=None):
         """Generate a copy of the specified zipped workflow in the submittable Zarr
-        format."""
+        format.
+
+        WORKFLOW_PATH is path of the zip file to unzip.
+
+        """
         wk = app.Workflow(workflow_path)
         wk.unzip(log=log)
 
-    return zip_workflow
+    return unzip_workflow
 
 
 def _make_cancel_CLI(app):
@@ -1051,6 +1059,7 @@ def make_cli(app):
     new_CLI.add_command(_make_open_CLI(app))
     new_CLI.add_command(_make_cancel_CLI(app))
     new_CLI.add_command(_make_zip_CLI(app))
+    new_CLI.add_command(_make_unzip_CLI(app))
     for cli_cmd in _make_API_CLI(app):
         new_CLI.add_command(cli_cmd)
 

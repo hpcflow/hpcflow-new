@@ -208,7 +208,7 @@ class SGEPosix(Scheduler):
 
     def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
-        match = re.search("^\d+", stdout)
+        match = re.search(r"^\d+", stdout)
         if match:
             job_ID = match.group()
         else:

@@ -1,7 +1,7 @@
 import copy
 from dataclasses import dataclass
+from pathlib import Path
 from textwrap import dedent
-from typing import Optional
 
 import pytest
 
@@ -12,7 +12,36 @@ from hpcflow.sdk.core.errors import (
     WorkflowNotFoundError,
 )
 from hpcflow.sdk.core.parameters import ParameterValue
-from hpcflow.sdk.core.test_utils import make_workflow, P1_parameter_cls as P1
+from hpcflow.sdk.core.test_utils import (
+    make_workflow,
+    P1_parameter_cls as P1,
+    make_test_data_YAML_workflow,
+)
+
+
+@pytest.fixture
+def persistent_workflow(null_config):
+    tmp_dir = hf._ensure_user_runtime_dir().joinpath("test_data")
+    tmp_dir.mkdir(exist_ok=True)
+    wk = make_test_data_YAML_workflow("workflow_1.yaml", path=tmp_dir, overwrite=True)
+    yield wk
+    wk._delete_no_confirm()
+
+
+@pytest.mark.skip(reason="Cannot delete the zip file! Something still has a handle.")
+def test_workflow_zip(persistent_workflow):
+    zip_path = persistent_workflow.zip()
+
+    # check zipped is loadable:
+    wk_zipped = hf.Workflow(zip_path)
+    assert wk_zipped.tasks[0].elements[0].get("inputs.p1") == 101
+
+    del wk_zipped._store.fs
+    del wk_zipped._store
+    del wk_zipped
+
+    # delete the zipped workflow:
+    Path(zip_path).unlink()
 
 
 def modify_workflow_metadata_on_disk(workflow):

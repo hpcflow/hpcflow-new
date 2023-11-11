@@ -24,8 +24,8 @@ def test_raise_on_invalid_config_file(new_null_config):
     # try to load the invalid file:
     cfg_dir = hf.config.get("config_directory")
     with pytest.raises(ConfigFileValidationError):
-        hf.reload_config(config_dir=cfg_dir)
-    hf.reset_config(config_dir=cfg_dir)
+        hf.reload_config(config_dir=cfg_dir, warn=False)
+    hf.reset_config(config_dir=cfg_dir, warn=False)
     hf.unload_config()
 
 
@@ -37,7 +37,7 @@ def test_reset_invalid_config(new_null_config):
 
     # check we can reset the invalid file:
     cfg_dir = hf.config.get("config_directory")
-    hf.reset_config(config_dir=cfg_dir)
+    hf.reset_config(config_dir=cfg_dir, warn=False)
     hf.unload_config()
 
 
