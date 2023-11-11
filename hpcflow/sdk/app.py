@@ -703,9 +703,10 @@ class BaseApp(metaclass=Singleton):
         self,
         config_dir=None,
         config_key=None,
+        warn=True,
         **overrides,
     ) -> None:
-        if self.is_config_loaded:
+        if warn and self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_key, **overrides)
 
@@ -732,6 +733,7 @@ class BaseApp(metaclass=Singleton):
         self,
         config_dir=None,
         config_key=None,
+        warn=True,
         **overrides,
     ) -> None:
         """Reset the config file to defaults, and reload the config."""
@@ -739,15 +741,16 @@ class BaseApp(metaclass=Singleton):
         self._delete_config_file(config_dir=config_dir)
         self._config = None
         self._config_files = {}
-        self.load_config(config_dir, config_key, **overrides)
+        self.load_config(config_dir, config_key, warn=warn, **overrides)
 
     def reload_config(
         self,
         config_dir=None,
         config_key=None,
+        warn=True,
         **overrides,
     ) -> None:
-        if not self.is_config_loaded:
+        if warn and not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
         self.log.remove_file_handlers()
         self._config_files = {}

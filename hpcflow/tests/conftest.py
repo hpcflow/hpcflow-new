@@ -97,6 +97,6 @@ def null_config(tmp_path):
 
 @pytest.fixture
 def new_null_config(tmp_path):
-    hf.load_config(config_dir=tmp_path)
+    hf.load_config(config_dir=tmp_path, warn=False)
     hf.load_template_components(warn=False)
     hf.run_time_info.in_pytest = True
