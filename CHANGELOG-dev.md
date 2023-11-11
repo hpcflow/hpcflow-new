@@ -1,4 +1,28 @@
 
+<a name="v0.2.0a133"></a>
+## [v0.2.0a133](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a132...v0.2.0a133) - 2023.11.11
+
+### ♻ Code Refactoring
+
+* white space
+
+### ✨ Features
+
+* add `get-active-jobscripts` CLI command
+
+### 🐛 Bug Fixes
+
+* parsing of job ID from SLURM squeue
+* fix `Jobscript.get_active_states` for non-job-array scheduled jobscripts
+* fix `Submission._set_run_abort`
+* remove some test warnings
+* expose workflow unzip on CLI
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a132"></a>
 ## [v0.2.0a132](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a131...v0.2.0a132) - 2023.11.11
 
