@@ -403,6 +403,26 @@ class SlurmPosix(Scheduler):
             job_ID = stdout
         return job_ID
 
+    @staticmethod
+    def _parse_job_IDs(job_ID_str: str):
+        """Parse the job ID column from the `squeue` command (the `%i` format option)."""
+        parts = job_ID_str.split("_")
+        base_job_ID, arr_idx = parts if len(parts) == 2 else (parts[0], None)
+        if arr_idx is not None:
+            try:
+                arr_idx = [int(arr_idx) - 1]  # zero-index
+            except ValueError:
+                # split on commas (e.g. "[5,8-40]")
+                _arr_idx = []
+                for i_range_str in arr_idx.strip("[]").split(","):
+                    if "-" in i_range_str:
+                        i_args = [int(j) - 1 for j in i_range_str.split("-")]
+                        _arr_idx.extend(list(range(i_args[0], i_args[1] + 1)))
+                    else:
+                        _arr_idx.append(int(i_range_str) - 1)
+                arr_idx = _arr_idx
+        return base_job_ID, arr_idx
+
     def _parse_job_states(self, stdout) -> Dict[str, Dict[int, JobscriptElementState]]:
         """Parse output from Slurm `squeue` command with a simple format."""
         info = {}
@@ -410,21 +430,8 @@ class SlurmPosix(Scheduler):
             if not ln:
                 continue
             ln_s = [i.strip() for i in ln.split()]
-            job_ID_i = ln_s[0].split("_")
+            base_job_ID, arr_idx = self._parse_job_IDs(ln_s[0])
             state = self.state_lookup.get(ln_s[1], None)
-            base_job_ID, arr_idx = job_ID_i if len(job_ID_i) == 2 else (job_ID_i[0], None)
-            if arr_idx is not None:
-                try:
-                    arr_idx = [int(arr_idx) - 1]  # zero-index
-                except ValueError:
-                    # multiple arr indices; e.g. during pending
-                    if "-" in arr_idx:
-                        arr_0, arr_1 = [
-                            int(i) - 1 for i in arr_idx.strip("[]").split("-")
-                        ]
-                        arr_idx = list(range(arr_0, arr_1 + 1))
-                    else:
-                        raise ValueError(f"Cannot parse job array index: {arr_idx}.")
 
             if base_job_ID not in info:
                 info[base_job_ID] = {}
@@ -441,7 +448,7 @@ class SlurmPosix(Scheduler):
             "--me",
             "--noheader",
             "--format",
-            r"%i %T",
+            r"%40i %30T",
             "--jobs",
             ",".join(job_IDs),
         ]
