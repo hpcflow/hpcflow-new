@@ -1174,6 +1174,10 @@ class Jobscript(JSONLike):
                 out = self.scheduler.get_job_state_info(**self.scheduler_ref)
                 if out:
                     out = out[next(iter(out))]  # first item only
+                    # if value is single-length dict with `None` key, then transform
+                    # to one key for each jobscript element:
+                    if list(out.keys()) == [None]:
+                        out = {i: out[None] for i in range(self.num_elements)}
                     if as_json:
                         out = {k: v.name for k, v in out.items()}
 

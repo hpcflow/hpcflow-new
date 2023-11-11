@@ -291,8 +291,7 @@ class Submission(JSONLike):
     def _set_run_abort(self, run_ID: int):
         """Modify the abort runs file to indicate a specified run should be aborted."""
         with self.abort_EARs_file_path.open(mode="rt", newline="\n") as fp:
-            lines = fp.readlines()
-
+            lines = fp.read().splitlines()
         lines[run_ID] = "1"
 
         # write a new temporary run-abort file:
@@ -300,7 +299,7 @@ class Submission(JSONLike):
         tmp = self.abort_EARs_file_path.with_suffix(tmp_suffix)
         self.app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
         with tmp.open(mode="wt", newline="\n") as fp:
-            fp.write("".join(i for i in lines) + "\n")
+            fp.write("\n".join(i for i in lines) + "\n")
 
         # atomic rename, overwriting original:
         self.app.submission_logger.debug(

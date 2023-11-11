@@ -218,7 +218,6 @@ class SGEPosix(Scheduler):
     def get_job_statuses(self):
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
-
         cmd = self.show_cmd + ["-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
         stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
@@ -268,7 +267,6 @@ class SGEPosix(Scheduler):
         of this method.
 
         """
-
         info = self.get_job_statuses()
         if js_refs:
             info = {k: v for k, v in info.items() if k in js_refs}

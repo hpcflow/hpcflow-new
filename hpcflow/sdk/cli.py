@@ -271,6 +271,12 @@ def _make_workflow_submission_CLI(app):
         """Check if this submission needs submitting."""
         click.echo(ctx.obj["submission"].needs_submit)
 
+    @submission.command("get-active-jobscripts")
+    @click.pass_context
+    def get_active_jobscripts(ctx):
+        """Show active jobscripts and their jobscript-element states."""
+        pprint(ctx.obj["submission"].get_active_jobscripts(as_json=True))
+
     submission.help = submission.help.format(app_name=app.name)
     submission.add_command(_make_workflow_submission_jobscript_CLI(app))
 
