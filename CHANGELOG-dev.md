@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a132"></a>
+## [v0.2.0a132](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a131...v0.2.0a132) - 2023.11.11
+
+### 🐛 Bug Fixes
+
+* actually create alternative runtime directory!
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a131"></a>
 ## [v0.2.0a131](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a130...v0.2.0a131) - 2023.11.09
 
