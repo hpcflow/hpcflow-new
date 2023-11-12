@@ -12,6 +12,7 @@ import zarr
 from fsspec.implementations.zip import ZipFileSystem
 from rich.console import Console
 from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd
+from reretry import retry
 
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
@@ -37,8 +38,19 @@ from hpcflow.sdk.persistence.pending import CommitResourceMap
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
-def _zarr_get_coord_selection(arr, selection):
-    return arr.get_coordinate_selection(selection)
+def _zarr_get_coord_selection(arr, selection, logger):
+    @retry(
+        RuntimeError,
+        tries=10,
+        delay=1,
+        backoff=1.5,
+        jitter=(0, 5),
+        logger=logger,
+    )
+    def _inner(arr, selection):
+        return arr.get_coordinate_selection(selection)
+
+    return _inner(arr, selection)
 
 
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
@@ -954,7 +966,7 @@ class ZarrPersistentStore(PersistentStore):
 
         try:
             self.logger.debug(f"_get_persistent_EARs: {list(id_lst)=}")
-            EAR_arr_dat = _zarr_get_coord_selection(arr, list(id_lst))
+            EAR_arr_dat = _zarr_get_coord_selection(arr, list(id_lst), self.logger)
         except zarr.errors.BoundsCheckError:
             raise MissingStoreEARError(id_lst) from None
 
