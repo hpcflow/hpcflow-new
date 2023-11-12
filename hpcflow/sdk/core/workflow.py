@@ -1182,6 +1182,8 @@ class Workflow:
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of IDs."""
 
+        self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
+
         store_EARs = self._store.get_EARs(id_lst)
 
         elem_iter_IDs = [i.elem_iter_ID for i in store_EARs]
@@ -2358,9 +2360,12 @@ class Workflow:
 
                 # add loop-check command if this is the last action of this loop iteration
                 # for this element:
-                final_runs = self.get_iteration_final_run_IDs(
-                    id_lst=jobscript.all_EAR_IDs
+                final_runs = (
+                    self.get_iteration_final_run_IDs(  # TODO: excessive reads here
+                        id_lst=jobscript.all_EAR_IDs
+                    )
                 )
+                self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
                 for loop_name, run_IDs in final_runs.items():
                     if EAR.id_ in run_IDs:
                         loop_cmd = jobscript.shell.format_loop_check(
@@ -2373,6 +2378,7 @@ class Workflow:
                 # still need to write the file, the jobscript is expecting it.
                 commands = ""
 
+            self.app.persistence_logger.debug(f"commands to write: {commands!r}")
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
