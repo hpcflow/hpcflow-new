@@ -1053,6 +1053,7 @@ class Workflow:
     @property
     def submissions(self) -> List[app.Submission]:
         if self._submissions is None:
+            self.app.persistence_logger.debug("loading workflow submissions")
             with self._store.cached_load():
                 subs = []
                 for idx, sub_dat in self._store.get_submissions().items():
@@ -2323,8 +2324,15 @@ class Workflow:
     ) -> None:
         """Write run-time commands for a given EAR."""
         with self._store.cached_load():
+            self.app.persistence_logger.debug("Workflow.write_commands")
+            self.app.persistence_logger.debug(
+                f"loading jobscript (submission index: {submission_idx}; jobscript "
+                f"index: {jobscript_idx})"
+            )
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+            self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+            self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
                 commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
@@ -2333,6 +2341,7 @@ class Workflow:
                 write_commands = False
 
             if write_commands:
+                self.app.persistence_logger.debug("need to write commands")
                 for cmd_idx, var_dat in shell_vars.items():
                     for param_name, shell_var_name, st_typ in var_dat:
                         commands += jobscript.shell.format_save_parameter(
@@ -2455,6 +2464,7 @@ class Workflow:
                     )
 
     def get_all_submission_run_IDs(self) -> List[int]:
+        self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
         id_lst = []
         for sub in self.submissions:
             id_lst.extend(list(sub.all_EAR_IDs))
@@ -2480,6 +2490,7 @@ class Workflow:
 
     def get_loop_map(self, id_lst: Optional[List[int]] = None):
         # TODO: test this works across multiple jobscripts
+        self.app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
             id_lst = self.get_all_submission_run_IDs()
         loop_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -2502,6 +2513,8 @@ class Workflow:
         identify which commands file to append a loop-termination check to.
 
         """
+        self.app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
+
         loop_map = loop_map or self.get_loop_map(id_lst)
 
         # find final EARs for each loop:

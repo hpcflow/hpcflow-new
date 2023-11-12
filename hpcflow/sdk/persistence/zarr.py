@@ -916,6 +916,7 @@ class ZarrPersistentStore(PersistentStore):
         return loop_dat
 
     def _get_persistent_submissions(self, id_lst: Optional[Iterable[int]] = None):
+        self.logger.debug("loading persistent submissions from the zarr store")
         with self.using_resource("attrs", "read") as attrs:
             subs_dat = copy.deepcopy(
                 {

@@ -56,6 +56,7 @@ class Command(JSONLike):
 
         """
 
+        self.app.persistence_logger.debug("Command.get_command_line")
         cmd_str = self._get_initial_command_line()
 
         def _format_sum(iterable: Iterable) -> str:
