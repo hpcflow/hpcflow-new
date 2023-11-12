@@ -37,6 +37,10 @@ from hpcflow.sdk.persistence.pending import CommitResourceMap
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
+def _zarr_get_coord_selection(arr, selection):
+    return arr.get_coordinate_selection(selection)
+
+
 def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
@@ -949,7 +953,8 @@ class ZarrPersistentStore(PersistentStore):
         attrs = arr.attrs.asdict()
 
         try:
-            EAR_arr_dat = arr.get_coordinate_selection(list(id_lst))
+            self.logger.debug(f"_get_persistent_EARs: {list(id_lst)=}")
+            EAR_arr_dat = _zarr_get_coord_selection(arr, list(id_lst))
         except zarr.errors.BoundsCheckError:
             raise MissingStoreEARError(id_lst) from None
 
