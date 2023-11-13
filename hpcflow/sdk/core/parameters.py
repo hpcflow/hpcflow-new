@@ -851,8 +851,8 @@ class ValueSequence(JSONLike):
         return vals
 
     @classmethod
-    def _values_from_rectangle(cls, start, stop, num, coord, **kwargs):
-        vals = linspace_rect(start=start, stop=stop, num=num, **kwargs)
+    def _values_from_rectangle(cls, start, stop, num, coord=None, include=None, **kwargs):
+        vals = linspace_rect(start=start, stop=stop, num=num, include=include, **kwargs)
         if coord is not None:
             vals = vals[coord].tolist()
         else:
@@ -988,6 +988,7 @@ class ValueSequence(JSONLike):
         stop,
         num,
         coord: Optional[int] = None,
+        include: Optional[list[str]] = None,
         nesting_order=0,
         label=None,
         **kwargs,
@@ -998,8 +999,18 @@ class ValueSequence(JSONLike):
         coord:
             Which coordinate to use. Either 0, 1, or `None`, meaning each value will be
             both coordinates.
+        include
+            If specified, include only the specified edges. Choose from "top", "right",
+            "bottom", "left".
         """
-        args = {"start": start, "stop": stop, "num": num, "coord": coord, **kwargs}
+        args = {
+            "start": start,
+            "stop": stop,
+            "num": num,
+            "coord": coord,
+            "include": include,
+            **kwargs,
+        }
         values = cls._values_from_rectangle(**args)
         obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
         obj._values_method = "from_rectangle"

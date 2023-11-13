@@ -376,10 +376,16 @@ def test_linspace_rect_endpoint_true():
     rect = linspace_rect(start=[0, 0], stop=[1, 10], num=[3, 3], endpoint=True)
     expected = np.array(
         [
-            [0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 0.0, 1.0],
-            [0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 5.0, 5.0],
+            [0.0, 10.0],
+            [0.5, 10.0],
+            [1.0, 10.0],
+            [1.0, 5.0],
+            [0.0, 0.0],
+            [0.5, 0.0],
+            [1.0, 0.0],
+            [0.0, 5.0],
         ]
-    )
+    ).T
     assert np.allclose(rect, expected)
 
 
@@ -387,10 +393,71 @@ def test_linspace_rect_endpoint_false():
     rect = linspace_rect(start=[0, 0], stop=[1, 10], num=[3, 3], endpoint=False)
     expected = np.array(
         [
-            [0.0, 0.33333333, 0.66666667, 0.0, 0.33333333, 0.66666667, 0.0, 0.66666667],
-            [0.0, 0.0, 0.0, 6.66666667, 6.66666667, 6.66666667, 3.33333333, 3.33333333],
+            [0.0, 20 / 3],
+            [1 / 3, 20 / 3],
+            [2 / 3, 20 / 3],
+            [2 / 3, 10 / 3],
+            [0.0, 0.0],
+            [1 / 3, 0.0],
+            [2 / 3, 0.0],
+            [0.0, 10 / 3],
         ]
+    ).T
+    assert np.allclose(rect, expected)
+
+
+def test_linspace_rect_endpoint_true_include_left_right():
+    rect = linspace_rect(
+        start=[0, 0],
+        stop=[1, 5],
+        num=[4, 3],
+        include=["left", "right"],
     )
+    expected = np.array(
+        [[1.0, 0.0], [1.0, 2.5], [1.0, 5.0], [0.0, 0.0], [0.0, 2.5], [0.0, 5.0]]
+    ).T
+    assert np.allclose(rect, expected)
+
+
+def test_linspace_rect_endpoint_true_include_top_bottom():
+    rect = linspace_rect(
+        start=[0, 0],
+        stop=[1, 5],
+        num=[4, 3],
+        include=["top", "bottom"],
+    )
+    expected = np.array(
+        [
+            [0.0, 5.0],
+            [0.33333333, 5.0],
+            [0.66666667, 5.0],
+            [1.0, 5.0],
+            [0.0, 0.0],
+            [0.33333333, 0.0],
+            [0.66666667, 0.0],
+            [1.0, 0.0],
+        ]
+    ).T
+    assert np.allclose(rect, expected)
+
+
+def test_linspace_rect_endpoint_true_include_top_right():
+    rect = linspace_rect(
+        start=[0, 0],
+        stop=[1, 5],
+        num=[4, 3],
+        include=["top", "right"],
+    )
+    expected = np.array(
+        [
+            [0.0, 5.0],
+            [0.33333333, 5.0],
+            [0.66666667, 5.0],
+            [1.0, 5.0],
+            [1.0, 0.0],
+            [1.0, 2.5],
+        ]
+    ).T
     assert np.allclose(rect, expected)
 
 

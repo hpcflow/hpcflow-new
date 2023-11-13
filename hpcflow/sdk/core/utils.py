@@ -15,7 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Tuple, Type, Union, List
+from typing import Optional, Tuple, Type, Union, List
 import fsspec
 import numpy as np
 
@@ -746,7 +746,13 @@ def process_string_nodes(data, str_processor):
     return data
 
 
-def linspace_rect(start: List[float], stop: List[float], num: List[float], **kwargs):
+def linspace_rect(
+    start: List[float],
+    stop: List[float],
+    num: List[float],
+    include: Optional[List[str]] = None,
+    **kwargs,
+):
     """Generate a linear space around a rectangle.
 
     Parameters
@@ -757,6 +763,9 @@ def linspace_rect(start: List[float], stop: List[float], num: List[float], **kwa
         Two stop values; one for each dimension of the rectangle.
     num
         Two number values; one for each dimension of the rectangle.
+    include
+        If specified, include only the specified edges. Choose from "top", "right",
+        "bottom", "left".
 
     Returns
     -------
@@ -768,17 +777,33 @@ def linspace_rect(start: List[float], stop: List[float], num: List[float], **kwa
     if num[0] == 1 or num[1] == 1:
         raise ValueError("Both values in `num` must be greater than 1.")
 
+    if not include:
+        include = ["top", "right", "bottom", "left"]
+
     c0_range = np.linspace(start=start[0], stop=stop[0], num=num[0], **kwargs)
     c1_range_all = np.linspace(start=start[1], stop=stop[1], num=num[1], **kwargs)
-    c1_range = c1_range_all[1:-1]
+
+    c1_range = c1_range_all
+    if "bottom" in include:
+        c1_range = c1_range[1:]
+    if "top" in include:
+        c1_range = c1_range[:-1]
 
     c0_range_c1_start = np.vstack([c0_range, np.repeat(start[1], num[0])])
     c0_range_c1_stop = np.vstack([c0_range, np.repeat(c1_range_all[-1], num[0])])
 
-    c1_range_c0_start = np.vstack([np.repeat(start[0], num[1] - 2), c1_range])
-    c1_range_c0_stop = np.vstack([np.repeat(c0_range[-1], num[1] - 2), c1_range])
+    c1_range_c0_start = np.vstack([np.repeat(start[0], len(c1_range)), c1_range])
+    c1_range_c0_stop = np.vstack([np.repeat(c0_range[-1], len(c1_range)), c1_range])
 
-    rect = np.hstack(
-        [c0_range_c1_start, c0_range_c1_stop, c1_range_c0_start, c1_range_c0_stop]
-    )
+    stacked = []
+    if "top" in include:
+        stacked.append(c0_range_c1_stop)
+    if "right" in include:
+        stacked.append(c1_range_c0_stop)
+    if "bottom" in include:
+        stacked.append(c0_range_c1_start)
+    if "left" in include:
+        stacked.append(c1_range_c0_start)
+
+    rect = np.hstack(stacked)
     return rect

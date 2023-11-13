@@ -430,7 +430,7 @@ def test_from_rectangle(null_config):
     seq_coord_1 = hf.ValueSequence.from_rectangle(**kwargs, coord=1)
 
     assert np.allclose(seq_coord_0.values, [0, 1, 0, 1])
-    assert np.allclose(seq_coord_1.values, [0, 0, 1, 1])
+    assert np.allclose(seq_coord_1.values, [1, 1, 0, 0])
 
 
 def test_from_rectangle_coord_none(null_config):
@@ -441,4 +441,4 @@ def test_from_rectangle_coord_none(null_config):
         num=[2, 2],
     )
     seq = hf.ValueSequence.from_rectangle(**kwargs)
-    assert np.allclose(seq.values, [[0, 0], [1, 0], [0, 1], [1, 1]])
+    assert np.allclose(seq.values, [[0, 1], [1, 1], [0, 0], [1, 0]])
