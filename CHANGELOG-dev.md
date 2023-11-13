@@ -1,4 +1,27 @@
 
+<a name="v0.2.0a134"></a>
+## [v0.2.0a134](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a133...v0.2.0a134) - 2023.11.13
+
+### ✨ Features
+
+* add `include` option to `ValueSequence.from_rectangle` to optionally exclude edges
+
+### 🐛 Bug Fixes
+
+* failing tests
+* fix `._values_from_rectangle` defaults
+* build-exes when only build dirs
+* add more debug logs again
+* build-exes test config
+* add more debug logs
+* try adding a retry wrapper
+* add a debug log
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a133"></a>
 ## [v0.2.0a133](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a132...v0.2.0a133) - 2023.11.11
 
