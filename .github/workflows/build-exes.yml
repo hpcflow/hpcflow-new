@@ -226,7 +226,7 @@ jobs:
         if: github.event.inputs.build_onedir == 'true'
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-macOS-dir/hpcflow-${{ env.vers }}-macOS-dir config set-github-demo-data-dir ${{ env.sha }}
-  
+
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
         run: |
