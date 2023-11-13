@@ -1336,6 +1336,8 @@ class PersistentStore(ABC):
         return subs
 
     def get_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
+        self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
+
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_elements)
@@ -1360,6 +1362,8 @@ class PersistentStore(ABC):
         return elems_new
 
     def get_element_iterations(self, id_lst: Iterable[int]) -> List[AnySElementIter]:
+        self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
+
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_elem_iters)
@@ -1393,6 +1397,8 @@ class PersistentStore(ABC):
         return iters_new
 
     def get_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
+        self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
+
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_EARs)
@@ -1434,6 +1440,7 @@ class PersistentStore(ABC):
         return EARs_new
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
+        self.logger.debug(f"PersistentStore.get_EAR_skipped: EAR_ID={EAR_ID!r}")
         return self.get_EARs([EAR_ID])[0].skip
 
     def get_parameters(

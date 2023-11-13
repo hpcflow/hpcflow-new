@@ -649,7 +649,7 @@ class ElementActionRun:
             where each tuple contains: (parameter name, shell variable name,
             "stdout"/"stderr").
         """
-
+        self.app.persistence_logger.debug("EAR.compose_commands")
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
             ifg.write_source(self.action)
