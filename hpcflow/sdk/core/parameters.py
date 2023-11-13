@@ -851,7 +851,7 @@ class ValueSequence(JSONLike):
         return vals
 
     @classmethod
-    def _values_from_rectangle(cls, start, stop, num, coord, include, **kwargs):
+    def _values_from_rectangle(cls, start, stop, num, coord=None, include=None, **kwargs):
         vals = linspace_rect(start=start, stop=stop, num=num, include=include, **kwargs)
         if coord is not None:
             vals = vals[coord].tolist()
