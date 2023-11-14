@@ -421,6 +421,10 @@ class WorkflowLoop:
                             # keep locally defined inputs from original element
                             inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
 
+                        elif orig_inp_src.source_type is InputSourceType.DEFAULT:
+                            # keep default value from original element
+                            inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
+
                         elif orig_inp_src.source_type is InputSourceType.TASK:
                             if orig_inp_src.task_ref not in self.task_insert_IDs:
                                 # source task not part of the loop; copy existing data idx:
