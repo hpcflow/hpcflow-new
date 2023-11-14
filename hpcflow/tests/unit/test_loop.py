@@ -315,6 +315,72 @@ def test_wk_loop_input_sources_including_non_iteration_task_source(null_config, 
     assert t2_iter_1["inputs.p3"] == t3_iter_0["outputs.p3"]
 
 
+def test_wk_loop_input_sources_default(null_config, tmp_path):
+    act_env = hf.ActionEnvironment("null_env")
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2", default_value=2)],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p1>> + <<parameter:p2>>))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+    )
+    wk.add_loop(hf.Loop(tasks=[0], num_iterations=2))
+    t1_iter_0 = wk.tasks.t1.elements[0].iterations[0].get_data_idx()
+    t1_iter_1 = wk.tasks.t1.elements[0].iterations[1].get_data_idx()
+
+    assert t1_iter_0["inputs.p2"] == t1_iter_1["inputs.p2"]
+
+
+def test_wk_loop_input_sources_iterable_param_default(null_config, tmp_path):
+    act_env = hf.ActionEnvironment("null_env")
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1", default_value=1)],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p1>> + 10))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+    )
+    wk.add_loop(hf.Loop(tasks=[0], num_iterations=3))
+    # first iteration should be the default value, second and third iterations should
+    # be from previous iteration outputs:
+    t1_iter_0 = wk.tasks.t1.elements[0].iterations[0].get_data_idx()
+    t1_iter_1 = wk.tasks.t1.elements[0].iterations[1].get_data_idx()
+    t1_iter_2 = wk.tasks.t1.elements[0].iterations[2].get_data_idx()
+
+    assert t1_iter_0["inputs.p1"] != t1_iter_1["inputs.p1"]
+    assert t1_iter_1["inputs.p1"] != t1_iter_2["inputs.p1"]
+    assert t1_iter_1["inputs.p1"] == t1_iter_0["outputs.p1"]
+    assert t1_iter_2["inputs.p1"] == t1_iter_1["outputs.p1"]
+
+
 def test_wk_loop_input_sources_including_non_iteration_task_source_with_groups(
     null_config, tmp_path
 ):
