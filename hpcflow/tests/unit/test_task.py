@@ -459,6 +459,84 @@ def test_task_get_available_task_input_sources_input_source_excluded_if_not_loca
     assert available == available_exp
 
 
+def test_task_input_sources_output_label(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(command="Write-Host 101", stdout="<<int(parameter:p1)>>")
+                ]
+            )
+        ],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2", inputs=[hf.SchemaInput("p1", labels={"one": {}}, multiple=True)]
+    )
+
+    tasks = [
+        hf.Task(schema=ts1, output_labels=[hf.OutputLabel(parameter="p1", label="one")]),
+        hf.Task(schema=ts2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks, template_name="test_sources", path=tmp_path
+    )
+
+    assert wk.tasks.t2.template.element_sets[0].input_sources == {
+        "p1[one]": [
+            hf.InputSource.task(task_ref=0, task_source_type="output", element_iters=[0])
+        ]
+    }
+
+
+def test_task_input_sources_output_label_filtered(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="Write-Host (<<parameter:p1>> + 101)",
+                        stdout="<<int(parameter:p1)>>",
+                    ),
+                ],
+            ),
+        ],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2", inputs=[hf.SchemaInput("p1", labels={"one": {}}, multiple=True)]
+    )
+
+    tasks = [
+        hf.Task(
+            schema=ts1,
+            sequences=[hf.ValueSequence(path="inputs.p1", values=[1, 2])],
+            output_labels=[
+                hf.OutputLabel(
+                    parameter="p1",
+                    label="one",
+                    where=hf.Rule(path="inputs.p1", condition={"value.equal_to": 2}),
+                ),
+            ],
+        ),
+        hf.Task(schema=ts2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        template_name="test_sources",
+        path=tmp_path,
+    )
+
+    assert wk.tasks.t2.template.element_sets[0].input_sources == {
+        "p1[one]": [
+            hf.InputSource.task(task_ref=0, task_source_type="output", element_iters=[1])
+        ]
+    }
+
+
 def test_get_task_unique_names_two_tasks_no_repeats():
     s1 = hf.TaskSchema("t1", actions=[])
     s2 = hf.TaskSchema("t2", actions=[])

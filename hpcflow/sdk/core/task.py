@@ -796,7 +796,7 @@ class Task(JSONLike):
         self, in_or_out: str, src_task, labelled_path, element_set
     ) -> List[int]:
         if in_or_out == "input":
-            # input parameter might not be provided e.g. if it only used
+            # input parameter might not be provided e.g. if it is only used
             # to generate an input file, and that input file is passed
             # directly, so consider only source task element sets that
             # provide the input locally:
@@ -863,8 +863,75 @@ class Task(JSONLike):
                     key=lambda x: x[0],
                     reverse=True,
                 ):
-                    if inputs_path in labelled_path:
+                    src_elem_iters = []
+                    lab_s = labelled_path.split(".")
+                    inp_s = inputs_path.split(".")
+                    try:
+                        get_relative_path(lab_s, inp_s)
+                    except ValueError:
+                        try:
+                            get_relative_path(inp_s, lab_s)
+                        except ValueError:
+                            # no intersection between paths
+                            inputs_path_label = None
+                            out_label = None
+                            unlabelled, inputs_path_label = split_param_label(inputs_path)
+                            try:
+                                get_relative_path(unlabelled.split("."), lab_s)
+                                avail_src_path = inputs_path
+                            except ValueError:
+                                continue
+
+                            if inputs_path_label:
+                                for out_lab_i in src_task_i.output_labels:
+                                    if out_lab_i.label == inputs_path_label:
+                                        out_label = out_lab_i
+                            else:
+                                continue
+
+                            # consider output labels
+                            if out_label and in_or_out == "output":
+                                # find element iteration IDs that match the output label
+                                # filter:
+                                if out_label.where:
+                                    param_path_split = out_label.where.path.split(".")
+
+                                    for elem_i in src_wk_task_i.elements:
+                                        params = getattr(elem_i, param_path_split[0])
+                                        param_dat = getattr(
+                                            params, param_path_split[1]
+                                        ).value
+
+                                        # for remaining paths components try both getattr and
+                                        # getitem:
+                                        for path_k in param_path_split[2:]:
+                                            try:
+                                                param_dat = param_dat[path_k]
+                                            except TypeError:
+                                                param_dat = getattr(param_dat, path_k)
+
+                                        rule = Rule(
+                                            path=[0],
+                                            condition=out_label.where.condition,
+                                            cast=out_label.where.cast,
+                                        )
+                                        if rule.test([param_dat]).is_valid:
+                                            src_elem_iters.append(
+                                                elem_i.iterations[0].id_
+                                            )
+                                else:
+                                    src_elem_iters = [
+                                        elem_i.iterations[0].id_
+                                        for elem_i in src_wk_task_i.elements
+                                    ]
+
+                        else:
+                            avail_src_path = inputs_path
+
+                    else:
                         avail_src_path = labelled_path
+
+                    if not src_elem_iters:
                         try:
                             src_elem_iters = self._get_task_source_element_iters(
                                 in_or_out=in_or_out,
@@ -874,53 +941,6 @@ class Task(JSONLike):
                             )
                         except NoAvailableElementSetsError:
                             continue
-                    elif labelled_path in inputs_path:
-                        avail_src_path = inputs_path
-                        inputs_path_label = None
-                        out_label = None
-                        _, inputs_path_label = split_param_label(inputs_path)
-                        if inputs_path_label:
-                            for out_lab_i in src_task_i.output_labels:
-                                if out_lab_i.label == inputs_path_label:
-                                    out_label = out_lab_i
-                        if out_label and in_or_out == "output":
-                            # find element iteration IDs that match the output label
-                            # filter:
-                            param_path = ".".join(
-                                i.condition.callable.kwargs["value"]
-                                for i in out_label.where.path
-                            )
-                            param_path_split = param_path.split(".")
-
-                            src_elem_iters = []
-                            for elem_i in src_wk_task_i.elements[:]:
-                                params = getattr(elem_i, param_path_split[0])
-                                param_dat = getattr(params, param_path_split[1]).value
-
-                                # for remaining paths components try both getattr and
-                                # getitem:
-                                for path_k in param_path_split[2:]:
-                                    try:
-                                        param_dat = param_dat[path_k]
-                                    except TypeError:
-                                        param_dat = getattr(param_dat, path_k)
-
-                                rule = Rule(
-                                    path=[0],
-                                    condition=out_label.where.condition,
-                                    cast=out_label.where.cast,
-                                )
-                                if rule.test([param_dat]).is_valid:
-                                    src_elem_iters.append(elem_i.iterations[0].id_)
-                        else:
-                            src_elem_iters = self._get_task_source_element_iters(
-                                in_or_out=in_or_out,
-                                src_task=src_task_i,
-                                labelled_path=labelled_path,
-                                element_set=element_set,
-                            )
-                    else:
-                        continue
 
                     if not src_elem_iters:
                         continue
@@ -940,7 +960,6 @@ class Task(JSONLike):
                 if inputs_path not in available:
                     available[inputs_path] = []
                 available[inputs_path].append(self.app.InputSource.default())
-
         return available
 
     @property
