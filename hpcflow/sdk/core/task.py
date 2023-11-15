@@ -960,7 +960,6 @@ class Task(JSONLike):
                 if inputs_path not in available:
                     available[inputs_path] = []
                 available[inputs_path].append(self.app.InputSource.default())
-        print(f"Task.get_avail: {available=!r}")
         return available
 
     @property
