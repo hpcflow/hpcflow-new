@@ -86,6 +86,8 @@ class ElementSet(JSONLike):
             name="input_files",
             class_name="InputFile",
             is_multiple=True,
+            dict_key_attr="file",
+            dict_val_attr="path",
             parent_ref="_element_set",
         ),
         ChildObjectSpec(

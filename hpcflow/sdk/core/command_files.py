@@ -10,6 +10,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
+from hpcflow.sdk.core.parameters import _process_demo_data_strings
 
 
 @dataclass
@@ -338,7 +339,7 @@ class _FileContentsSpecifier(JSONLike):
                 "`store_contents` cannot be set to False if `contents` was specified."
             )
 
-        self._path = path
+        self._path = _process_demo_data_strings(self.app, path)
         self._contents = contents
         self._extension = extension
         self._store_contents = store_contents
