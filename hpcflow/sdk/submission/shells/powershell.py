@@ -112,7 +112,7 @@ class WindowsPowerShell(Shell):
                 $exit_code = $exc_sk
             }}
             $global:LASTEXITCODE = $null
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $JS_IDX $JS_act_idx $EAR_ID $exit_code 2>&1 >> $app_stream_file
+            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $JS_IDX $JS_act_idx $EAR_ID "$exit_code" 2>&1 >> $app_stream_file
 
         }}
     """
