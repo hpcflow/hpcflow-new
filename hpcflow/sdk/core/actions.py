@@ -1532,7 +1532,7 @@ class Action(JSONLike):
                     ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
-                    rules=list(self.rules),
+                    rules=list(self.rules) + ofp.get_action_rules(),
                     abortable=ofp.abortable,
                 )
                 act_i._task_schema = self.task_schema

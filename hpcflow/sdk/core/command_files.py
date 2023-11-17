@@ -224,6 +224,12 @@ class OutputFileParser(JSONLike):
             shared_data_primary_key="label",
             shared_data_name="command_files",
         ),
+        ChildObjectSpec(
+            name="rules",
+            class_name="ActionRule",
+            is_multiple=True,
+            parent_ref="output_file_parser",
+        ),
     )
 
     output_files: List[app.FileSpec]
@@ -236,6 +242,7 @@ class OutputFileParser(JSONLike):
     abortable: Optional[bool] = False
     save_files: Union[List[str], bool] = True
     clean_up: Optional[List[str]] = None
+    rules: Optional[List[app.ActionRule]] = None
 
     def __post_init__(self):
         if not self.save_files:
@@ -246,6 +253,7 @@ class OutputFileParser(JSONLike):
             self.save_files = [i for i in self.output_files]
         if self.clean_up is None:
             self.clean_up = []
+        self.rules = self.rules or []
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
@@ -255,6 +263,14 @@ class OutputFileParser(JSONLike):
             elif json_like["save_files"] is True:
                 json_like["save_files"] = [i for i in json_like["output_files"]]
         return super().from_json_like(json_like, shared_data)
+
+    def get_action_rules(self):
+        """Get the rule that allows testing if this output file parser must be run or not
+        for a given element."""
+        return [
+            self.app.ActionRule.check_missing(f"output_files.{i.label}")
+            for i in self.output_files
+        ] + self.rules
 
     def compose_source(self, action) -> str:
         """Generate the file contents of this output file parser source."""
