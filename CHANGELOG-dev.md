@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a136"></a>
+## [v0.2.0a136](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a135...v0.2.0a136) - 2023.11.17
+
+### ✨ Features
+
+* add rules attribute to output file parsers
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a135"></a>
 ## [v0.2.0a135](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a134...v0.2.0a135) - 2023.11.17
 
