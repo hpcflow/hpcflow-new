@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a135"></a>
+## [v0.2.0a135](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a134...v0.2.0a135) - 2023.11.17
+
+### 🐛 Bug Fixes
+
+* use click -- separator to allow for negative exit codes
+* quote exit code in case it is negative
+* process demo-data files in `InputFile` path
+* logical error in `Task.get_available_task_input_sources`
+* add_iteration with a default value schema input
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a134"></a>
 ## [v0.2.0a134](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a133...v0.2.0a134) - 2023.11.13
 
