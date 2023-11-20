@@ -360,7 +360,7 @@ class ZarrPersistentStore(PersistentStore):
         template_components_js: Dict,
         wk_path: str,
         fs,
-        fs_path: str,
+        name: str,
         replaced_wk: str,
         ts_fmt: str,
         ts_name_fmt: str,
@@ -369,7 +369,7 @@ class ZarrPersistentStore(PersistentStore):
         compressor_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         attrs = {
-            "fs_path": fs_path,
+            "name": name,
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
@@ -1046,21 +1046,41 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", action="read") as attrs:
             return copy.deepcopy(attrs["creation_info"])
 
-    def get_fs_path(self):
+    def get_name(self):
         with self.using_resource("attrs", action="read") as attrs:
-            return attrs["fs_path"]
+            return attrs["name"]
 
-    def zip(self, log=None):
-        # TODO: need to update `fs_path` in the new store (because this used to get
-        # `Workflow.name`), but can't seem to open `dst_zarr_store` below:
+    def zip(self, path=".", log=None, overwrite=False):
+        """
+        Parameters
+        ----------
+        path:
+            Path at which to create the new zipped workflow. If this is an existing
+            directory, the zip file will be created within this directory. Otherwise,
+            this path is assumed to be the full file path to the new zip file.
+        """
         console = Console()
         status = console.status(f"Zipping workflow {self.workflow.name!r}...")
         status.start()
+
+        # TODO: this won't work for remote file systems
+        dst_path = Path(path).resolve()
+        if dst_path.is_dir():
+            dst_path = dst_path.joinpath(self.workflow.name).with_suffix(".zip")
+
+        if not overwrite and dst_path.exists():
+            status.stop()
+            raise FileExistsError(
+                f"File at path already exists: {dst_path!r}. Pass `overwrite=True` to "
+                f"overwrite the existing file."
+            )
+
+        dst_path = str(dst_path)
+
         src_zarr_store = self.zarr_store
-        new_fs_path = f"{self.workflow.fs_path}.zip"
         zfs, _ = ask_pw_on_auth_exc(
             ZipFileSystem,
-            fo=new_fs_path,
+            fo=dst_path,
             mode="w",
             target_options={},
             add_pw_to="target_options",
@@ -1074,11 +1094,12 @@ class ZarrPersistentStore(PersistentStore):
         )
         del zfs  # ZipFileSystem remains open for instance lifetime
         status.stop()
-        return new_fs_path
+        return dst_path
 
 
 class ZarrZipPersistentStore(ZarrPersistentStore):
-    """A store designed mainly as an archive format that can be uploaded to e.g. Zenodo."""
+    """A store designed mainly as an archive format that can be uploaded to data
+    repositories such as Zenodo."""
 
     _name = "zip"
     _features = PersistentStoreFeatures(
@@ -1095,13 +1116,37 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     def zip(self):
         raise ValueError("Already a zip store!")
 
-    def unzip(self, log=None):
+    def unzip(self, path=".", log=None):
+        """
+        Parameters
+        ----------
+        path:
+            Path at which to create the new unzipped workflow. If this is an existing
+            directory, the new workflow directory will be created within this directory.
+            Otherwise, this path will represent the new workflow directory path.
+
+        """
+
+        console = Console()
+        status = console.status(f"Unzipping workflow {self.workflow.name!r}...")
+        status.start()
+
+        # TODO: this won't work for remote file systems
+        dst_path = Path(path).resolve()
+        if dst_path.is_dir():
+            dst_path = dst_path.joinpath(self.workflow.name)
+
+        if dst_path.exists():
+            status.stop()
+            raise FileExistsError(f"Directory at path already exists: {dst_path!r}.")
+
+        dst_path = str(dst_path)
+
         src_zarr_store = self.zarr_store
-        new_fs_path = self.workflow.fs_path.rstrip(".zip")
-        dst_zarr_store = zarr.storage.FSStore(url=new_fs_path)
+        dst_zarr_store = zarr.storage.FSStore(url=dst_path)
         zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
-        zarr.open(dst_zarr_store).attrs["fs_path"] = new_fs_path
-        return new_fs_path
+        status.stop()
+        return dst_path
 
     def copy(self, path=None) -> str:
         # not sure how to do this.

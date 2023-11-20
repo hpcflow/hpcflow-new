@@ -376,6 +376,7 @@ class Workflow:
         workflow_ref: Union[str, Path, int],
         store_fmt: Optional[str] = None,
         fs_kwargs: Optional[Dict] = None,
+        **kwargs,
     ):
         """
         Parameters
@@ -384,7 +385,8 @@ class Workflow:
             Either the path to a persistent workflow, or an integer that will interpreted
             as the local ID of a workflow submission, as reported by the app `show`
             command.
-
+        kwargs
+            For compatibility during pre-stable development phase.
         """
 
         if isinstance(workflow_ref, int):
@@ -404,7 +406,7 @@ class Workflow:
         self._ts_fmt = None
         self._ts_name_fmt = None
         self._creation_info = None
-        self._fs_path = None
+        self._name = None
         self._template = None
         self._template_components = None
         self._tasks = None
@@ -419,14 +421,25 @@ class Workflow:
 
     def reload(self):
         """Reload the workflow from disk."""
-        return self.__class__(self.path)
+        return self.__class__(self.url)
 
     @property
     def name(self):
         """The workflow name may be different from the template name, as it includes the
         creation date-timestamp if generated."""
-        # TODO: this won't work for zip stores
-        return str(Path(self.fs_path).parts[-1])
+        if not self._name:
+            self._name = self._store.get_name()
+        return self._name
+
+    @property
+    def url(self):
+        """Get an fsspec URL for this workflow."""
+        if self._store.fs.protocol == "zip":
+            return self._store.fs.of.path
+        elif self._store.fs.protocol == "file":
+            return self.path
+        else:
+            raise NotImplementedError("Only (local) zip and local URLs provided for now.")
 
     @property
     def store_format(self):
@@ -956,12 +969,6 @@ class Workflow:
                 self._add_loop(loop, parent_loop_indices)
 
     @property
-    def fs_path(self):
-        if not self._fs_path:
-            self._fs_path = self._store.get_fs_path()
-        return self._fs_path
-
-    @property
     def creation_info(self):
         if not self._creation_info:
             info = self._store.get_creation_info()
@@ -1402,7 +1409,7 @@ class Workflow:
             template_components_js=template_sh,
             wk_path=wk_path,
             fs=fs,
-            fs_path=fs_path,
+            name=name,
             replaced_wk=replaced_wk,
             creation_info=creation_info,
             ts_fmt=ts_fmt,
@@ -1423,11 +1430,27 @@ class Workflow:
 
         return wk
 
-    def zip(self, log=None) -> str:
-        return self._store.zip(log=log)
+    def zip(self, path=".", log=None, overwrite=False) -> str:
+        """
+        Parameters
+        ----------
+        path:
+            Path at which to create the new zipped workflow. If this is an existing
+            directory, the zip file will be created within this directory. Otherwise,
+            this path is assumed to be the full file path to the new zip file.
+        """
+        return self._store.zip(path=path, log=log, overwrite=overwrite)
 
-    def unzip(self, log=None) -> str:
-        return self._store.unzip(log=log)
+    def unzip(self, path=".", log=None) -> str:
+        """
+        Parameters
+        ----------
+        path:
+            Path at which to create the new unzipped workflow. If this is an existing
+            directory, the new workflow directory will be created within this directory.
+            Otherwise, this path will represent the new workflow directory path.
+        """
+        return self._store.unzip(path=path, log=log)
 
     def copy(self, path=None) -> str:
         """Copy the workflow to a new path and return the copied workflow path."""
