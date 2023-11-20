@@ -24,6 +24,11 @@ from hpcflow.sdk.cli_common import (
     add_to_known_opt,
     print_idx_opt,
     tasks_opt,
+    zip_path_opt,
+    zip_overwrite_opt,
+    zip_log_opt,
+    unzip_path_opt,
+    unzip_log_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.submission.shells import ALL_SHELLS
@@ -391,18 +396,23 @@ def _make_workflow_CLI(app):
         ctx.obj["workflow"].show_all_EAR_statuses()
 
     @workflow.command(name="zip")
-    @click.option("--log")
+    @zip_path_opt
+    @zip_overwrite_opt
+    @zip_log_opt
     @click.pass_context
-    def zip_workflow(ctx, log=None):
-        ctx.obj["workflow"].zip(log=log)
+    def zip_workflow(ctx, path, overwrite, log):
+        """Generate a copy of the workflow in the zip file format in the current working
+        directory."""
+        click.echo(ctx.obj["workflow"].zip(path=path, overwrite=overwrite, log=log))
 
     @workflow.command(name="unzip")
-    @click.option("--log")
+    @unzip_path_opt
+    @unzip_log_opt
     @click.pass_context
-    def unzip_workflow(ctx, log=None):
-        """Generate a copy of the specified zipped workflow in the submittable Zarr
-        format."""
-        ctx.obj["workflow"].unzip(log=log)
+    def unzip_workflow(ctx, path, log):
+        """Generate a copy of the zipped workflow in the submittable Zarr format in the
+        current working directory."""
+        click.echo(ctx.obj["workflow"].unzip(path=path, log=log))
 
     workflow.help = workflow.help.format(app_name=app.name)
 
@@ -672,17 +682,20 @@ def _make_show_CLI(app):
 def _make_zip_CLI(app):
     @click.command(name="zip")
     @click.argument("workflow_ref")
-    @click.option("--log")
+    @zip_path_opt
+    @zip_overwrite_opt
+    @zip_log_opt
     @workflow_ref_type_opt
-    def zip_workflow(workflow_ref, ref_type, log=None):
-        """Generate a copy of the specified workflow in the zip file format.
+    def zip_workflow(workflow_ref, path, overwrite, log, ref_type):
+        """Generate a copy of the specified workflow in the zip file format in the
+        current working directory.
 
         WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
         workflow path.
         """
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
-        wk.zip(log=log)
+        click.echo(wk.zip(path=path, overwrite=overwrite, log=log))
 
     return zip_workflow
 
@@ -690,16 +703,17 @@ def _make_zip_CLI(app):
 def _make_unzip_CLI(app):
     @click.command(name="unzip")
     @click.argument("workflow_path")
-    @click.option("--log")
-    def unzip_workflow(workflow_path, log=None):
+    @unzip_path_opt
+    @unzip_log_opt
+    def unzip_workflow(workflow_path, path, log):
         """Generate a copy of the specified zipped workflow in the submittable Zarr
-        format.
+        format in the current working directory.
 
         WORKFLOW_PATH is path of the zip file to unzip.
 
         """
         wk = app.Workflow(workflow_path)
-        wk.unzip(log=log)
+        click.echo(wk.unzip(path=path, log=log))
 
     return unzip_workflow
 

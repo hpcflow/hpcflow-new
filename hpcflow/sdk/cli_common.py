@@ -98,3 +98,29 @@ tasks_opt = click.option(
     ),
     callback=sub_tasks_callback,
 )
+zip_path_opt = click.option(
+    "--path",
+    default=".",
+    help=(
+        "Path at which to create the new zipped workflow. If this is an existing "
+        "directory, the zip file will be created within this directory. Otherwise, this "
+        "path is assumed to be the full file path to the new zip file."
+    ),
+)
+zip_overwrite_opt = click.option(
+    "--overwrite",
+    is_flag=True,
+    default=False,
+    help="If set, any existing file will be overwritten.",
+)
+zip_log_opt = click.option("--log", help="Path to a log file to use during zipping.")
+unzip_path_opt = click.option(
+    "--path",
+    default=".",
+    help=(
+        "Path at which to create the new unzipped workflow. If this is an existing "
+        "directory, the new workflow directory will be created within this directory. "
+        "Otherwise, this path will represent the new workflow directory path."
+    ),
+)
+unzip_log_opt = click.option("--log", help="Path to a log file to use during unzipping.")

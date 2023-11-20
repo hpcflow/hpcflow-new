@@ -120,7 +120,7 @@ class JSONPersistentStore(PersistentStore):
         template_components_js: Dict,
         wk_path: str,
         fs,
-        fs_path: str,
+        name: str,
         replaced_wk: str,
         creation_info: Dict,
         ts_fmt: str,
@@ -133,7 +133,7 @@ class JSONPersistentStore(PersistentStore):
             "sources": {},
         }
         metadata = {
-            "fs_path": fs_path,
+            "name": name,
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
             "creation_info": creation_info,
@@ -485,6 +485,6 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="read") as md:
             return copy.deepcopy(md["creation_info"])
 
-    def get_fs_path(self):
+    def get_name(self):
         with self.using_resource("metadata", action="read") as md:
-            return md["fs_path"]
+            return md["name"]
