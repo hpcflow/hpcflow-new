@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a139"></a>
+## [v0.2.0a139](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a138...v0.2.0a139) - 2023.11.20
+
+### 🐛 Bug Fixes
+
+* simplify `user_runtime_path` and fix [#581](https://github.com/hpcflow/hpcflow-new/issues/581)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a138"></a>
 ## [v0.2.0a138](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a137...v0.2.0a138) - 2023.11.20
 
