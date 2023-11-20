@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a140"></a>
+## [v0.2.0a140](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a139...v0.2.0a140) - 2023.11.20
+
+### 🐛 Bug Fixes
+
+* check for matching env executable instance on submit and fix [#574](https://github.com/hpcflow/hpcflow-new/issues/574)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a139"></a>
 ## [v0.2.0a139](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a138...v0.2.0a139) - 2023.11.20
 
