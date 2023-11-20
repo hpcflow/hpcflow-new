@@ -9,10 +9,12 @@ from textwrap import indent
 from typing import Dict, List, Optional, Tuple
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     JobscriptSubmissionFailure,
     MissingEnvironmentError,
     MissingEnvironmentExecutableError,
+    MissingEnvironmentExecutableInstanceError,
     SubmissionFailure,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -80,15 +82,21 @@ class Submission(JSONLike):
             js._index = js_idx
 
     def _set_environments(self):
-        # retrieve required environments and executable labels for these runs:
-        req_envs = defaultdict(list)
-        for run in self.all_EARs:
-            env_label = run.action.get_environment_label()
-            req_envs[env_label].extend(run.action.get_required_executables())
+        filterable = ElementResources.get_env_instance_filterable_attributes()
+
+        # map required environments and executable labels to job script indices:
+        req_envs = defaultdict(lambda: defaultdict(set))
+        for js_idx, js_i in enumerate(self.jobscripts):
+            for run in js_i.all_EARs:
+                env_label = run.action.get_environment_label()
+                for exec_label_j in run.action.get_required_executables():
+                    req_envs[env_label][exec_label_j].add(js_idx)
+                if env_label not in req_envs:
+                    req_envs[env_label] = {}
 
         # check these envs/execs exist in app data:
         envs = []
-        for env_lab, execs in req_envs.items():
+        for env_lab, exec_js in req_envs.items():
             try:
                 env_i = self.app.envs.get(env_lab)
             except ValueError:
@@ -99,15 +107,23 @@ class Submission(JSONLike):
             else:
                 envs.append(env_i)
 
-            for exec_i in execs:
+            for exec_i_lab, js_idx_set in exec_js.items():
                 try:
-                    env_i.executables.get(exec_i)
+                    exec_i = env_i.executables.get(exec_i_lab)
                 except ValueError:
                     raise MissingEnvironmentExecutableError(
                         f"The environment {env_lab!r} as defined on this machine has no "
-                        f"executable labelled {exec_i!r}, which is required for this "
+                        f"executable labelled {exec_i_lab!r}, which is required for this "
                         f"submission, so the submission cannot be created."
                     ) from None
+
+                # check matching executable instances exist:
+                for js_idx_j in js_idx_set:
+                    js_j = self.jobscripts[js_idx_j]
+                    filter_exec = {j: getattr(js_j.resources, j) for j in filterable}
+                    exec_instances = exec_i.filter_instances(**filter_exec)
+                    if not exec_instances:
+                        raise MissingEnvironmentExecutableInstanceError
 
         # save env definitions to the environments attribute:
         self._environments = self.app.EnvironmentsList(envs)

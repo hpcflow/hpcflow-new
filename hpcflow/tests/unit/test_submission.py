@@ -6,6 +6,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import (
     MissingEnvironmentError,
     MissingEnvironmentExecutableError,
+    MissingEnvironmentExecutableInstanceError,
 )
 from hpcflow.sdk.submission.jobscript import group_resource_map_into_jobscripts
 from hpcflow.sdk.submission.submission import timedelta_format, timedelta_parse
@@ -183,7 +184,7 @@ def test_timedelta_parse_format_round_trip(null_config):
     assert td_str == timedelta_format(timedelta_parse(td_str))
 
 
-def test_raise_missing_env_executable(null_config, tmp_path):
+def test_raise_missing_env_executable(new_null_config, tmp_path):
     exec_name = (
         "my_executable"  # null_env (the default) has no executable "my_executable"
     )
@@ -201,7 +202,83 @@ def test_raise_missing_env_executable(null_config, tmp_path):
         wk.add_submission()
 
 
-def test_raise_missing_env(null_config, tmp_path):
+def test_raise_missing_matching_env_executable(new_null_config, tmp_path):
+    """The executable label exists, but no a matching instance."""
+    env_name = "my_hpcflow_env"
+    exec_label = "my_exec_name"
+    env = hf.Environment(
+        name=env_name,
+        executables=[
+            hf.Executable(
+                label=exec_label,
+                instances=[
+                    hf.ExecutableInstance(
+                        command="command", num_cores=1, parallel_mode=None
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(env, skip_duplicates=True)
+
+    ts = hf.TaskSchema(
+        objective="test_sub",
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=env_name)],
+                commands=[hf.Command(command=f"<<executable:{exec_label}>>")],
+            )
+        ],
+    )
+    t1 = hf.Task(schema=ts)
+    wkt = hf.WorkflowTemplate(
+        name="test_sub",
+        tasks=[t1],
+        resources={"any": {"num_cores": 2}},
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    with pytest.raises(MissingEnvironmentExecutableInstanceError):
+        wk.add_submission()
+
+
+def test_no_raise_matching_env_executable(new_null_config, tmp_path):
+    env_name = "my_hpcflow_env"
+    exec_label = "my_exec_name"
+    env = hf.Environment(
+        name=env_name,
+        executables=[
+            hf.Executable(
+                label=exec_label,
+                instances=[
+                    hf.ExecutableInstance(
+                        command="command", num_cores=2, parallel_mode=None
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(env, skip_duplicates=True)
+
+    ts = hf.TaskSchema(
+        objective="test_sub",
+        actions=[
+            hf.Action(
+                environments=[hf.ActionEnvironment(environment=env_name)],
+                commands=[hf.Command(command=f"<<executable:{exec_label}>>")],
+            )
+        ],
+    )
+    t1 = hf.Task(schema=ts)
+    wkt = hf.WorkflowTemplate(
+        name="test_sub",
+        tasks=[t1],
+        resources={"any": {"num_cores": 2}},
+    )
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    wk.add_submission()
+
+
+def test_raise_missing_env(new_null_config, tmp_path):
     env_name = "my_hpcflow_env"
     ts = hf.TaskSchema(
         objective="test_sub",
