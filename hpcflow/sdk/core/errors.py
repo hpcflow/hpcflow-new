@@ -369,6 +369,10 @@ class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
     pass
 
 
+class MissingEnvironmentExecutableInstanceError(SubmissionEnvironmentError):
+    pass
+
+
 class MissingEnvironmentError(SubmissionEnvironmentError):
     pass
 

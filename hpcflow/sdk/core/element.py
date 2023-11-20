@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from valida.conditions import ConditionLike
 from valida.rules import Rule
@@ -269,6 +269,12 @@ class ElementResources(JSONLike):
             or (self.SLURM_num_nodes and self.SLURM_num_nodes != 1)
             or (self.SLURM_num_cpus_per_task and self.SLURM_num_cpus_per_task != 1)
         )
+
+    @staticmethod
+    def get_env_instance_filterable_attributes() -> Tuple[str]:
+        """Get a tuple of resource attributes that are used to filter environment
+        executable instances at submit- and run-time."""
+        return ("num_cores", "parallel_mode")
 
     @staticmethod
     def get_default_os_name():

@@ -6,8 +6,8 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
+from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
-
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.parameters import ParameterValue
 
@@ -74,7 +74,7 @@ class Command(JSONLike):
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
-                filterable = ("num_cores", "parallel_mode")
+                filterable = ElementResources.get_env_instance_filterable_attributes()
                 filter_exec = {j: EAR.get_resources().get(j) for j in filterable}
                 exec_cmd = executable.filter_instances(**filter_exec)[0].command
                 out = exec_cmd.replace("<<num_cores>>", str(EAR.resources.num_cores))
