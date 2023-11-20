@@ -171,7 +171,7 @@ def swap_nested_dict_keys(dct, inner_key):
 
     """
     out = {}
-    for k, v in copy.deepcopy(dct).items():
+    for k, v in copy.deepcopy(dct or {}).items():
         inner_val = v.pop(inner_key)
         if inner_val not in out:
             out[inner_val] = {}

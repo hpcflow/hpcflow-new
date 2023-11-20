@@ -1,13 +1,15 @@
 from contextlib import contextmanager
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib import import_module
 from typing import Dict, List, Optional, Tuple, Union
+from html import escape
 
 from rich import print as rich_print
+from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.markup import escape
+from rich.markup import escape as rich_esc
 from rich.text import Text
 
 from hpcflow.sdk import app
@@ -50,7 +52,9 @@ class TaskSchema(JSONLike):
         A list of SchemaInput objects that define the inputs to the task.
     outputs
         A list of SchemaOutput objects that define the outputs of the task.
-
+    web_doc
+        True if this object should be included in the Sphinx documentation (in the case
+        of built-in task schemas). True by default.
     """
 
     _validation_schema = "task_schema_spec_schema.yaml"
@@ -84,6 +88,7 @@ class TaskSchema(JSONLike):
         outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
         version: Optional[str] = None,
         parameter_class_modules: Optional[List[str]] = None,
+        web_doc: Optional[bool] = True,
         _hash_value: Optional[str] = None,
     ):
         self.objective = objective
@@ -93,6 +98,7 @@ class TaskSchema(JSONLike):
         self.inputs = inputs or []
         self.outputs = outputs or []
         self.parameter_class_modules = parameter_class_modules or []
+        self.web_doc = web_doc
         self._hash_value = _hash_value
 
         self._set_parent_refs()
@@ -119,7 +125,7 @@ class TaskSchema(JSONLike):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
-    def _show_info(self, include=None):
+    def _get_info(self, include=None):
         def _get_param_type_str(parameter) -> str:
             type_fmt = "-"
             if parameter._validation:
@@ -184,7 +190,7 @@ class TaskSchema(JSONLike):
                         if inp.default_value.value is None:
                             def_str = "None"
                         else:
-                            def_str = f"{escape(str(inp.default_value.value))!r}"
+                            def_str = f"{rich_esc(str(inp.default_value.value))!r}"
                 tab_ins_outs.add_row(
                     "" if inp_idx > 0 else "[bold]Inputs[/bold]",
                     _format_parameter_type(inp.parameter),
@@ -242,27 +248,27 @@ class TaskSchema(JSONLike):
                             continue
                         tab_cmds_i.add_row(
                             "[italic]rule:[/italic]",
-                            escape(f"{r_path}{r_cond}"),
+                            rich_esc(f"{r_path}{r_cond}"),
                         )
                 tab_cmds_i.add_row(
                     "[italic]scope:[/italic]",
-                    escape(act.get_precise_scope().to_string()),
+                    rich_esc(act.get_precise_scope().to_string()),
                 )
                 for cmd in act.commands:
                     cmd_str = "cmd" if cmd.command else "exe"
                     tab_cmds_i.add_row(
                         f"[italic]{cmd_str}:[/italic]",
-                        escape(cmd.command or cmd.executable),
+                        rich_esc(cmd.command or cmd.executable),
                     )
                     if cmd.stdout:
                         tab_cmds_i.add_row(
                             "[italic]out:[/italic]",
-                            escape(cmd.stdout),
+                            rich_esc(cmd.stdout),
                         )
                     if cmd.stderr:
                         tab_cmds_i.add_row(
                             "[italic]err:[/italic]",
-                            escape(cmd.stderr),
+                            rich_esc(cmd.stderr),
                         )
 
                 tab_acts.add_row(tab_cmds_i)
@@ -270,7 +276,11 @@ class TaskSchema(JSONLike):
         else:
             tab.add_row()
 
-        panel = Panel(tab, title=f"Task schema: {escape(self.objective.name)!r}")
+        panel = Panel(tab, title=f"Task schema: {rich_esc(self.objective.name)!r}")
+        return panel
+
+    def _show_info(self, include=None):
+        panel = self._get_info(include=include)
         rich_print(panel)
 
     @property
@@ -282,6 +292,222 @@ class TaskSchema(JSONLike):
     def info(self):
         """Show inputs, outputs, and actions, formatted in a table."""
         return self._show_info()
+
+    def get_info_html(self) -> str:
+        def _format_parameter_type(param):
+            param_typ_fmt = param.typ
+            if param.typ in param_types:
+                param_url = (
+                    f"{self.app.docs_url}/reference/template_components/"
+                    f"parameters.html#{param.url_slug}"
+                )
+                param_typ_fmt = f'<a href="{param_url}">{param_typ_fmt}</a>'
+            return param_typ_fmt
+
+        def _get_param_type_str(param) -> str:
+            type_fmt = "-"
+            if param._validation:
+                try:
+                    type_fmt = param._validation.to_tree()[0]["type_fmt"]
+                except Exception:
+                    pass
+            elif param._value_class:
+                param_cls = param._value_class
+                cls_url = (
+                    f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                    f"{param_cls.__name__}"
+                )
+                type_fmt = f'<a href="{cls_url}">{param_cls.__name__}</a>'
+            return type_fmt
+
+        def _prepare_script_data_format_table(script_data_grouped):
+            out = ""
+            rows = ""
+            for fmt, params in script_data_grouped.items():
+                params_rows = "</tr><tr>".join(
+                    f"<td><code>{k}</code></td><td><code>{v if v else ''}</code></td>"
+                    for k, v in params.items()
+                )
+                rows += f'<tr><td rowspan="{len(params)}"><code>{fmt!r}</code></td>{params_rows}</tr>'
+            if rows:
+                out = f'<table class="script-data-format-table">{rows}</table>'
+
+            return out
+
+        param_types = self.app.parameters.list_attrs()
+
+        inputs_header_row = f"<tr><th>parameter</th><th>type</th><th>default</th></tr>"
+        input_rows = ""
+        for inp in self.inputs:
+            def_str = "-"
+            if not inp.multiple:
+                if inp.default_value is not NullDefault.NULL:
+                    if inp.default_value.value is None:
+                        def_str = "None"
+                    else:
+                        def_str = f"{rich_esc(str(inp.default_value.value))!r}"
+
+            param_str = _format_parameter_type(inp.parameter)
+            type_str = _get_param_type_str(inp.parameter)
+            input_rows += (
+                f"<tr>"
+                f"<td>{param_str}</td>"
+                f"<td>{type_str}</td>"
+                f"<td>{def_str}</td>"
+                f"</tr>"
+            )
+
+        if input_rows:
+            inputs_table = (
+                f'<table class="schema-inputs-table">'
+                f"{inputs_header_row}{input_rows}</table>"
+            )
+        else:
+            inputs_table = (
+                f'<span class="schema-note-no-inputs">This task schema has no input '
+                f"parameters.</span>"
+            )
+
+        outputs_header_row = f"<tr><th>parameter</th><th>type</th></tr>"
+        output_rows = ""
+        for out in self.outputs:
+            param_str = _format_parameter_type(out.parameter)
+            type_str = _get_param_type_str(out.parameter)
+            output_rows += f"<tr>" f"<td>{param_str}</td>" f"<td>{type_str}</td>" f"</tr>"
+
+        if output_rows:
+            outputs_table = (
+                f'<table class="schema-inputs-table">{outputs_header_row}{output_rows}'
+                f"</table>"
+            )
+
+        else:
+            outputs_table = (
+                f'<span class="schema-note-no-outputs">This task schema has no output '
+                f"parameters.</span>"
+            )
+
+        action_rows = ""
+        for act_idx, act in enumerate(self.actions):
+            act_i_rules = ""
+            if act.rules:
+                seen_rules = []  # bug: some rules seem to be repeated
+                for act_rule_j in act.rules:
+                    if act_rule_j.rule in seen_rules:
+                        continue
+                    else:
+                        seen_rules.append(act_rule_j.rule)
+                    r_path = ""
+                    if act_rule_j.rule.check_missing:
+                        r_cond = f"check missing: {act_rule_j.rule.check_missing!r}"
+                    elif act_rule_j.rule.check_exists:
+                        r_cond = f"check exists: {act_rule_j.rule.check_exists!r}"
+                    elif act_rule_j.rule.condition:
+                        r_path = f"{act_rule_j.rule.path}: "
+                        r_cond = str(act_rule_j.rule.condition.to_json_like())
+                    else:
+                        continue
+                    act_i_rules += f"<div><code>{r_path}{r_cond}</code></div>"
+
+            act_i_script_rows = ""
+            num_script_rows = 0
+            if act.script:
+                act_i_script_rows += (
+                    f'<tr><td class="action-header-cell">script:</td>'
+                    f"<td><code>{escape(act.script)}</code></td></tr>"
+                )
+                num_script_rows += 1
+            if act.script_exe:
+                act_i_script_rows += (
+                    f'<tr><td class="action-header-cell">script exe:</td>'
+                    f"<td><code>{escape(act.script_exe)}</code></td></tr>"
+                )
+                num_script_rows += 1
+            if act.script_data_in_grouped:
+                act_i_script_rows += (
+                    f'<tr><td class="action-header-cell">script data-in:</td>'
+                    f"<td>{_prepare_script_data_format_table(act.script_data_in_grouped)}"
+                    f"</td></tr>"
+                )
+                num_script_rows += 1
+            if act.script_data_out_grouped:
+                act_i_script_rows += (
+                    f'<tr><td class="action-header-cell">script data-out:</td>'
+                    f"<td>{_prepare_script_data_format_table(act.script_data_out_grouped)}"
+                    f"</td></tr>"
+                )
+                num_script_rows += 1
+
+            act_i_cmds_tab_rows = ""
+            for cmd_idx, cmd in enumerate(act.commands):
+                cmd_j_tab_rows = (
+                    f'<tr><td colspan="3" class="commands-table-top-spacer-cell"></td>'
+                    f"</tr><tr>"
+                    f'<td rowspan="{bool(cmd.stdout) + bool(cmd.stderr) + 1}">'
+                    f'<span class="cmd-idx-numeral">{cmd_idx}</span></td>'
+                    f'<td class="command-header-cell">{"cmd" if cmd.command else "exe"}:'
+                    f"</td><td><code><pre>{escape(cmd.command or cmd.executable)}</pre>"
+                    f"</code></td></tr>"
+                )
+                if cmd.stdout:
+                    cmd_j_tab_rows += (
+                        f'<tr><td class="command-header-cell">out:</td>'
+                        f"<td><code>{escape(cmd.stdout)}</code></td></tr>"
+                    )
+                if cmd.stderr:
+                    cmd_j_tab_rows += (
+                        f'<tr><td class="command-header-cell">err:</td>'
+                        f"<td><code>{escape(cmd.stderr)}</code></td></tr>"
+                    )
+                if cmd_idx < len(act.commands) - 1:
+                    cmd_j_tab_rows += (
+                        f'<tr><td colspan="3" class="commands-table-bottom-spacer-cell">'
+                        f"</td></tr>"
+                    )
+                act_i_cmds_tab_rows += cmd_j_tab_rows
+
+            act_i_cmds_tab = (
+                f'<table class="actions-commands-table">{act_i_cmds_tab_rows}</table>'
+            )
+
+            action_rows += (
+                f'<tr><td colspan="3" class="action-table-top-spacer-cell"></td></tr>'
+                f'<tr><td rowspan="{4 + num_script_rows}" class="act-idx-cell">'
+                f'<span class="act-idx-numeral">{act_idx}</span></td>'
+                f'<td class="action-header-cell">rules:</td><td>{act_i_rules or "-"}</td>'
+                f'</tr><tr><td class="action-header-cell">scope:</td>'
+                f"<td><code>{act.get_precise_scope().to_string()}</code></td></tr>"
+                f'<tr><td class="action-header-cell">environment:</td>'
+                f"<td><code>{act.get_environment().name}</code></td></tr>"
+                f"{act_i_script_rows}"
+                f'<tr class="action-commands-row">'
+                f'<td class="action-header-cell" colspan="2">'
+                f"commands:{act_i_cmds_tab}</td></tr>"
+                f'<tr><td colspan="3" class="action-table-bottom-spacer-cell"></td></tr>'
+            )
+
+        if action_rows:
+            action_table = f'<table class="action-table hidden">{action_rows}</table>'
+            action_show_hide = (
+                f'<span class="actions-show-hide-toggle">[<span class="action-show-text">'
+                f'show ↓</span><span class="action-hide-text hidden">hide ↑</span>]'
+                f"</span>"
+            )
+            act_heading_class = ' class="actions-heading"'
+        else:
+            action_table = (
+                f'<span class="schema-note-no-actions">'
+                f"This task schema has no actions.</span>"
+            )
+            action_show_hide = ""
+            act_heading_class = ""
+        out = (
+            f"<h5>Inputs</h5>{inputs_table}"
+            f"<h5>Outputs</h5>{outputs_table}"
+            # f"<h5>Examples</h5>examples here..." # TODO:
+            f"<h5{act_heading_class}>Actions{action_show_hide}</h5>{action_table}"
+        )
+        return out
 
     def __eq__(self, other):
         if type(other) is not self.__class__:
