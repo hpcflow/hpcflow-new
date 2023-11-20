@@ -813,7 +813,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_data_dir(path=False):
-        dir_path = app.user_data_dir
+        dir_path = app._ensure_user_data_dir()
         if path:
             click.echo(dir_path)
         else:
@@ -822,7 +822,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_cache_dir(path=False):
-        dir_path = app.user_cache_dir
+        dir_path = app._ensure_user_cache_dir()
         if path:
             click.echo(dir_path)
         else:
@@ -831,7 +831,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_runtime_dir(path=False):
-        dir_path = app.user_runtime_dir
+        dir_path = app._ensure_user_runtime_dir()
         if path:
             click.echo(dir_path)
         else:
@@ -840,7 +840,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_data_hostname_dir(path=False):
-        dir_path = app.user_data_hostname_dir
+        dir_path = app._ensure_user_data_hostname_dir()
         if path:
             click.echo(dir_path)
         else:
@@ -849,7 +849,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def user_cache_hostname_dir(path=False):
-        dir_path = app.user_cache_hostname_dir
+        dir_path = app._ensure_user_cache_hostname_dir()
         if path:
             click.echo(dir_path)
         else:
@@ -858,7 +858,7 @@ def _make_open_CLI(app):
     @open_file.command()
     @click.option("--path", is_flag=True, default=False)
     def demo_data_cache_dir(path=False):
-        dir_path = app.demo_data_cache_dir
+        dir_path = app._ensure_demo_data_cache_dir()
         if path:
             click.echo(dir_path)
         else:

@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 import enum
-import getpass
 import json
 import shutil
 from functools import wraps
@@ -18,7 +17,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
 import zipfile
-from platformdirs import user_cache_path, user_data_dir, user_runtime_path
+from platformdirs import user_cache_path, user_data_dir
 from reretry import retry
 from rich.console import Console, Group
 from rich.syntax import Syntax
@@ -62,7 +61,6 @@ from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
-NON_LINUX_PLATFORM = ("win32", "darwin")
 
 
 def __getattr__(name):
@@ -514,7 +512,7 @@ class BaseApp(metaclass=Singleton):
     def user_runtime_dir(self) -> Path:
         """Retrieve a temporary directory."""
         if self._user_runtime_dir is None:
-            self._user_runtime_dir = Path(user_runtime_path(appname=self.package_name))
+            self._user_runtime_dir = self.user_data_dir.joinpath("temp")
         return self._user_runtime_dir
 
     @property
@@ -544,21 +542,6 @@ class BaseApp(metaclass=Singleton):
             self._user_cache_hostname_dir = self.user_cache_dir.joinpath(machine_name)
         return self._user_cache_hostname_dir
 
-    def _get_alternative_runtime_dir(self) -> Path:
-        """If we cannot create `user_runtime_dir` on Linux, try an alternative path.
-
-        This is necessary for non-standard configurations (e.g. if `/run/user/$USER_ID` is
-        not user-writable).
-
-        """
-        if sys.platform not in NON_LINUX_PLATFORM:
-            if not self.config.alternative_unix_runtime_dir:
-                self.config.alternative_unix_runtime_dir = f"/tmp/{getpass.getuser()}"
-                self.config.save()
-            return self.config.alternative_unix_runtime_dir.joinpath(self.package_name)
-        else:
-            raise RuntimeError("Cannot set runtime directory.")
-
     def _ensure_user_data_dir(self) -> Path:
         """Ensure a user data directory exists."""
         if not self.user_data_dir.exists():
@@ -576,32 +559,7 @@ class BaseApp(metaclass=Singleton):
 
         """
         if not self.user_runtime_dir.exists():
-            try:
-                self.user_runtime_dir.mkdir(parents=True)
-            except PermissionError:
-                self.logger.debug(
-                    f"Failed to create standard user runtime directory "
-                    f"{self.user_runtime_dir!r}. Attempting to create in alternative "
-                    f"location..."
-                )
-                self._user_runtime_dir = self._get_alternative_runtime_dir()
-                try:
-                    self.user_runtime_dir.mkdir(parents=True, exist_ok=True)
-                except PermissionError as err:
-                    msg = (
-                        f"Failed to create alternative user runtime directory: "
-                        f"{self.user_runtime_dir!r} due to a permission error: "
-                        f"{err.args!r}."
-                    )
-                    if sys.platform in NON_LINUX_PLATFORM:
-                        raise RuntimeError(msg)
-                    else:
-                        msg += (
-                            f" Try setting the configuration item "
-                            f"`alternative_unix_runtime_dir` to a user-writable "
-                            f"directory; by default this is set to `/tmp/$USER`."
-                        )
-                        raise PermissionError(msg)
+            self.user_runtime_dir.mkdir(parents=True)
             self.logger.info(
                 f"Created user runtime directory: {self.user_runtime_dir!r}."
             )
