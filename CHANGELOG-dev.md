@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a138"></a>
+## [v0.2.0a138](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a137...v0.2.0a138) - 2023.11.20
+
+### 🐛 Bug Fixes
+
+* zip and unzip
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a137"></a>
 ## [v0.2.0a137](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a136...v0.2.0a137) - 2023.11.20
 
