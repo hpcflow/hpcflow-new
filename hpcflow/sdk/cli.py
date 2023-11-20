@@ -401,6 +401,8 @@ def _make_workflow_CLI(app):
     @zip_log_opt
     @click.pass_context
     def zip_workflow(ctx, path, overwrite, log):
+        """Generate a copy of the workflow in the zip file format in the current working
+        directory."""
         click.echo(ctx.obj["workflow"].zip(path=path, overwrite=overwrite, log=log))
 
     @workflow.command(name="unzip")
@@ -408,8 +410,8 @@ def _make_workflow_CLI(app):
     @unzip_log_opt
     @click.pass_context
     def unzip_workflow(ctx, path, log):
-        """Generate a copy of the specified zipped workflow in the submittable Zarr
-        format."""
+        """Generate a copy of the zipped workflow in the submittable Zarr format in the
+        current working directory."""
         click.echo(ctx.obj["workflow"].unzip(path=path, log=log))
 
     workflow.help = workflow.help.format(app_name=app.name)
