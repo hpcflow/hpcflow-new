@@ -2269,7 +2269,10 @@ class BaseApp(metaclass=Singleton):
                     with zipfile.ZipFile(src, "r") as zip_ref:
                         zip_ref.extractall(temp_dir)
                     extracted = Path(temp_dir).joinpath(file_name)
-                    shutil.copy(extracted, cache_file_path)
+                    if extracted.is_dir():
+                        shutil.copytree(extracted, cache_file_path)
+                    else:
+                        shutil.copy(extracted, cache_file_path)
             else:
                 # copy to cache dir:
                 shutil.copy(src, cache_file_path)
