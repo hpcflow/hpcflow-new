@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a141"></a>
+## [v0.2.0a141](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a140...v0.2.0a141) - 2023.11.21
+
+### ✨ Features
+
+* support directory demo data in addition to files
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a140"></a>
 ## [v0.2.0a140](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a139...v0.2.0a140) - 2023.11.20
 
