@@ -1468,13 +1468,9 @@ class Action(JSONLike):
             #   - AND input file is not passed
             # always run OPs, for now
 
-            out_file_rules = [
-                self.app.ActionRule.check_missing(f"output_files.{j.label}")
-                for i in self.output_file_parsers
-                for j in i.output_files
+            main_rules = self.rules + [
+                j for i in self.output_file_parsers for j in i.get_action_rules()
             ]
-
-            main_rules = self.rules + out_file_rules
 
             # note we keep the IFG/OPs in the new actions, so we can check the parameters
             # used/produced.
@@ -1501,7 +1497,7 @@ class Action(JSONLike):
                     ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
-                    rules=main_rules + [ifg.get_action_rule()],
+                    rules=main_rules + ifg.get_action_rules(),
                     abortable=ifg.abortable,
                 )
                 act_i._task_schema = self.task_schema

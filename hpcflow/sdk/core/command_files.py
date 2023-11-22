@@ -119,6 +119,12 @@ class InputFileGenerator(JSONLike):
             shared_data_primary_key="typ",
             shared_data_name="parameters",
         ),
+        ChildObjectSpec(
+            name="rules",
+            class_name="ActionRule",
+            is_multiple=True,
+            parent_ref="input_file_generator",
+        ),
     )
 
     input_file: app.FileSpec
@@ -126,11 +132,17 @@ class InputFileGenerator(JSONLike):
     script: str = None
     environment: app.Environment = None
     abortable: Optional[bool] = False
+    rules: Optional[List[app.ActionRule]] = None
 
-    def get_action_rule(self):
-        """Get the rule that allows testing if this input file generator must be
-        run or not for a given element."""
-        return self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
+    def __post_init__(self):
+        self.rules = self.rules or []
+
+    def get_action_rules(self):
+        """Get the rules that allow testing if this input file generator must be run or
+        not for a given element."""
+        return [
+            self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
+        ] + self.rules
 
     def compose_source(self, action) -> str:
         """Generate the file contents of this input file generator source."""
@@ -265,7 +277,7 @@ class OutputFileParser(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     def get_action_rules(self):
-        """Get the rule that allows testing if this output file parser must be run or not
+        """Get the rules that allow testing if this output file parser must be run or not
         for a given element."""
         return [
             self.app.ActionRule.check_missing(f"output_files.{i.label}")
