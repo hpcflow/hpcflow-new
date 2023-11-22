@@ -43,7 +43,6 @@ from .callbacks import (
     set_callback_file_paths,
     check_load_data_files,
     set_scheduler_invocation_match,
-    set_callback_show_cmd,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -205,7 +204,6 @@ class Config:
             "log_file_path": (set_callback_file_paths,),
             "log_console_level": (callback_update_log_console_level,),
             "demo_data_manifest_file": (set_callback_file_paths,),
-            "show_command": (set_callback_show_cmd,),
         }
 
         self._configurable_keys = self._options._configurable_keys
