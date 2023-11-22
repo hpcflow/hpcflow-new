@@ -249,10 +249,8 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
                     add_acts.append(t_act)
 
                 js_j["task_actions"].extend(add_acts)
-                js_j["task_elements"].update(js["task_elements"])
-
-                # update EARs dict
-                # js_j["EARs"].update(js["EARs"])
+                for k, v in js["task_elements"].items():
+                    js_j["task_elements"][k].extend(v)
 
                 # append to elements and elements_idx list
                 js_j["EAR_ID"] = np.vstack((js_j["EAR_ID"], js["EAR_ID"]))

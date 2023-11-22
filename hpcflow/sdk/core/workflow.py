@@ -2130,7 +2130,7 @@ class Workflow:
         )
         out = []
         for elem in elems:
-            if element_idx is not None and elem.index == element_idx:
+            if element_idx is not None and elem.index != element_idx:
                 continue
             # for a given element, only one iteration will be running (assume for now the
             # this is the latest iteration, as provided by `action_runs`):
@@ -2293,10 +2293,14 @@ class Workflow:
                         )
                     )
                 ]
-                task_elements = {task.insert_ID: list(js_dat["elements"].keys())}
+                # task_elements: { JS_ELEM_IDX: [TASK_ELEM_IDX for each task insert ID]}
+                task_elements = {
+                    js_elem_idx: [task_elem_idx]
+                    for js_elem_idx, task_elem_idx in enumerate(js_dat["elements"].keys())
+                }
                 EAR_idx_arr_shape = (
                     len(task_actions),
-                    len(task_elements[task.insert_ID]),
+                    len(js_dat["elements"]),
                 )
                 EAR_ID_arr = np.empty(EAR_idx_arr_shape, dtype=np.int32)
                 EAR_ID_arr[:] = -1
@@ -2308,14 +2312,14 @@ class Workflow:
                     "task_loop_idx": [loop_idx_i],
                     "task_actions": task_actions,  # map jobscript actions to task actions
                     "task_elements": task_elements,  # map jobscript elements to task elements
-                    # "EARs": {},  # keys are (task insert ID, elem_idx, EAR_idx)
                     "EAR_ID": EAR_ID_arr,
                     "resources": res[js_dat["resources"]],
                     "resource_hash": res_hash[js_dat["resources"]],
                     "dependencies": {},
                 }
-                for elem_idx, act_indices in js_dat["elements"].items():
-                    js_elem_idx = task_elements[task.insert_ID].index((elem_idx))
+                for js_elem_idx, (elem_idx, act_indices) in enumerate(
+                    js_dat["elements"].items()
+                ):
                     all_EAR_IDs = []
                     for act_idx in act_indices:
                         EAR_ID_i = EAR_map[act_idx, elem_idx].item()
