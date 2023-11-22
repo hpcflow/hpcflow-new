@@ -776,7 +776,7 @@ class BaseApp(metaclass=Singleton):
 
     def list_demo_workflows(self) -> Tuple[str]:
         """Return a list of demo workflow templates included in the app."""
-        return tuple(self._get_demo_workflows().keys())
+        return tuple(sorted(self._get_demo_workflows().keys()))
 
     @contextmanager
     def get_demo_workflow_template_file(
