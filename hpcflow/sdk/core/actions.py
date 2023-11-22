@@ -64,31 +64,31 @@ class EARStatus(enum.Enum):
 
     pending = (
         0,
-        "■",
+        ".",
         "grey46",
         "Not yet associated with a submission.",
     )
     prepared = (
         1,
-        "■",
+        ".",
         "grey46",
         "Associated with a prepared submission that is not yet submitted.",
     )
     submitted = (
         2,
-        "■",
+        ".",
         "grey46",
         "Submitted for execution.",
     )
     running = (
         3,
-        "■",
+        "●",
         "dodger_blue1",
         "Executing now.",
     )
     skipped = (
         4,
-        "■",
+        "s",
         "dark_orange",
         (
             "Not attempted due to a failure of an upstream action on which this depends, "
@@ -97,7 +97,7 @@ class EARStatus(enum.Enum):
     )
     aborted = (
         5,
-        "■",
+        "A",
         "deep_pink4",
         "Aborted by the user; downstream actions will be attempted.",
     )
@@ -109,7 +109,7 @@ class EARStatus(enum.Enum):
     )
     error = (
         7,
-        "■",
+        "E",
         "red3",
         "Probably failed.",
     )

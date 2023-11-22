@@ -15,19 +15,19 @@ class JobscriptElementState(enum.Enum):
 
     pending = (
         0,
-        "■",
+        "○",
         "yellow",
         "Waiting for resource allocation.",
     )
     waiting = (
         1,
-        "■",
+        "◊",
         "grey46",
         "Waiting for one or more dependencies to finish.",
     )
     running = (
         2,
-        "■",
+        "●",
         "dodger_blue1",
         "Executing now.",
     )
@@ -39,13 +39,13 @@ class JobscriptElementState(enum.Enum):
     )
     cancelled = (
         4,
-        "■",
+        "C",
         "red3",
         "Cancelled by the user.",
     )
     errored = (
         5,
-        "■",
+        "E",
         "red3",
         "The scheduler reports an error state.",
     )
