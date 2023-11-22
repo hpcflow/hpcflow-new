@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a142"></a>
+## [v0.2.0a142](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a141...v0.2.0a142) - 2023.11.22
+
+### ✨ Features
+
+* support passing rules to `InputFileGenerator`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a141"></a>
 ## [v0.2.0a141](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a140...v0.2.0a141) - 2023.11.21
 
