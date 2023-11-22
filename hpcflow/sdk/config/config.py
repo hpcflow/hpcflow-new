@@ -531,6 +531,9 @@ class Config:
         name = parts[0]
         root = deepcopy(self._get(name, callback=False))
         if parts[1:]:
+            if root is None:
+                root = {}
+                self.set(path=parts[0], value={}, quiet=True)
             set_in_container(
                 root,
                 path=parts[1:],
