@@ -1469,7 +1469,8 @@ class Action(JSONLike):
             # always run OPs, for now
 
             main_rules = self.rules + [
-                j for i in self.output_file_parsers for j in i.get_action_rules()
+                self.app.ActionRule.check_missing(f"output_files.{i.label}")
+                for i in self.output_files
             ]
 
             # note we keep the IFG/OPs in the new actions, so we can check the parameters
