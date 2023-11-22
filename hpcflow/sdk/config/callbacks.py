@@ -154,3 +154,9 @@ def check_load_data_files(config, value):
 
 def callback_update_log_console_level(config, value):
     config._app.log.update_console_level(value)
+
+
+def set_callback_show_cmd(config, value):
+    if "use_letters" in value:
+        value["use_letters"] = callback_bool(config, value["use_letters"])
+    return value
