@@ -438,6 +438,40 @@ class TaskSchema(JSONLike):
                 )
                 num_script_rows += 1
 
+            inp_fg_rows = ""
+            num_inp_fg_rows = 0
+            if act.input_file_generators:
+                inp_fg = act.input_file_generators[0]  # should be only one
+                inps = ", ".join(f"<code>{i.typ}</code>" for i in inp_fg.inputs)
+                inp_fg_rows += (
+                    f"<tr>"
+                    f'<td class="action-header-cell">input file:</td>'
+                    f"<td><code>{inp_fg.input_file.label}</code></td>"
+                    f"</tr>"
+                    f"<tr>"
+                    f'<td class="action-header-cell">inputs:</td>'
+                    f"<td>{inps}</td>"
+                    f"</tr>"
+                )
+                num_inp_fg_rows += 2
+
+            out_fp_rows = ""
+            num_out_fp_rows = 0
+            if act.output_file_parsers:
+                out_fp = act.output_file_parsers[0]  # should be only one
+                files = ", ".join(f"<code>{i.label}</code>" for i in out_fp.output_files)
+                out_fp_rows += (
+                    f"<tr>"
+                    f'<td class="action-header-cell">output:</td>'
+                    f"<td><code>{out_fp.output.typ}</code></td>"
+                    f"</tr>"
+                    f"<tr>"
+                    f'<td class="action-header-cell">output files:</td>'
+                    f"<td>{files}</td>"
+                    f"</tr>"
+                )
+                num_out_fp_rows += 2
+
             act_i_cmds_tab_rows = ""
             for cmd_idx, cmd in enumerate(act.commands):
                 cmd_j_tab_rows = (
@@ -470,15 +504,18 @@ class TaskSchema(JSONLike):
                 f'<table class="actions-commands-table">{act_i_cmds_tab_rows}</table>'
             )
 
+            idx_rowspan = 4 + num_script_rows + num_inp_fg_rows + num_out_fp_rows
             action_rows += (
                 f'<tr><td colspan="3" class="action-table-top-spacer-cell"></td></tr>'
-                f'<tr><td rowspan="{4 + num_script_rows}" class="act-idx-cell">'
+                f'<tr><td rowspan="{idx_rowspan}" class="act-idx-cell">'
                 f'<span class="act-idx-numeral">{act_idx}</span></td>'
                 f'<td class="action-header-cell">rules:</td><td>{act_i_rules or "-"}</td>'
                 f'</tr><tr><td class="action-header-cell">scope:</td>'
                 f"<td><code>{act.get_precise_scope().to_string()}</code></td></tr>"
                 f'<tr><td class="action-header-cell">environment:</td>'
                 f"<td><code>{act.get_environment().name}</code></td></tr>"
+                f"{inp_fg_rows}"
+                f"{out_fp_rows}"
                 f"{act_i_script_rows}"
                 f'<tr class="action-commands-row">'
                 f'<td class="action-header-cell" colspan="2">'
