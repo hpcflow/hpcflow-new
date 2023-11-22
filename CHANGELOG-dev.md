@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a144"></a>
+## [v0.2.0a144](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a143...v0.2.0a144) - 2023.11.22
+
+### ✨ Features
+
+* add config item show_command.use_letters
+* allow setting nested config items whose root does not exist
+
+### 🐛 Bug Fixes
+
+* format of `Jobscript.task_elements`
+* remove unrequired show config item
+* update show command iconography to be more accessible; fix [#560](https://github.com/hpcflow/hpcflow-new/issues/560)
+
+### 👷 Build changes
+
+* merge develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a143"></a>
 ## [v0.2.0a143](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a142...v0.2.0a143) - 2023.11.22
 
