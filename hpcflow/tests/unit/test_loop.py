@@ -1,4 +1,8 @@
 import pytest
+
+from valida.conditions import Value
+
+
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import LoopAlreadyExistsError
 from hpcflow.sdk.core.test_utils import P1_parameter_cls, make_workflow
@@ -360,6 +364,54 @@ def test_wk_loop_input_sources_iterable_param_default(null_config, tmp_path):
                     )
                 ],
                 environments=[act_env],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+    )
+    wk.add_loop(hf.Loop(tasks=[0], num_iterations=3))
+    # first iteration should be the default value, second and third iterations should
+    # be from previous iteration outputs:
+    t1_iter_0 = wk.tasks.t1.elements[0].iterations[0].get_data_idx()
+    t1_iter_1 = wk.tasks.t1.elements[0].iterations[1].get_data_idx()
+    t1_iter_2 = wk.tasks.t1.elements[0].iterations[2].get_data_idx()
+
+    assert t1_iter_0["inputs.p1"] != t1_iter_1["inputs.p1"]
+    assert t1_iter_1["inputs.p1"] != t1_iter_2["inputs.p1"]
+    assert t1_iter_1["inputs.p1"] == t1_iter_0["outputs.p1"]
+    assert t1_iter_2["inputs.p1"] == t1_iter_1["outputs.p1"]
+
+
+def test_wk_loop_input_sources_iterable_param_default_conditional_action(
+    null_config, tmp_path
+):
+    act_env = hf.ActionEnvironment("null_env")
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput("p1", default_value=1),
+            hf.SchemaInput("p2", default_value=None),
+        ],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output ((<<parameter:p1>> + 10))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+                environments=[act_env],
+            ),
+            hf.Action(
+                commands=[hf.Command("Write-Output ((<<parameter:p2>> + 10))")],
+                environments=[act_env],
+                rules=[
+                    hf.ActionRule(path="inputs.p2", condition=Value.not_equal_to(None))
+                ],
             ),
         ],
     )
