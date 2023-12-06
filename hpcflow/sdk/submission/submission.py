@@ -123,7 +123,12 @@ class Submission(JSONLike):
                     filter_exec = {j: getattr(js_j.resources, j) for j in filterable}
                     exec_instances = exec_i.filter_instances(**filter_exec)
                     if not exec_instances:
-                        raise MissingEnvironmentExecutableInstanceError
+                        raise MissingEnvironmentExecutableInstanceError(
+                            f"No matching executable instances found for executable "
+                            f"{exec_i_lab!r} of environment {env_lab!r} for jobscript "
+                            f"index {js_idx_j!r} with requested resources "
+                            f"{filter_exec!r}."
+                        )
 
         # save env definitions to the environments attribute:
         self._environments = self.app.EnvironmentsList(envs)
