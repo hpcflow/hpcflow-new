@@ -423,7 +423,15 @@ class WorkflowLoop:
 
                         elif orig_inp_src.source_type is InputSourceType.DEFAULT:
                             # keep default value from original element
-                            inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
+                            inp_dat_idx_iter_0 = element.iterations[0].get_data_idx()
+                            try:
+                                inp_dat_idx = inp_dat_idx_iter_0[inp_key]
+                            except KeyError:
+                                # if this input is required by a conditional action, and
+                                # that condition is not met, then this input will not
+                                # exist in the action-run data index, so use the initial
+                                # iteration data index:
+                                inp_dat_idx = element.iterations[0].data_idx[inp_key]
 
                         elif orig_inp_src.source_type is InputSourceType.TASK:
                             if orig_inp_src.task_ref not in self.task_insert_IDs:
@@ -486,7 +494,16 @@ class WorkflowLoop:
                 inp_status_inps = set([f"inputs.{i}" for i in inp_statuses])
                 sub_params = inp_status_inps - set(new_data_idx.keys())
                 for sub_param_i in sub_params:
-                    sub_param_data_idx = element.iterations[0].get_data_idx()[sub_param_i]
+                    sub_param_data_idx_iter_0 = element.iterations[0].get_data_idx()
+                    try:
+                        sub_param_data_idx = sub_param_data_idx_iter_0[sub_param_i]
+                    except KeyError:
+                        # as before, if this input is required by a conditional action,
+                        # and that condition is not met, then this input will not exist in
+                        # the action-run data index, so use the initial iteration data
+                        # index:
+                        sub_param_data_idx = element.iterations[0].data_idx[sub_param_i]
+
                     new_data_idx[sub_param_i] = sub_param_data_idx
 
                 for out in task.template.all_schema_outputs:
