@@ -274,7 +274,7 @@ class ElementResources(JSONLike):
     def get_env_instance_filterable_attributes() -> Tuple[str]:
         """Get a tuple of resource attributes that are used to filter environment
         executable instances at submit- and run-time."""
-        return ("num_cores", "parallel_mode")
+        return ("num_cores",)  # TODO: filter on `parallel_mode` later
 
     @staticmethod
     def get_default_os_name():
