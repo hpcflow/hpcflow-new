@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a145"></a>
+## [v0.2.0a145](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a144...v0.2.0a145) - 2023.12.07
+
+### 🐛 Bug Fixes
+
+* do not filter env executable instances on parallel_mode for now
+* fix `add_iteration` with condition action where condition is not met
+
+### 👷 Build changes
+
+* merge develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a144"></a>
 ## [v0.2.0a144](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a143...v0.2.0a144) - 2023.11.22
 
