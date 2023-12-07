@@ -7,10 +7,10 @@ Contribute
 ##########
 
 .. raw:: html
-    
+
    <table><tr><td>
 
-   # Reccomended reads
+   # Recommended reads
    - Conventional commits [link](https://www.conventionalcommits.org/en/v1.0.0/)
    - poetry ([docs](https://python-poetry.org/docs/))
    - click ([docs](https://click.palletsprojects.com/en/8.1.x/))
@@ -18,40 +18,16 @@ Contribute
 
    # Installation for development
 
-   ## Dependencies
-   sudo apt-get install python3-tk
-
-   ## Install poetry
-   Update your system and ge the latest version of poetry with
-   ```
-   sudo apt update
-   sudo apt upgrade
-   curl -sSL https://install.python-poetry.org | python3 -
-   ```
-   It will prompt you to add powtry to the PATH, which you can do with
-   ```
-   nano ~/.bashrc
-   ```
-   and pasting this at the end of the file:
-   ```
-   export PATH="/home/ubuntu/.local/bin:$PATH"
-   ```
-   Now you should be able to run this command:
-   ```
-   poetry --version
-   ```
-   And while you are at it, try and auto update everything with
-   ```
-   poetry self update
-   ```
+   ## ([Install poetry](https://python-poetry.org/docs/#installation))
 
 
    ## Clone repo
-   Clone the git repo (see ssh links below), and then make sure that you checkout to the development branch
+   Clone the git repo (see ssh links below), and then make sure that you switch to the development branch
    ```
-   git checkout develop
+   git switch develop
    ```
    This branch is protected, so create a feature branch before pushing to the repo.
+
    ### hpcflow
    ```
    git clone git@github.com:hpcflow/hpcflow-new.git
@@ -79,23 +55,15 @@ Contribute
    ```
    poetry env remove 3.10.6
    ```
-   Delete the powtry.lock file
-   ```
-   rm poetry.lock
-   ```
    Clear all cache in list with
    ```
    poetry cache clear --all PyPI
    ```
-   Check if there is no chache with
+   Check if there is no cache with
    ```
    poetry cache list
    ```
-   Create a new virtualenv
-   ```
-   poetry env use 3.10.6
-   ```
-   Reinstall dependencies without the lockfile
+   Reinstall dependencies
    ```
    poetry install
    ```
@@ -114,10 +82,10 @@ Contribute
 
    ## matflow
    ### link to local hpcflow
-   To be able to work with hpcflow and immediately see the changes reflected in matflow you need to reconfigure the hpcflow dependency to point to your local copy of hpcflow. 
+   To be able to work with hpcflow and immediately see the changes reflected in matflow you need to reconfigure the hpcflow dependency to point to your local copy of hpcflow.
    To do this, run
    ```
-   poetry add --editable /home/ubuntu/hpcflow-new/
+   poetry add --editable ${HOME}/hpcflow-new/
    ```
    This will update the hpcflow-new dependency to point to your local copy.
 
@@ -128,7 +96,7 @@ Contribute
    ```
    with
    ```
-   hpcflow-new2 = {path = "/home/ubuntu/hpcflow-new", develop = true}
+   hpcflow-new2 = {path = "${HOME}/hpcflow-new", develop = true}
    ```
    Then, you need to update your poetry environment accordingly, by first removing the lock file
    ```
