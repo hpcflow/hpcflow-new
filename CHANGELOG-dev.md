@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a146"></a>
+## [v0.2.0a146](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a145...v0.2.0a146) - 2023.12.12
+
+### 🐛 Bug Fixes
+
+* fix `get_active_jobscripts` for SLURM when using `max_array_items`; fix [#598](https://github.com/hpcflow/hpcflow-new/issues/598)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a145"></a>
 ## [v0.2.0a145](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a144...v0.2.0a145) - 2023.12.07
 
