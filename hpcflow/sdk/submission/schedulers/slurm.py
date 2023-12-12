@@ -416,7 +416,11 @@ class SlurmPosix(Scheduler):
                 _arr_idx = []
                 for i_range_str in arr_idx.strip("[]").split(","):
                     if "-" in i_range_str:
-                        i_args = [int(j) - 1 for j in i_range_str.split("-")]
+                        range_parts = i_range_str.split("-")
+                        if "%" in range_parts[1]:
+                            # indicates max concurrent array items; not needed
+                            range_parts[1] = range_parts[1].split("%")[0]
+                        i_args = [int(j) - 1 for j in range_parts]
                         _arr_idx.extend(list(range(i_args[0], i_args[1] + 1)))
                     else:
                         _arr_idx.append(int(i_range_str) - 1)

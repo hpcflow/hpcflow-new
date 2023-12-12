@@ -25,3 +25,14 @@ def test_parse_job_ID_array_simple_mixed_range():
         "30627658",
         [4, 7, 8, 9],
     )
+
+
+def test_parse_job_ID_array_simple_range_with_max_concurrent():
+    assert SlurmPosix._parse_job_IDs("3397752_[9-11%2]") == ("3397752", [8, 9, 10])
+
+
+def test_parse_job_ID_array_simple_multiple_range_max_concurrent():
+    assert SlurmPosix._parse_job_IDs("49203_[3-5%1,9-11%2]") == (
+        "49203",
+        [2, 3, 4, 8, 9, 10],
+    )
