@@ -478,7 +478,7 @@ class ElementActionRun:
         Parameters
         ----------
         inputs
-            If specified, a list of input parameter types to include, of a dict whose keys
+            If specified, a list of input parameter types to include, or a dict whose keys
             are input parameter types to include. For schema inputs that have
             `multiple=True`, the input type should be labelled. If a dict is passed, and
             the key "all_iterations` is present and `True`, the return for that input
@@ -489,10 +489,11 @@ class ElementActionRun:
             keys.
 
         """
+        if not inputs:
+            inputs = self.get_parameter_names("inputs")
+
         out = {}
-        for inp_name in self.get_parameter_names("inputs"):
-            if inputs and inp_name not in inputs:
-                continue
+        for inp_name in inputs:
             path_i, label_i = split_param_label(inp_name)
 
             try:
@@ -512,12 +513,20 @@ class ElementActionRun:
             else:
                 val_i = self.get(f"inputs.{inp_name}")
 
+            key = inp_name
             if label_dict and label_i:
-                if path_i not in out:
-                    out[path_i] = {}
-                out[path_i][label_i] = val_i
+                key = path_i  # exclude label from key
+
+            if "." in key:
+                # for sub-parameters, take only the final part as the dict key:
+                key = key.split(".")[-1]
+
+            if label_dict and label_i:
+                if key not in out:
+                    out[key] = {}
+                out[key][label_i] = val_i
             else:
-                out[inp_name] = val_i
+                out[key] = val_i
 
         return out
 
@@ -1163,8 +1172,8 @@ class Action(JSONLike):
         # validation:
         allowed_keys = ("format", "all_iterations")
         for k, v in all_params.items():
-            # validate parameter name:
-            if k not in param_names:
+            # validate parameter name (sub-parameters are allowed):
+            if k.split(".")[0] not in param_names:
                 raise UnknownScriptDataParameter(
                     f"Script data parameter {k!r} is not a known parameter of the "
                     f"action. Parameters ({prefix}) are: {param_names!r}."

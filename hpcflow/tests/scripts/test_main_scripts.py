@@ -35,6 +35,32 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_direct_sub_param_in_direct_out(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_direct_sub_param_in_direct_out.py>>",
+                script_data_in={"p1.a": "direct"},
+                script_data_out="direct",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = {"a": 101}
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1], template_name="main_script_test", path=tmp_path
+    )
+    wk.submit(wait=True, add_to_known=False)
+    assert wk.tasks[0].elements[0].outputs.p2.value == p1_val["a"] + 100
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_direct_out_single_label(null_config, tmp_path):
     """This uses the same test script as the `test_script_direct_in_direct_out` test;
     single labels are trivial and need not be referenced in the script."""
@@ -168,6 +194,47 @@ def test_script_json_in_json_out_labels(null_config, tmp_path):
     )
     wk.submit(wait=True, add_to_known=False)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_1_val + p1_2_val
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_json_sub_param_in_json_out_labels(null_config, tmp_path):
+    p1_label_1 = "one"
+    p1_label_2 = "two"
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(
+                parameter=hf.Parameter("p1"),
+                labels={p1_label_1: {}, p1_label_2: {}},
+                multiple=True,
+            )
+        ],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_json_sub_param_in_json_out_labels.py>>",
+                script_data_in={"p1[one].a": "json", "p1[two]": "json"},
+                script_data_out="json",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    a_val = 101
+    p1_2_val = 201
+    t1 = hf.Task(
+        schema=s1,
+        inputs={
+            f"p1[{p1_label_1}]": {"a": a_val},
+            f"p1[{p1_label_2}]": p1_2_val,
+        },
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1], template_name="main_script_test", path=tmp_path
+    )
+    wk.submit(wait=True, add_to_known=False)
+    assert wk.tasks[0].elements[0].outputs.p2.value == a_val + p1_2_val
 
 
 @pytest.mark.integration
