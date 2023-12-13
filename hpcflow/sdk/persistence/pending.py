@@ -59,7 +59,7 @@ class PendingChanges:
         self.set_EARs_initialised: List[int] = None
         self.set_EAR_submission_indices: Dict[int, int] = None
         self.set_EAR_skips: List[int] = None
-        self.set_EAR_starts: Dict[int, Tuple[datetime, Dict]] = None
+        self.set_EAR_starts: Dict[int, Tuple[datetime, Dict], str] = None
         self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
 
         self.set_js_metadata: Dict[int, Dict[int, Any]] = None
@@ -286,12 +286,12 @@ class PendingChanges:
 
     def commit_EAR_starts(self) -> None:
         # TODO: could be batched up?
-        for EAR_id, (time, snap) in self.set_EAR_starts.items():
+        for EAR_id, (time, snap, hostname) in self.set_EAR_starts.items():
             self.logger.debug(
-                f"commit: adding pending start time ({time!r}) and "
-                f"directory snapshot to EAR ID {EAR_id!r}."
+                f"commit: adding pending start time ({time!r}), run hostname "
+                f"({hostname!r}), and directory snapshot to EAR ID {EAR_id!r}."
             )
-            self.store._update_EAR_start(EAR_id, time, snap)
+            self.store._update_EAR_start(EAR_id, time, snap, hostname)
         self.clear_set_EAR_starts()
 
     def commit_EAR_ends(self) -> None:
