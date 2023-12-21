@@ -1,5 +1,3 @@
-:orphan:
-
 .. _development:
 
 ###########
@@ -15,3 +13,6 @@ Install with development dependencies and then run:
 
    python -X importtime -m hpcflow.cli --run-time-info 2> import.log
    tuna import.log
+
+:ref:`contribute`
+-----------------
