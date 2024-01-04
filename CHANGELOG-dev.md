@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a147"></a>
+## [v0.2.0a147](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a146...v0.2.0a147) - 2024.01.04
+
+### ✨ Features
+
+* support passing sub-parameters to `script_data_in`
+* add `run_hostname` to EAR
+
+### 🐛 Bug Fixes
+
+* try to fix cancel bug [#572](https://github.com/hpcflow/hpcflow-new/issues/572)
+* failing tests
+
+
 <a name="v0.2.0a146"></a>
 ## [v0.2.0a146](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a145...v0.2.0a146) - 2023.12.12
 
