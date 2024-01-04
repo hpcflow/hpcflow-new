@@ -192,7 +192,7 @@ def test_get_input_values_subset(null_config, tmp_path):
         template_name="temp",
     )
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    assert run.get_input_values(inputs=("p1")) == {"p1": 101}
+    assert run.get_input_values(inputs=("p1",)) == {"p1": 101}
 
 
 def test_get_input_values_subset_labelled_label_dict_False(null_config, tmp_path):
@@ -226,7 +226,7 @@ def test_get_input_values_subset_labelled_label_dict_False(null_config, tmp_path
         template_name="temp",
     )
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    assert run.get_input_values(inputs=("p1[one]"), label_dict=False) == {"p1[one]": 101}
+    assert run.get_input_values(inputs=("p1[one]",), label_dict=False) == {"p1[one]": 101}
 
 
 def test_get_input_values_subset_labelled_label_dict_True(null_config, tmp_path):
@@ -260,7 +260,7 @@ def test_get_input_values_subset_labelled_label_dict_True(null_config, tmp_path)
         template_name="temp",
     )
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    assert run.get_input_values(inputs=("p1[one]"), label_dict=True) == {
+    assert run.get_input_values(inputs=("p1[one]",), label_dict=True) == {
         "p1": {"one": 101}
     }
 
