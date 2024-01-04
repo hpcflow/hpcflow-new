@@ -1,18 +1,9 @@
-.. _development:
-
 ###########
 Development
 ###########
 
-How to profile import times
----------------------------
+.. toctree::
+   :maxdepth: 3
 
-Install with development dependencies and then run:
-
-.. code-block:: bash
-
-   python -X importtime -m hpcflow.cli --run-time-info 2> import.log
-   tuna import.log
-
-:ref:`contribute`
------------------
+   Contributing <../contribute/index>
+   Tips and Tricks <tips_and_tricks>
