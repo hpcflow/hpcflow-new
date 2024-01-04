@@ -148,6 +148,7 @@ class ElementActionRun:
         skip: bool,
         exit_code: Union[int, None],
         metadata: Dict,
+        run_hostname: Union[str, None],
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -163,6 +164,7 @@ class ElementActionRun:
         self._snapshot_end = snapshot_end
         self._exit_code = exit_code
         self._metadata = metadata
+        self._run_hostname = run_hostname
 
         # assigned on first access of corresponding properties:
         self._inputs = None
@@ -221,6 +223,10 @@ class ElementActionRun:
     @property
     def metadata(self):
         return self._metadata
+
+    @property
+    def run_hostname(self):
+        return self._run_hostname
 
     @property
     def start_time(self):
