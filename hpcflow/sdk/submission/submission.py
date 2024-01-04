@@ -332,14 +332,24 @@ class Submission(JSONLike):
     def get_unique_schedulers_of_jobscripts(
         jobscripts: List[Jobscript],
     ) -> Dict[Tuple[Tuple[int, int]], Scheduler]:
-        """Get unique schedulers and which of the passed jobscripts they correspond to."""
+        """Get unique schedulers and which of the passed jobscripts they correspond to.
+
+        Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
+
+        """
         js_idx = []
         schedulers = []
+
+        # list of tuples of scheduler properties we consider to determine "uniqueness",
+        # with the first string being the scheduler type (class name):
+        seen_schedulers = []
+
         for js in jobscripts:
-            if js.scheduler not in schedulers:
+            if js.scheduler.unique_properties not in seen_schedulers:
+                seen_schedulers.append(js.scheduler.unique_properties)
                 schedulers.append(js.scheduler)
                 js_idx.append([])
-            sched_idx = schedulers.index(js.scheduler)
+            sched_idx = seen_schedulers.index(js.scheduler.unique_properties)
             js_idx[sched_idx].append((js.submission.index, js.index))
 
         sched_js_idx = dict(zip((tuple(i) for i in js_idx), schedulers))

@@ -10,7 +10,6 @@ class NullScheduler:
 
     def __init__(
         self,
-        submit_cmd=None,
         shell_args=None,
         shebang_args=None,
         options=None,
@@ -18,6 +17,10 @@ class NullScheduler:
         self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
         self.options = options or []
+
+    @property
+    def unique_properties(self):
+        return (self.__class__.__name__,)
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
@@ -63,6 +66,10 @@ class Scheduler(NullScheduler):
         self.login_nodes_cmd = login_nodes_cmd or self.DEFAULT_LOGIN_NODES_CMD
         self.array_switch = array_switch or self.DEFAULT_ARRAY_SWITCH
         self.array_item_var = array_item_var or self.DEFAULT_ARRAY_ITEM_VAR
+
+    @property
+    def unique_properties(self):
+        return (self.__class__.__name__, self.submit_cmd, self.show_cmd, self.del_cmd)
 
     def format_switch(self, switch):
         return f"{self.js_cmd} {switch}"
