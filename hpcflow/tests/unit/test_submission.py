@@ -402,3 +402,117 @@ def test_abort_EARs_file_update_with_existing_abort(null_config, tmp_path):
 
     lines_exp = ["0", "1", "1"]
     assert lines == "\n".join(lines_exp) + "\n"
+
+
+def test_unique_schedulers_one_direct(new_null_config, tmp_path):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    scheds = sub.get_unique_schedulers()
+
+    assert len(scheds) == 1
+
+
+def test_unique_schedulers_one_direct_distinct_resources(new_null_config, tmp_path):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"num_cores": 1}},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"num_cores": 2}},
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    scheds = sub.get_unique_schedulers()
+
+    assert len(scheds) == 1
+
+
+@pytest.mark.slurm
+def test_unique_schedulers_one_SLURM(new_null_config, tmp_path):
+    hf.config.add_scheduler("slurm")
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "slurm"}},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "slurm"}},
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    scheds = sub.get_unique_schedulers()
+
+    assert len(scheds) == 1
+
+
+@pytest.mark.slurm
+def test_unique_schedulers_one_SLURM_distinct_resources(new_null_config, tmp_path):
+    hf.config.add_scheduler("slurm")
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "slurm", "num_cores": 1}},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "slurm", "num_cores": 2}},
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    scheds = sub.get_unique_schedulers()
+
+    assert len(scheds) == 1
+
+
+@pytest.mark.slurm
+def test_unique_schedulers_two_direct_and_SLURM(new_null_config, tmp_path):
+    hf.config.add_scheduler("slurm")
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "direct"}},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "slurm"}},
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+        path=tmp_path,
+    )
+    sub = wk.add_submission()
+    scheds = sub.get_unique_schedulers()
+
+    assert len(scheds) == 2
