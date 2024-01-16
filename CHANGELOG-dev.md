@@ -1,4 +1,19 @@
 
+<a name="v0.2.0a148"></a>
+## [v0.2.0a148](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a147...v0.2.0a148) - 2024.01.16
+
+### 🐛 Bug Fixes
+
+* add missing newline
+* move profiling to tips and tricks page
+* missing new line
+
+### 👷 Build changes
+
+* merge develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a147"></a>
 ## [v0.2.0a147](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a146...v0.2.0a147) - 2024.01.04
 
