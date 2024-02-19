@@ -4,7 +4,7 @@ concurrency:
   ci-test-shells-${{ format('{0}github.head_ref', 'refs/heads') || github.ref }}
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
   POETRY_VERSION: "1.4"
 
 on:
