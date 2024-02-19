@@ -1,4 +1,6 @@
+<div align="center">
 <img src="https://hpcflow.github.io/docs/stable/_static/images/logo-v2.png" width="250" alt="hpcFlow logo"/>
+</div>
 
 # hpcFlow
 
