@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a149"></a>
+## [v0.2.0a149](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a148...v0.2.0a149) - 2024.02.19
+
+### 🐛 Bug Fixes
+
+* fix Python 3.12 support; requires explicit numpy dep
+
+### 👷 Build changes
+
+* sync upstream GHA templates
+* bump papermill to fix jupyter tests
+* bump test_pre_python to Python 3.13
+* bump CI python versions, test on 3.12
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a148"></a>
 ## [v0.2.0a148](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a147...v0.2.0a148) - 2024.01.16
 
