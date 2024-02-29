@@ -307,10 +307,14 @@ class ElementResources(JSONLike):
 
         # "direct_posix" scheduler is valid on Windows if using WSL:
         cfg_lookup = f"{self.scheduler}_posix" if "wsl" in self.shell else self.scheduler
-        cfg_sched = self.app.config.schedulers.get(cfg_lookup, {})
+        cfg_sched = copy.deepcopy(self.app.config.schedulers.get(cfg_lookup, {}))
 
         # merge defaults scheduler args from config:
-        self.scheduler_args = {**cfg_sched.get("defaults", {}), **self.scheduler_args}
+        cfg_defs = cfg_sched.get("defaults", {})
+        cfg_opts = cfg_defs.pop("options", {})
+        opts = {**cfg_opts, **self.scheduler_args.get("options", {})}
+        self.scheduler_args["options"] = opts
+        self.scheduler_args = {**cfg_defs, **self.scheduler_args}
 
     def validate_against_machine(self):
         """Validate the values for `os_name`, `shell` and `scheduler` against those

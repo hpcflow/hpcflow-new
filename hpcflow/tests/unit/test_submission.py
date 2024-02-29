@@ -516,3 +516,28 @@ def test_unique_schedulers_two_direct_and_SLURM(new_null_config, tmp_path):
     scheds = sub.get_unique_schedulers()
 
     assert len(scheds) == 2
+
+
+def test_scheduler_config_defaults(new_null_config, tmp_path):
+    """Check default options defined in the config are merged into jobscript resources."""
+    hf.config.set("schedulers.direct.defaults.options", {"a": "c"})
+
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        inputs={"p1": 1},
+        resources={"any": {"scheduler": "direct"}},
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        inputs={"p1": 1},
+        resources={
+            "any": {"scheduler": "direct", "scheduler_args": {"options": {"a": "b"}}}
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(
+        template=wkt,
+    )
+    sub = wk.add_submission()
+    assert sub.jobscripts[0].resources.scheduler_args == {"options": {"a": "c"}}
+    assert sub.jobscripts[1].resources.scheduler_args == {"options": {"a": "b"}}
