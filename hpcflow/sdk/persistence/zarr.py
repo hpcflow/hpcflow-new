@@ -34,6 +34,8 @@ from hpcflow.sdk.persistence.base import (
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
+from hpcflow.sdk.log import TimeIt
+
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
@@ -982,6 +984,7 @@ class ZarrPersistentStore(PersistentStore):
         }
         return iters
 
+    @TimeIt.decorator
     def _get_persistent_parameters(
         self,
         id_lst: Iterable[int],

@@ -1,4 +1,5 @@
 """An hpcflow application."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -46,7 +47,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
-from hpcflow.sdk.log import AppLog
+from hpcflow.sdk.log import AppLog, TimeIt
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
@@ -95,7 +96,10 @@ class Singleton(type):
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
-        SDK_logger.info(f"App metaclass __call__ with {args=} {kwargs=}")
+        SDK_logger.info(
+            f"App metaclass __call__: "
+            f"name={kwargs['name']!r}, version={kwargs['version']!r}."
+        )
         if cls not in cls._instances:
             SDK_logger.info(f"App metaclass initialising new object {kwargs['name']!r}.")
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
@@ -254,6 +258,14 @@ class BaseApp(metaclass=Singleton):
     @property
     def log(self) -> AppLog:
         return self._log
+
+    @property
+    def timeit(self) -> bool:
+        return TimeIt.active
+
+    @timeit.setter
+    def timeit(self, value: bool):
+        TimeIt.active = bool(value)
 
     @property
     def template_components(self) -> Dict[str, ObjectList]:

@@ -31,6 +31,7 @@ from hpcflow.sdk.cli_common import (
     unzip_log_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
 string_option = click.option(
@@ -1032,9 +1033,18 @@ def make_cli(app):
         nargs=2,
         multiple=True,
     )
+    @click.option(
+        "--timeit",
+        help=(
+            "Time function pathways as the code executes and write out a summary at the "
+            "end. Only functions decorated by `TimeIt.decorator` are included."
+        ),
+        is_flag=True,
+    )
     @click.pass_context
-    def new_CLI(ctx, config_dir, config_key, with_config):
+    def new_CLI(ctx, config_dir, config_key, with_config, timeit):
         app.run_time_info.from_CLI = True
+        TimeIt.active = timeit
         if ctx.invoked_subcommand != "manage":
             # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}
@@ -1047,6 +1057,11 @@ def make_cli(app):
             except ConfigError as err:
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
+
+    @new_CLI.result_callback()
+    def post_execution(*args, **kwargs):
+        if TimeIt.active:
+            TimeIt.summarise_string()
 
     @new_CLI.command()
     @click.argument("name")

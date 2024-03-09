@@ -22,6 +22,7 @@ from hpcflow.sdk.core.utils import (
     set_in_container,
     JSONLikeDirSnapShot,
 )
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
@@ -925,6 +926,7 @@ class PersistentStore(ABC):
             self.save()
         return new_ID
 
+    @TimeIt.decorator
     def add_EAR(
         self,
         elem_iter_ID: int,
@@ -1054,7 +1056,7 @@ class PersistentStore(ABC):
         file: Dict = None,
         save: bool = True,
     ) -> int:
-        self.logger.debug(f"Adding store parameter{f' (unset)' if data is None else ''}.")
+        self.logger.debug(f"Adding store parameter{f' (unset)' if not is_set else ''}.")
         new_idx = self._get_num_total_parameters()
         self._pending.add_parameters[new_idx] = self._store_param_cls(
             id_=new_idx,
@@ -1203,6 +1205,7 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
+    @TimeIt.decorator
     def update_param_source(self, param_id: int, source: Dict, save: bool = True) -> None:
         self.logger.debug(f"Updating parameter ID {param_id!r} source to {source!r}.")
         self._pending.update_param_sources[param_id] = source

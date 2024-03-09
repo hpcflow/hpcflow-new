@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
@@ -450,6 +451,7 @@ class Workflow:
         return len(self.tasks)
 
     @classmethod
+    @TimeIt.decorator
     def from_template(
         cls,
         template: WorkflowTemplate,
@@ -508,6 +510,7 @@ class Workflow:
         return wk
 
     @classmethod
+    @TimeIt.decorator
     def from_YAML_file(
         cls,
         YAML_path: PathLike,
@@ -716,6 +719,7 @@ class Workflow:
         )
 
     @classmethod
+    @TimeIt.decorator
     def from_file(
         cls,
         template_path: PathLike,
@@ -773,6 +777,7 @@ class Workflow:
         )
 
     @classmethod
+    @TimeIt.decorator
     def from_template_data(
         cls,
         template_name: str,
@@ -841,6 +846,7 @@ class Workflow:
             store_kwargs,
         )
 
+    @TimeIt.decorator
     def _add_empty_task(
         self,
         task: app.Task,
@@ -878,9 +884,9 @@ class Workflow:
                     self._pending["template_components"][comp_type].append(idx)
 
         self._pending["tasks"].append(new_index)
-
         return self.tasks[new_index]
 
+    @TimeIt.decorator
     def _add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
         new_wk_task._add_elements(element_sets=task.element_sets)
@@ -916,6 +922,7 @@ class Workflow:
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
+    @TimeIt.decorator
     def _add_empty_loop(self, loop: app.Loop) -> app.WorkflowLoop:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
@@ -955,6 +962,7 @@ class Workflow:
 
         return wk_loop
 
+    @TimeIt.decorator
     def _add_loop(self, loop: app.Loop, parent_loop_indices: Dict = None) -> None:
         new_wk_loop = self._add_empty_loop(loop)
         if loop.num_iterations is not None:
@@ -1075,17 +1083,21 @@ class Workflow:
     def num_added_tasks(self) -> int:
         return self._store._get_num_total_added_tasks()
 
+    @TimeIt.decorator
     def get_store_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
         return self._store.get_EARs(id_lst)
 
+    @TimeIt.decorator
     def get_store_element_iterations(
         self, id_lst: Iterable[int]
     ) -> List[AnySElementIter]:
         return self._store.get_element_iterations(id_lst)
 
+    @TimeIt.decorator
     def get_store_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
         return self._store.get_elements(id_lst)
 
+    @TimeIt.decorator
     def get_store_tasks(self, id_lst: Iterable[int]) -> List[AnySTask]:
         return self._store.get_tasks_by_IDs(id_lst)
 
@@ -1186,6 +1198,7 @@ class Workflow:
 
         return objs
 
+    @TimeIt.decorator
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of IDs."""
 
@@ -1228,12 +1241,15 @@ class Workflow:
 
         return objs
 
+    @TimeIt.decorator
     def get_all_elements(self) -> List[app.Element]:
         return self.get_elements_from_IDs(range(self.num_elements))
 
+    @TimeIt.decorator
     def get_all_element_iterations(self) -> List[app.ElementIteration]:
         return self.get_element_iterations_from_IDs(range(self.num_element_iterations))
 
+    @TimeIt.decorator
     def get_all_EARs(self) -> List[app.ElementActionRun]:
         return self.get_EARs_from_IDs(range(self.num_EARs))
 
@@ -1339,6 +1355,7 @@ class Workflow:
         return all_replaced[-1]
 
     @classmethod
+    @TimeIt.decorator
     def _write_empty_workflow(
         cls,
         template: app.WorkflowTemplate,
@@ -1467,15 +1484,19 @@ class Workflow:
     ) -> List[AnySParameter]:
         return self._store.get_parameters(id_lst, **kwargs)
 
+    @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
         return self._store.get_parameter_sources(id_lst)
 
+    @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
         return self._store.get_parameter_set_statuses(id_lst)
 
+    @TimeIt.decorator
     def get_parameter(self, index: int, **kwargs: Dict) -> AnySParameter:
         return self.get_parameters([index], **kwargs)[0]
 
+    @TimeIt.decorator
     def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
         param = self.get_parameter(index, **kwargs)
         if param.data is not None:
@@ -1483,18 +1504,22 @@ class Workflow:
         else:
             return param.file
 
+    @TimeIt.decorator
     def get_parameter_source(self, index: int) -> Dict:
         return self.get_parameter_sources([index])[0]
 
+    @TimeIt.decorator
     def is_parameter_set(self, index: int) -> bool:
         return self.get_parameter_set_statuses([index])[0]
 
+    @TimeIt.decorator
     def get_all_parameters(self, **kwargs: Dict) -> List[AnySParameter]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameters(id_lst, **kwargs)
 
+    @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
         """Retrieve all workflow parameter data."""
         params = self.get_all_parameters(**kwargs)
@@ -1671,6 +1696,7 @@ class Workflow:
     def execution_path(self):
         return Path(self.path) / self._exec_dir_name
 
+    @TimeIt.decorator
     def get_task_elements(self, task: app.Task, selection: slice) -> List[app.Element]:
         return [
             self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
@@ -1818,6 +1844,7 @@ class Workflow:
         with self._store.cached_load():
             return self._store.get_EAR_skipped(EAR_ID)
 
+    @TimeIt.decorator
     def set_parameter_value(
         self, param_id: int, value: Any, commit: bool = False
     ) -> None:

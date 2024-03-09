@@ -1,4 +1,121 @@
+from functools import wraps
 import logging
+import time
+from collections import defaultdict
+import statistics
+
+
+class TimeIt:
+
+    active = False
+    timers = defaultdict(list)
+    trace = []
+    trace_idx = []
+    trace_prev = []
+    trace_idx_prev = []
+
+    @classmethod
+    def decorator(cls, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+
+            if not cls.active:
+                return func(*args, **kwargs)
+
+            cls.trace.append(func.__qualname__)
+
+            if cls.trace_prev == cls.trace:
+                new_trace_idx = cls.trace_idx_prev[-1] + 1
+            else:
+                new_trace_idx = 0
+            cls.trace_idx.append(new_trace_idx)
+
+            tic = time.perf_counter()
+            out = func(*args, **kwargs)
+            toc = time.perf_counter()
+            elapsed = toc - tic
+
+            cls.timers[tuple(cls.trace)].append(elapsed)
+
+            cls.trace_prev = list(cls.trace)
+            cls.trace_idx_prev = list(cls.trace_idx)
+
+            cls.trace.pop()
+            cls.trace_idx.pop()
+
+            return out
+
+        return wrapper
+
+    @classmethod
+    def summarise(cls):
+        stats = {
+            k: {
+                "number": len(v),
+                "mean": statistics.mean(v),
+                "stddev": statistics.pstdev(v),
+                "min": min(v),
+                "max": max(v),
+                "sum": sum(v),
+            }
+            for k, v in cls.timers.items()
+        }
+
+        # make a graph
+        for k in stats:
+            stats[k]["children"] = {}
+
+        for key in sorted(stats.keys(), key=lambda x: len(x), reverse=True):
+            if len(key) == 1:
+                continue
+            value = stats.pop(key)
+            parent = key[:-1]
+            for other_key in stats.keys():
+                if other_key == parent:
+                    stats[other_key]["children"][key] = value
+                    break
+
+        return stats
+
+    @classmethod
+    def summarise_string(cls):
+        def _format_nodes(node, depth=0, depth_final=None):
+            if depth_final is None:
+                depth_final = []
+            out = []
+            for idx, (k, v) in enumerate(node.items()):
+                is_final_child = idx == len(node) - 1
+                angle = "└ " if is_final_child else "├ "
+                bars = ""
+                if depth > 0:
+                    bars = "".join(f"{'│ ' if not i else '  '}" for i in depth_final)
+                k_str = bars + (angle if depth > 0 else "") + f"{k[depth]}"
+                number = v["number"]
+                min_str = f"{v['min']:10.6f}" if number > 1 else f"{f'-':^12s}"
+                max_str = f"{v['max']:10.6f}" if number > 1 else f"{f'-':^12s}"
+                out.append(
+                    f"{k_str:.<60s} {v['sum']:12.6f} "
+                    f"{v['mean']:10.6f} ± {v['stddev']:8.6f} {number:8d} "
+                    f"{min_str} {max_str} "
+                )
+                depth_final_next = list(depth_final) + (
+                    [is_final_child] if depth > 0 else []
+                )
+                out.extend(
+                    _format_nodes(
+                        v["children"], depth=depth + 1, depth_final=depth_final_next
+                    )
+                )
+            return out
+
+        summary = cls.summarise()
+
+        out = [
+            f"{'function':^60s} {'sum /s':^12s} {'mean ± stddev /s':^20s} {'N':^8s} "
+            f"{'min /s':^12s} {'max /s':^12s}"
+        ]
+        out += _format_nodes(summary)
+        print("\n".join(out))
 
 
 class AppLog:
