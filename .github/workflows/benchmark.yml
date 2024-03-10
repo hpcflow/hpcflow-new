@@ -8,7 +8,13 @@ on:
     inputs:
       python:
         description: "Which Pythons to use."
-        default: '["3.12"]'        
+        default: '["3.12"]'
+      num_elements:
+        description: "How many elements to make in the workflow."
+        default: '[1, 10, 100, 1000, 10000]'
+      platform:
+        description: "Which OS to use."
+        default: '["ubuntu-latest", "macos-latest", "windows-latest"]'
 
 jobs:
   make-workflow-benchmark:
@@ -16,11 +22,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ${{ fromJSON(github.event.inputs.python)}}
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        num_elements: [1, 10, 100, 1_000, 10_000]
+        os: ${{ fromJSON(github.event.inputs.platform)}}
+        num_elements: ${{ fromJSON(github.event.inputs.num_elements)}}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
