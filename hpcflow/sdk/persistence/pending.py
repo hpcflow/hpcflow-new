@@ -370,6 +370,7 @@ class PendingChanges:
             self.store._update_template_components(self.store.get_template_components())
         self.clear_add_template_components()
 
+    @TimeIt.decorator
     def commit_param_sources(self) -> None:
         """Make pending changes to parameter sources persistent."""
         for param_id, src in self.update_param_sources.items():

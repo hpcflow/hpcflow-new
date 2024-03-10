@@ -1041,10 +1041,19 @@ def make_cli(app):
         ),
         is_flag=True,
     )
+    @click.option(
+        "--timeit-file",
+        help=(
+            "Time function pathways as the code executes and write out a summary at the "
+            "end to a text file given by this file path. Only functions decorated by "
+            "`TimeIt.decorator` are included."
+        ),
+    )
     @click.pass_context
-    def new_CLI(ctx, config_dir, config_key, with_config, timeit):
+    def new_CLI(ctx, config_dir, config_key, with_config, timeit, timeit_file):
         app.run_time_info.from_CLI = True
-        TimeIt.active = timeit
+        TimeIt.active = timeit or timeit_file
+        TimeIt.file_path = timeit_file
         if ctx.invoked_subcommand != "manage":
             # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}

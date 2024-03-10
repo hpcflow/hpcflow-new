@@ -1,5 +1,6 @@
 from functools import wraps
 import logging
+from pathlib import Path
 import time
 from collections import defaultdict
 import statistics
@@ -8,6 +9,7 @@ import statistics
 class TimeIt:
 
     active = False
+    file_path = None
     timers = defaultdict(list)
     trace = []
     trace_idx = []
@@ -115,7 +117,11 @@ class TimeIt:
             f"{'min /s':^12s} {'max /s':^12s}"
         ]
         out += _format_nodes(summary)
-        print("\n".join(out))
+        out_str = "\n".join(out)
+        if cls.file_path:
+            Path(cls.file_path).write_text(out_str, encoding="utf-8")
+        else:
+            print(out_str)
 
 
 class AppLog:

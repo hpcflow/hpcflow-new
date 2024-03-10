@@ -28,6 +28,7 @@ from hpcflow.sdk.core.errors import (
     FromSpecMissingObjectError,
     InvalidIdentifier,
 )
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 
 
@@ -390,6 +391,7 @@ def read_YAML(loadable_yaml, typ="safe"):
     return yaml.load(loadable_yaml)
 
 
+@TimeIt.decorator
 def read_YAML_file(path: PathLike, typ="safe"):
     if is_fsspec_url(str(path)):
         with fsspec.open(path, "rt") as f:

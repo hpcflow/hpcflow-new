@@ -293,6 +293,7 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
+    @TimeIt.decorator
     def _load_template_components(self, *include) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
@@ -637,6 +638,7 @@ class BaseApp(metaclass=Singleton):
             shutil.rmtree(self.user_cache_hostname_dir)
             self._ensure_user_cache_hostname_dir()
 
+    @TimeIt.decorator
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._ensure_user_data_dir()
@@ -726,6 +728,7 @@ class BaseApp(metaclass=Singleton):
         self._config_files = {}
         self._load_config(config_dir, config_key, **overrides)
 
+    @TimeIt.decorator
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
 

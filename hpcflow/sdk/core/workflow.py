@@ -153,6 +153,7 @@ class WorkflowTemplate(JSONLike):
             self.doc = [self.doc]
 
     @classmethod
+    @TimeIt.decorator
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
@@ -202,6 +203,7 @@ class WorkflowTemplate(JSONLike):
         return cls.from_json_like(data, shared_data=cls.app.template_components)
 
     @classmethod
+    @TimeIt.decorator
     def from_YAML_string(cls, string: str) -> app.WorkflowTemplate:
         """Load from a YAML string.
 
@@ -229,6 +231,7 @@ class WorkflowTemplate(JSONLike):
             data["name"] = name
 
     @classmethod
+    @TimeIt.decorator
     def from_YAML_file(cls, path: PathLike) -> app.WorkflowTemplate:
         """Load from a YAML file.
 
@@ -245,6 +248,7 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(data)
 
     @classmethod
+    @TimeIt.decorator
     def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
         """Load from a JSON string.
 
@@ -257,6 +261,7 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_JSON_string(string))
 
     @classmethod
+    @TimeIt.decorator
     def from_JSON_file(cls, path: PathLike) -> app.WorkflowTemplate:
         """Load from a JSON file.
 
@@ -273,6 +278,7 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(data)
 
     @classmethod
+    @TimeIt.decorator
     def from_file(
         cls,
         path: PathLike,

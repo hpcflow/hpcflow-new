@@ -1,0 +1,5 @@
+name: workflow_1
+tasks:
+  - schema: test_t1_conditional_OS
+    inputs:
+      p1: 101
