@@ -47,7 +47,7 @@ jobs:
 
       - name: Run app make workflow command
         run: |
-          poetry run hpcflow --timeit-file benchmark_${{ matrix.num_elements }}_elements.txt ./hpcflow/tests/data/benchmark_${{ matrix.num_elements }}_elements.yaml
+          poetry run hpcflow --timeit-file benchmark_${{ matrix.num_elements }}_elements.txt make ./hpcflow/tests/data/benchmark_${{ matrix.num_elements }}_elements.yaml
 
       - uses: actions/upload-artifact@v3
         with:
