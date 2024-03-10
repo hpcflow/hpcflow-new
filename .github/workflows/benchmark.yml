@@ -5,15 +5,17 @@ env:
 
 on:
   workflow_dispatch: # manual invocation
+    inputs:
+      python:
+        description: "Which Pythons to use."
+        default: '["3.12"]'        
 
 jobs:
   make-workflow-benchmark:
     strategy:
       fail-fast: false
       matrix:
-        python-version:
-          - "3.8"
-          - "3.12"
+        python-version: ${{ fromJSON(github.event.inputs.python)}}
         os:
           - ubuntu-latest
           - macos-latest
