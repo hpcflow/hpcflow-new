@@ -95,9 +95,10 @@ class TimeIt:
                 number = v["number"]
                 min_str = f"{v['min']:10.6f}" if number > 1 else f"{f'-':^12s}"
                 max_str = f"{v['max']:10.6f}" if number > 1 else f"{f'-':^12s}"
+                stddev_str = f"({v['stddev']:8.6f})" if number > 1 else f"{f' ':^10s}"
                 out.append(
                     f"{k_str:.<60s} {v['sum']:12.6f} "
-                    f"{v['mean']:10.6f} ± {v['stddev']:8.6f} {number:8d} "
+                    f"{v['mean']:10.6f} {stddev_str} {number:8d} "
                     f"{min_str} {max_str} "
                 )
                 depth_final_next = list(depth_final) + (
@@ -113,7 +114,7 @@ class TimeIt:
         summary = cls.summarise()
 
         out = [
-            f"{'function':^60s} {'sum /s':^12s} {'mean ± stddev /s':^20s} {'N':^8s} "
+            f"{'function':^60s} {'sum /s':^12s} {'mean (stddev) /s':^20s} {'N':^8s} "
             f"{'min /s':^12s} {'max /s':^12s}"
         ]
         out += _format_nodes(summary)

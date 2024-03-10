@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # manual invocation
 
 jobs:
-  make-workflow:
+  make-workflow-benchmark:
     strategy:
       fail-fast: false
       matrix:
@@ -21,11 +21,11 @@ jobs:
         num_elements: [1, 10, 100, 1_000, 10_000]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -47,10 +47,26 @@ jobs:
 
       - name: Run app make workflow command
         run: |
-          poetry run hpcflow --timeit-file benchmark_${{ matrix.num_elements }}_elements.txt make ./hpcflow/tests/data/benchmark_${{ matrix.num_elements }}_elements.yaml
+          poetry run hpcflow --timeit-file benchmark_make_workflow_${{ matrix.num_elements }}_elements-${{ runner.os }}-py-${{ matrix.python-version }}.txt make ./hpcflow/tests/data/benchmark_${{ matrix.num_elements }}_elements.yaml
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-            name: benchmark_${{ matrix.num_elements }}_elements-${{ runner.os }}-${{ matrix.python-version }}.txt
-            path: benchmark_${{ matrix.num_elements }}_elements.txt
+            name: benchmark_make_workflow_${{ matrix.num_elements }}_elements-${{ runner.os }}-py-${{ matrix.python-version }}.txt
+            path: benchmark_make_workflow_${{ matrix.num_elements }}_elements-${{ runner.os }}-py-${{ matrix.python-version }}.txt
  
+  make-workflow-benchmark-upload:
+    needs: make-workflow-benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - run: |
+          mkdir benchmarks
+      - uses: actions/download-artifact@v4
+        with: 
+          merge-multiple: true
+          path: benchmarks
+      - uses: actions/upload-artifact@v4
+        with:             
+          path: benchmarks
