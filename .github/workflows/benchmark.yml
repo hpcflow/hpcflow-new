@@ -74,4 +74,5 @@ jobs:
           path: benchmarks
       - uses: actions/upload-artifact@v4
         with:             
+          name: benchmarks
           path: benchmarks
