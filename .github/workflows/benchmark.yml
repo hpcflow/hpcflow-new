@@ -51,6 +51,6 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-            name: benchmark_${{ matrix.num_elements }}_elements.txt
+            name: benchmark_${{ matrix.num_elements }}_elements-${{ runner.os }}-${{ matrix.python-version }}.txt
             path: benchmark_${{ matrix.num_elements }}_elements.txt
  
