@@ -24,3 +24,12 @@ def test_reuse(null_config, tmp_path):
     wkt = hf.WorkflowTemplate(name="test", tasks=[])
     wk1 = hf.Workflow.from_template(wkt, name="test_1", path=tmp_path)
     wk2 = hf.Workflow.from_template(wkt, name="test_2", path=tmp_path)
+
+
+def test_workflow_template_vars(tmp_path, new_null_config):
+    num_repeats = 2
+    wkt = make_test_data_YAML_workflow_template(
+        workflow_name="benchmark_N_elements.yaml",
+        variables={"N": num_repeats},
+    )
+    assert wkt.tasks[0].element_sets[0].repeats[0]["number"] == num_repeats
