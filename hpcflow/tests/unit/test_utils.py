@@ -3,7 +3,7 @@ import pytest
 import zarr
 import numpy as np
 from numpy.typing import NDArray
-from hpcflow.sdk.core.errors import InvalidIdentifier
+from hpcflow.sdk.core.errors import InvalidIdentifier, MissingVariableSubstitutionError
 
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
@@ -17,6 +17,7 @@ from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     reshape,
     split_param_label,
+    substitute_string_vars,
     swap_nested_dict_keys,
 )
 
@@ -471,3 +472,42 @@ def test_swap_nested_dict_keys():
         "direct": {"p1": {"all_iterations": True}, "p3": {}},
         "json": {"p2": {}},
     }
+
+
+def test_substitute_string_vars():
+    assert (
+        substitute_string_vars(
+            "hello <<var:my_name>>!",
+            variables={"my_name": "bob"},
+        )
+        == "hello bob!"
+    )
+
+
+def test_substitute_string_vars_repeated_var():
+    assert (
+        substitute_string_vars(
+            "hello <<var:my_name>>; how are you <<var:my_name>>!",
+            variables={"my_name": "bob"},
+        )
+        == "hello bob; how are you bob!"
+    )
+
+
+def test_substitute_string_vars_no_vars():
+    assert (
+        substitute_string_vars(
+            "hello bob!",
+        )
+        == "hello bob!"
+    )
+
+
+def test_substitute_string_vars_raise_no_vars():
+    with pytest.raises(MissingVariableSubstitutionError):
+        substitute_string_vars("hello <<var:my_name>>")
+
+
+def test_substitute_string_vars_raise_missing():
+    with pytest.raises(MissingVariableSubstitutionError):
+        substitute_string_vars("hello <<var:my_name>>", variables={"a": "b"})

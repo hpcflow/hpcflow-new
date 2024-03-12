@@ -43,7 +43,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
     read_JSON_file,
     read_JSON_string,
-    read_YAML,
+    read_YAML_str,
     read_YAML_file,
     replace_items,
 )
@@ -213,7 +213,7 @@ class WorkflowTemplate(JSONLike):
             The YAML string containing the workflow template parametrisation.
 
         """
-        return cls._from_data(read_YAML(string))
+        return cls._from_data(read_YAML_str(string))
 
     @classmethod
     def _check_name(cls, data: Dict, path: PathLike) -> str:

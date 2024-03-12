@@ -15,7 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Optional, Tuple, Type, Union, List
+from typing import Dict, Optional, Tuple, Type, Union, List
 import fsspec
 import numpy as np
 
@@ -27,6 +27,7 @@ from hpcflow.sdk.core.errors import (
     ContainerKeyError,
     FromSpecMissingObjectError,
     InvalidIdentifier,
+    MissingVariableSubstitutionError,
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
@@ -386,20 +387,42 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
-def read_YAML(loadable_yaml, typ="safe"):
-    yaml = YAML(typ=typ)
-    return yaml.load(loadable_yaml)
+def substitute_string_vars(string, variables: Dict[str, str] = None):
+    variables = variables or {}
+
+    def var_repl(match_obj):
+        var_name = match_obj.group(1)
+        try:
+            out = variables[var_name]
+        except KeyError:
+            raise MissingVariableSubstitutionError(
+                f"The variable {var_name!r} referenced in the string does not match any "
+                f"of the provided variables: {list(variables)!r}."
+            )
+        return out
+
+    new_str = re.sub(
+        pattern=r"\<\<var:(.*?)\>\>",
+        repl=var_repl,
+        string=string,
+    )
+    return new_str
 
 
 @TimeIt.decorator
-def read_YAML_file(path: PathLike, typ="safe"):
-    if is_fsspec_url(str(path)):
-        with fsspec.open(path, "rt") as f:
-            data = f.read()
-        loadable_yaml = data
-    else:
-        loadable_yaml = Path(path)
-    return read_YAML(loadable_yaml, typ=typ)
+def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
+    """Load a YAML string."""
+    if variables:
+        yaml_str = substitute_string_vars(yaml_str, variables=variables)
+    yaml = YAML(typ=typ)
+    return yaml.load(yaml_str)
+
+
+@TimeIt.decorator
+def read_YAML_file(path: PathLike, typ="safe", variables: Dict[str, str] = None):
+    with fsspec.open(path, "rt") as f:
+        yaml_str = f.read()
+    return read_YAML_str(yaml_str, typ=typ, variables=variables)
 
 
 def write_YAML_file(obj, path: PathLike, typ="safe"):
@@ -408,13 +431,16 @@ def write_YAML_file(obj, path: PathLike, typ="safe"):
         yaml.dump(obj, fp)
 
 
-def read_JSON_string(string: str):
-    return json.loads(string)
+def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
+    if variables:
+        json_str = substitute_string_vars(json_str, variables=variables)
+    return json.loads(json_str)
 
 
-def read_JSON_file(path):
-    with Path(path).open("rt") as fh:
-        return json.load(fh)
+def read_JSON_file(path, variables: Dict[str, str] = None):
+    with fsspec.open(path, "rt") as f:
+        json_str = f.read()
+    return read_JSON_string(json_str, variables=variables)
 
 
 def write_JSON_file(obj, path: PathLike):

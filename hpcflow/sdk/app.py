@@ -38,7 +38,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import (
-    read_YAML,
+    read_YAML_str,
     read_YAML_file,
     read_JSON_file,
     write_YAML_file,
@@ -379,7 +379,7 @@ class BaseApp(metaclass=Singleton):
                 fh = resources.open_text(package, resource)
             SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
             comp_dat = fh.read()
-            components[comp_type] = read_YAML(comp_dat)
+            components[comp_type] = read_YAML_str(comp_dat)
             fh.close()
 
         return components
