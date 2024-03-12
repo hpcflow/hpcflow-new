@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a154"></a>
+## [v0.2.0a154](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a153...v0.2.0a154) - 2024.03.12
+
+### 🐛 Bug Fixes
+
+* try to fix upload of benchmarks zip artifact
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a153"></a>
 ## [v0.2.0a153](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a152...v0.2.0a153) - 2024.03.12
 
