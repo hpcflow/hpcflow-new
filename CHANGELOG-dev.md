@@ -1,4 +1,30 @@
 
+<a name="v0.2.0a150"></a>
+## [v0.2.0a150](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a149...v0.2.0a150) - 2024.03.12
+
+### ✨ Features
+
+* support workflow template file/string variables with the `--var` CLI option
+* add variable substitution to YAML/JSON strings in prep for WorkflowTemplate vars
+* add `TimeIt` class to time function pathways
+
+### 🐛 Bug Fixes
+
+* GHA name uploaded artifact at end
+* GHA add more options to benchmark
+* GHA add python vers as option to benchmark
+* GHA update cache vers
+* TimeIt and GHA
+* benchmark GHA command
+* benchmark GHA command
+
+### 👷 Build changes
+
+* sync upstream GHA templates
+* sync upstream GHA templates
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a149"></a>
 ## [v0.2.0a149](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a148...v0.2.0a149) - 2024.02.19
 
