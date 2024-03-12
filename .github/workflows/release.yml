@@ -378,7 +378,6 @@ jobs:
           - 1
           - 100
           - 10000
-          - 1000000
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
