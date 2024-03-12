@@ -52,7 +52,7 @@ jobs:
 
       - name: Run app make workflow command
         run: |
-          poetry run hpcflow --timeit-file benchmark_make_workflow_${{ matrix.num_elements }}_elements-${{ runner.os }}-py-${{ matrix.python-version }}.txt make ./hpcflow/tests/data/benchmark_${{ matrix.num_elements }}_elements.yaml
+          poetry run hpcflow --timeit-file benchmark_make_workflow_${{ matrix.num_elements }}_elements-${{ runner.os }}-py-${{ matrix.python-version }}.txt make ./hpcflow/tests/data/benchmark_N_elements.yaml --var N ${{ matrix.num_elements }}
 
       - uses: actions/upload-artifact@v4
         with:
