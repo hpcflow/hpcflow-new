@@ -204,16 +204,21 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     @TimeIt.decorator
-    def from_YAML_string(cls, string: str) -> app.WorkflowTemplate:
+    def from_YAML_string(
+        cls,
+        string: str,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a YAML string.
 
         Parameters
         ----------
         string
             The YAML string containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in `string`.
         """
-        return cls._from_data(read_YAML_str(string))
+        return cls._from_data(read_YAML_str(string, variables=variables))
 
     @classmethod
     def _check_name(cls, data: Dict, path: PathLike) -> str:
@@ -232,47 +237,63 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     @TimeIt.decorator
-    def from_YAML_file(cls, path: PathLike) -> app.WorkflowTemplate:
+    def from_YAML_file(
+        cls,
+        path: PathLike,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a YAML file.
 
         Parameters
         ----------
         path
             The path to the YAML file containing the workflow template parametrisation.
+        variables
+            String variables to substitute in the file given by `path`.
 
         """
         cls.app.logger.debug("parsing workflow template from a YAML file")
-        data = read_YAML_file(path)
+        data = read_YAML_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
     @TimeIt.decorator
-    def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
+    def from_JSON_string(
+        cls,
+        string: str,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a JSON string.
 
         Parameters
         ----------
         string
             The JSON string containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in `string`.
         """
-        return cls._from_data(read_JSON_string(string))
+        return cls._from_data(read_JSON_string(string, variables=variables))
 
     @classmethod
     @TimeIt.decorator
-    def from_JSON_file(cls, path: PathLike) -> app.WorkflowTemplate:
+    def from_JSON_file(
+        cls,
+        path: PathLike,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a JSON file.
 
         Parameters
         ----------
         path
             The path to the JSON file containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in the file given by `path`.
         """
         cls.app.logger.debug("parsing workflow template from a JSON file")
-        data = read_JSON_file(path)
+        data = read_JSON_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
         return cls._from_data(data)
@@ -283,6 +304,7 @@ class WorkflowTemplate(JSONLike):
         cls,
         path: PathLike,
         template_format: Optional[str] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.WorkflowTemplate:
         """Load from either a YAML or JSON file, depending on the file extension.
 
@@ -293,14 +315,16 @@ class WorkflowTemplate(JSONLike):
         template_format
             The file format to expect at `path`. One of "json" or "yaml", if specified. By
             default, "yaml".
+        variables
+            String variables to substitute in the file given by `path`.
 
         """
         path = Path(path)
         fmt = template_format.lower() if template_format else None
         if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
-            return cls.from_YAML_file(path)
+            return cls.from_YAML_file(path, variables=variables)
         elif fmt == "json" or path.suffix in (".json", ".jsonc"):
-            return cls.from_JSON_file(path)
+            return cls.from_JSON_file(path, variables=variables)
         else:
             raise ValueError(
                 f"Unknown workflow template file extension {path.suffix!r}. Supported "
@@ -527,6 +551,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a YAML file.
 
@@ -555,8 +580,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `YAML_path`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
+        template = cls.app.WorkflowTemplate.from_YAML_file(
+            path=YAML_path,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -579,6 +609,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a YAML string.
 
@@ -607,8 +638,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the string `YAML_str`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
+        template = cls.app.WorkflowTemplate.from_YAML_string(
+            string=YAML_str,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -631,6 +667,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a JSON file.
 
@@ -659,8 +696,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `JSON_path`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
+        template = cls.app.WorkflowTemplate.from_JSON_file(
+            path=JSON_path,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -683,6 +725,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a JSON string.
 
@@ -711,8 +754,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the string `JSON_str`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
+        template = cls.app.WorkflowTemplate.from_JSON_string(
+            string=JSON_str,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -737,6 +785,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -769,8 +818,14 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `template_path`.
         """
-        template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
+        template = cls.app.WorkflowTemplate.from_file(
+            template_path,
+            template_format,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,

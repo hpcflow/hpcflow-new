@@ -11,6 +11,7 @@ from hpcflow.sdk.cli_common import (
     store_option,
     ts_fmt_option,
     ts_name_fmt_option,
+    variables_option,
     js_parallelism_option,
     wait_option,
     add_to_known_opt,
@@ -98,6 +99,7 @@ def get_demo_workflow_CLI(app):
     @store_option
     @ts_fmt_option
     @ts_name_fmt_option
+    @variables_option
     def make_demo_workflow(
         workflow_name,
         format,
@@ -107,6 +109,7 @@ def get_demo_workflow_CLI(app):
         store,
         ts_fmt=None,
         ts_name_fmt=None,
+        variables=None,
     ):
         wk = app.make_demo_workflow(
             workflow_name=workflow_name,
@@ -117,6 +120,7 @@ def get_demo_workflow_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            variables=variables,
         )
         click.echo(wk.path)
 
@@ -129,6 +133,7 @@ def get_demo_workflow_CLI(app):
     @store_option
     @ts_fmt_option
     @ts_name_fmt_option
+    @variables_option
     @js_parallelism_option
     @wait_option
     @add_to_known_opt
@@ -143,6 +148,7 @@ def get_demo_workflow_CLI(app):
         store,
         ts_fmt=None,
         ts_name_fmt=None,
+        variables=None,
         js_parallelism=None,
         wait=False,
         add_to_known=True,
@@ -158,6 +164,7 @@ def get_demo_workflow_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            variables=variables,
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,

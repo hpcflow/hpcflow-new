@@ -511,3 +511,7 @@ def test_substitute_string_vars_raise_no_vars():
 def test_substitute_string_vars_raise_missing():
     with pytest.raises(MissingVariableSubstitutionError):
         substitute_string_vars("hello <<var:my_name>>", variables={"a": "b"})
+
+
+def test_substitute_string_vars_non_str():
+    assert substitute_string_vars("<<var:a>>", variables={"a": 2}) == "2"

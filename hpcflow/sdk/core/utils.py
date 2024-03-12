@@ -393,7 +393,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
     def var_repl(match_obj):
         var_name = match_obj.group(1)
         try:
-            out = variables[var_name]
+            out = str(variables[var_name])
         except KeyError:
             raise MissingVariableSubstitutionError(
                 f"The variable {var_name!r} referenced in the string does not match any "

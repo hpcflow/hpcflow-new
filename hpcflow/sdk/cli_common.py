@@ -63,6 +63,17 @@ ts_name_fmt_option = click.option(
         "includes a timestamp."
     ),
 )
+variables_option = click.option(
+    "-v",
+    "--var",
+    "variables",
+    type=(str, str),
+    multiple=True,
+    help=(
+        "Workflow template variable value to be substituted in to the template file or "
+        "string. Multiple variable values can be specified."
+    ),
+)
 js_parallelism_option = click.option(
     "--js-parallelism",
     help=(
