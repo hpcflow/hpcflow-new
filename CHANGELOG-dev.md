@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a151"></a>
+## [v0.2.0a151](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a150...v0.2.0a151) - 2024.03.12
+
+### 🐛 Bug Fixes
+
+* remove 1M elements from benchmark test, takes too long currently
+
+
 <a name="v0.2.0a150"></a>
 ## [v0.2.0a150](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a149...v0.2.0a150) - 2024.03.12
 
