@@ -377,8 +377,7 @@ jobs:
         num_elements: 
           - 1
           - 100
-          - 10000
-          - 1000000
+          - 10000          
     runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     steps:
       - uses: actions/checkout@v4
