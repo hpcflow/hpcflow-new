@@ -494,7 +494,7 @@ jobs:
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-win-dir.zip
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-macOS-dir.zip
             **/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir.zip
-            benchmarks.zip
+            **/benchmarks.zip
           prerelease: ${{ github.event.pull_request.base.ref == 'develop' }}
 
       - name: Release info
