@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
@@ -42,7 +43,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
     read_JSON_file,
     read_JSON_string,
-    read_YAML,
+    read_YAML_str,
     read_YAML_file,
     replace_items,
 )
@@ -152,6 +153,7 @@ class WorkflowTemplate(JSONLike):
             self.doc = [self.doc]
 
     @classmethod
+    @TimeIt.decorator
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
@@ -201,16 +203,22 @@ class WorkflowTemplate(JSONLike):
         return cls.from_json_like(data, shared_data=cls.app.template_components)
 
     @classmethod
-    def from_YAML_string(cls, string: str) -> app.WorkflowTemplate:
+    @TimeIt.decorator
+    def from_YAML_string(
+        cls,
+        string: str,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a YAML string.
 
         Parameters
         ----------
         string
             The YAML string containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in `string`.
         """
-        return cls._from_data(read_YAML(string))
+        return cls._from_data(read_YAML_str(string, variables=variables))
 
     @classmethod
     def _check_name(cls, data: Dict, path: PathLike) -> str:
@@ -228,54 +236,75 @@ class WorkflowTemplate(JSONLike):
             data["name"] = name
 
     @classmethod
-    def from_YAML_file(cls, path: PathLike) -> app.WorkflowTemplate:
+    @TimeIt.decorator
+    def from_YAML_file(
+        cls,
+        path: PathLike,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a YAML file.
 
         Parameters
         ----------
         path
             The path to the YAML file containing the workflow template parametrisation.
+        variables
+            String variables to substitute in the file given by `path`.
 
         """
         cls.app.logger.debug("parsing workflow template from a YAML file")
-        data = read_YAML_file(path)
+        data = read_YAML_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
-    def from_JSON_string(cls, string: str) -> app.WorkflowTemplate:
+    @TimeIt.decorator
+    def from_JSON_string(
+        cls,
+        string: str,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a JSON string.
 
         Parameters
         ----------
         string
             The JSON string containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in `string`.
         """
-        return cls._from_data(read_JSON_string(string))
+        return cls._from_data(read_JSON_string(string, variables=variables))
 
     @classmethod
-    def from_JSON_file(cls, path: PathLike) -> app.WorkflowTemplate:
+    @TimeIt.decorator
+    def from_JSON_file(
+        cls,
+        path: PathLike,
+        variables: Optional[Dict[str, str]] = None,
+    ) -> app.WorkflowTemplate:
         """Load from a JSON file.
 
         Parameters
         ----------
         path
             The path to the JSON file containing the workflow template parametrisation.
-
+        variables
+            String variables to substitute in the file given by `path`.
         """
         cls.app.logger.debug("parsing workflow template from a JSON file")
-        data = read_JSON_file(path)
+        data = read_JSON_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
         return cls._from_data(data)
 
     @classmethod
+    @TimeIt.decorator
     def from_file(
         cls,
         path: PathLike,
         template_format: Optional[str] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.WorkflowTemplate:
         """Load from either a YAML or JSON file, depending on the file extension.
 
@@ -286,14 +315,16 @@ class WorkflowTemplate(JSONLike):
         template_format
             The file format to expect at `path`. One of "json" or "yaml", if specified. By
             default, "yaml".
+        variables
+            String variables to substitute in the file given by `path`.
 
         """
         path = Path(path)
         fmt = template_format.lower() if template_format else None
         if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
-            return cls.from_YAML_file(path)
+            return cls.from_YAML_file(path, variables=variables)
         elif fmt == "json" or path.suffix in (".json", ".jsonc"):
-            return cls.from_JSON_file(path)
+            return cls.from_JSON_file(path, variables=variables)
         else:
             raise ValueError(
                 f"Unknown workflow template file extension {path.suffix!r}. Supported "
@@ -450,6 +481,7 @@ class Workflow:
         return len(self.tasks)
 
     @classmethod
+    @TimeIt.decorator
     def from_template(
         cls,
         template: WorkflowTemplate,
@@ -508,6 +540,7 @@ class Workflow:
         return wk
 
     @classmethod
+    @TimeIt.decorator
     def from_YAML_file(
         cls,
         YAML_path: PathLike,
@@ -518,6 +551,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a YAML file.
 
@@ -546,8 +580,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `YAML_path`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_file(YAML_path)
+        template = cls.app.WorkflowTemplate.from_YAML_file(
+            path=YAML_path,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -570,6 +609,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a YAML string.
 
@@ -598,8 +638,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the string `YAML_str`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_string(YAML_str)
+        template = cls.app.WorkflowTemplate.from_YAML_string(
+            string=YAML_str,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -622,6 +667,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a JSON file.
 
@@ -650,8 +696,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `JSON_path`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_file(JSON_path)
+        template = cls.app.WorkflowTemplate.from_JSON_file(
+            path=JSON_path,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -674,6 +725,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from a JSON string.
 
@@ -702,8 +754,13 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the string `JSON_str`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_string(JSON_str)
+        template = cls.app.WorkflowTemplate.from_JSON_string(
+            string=JSON_str,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -716,6 +773,7 @@ class Workflow:
         )
 
     @classmethod
+    @TimeIt.decorator
     def from_file(
         cls,
         template_path: PathLike,
@@ -727,6 +785,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> app.Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -759,8 +818,14 @@ class Workflow:
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the file given by `template_path`.
         """
-        template = cls.app.WorkflowTemplate.from_file(template_path, template_format)
+        template = cls.app.WorkflowTemplate.from_file(
+            template_path,
+            template_format,
+            variables=variables,
+        )
         return cls.from_template(
             template,
             path,
@@ -773,6 +838,7 @@ class Workflow:
         )
 
     @classmethod
+    @TimeIt.decorator
     def from_template_data(
         cls,
         template_name: str,
@@ -841,6 +907,7 @@ class Workflow:
             store_kwargs,
         )
 
+    @TimeIt.decorator
     def _add_empty_task(
         self,
         task: app.Task,
@@ -878,9 +945,9 @@ class Workflow:
                     self._pending["template_components"][comp_type].append(idx)
 
         self._pending["tasks"].append(new_index)
-
         return self.tasks[new_index]
 
+    @TimeIt.decorator
     def _add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
         new_wk_task._add_elements(element_sets=task.element_sets)
@@ -916,6 +983,7 @@ class Workflow:
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
+    @TimeIt.decorator
     def _add_empty_loop(self, loop: app.Loop) -> app.WorkflowLoop:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
@@ -955,6 +1023,7 @@ class Workflow:
 
         return wk_loop
 
+    @TimeIt.decorator
     def _add_loop(self, loop: app.Loop, parent_loop_indices: Dict = None) -> None:
         new_wk_loop = self._add_empty_loop(loop)
         if loop.num_iterations is not None:
@@ -1075,17 +1144,21 @@ class Workflow:
     def num_added_tasks(self) -> int:
         return self._store._get_num_total_added_tasks()
 
+    @TimeIt.decorator
     def get_store_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
         return self._store.get_EARs(id_lst)
 
+    @TimeIt.decorator
     def get_store_element_iterations(
         self, id_lst: Iterable[int]
     ) -> List[AnySElementIter]:
         return self._store.get_element_iterations(id_lst)
 
+    @TimeIt.decorator
     def get_store_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
         return self._store.get_elements(id_lst)
 
+    @TimeIt.decorator
     def get_store_tasks(self, id_lst: Iterable[int]) -> List[AnySTask]:
         return self._store.get_tasks_by_IDs(id_lst)
 
@@ -1186,6 +1259,7 @@ class Workflow:
 
         return objs
 
+    @TimeIt.decorator
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of IDs."""
 
@@ -1228,12 +1302,15 @@ class Workflow:
 
         return objs
 
+    @TimeIt.decorator
     def get_all_elements(self) -> List[app.Element]:
         return self.get_elements_from_IDs(range(self.num_elements))
 
+    @TimeIt.decorator
     def get_all_element_iterations(self) -> List[app.ElementIteration]:
         return self.get_element_iterations_from_IDs(range(self.num_element_iterations))
 
+    @TimeIt.decorator
     def get_all_EARs(self) -> List[app.ElementActionRun]:
         return self.get_EARs_from_IDs(range(self.num_EARs))
 
@@ -1339,6 +1416,7 @@ class Workflow:
         return all_replaced[-1]
 
     @classmethod
+    @TimeIt.decorator
     def _write_empty_workflow(
         cls,
         template: app.WorkflowTemplate,
@@ -1467,15 +1545,19 @@ class Workflow:
     ) -> List[AnySParameter]:
         return self._store.get_parameters(id_lst, **kwargs)
 
+    @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
         return self._store.get_parameter_sources(id_lst)
 
+    @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
         return self._store.get_parameter_set_statuses(id_lst)
 
+    @TimeIt.decorator
     def get_parameter(self, index: int, **kwargs: Dict) -> AnySParameter:
         return self.get_parameters([index], **kwargs)[0]
 
+    @TimeIt.decorator
     def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
         param = self.get_parameter(index, **kwargs)
         if param.data is not None:
@@ -1483,18 +1565,22 @@ class Workflow:
         else:
             return param.file
 
+    @TimeIt.decorator
     def get_parameter_source(self, index: int) -> Dict:
         return self.get_parameter_sources([index])[0]
 
+    @TimeIt.decorator
     def is_parameter_set(self, index: int) -> bool:
         return self.get_parameter_set_statuses([index])[0]
 
+    @TimeIt.decorator
     def get_all_parameters(self, **kwargs: Dict) -> List[AnySParameter]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameters(id_lst, **kwargs)
 
+    @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
         """Retrieve all workflow parameter data."""
         params = self.get_all_parameters(**kwargs)
@@ -1671,6 +1757,7 @@ class Workflow:
     def execution_path(self):
         return Path(self.path) / self._exec_dir_name
 
+    @TimeIt.decorator
     def get_task_elements(self, task: app.Task, selection: slice) -> List[app.Element]:
         return [
             self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
@@ -1818,6 +1905,7 @@ class Workflow:
         with self._store.cached_load():
             return self._store.get_EAR_skipped(EAR_ID)
 
+    @TimeIt.decorator
     def set_parameter_value(
         self, param_id: int, value: Any, commit: bool = False
     ) -> None:

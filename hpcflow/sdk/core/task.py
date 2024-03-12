@@ -10,6 +10,7 @@ from valida.rules import Rule
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.task_schema import TaskSchema
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
@@ -719,6 +720,7 @@ class Task(JSONLike):
         """Find the nesting order for a task sequence."""
         return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
 
+    @TimeIt.decorator
     def _prepare_persistent_outputs(self, workflow, local_element_idx_range):
         # TODO: check that schema is present when adding task? (should this be here?)
 
@@ -1790,6 +1792,7 @@ class WorkflowTask:
 
         return element_dat_idx
 
+    @TimeIt.decorator
     def initialise_EARs(self) -> List[int]:
         """Try to initialise any uninitialised EARs of this task."""
         initialised = []
@@ -1815,6 +1818,7 @@ class WorkflowTask:
                         self.workflow.set_EARs_initialised(iter_i.id_)
         return initialised
 
+    @TimeIt.decorator
     def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
         # keys are (act_idx, EAR_idx):
         all_data_idx = {}
@@ -1878,6 +1882,7 @@ class WorkflowTask:
         for pid, src in param_src_updates.items():
             self.workflow._store.update_param_source(pid, src)
 
+    @TimeIt.decorator
     def _add_element_set(self, element_set):
         """
         Returns
@@ -1982,6 +1987,7 @@ class WorkflowTask:
                 return_indices=return_indices,
             )
 
+    @TimeIt.decorator
     def _add_elements(
         self,
         base_element=None,
@@ -2153,6 +2159,7 @@ class WorkflowTask:
 
         return deps
 
+    @TimeIt.decorator
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
@@ -2251,6 +2258,7 @@ class WorkflowTask:
 
         return params
 
+    @TimeIt.decorator
     def _get_merged_parameter_data(
         self,
         data_index,

@@ -19,6 +19,7 @@ from hpcflow.sdk.cli_common import (
     store_option,
     ts_fmt_option,
     ts_name_fmt_option,
+    variables_option,
     js_parallelism_option,
     wait_option,
     add_to_known_opt,
@@ -31,6 +32,7 @@ from hpcflow.sdk.cli_common import (
     unzip_log_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
 string_option = click.option(
@@ -68,6 +70,7 @@ def _make_API_CLI(app):
     @store_option
     @ts_fmt_option
     @ts_name_fmt_option
+    @variables_option
     def make_workflow(
         template_file_or_str,
         string,
@@ -78,6 +81,7 @@ def _make_API_CLI(app):
         store,
         ts_fmt=None,
         ts_name_fmt=None,
+        variables=None,
     ):
         """Generate a new {app_name} workflow.
 
@@ -95,6 +99,7 @@ def _make_API_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            variables=dict(variables),
         )
         click.echo(wk.path)
 
@@ -108,6 +113,7 @@ def _make_API_CLI(app):
     @store_option
     @ts_fmt_option
     @ts_name_fmt_option
+    @variables_option
     @js_parallelism_option
     @wait_option
     @add_to_known_opt
@@ -123,6 +129,7 @@ def _make_API_CLI(app):
         store,
         ts_fmt=None,
         ts_name_fmt=None,
+        variables=None,
         js_parallelism=None,
         wait=False,
         add_to_known=True,
@@ -146,6 +153,7 @@ def _make_API_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
+            variables=dict(variables),
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,
@@ -1032,9 +1040,27 @@ def make_cli(app):
         nargs=2,
         multiple=True,
     )
+    @click.option(
+        "--timeit",
+        help=(
+            "Time function pathways as the code executes and write out a summary at the "
+            "end. Only functions decorated by `TimeIt.decorator` are included."
+        ),
+        is_flag=True,
+    )
+    @click.option(
+        "--timeit-file",
+        help=(
+            "Time function pathways as the code executes and write out a summary at the "
+            "end to a text file given by this file path. Only functions decorated by "
+            "`TimeIt.decorator` are included."
+        ),
+    )
     @click.pass_context
-    def new_CLI(ctx, config_dir, config_key, with_config):
+    def new_CLI(ctx, config_dir, config_key, with_config, timeit, timeit_file):
         app.run_time_info.from_CLI = True
+        TimeIt.active = timeit or timeit_file
+        TimeIt.file_path = timeit_file
         if ctx.invoked_subcommand != "manage":
             # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}
@@ -1047,6 +1073,11 @@ def make_cli(app):
             except ConfigError as err:
                 click.echo(f"{colored(err.__class__.__name__, 'red')}: {err}")
                 ctx.exit(1)
+
+    @new_CLI.result_callback()
+    def post_execution(*args, **kwargs):
+        if TimeIt.active:
+            TimeIt.summarise_string()
 
     @new_CLI.command()
     @click.argument("name")

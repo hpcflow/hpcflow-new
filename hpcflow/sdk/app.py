@@ -1,4 +1,5 @@
 """An hpcflow application."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -37,7 +38,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import (
-    read_YAML,
+    read_YAML_str,
     read_YAML_file,
     read_JSON_file,
     write_YAML_file,
@@ -46,7 +47,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
-from hpcflow.sdk.log import AppLog
+from hpcflow.sdk.log import AppLog, TimeIt
 from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
@@ -95,7 +96,10 @@ class Singleton(type):
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
-        SDK_logger.info(f"App metaclass __call__ with {args=} {kwargs=}")
+        SDK_logger.info(
+            f"App metaclass __call__: "
+            f"name={kwargs['name']!r}, version={kwargs['version']!r}."
+        )
         if cls not in cls._instances:
             SDK_logger.info(f"App metaclass initialising new object {kwargs['name']!r}.")
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
@@ -256,6 +260,14 @@ class BaseApp(metaclass=Singleton):
         return self._log
 
     @property
+    def timeit(self) -> bool:
+        return TimeIt.active
+
+    @timeit.setter
+    def timeit(self, value: bool):
+        TimeIt.active = bool(value)
+
+    @property
     def template_components(self) -> Dict[str, ObjectList]:
         if not self.is_template_components_loaded:
             self._load_template_components()
@@ -281,6 +293,7 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
+    @TimeIt.decorator
     def _load_template_components(self, *include) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
@@ -366,7 +379,7 @@ class BaseApp(metaclass=Singleton):
                 fh = resources.open_text(package, resource)
             SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
             comp_dat = fh.read()
-            components[comp_type] = read_YAML(comp_dat)
+            components[comp_type] = read_YAML_str(comp_dat)
             fh.close()
 
         return components
@@ -625,6 +638,7 @@ class BaseApp(metaclass=Singleton):
             shutil.rmtree(self.user_cache_hostname_dir)
             self._ensure_user_cache_hostname_dir()
 
+    @TimeIt.decorator
     def _load_config(self, config_dir, config_key, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._ensure_user_data_dir()
@@ -714,6 +728,7 @@ class BaseApp(metaclass=Singleton):
         self._config_files = {}
         self._load_config(config_dir, config_key, **overrides)
 
+    @TimeIt.decorator
     def _load_scripts(self):
         # TODO: load custom directories / custom functions (via decorator)
 
@@ -1126,6 +1141,7 @@ class BaseApp(metaclass=Singleton):
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
@@ -1160,6 +1176,8 @@ class BaseApp(metaclass=Singleton):
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in `template_file_or_str`.
         """
 
         self.API_logger.info("make_workflow called")
@@ -1172,6 +1190,7 @@ class BaseApp(metaclass=Singleton):
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
             "store_kwargs": store_kwargs,
+            "variables": variables,
         }
 
         if not is_string:
@@ -1212,6 +1231,7 @@ class BaseApp(metaclass=Singleton):
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
@@ -1252,6 +1272,8 @@ class BaseApp(metaclass=Singleton):
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in `template_file_or_str`.
         JS_parallelism
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
@@ -1282,6 +1304,7 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             store_kwargs=store_kwargs,
+            variables=variables,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,
@@ -1302,6 +1325,7 @@ class BaseApp(metaclass=Singleton):
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
@@ -1333,6 +1357,8 @@ class BaseApp(metaclass=Singleton):
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the demo workflow template file.
         """
 
         self.API_logger.info("make_demo_workflow called")
@@ -1348,6 +1374,7 @@ class BaseApp(metaclass=Singleton):
                 ts_fmt=ts_fmt,
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
+                variables=variables,
             )
         return wk
 
@@ -1362,6 +1389,7 @@ class BaseApp(metaclass=Singleton):
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        variables: Optional[Dict[str, str]] = None,
         JS_parallelism: Optional[bool] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
@@ -1399,6 +1427,8 @@ class BaseApp(metaclass=Singleton):
             includes a timestamp.
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables
+            String variables to substitute in the demo workflow template file.
         JS_parallelism
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
@@ -1428,6 +1458,7 @@ class BaseApp(metaclass=Singleton):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             store_kwargs=store_kwargs,
+            variables=variables,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,

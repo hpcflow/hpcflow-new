@@ -29,6 +29,7 @@ from hpcflow.sdk.core.utils import (
     split_param_label,
     swap_nested_dict_keys,
 )
+from hpcflow.sdk.log import TimeIt
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
@@ -1720,6 +1721,7 @@ class Action(JSONLike):
     def get_output_file_labels(self):
         return tuple(i.label for i in self.output_files)
 
+    @TimeIt.decorator
     def generate_data_index(
         self,
         act_idx,

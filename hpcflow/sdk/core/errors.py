@@ -387,3 +387,7 @@ class UnknownScriptDataParameter(ValueError):
 
 class UnknownScriptDataKey(ValueError):
     pass
+
+
+class MissingVariableSubstitutionError(KeyError):
+    pass

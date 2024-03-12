@@ -7,6 +7,8 @@ from datetime import datetime
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from hpcflow.sdk.log import TimeIt
+
 
 class PendingChanges:
     """Class to store pending changes and merge them into a persistent store.
@@ -112,6 +114,7 @@ class PendingChanges:
     def logger(self):
         return self.app.persistence_logger
 
+    @TimeIt.decorator
     def commit_all(self):
         """Commit all pending changes to disk."""
         self.logger.info(f"committing all pending changes: {self.where_pending()}")
@@ -131,6 +134,7 @@ class PendingChanges:
 
         assert not (self)
 
+    @TimeIt.decorator
     def commit_tasks(self) -> None:
         """Commit pending tasks to disk."""
         if self.add_tasks:
@@ -144,6 +148,7 @@ class PendingChanges:
             }
         self.clear_add_tasks()
 
+    @TimeIt.decorator
     def commit_loops(self) -> None:
         """Commit pending loops to disk."""
         if self.add_loops:
@@ -154,6 +159,7 @@ class PendingChanges:
             self.store._append_loops(loops)
         self.clear_add_loops()
 
+    @TimeIt.decorator
     def commit_submissions(self) -> None:
         """Commit pending submissions to disk."""
         if self.add_submissions:
@@ -166,12 +172,14 @@ class PendingChanges:
             self.store._append_submissions(subs)
         self.clear_add_submissions()
 
+    @TimeIt.decorator
     def commit_submission_parts(self) -> None:
         if self.add_submission_parts:
             self.logger.debug(f"commit: adding pending submission parts")
             self.store._append_submission_parts(self.add_submission_parts)
         self.clear_add_submission_parts()
 
+    @TimeIt.decorator
     def commit_elem_IDs(self) -> None:
         # TODO: could be batched up?
         for task_ID, elem_IDs in self.add_elem_IDs.items():
@@ -181,6 +189,7 @@ class PendingChanges:
             self.store._append_task_element_IDs(task_ID, elem_IDs)
         self.clear_add_elem_IDs()
 
+    @TimeIt.decorator
     def commit_elements(self) -> None:
         if self.add_elements:
             elems = self.store.get_elements(self.add_elements)
@@ -193,6 +202,7 @@ class PendingChanges:
             }
         self.clear_add_elements()
 
+    @TimeIt.decorator
     def commit_element_sets(self) -> None:
         # TODO: could be batched up?
         for task_id, es_js in self.add_element_sets.items():
@@ -200,6 +210,7 @@ class PendingChanges:
             self.store._append_element_sets(task_id, es_js)
         self.clear_add_element_sets()
 
+    @TimeIt.decorator
     def commit_elem_iter_IDs(self) -> None:
         # TODO: could be batched up?
         for elem_ID, iter_IDs in self.add_elem_iter_IDs.items():
@@ -210,6 +221,7 @@ class PendingChanges:
             self.store._append_elem_iter_IDs(elem_ID, iter_IDs)
         self.clear_add_elem_iter_IDs()
 
+    @TimeIt.decorator
     def commit_elem_iters(self) -> None:
         if self.add_elem_iters:
             iters = self.store.get_element_iterations(self.add_elem_iters.keys())
@@ -228,6 +240,7 @@ class PendingChanges:
             ]
         self.clear_add_elem_iters()
 
+    @TimeIt.decorator
     def commit_elem_iter_EAR_IDs(self) -> None:
         # TODO: could be batched up?
         for iter_ID, act_EAR_IDs in self.add_elem_iter_EAR_IDs.items():
@@ -239,6 +252,7 @@ class PendingChanges:
                 self.store._append_elem_iter_EAR_IDs(iter_ID, act_idx, EAR_IDs)
         self.clear_add_elem_iter_EAR_IDs()
 
+    @TimeIt.decorator
     def commit_EARs(self) -> None:
         if self.add_EARs:
             EARs = self.store.get_EARs(self.add_EARs)
@@ -262,6 +276,7 @@ class PendingChanges:
 
         self.clear_add_EARs()
 
+    @TimeIt.decorator
     def commit_EARs_initialised(self) -> None:
         if self.set_EARs_initialised:
             iter_ids = self.set_EARs_initialised
@@ -274,6 +289,7 @@ class PendingChanges:
                 self._store._update_elem_iter_EARs_initialised(i)
         self.clear_set_EARs_initialised()
 
+    @TimeIt.decorator
     def commit_EAR_submission_indices(self) -> None:
         # TODO: could be batched up?
         for EAR_id, sub_idx in self.set_EAR_submission_indices.items():
@@ -284,6 +300,7 @@ class PendingChanges:
             self.store._update_EAR_submission_index(EAR_id, sub_idx)
         self.clear_set_EAR_submission_indices()
 
+    @TimeIt.decorator
     def commit_EAR_starts(self) -> None:
         # TODO: could be batched up?
         for EAR_id, (time, snap, hostname) in self.set_EAR_starts.items():
@@ -294,6 +311,7 @@ class PendingChanges:
             self.store._update_EAR_start(EAR_id, time, snap, hostname)
         self.clear_set_EAR_starts()
 
+    @TimeIt.decorator
     def commit_EAR_ends(self) -> None:
         # TODO: could be batched up?
         for EAR_id, (time, snap, ext, suc) in self.set_EAR_ends.items():
@@ -304,6 +322,7 @@ class PendingChanges:
             self.store._update_EAR_end(EAR_id, time, snap, ext, suc)
         self.clear_set_EAR_ends()
 
+    @TimeIt.decorator
     def commit_EAR_skips(self) -> None:
         # TODO: could be batched up?
         for EAR_id in self.set_EAR_skips:
@@ -311,6 +330,7 @@ class PendingChanges:
             self.store._update_EAR_skip(EAR_id)
         self.clear_set_EAR_skips()
 
+    @TimeIt.decorator
     def commit_js_metadata(self) -> None:
         if self.set_js_metadata:
             self.logger.debug(
@@ -319,6 +339,7 @@ class PendingChanges:
             self.store._update_js_metadata(self.set_js_metadata)
         self.clear_set_js_metadata()
 
+    @TimeIt.decorator
     def commit_parameters(self) -> None:
         """Make pending parameters persistent."""
         if self.add_parameters:
@@ -334,6 +355,7 @@ class PendingChanges:
             self.store._set_parameter_value(param_id, value, is_file)
         self.clear_set_parameters()
 
+    @TimeIt.decorator
     def commit_files(self) -> None:
         """Add pending files to the files directory."""
         if self.add_files:
@@ -341,12 +363,14 @@ class PendingChanges:
             self.store._append_files(self.add_files)
         self.clear_add_files()
 
+    @TimeIt.decorator
     def commit_template_components(self) -> None:
         if self.add_template_components:
             self.logger.debug(f"commit: adding template components.")
             self.store._update_template_components(self.store.get_template_components())
         self.clear_add_template_components()
 
+    @TimeIt.decorator
     def commit_param_sources(self) -> None:
         """Make pending changes to parameter sources persistent."""
         for param_id, src in self.update_param_sources.items():
@@ -355,6 +379,7 @@ class PendingChanges:
             self.store._update_parameter_source(param_id, src)
         self.clear_update_param_sources()
 
+    @TimeIt.decorator
     def commit_loop_indices(self) -> None:
         """Make pending update to element iteration loop indices persistent."""
         for iter_ID, loop_idx in self.update_loop_indices.items():
@@ -365,6 +390,7 @@ class PendingChanges:
             self.store._update_loop_index(iter_ID, loop_idx)
         self.clear_update_loop_indices()
 
+    @TimeIt.decorator
     def commit_loop_num_iters(self) -> None:
         """Make pending update to the number of loop iterations."""
         for index, num_iters in self.update_loop_num_iters.items():
