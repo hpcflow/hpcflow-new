@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a156"></a>
+## [v0.2.0a156](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a155...v0.2.0a156) - 2024.03.13
+
+### ✨ Features
+
+* support default values in workflow template string var substitution
+* support default values in workflow template string vars
+
+### 🐛 Bug Fixes
+
+* variable substitution various
+
+### 👷 Build changes
+
+* sync upstream GHA templates
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a155"></a>
 ## [v0.2.0a155](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a154...v0.2.0a155) - 2024.03.13
 
