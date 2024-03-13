@@ -120,7 +120,7 @@ def get_demo_workflow_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
-            variables=variables,
+            variables=dict(variables),
         )
         click.echo(wk.path)
 
@@ -164,7 +164,7 @@ def get_demo_workflow_CLI(app):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
-            variables=variables,
+            variables=dict(variables),
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,

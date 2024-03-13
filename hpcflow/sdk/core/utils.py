@@ -387,22 +387,36 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
+@TimeIt.decorator
 def substitute_string_vars(string, variables: Dict[str, str] = None):
     variables = variables or {}
 
     def var_repl(match_obj):
-        var_name = match_obj.group(1)
+        kwargs = {}
+        var_name, kwargs_str = match_obj.groups()
+        if kwargs_str:
+            kwargs_lst = kwargs_str.split(",")
+            for i in kwargs_lst:
+                k, v = i.strip().split("=")
+                kwargs[k.strip()] = v.strip()
         try:
             out = str(variables[var_name])
         except KeyError:
-            raise MissingVariableSubstitutionError(
-                f"The variable {var_name!r} referenced in the string does not match any "
-                f"of the provided variables: {list(variables)!r}."
-            )
+            if "default" in kwargs:
+                out = kwargs["default"]
+                print(
+                    f"Using default value ({out!r}) for workflow template string "
+                    f"variable {var_name!r}."
+                )
+            else:
+                raise MissingVariableSubstitutionError(
+                    f"The variable {var_name!r} referenced in the string does not match "
+                    f"any of the provided variables: {list(variables)!r}."
+                )
         return out
 
     new_str = re.sub(
-        pattern=r"\<\<var:(.*?)\>\>",
+        pattern=r"\<\<var:(.*?)(?:\[(.*)\])?\>\>",
         repl=var_repl,
         string=string,
     )
@@ -412,7 +426,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
 @TimeIt.decorator
 def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
     """Load a YAML string."""
-    if variables:
+    if variables is not False and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
     return yaml.load(yaml_str)
@@ -432,7 +446,7 @@ def write_YAML_file(obj, path: PathLike, typ="safe"):
 
 
 def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
-    if variables:
+    if variables is not False and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 

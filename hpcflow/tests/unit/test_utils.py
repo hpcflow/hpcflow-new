@@ -515,3 +515,16 @@ def test_substitute_string_vars_raise_missing():
 
 def test_substitute_string_vars_non_str():
     assert substitute_string_vars("<<var:a>>", variables={"a": 2}) == "2"
+
+
+def test_substitute_string_vars_default_value():
+    assert substitute_string_vars("hello <<var:my_name[default=bill]>>!") == "hello bill!"
+
+
+def test_substitute_string_vars_default_value_with_specified():
+    assert (
+        substitute_string_vars(
+            "hello <<var:my_name[default=bill]>>!", variables={"my_name": "bob"}
+        )
+        == "hello bob!"
+    )
