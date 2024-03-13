@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a157"></a>
+## [v0.2.0a157](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a156...v0.2.0a157) - 2024.03.13
+
+### 🐛 Bug Fixes
+
+* batch up IO in `ZarrPersistentStore._append_parameters` and do not write empty chunks in parameter data base array
+* batch up `PendingChanges.commit_parameters` and `commit_param_sources`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a156"></a>
 ## [v0.2.0a156](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a155...v0.2.0a156) - 2024.03.13
 
