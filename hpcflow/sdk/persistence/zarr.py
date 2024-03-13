@@ -34,6 +34,7 @@ from hpcflow.sdk.persistence.base import (
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
+from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 
 
@@ -687,15 +688,44 @@ class ZarrPersistentStore(PersistentStore):
         base_arr = self._get_parameter_base_array(mode="r+")
         base_arr[param_id] = dat_i
 
-    def _update_parameter_source(self, param_id: int, src: Dict):
-        """Update the source of a persistent parameter."""
+    def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
+        """Set multiple unset persistent parameters."""
 
-        param_i = self._get_persistent_parameters([param_id])[param_id]
-        param_i = param_i.update_source(src)
+        param_ids = list(set_parameters.keys())
+        # the `decode` call in `_get_persistent_parameters` should be quick:
+        params = self._get_persistent_parameters(param_ids)
+        new_data = []
+        param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
+        for param_id, (value, is_file) in set_parameters.items():
 
-        # no need to update base array:
+            param_i = params[param_id]
+            if is_file:
+                param_i = param_i.set_file(value)
+            else:
+                param_i = param_i.set_data(value)
+
+            new_data.append(
+                param_i.encode(
+                    root_group=param_encode_root_group,
+                    arr_path=self._param_data_arr_grp_name(param_i.id_),
+                )
+            )
+
+        # no need to update sources array:
+        base_arr = self._get_parameter_base_array(mode="r+")
+        base_arr.set_coordinate_selection(param_ids, new_data)
+
+    def _update_parameter_sources(self, sources: Dict[int, Dict]):
+        """Update the sources of multiple persistent parameters."""
+
+        param_ids = list(sources.keys())
         src_arr = self._get_parameter_sources_array(mode="r+")
-        src_arr[param_id] = param_i.source
+        existing_sources = src_arr.get_coordinate_selection(param_ids)
+        new_sources = []
+        for idx, source_i in enumerate(sources.values()):
+            new_src_i = update_param_source_dict(existing_sources[idx], source_i)
+            new_sources.append(new_src_i)
+        src_arr.set_coordinate_selection(param_ids, new_sources)
 
     def _update_template_components(self, tc: Dict):
         with self.using_resource("attrs", "update") as md:

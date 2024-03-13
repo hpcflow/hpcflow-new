@@ -349,10 +349,11 @@ class PendingChanges:
             self.store._append_parameters(params)
         self.clear_add_parameters()
 
-        for param_id, (value, is_file) in self.set_parameters.items():
-            # TODO: could be batched up?
-            self.logger.debug(f"commit: setting value of parameter ID {param_id!r}.")
-            self.store._set_parameter_value(param_id, value, is_file)
+        if self.set_parameters:
+            param_ids = list(self.set_parameters.keys())
+            self.logger.debug(f"commit: setting values of parameter IDs {param_ids!r}.")
+            self.store._set_parameter_values(self.set_parameters)
+
         self.clear_set_parameters()
 
     @TimeIt.decorator
@@ -373,11 +374,11 @@ class PendingChanges:
     @TimeIt.decorator
     def commit_param_sources(self) -> None:
         """Make pending changes to parameter sources persistent."""
-        for param_id, src in self.update_param_sources.items():
-            # TODO: could be batched up?
-            self.logger.debug(f"commit: updating source of parameter ID {param_id!r}.")
-            self.store._update_parameter_source(param_id, src)
-        self.clear_update_param_sources()
+        if self.update_param_sources:
+            param_ids = list(self.update_param_sources.keys())
+            self.logger.debug(f"commit: updating sources of parameter IDs {param_ids!r}.")
+            self.store._update_parameter_sources(self.update_param_sources)
+            self.clear_update_param_sources()
 
     @TimeIt.decorator
     def commit_loop_indices(self) -> None:

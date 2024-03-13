@@ -46,6 +46,10 @@ TEMPLATE_COMP_TYPES = (
 )
 
 
+def update_param_source_dict(source, update):
+    return dict(sorted({**source, **update}.items()))
+
+
 @dataclass
 class PersistentStoreFeatures:
     """Class to represent the features provided by a persistent store.
@@ -618,7 +622,7 @@ class StoreParameter:
 
     def update_source(self, src: Dict) -> None:
         """Return a copy, with updated source."""
-        new_src = dict(sorted({**self.source, **src}.items()))
+        new_src = update_param_source_dict(self.source, src)
         return self.__class__(
             id_=self.id_,
             is_set=self.is_set,
