@@ -7,6 +7,7 @@ from valida.rules import Rule as ValidaRule
 from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
+from hpcflow.sdk.log import TimeIt
 
 
 class Rule(JSONLike):
@@ -68,6 +69,7 @@ class Rule(JSONLike):
         else:
             return False
 
+    @TimeIt.decorator
     def test(
         self,
         element_like: Union[app.ElementIteration, app.ElementActionRun],

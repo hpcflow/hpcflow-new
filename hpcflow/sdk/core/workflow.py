@@ -1729,6 +1729,7 @@ class Workflow:
         return self._store._get_num_total_elem_iters()
 
     @property
+    @TimeIt.decorator
     def num_EARs(self):
         return self._store._get_num_total_EARs()
 
