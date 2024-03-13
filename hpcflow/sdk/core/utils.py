@@ -387,6 +387,7 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
     return decorator
 
 
+@TimeIt.decorator
 def substitute_string_vars(string, variables: Dict[str, str] = None):
     variables = variables or {}
 
@@ -403,6 +404,10 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
         except KeyError:
             if "default" in kwargs:
                 out = kwargs["default"]
+                print(
+                    f"Using default value ({out!r}) for workflow template string "
+                    f"variable {var_name!r}."
+                )
             else:
                 raise MissingVariableSubstitutionError(
                     f"The variable {var_name!r} referenced in the string does not match "
@@ -421,7 +426,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
 @TimeIt.decorator
 def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
     """Load a YAML string."""
-    if variables:
+    if "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
     return yaml.load(yaml_str)
@@ -441,7 +446,7 @@ def write_YAML_file(obj, path: PathLike, typ="safe"):
 
 
 def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
-    if variables:
+    if "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 
