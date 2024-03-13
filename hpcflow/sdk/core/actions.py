@@ -994,6 +994,7 @@ class ActionRule(JSONLike):
             return True
         return False
 
+    @TimeIt.decorator
     def test(self, element_iteration: app.ElementIteration) -> bool:
         return self.rule.test(element_like=element_iteration, action=self.action)
 
@@ -1896,6 +1897,7 @@ class Action(JSONLike):
             if typ in (OFP.inputs or []):
                 return True
 
+    @TimeIt.decorator
     def test_rules(self, element_iter) -> List[bool]:
         """Test all rules against the specified element iteration."""
         return [i.test(element_iteration=element_iter) for i in self.rules]
