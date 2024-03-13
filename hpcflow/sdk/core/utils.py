@@ -426,7 +426,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
 @TimeIt.decorator
 def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
     """Load a YAML string."""
-    if "<<var:" in yaml_str:
+    if variables is not False and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
     return yaml.load(yaml_str)
@@ -446,7 +446,7 @@ def write_YAML_file(obj, path: PathLike, typ="safe"):
 
 
 def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
-    if "<<var:" in json_str:
+    if variables is not False and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 

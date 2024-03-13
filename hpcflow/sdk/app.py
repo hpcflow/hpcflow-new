@@ -822,12 +822,12 @@ class BaseApp(metaclass=Singleton):
             # load the file, modify, then dump to temp location:
             if builtin_path.suffix in (".yaml", ".yml"):
                 # use round-trip loader to preserve comments:
-                data = read_YAML_file(builtin_path, typ="rt")
+                data = read_YAML_file(builtin_path, typ="rt", variables=False)
                 data.pop("doc", None)
                 write_YAML_file(data, path, typ="rt")
 
             elif builtin_path.suffix in (".json", ".jsonc"):
-                data = read_JSON_file(builtin_path)
+                data = read_JSON_file(builtin_path, variables=False)
                 data.pop("doc", None)
                 write_JSON_file(data, path)
 
