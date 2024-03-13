@@ -26,6 +26,7 @@ from hpcflow.sdk.persistence.base import (
 )
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
+from hpcflow.sdk.persistence.base import update_param_source_dict
 
 
 class JSONPersistentStore(PersistentStore):
@@ -277,15 +278,31 @@ class JSONPersistentStore(PersistentStore):
             # no need to update sources array:
             params["data"][str(param_id)] = param.encode()
 
-    def _update_parameter_source(self, param_id: int, src: Dict):
-        """Update the source of a persistent parameter."""
+    def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
+        """Set multiple unset persistent parameters."""
+        param_ids = list(set_parameters.keys())
+        param_objs = self._get_persistent_parameters(param_ids)
+        with self.using_resource("parameters", "update") as params:
+            for param_id, (value, is_file) in set_parameters.items():
+                param_i = param_objs[param_id]
+                if is_file:
+                    param_i = param_i.set_file(value)
+                else:
+                    param_i = param_i.set_data(value)
+                params["data"][str(param_id)] = param_i.encode()
 
-        param = self._get_persistent_parameters([param_id])[param_id]
-        param = param.update_source(src)
+    def _update_parameter_sources(self, sources: Dict[int, Dict]):
+        """Update the sources of multiple persistent parameters."""
+
+        param_ids = list(sources.keys())
+        param_objs = self._get_persistent_parameters(param_ids)
 
         with self.using_resource("parameters", "update") as params:
             # no need to update data array:
-            params["sources"][str(param_id)] = param.source
+            for p_id, src_i in sources.items():
+                param_i = param_objs[p_id]
+                new_src_i = update_param_source_dict(param_i.source, src_i)
+                params["sources"][str(p_id)] = new_src_i
 
     def _update_template_components(self, tc: Dict):
         with self.using_resource("metadata", "update") as md:

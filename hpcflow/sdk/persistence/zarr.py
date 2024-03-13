@@ -23,6 +23,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.utils import ensure_in, get_relative_path, set_in_container
 from hpcflow.sdk.persistence.base import (
+    PARAM_DATA_NOT_SET,
     PersistentStoreFeatures,
     PersistentStore,
     StoreEAR,
@@ -34,6 +35,7 @@ from hpcflow.sdk.persistence.base import (
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
+from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 
 
@@ -454,6 +456,8 @@ class ZarrPersistentStore(PersistentStore):
             object_codec=MsgPack(),
             chunks=1,
             compressor=cmp,
+            write_empty_chunks=False,
+            fill_value=PARAM_DATA_NOT_SET,
         )
         parameter_data.create_dataset(
             name=cls._param_sources_arr_name,
@@ -659,15 +663,28 @@ class ZarrPersistentStore(PersistentStore):
 
     def _append_parameters(self, params: List[ZarrStoreParameter]):
         """Add new persistent parameters."""
-        base_arr = self._get_parameter_base_array(mode="r+")
+        base_arr = self._get_parameter_base_array(mode="r+", write_empty_chunks=False)
         src_arr = self._get_parameter_sources_array(mode="r+")
+        self.logger.debug(
+            f"PersistentStore._append_parameters: adding {len(params)} parameters."
+        )
+
+        param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
+        param_enc = []
+        src_enc = []
         for param_i in params:
             dat_i = param_i.encode(
-                root_group=self._get_parameter_user_array_group(mode="r+"),
+                root_group=param_encode_root_group,
                 arr_path=self._param_data_arr_grp_name(param_i.id_),
             )
-            base_arr.append([dat_i])
-            src_arr.append([dict(sorted(param_i.source.items()))])
+            param_enc.append(dat_i)
+            src_enc.append(dict(sorted(param_i.source.items())))
+
+        base_arr.append(param_enc)
+        src_arr.append(src_enc)
+        self.logger.debug(
+            f"PersistentStore._append_parameters: finished adding {len(params)} parameters."
+        )
 
     def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
         """Set an unset persistent parameter."""
@@ -687,15 +704,44 @@ class ZarrPersistentStore(PersistentStore):
         base_arr = self._get_parameter_base_array(mode="r+")
         base_arr[param_id] = dat_i
 
-    def _update_parameter_source(self, param_id: int, src: Dict):
-        """Update the source of a persistent parameter."""
+    def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
+        """Set multiple unset persistent parameters."""
 
-        param_i = self._get_persistent_parameters([param_id])[param_id]
-        param_i = param_i.update_source(src)
+        param_ids = list(set_parameters.keys())
+        # the `decode` call in `_get_persistent_parameters` should be quick:
+        params = self._get_persistent_parameters(param_ids)
+        new_data = []
+        param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
+        for param_id, (value, is_file) in set_parameters.items():
 
-        # no need to update base array:
+            param_i = params[param_id]
+            if is_file:
+                param_i = param_i.set_file(value)
+            else:
+                param_i = param_i.set_data(value)
+
+            new_data.append(
+                param_i.encode(
+                    root_group=param_encode_root_group,
+                    arr_path=self._param_data_arr_grp_name(param_i.id_),
+                )
+            )
+
+        # no need to update sources array:
+        base_arr = self._get_parameter_base_array(mode="r+")
+        base_arr.set_coordinate_selection(param_ids, new_data)
+
+    def _update_parameter_sources(self, sources: Dict[int, Dict]):
+        """Update the sources of multiple persistent parameters."""
+
+        param_ids = list(sources.keys())
         src_arr = self._get_parameter_sources_array(mode="r+")
-        src_arr[param_id] = param_i.source
+        existing_sources = src_arr.get_coordinate_selection(param_ids)
+        new_sources = []
+        for idx, source_i in enumerate(sources.values()):
+            new_src_i = update_param_source_dict(existing_sources[idx], source_i)
+            new_sources.append(new_src_i)
+        src_arr.set_coordinate_selection(param_ids, new_sources)
 
     def _update_template_components(self, tc: Dict):
         with self.using_resource("attrs", "update") as md:
@@ -740,14 +786,15 @@ class ZarrPersistentStore(PersistentStore):
             self._zarr_store = self._get_zarr_store(self.path, self.fs)
         return self._zarr_store
 
-    def _get_root_group(self, mode: str = "r") -> zarr.Group:
-        return zarr.open(self.zarr_store, mode=mode)
+    def _get_root_group(self, mode: str = "r", **kwargs) -> zarr.Group:
+        return zarr.open(self.zarr_store, mode=mode, **kwargs)
 
-    def _get_parameter_group(self, mode: str = "r") -> zarr.Group:
-        return self._get_root_group(mode=mode).get(self._param_grp_name)
+    def _get_parameter_group(self, mode: str = "r", **kwargs) -> zarr.Group:
+        return self._get_root_group(mode=mode, **kwargs).get(self._param_grp_name)
 
-    def _get_parameter_base_array(self, mode: str = "r") -> zarr.Array:
-        return self._get_parameter_group(mode=mode).get(self._param_base_arr_name)
+    def _get_parameter_base_array(self, mode: str = "r", **kwargs) -> zarr.Array:
+        path = f"{self._param_grp_name}/{self._param_base_arr_name}"
+        return zarr.open(self.zarr_store, mode=mode, path=path, **kwargs)
 
     def _get_parameter_sources_array(self, mode: str = "r") -> zarr.Array:
         return self._get_parameter_group(mode=mode).get(self._param_sources_arr_name)
