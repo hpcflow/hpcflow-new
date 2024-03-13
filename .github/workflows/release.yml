@@ -429,8 +429,7 @@ jobs:
       - name: zip benchmark results
         run: |
           zip -r ./benchmarks.zip benchmarks
-      - name: Upload benchmark results artifact
-        uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v3
         with:             
           name: benchmarks.zip
           path: benchmarks.zip
