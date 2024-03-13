@@ -391,18 +391,27 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
     variables = variables or {}
 
     def var_repl(match_obj):
-        var_name = match_obj.group(1)
+        kwargs = {}
+        var_name, kwargs_str = match_obj.groups()
+        if kwargs_str:
+            kwargs_lst = kwargs_str.split(",")
+            for i in kwargs_lst:
+                k, v = i.strip().split("=")
+                kwargs[k.strip()] = v.strip()
         try:
             out = str(variables[var_name])
         except KeyError:
-            raise MissingVariableSubstitutionError(
-                f"The variable {var_name!r} referenced in the string does not match any "
-                f"of the provided variables: {list(variables)!r}."
-            )
+            if "default" in kwargs:
+                out = kwargs["default"]
+            else:
+                raise MissingVariableSubstitutionError(
+                    f"The variable {var_name!r} referenced in the string does not match "
+                    f"any of the provided variables: {list(variables)!r}."
+                )
         return out
 
     new_str = re.sub(
-        pattern=r"\<\<var:(.*?)\>\>",
+        pattern=r"\<\<var:(.*?)(?:\[(.*)\])?\>\>",
         repl=var_repl,
         string=string,
     )
