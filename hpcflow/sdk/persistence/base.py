@@ -45,6 +45,8 @@ TEMPLATE_COMP_TYPES = (
     "task_schemas",
 )
 
+PARAM_DATA_NOT_SET = 0
+
 
 def update_param_source_dict(source, update):
     return dict(sorted({**source, **update}.items()))
@@ -439,7 +441,7 @@ class StoreParameter:
             else:
                 return self._encode(obj=self.data, **kwargs)
         else:
-            return None
+            return PARAM_DATA_NOT_SET
 
     def _encode(
         self,
@@ -542,7 +544,7 @@ class StoreParameter:
                 source=source,
                 is_pending=False,
             )
-        elif data is None:
+        elif data == PARAM_DATA_NOT_SET:
             # parameter is not set
             return cls(
                 id_=id_,
@@ -1066,7 +1068,7 @@ class PersistentStore(ABC):
             id_=new_idx,
             is_pending=True,
             is_set=is_set,
-            data=data,
+            data=PARAM_DATA_NOT_SET if not is_set else data,
             file=file,
             source=source,
         )
