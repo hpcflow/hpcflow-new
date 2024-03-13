@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a155"></a>
+## [v0.2.0a155](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a154...v0.2.0a155) - 2024.03.13
+
+### 🐛 Bug Fixes
+
+* dummy commit to allow release re-run
+
+
 <a name="v0.2.0a154"></a>
 ## [v0.2.0a154](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a153...v0.2.0a154) - 2024.03.12
 
