@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a158"></a>
+## [v0.2.0a158](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a157...v0.2.0a158) - 2024.03.14
+
+### 🐛 Bug Fixes
+
+* use a dict for scheduler `options` and merge options from the config
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a157"></a>
 ## [v0.2.0a157](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a156...v0.2.0a157) - 2024.03.13
 
