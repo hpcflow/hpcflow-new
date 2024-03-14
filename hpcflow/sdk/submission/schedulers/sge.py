@@ -6,6 +6,7 @@ from hpcflow.sdk.core.errors import (
     NoCompatibleSGEPEError,
     UnknownSGEPEError,
 )
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
@@ -72,6 +73,7 @@ class SGEPosix(Scheduler):
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
     @classmethod
+    @TimeIt.decorator
     def process_resources(cls, resources, scheduler_config: Dict) -> None:
         """Perform scheduler-specific processing to the element resources.
 
@@ -166,6 +168,7 @@ class SGEPosix(Scheduler):
         opts.extend([f"{self.js_cmd} {opt}" for opt in self.options])
         return "\n".join(opts) + "\n"
 
+    @TimeIt.decorator
     def get_version_info(self):
         vers_cmd = self.show_cmd + ["-help"]
         stdout, stderr = run_cmd(vers_cmd)

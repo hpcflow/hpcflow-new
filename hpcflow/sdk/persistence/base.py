@@ -872,6 +872,7 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
+    @TimeIt.decorator
     def add_submission(self, sub_idx: int, sub_js: Dict, save: bool = True):
         """Add a new submission."""
         self.logger.debug(f"Adding store submission.")
@@ -964,6 +965,7 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
+    @TimeIt.decorator
     def set_EAR_submission_index(
         self, EAR_ID: int, sub_idx: int, save: bool = True
     ) -> None:
