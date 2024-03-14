@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import enum
 import json
-import h5py
 from pathlib import Path
 import re
 from textwrap import indent, dedent
@@ -592,6 +591,8 @@ class ElementActionRun:
         return outputs
 
     def write_source(self, js_idx: int, js_act_idx: int):
+        import h5py
+
         for fmt, ins in self.action.script_data_in_grouped.items():
             if fmt == "json":
                 in_vals = self.get_input_values(inputs=ins, label_dict=False)
@@ -627,6 +628,8 @@ class ElementActionRun:
     def _param_save(self, js_idx: int, js_act_idx: int):
         """Save script-generated parameters that are stored within the supported script
         data output formats (HDF5, JSON, etc)."""
+        import h5py
+
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
                 load_path = self.action.get_param_load_file_path_JSON(js_idx, js_act_idx)
