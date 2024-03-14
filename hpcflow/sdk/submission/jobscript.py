@@ -17,6 +17,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
@@ -917,6 +918,7 @@ class Jobscript(JSONLike):
         EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
         return EARs_arr
 
+    @TimeIt.decorator
     def make_artifact_dirs(self):
         EARs_arr = self._get_EARs_arr()
         task_loop_idx_arr = self.get_task_loop_idx_array()
@@ -1011,6 +1013,7 @@ class Jobscript(JSONLike):
 
         return process_ID
 
+    @TimeIt.decorator
     def submit(
         self,
         scheduler_refs: Dict[int, (str, bool)],

@@ -31,8 +31,6 @@ from fsspec.core import url_to_fs
 from fsspec.implementations.local import LocalFileSystem
 
 
-from setuptools import find_packages
-
 from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
@@ -730,12 +728,13 @@ class BaseApp(metaclass=Singleton):
 
     @TimeIt.decorator
     def _load_scripts(self):
+        from setuptools import find_packages
+
         # TODO: load custom directories / custom functions (via decorator)
 
         app_module = import_module(self.package_name)
         root_scripts_dir = self.scripts_dir
 
-        # TODO: setuptools.find_packages takes a long time to import
         packages = find_packages(
             where=str(Path(app_module.__path__[0], *root_scripts_dir.split(".")))
         )

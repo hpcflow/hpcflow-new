@@ -18,6 +18,7 @@ from hpcflow.sdk.core.errors import (
     SubmissionFailure,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.log import TimeIt
 
 
 def timedelta_format(td: timedelta) -> str:
@@ -356,11 +357,13 @@ class Submission(JSONLike):
 
         return sched_js_idx
 
+    @TimeIt.decorator
     def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
         """Get unique schedulers and which of this submission's jobscripts they
         correspond to."""
         return self.get_unique_schedulers_of_jobscripts(self.jobscripts)
 
+    @TimeIt.decorator
     def get_unique_shells(self) -> Dict[Tuple[int], Shell]:
         """Get unique shells and which jobscripts they correspond to."""
         js_idx = []
@@ -412,6 +415,7 @@ class Submission(JSONLike):
             submitted_js_idx=submitted_js_idx,
         )
 
+    @TimeIt.decorator
     def submit(
         self,
         status,

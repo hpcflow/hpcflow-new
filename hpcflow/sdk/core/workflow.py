@@ -1729,6 +1729,7 @@ class Workflow:
         return self._store._get_num_total_elem_iters()
 
     @property
+    @TimeIt.decorator
     def num_EARs(self):
         return self._store._get_num_total_EARs()
 
@@ -1951,6 +1952,7 @@ class Workflow:
 
         return pathway
 
+    @TimeIt.decorator
     def _submit(
         self,
         status,
@@ -2291,6 +2293,7 @@ class Workflow:
             with self.batch_update():
                 return self._add_submission(tasks, JS_parallelism)
 
+    @TimeIt.decorator
     def _add_submission(
         self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
     ) -> app.Submission:

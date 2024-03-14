@@ -1,10 +1,11 @@
 from getpass import getpass
-from paramiko.ssh_exception import SSHException
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 
 
 def ask_pw_on_auth_exc(f, *args, add_pw_to=None, **kwargs):
+    from paramiko.ssh_exception import SSHException
+
     try:
         out = f(*args, **kwargs)
         pw = None
