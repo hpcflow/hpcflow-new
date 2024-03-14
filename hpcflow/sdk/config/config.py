@@ -65,7 +65,6 @@ DEFAULT_CONFIG = {
     "invocation": {"environment_setup": None, "match": {}},
     "config": {
         "machine": socket.gethostname(),
-        "telemetry": True,
         "log_file_path": "logs/<<app_name>>_v<<app_version>>.log",
         "environment_sources": [],
         "task_schema_sources": [],
