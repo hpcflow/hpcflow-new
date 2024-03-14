@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 import warnings
 
-import sentry_sdk
 from rich.table import Table
 from rich.console import Console
 
@@ -96,17 +95,6 @@ class RunTimeInfo:
         #         "subsequent invocations of hpcflow."
         #     )
         #     warnings.warn(msg)
-
-        for k, v in self.to_dict().items():
-            if k in (
-                "is_frozen",
-                "is_venv",
-                "is_conda_venv",
-                "executable_name",
-                "python_version",
-                "in_ipython",
-            ):
-                sentry_sdk.set_tag(f"rti.{k}", v)
 
     def to_dict(self):
         out = {

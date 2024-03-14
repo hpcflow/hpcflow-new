@@ -85,9 +85,6 @@ class ConfigOptions:
 
     default_directory: Union[Path, str]
     directory_env_var: str
-    sentry_DSN: str
-    sentry_traces_sample_rate: float
-    sentry_env: str
     default_config: Optional[Dict] = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )

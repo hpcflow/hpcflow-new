@@ -20,7 +20,6 @@ import fsspec
 import numpy as np
 
 from ruamel.yaml import YAML
-import sentry_sdk
 from watchdog.utils.dirsnapshot import DirectorySnapshot
 
 from hpcflow.sdk.core.errors import (
@@ -345,20 +344,6 @@ class Singleton(type):
                 f"{kwargs!r} have been ignored."
             )
         return cls._instances[cls]
-
-
-@contextlib.contextmanager
-def sentry_wrap(name, transaction_op=None, span_op=None):
-    if not transaction_op:
-        transaction_op = name
-    if not span_op:
-        span_op = name
-    try:
-        with sentry_sdk.start_transaction(op=transaction_op, name=name):
-            with sentry_sdk.start_span(op=span_op) as span:
-                yield span
-    finally:
-        sentry_sdk.flush()  # avoid queue message on stdout
 
 
 def capitalise_first_letter(chars):

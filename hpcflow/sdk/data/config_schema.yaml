@@ -2,7 +2,6 @@ rules:
   - path: []
     condition:
       value.allowed_keys:
-        - telemetry
         - machine
         - user_name
         - user_orcid
@@ -24,7 +23,6 @@ rules:
   - path: []
     condition:
       value.required_keys:
-        - telemetry
         - machine
         - task_schema_sources
         - parameter_sources
@@ -53,10 +51,6 @@ rules:
         - unset # Config method
         - save # Config method
         - reload # Config method
-
-  - path: [telemetry]
-    condition:
-      value.type.equal_to: bool
 
   - path: [machine]
     doc: >
