@@ -1236,6 +1236,7 @@ class BaseApp(metaclass=Singleton):
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
+        cancel: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1288,6 +1289,8 @@ class BaseApp(metaclass=Singleton):
         tasks
             List of task indices to include in this submission. By default all tasks are
             included.
+        cancel
+            Immediately cancel the submission. Useful for testing and benchmarking.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1311,6 +1314,7 @@ class BaseApp(metaclass=Singleton):
             add_to_known=add_to_known,
             return_idx=return_idx,
             tasks=tasks,
+            cancel=cancel,
         )
 
     def _make_demo_workflow(
@@ -1394,6 +1398,7 @@ class BaseApp(metaclass=Singleton):
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
+        cancel: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1443,6 +1448,8 @@ class BaseApp(metaclass=Singleton):
         tasks
             List of task indices to include in this submission. By default all tasks are
             included.
+        cancel
+            Immediately cancel the submission. Useful for testing and benchmarking.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1465,6 +1472,7 @@ class BaseApp(metaclass=Singleton):
             add_to_known=add_to_known,
             return_idx=return_idx,
             tasks=tasks,
+            cancel=cancel,
         )
 
     def _submit_workflow(

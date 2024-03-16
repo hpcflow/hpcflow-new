@@ -109,6 +109,12 @@ tasks_opt = click.option(
     ),
     callback=sub_tasks_callback,
 )
+cancel_opt = click.option(
+    "--cancel",
+    help="Immediately cancel the submission. Useful for testing and benchmarking.",
+    is_flag=True,
+    default=False,
+)
 zip_path_opt = click.option(
     "--path",
     default=".",

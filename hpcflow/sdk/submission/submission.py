@@ -541,6 +541,7 @@ class Submission(JSONLike):
 
         return submitted_js_idx
 
+    @TimeIt.decorator
     def cancel(self):
         act_js = list(self.get_active_jobscripts())
         if not act_js:

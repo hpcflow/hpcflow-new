@@ -25,6 +25,7 @@ from hpcflow.sdk.cli_common import (
     add_to_known_opt,
     print_idx_opt,
     tasks_opt,
+    cancel_opt,
     zip_path_opt,
     zip_overwrite_opt,
     zip_log_opt,
@@ -119,6 +120,7 @@ def _make_API_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -135,6 +137,7 @@ def _make_API_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -159,6 +162,7 @@ def _make_API_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
         )
         if print_idx:
             click.echo(out)
@@ -320,6 +324,7 @@ def _make_workflow_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
     @click.pass_context
     def submit_workflow(
         ctx,
@@ -328,6 +333,7 @@ def _make_workflow_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
     ):
         """Submit the workflow."""
         out = ctx.obj["workflow"].submit(
@@ -336,6 +342,7 @@ def _make_workflow_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
         )
         if print_idx:
             click.echo(out)

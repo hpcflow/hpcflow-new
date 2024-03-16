@@ -2010,6 +2010,7 @@ class Workflow:
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
+        cancel: Optional[bool] = False,
     ) -> Dict[int, int]:
         """Submit the workflow for execution.
 
@@ -2036,6 +2037,8 @@ class Workflow:
             List of task indices to include in the new submission if no submissions
             already exist. By default all tasks are included if a new submission is
             created.
+        cancel
+            Immediately cancel the submission. Useful for testing and benchmarking.
         """
 
         console = rich.console.Console()
@@ -2068,7 +2071,10 @@ class Workflow:
 
         status.stop()
 
-        if wait:
+        if cancel:
+            self.cancel()
+
+        elif wait:
             self.wait(submitted_js)
 
         if return_idx:
@@ -2281,6 +2287,7 @@ class Workflow:
             )
         self._abort_run_ID(submission_idx, run.id_)
 
+    @TimeIt.decorator
     def cancel(self, hard=False):
         """Cancel any running jobscripts."""
         for sub in self.submissions:
@@ -2328,6 +2335,7 @@ class Workflow:
 
         return self.submissions[new_idx]
 
+    @TimeIt.decorator
     def resolve_jobscripts(
         self, tasks: Optional[List[int]] = None
     ) -> List[app.Jobscript]:
@@ -2344,6 +2352,7 @@ class Workflow:
 
         return js_objs
 
+    @TimeIt.decorator
     def _resolve_singular_jobscripts(
         self, tasks: Optional[List[int]] = None
     ) -> Tuple[Dict[int, Dict], Dict]:

@@ -23,6 +23,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
 
 
+@TimeIt.decorator
 def generate_EAR_resource_map(
     task: app.WorkflowTask,
     loop_idx: Dict,
@@ -77,6 +78,7 @@ def generate_EAR_resource_map(
     )
 
 
+@TimeIt.decorator
 def group_resource_map_into_jobscripts(
     resource_map: Union[List, NDArray],
     none_val: Any = -1,
@@ -148,6 +150,7 @@ def group_resource_map_into_jobscripts(
     return jobscripts, js_map
 
 
+@TimeIt.decorator
 def resolve_jobscript_dependencies(jobscripts, element_deps):
     # first pass is to find the mappings between jobscript elements:
     jobscript_deps = {}
@@ -218,6 +221,7 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
     return jobscript_deps
 
 
+@TimeIt.decorator
 def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
     """Try to merge jobscripts between tasks.
 
@@ -275,6 +279,7 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
     return jobscripts
 
 
+@TimeIt.decorator
 def jobscripts_to_list(jobscripts: Dict[int, Dict]) -> List[Dict]:
     """Convert the jobscripts dict to a list, normalising jobscript indices so they refer
     to list indices; also remove `resource_hash`."""

@@ -17,6 +17,7 @@ from hpcflow.sdk.cli_common import (
     add_to_known_opt,
     print_idx_opt,
     tasks_opt,
+    cancel_opt,
 )
 
 
@@ -139,6 +140,7 @@ def get_demo_workflow_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
     def make_and_submit_demo_workflow(
         workflow_name,
         format,
@@ -154,6 +156,7 @@ def get_demo_workflow_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
     ):
         out = app.make_and_submit_demo_workflow(
             workflow_name=workflow_name,
@@ -170,6 +173,7 @@ def get_demo_workflow_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
         )
         if print_idx:
             click.echo(out)
