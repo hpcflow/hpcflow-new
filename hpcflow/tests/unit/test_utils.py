@@ -8,6 +8,7 @@ from hpcflow.sdk.core.errors import InvalidIdentifier, MissingVariableSubstituti
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
     bisect_slice,
+    dict_values_process_flat,
     flatten,
     get_nested_indices,
     is_fsspec_url,
@@ -528,3 +529,30 @@ def test_substitute_string_vars_default_value_with_specified():
         )
         == "hello bob!"
     )
+
+
+def test_dict_values_process_flat():
+    d = {"a": 0, "b": [1, 2], "c": 5}
+    assert dict_values_process_flat(d, callable=lambda x: [i + 3 for i in x]) == {
+        "a": 3,
+        "b": [4, 5],
+        "c": 8,
+    }
+
+
+def test_dict_values_process_flat_no_lists():
+    d = {"a": 0, "b": 1, "c": 2}
+    assert dict_values_process_flat(d, callable=lambda x: [i + 3 for i in x]) == {
+        "a": 3,
+        "b": 4,
+        "c": 5,
+    }
+
+
+def test_dict_values_process_flat_single_item_lists():
+    d = {"a": [0], "b": [1], "c": [2]}
+    assert dict_values_process_flat(d, callable=lambda x: [i + 3 for i in x]) == {
+        "a": [3],
+        "b": [4],
+        "c": [5],
+    }

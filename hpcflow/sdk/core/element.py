@@ -13,6 +13,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
+    dict_values_process_flat,
     get_enum_by_name_or_val,
     split_param_label,
 )
@@ -554,24 +555,16 @@ class ElementIteration:
             ID.
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
-        out = {}
-        for k, v in data_idx.items():
-            is_multi = False
-            if isinstance(v, list):
-                is_multi = True
-            else:
-                v = [v]
 
-            sources_k = []
-            for dat_idx_i in v:
-                src = self.workflow.get_parameter_source(dat_idx_i)
-                sources_k.append(src)
+        # the value associated with `repeats.*` is the repeats index, not a parameter ID:
+        for k in list(data_idx.keys()):
+            if k.startswith("repeats."):
+                data_idx.pop(k)
 
-            if not is_multi:
-                sources_k = src
-
-            out[k] = sources_k
-
+        out = dict_values_process_flat(
+            data_idx,
+            callable=self.workflow.get_parameter_sources,
+        )
         task_key = "task_insert_ID"
 
         if use_task_index:

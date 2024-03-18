@@ -834,3 +834,40 @@ def linspace_rect(
 
     rect = np.hstack(stacked)
     return rect
+
+
+def dict_values_process_flat(d, callable):
+    """
+    Return a copy of a dict, where the values are processed by a callable that is to
+    be called only once, and where the values may be single items or lists of items.
+
+    Examples
+    --------
+    d = {'a': 0, 'b': [1, 2], 'c': 5}
+    >>> dict_values_process_flat(d, callable=lambda x: [i + 1 for i in x])
+    {'a': 1, 'b': [2, 3], 'c': 6}
+
+    """
+    flat = []  # values of `d`, flattened
+    is_multi = []  # whether a list, and the number of items to process
+    for i in d.values():
+        try:
+            flat.extend(i)
+            is_multi.append((True, len(i)))
+        except TypeError:
+            flat.append(i)
+            is_multi.append((False, 1))
+
+    processed = callable(flat)
+
+    out = {}
+    for idx_i, (m, k) in enumerate(zip(is_multi, d.keys())):
+
+        start_idx = sum(i[1] for i in is_multi[:idx_i])
+        end_idx = start_idx + m[1]
+        proc_idx_k = processed[slice(start_idx, end_idx)]
+        if not m[0]:
+            proc_idx_k = proc_idx_k[0]
+        out[k] = proc_idx_k
+
+    return out
