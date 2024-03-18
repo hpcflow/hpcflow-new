@@ -1262,7 +1262,6 @@ class Workflow:
     @TimeIt.decorator
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of IDs."""
-
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
         store_EARs = self._store.get_EARs(id_lst)
@@ -1275,6 +1274,10 @@ class Workflow:
 
         task_IDs = [i.task_ID for i in store_elems]
         store_tasks = self._store.get_tasks_by_IDs(task_IDs)
+
+        # to allow for bulk retrieval of elements/iterations
+        element_idx_by_task = defaultdict(set)
+        iter_idx_by_task_elem = defaultdict(lambda: defaultdict(set))
 
         index_paths = []
         for rn, it, el, tk in zip(store_EARs, store_iters, store_elems, store_tasks):
@@ -1291,12 +1294,25 @@ class Workflow:
                     "task_idx": tk.index,
                 }
             )
+            element_idx_by_task[tk.index].add(elem_idx)
+            iter_idx_by_task_elem[tk.index][elem_idx].add(iter_idx)
+
+        # retrieve elements/iterations:
+        iters_by_task_elem = defaultdict(lambda: defaultdict(dict))
+        for task_idx, elem_idx in element_idx_by_task.items():
+            elements = self.tasks[task_idx].elements[list(elem_idx)]
+            for elem_i in elements:
+                elem_i_iters_idx = iter_idx_by_task_elem[task_idx][elem_i.index]
+                elem_iters = [elem_i.iterations[j] for j in elem_i_iters_idx]
+                iters_by_task_elem[task_idx][elem_i.index].update(
+                    dict(zip(elem_i_iters_idx, elem_iters))
+                )
 
         objs = []
         for idx_dat in index_paths:
-            task = self.tasks[idx_dat["task_idx"]]
-            elem = task.elements[idx_dat["elem_idx"]]
-            iter_ = elem.iterations[idx_dat["iter_idx"]]
+            iter_ = iters_by_task_elem[idx_dat["task_idx"]][idx_dat["elem_idx"]][
+                idx_dat["iter_idx"]
+            ]
             run = iter_.actions[idx_dat["action_idx"]].runs[idx_dat["run_idx"]]
             objs.append(run)
 
@@ -1759,10 +1775,14 @@ class Workflow:
         return Path(self.path) / self._exec_dir_name
 
     @TimeIt.decorator
-    def get_task_elements(self, task: app.Task, selection: slice) -> List[app.Element]:
+    def get_task_elements(
+        self,
+        task: app.Task,
+        idx_lst: Optional[List[int]] = None,
+    ) -> List[app.Element]:
         return [
             self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
-            for i in self._store.get_task_elements(task.insert_ID, selection)
+            for i in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
     def set_EAR_submission_index(self, EAR_ID: int, sub_idx: int) -> None:
@@ -1929,6 +1949,7 @@ class Workflow:
             for element in task.elements[:]:
                 yield element
 
+    @TimeIt.decorator
     def get_iteration_task_pathway(self):
         pathway = []
         for task in self.tasks:
@@ -2045,7 +2066,7 @@ class Workflow:
         cancel
             Immediately cancel the submission. Useful for testing and benchmarking.
         status
-            If True display a live status to track submission progress.
+            If True, display a live status to track submission progress.
         """
 
         if status:
@@ -2061,14 +2082,15 @@ class Workflow:
             with self.batch_update():
                 # commit updates before raising exception:
                 try:
-                    exceptions, submitted_js = self._submit(
-                        ignore_errors=ignore_errors,
-                        JS_parallelism=JS_parallelism,
-                        print_stdout=print_stdout,
-                        status=status,
-                        add_to_known=add_to_known,
-                        tasks=tasks,
-                    )
+                    with self._store.cache_ctx():
+                        exceptions, submitted_js = self._submit(
+                            ignore_errors=ignore_errors,
+                            JS_parallelism=JS_parallelism,
+                            print_stdout=print_stdout,
+                            status=status,
+                            add_to_known=add_to_known,
+                            tasks=tasks,
+                        )
                 except Exception:
                     if status:
                         status.stop()
@@ -2429,6 +2451,19 @@ class Workflow:
                     "resource_hash": res_hash[js_dat["resources"]],
                     "dependencies": {},
                 }
+
+                all_EAR_IDs = []
+                for js_elem_idx, (elem_idx, act_indices) in enumerate(
+                    js_dat["elements"].items()
+                ):
+                    for act_idx in act_indices:
+                        EAR_ID_i = EAR_map[act_idx, elem_idx].item()
+                        all_EAR_IDs.append(EAR_ID_i)
+                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
+                        js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
+
+                all_EAR_objs = dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+
                 for js_elem_idx, (elem_idx, act_indices) in enumerate(
                     js_dat["elements"].items()
                 ):
@@ -2440,7 +2475,7 @@ class Workflow:
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:
-                    EAR_objs = self.get_EARs_from_IDs(all_EAR_IDs)
+                    EAR_objs = [all_EAR_objs[k] for k in all_EAR_IDs]
                     EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
                     EAR_deps_flat = [j for i in EAR_deps for j in i]
                     EAR_deps_EAR_idx = [

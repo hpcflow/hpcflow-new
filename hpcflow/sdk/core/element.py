@@ -16,6 +16,7 @@ from hpcflow.sdk.core.utils import (
     get_enum_by_name_or_val,
     split_param_label,
 )
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 
 
@@ -496,6 +497,7 @@ class ElementIteration:
             if i.startswith(prefix)
         )
 
+    @TimeIt.decorator
     def get_data_idx(
         self,
         path: str = None,
@@ -534,6 +536,7 @@ class ElementIteration:
 
         return copy.deepcopy(data_idx)
 
+    @TimeIt.decorator
     def get_parameter_sources(
         self,
         path: str = None,
@@ -994,6 +997,7 @@ class Element:
         return self._iteration_IDs
 
     @property
+    @TimeIt.decorator
     def iterations(self) -> Dict[app.ElementAction]:
         # TODO: fix this
         if self._iteration_objs is None:

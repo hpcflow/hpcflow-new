@@ -331,6 +331,7 @@ class ElementActionRun:
             run_idx=self.index,
         )
 
+    @TimeIt.decorator
     def get_parameter_sources(
         self,
         path: str = None,
@@ -363,6 +364,7 @@ class ElementActionRun:
             raise_on_unset=raise_on_unset,
         )
 
+    @TimeIt.decorator
     def get_EAR_dependencies(self, as_objects=False):
         """Get EARs that this EAR depends on."""
 

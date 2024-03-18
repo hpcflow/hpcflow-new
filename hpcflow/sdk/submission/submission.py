@@ -82,6 +82,7 @@ class Submission(JSONLike):
         for js_idx, js in enumerate(self.jobscripts):
             js._index = js_idx
 
+    @TimeIt.decorator
     def _set_environments(self):
         filterable = ElementResources.get_env_instance_filterable_attributes()
 

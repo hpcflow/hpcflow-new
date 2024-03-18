@@ -426,6 +426,7 @@ class Jobscript(JSONLike):
         return self.EAR_ID.flatten()
 
     @property
+    @TimeIt.decorator
     def all_EARs(self) -> List:
         if not self._all_EARs:
             self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
