@@ -1237,6 +1237,7 @@ class BaseApp(metaclass=Singleton):
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
         cancel: Optional[bool] = False,
+        status: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1291,6 +1292,8 @@ class BaseApp(metaclass=Singleton):
             included.
         cancel
             Immediately cancel the submission. Useful for testing and benchmarking.
+        status
+            If True, display a live status to track submission progress.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1315,6 +1318,7 @@ class BaseApp(metaclass=Singleton):
             return_idx=return_idx,
             tasks=tasks,
             cancel=cancel,
+            status=status,
         )
 
     def _make_demo_workflow(
@@ -1399,6 +1403,7 @@ class BaseApp(metaclass=Singleton):
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
         cancel: Optional[bool] = False,
+        status: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1450,6 +1455,8 @@ class BaseApp(metaclass=Singleton):
             included.
         cancel
             Immediately cancel the submission. Useful for testing and benchmarking.
+        status
+            If True, display a live status to track submission progress.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1473,6 +1480,7 @@ class BaseApp(metaclass=Singleton):
             return_idx=return_idx,
             tasks=tasks,
             cancel=cancel,
+            status=status,
         )
 
     def _submit_workflow(

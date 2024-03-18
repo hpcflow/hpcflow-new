@@ -1955,7 +1955,7 @@ class Workflow:
     @TimeIt.decorator
     def _submit(
         self,
-        status,
+        status: Optional[Any] = None,
         ignore_errors: Optional[bool] = False,
         JS_parallelism: Optional[bool] = None,
         print_stdout: Optional[bool] = False,
@@ -1967,10 +1967,12 @@ class Workflow:
         # generate a new submission if there are no pending submissions:
         pending = [i for i in self.submissions if i.needs_submit]
         if not pending:
-            status.update("Adding new submission...")
+            if status:
+                status.update("Adding new submission...")
             new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
             if not new_sub:
-                status.stop()
+                if status:
+                    status.stop()
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
@@ -1980,7 +1982,8 @@ class Workflow:
 
         # for direct execution the submission must be persistent at submit-time, because
         # it will be read by a new instance of the app:
-        status.update("Committing to the store...")
+        if status:
+            status.update("Committing to the store...")
         self._store._pending.commit_all()
 
         # submit all pending submissions:
@@ -1988,7 +1991,8 @@ class Workflow:
         submitted_js = {}
         for sub in pending:
             try:
-                status.update(f"Preparing submission {sub.index}...")
+                if status:
+                    status.update(f"Preparing submission {sub.index}...")
                 sub_js_idx = sub.submit(
                     status=status,
                     ignore_errors=ignore_errors,
@@ -2011,6 +2015,7 @@ class Workflow:
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
         cancel: Optional[bool] = False,
+        status: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Submit the workflow for execution.
 
@@ -2039,15 +2044,19 @@ class Workflow:
             created.
         cancel
             Immediately cancel the submission. Useful for testing and benchmarking.
+        status
+            If True display a live status to track submission progress.
         """
 
-        console = rich.console.Console()
-        status = console.status("Submitting workflow...")
-        status.start()
+        if status:
+            console = rich.console.Console()
+            status = console.status("Submitting workflow...")
+            status.start()
 
         with self._store.cached_load():
             if not self._store.is_submittable:
-                status.stop()
+                if status:
+                    status.stop()
                 raise NotImplementedError("The workflow is not submittable.")
             with self.batch_update():
                 # commit updates before raising exception:
@@ -2061,15 +2070,18 @@ class Workflow:
                         tasks=tasks,
                     )
                 except Exception:
-                    status.stop()
+                    if status:
+                        status.stop()
                     raise
 
         if exceptions:
             msg = "\n" + "\n\n".join([i.message for i in exceptions])
-            status.stop()
+            if status:
+                status.stop()
             raise WorkflowSubmissionFailure(msg)
 
-        status.stop()
+        if status:
+            status.stop()
 
         if cancel:
             self.cancel()

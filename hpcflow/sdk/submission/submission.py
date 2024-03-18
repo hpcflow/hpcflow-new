@@ -429,7 +429,8 @@ class Submission(JSONLike):
         supports_JS_para = self.workflow._store._features.jobscript_parallelism
         if self.JS_parallelism:
             if not supports_JS_para:
-                status.stop()
+                if status:
+                    status.stop()
                 raise ValueError(
                     f"Store type {self.workflow._store!r} does not support jobscript "
                     f"parallelism."
@@ -508,7 +509,8 @@ class Submission(JSONLike):
                 continue
 
             try:
-                status.update(f"Submitting jobscript {js.index}...")
+                if status:
+                    status.update(f"Submitting jobscript {js.index}...")
                 js_ref_i = js.submit(scheduler_refs, print_stdout=print_stdout)
                 scheduler_refs[js.index] = (js_ref_i, js.is_array)
                 submitted_js_idx.append(js.index)
@@ -533,7 +535,8 @@ class Submission(JSONLike):
                 )
 
         if errs and not ignore_errors:
-            status.stop()
+            if status:
+                status.stop()
             self._raise_failure(submitted_js_idx, errs)
 
         len_js = len(submitted_js_idx)

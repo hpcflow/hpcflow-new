@@ -115,6 +115,11 @@ cancel_opt = click.option(
     is_flag=True,
     default=False,
 )
+submit_status_opt = click.option(
+    "--status/--no-status",
+    help="If True, display a live status to track submission progress.",
+    default=True,
+)
 zip_path_opt = click.option(
     "--path",
     default=".",
