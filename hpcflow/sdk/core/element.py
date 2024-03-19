@@ -623,6 +623,7 @@ class ElementIteration:
 
         return out
 
+    @TimeIt.decorator
     def get(
         self,
         path: str = None,
@@ -848,6 +849,7 @@ class ElementIteration:
             out[res_i.scope.to_string()] = res_i._get_value()
         return out
 
+    @TimeIt.decorator
     def get_resources(self, action: app.Action, set_defaults: bool = False) -> Dict:
         """Resolve specific resources for the specified action of this iteration,
         considering all applicable scopes.

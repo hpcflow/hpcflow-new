@@ -711,6 +711,16 @@ class PersistentStore(ABC):
         """Cache for number of persistent tasks."""
         return self._cache["num_tasks"]
 
+    @property
+    def param_sources_cache(self):
+        """Cache for persistent parameter sources."""
+        return self._cache["param_sources"]
+
+    @property
+    def parameter_cache(self):
+        """Cache for persistent parameters."""
+        return self._cache["parameters"]
+
     @num_tasks_cache.setter
     def num_tasks_cache(self, value):
         self._cache["num_tasks"] = value
@@ -721,7 +731,9 @@ class PersistentStore(ABC):
             "elements": {},
             "element_iters": {},
             "EARs": {},
+            "param_sources": {},
             "num_tasks": None,
+            "parameters": {},
         }
 
     @contextlib.contextmanager
@@ -1560,6 +1572,12 @@ class PersistentStore(ABC):
 
     def _get_cached_persistent_tasks(self, id_lst: Iterable[int]):
         return self._get_cached_persistent_items(id_lst, self.task_cache)
+
+    def _get_cached_persistent_param_sources(self, id_lst: Iterable[int]):
+        return self._get_cached_persistent_items(id_lst, self.param_sources_cache)
+
+    def _get_cached_persistent_parameters(self, id_lst: Iterable[int]):
+        return self._get_cached_persistent_items(id_lst, self.parameter_cache)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
         self.logger.debug(f"PersistentStore.get_EAR_skipped: EAR_ID={EAR_ID!r}")

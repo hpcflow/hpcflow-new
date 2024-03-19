@@ -688,24 +688,6 @@ class ZarrPersistentStore(PersistentStore):
             f"PersistentStore._append_parameters: finished adding {len(params)} parameters."
         )
 
-    def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
-        """Set an unset persistent parameter."""
-
-        # the `decode` call in `_get_persistent_parameters` should be quick:
-        param_i = self._get_persistent_parameters([param_id])[param_id]
-        if is_file:
-            param_i = param_i.set_file(value)
-        else:
-            param_i = param_i.set_data(value)
-        dat_i = param_i.encode(
-            root_group=self._get_parameter_user_array_group(mode="r+"),
-            arr_path=self._param_data_arr_grp_name(param_i.id_),
-        )
-
-        # no need to update sources array:
-        base_arr = self._get_parameter_base_array(mode="r+")
-        base_arr[param_id] = dat_i
-
     def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
 
@@ -1073,40 +1055,49 @@ class ZarrPersistentStore(PersistentStore):
         id_lst: Iterable[int],
         dataset_copy: Optional[bool] = False,
     ) -> Dict[int, ZarrStoreParameter]:
-        base_arr = self._get_parameter_base_array(mode="r")
-        src_arr = self._get_parameter_sources_array(mode="r")
 
-        try:
-            param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
-            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingParameterData(id_lst) from None
+        params, id_lst = self._get_cached_persistent_parameters(id_lst)
+        if id_lst:
+            base_arr = self._get_parameter_base_array(mode="r")
+            src_arr = self._get_parameter_sources_array(mode="r")
 
-        param_dat = dict(zip(id_lst, param_arr_dat))
-        src_dat = dict(zip(id_lst, src_arr_dat))
+            try:
+                param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
+                src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+            except zarr.errors.BoundsCheckError:
+                raise MissingParameterData(id_lst) from None
 
-        params = {
-            k: ZarrStoreParameter.decode(
-                id_=k,
-                data=v,
-                source=src_dat[k],
-                arr_group=self._get_parameter_data_array_group(k),
-                dataset_copy=dataset_copy,
-            )
-            for k, v in param_dat.items()
-        }
+            param_dat = dict(zip(id_lst, param_arr_dat))
+            src_dat = dict(zip(id_lst, src_arr_dat))
+
+            new_params = {
+                k: ZarrStoreParameter.decode(
+                    id_=k,
+                    data=v,
+                    source=src_dat[k],
+                    arr_group=self._get_parameter_data_array_group(k),
+                    dataset_copy=dataset_copy,
+                )
+                for k, v in param_dat.items()
+            }
+            self.parameter_cache.update(new_params)
+            params.update(new_params)
 
         return params
 
     @TimeIt.decorator
     def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
-        src_arr = self._get_parameter_sources_array(mode="r")
-        try:
-            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingParameterData(id_lst) from None
-
-        return dict(zip(id_lst, src_arr_dat))
+        sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
+        if id_lst:
+            src_arr = self._get_parameter_sources_array(mode="r")
+            try:
+                src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+            except zarr.errors.BoundsCheckError:
+                raise MissingParameterData(id_lst) from None
+            new_sources = dict(zip(id_lst, src_arr_dat))
+            self.param_sources_cache.update(new_sources)
+            sources.update(new_sources)
+        return sources
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]

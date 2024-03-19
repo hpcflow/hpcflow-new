@@ -1597,6 +1597,13 @@ class Workflow:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
+    def get_all_parameter_sources(self, **kwargs: Dict) -> List[Dict]:
+        """Retrieve all store parameters."""
+        num_params = self._store._get_num_total_parameters()
+        id_lst = list(range(num_params))
+        return self._store.get_parameter_sources(id_lst, **kwargs)
+
+    @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
         """Retrieve all workflow parameter data."""
         params = self.get_all_parameters(**kwargs)
@@ -2404,6 +2411,10 @@ class Workflow:
         """
         if not tasks:
             tasks = list(range(self.num_tasks))
+
+        if self._store.use_cache:
+            # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
+            self.get_all_parameter_sources()
 
         submission_jobscripts = {}
         all_element_deps = {}

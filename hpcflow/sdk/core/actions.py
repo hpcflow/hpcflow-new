@@ -436,6 +436,7 @@ class ElementActionRun:
         return self._outputs
 
     @property
+    @TimeIt.decorator
     def resources(self):
         if not self._resources:
             self._resources = self.app.ElementResources(**self.get_resources())
@@ -453,6 +454,7 @@ class ElementActionRun:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
+    @TimeIt.decorator
     def get_resources(self):
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""

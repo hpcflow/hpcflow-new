@@ -362,6 +362,8 @@ class PendingChanges:
             param_ids = list(self.set_parameters.keys())
             self.logger.debug(f"commit: setting values of parameter IDs {param_ids!r}.")
             self.store._set_parameter_values(self.set_parameters)
+            for id_i in param_ids:
+                self.store.parameter_cache.pop(id_i, None)
 
         self.clear_set_parameters()
 
@@ -387,6 +389,8 @@ class PendingChanges:
             param_ids = list(self.update_param_sources.keys())
             self.logger.debug(f"commit: updating sources of parameter IDs {param_ids!r}.")
             self.store._update_parameter_sources(self.update_param_sources)
+            for id_i in param_ids:
+                self.store.param_sources_cache.pop(id_i, None)  # invalidate cache
             self.clear_update_param_sources()
 
     @TimeIt.decorator

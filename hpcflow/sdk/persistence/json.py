@@ -264,20 +264,6 @@ class JSONPersistentStore(PersistentStore):
                 params["data"][str(param_i.id_)] = param_i.encode()
                 params["sources"][str(param_i.id_)] = param_i.source
 
-    def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
-        """Set an unset persistent parameter."""
-
-        # the `decode` call in `_get_persistent_parameters` should be quick:
-        param = self._get_persistent_parameters([param_id])[param_id]
-        if is_file:
-            param = param.set_file(value)
-        else:
-            param = param.set_data(value)
-
-        with self.using_resource("parameters", "update") as params:
-            # no need to update sources array:
-            params["data"][str(param_id)] = param.encode()
-
     def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
         param_ids = list(set_parameters.keys())
@@ -482,24 +468,34 @@ class JSONPersistentStore(PersistentStore):
         self,
         id_lst: Iterable[int],
     ) -> Dict[int, StoreParameter]:
-        with self.using_resource("parameters", "read") as params:
-            try:
-                param_dat = {i: params["data"][str(i)] for i in id_lst}
-                src_dat = {i: params["sources"][str(i)] for i in id_lst}
-            except KeyError:
-                raise MissingParameterData(id_lst) from None
+        params, id_lst = self._get_cached_persistent_parameters(id_lst)
+        if id_lst:
+            with self.using_resource("parameters", "read") as params:
+                try:
+                    param_dat = {i: params["data"][str(i)] for i in id_lst}
+                    src_dat = {i: params["sources"][str(i)] for i in id_lst}
+                except KeyError:
+                    raise MissingParameterData(id_lst) from None
 
-        return {
-            k: StoreParameter.decode(id_=k, data=v, source=src_dat[k])
-            for k, v in param_dat.items()
-        }
+            new_params = {
+                k: StoreParameter.decode(id_=k, data=v, source=src_dat[k])
+                for k, v in param_dat.items()
+            }
+            self.parameter_cache.update(new_params)
+            params.update(new_params)
+        return params
 
     def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
-        with self.using_resource("parameters", "read") as params:
-            try:
-                return {i: params["sources"][str(i)] for i in id_lst}
-            except KeyError:
-                raise MissingParameterData(id_lst) from None
+        sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
+        if id_lst:
+            with self.using_resource("parameters", "read") as params:
+                try:
+                    new_sources = {i: params["sources"][str(i)] for i in id_lst}
+                except KeyError:
+                    raise MissingParameterData(id_lst) from None
+            self.param_sources_cache.update(new_sources)
+            sources.update(new_sources)
+        return sources
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]
