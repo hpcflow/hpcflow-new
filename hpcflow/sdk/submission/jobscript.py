@@ -402,7 +402,7 @@ class Jobscript(JSONLike):
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None):
-        return RunDirAppFiles.get_commands_file_name(
+        return self.app.RunDirAppFiles.get_commands_file_name(
             js_idx=self.index,
             js_action_idx=js_action_idx,
             shell=shell or self.shell,
