@@ -741,6 +741,7 @@ class Jobscript(JSONLike):
         )
         return loop_idx
 
+    @TimeIt.decorator
     def write_EAR_ID_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
@@ -754,6 +755,7 @@ class Jobscript(JSONLike):
                 delimiter=self._EAR_files_delimiter,
             )
 
+    @TimeIt.decorator
     def write_element_run_dir_file(self, run_dirs: List[List[Path]]):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing the working directory for each EAR.
@@ -773,6 +775,7 @@ class Jobscript(JSONLike):
                 delimiter=self._EAR_files_delimiter,
             )
 
+    @TimeIt.decorator
     def compose_jobscript(
         self,
         deps: Optional[Dict] = None,
@@ -900,6 +903,7 @@ class Jobscript(JSONLike):
 
         return out
 
+    @TimeIt.decorator
     def write_jobscript(
         self,
         os_name: str = None,
@@ -962,6 +966,7 @@ class Jobscript(JSONLike):
 
         return run_dirs
 
+    @TimeIt.decorator
     def _launch_direct_js_win(self):
         # this is a "trick" to ensure we always get a fully detached new process (with no
         # parent); the `powershell.exe -Command` process exits after running the inner
@@ -1005,6 +1010,7 @@ class Jobscript(JSONLike):
         process_ID = int(self.direct_win_pid_file_path.read_text())
         return process_ID
 
+    @TimeIt.decorator
     def _launch_direct_js_posix(self) -> int:
         # direct submission; submit jobscript asynchronously:
         # detached process, avoid interrupt signals propagating to the subprocess:
