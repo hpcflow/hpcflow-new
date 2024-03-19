@@ -29,6 +29,7 @@ from hpcflow.sdk.core.utils import (
     swap_nested_dict_keys,
 )
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
@@ -251,13 +252,16 @@ class ElementActionRun:
     @property
     def snapshot_start(self):
         if self._ss_start_obj is None and self._snapshot_start:
-            self._ss_start_obj = JSONLikeDirSnapShot(**self._snapshot_start)
+            self._ss_start_obj = JSONLikeDirSnapShot(
+                root_path=".",
+                **self._snapshot_start,
+            )
         return self._ss_start_obj
 
     @property
     def snapshot_end(self):
         if self._ss_end_obj is None and self._snapshot_end:
-            self._ss_end_obj = JSONLikeDirSnapShot(**self._snapshot_end)
+            self._ss_end_obj = JSONLikeDirSnapShot(root_path=".", **self._snapshot_end)
         return self._ss_end_obj
 
     @property
@@ -1461,11 +1465,11 @@ class Action(JSONLike):
 
     @staticmethod
     def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
-        return f"js_{js_idx}_act_{js_act_idx}_inputs"
+        return RunDirAppFiles.get_run_param_dump_file_prefix(js_idx, js_act_idx)
 
     @staticmethod
     def get_param_load_file_stem(js_idx: int, js_act_idx: int):
-        return f"js_{js_idx}_act_{js_act_idx}_outputs"
+        return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
 
     def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
@@ -1949,7 +1953,7 @@ class Action(JSONLike):
                 """\
                     import {app_module} as app
                     app.load_config(
-                        log_file_path=Path("{app_package_name}.log").resolve(),
+                        log_file_path=Path("{run_log_file}").resolve(),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
@@ -1958,7 +1962,7 @@ class Action(JSONLike):
                     EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
                 """
             ).format(
-                app_package_name=self.app.package_name,
+                run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
                 app_module=self.app.module,
                 cfg_dir=self.app.config.config_directory,
                 cfg_invoc_key=self.app.config.config_key,

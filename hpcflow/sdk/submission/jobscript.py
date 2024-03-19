@@ -402,8 +402,11 @@ class Jobscript(JSONLike):
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None):
-        shell = shell or self.shell
-        return f"js_{self.index}_act_{js_action_idx}{shell.JS_EXT}"
+        return RunDirAppFiles.get_commands_file_name(
+            js_idx=self.index,
+            js_action_idx=js_action_idx,
+            shell=shell or self.shell,
+        )
 
     @property
     def task_insert_IDs(self):
@@ -828,7 +831,7 @@ class Jobscript(JSONLike):
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
                 "app_invoc": app_invoc,
-                "app_package_name": self.app.package_name,
+                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
                 "config_dir": str(self.app.config.config_directory),
                 "config_invoc_key": self.app.config.config_key,
                 "workflow_path": self.workflow.path,
@@ -875,7 +878,7 @@ class Jobscript(JSONLike):
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
             commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
-            app_package_name=self.app.package_name,
+            run_stream_file=self.app.RunDirAppFiles.get_std_file_name(),
         )
 
         out = header

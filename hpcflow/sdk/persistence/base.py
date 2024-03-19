@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import enum
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import time
@@ -1049,9 +1050,7 @@ class PersistentStore(ABC):
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
         dt = datetime.utcnow()
-        snapshot = JSONLikeDirSnapShot()
-        snapshot.take(".")
-        ss_js = snapshot.to_json_like()
+        ss_js = self.app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname)
         if save:
@@ -1063,9 +1062,7 @@ class PersistentStore(ABC):
     ) -> datetime:
         # TODO: save output files
         dt = datetime.utcnow()
-        snapshot = JSONLikeDirSnapShot()
-        snapshot.take(".")
-        ss_js = snapshot.to_json_like()
+        ss_js = self.app.RunDirAppFiles.take_snapshot()
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
         if save:
             self.save()
