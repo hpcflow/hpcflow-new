@@ -168,6 +168,7 @@ class Submission(JSONLike):
             ]
         return self._submission_parts_lst
 
+    @TimeIt.decorator
     def get_start_time(self, submit_time: str) -> Union[datetime, None]:
         """Get the start time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
@@ -180,6 +181,7 @@ class Submission(JSONLike):
         else:
             return None
 
+    @TimeIt.decorator
     def get_end_time(self, submit_time: str) -> Union[datetime, None]:
         """Get the end time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
@@ -193,6 +195,7 @@ class Submission(JSONLike):
             return None
 
     @property
+    @TimeIt.decorator
     def start_time(self):
         """Get the first non-None start time over all submission parts."""
         all_start_times = []
@@ -206,6 +209,7 @@ class Submission(JSONLike):
             return None
 
     @property
+    @TimeIt.decorator
     def end_time(self):
         """Get the final non-None end time over all submission parts."""
         all_end_times = []

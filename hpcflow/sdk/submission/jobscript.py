@@ -448,6 +448,7 @@ class Jobscript(JSONLike):
         return self._dependencies
 
     @property
+    @TimeIt.decorator
     def start_time(self):
         """Get the first start time from all EARs."""
         if not self.is_submitted:
@@ -459,6 +460,7 @@ class Jobscript(JSONLike):
             return None
 
     @property
+    @TimeIt.decorator
     def end_time(self):
         """Get the last end time from all EARs."""
         if not self.is_submitted:
