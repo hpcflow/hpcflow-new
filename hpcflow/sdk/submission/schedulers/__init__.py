@@ -16,7 +16,7 @@ class NullScheduler:
     ):
         self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
-        self.options = options or []
+        self.options = options or {}
 
     @property
     def unique_properties(self):

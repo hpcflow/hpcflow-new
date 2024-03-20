@@ -165,7 +165,16 @@ class SGEPosix(Scheduler):
             opts.append(self.format_array_request(num_elements))
 
         opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
-        opts.extend([f"{self.js_cmd} {opt}" for opt in self.options])
+
+        for opt_k, opt_v in self.options.items():
+            if isinstance(opt_v, list):
+                for i in opt_v:
+                    opts.append(f"{self.js_cmd} {opt_k} {i}")
+            elif opt_v:
+                opts.append(f"{self.js_cmd} {opt_k} {opt_v}")
+            elif opt_v is None:
+                opts.append(f"{self.js_cmd} {opt_k}")
+
         return "\n".join(opts) + "\n"
 
     @TimeIt.decorator

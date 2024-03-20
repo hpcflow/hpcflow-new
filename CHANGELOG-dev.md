@@ -1,4 +1,49 @@
 
+<a name="v0.2.0a159"></a>
+## [v0.2.0a159](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a158...v0.2.0a159) - 2024.03.14
+
+### ♻ Code Refactoring
+
+* defer imports, fix [#610](https://github.com/hpcflow/hpcflow-new/issues/610)
+* remove unused sentry dep
+
+### 🐛 Bug Fixes
+
+* tests
+* add more `TimeIt` decorators
+* add some more `TimeIt.decorator`s
+* add some more `TimeIt.decorator`s
+
+### 👷 Build changes
+
+* merge develop
+
+
+<a name="v0.2.0a158"></a>
+## [v0.2.0a158](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a157...v0.2.0a158) - 2024.03.14
+
+### 🐛 Bug Fixes
+
+* use a dict for scheduler `options` and merge options from the config
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a157"></a>
+## [v0.2.0a157](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a156...v0.2.0a157) - 2024.03.13
+
+### 🐛 Bug Fixes
+
+* batch up IO in `ZarrPersistentStore._append_parameters` and do not write empty chunks in parameter data base array
+* batch up `PendingChanges.commit_parameters` and `commit_param_sources`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a156"></a>
 ## [v0.2.0a156](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a155...v0.2.0a156) - 2024.03.13
 
