@@ -174,8 +174,9 @@ class Submission(JSONLike):
         js_idx = self._submission_parts[submit_time]
         all_part_starts = []
         for i in js_idx:
-            if self.jobscripts[i].start_time:
-                all_part_starts.append(self.jobscripts[i].start_time)
+            start_time = self.jobscripts[i].start_time
+            if start_time:
+                all_part_starts.append(start_time)
         if all_part_starts:
             return min(all_part_starts)
         else:
@@ -187,8 +188,9 @@ class Submission(JSONLike):
         js_idx = self._submission_parts[submit_time]
         all_part_ends = []
         for i in js_idx:
-            if self.jobscripts[i].end_time:
-                all_part_ends.append(self.jobscripts[i].end_time)
+            end_time = self.jobscripts[i].end_time
+            if end_time:
+                all_part_ends.append(end_time)
         if all_part_ends:
             return max(all_part_ends)
         else:
