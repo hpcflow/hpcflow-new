@@ -1659,15 +1659,18 @@ class BaseApp(metaclass=Singleton):
                     out_item["deleted"] = True
 
                 else:
-                    sub = wk_i.submissions[file_dat_i["sub_idx"]]
+                    with wk_i._store.cache_ctx():
+                        sub = wk_i.submissions[file_dat_i["sub_idx"]]
 
-                    all_jobscripts = sub._submission_parts[submit_time_str]
-                    out_item.update(
-                        {
-                            "jobscripts": all_jobscripts,
-                            "submission": sub,
-                        }
-                    )
+                        all_jobscripts = sub._submission_parts[submit_time_str]
+                        out_item.update(
+                            {
+                                "jobscripts": all_jobscripts,
+                                "submission": sub,
+                                "sub_start_time": sub.start_time,
+                                "sub_end_time": sub.end_time,
+                            }
+                        )
                     if file_dat_i["is_active"]:
                         # check it really is active:
                         run_key = (file_dat_i["path"], file_dat_i["sub_idx"])
@@ -1713,9 +1716,7 @@ class BaseApp(metaclass=Singleton):
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["submission"].end_time
-                or i["submission"].start_time
-                or i["submit_time_obj"]
+                i["sub_end_time"] or i["sub_start_time"] or i["submit_time_obj"]
             ),
             reverse=True,
         )
