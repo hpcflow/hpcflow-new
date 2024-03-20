@@ -229,9 +229,10 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["runs"].extend(i.encode(self.ts_fmt) for i in EARs)
 
-    def _update_EAR_submission_index(self, EAR_id: int, sub_idx: int):
+    def _update_EAR_submission_indices(self, sub_indices: Dict[int, int]):
         with self.using_resource("metadata", action="update") as md:
-            md["runs"][EAR_id]["submission_idx"] = sub_idx
+            for EAR_ID_i, sub_idx_i in sub_indices.items():
+                md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
 
     def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
         with self.using_resource("metadata", action="update") as md:

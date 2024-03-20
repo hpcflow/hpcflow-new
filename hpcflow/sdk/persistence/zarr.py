@@ -596,14 +596,21 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_EAR_submission_index(self, EAR_id: int, sub_idx: int):
+    @TimeIt.decorator
+    def _update_EAR_submission_indices(self, sub_indices: Dict[int:int]):
+        EAR_IDs = list(sub_indices.keys())
+        EARs = self._get_persistent_EARs(EAR_IDs)
+
         arr = self._get_EARs_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
 
-        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(submission_idx=sub_idx)
-        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+        encoded_EARs = []
+        for EAR_ID_i, sub_idx_i in sub_indices.items():
+            new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
+            # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
+            # object array, so set one-by-one:
+            arr[EAR_ID_i] = new_EAR_i.encode(attrs, self.ts_fmt)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)

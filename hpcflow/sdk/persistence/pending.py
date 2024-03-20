@@ -296,15 +296,15 @@ class PendingChanges:
 
     @TimeIt.decorator
     def commit_EAR_submission_indices(self) -> None:
-        # TODO: could be batched up?
-        for EAR_id, sub_idx in self.set_EAR_submission_indices.items():
+        if self.set_EAR_submission_indices:
             self.logger.debug(
-                f"commit: adding pending submission index ({sub_idx!r}) to EAR ID "
-                f"{EAR_id!r}."
+                f"commit: updating submission indices: "
+                f"{self.set_EAR_submission_indices!r}."
             )
-            self.store._update_EAR_submission_index(EAR_id, sub_idx)
-            self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
-        self.clear_set_EAR_submission_indices()
+            self.store._update_EAR_submission_indices(self.set_EAR_submission_indices)
+            for EAR_ID_i in self.set_EAR_submission_indices.keys():
+                self.store.EAR_cache.pop(EAR_ID_i, None)  # invalidate cache
+            self.clear_set_EAR_submission_indices()
 
     @TimeIt.decorator
     def commit_EAR_starts(self) -> None:
