@@ -1576,7 +1576,11 @@ class BaseApp(metaclass=Singleton):
 
     @TimeIt.decorator
     def _get_known_submissions(
-        self, max_recent: int = 3, no_update: bool = False, as_json: bool = False
+        self,
+        max_recent: int = 3,
+        no_update: bool = False,
+        as_json: bool = False,
+        status: Optional[Any] = None,
     ):
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
@@ -1601,6 +1605,8 @@ class BaseApp(metaclass=Singleton):
         inactive_IDs = []
 
         try:
+            if status:
+                status.update("Reading known submissions file...")
             known_subs = self.read_known_submissions_file()
         except FileNotFoundError:
             known_subs = []
@@ -1633,6 +1639,8 @@ class BaseApp(metaclass=Singleton):
                 out_item["deleted"] = not path_exists
                 if path_exists:
                     try:
+                        if status:
+                            status.update(f"Inspecting workflow {file_dat_i['path']!r}.")
                         wk_i = self.Workflow(file_dat_i["path"])
                     except Exception:
                         wk_i = None
@@ -1659,6 +1667,10 @@ class BaseApp(metaclass=Singleton):
                     out_item["deleted"] = True
 
                 else:
+                    if status:
+                        status.update(
+                            f"Reading workflow {file_dat_i['path']!r} submission info..."
+                        )
                     with wk_i._store.cache_ctx():
                         sub = wk_i.submissions[file_dat_i["sub_idx"]]
 
@@ -1846,6 +1858,7 @@ class BaseApp(metaclass=Singleton):
             run_dat = self._get_known_submissions(
                 max_recent=max_recent,
                 no_update=no_update,
+                status=status,
             )
         except Exception:
             status.stop()
