@@ -279,6 +279,7 @@ class Submission(JSONLike):
         return [i for js in self.jobscripts for i in js.all_EARs]
 
     @property
+    @TimeIt.decorator
     def EARs_by_elements(self):
         task_elem_EARs = defaultdict(lambda: defaultdict(list))
         for i in self.all_EARs:
@@ -293,6 +294,7 @@ class Submission(JSONLike):
     def abort_EARs_file_path(self):
         return self.path / self.abort_EARs_file_name
 
+    @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:

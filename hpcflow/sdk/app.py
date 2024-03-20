@@ -965,6 +965,7 @@ class BaseApp(metaclass=Singleton):
         }
         return item
 
+    @TimeIt.decorator
     def read_known_submissions_file(self) -> List[Dict]:
         """Retrieve existing workflows that *might* be running."""
         known = []
@@ -1024,6 +1025,7 @@ class BaseApp(metaclass=Singleton):
 
         return next_id
 
+    @TimeIt.decorator
     def set_inactive_in_known_subs_file(self, inactive_IDs: List[int]):
         """Set workflows in the known-submissions file to the non-running state.
 
@@ -1572,6 +1574,7 @@ class BaseApp(metaclass=Singleton):
         )
         return shell.get_version_info(exclude_os)
 
+    @TimeIt.decorator
     def _get_known_submissions(
         self, max_recent: int = 3, no_update: bool = False, as_json: bool = False
     ):

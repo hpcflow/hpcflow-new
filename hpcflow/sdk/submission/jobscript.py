@@ -1158,6 +1158,7 @@ class Jobscript(JSONLike):
             out["num_js_elements"] = self.num_elements
         return out
 
+    @TimeIt.decorator
     def get_active_states(
         self, as_json: bool = False
     ) -> Dict[int, JobscriptElementState]:
