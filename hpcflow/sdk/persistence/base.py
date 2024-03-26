@@ -9,10 +9,11 @@ from datetime import datetime, timezone
 import enum
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import time
-from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, TypeVar, Union
 
 from hpcflow.sdk.core.utils import (
     flatten,
@@ -107,6 +108,7 @@ class StoreTask:
         """
         return cls(is_pending=False, **task_dat)
 
+    @TimeIt.decorator
     def append_element_IDs(self: AnySTask, pend_IDs: List[int]) -> AnySTask:
         """Return a copy, with additional element IDs."""
         elem_IDs = self.element_IDs[:] + pend_IDs
@@ -164,6 +166,7 @@ class StoreElement:
             "iterations": iters,
         }
 
+    @TimeIt.decorator
     def append_iteration_IDs(self: AnySElement, pend_IDs: List[int]) -> AnySElement:
         """Return a copy, with additional iteration IDs."""
         iter_IDs = self.iteration_IDs[:] + pend_IDs
@@ -234,6 +237,7 @@ class StoreElementIter:
             "loop_idx": self.loop_idx,
         }
 
+    @TimeIt.decorator
     def append_EAR_IDs(
         self: AnySElementIter, pend_IDs: Dict[int, List[int]]
     ) -> AnySElementIter:
@@ -256,6 +260,7 @@ class StoreElementIter:
             EARs_initialised=self.EARs_initialised,
         )
 
+    @TimeIt.decorator
     def update_loop_idx(
         self: AnySElementIter, loop_idx: Dict[str, int]
     ) -> AnySElementIter:
@@ -273,6 +278,7 @@ class StoreElementIter:
             loop_idx=loop_idx_new,
         )
 
+    @TimeIt.decorator
     def set_EARs_initialised(self: AnySElementIter) -> AnySElementIter:
         """Return a copy with `EARs_initialised` set to `True`."""
         return self.__class__(
@@ -378,6 +384,7 @@ class StoreEAR:
             "run_hostname": self.run_hostname,
         }
 
+    @TimeIt.decorator
     def update(
         self,
         submission_idx: Optional[int] = None,
@@ -655,6 +662,10 @@ class PersistentStore(ABC):
         self._resources_in_use = set()
         self._in_batch_mode = False
 
+        self._use_cache = False
+        self._cache = None
+        self._reset_cache()
+
     @property
     def logger(self):
         return self.app.persistence_logger
@@ -671,6 +682,70 @@ class PersistentStore(ABC):
     def is_submittable(self):
         """Does this store support workflow submission?"""
         return self.fs.__class__.__name__ == "LocalFileSystem"
+
+    @property
+    def use_cache(self):
+        return self._use_cache
+
+    @property
+    def task_cache(self):
+        """Cache for persistent tasks."""
+        return self._cache["tasks"]
+
+    @property
+    def element_cache(self):
+        """Cache for persistent elements."""
+        return self._cache["elements"]
+
+    @property
+    def element_iter_cache(self):
+        """Cache for persistent element iterations."""
+        return self._cache["element_iters"]
+
+    @property
+    def EAR_cache(self):
+        """Cache for persistent EARs."""
+        return self._cache["EARs"]
+
+    @property
+    def num_tasks_cache(self):
+        """Cache for number of persistent tasks."""
+        return self._cache["num_tasks"]
+
+    @property
+    def param_sources_cache(self):
+        """Cache for persistent parameter sources."""
+        return self._cache["param_sources"]
+
+    @property
+    def parameter_cache(self):
+        """Cache for persistent parameters."""
+        return self._cache["parameters"]
+
+    @num_tasks_cache.setter
+    def num_tasks_cache(self, value):
+        self._cache["num_tasks"] = value
+
+    def _reset_cache(self):
+        self._cache = {
+            "tasks": {},
+            "elements": {},
+            "element_iters": {},
+            "EARs": {},
+            "param_sources": {},
+            "num_tasks": None,
+            "parameters": {},
+        }
+
+    @contextlib.contextmanager
+    def cache_ctx(self):
+        """Context manager for using the persistent element/iteration/run cache."""
+        self._use_cache = True
+        try:
+            yield
+        finally:
+            self._use_cache = False
+            self._reset_cache()
 
     @staticmethod
     def prepare_test_store_from_spec(task_spec):
@@ -975,9 +1050,7 @@ class PersistentStore(ABC):
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
         dt = datetime.utcnow()
-        snapshot = JSONLikeDirSnapShot()
-        snapshot.take(".")
-        ss_js = snapshot.to_json_like()
+        ss_js = self.app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname)
         if save:
@@ -989,9 +1062,7 @@ class PersistentStore(ABC):
     ) -> datetime:
         # TODO: save output files
         dt = datetime.utcnow()
-        snapshot = JSONLikeDirSnapShot()
-        snapshot.take(".")
-        ss_js = snapshot.to_json_like()
+        ss_js = self.app.RunDirAppFiles.take_snapshot()
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
         if save:
             self.save()
@@ -1247,6 +1318,7 @@ class PersistentStore(ABC):
     def _get_task_id_to_idx_map(self) -> Dict[int, int]:
         return {i.id_: i.index for i in self.get_tasks()}
 
+    @TimeIt.decorator
     def get_task(self, task_idx: int) -> AnySTask:
         return self.get_tasks()[task_idx]
 
@@ -1289,10 +1361,10 @@ class PersistentStore(ABC):
 
         return self._process_retrieved_tasks(tasks)
 
+    @TimeIt.decorator
     def get_tasks(self) -> List[AnySTask]:
         """Retrieve all tasks, including pending."""
-
-        tasks = self._get_persistent_tasks()
+        tasks = self._get_persistent_tasks(range(self._get_num_persistent_tasks()))
         tasks.update({k: v for k, v in self._pending.add_tasks.items()})
 
         # order by index:
@@ -1328,6 +1400,7 @@ class PersistentStore(ABC):
 
         return self._process_retrieved_loops(loops)
 
+    @TimeIt.decorator
     def get_submissions(self) -> Dict[int, Dict]:
         """Retrieve all submissions, including pending."""
 
@@ -1339,6 +1412,7 @@ class PersistentStore(ABC):
 
         return subs
 
+    @TimeIt.decorator
     def get_submissions_by_ID(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -1354,6 +1428,7 @@ class PersistentStore(ABC):
 
         return subs
 
+    @TimeIt.decorator
     def get_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
@@ -1380,6 +1455,7 @@ class PersistentStore(ABC):
 
         return elems_new
 
+    @TimeIt.decorator
     def get_element_iterations(self, id_lst: Iterable[int]) -> List[AnySElementIter]:
         self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
 
@@ -1415,6 +1491,7 @@ class PersistentStore(ABC):
 
         return iters_new
 
+    @TimeIt.decorator
     def get_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
         self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
 
@@ -1459,10 +1536,51 @@ class PersistentStore(ABC):
 
         return EARs_new
 
+    @TimeIt.decorator
+    def _get_cached_persistent_items(
+        self, id_lst: Iterable[int], cache: Dict
+    ) -> Tuple[Dict[int, Any], List[int]]:
+        id_lst = list(id_lst)
+        if self.use_cache:
+            id_set = set(id_lst)
+            all_cached = set(cache.keys())
+            id_cached = id_set.intersection(all_cached)
+            id_non_cached = list(id_set.difference(all_cached))
+            items = {k: cache[k] for k in id_cached}
+        else:
+            items = {}
+            id_non_cached = id_lst
+        return items, id_non_cached
+
+    def _get_cached_persistent_EARs(
+        self, id_lst: Iterable[int]
+    ) -> Tuple[Dict[int, AnySEAR], List[int]]:
+        return self._get_cached_persistent_items(id_lst, self.EAR_cache)
+
+    def _get_cached_persistent_element_iters(
+        self, id_lst: Iterable[int]
+    ) -> Tuple[Dict[int, AnySEAR], List[int]]:
+        return self._get_cached_persistent_items(id_lst, self.element_iter_cache)
+
+    def _get_cached_persistent_elements(
+        self, id_lst: Iterable[int]
+    ) -> Tuple[Dict[int, AnySEAR], List[int]]:
+        return self._get_cached_persistent_items(id_lst, self.element_cache)
+
+    def _get_cached_persistent_tasks(self, id_lst: Iterable[int]):
+        return self._get_cached_persistent_items(id_lst, self.task_cache)
+
+    def _get_cached_persistent_param_sources(self, id_lst: Iterable[int]):
+        return self._get_cached_persistent_items(id_lst, self.param_sources_cache)
+
+    def _get_cached_persistent_parameters(self, id_lst: Iterable[int]):
+        return self._get_cached_persistent_items(id_lst, self.parameter_cache)
+
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
         self.logger.debug(f"PersistentStore.get_EAR_skipped: EAR_ID={EAR_ID!r}")
         return self.get_EARs([EAR_ID])[0].skip
 
+    @TimeIt.decorator
     def get_parameters(
         self,
         id_lst: Iterable[int],
@@ -1489,6 +1607,7 @@ class PersistentStore(ABC):
 
         return params
 
+    @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -1502,6 +1621,7 @@ class PersistentStore(ABC):
         # order as requested:
         return [set_status[id_] for id_ in id_lst]
 
+    @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -1525,15 +1645,23 @@ class PersistentStore(ABC):
 
         return src_new
 
-    def get_task_elements(self, task_id, idx_sel: slice) -> List[Dict]:
-        """Get element data by an index slice within a given task.
+    @TimeIt.decorator
+    def get_task_elements(
+        self,
+        task_id,
+        idx_lst: Optional[Iterable[int]] = None,
+    ) -> List[Dict]:
+        """Get element data by an indices within a given task.
 
         Element iterations and EARs belonging to the elements are included.
 
         """
 
         all_elem_IDs = self.get_task(task_id).element_IDs
-        req_IDs = all_elem_IDs[idx_sel]
+        if idx_lst is None:
+            req_IDs = all_elem_IDs
+        else:
+            req_IDs = [all_elem_IDs[i] for i in idx_lst]
         store_elements = self.get_elements(req_IDs)
         iter_IDs = [i.iteration_IDs for i in store_elements]
         iter_IDs_flat, iter_IDs_lens = flatten(iter_IDs)

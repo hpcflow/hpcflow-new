@@ -229,9 +229,10 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["runs"].extend(i.encode(self.ts_fmt) for i in EARs)
 
-    def _update_EAR_submission_index(self, EAR_id: int, sub_idx: int):
+    def _update_EAR_submission_indices(self, sub_indices: Dict[int, int]):
         with self.using_resource("metadata", action="update") as md:
-            md["runs"][EAR_id]["submission_idx"] = sub_idx
+            for EAR_ID_i, sub_idx_i in sub_indices.items():
+                md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
 
     def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
         with self.using_resource("metadata", action="update") as md:
@@ -263,20 +264,6 @@ class JSONPersistentStore(PersistentStore):
             for param_i in new_params:
                 params["data"][str(param_i.id_)] = param_i.encode()
                 params["sources"][str(param_i.id_)] = param_i.source
-
-    def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
-        """Set an unset persistent parameter."""
-
-        # the `decode` call in `_get_persistent_parameters` should be quick:
-        param = self._get_persistent_parameters([param_id])[param_id]
-        if is_file:
-            param = param.set_file(value)
-        else:
-            param = param.set_data(value)
-
-        with self.using_resource("parameters", "update") as params:
-            # no need to update sources array:
-            params["data"][str(param_id)] = param.encode()
 
     def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
@@ -310,8 +297,13 @@ class JSONPersistentStore(PersistentStore):
 
     def _get_num_persistent_tasks(self) -> int:
         """Get the number of persistent tasks."""
-        with self.using_resource("metadata", action="read") as md:
-            return len(md["tasks"])
+        if self.num_tasks_cache is not None:
+            num = self.num_tasks_cache
+        else:
+            with self.using_resource("metadata", action="read") as md:
+                num = len(md["tasks"])
+                self.num_tasks_cache = num
+        return num
 
     def _get_num_persistent_loops(self) -> int:
         """Get the number of persistent loops."""
@@ -386,16 +378,18 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", "read") as md:
             return md["template"]
 
-    def _get_persistent_tasks(
-        self, id_lst: Optional[Iterable[int]] = None
-    ) -> Dict[int, StoreTask]:
-        with self.using_resource("metadata", action="read") as md:
-            task_dat = {
-                i["id_"]: StoreTask.decode({**i, "index": idx})
-                for idx, i in enumerate(md["tasks"])
-                if id_lst is None or i["id_"] in id_lst
-            }
-        return task_dat
+    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> Dict[int, StoreTask]:
+        tasks, id_lst = self._get_cached_persistent_tasks(id_lst)
+        if id_lst:
+            with self.using_resource("metadata", action="read") as md:
+                new_tasks = {
+                    i["id_"]: StoreTask.decode({**i, "index": idx})
+                    for idx, i in enumerate(md["tasks"])
+                    if id_lst is None or i["id_"] in id_lst
+                }
+                self.task_cache.update(new_tasks)
+                tasks.update(new_tasks)
+        return tasks
 
     def _get_persistent_loops(self, id_lst: Optional[Iterable[int]] = None):
         with self.using_resource("metadata", "read") as md:
@@ -428,54 +422,81 @@ class JSONPersistentStore(PersistentStore):
         return subs_dat
 
     def _get_persistent_elements(self, id_lst: Iterable[int]) -> Dict[int, StoreElement]:
-        # could convert `id_lst` to e.g. slices if more efficient for a given store
-        with self.using_resource("metadata", action="read") as md:
-            try:
-                elem_dat = {i: md["elements"][i] for i in id_lst}
-            except KeyError:
-                raise MissingStoreElementError(id_lst) from None
-            return {k: StoreElement.decode(v) for k, v in elem_dat.items()}
+        elems, id_lst = self._get_cached_persistent_elements(id_lst)
+        if id_lst:
+            # could convert `id_lst` to e.g. slices if more efficient for a given store
+            with self.using_resource("metadata", action="read") as md:
+                try:
+                    elem_dat = {i: md["elements"][i] for i in id_lst}
+                except KeyError:
+                    raise MissingStoreElementError(id_lst) from None
+                new_elems = {k: StoreElement.decode(v) for k, v in elem_dat.items()}
+                self.element_cache.update(new_elems)
+                elems.update(new_elems)
+        return elems
 
     def _get_persistent_element_iters(
         self, id_lst: Iterable[int]
     ) -> Dict[int, StoreElementIter]:
-        with self.using_resource("metadata", action="read") as md:
-            try:
-                iter_dat = {i: md["iters"][i] for i in id_lst}
-            except KeyError:
-                raise MissingStoreElementIterationError(id_lst) from None
-            return {k: StoreElementIter.decode(v) for k, v in iter_dat.items()}
+        iters, id_lst = self._get_cached_persistent_element_iters(id_lst)
+        if id_lst:
+            with self.using_resource("metadata", action="read") as md:
+                try:
+                    iter_dat = {i: md["iters"][i] for i in id_lst}
+                except KeyError:
+                    raise MissingStoreElementIterationError(id_lst) from None
+                new_iters = {k: StoreElementIter.decode(v) for k, v in iter_dat.items()}
+                self.element_iter_cache.update(new_iters)
+                iters.update(new_iters)
+        return iters
 
     def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, StoreEAR]:
-        with self.using_resource("metadata", action="read") as md:
-            try:
-                EAR_dat = {i: md["runs"][i] for i in id_lst}
-            except KeyError:
-                raise MissingStoreEARError(id_lst) from None
-            return {k: StoreEAR.decode(v, self.ts_fmt) for k, v in EAR_dat.items()}
+        runs, id_lst = self._get_cached_persistent_EARs(id_lst)
+        if id_lst:
+            with self.using_resource("metadata", action="read") as md:
+                try:
+                    EAR_dat = {i: md["runs"][i] for i in id_lst}
+                except KeyError:
+                    raise MissingStoreEARError(id_lst) from None
+                new_runs = {
+                    k: StoreEAR.decode(v, self.ts_fmt) for k, v in EAR_dat.items()
+                }
+                self.EAR_cache.update(new_runs)
+                runs.update(new_runs)
+        return runs
 
     def _get_persistent_parameters(
         self,
         id_lst: Iterable[int],
     ) -> Dict[int, StoreParameter]:
-        with self.using_resource("parameters", "read") as params:
-            try:
-                param_dat = {i: params["data"][str(i)] for i in id_lst}
-                src_dat = {i: params["sources"][str(i)] for i in id_lst}
-            except KeyError:
-                raise MissingParameterData(id_lst) from None
+        params, id_lst = self._get_cached_persistent_parameters(id_lst)
+        if id_lst:
+            with self.using_resource("parameters", "read") as params:
+                try:
+                    param_dat = {i: params["data"][str(i)] for i in id_lst}
+                    src_dat = {i: params["sources"][str(i)] for i in id_lst}
+                except KeyError:
+                    raise MissingParameterData(id_lst) from None
 
-        return {
-            k: StoreParameter.decode(id_=k, data=v, source=src_dat[k])
-            for k, v in param_dat.items()
-        }
+            new_params = {
+                k: StoreParameter.decode(id_=k, data=v, source=src_dat[k])
+                for k, v in param_dat.items()
+            }
+            self.parameter_cache.update(new_params)
+            params.update(new_params)
+        return params
 
     def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
-        with self.using_resource("parameters", "read") as params:
-            try:
-                return {i: params["sources"][str(i)] for i in id_lst}
-            except KeyError:
-                raise MissingParameterData(id_lst) from None
+        sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
+        if id_lst:
+            with self.using_resource("parameters", "read") as params:
+                try:
+                    new_sources = {i: params["sources"][str(i)] for i in id_lst}
+                except KeyError:
+                    raise MissingParameterData(id_lst) from None
+            self.param_sources_cache.update(new_sources)
+            sources.update(new_sources)
+        return sources
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]

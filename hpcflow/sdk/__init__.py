@@ -1,4 +1,5 @@
 """Sub-package to define an extensible hpcflow application."""
+
 import logging
 import os
 import sys
@@ -90,6 +91,7 @@ sdk_classes = {
     "SlurmPosix": "hpcflow.sdk.submission.schedulers.slurm",
     "SGEPosix": "hpcflow.sdk.submission.schedulers.sge",
     "OutputLabel": "hpcflow.sdk.core.task",
+    "RunDirAppFiles": "hpcflow.sdk.core.run_dir_files",
 }
 
 # these are defined as `BaseApp` methods with an underscore prefix:

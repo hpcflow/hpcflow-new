@@ -23,6 +23,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
 
 
+@TimeIt.decorator
 def generate_EAR_resource_map(
     task: app.WorkflowTask,
     loop_idx: Dict,
@@ -77,6 +78,7 @@ def generate_EAR_resource_map(
     )
 
 
+@TimeIt.decorator
 def group_resource_map_into_jobscripts(
     resource_map: Union[List, NDArray],
     none_val: Any = -1,
@@ -148,6 +150,7 @@ def group_resource_map_into_jobscripts(
     return jobscripts, js_map
 
 
+@TimeIt.decorator
 def resolve_jobscript_dependencies(jobscripts, element_deps):
     # first pass is to find the mappings between jobscript elements:
     jobscript_deps = {}
@@ -218,6 +221,7 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
     return jobscript_deps
 
 
+@TimeIt.decorator
 def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
     """Try to merge jobscripts between tasks.
 
@@ -275,6 +279,7 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
     return jobscripts
 
 
+@TimeIt.decorator
 def jobscripts_to_list(jobscripts: Dict[int, Dict]) -> List[Dict]:
     """Convert the jobscripts dict to a list, normalising jobscript indices so they refer
     to list indices; also remove `resource_hash`."""
@@ -397,8 +402,11 @@ class Jobscript(JSONLike):
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None):
-        shell = shell or self.shell
-        return f"js_{self.index}_act_{js_action_idx}{shell.JS_EXT}"
+        return self.app.RunDirAppFiles.get_commands_file_name(
+            js_idx=self.index,
+            js_action_idx=js_action_idx,
+            shell=shell or self.shell,
+        )
 
     @property
     def task_insert_IDs(self):
@@ -421,6 +429,7 @@ class Jobscript(JSONLike):
         return self.EAR_ID.flatten()
 
     @property
+    @TimeIt.decorator
     def all_EARs(self) -> List:
         if not self._all_EARs:
             self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
@@ -439,6 +448,7 @@ class Jobscript(JSONLike):
         return self._dependencies
 
     @property
+    @TimeIt.decorator
     def start_time(self):
         """Get the first start time from all EARs."""
         if not self.is_submitted:
@@ -450,6 +460,7 @@ class Jobscript(JSONLike):
             return None
 
     @property
+    @TimeIt.decorator
     def end_time(self):
         """Get the last end time from all EARs."""
         if not self.is_submitted:
@@ -732,6 +743,7 @@ class Jobscript(JSONLike):
         )
         return loop_idx
 
+    @TimeIt.decorator
     def write_EAR_ID_file(self):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
@@ -745,6 +757,7 @@ class Jobscript(JSONLike):
                 delimiter=self._EAR_files_delimiter,
             )
 
+    @TimeIt.decorator
     def write_element_run_dir_file(self, run_dirs: List[List[Path]]):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing the working directory for each EAR.
@@ -764,6 +777,7 @@ class Jobscript(JSONLike):
                 delimiter=self._EAR_files_delimiter,
             )
 
+    @TimeIt.decorator
     def compose_jobscript(
         self,
         deps: Optional[Dict] = None,
@@ -822,7 +836,7 @@ class Jobscript(JSONLike):
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
                 "app_invoc": app_invoc,
-                "app_package_name": self.app.package_name,
+                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
                 "config_dir": str(self.app.config.config_directory),
                 "config_invoc_key": self.app.config.config_key,
                 "workflow_path": self.workflow.path,
@@ -869,7 +883,7 @@ class Jobscript(JSONLike):
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
             commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
-            app_package_name=self.app.package_name,
+            run_stream_file=self.app.RunDirAppFiles.get_std_file_name(),
         )
 
         out = header
@@ -891,6 +905,7 @@ class Jobscript(JSONLike):
 
         return out
 
+    @TimeIt.decorator
     def write_jobscript(
         self,
         os_name: str = None,
@@ -953,6 +968,7 @@ class Jobscript(JSONLike):
 
         return run_dirs
 
+    @TimeIt.decorator
     def _launch_direct_js_win(self):
         # this is a "trick" to ensure we always get a fully detached new process (with no
         # parent); the `powershell.exe -Command` process exits after running the inner
@@ -996,6 +1012,7 @@ class Jobscript(JSONLike):
         process_ID = int(self.direct_win_pid_file_path.read_text())
         return process_ID
 
+    @TimeIt.decorator
     def _launch_direct_js_posix(self) -> int:
         # direct submission; submit jobscript asynchronously:
         # detached process, avoid interrupt signals propagating to the subprocess:
@@ -1143,6 +1160,7 @@ class Jobscript(JSONLike):
             out["num_js_elements"] = self.num_elements
         return out
 
+    @TimeIt.decorator
     def get_active_states(
         self, as_json: bool = False
     ) -> Dict[int, JobscriptElementState]:

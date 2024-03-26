@@ -22,7 +22,7 @@ class WindowsPowerShell(Shell):
         function {workflow_app_alias} {{
             & {{
         {env_setup}{app_invoc} `
-                    --with-config log_file_path "$pwd/{app_package_name}.log" `
+                    --with-config log_file_path "$pwd/{run_log_file}" `
                     --config-dir "{config_dir}" `
                     --config-key "{config_invoc_key}" `
                     $args
@@ -83,7 +83,7 @@ class WindowsPowerShell(Shell):
             $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$JS_act_idx]
             $run_dir_abs = "$WK_PATH\\$run_dir"
             Set-Location $run_dir_abs
-            $app_stream_file = "$pwd/{app_package_name}_std.txt"
+            $app_stream_file = "$pwd/{run_stream_file}"
 
             $skip = {workflow_app_alias} internal workflow $WK_PATH get-ear-skipped $EAR_ID 2>> $app_stream_file
             $exc_sk = $LASTEXITCODE
