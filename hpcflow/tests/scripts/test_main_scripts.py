@@ -1,3 +1,4 @@
+import time
 import pytest
 
 from hpcflow.app import app as hf
@@ -30,6 +31,9 @@ def test_script_direct_in_direct_out(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
@@ -56,6 +60,9 @@ def test_script_direct_sub_param_in_direct_out(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val["a"] + 100
 
 
@@ -85,6 +92,9 @@ def test_script_direct_in_direct_out_single_label(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
@@ -126,6 +136,9 @@ def test_script_direct_in_direct_out_labels(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_1_val + p1_2_val
 
 
@@ -152,6 +165,9 @@ def test_script_json_in_json_out(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
 
 
@@ -193,6 +209,9 @@ def test_script_json_in_json_out_labels(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_1_val + p1_2_val
 
 
@@ -234,6 +253,9 @@ def test_script_json_sub_param_in_json_out_labels(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == a_val + p1_2_val
 
 
@@ -264,6 +286,9 @@ def test_script_json_and_direct_in_json_out(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p3.value == p1_val + p2_val
 
 
@@ -293,6 +318,9 @@ def test_script_json_in_json_and_direct_out(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
     assert wk.tasks[0].elements[0].outputs.p3.value == p1_val + 200
 
@@ -322,6 +350,9 @@ def test_script_json_in_obj(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == a_val + 100
 
 
@@ -350,6 +381,9 @@ def test_script_hdf5_in_obj(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p2.value == a_val + 100
 
 
@@ -378,6 +412,9 @@ def test_script_json_out_obj(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p1c.value == P1(a=p1_val + 100)
 
 
@@ -406,4 +443,7 @@ def test_script_hdf5_out_obj(null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(1)
     assert wk.tasks[0].elements[0].outputs.p1c.value == P1(a=p1_val + 100)
