@@ -120,6 +120,11 @@ submit_status_opt = click.option(
     help="If True, display a live status to track submission progress.",
     default=True,
 )
+make_status_opt = click.option(
+    "--status/--no-status",
+    help="If True, display a live status to track workflow creation progress.",
+    default=True,
+)
 zip_path_opt = click.option(
     "--path",
     default=".",

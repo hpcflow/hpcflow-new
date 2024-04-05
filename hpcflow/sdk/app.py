@@ -20,6 +20,7 @@ import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
 from reretry import retry
+import rich
 from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.table import Table, box
@@ -1143,6 +1144,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[bool] = True,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
@@ -1179,9 +1181,16 @@ class BaseApp(metaclass=Singleton):
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         variables
             String variables to substitute in `template_file_or_str`.
+        status
+            If True, display a live status to track workflow creation progress.
         """
 
         self.API_logger.info("make_workflow called")
+
+        if status:
+            console = rich.console.Console()
+            status = console.status("Making persistent workflow...")
+            status.start()
 
         common = {
             "path": path,
@@ -1192,6 +1201,7 @@ class BaseApp(metaclass=Singleton):
             "ts_name_fmt": ts_name_fmt,
             "store_kwargs": store_kwargs,
             "variables": variables,
+            "status": status,
         }
 
         if not is_string:
@@ -1202,10 +1212,24 @@ class BaseApp(metaclass=Singleton):
             )
 
         elif template_format == "json":
-            wk = self.Workflow.from_JSON_string(JSON_str=template_file_or_str, **common)
+            try:
+                wk = self.Workflow.from_JSON_string(
+                    JSON_str=template_file_or_str, **common
+                )
+            except Exception:
+                if status:
+                    status.stop()
+                raise
 
         elif template_format == "yaml":
-            wk = self.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
+            try:
+                wk = self.Workflow.from_YAML_string(
+                    YAML_str=template_file_or_str, **common
+                )
+            except Exception:
+                if status:
+                    status.stop()
+                raise
 
         elif not template_format:
             raise ValueError(
@@ -1218,6 +1242,10 @@ class BaseApp(metaclass=Singleton):
                 f"Template format {template_format!r} not understood. Available template "
                 f"formats are {ALL_TEMPLATE_FORMATS!r}."
             )
+
+        if status:
+            status.stop()
+
         return wk
 
     def _make_and_submit_workflow(
@@ -1295,7 +1323,8 @@ class BaseApp(metaclass=Singleton):
         cancel
             Immediately cancel the submission. Useful for testing and benchmarking.
         status
-            If True, display a live status to track submission progress.
+            If True, display a live status to track workflow creation and submission
+            progress.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1312,6 +1341,7 @@ class BaseApp(metaclass=Singleton):
             ts_name_fmt=ts_name_fmt,
             store_kwargs=store_kwargs,
             variables=variables,
+            status=status,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,
@@ -1335,6 +1365,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[bool] = True,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
@@ -1368,9 +1399,16 @@ class BaseApp(metaclass=Singleton):
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         variables
             String variables to substitute in the demo workflow template file.
+        status
+            If True, display a live status to track workflow creation progress.
         """
 
         self.API_logger.info("make_demo_workflow called")
+
+        if status:
+            console = rich.console.Console()
+            status = console.status("Making persistent workflow...")
+            status.start()
 
         with self.get_demo_workflow_template_file(workflow_name) as template_path:
             wk = self.Workflow.from_file(
@@ -1384,7 +1422,10 @@ class BaseApp(metaclass=Singleton):
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
                 variables=variables,
+                status=status,
             )
+        if status:
+            status.stop()
         return wk
 
     def _make_and_submit_demo_workflow(

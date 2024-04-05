@@ -492,6 +492,7 @@ class Workflow:
         ts_fmt: Optional[str] = None,
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
+        status: Optional[Any] = None,
     ) -> app.Workflow:
         """Generate from a `WorkflowTemplate` object.
 
@@ -521,22 +522,38 @@ class Workflow:
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
-        wk = cls._write_empty_workflow(
-            template=template,
-            path=path,
-            name=name,
-            overwrite=overwrite,
-            store=store,
-            ts_fmt=ts_fmt,
-            ts_name_fmt=ts_name_fmt,
-            store_kwargs=store_kwargs,
-        )
-        with wk._store.cached_load():
-            with wk.batch_update(is_workflow_creation=True):
-                for task in template.tasks:
-                    wk._add_task(task)
-                for loop in template.loops:
-                    wk._add_loop(loop)
+        if status:
+            status.update("Generating empty workflow...")
+        try:
+            wk = cls._write_empty_workflow(
+                template=template,
+                path=path,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
+                store_kwargs=store_kwargs,
+            )
+            with wk._store.cached_load():
+                with wk.batch_update(is_workflow_creation=True):
+                    for idx, task in enumerate(template.tasks):
+                        if status:
+                            status.update(
+                                f"Adding task {idx + 1}/{len(template.tasks)} "
+                                f"({task.name!r})..."
+                            )
+                        wk._add_task(task)
+                    for idx, loop in enumerate(template.loops):
+                        if status:
+                            status.update(
+                                f"Adding loop {idx + 1}/" f"{len(template.loops)}..."
+                            )
+                        wk._add_loop(loop)
+        except Exception:
+            if status:
+                status.stop()
+            raise
         return wk
 
     @classmethod
@@ -668,6 +685,7 @@ class Workflow:
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[Any] = None,
     ) -> app.Workflow:
         """Generate from a JSON file.
 
@@ -712,6 +730,7 @@ class Workflow:
             ts_fmt,
             ts_name_fmt,
             store_kwargs,
+            status,
         )
 
     @classmethod
@@ -726,6 +745,7 @@ class Workflow:
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[Any] = None,
     ) -> app.Workflow:
         """Generate from a JSON string.
 
@@ -770,6 +790,7 @@ class Workflow:
             ts_fmt,
             ts_name_fmt,
             store_kwargs,
+            status,
         )
 
     @classmethod
@@ -786,6 +807,7 @@ class Workflow:
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[Any] = None,
     ) -> app.Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -821,11 +843,16 @@ class Workflow:
         variables
             String variables to substitute in the file given by `template_path`.
         """
-        template = cls.app.WorkflowTemplate.from_file(
-            template_path,
-            template_format,
-            variables=variables,
-        )
+        try:
+            template = cls.app.WorkflowTemplate.from_file(
+                template_path,
+                template_format,
+                variables=variables,
+            )
+        except Exception:
+            if status:
+                status.stop()
+            raise
         return cls.from_template(
             template,
             path,
@@ -835,6 +862,7 @@ class Workflow:
             ts_fmt,
             ts_name_fmt,
             store_kwargs,
+            status,
         )
 
     @classmethod
