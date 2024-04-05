@@ -1283,6 +1283,7 @@ class WorkflowTask:
         return self.template.num_element_sets
 
     @property
+    @TimeIt.decorator
     def elements(self):
         if self._elements is None:
             self._elements = self.app.Elements(self)
@@ -1828,6 +1829,7 @@ class WorkflowTask:
         param_src_updates = {}
 
         count = 0
+        # TODO: generator is an IO op here, can be pre-calculated/cached?
         for act_idx, action in self.template.all_schema_actions():
             log_common = (
                 f"for action {act_idx} of element iteration {element_iter.index} of "
@@ -2604,41 +2606,38 @@ class Elements:
     def task(self):
         return self._task
 
-    def _get_selection(self, selection):
+    @TimeIt.decorator
+    def _get_selection(self, selection: Union[int, slice, List[int]]) -> List[int]:
+        """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
-            start, stop, step = selection, selection + 1, 1
+            lst = [selection]
 
         elif isinstance(selection, slice):
-            start, stop, step = selection.start, selection.stop, selection.step
-            stop = self.task.num_elements if stop is None else stop
-            start = start or 0
-            step = 1 if step is None else step
+            lst = list(range(*selection.indices(self.task.num_elements)))
 
+        elif isinstance(selection, list):
+            lst = selection
         else:
             raise RuntimeError(
-                f"{self.__class__.__name__} selection must be an `int` or a `slice` "
-                f"object, but received type {type(selection)}."
+                f"{self.__class__.__name__} selection must be an `int`, `slice` object, "
+                f"or list of `int`s, but received type {type(selection)}."
             )
-
-        selection = slice(start, stop, step)
-        length = len(range(*selection.indices(self.task.num_elements)))
-
-        return selection, length
+        return lst
 
     def __len__(self):
         return self.task.num_elements
 
     def __iter__(self):
-        all_elems = self.task.workflow.get_task_elements(self.task, slice(None))
-        for i in all_elems:
+        for i in self.task.workflow.get_task_elements(self.task):
             yield i
 
+    @TimeIt.decorator
     def __getitem__(
         self,
-        selection: Union[int, slice],
+        selection: Union[int, slice, List[int]],
     ) -> Union[app.Element, List[app.Element]]:
-        sel_normed, _ = self._get_selection(selection)
-        elements = self.task.workflow.get_task_elements(self.task, sel_normed)
+        idx_lst = self._get_selection(selection)
+        elements = self.task.workflow.get_task_elements(self.task, idx_lst)
 
         if isinstance(selection, int):
             return elements[0]
@@ -2657,34 +2656,34 @@ class Parameters:
     raise_on_unset: Optional[bool] = False
     default: Optional[Any] = None
 
-    def _get_selection(self, selection):
+    @TimeIt.decorator
+    def _get_selection(self, selection: Union[int, slice, List[int]]) -> List[int]:
+        """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
-            start, stop, step = selection, selection + 1, 1
+            lst = [selection]
 
         elif isinstance(selection, slice):
-            start, stop, step = selection.start, selection.stop, selection.step
-            stop = self.task.num_elements if stop is None else stop
-            start = start or 0
-            step = 1 if step is None else step
+            lst = list(range(*selection.indices(self.task.num_elements)))
 
+        elif isinstance(selection, list):
+            lst = selection
         else:
             raise RuntimeError(
-                f"{self.__class__.__name__} selection must be an `int` or a `slice` "
-                f"object, but received type {type(selection)!r}."
+                f"{self.__class__.__name__} selection must be an `int`, `slice` object, "
+                f"or list of `int`s, but received type {type(selection)}."
             )
-
-        selection = slice(start, stop, step)
-        length = len(range(*selection.indices(self.task.num_elements)))
-
-        return selection, length
+        return lst
 
     def __iter__(self):
         for i in self.__getitem__(slice(None)):
             yield i
 
-    def __getitem__(self, selection: Union[int, slice]) -> Union[Any, List[Any]]:
-        selection, length = self._get_selection(selection)
-        elements = self.task.workflow.get_task_elements(self.task, selection)
+    def __getitem__(
+        self,
+        selection: Union[int, slice, List[int]],
+    ) -> Union[Any, List[Any]]:
+        idx_lst = self._get_selection(selection)
+        elements = self.task.workflow.get_task_elements(self.task, idx_lst)
         if self.return_element_parameters:
             params = [
                 self._app.ElementParameter(
@@ -2706,7 +2705,7 @@ class Parameters:
                 for i in elements
             ]
 
-        if length == 1:
+        if isinstance(selection, int):
             return params[0]
         else:
             return params

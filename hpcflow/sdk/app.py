@@ -20,6 +20,7 @@ import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
 from reretry import retry
+import rich
 from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.table import Table, box
@@ -965,6 +966,7 @@ class BaseApp(metaclass=Singleton):
         }
         return item
 
+    @TimeIt.decorator
     def read_known_submissions_file(self) -> List[Dict]:
         """Retrieve existing workflows that *might* be running."""
         known = []
@@ -1024,6 +1026,7 @@ class BaseApp(metaclass=Singleton):
 
         return next_id
 
+    @TimeIt.decorator
     def set_inactive_in_known_subs_file(self, inactive_IDs: List[int]):
         """Set workflows in the known-submissions file to the non-running state.
 
@@ -1141,6 +1144,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[bool] = True,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
@@ -1177,9 +1181,16 @@ class BaseApp(metaclass=Singleton):
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         variables
             String variables to substitute in `template_file_or_str`.
+        status
+            If True, display a live status to track workflow creation progress.
         """
 
         self.API_logger.info("make_workflow called")
+
+        if status:
+            console = rich.console.Console()
+            status = console.status("Making persistent workflow...")
+            status.start()
 
         common = {
             "path": path,
@@ -1190,6 +1201,7 @@ class BaseApp(metaclass=Singleton):
             "ts_name_fmt": ts_name_fmt,
             "store_kwargs": store_kwargs,
             "variables": variables,
+            "status": status,
         }
 
         if not is_string:
@@ -1200,10 +1212,24 @@ class BaseApp(metaclass=Singleton):
             )
 
         elif template_format == "json":
-            wk = self.Workflow.from_JSON_string(JSON_str=template_file_or_str, **common)
+            try:
+                wk = self.Workflow.from_JSON_string(
+                    JSON_str=template_file_or_str, **common
+                )
+            except Exception:
+                if status:
+                    status.stop()
+                raise
 
         elif template_format == "yaml":
-            wk = self.Workflow.from_YAML_string(YAML_str=template_file_or_str, **common)
+            try:
+                wk = self.Workflow.from_YAML_string(
+                    YAML_str=template_file_or_str, **common
+                )
+            except Exception:
+                if status:
+                    status.stop()
+                raise
 
         elif not template_format:
             raise ValueError(
@@ -1216,6 +1242,10 @@ class BaseApp(metaclass=Singleton):
                 f"Template format {template_format!r} not understood. Available template "
                 f"formats are {ALL_TEMPLATE_FORMATS!r}."
             )
+
+        if status:
+            status.stop()
+
         return wk
 
     def _make_and_submit_workflow(
@@ -1236,6 +1266,8 @@ class BaseApp(metaclass=Singleton):
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
+        cancel: Optional[bool] = False,
+        status: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1288,6 +1320,11 @@ class BaseApp(metaclass=Singleton):
         tasks
             List of task indices to include in this submission. By default all tasks are
             included.
+        cancel
+            Immediately cancel the submission. Useful for testing and benchmarking.
+        status
+            If True, display a live status to track workflow creation and submission
+            progress.
         """
 
         self.API_logger.info("make_and_submit_workflow called")
@@ -1304,6 +1341,7 @@ class BaseApp(metaclass=Singleton):
             ts_name_fmt=ts_name_fmt,
             store_kwargs=store_kwargs,
             variables=variables,
+            status=status,
         )
         return wk.submit(
             JS_parallelism=JS_parallelism,
@@ -1311,6 +1349,8 @@ class BaseApp(metaclass=Singleton):
             add_to_known=add_to_known,
             return_idx=return_idx,
             tasks=tasks,
+            cancel=cancel,
+            status=status,
         )
 
     def _make_demo_workflow(
@@ -1325,6 +1365,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
+        status: Optional[bool] = True,
     ) -> get_app_attribute("Workflow"):
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
@@ -1358,9 +1399,16 @@ class BaseApp(metaclass=Singleton):
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         variables
             String variables to substitute in the demo workflow template file.
+        status
+            If True, display a live status to track workflow creation progress.
         """
 
         self.API_logger.info("make_demo_workflow called")
+
+        if status:
+            console = rich.console.Console()
+            status = console.status("Making persistent workflow...")
+            status.start()
 
         with self.get_demo_workflow_template_file(workflow_name) as template_path:
             wk = self.Workflow.from_file(
@@ -1374,7 +1422,10 @@ class BaseApp(metaclass=Singleton):
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
                 variables=variables,
+                status=status,
             )
+        if status:
+            status.stop()
         return wk
 
     def _make_and_submit_demo_workflow(
@@ -1394,6 +1445,8 @@ class BaseApp(metaclass=Singleton):
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
+        cancel: Optional[bool] = False,
+        status: Optional[bool] = True,
     ) -> Dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -1443,6 +1496,10 @@ class BaseApp(metaclass=Singleton):
         tasks
             List of task indices to include in this submission. By default all tasks are
             included.
+        cancel
+            Immediately cancel the submission. Useful for testing and benchmarking.
+        status
+            If True, display a live status to track submission progress.
         """
 
         self.API_logger.info("make_and_submit_demo_workflow called")
@@ -1465,6 +1522,8 @@ class BaseApp(metaclass=Singleton):
             add_to_known=add_to_known,
             return_idx=return_idx,
             tasks=tasks,
+            cancel=cancel,
+            status=status,
         )
 
     def _submit_workflow(
@@ -1556,8 +1615,13 @@ class BaseApp(metaclass=Singleton):
         )
         return shell.get_version_info(exclude_os)
 
+    @TimeIt.decorator
     def _get_known_submissions(
-        self, max_recent: int = 3, no_update: bool = False, as_json: bool = False
+        self,
+        max_recent: int = 3,
+        no_update: bool = False,
+        as_json: bool = False,
+        status: Optional[Any] = None,
     ):
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
@@ -1582,6 +1646,8 @@ class BaseApp(metaclass=Singleton):
         inactive_IDs = []
 
         try:
+            if status:
+                status.update("Reading known submissions file...")
             known_subs = self.read_known_submissions_file()
         except FileNotFoundError:
             known_subs = []
@@ -1614,6 +1680,8 @@ class BaseApp(metaclass=Singleton):
                 out_item["deleted"] = not path_exists
                 if path_exists:
                     try:
+                        if status:
+                            status.update(f"Inspecting workflow {file_dat_i['path']!r}.")
                         wk_i = self.Workflow(file_dat_i["path"])
                     except Exception:
                         wk_i = None
@@ -1640,15 +1708,22 @@ class BaseApp(metaclass=Singleton):
                     out_item["deleted"] = True
 
                 else:
-                    sub = wk_i.submissions[file_dat_i["sub_idx"]]
+                    if status:
+                        status.update(
+                            f"Reading workflow {file_dat_i['path']!r} submission info..."
+                        )
+                    with wk_i._store.cache_ctx():
+                        sub = wk_i.submissions[file_dat_i["sub_idx"]]
 
-                    all_jobscripts = sub._submission_parts[submit_time_str]
-                    out_item.update(
-                        {
-                            "jobscripts": all_jobscripts,
-                            "submission": sub,
-                        }
-                    )
+                        all_jobscripts = sub._submission_parts[submit_time_str]
+                        out_item.update(
+                            {
+                                "jobscripts": all_jobscripts,
+                                "submission": sub,
+                                "sub_start_time": sub.start_time,
+                                "sub_end_time": sub.end_time,
+                            }
+                        )
                     if file_dat_i["is_active"]:
                         # check it really is active:
                         run_key = (file_dat_i["path"], file_dat_i["sub_idx"])
@@ -1694,9 +1769,7 @@ class BaseApp(metaclass=Singleton):
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["submission"].end_time
-                or i["submission"].start_time
-                or i["submit_time_obj"]
+                i["sub_end_time"] or i["sub_start_time"] or i["submit_time_obj"]
             ),
             reverse=True,
         )
@@ -1826,6 +1899,7 @@ class BaseApp(metaclass=Singleton):
             run_dat = self._get_known_submissions(
                 max_recent=max_recent,
                 no_update=no_update,
+                status=status,
             )
         except Exception:
             status.stop()

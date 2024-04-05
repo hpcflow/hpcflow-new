@@ -42,6 +42,7 @@ from hpcflow.sdk.log import TimeIt
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
+@TimeIt.decorator
 def _zarr_get_coord_selection(arr, selection, logger):
     @retry(
         RuntimeError,
@@ -51,6 +52,7 @@ def _zarr_get_coord_selection(arr, selection, logger):
         jitter=(0, 5),
         logger=logger,
     )
+    @TimeIt.decorator
     def _inner(arr, selection):
         return arr.get_coordinate_selection(selection)
 
@@ -594,14 +596,21 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_EAR_submission_index(self, EAR_id: int, sub_idx: int):
+    @TimeIt.decorator
+    def _update_EAR_submission_indices(self, sub_indices: Dict[int:int]):
+        EAR_IDs = list(sub_indices.keys())
+        EARs = self._get_persistent_EARs(EAR_IDs)
+
         arr = self._get_EARs_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
 
-        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(submission_idx=sub_idx)
-        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+        encoded_EARs = []
+        for EAR_ID_i, sub_idx_i in sub_indices.items():
+            new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
+            # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
+            # object array, so set one-by-one:
+            arr[EAR_ID_i] = new_EAR_i.encode(attrs, self.ts_fmt)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
@@ -686,24 +695,6 @@ class ZarrPersistentStore(PersistentStore):
             f"PersistentStore._append_parameters: finished adding {len(params)} parameters."
         )
 
-    def _set_parameter_value(self, param_id: int, value: Any, is_file: bool):
-        """Set an unset persistent parameter."""
-
-        # the `decode` call in `_get_persistent_parameters` should be quick:
-        param_i = self._get_persistent_parameters([param_id])[param_id]
-        if is_file:
-            param_i = param_i.set_file(value)
-        else:
-            param_i = param_i.set_data(value)
-        dat_i = param_i.encode(
-            root_group=self._get_parameter_user_array_group(mode="r+"),
-            arr_path=self._param_data_arr_grp_name(param_i.id_),
-        )
-
-        # no need to update sources array:
-        base_arr = self._get_parameter_base_array(mode="r+")
-        base_arr[param_id] = dat_i
-
     def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
 
@@ -747,9 +738,16 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", "update") as md:
             md["template_components"] = tc
 
+    @TimeIt.decorator
     def _get_num_persistent_tasks(self) -> int:
-        """Get the number of persistent elements."""
-        return len(self._get_tasks_arr())
+        """Get the number of persistent tasks."""
+        if self.use_cache and self.num_tasks_cache is not None:
+            num = self.num_tasks_cache
+        else:
+            num = len(self._get_tasks_arr())
+        if self.use_cache and self.num_tasks_cache is None:
+            self.num_tasks_cache = num
+        return num
 
     def _get_num_persistent_loops(self) -> int:
         """Get the number of persistent loops."""
@@ -932,32 +930,39 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", "read") as attrs:
             return attrs["template"]
 
-    def _get_persistent_tasks(
-        self, id_lst: Optional[Iterable[int]] = None
-    ) -> Dict[int, ZarrStoreTask]:
-        with self.using_resource("attrs", action="read") as attrs:
-            task_dat = {}
-            elem_IDs = []
-            for idx, i in enumerate(attrs["tasks"]):
-                i = copy.deepcopy(i)
-                elem_IDs.append(i.pop("element_IDs_idx"))
-                if id_lst is None or i["id_"] in id_lst:
-                    task_dat[i["id_"]] = {**i, "index": idx}
-        if task_dat:
-            try:
-                elem_IDs_arr_dat = self._get_tasks_arr().get_coordinate_selection(
-                    elem_IDs
-                )
-            except zarr.errors.BoundsCheckError:
-                raise MissingStoreTaskError(elem_IDs) from None  # TODO: not an ID list
+    @TimeIt.decorator
+    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreTask]:
+        tasks, id_lst = self._get_cached_persistent_tasks(id_lst)
+        if id_lst:
+            with self.using_resource("attrs", action="read") as attrs:
+                task_dat = {}
+                elem_IDs = []
+                for idx, i in enumerate(attrs["tasks"]):
+                    i = copy.deepcopy(i)
+                    elem_IDs.append(i.pop("element_IDs_idx"))
+                    if id_lst is None or i["id_"] in id_lst:
+                        task_dat[i["id_"]] = {**i, "index": idx}
+            if task_dat:
+                try:
+                    elem_IDs_arr_dat = self._get_tasks_arr().get_coordinate_selection(
+                        elem_IDs
+                    )
+                except zarr.errors.BoundsCheckError:
+                    raise MissingStoreTaskError(
+                        elem_IDs
+                    ) from None  # TODO: not an ID list
 
-            return {
-                id_: ZarrStoreTask.decode({**i, "element_IDs": elem_IDs_arr_dat[id_]})
-                for idx, (id_, i) in enumerate(task_dat.items())
-            }
-        else:
-            return {}
+                new_tasks = {
+                    id_: ZarrStoreTask.decode({**i, "element_IDs": elem_IDs_arr_dat[id_]})
+                    for idx, (id_, i) in enumerate(task_dat.items())
+                }
+            else:
+                new_tasks = {}
+            self.task_cache.update(new_tasks)
+            tasks.update(new_tasks)
+        return tasks
 
+    @TimeIt.decorator
     def _get_persistent_loops(self, id_lst: Optional[Iterable[int]] = None):
         with self.using_resource("attrs", "read") as attrs:
             loop_dat = {
@@ -967,6 +972,7 @@ class ZarrPersistentStore(PersistentStore):
             }
         return loop_dat
 
+    @TimeIt.decorator
     def _get_persistent_submissions(self, id_lst: Optional[Iterable[int]] = None):
         self.logger.debug("loading persistent submissions from the zarr store")
         with self.using_resource("attrs", "read") as attrs:
@@ -989,47 +995,66 @@ class ZarrPersistentStore(PersistentStore):
 
         return subs_dat
 
+    @TimeIt.decorator
     def _get_persistent_elements(
         self, id_lst: Iterable[int]
     ) -> Dict[int, ZarrStoreElement]:
-        arr = self._get_elements_arr()
-        attrs = arr.attrs.asdict()
-        try:
-            elem_arr_dat = arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingStoreElementError(id_lst) from None
-        elem_dat = dict(zip(id_lst, elem_arr_dat))
-        return {k: ZarrStoreElement.decode(v, attrs) for k, v in elem_dat.items()}
+        elems, id_lst = self._get_cached_persistent_elements(id_lst)
+        if id_lst:
+            arr = self._get_elements_arr()
+            attrs = arr.attrs.asdict()
+            try:
+                elem_arr_dat = arr.get_coordinate_selection(id_lst)
+            except zarr.errors.BoundsCheckError:
+                raise MissingStoreElementError(id_lst) from None
+            elem_dat = dict(zip(id_lst, elem_arr_dat))
+            new_elems = {
+                k: ZarrStoreElement.decode(v, attrs) for k, v in elem_dat.items()
+            }
+            self.element_cache.update(new_elems)
+            elems.update(new_elems)
+        return elems
 
+    @TimeIt.decorator
     def _get_persistent_element_iters(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, StoreElementIter]:
-        arr = self._get_iters_arr()
-        attrs = arr.attrs.asdict()
-        try:
-            iter_arr_dat = arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingStoreElementIterationError(id_lst) from None
-        iter_dat = dict(zip(id_lst, iter_arr_dat))
-        return {k: ZarrStoreElementIter.decode(v, attrs) for k, v in iter_dat.items()}
-
-    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreEAR]:
-        arr = self._get_EARs_arr()
-        attrs = arr.attrs.asdict()
-
-        try:
-            self.logger.debug(f"_get_persistent_EARs: {list(id_lst)=}")
-            EAR_arr_dat = _zarr_get_coord_selection(arr, list(id_lst), self.logger)
-        except zarr.errors.BoundsCheckError:
-            raise MissingStoreEARError(id_lst) from None
-
-        EAR_dat = dict(zip(id_lst, EAR_arr_dat))
-
-        iters = {
-            k: ZarrStoreEAR.decode(EAR_dat=v, attrs=attrs, ts_fmt=self.ts_fmt)
-            for k, v in EAR_dat.items()
-        }
+    ) -> Dict[int, ZarrStoreElementIter]:
+        iters, id_lst = self._get_cached_persistent_element_iters(id_lst)
+        if id_lst:
+            arr = self._get_iters_arr()
+            attrs = arr.attrs.asdict()
+            try:
+                iter_arr_dat = arr.get_coordinate_selection(id_lst)
+            except zarr.errors.BoundsCheckError:
+                raise MissingStoreElementIterationError(id_lst) from None
+            iter_dat = dict(zip(id_lst, iter_arr_dat))
+            new_iters = {
+                k: ZarrStoreElementIter.decode(v, attrs) for k, v in iter_dat.items()
+            }
+            self.element_iter_cache.update(new_iters)
+            iters.update(new_iters)
         return iters
+
+    @TimeIt.decorator
+    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreEAR]:
+        runs, id_lst = self._get_cached_persistent_EARs(id_lst)
+        if id_lst:
+            arr = self._get_EARs_arr()
+            attrs = arr.attrs.asdict()
+            try:
+                self.logger.debug(f"_get_persistent_EARs: {id_lst=}")
+                EAR_arr_dat = _zarr_get_coord_selection(arr, id_lst, self.logger)
+            except zarr.errors.BoundsCheckError:
+                raise MissingStoreEARError(id_lst) from None
+            EAR_dat = dict(zip(id_lst, EAR_arr_dat))
+            new_runs = {
+                k: ZarrStoreEAR.decode(EAR_dat=v, attrs=attrs, ts_fmt=self.ts_fmt)
+                for k, v in EAR_dat.items()
+            }
+            self.EAR_cache.update(new_runs)
+            runs.update(new_runs)
+
+        return runs
 
     @TimeIt.decorator
     def _get_persistent_parameters(
@@ -1037,39 +1062,49 @@ class ZarrPersistentStore(PersistentStore):
         id_lst: Iterable[int],
         dataset_copy: Optional[bool] = False,
     ) -> Dict[int, ZarrStoreParameter]:
-        base_arr = self._get_parameter_base_array(mode="r")
-        src_arr = self._get_parameter_sources_array(mode="r")
 
-        try:
-            param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
-            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingParameterData(id_lst) from None
+        params, id_lst = self._get_cached_persistent_parameters(id_lst)
+        if id_lst:
+            base_arr = self._get_parameter_base_array(mode="r")
+            src_arr = self._get_parameter_sources_array(mode="r")
 
-        param_dat = dict(zip(id_lst, param_arr_dat))
-        src_dat = dict(zip(id_lst, src_arr_dat))
+            try:
+                param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
+                src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+            except zarr.errors.BoundsCheckError:
+                raise MissingParameterData(id_lst) from None
 
-        params = {
-            k: ZarrStoreParameter.decode(
-                id_=k,
-                data=v,
-                source=src_dat[k],
-                arr_group=self._get_parameter_data_array_group(k),
-                dataset_copy=dataset_copy,
-            )
-            for k, v in param_dat.items()
-        }
+            param_dat = dict(zip(id_lst, param_arr_dat))
+            src_dat = dict(zip(id_lst, src_arr_dat))
+
+            new_params = {
+                k: ZarrStoreParameter.decode(
+                    id_=k,
+                    data=v,
+                    source=src_dat[k],
+                    arr_group=self._get_parameter_data_array_group(k),
+                    dataset_copy=dataset_copy,
+                )
+                for k, v in param_dat.items()
+            }
+            self.parameter_cache.update(new_params)
+            params.update(new_params)
 
         return params
 
+    @TimeIt.decorator
     def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
-        src_arr = self._get_parameter_sources_array(mode="r")
-        try:
-            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-        except zarr.errors.BoundsCheckError:
-            raise MissingParameterData(id_lst) from None
-
-        return dict(zip(id_lst, src_arr_dat))
+        sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
+        if id_lst:
+            src_arr = self._get_parameter_sources_array(mode="r")
+            try:
+                src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
+            except zarr.errors.BoundsCheckError:
+                raise MissingParameterData(id_lst) from None
+            new_sources = dict(zip(id_lst, src_arr_dat))
+            self.param_sources_cache.update(new_sources)
+            sources.update(new_sources)
+        return sources
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]

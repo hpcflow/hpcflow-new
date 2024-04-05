@@ -109,6 +109,22 @@ tasks_opt = click.option(
     ),
     callback=sub_tasks_callback,
 )
+cancel_opt = click.option(
+    "--cancel",
+    help="Immediately cancel the submission. Useful for testing and benchmarking.",
+    is_flag=True,
+    default=False,
+)
+submit_status_opt = click.option(
+    "--status/--no-status",
+    help="If True, display a live status to track submission progress.",
+    default=True,
+)
+make_status_opt = click.option(
+    "--status/--no-status",
+    help="If True, display a live status to track workflow creation progress.",
+    default=True,
+)
 zip_path_opt = click.option(
     "--path",
     default=".",

@@ -24,7 +24,7 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
-                --with-config log_file_path "`pwd`/{app_package_name}.log"\\
+                --with-config log_file_path "`pwd`/{run_log_file}"\\
                 --config-dir "{config_dir}"\\
                 --config-key "{config_invoc_key}"\\
                 "$@"
@@ -70,7 +70,7 @@ class Bash(Shell):
 
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd "$WK_PATH/$run_dir"
-          app_stream_file="`pwd`/{app_package_name}_std.txt"
+          app_stream_file="`pwd`/{run_stream_file}"
 
           skip=`{workflow_app_alias} internal workflow "$WK_PATH_ARG" get-ear-skipped $EAR_ID 2>> "$app_stream_file"`
           exc_sk=$?

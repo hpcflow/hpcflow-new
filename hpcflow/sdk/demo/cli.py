@@ -17,6 +17,9 @@ from hpcflow.sdk.cli_common import (
     add_to_known_opt,
     print_idx_opt,
     tasks_opt,
+    cancel_opt,
+    submit_status_opt,
+    make_status_opt,
 )
 
 
@@ -100,6 +103,7 @@ def get_demo_workflow_CLI(app):
     @ts_fmt_option
     @ts_name_fmt_option
     @variables_option
+    @make_status_opt
     def make_demo_workflow(
         workflow_name,
         format,
@@ -110,6 +114,7 @@ def get_demo_workflow_CLI(app):
         ts_fmt=None,
         ts_name_fmt=None,
         variables=None,
+        status=True,
     ):
         wk = app.make_demo_workflow(
             workflow_name=workflow_name,
@@ -121,6 +126,7 @@ def get_demo_workflow_CLI(app):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             variables=dict(variables),
+            status=status,
         )
         click.echo(wk.path)
 
@@ -139,6 +145,8 @@ def get_demo_workflow_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
+    @submit_status_opt
     def make_and_submit_demo_workflow(
         workflow_name,
         format,
@@ -154,6 +162,8 @@ def get_demo_workflow_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
+        status=True,
     ):
         out = app.make_and_submit_demo_workflow(
             workflow_name=workflow_name,
@@ -170,6 +180,8 @@ def get_demo_workflow_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
+            status=status,
         )
         if print_idx:
             click.echo(out)

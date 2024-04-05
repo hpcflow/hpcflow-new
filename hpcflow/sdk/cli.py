@@ -25,6 +25,9 @@ from hpcflow.sdk.cli_common import (
     add_to_known_opt,
     print_idx_opt,
     tasks_opt,
+    cancel_opt,
+    submit_status_opt,
+    make_status_opt,
     zip_path_opt,
     zip_overwrite_opt,
     zip_log_opt,
@@ -71,6 +74,7 @@ def _make_API_CLI(app):
     @ts_fmt_option
     @ts_name_fmt_option
     @variables_option
+    @make_status_opt
     def make_workflow(
         template_file_or_str,
         string,
@@ -82,6 +86,7 @@ def _make_API_CLI(app):
         ts_fmt=None,
         ts_name_fmt=None,
         variables=None,
+        status=True,
     ):
         """Generate a new {app_name} workflow.
 
@@ -100,6 +105,7 @@ def _make_API_CLI(app):
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             variables=dict(variables),
+            status=status,
         )
         click.echo(wk.path)
 
@@ -119,6 +125,8 @@ def _make_API_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
+    @submit_status_opt
     def make_and_submit_workflow(
         template_file_or_str,
         string,
@@ -135,6 +143,8 @@ def _make_API_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
+        status=True,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -159,6 +169,8 @@ def _make_API_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
+            status=status,
         )
         if print_idx:
             click.echo(out)
@@ -320,6 +332,8 @@ def _make_workflow_CLI(app):
     @add_to_known_opt
     @print_idx_opt
     @tasks_opt
+    @cancel_opt
+    @submit_status_opt
     @click.pass_context
     def submit_workflow(
         ctx,
@@ -328,6 +342,8 @@ def _make_workflow_CLI(app):
         add_to_known=True,
         print_idx=False,
         tasks=None,
+        cancel=False,
+        status=True,
     ):
         """Submit the workflow."""
         out = ctx.obj["workflow"].submit(
@@ -336,6 +352,8 @@ def _make_workflow_CLI(app):
             add_to_known=add_to_known,
             return_idx=print_idx,
             tasks=tasks,
+            cancel=cancel,
+            status=status,
         )
         if print_idx:
             click.echo(out)

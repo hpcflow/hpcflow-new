@@ -142,6 +142,7 @@ class PendingChanges:
             task_ids = list(self.add_tasks.keys())
             self.logger.debug(f"commit: adding pending tasks with IDs: {task_ids!r}")
             self.store._append_tasks(tasks)
+            self.store.num_tasks_cache = None  # invalidate cache
             # pending element IDs that belong to pending tasks are now committed:
             self.add_elem_IDs = {
                 k: v for k, v in self.add_elem_IDs.items() if k not in task_ids
@@ -187,6 +188,7 @@ class PendingChanges:
                 f"commit: adding pending element IDs to task {task_ID!r}: {elem_IDs!r}."
             )
             self.store._append_task_element_IDs(task_ID, elem_IDs)
+            self.store.task_cache.pop(task_ID, None)  # invalidate cache
         self.clear_add_elem_IDs()
 
     @TimeIt.decorator
@@ -219,6 +221,7 @@ class PendingChanges:
                 f"{iter_IDs!r}."
             )
             self.store._append_elem_iter_IDs(elem_ID, iter_IDs)
+            self.store.element_cache.pop(elem_ID, None)  # invalidate cache
         self.clear_add_elem_iter_IDs()
 
     @TimeIt.decorator
@@ -250,6 +253,7 @@ class PendingChanges:
             )
             for act_idx, EAR_IDs in act_EAR_IDs.items():
                 self.store._append_elem_iter_EAR_IDs(iter_ID, act_idx, EAR_IDs)
+            self.store.element_iter_cache.pop(iter_ID, None)  # invalidate cache
         self.clear_add_elem_iter_EAR_IDs()
 
     @TimeIt.decorator
@@ -286,19 +290,21 @@ class PendingChanges:
             )
             # TODO: could be batched up?
             for i in iter_ids:
-                self._store._update_elem_iter_EARs_initialised(i)
+                self.store._update_elem_iter_EARs_initialised(i)
+                self.store.element_iter_cache.pop(i, None)  # invalidate cache
         self.clear_set_EARs_initialised()
 
     @TimeIt.decorator
     def commit_EAR_submission_indices(self) -> None:
-        # TODO: could be batched up?
-        for EAR_id, sub_idx in self.set_EAR_submission_indices.items():
+        if self.set_EAR_submission_indices:
             self.logger.debug(
-                f"commit: adding pending submission index ({sub_idx!r}) to EAR ID "
-                f"{EAR_id!r}."
+                f"commit: updating submission indices: "
+                f"{self.set_EAR_submission_indices!r}."
             )
-            self.store._update_EAR_submission_index(EAR_id, sub_idx)
-        self.clear_set_EAR_submission_indices()
+            self.store._update_EAR_submission_indices(self.set_EAR_submission_indices)
+            for EAR_ID_i in self.set_EAR_submission_indices.keys():
+                self.store.EAR_cache.pop(EAR_ID_i, None)  # invalidate cache
+            self.clear_set_EAR_submission_indices()
 
     @TimeIt.decorator
     def commit_EAR_starts(self) -> None:
@@ -309,6 +315,7 @@ class PendingChanges:
                 f"({hostname!r}), and directory snapshot to EAR ID {EAR_id!r}."
             )
             self.store._update_EAR_start(EAR_id, time, snap, hostname)
+            self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
         self.clear_set_EAR_starts()
 
     @TimeIt.decorator
@@ -320,6 +327,7 @@ class PendingChanges:
                 f"exit code ({ext!r}), and success status {suc!r} to EAR ID {EAR_id!r}."
             )
             self.store._update_EAR_end(EAR_id, time, snap, ext, suc)
+            self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
         self.clear_set_EAR_ends()
 
     @TimeIt.decorator
@@ -328,6 +336,7 @@ class PendingChanges:
         for EAR_id in self.set_EAR_skips:
             self.logger.debug(f"commit: setting EAR ID {EAR_id!r} as skipped.")
             self.store._update_EAR_skip(EAR_id)
+            self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
         self.clear_set_EAR_skips()
 
     @TimeIt.decorator
@@ -353,6 +362,8 @@ class PendingChanges:
             param_ids = list(self.set_parameters.keys())
             self.logger.debug(f"commit: setting values of parameter IDs {param_ids!r}.")
             self.store._set_parameter_values(self.set_parameters)
+            for id_i in param_ids:
+                self.store.parameter_cache.pop(id_i, None)
 
         self.clear_set_parameters()
 
@@ -378,6 +389,8 @@ class PendingChanges:
             param_ids = list(self.update_param_sources.keys())
             self.logger.debug(f"commit: updating sources of parameter IDs {param_ids!r}.")
             self.store._update_parameter_sources(self.update_param_sources)
+            for id_i in param_ids:
+                self.store.param_sources_cache.pop(id_i, None)  # invalidate cache
             self.clear_update_param_sources()
 
     @TimeIt.decorator
@@ -389,6 +402,7 @@ class PendingChanges:
                 f"{loop_idx!r}."
             )
             self.store._update_loop_index(iter_ID, loop_idx)
+            self.store.element_iter_cache.pop(iter_ID, None)  # invalidate cache
         self.clear_update_loop_indices()
 
     @TimeIt.decorator

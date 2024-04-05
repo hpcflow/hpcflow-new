@@ -82,6 +82,7 @@ class Submission(JSONLike):
         for js_idx, js in enumerate(self.jobscripts):
             js._index = js_idx
 
+    @TimeIt.decorator
     def _set_environments(self):
         filterable = ElementResources.get_env_instance_filterable_attributes()
 
@@ -167,31 +168,36 @@ class Submission(JSONLike):
             ]
         return self._submission_parts_lst
 
+    @TimeIt.decorator
     def get_start_time(self, submit_time: str) -> Union[datetime, None]:
         """Get the start time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
         all_part_starts = []
         for i in js_idx:
-            if self.jobscripts[i].start_time:
-                all_part_starts.append(self.jobscripts[i].start_time)
+            start_time = self.jobscripts[i].start_time
+            if start_time:
+                all_part_starts.append(start_time)
         if all_part_starts:
             return min(all_part_starts)
         else:
             return None
 
+    @TimeIt.decorator
     def get_end_time(self, submit_time: str) -> Union[datetime, None]:
         """Get the end time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
         all_part_ends = []
         for i in js_idx:
-            if self.jobscripts[i].end_time:
-                all_part_ends.append(self.jobscripts[i].end_time)
+            end_time = self.jobscripts[i].end_time
+            if end_time:
+                all_part_ends.append(end_time)
         if all_part_ends:
             return max(all_part_ends)
         else:
             return None
 
     @property
+    @TimeIt.decorator
     def start_time(self):
         """Get the first non-None start time over all submission parts."""
         all_start_times = []
@@ -205,6 +211,7 @@ class Submission(JSONLike):
             return None
 
     @property
+    @TimeIt.decorator
     def end_time(self):
         """Get the final non-None end time over all submission parts."""
         all_end_times = []
@@ -278,6 +285,7 @@ class Submission(JSONLike):
         return [i for js in self.jobscripts for i in js.all_EARs]
 
     @property
+    @TimeIt.decorator
     def EARs_by_elements(self):
         task_elem_EARs = defaultdict(lambda: defaultdict(list))
         for i in self.all_EARs:
@@ -292,6 +300,7 @@ class Submission(JSONLike):
     def abort_EARs_file_path(self):
         return self.path / self.abort_EARs_file_name
 
+    @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
     ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
@@ -429,7 +438,8 @@ class Submission(JSONLike):
         supports_JS_para = self.workflow._store._features.jobscript_parallelism
         if self.JS_parallelism:
             if not supports_JS_para:
-                status.stop()
+                if status:
+                    status.stop()
                 raise ValueError(
                     f"Store type {self.workflow._store!r} does not support jobscript "
                     f"parallelism."
@@ -508,7 +518,8 @@ class Submission(JSONLike):
                 continue
 
             try:
-                status.update(f"Submitting jobscript {js.index}...")
+                if status:
+                    status.update(f"Submitting jobscript {js.index}...")
                 js_ref_i = js.submit(scheduler_refs, print_stdout=print_stdout)
                 scheduler_refs[js.index] = (js_ref_i, js.is_array)
                 submitted_js_idx.append(js.index)
@@ -533,7 +544,8 @@ class Submission(JSONLike):
                 )
 
         if errs and not ignore_errors:
-            status.stop()
+            if status:
+                status.stop()
             self._raise_failure(submitted_js_idx, errs)
 
         len_js = len(submitted_js_idx)
@@ -541,6 +553,7 @@ class Submission(JSONLike):
 
         return submitted_js_idx
 
+    @TimeIt.decorator
     def cancel(self):
         act_js = list(self.get_active_jobscripts())
         if not act_js:
