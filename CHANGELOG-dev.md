@@ -1,4 +1,38 @@
 
+<a name="v0.2.0a160"></a>
+## [v0.2.0a160](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a159...v0.2.0a160) - 2024.04.05
+
+### ✨ Features
+
+* add live status to make command
+* add more Rich status to `show` command
+* implement a `PersistentStore` cache and use during submission
+* add `--status` submission option to (not) show the Rich live status during submission
+* add `--cancel` submission option to help with testing/benchmarking
+
+### 🐛 Bug Fixes
+
+* increase sleep time in main script tests to decrease chance of GHA ubuntu failures
+* try to temporarily fix occassional GHA failure on Ubuntu with recent Pythons
+* try to temporarily fix occassional GHA failure on Ubuntu with recent Pythons
+* batch up `commit_EAR_submission_indices`
+* optimise `Submission.get_{start,end}_time`
+* use persistent store cache in `_get_known_submissions`
+* add more `TimeIt` decorators
+* add more `TimeIt` decorators
+* add more `TimeIt` decorators
+* missing import
+* missing association of new class to App object
+* streamline run dir snapshot data stored in EAR data
+* add `PersistentStore.param_sources_cache` and `parameter_cache`
+* optimise `ElementIteration.get_parameter_sources` to call `Workflow.get_parameter_sources` once
+
+### 👷 Build changes
+
+* merge develop
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a159"></a>
 ## [v0.2.0a159](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a158...v0.2.0a159) - 2024.03.14
 
