@@ -144,10 +144,9 @@ class InputFileGenerator(JSONLike):
             self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
         ] + self.rules
 
-    def compose_source(self, action) -> str:
+    def compose_source(self, snip_path) -> str:
         """Generate the file contents of this input file generator source."""
 
-        snip_path = action.get_snippet_script_path(self.script)
         script_main_func = snip_path.stem
         with snip_path.open("rt") as fp:
             script_str = fp.read()
@@ -190,9 +189,14 @@ class InputFileGenerator(JSONLike):
         return out
 
     def write_source(self, action):
-        script_path = action.get_script_name(self.script)
-        with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source(action))
+
+        # write the script if it is specified as a snippet script, otherwise we assume
+        # the script already exists in the working directory:
+        snip_path = action.get_snippet_script_path(self.script)
+        if snip_path:
+            source_str = self.compose_source(snip_path)
+            with Path(snip_path.name).open("wt", newline="\n") as fp:
+                fp.write(source_str)
 
 
 @dataclass
@@ -284,14 +288,13 @@ class OutputFileParser(JSONLike):
             for i in self.output_files
         ] + self.rules
 
-    def compose_source(self, action) -> str:
+    def compose_source(self, snip_path) -> str:
         """Generate the file contents of this output file parser source."""
 
         if self.output is None:
             # might be used just for saving files:
             return
 
-        snip_path = action.get_snippet_script_path(self.script)
         script_main_func = snip_path.stem
         with snip_path.open("rt") as fp:
             script_str = fp.read()
@@ -343,9 +346,14 @@ class OutputFileParser(JSONLike):
         if self.output is None:
             # might be used just for saving files:
             return
-        script_path = action.get_script_name(self.script)
-        with Path(script_path).open("wt", newline="\n") as fp:
-            fp.write(self.compose_source(action))
+
+        # write the script if it is specified as a snippet script, otherwise we assume
+        # the script already exists in the working directory:
+        snip_path = action.get_snippet_script_path(self.script)
+        if snip_path:
+            source_str = self.compose_source(snip_path)
+            with Path(snip_path.name).open("wt", newline="\n") as fp:
+                fp.write(source_str)
 
 
 class _FileContentsSpecifier(JSONLike):
