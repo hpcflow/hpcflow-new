@@ -1683,6 +1683,8 @@ class BaseApp(metaclass=Singleton):
                         if status:
                             status.update(f"Inspecting workflow {file_dat_i['path']!r}.")
                         wk_i = self.Workflow(file_dat_i["path"])
+                    except KeyboardInterrupt:
+                        raise
                     except Exception:
                         wk_i = None
                         self.submission_logger.info(
@@ -1732,6 +1734,8 @@ class BaseApp(metaclass=Singleton):
                         else:
                             try:
                                 act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                            except KeyboardInterrupt:
+                                raise
                             except Exception:
                                 self.submission_logger.info(
                                     f"failed to retrieve active jobscripts from workflow "
@@ -1901,7 +1905,7 @@ class BaseApp(metaclass=Singleton):
                 no_update=no_update,
                 status=status,
             )
-        except Exception:
+        except (Exception, KeyboardInterrupt):
             status.stop()
             raise
         else:
