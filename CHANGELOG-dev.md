@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a162"></a>
+## [v0.2.0a162](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a161...v0.2.0a162) - 2024.04.09
+
+### 🐛 Bug Fixes
+
+* func `ElementResources.get_jobscript_hash` incorrect hashing of `scheduler_args["options"]`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a161"></a>
 ## [v0.2.0a161](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a160...v0.2.0a161) - 2024.04.09
 
