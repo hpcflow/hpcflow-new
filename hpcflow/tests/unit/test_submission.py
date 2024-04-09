@@ -537,6 +537,7 @@ def test_scheduler_config_defaults(new_null_config, tmp_path):
     wkt = hf.WorkflowTemplate(name="temp", tasks=[t1, t2])
     wk = hf.Workflow.from_template(
         template=wkt,
+        path=tmp_path,
     )
     sub = wk.add_submission()
     assert sub.jobscripts[0].resources.scheduler_args == {"options": {"a": "c"}}

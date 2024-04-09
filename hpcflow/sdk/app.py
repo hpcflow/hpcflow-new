@@ -940,7 +940,15 @@ class BaseApp(metaclass=Singleton):
         return self.user_data_hostname_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
-        self, local_id, workflow_id, submit_time, sub_idx, is_active, wk_path
+        self,
+        local_id,
+        workflow_id,
+        submit_time,
+        sub_idx,
+        is_active,
+        wk_path,
+        start_time,
+        end_time,
     ):
         line = [
             str(local_id),
@@ -949,20 +957,31 @@ class BaseApp(metaclass=Singleton):
             str(sub_idx),
             submit_time,
             str(wk_path),
+            start_time,
+            end_time,
         ]
         return self._known_subs_file_sep.join(line) + "\n"
 
     def _parse_known_submissions_line(self, line: str) -> Dict:
-        local_id, workflow_id, is_active, sub_idx, submit_time, path_i = line.split(
-            self._known_subs_file_sep, maxsplit=5
-        )
+        (
+            local_id,
+            workflow_id,
+            is_active,
+            sub_idx,
+            submit_time,
+            path_i,
+            start_time,
+            end_time,
+        ) = line.split(self._known_subs_file_sep, maxsplit=7)
         item = {
             "local_id": int(local_id),
             "workflow_id": workflow_id,
             "is_active": bool(int(is_active)),
-            "submit_time": submit_time,
             "sub_idx": int(sub_idx),
-            "path": path_i.strip(),
+            "submit_time": submit_time,
+            "path": path_i,
+            "start_time": start_time,
+            "end_time": end_time.strip(),
         }
         return item
 
@@ -1016,6 +1035,8 @@ class BaseApp(metaclass=Singleton):
             submit_time=sub_time,
             sub_idx=sub_idx,
             wk_path=wk_path,
+            start_time="",
+            end_time="",
         )
         with self.known_subs_file_path.open("at", newline="\n") as fh:
             # TODO: check wk_path is an absolute path? what about if a remote fsspec path?
@@ -1027,16 +1048,21 @@ class BaseApp(metaclass=Singleton):
         return next_id
 
     @TimeIt.decorator
-    def set_inactive_in_known_subs_file(self, inactive_IDs: List[int]):
-        """Set workflows in the known-submissions file to the non-running state.
+    def update_known_subs_file(
+        self,
+        inactive_IDs: List[int],
+        start_times: Dict[int, str],
+        end_times: Dict[int, str],
+    ):
+        """Update submission records in the known-submission file.
 
         Note we aim for atomicity to help with the scenario where a new workflow
         submission is adding itself to the file at the same time as we have decided an
         existing workflow should no longer be part of this file. Ideally, such a scenario
         should not arise because both operations should only ever be interactively
-        initiated by the single user (`Workflow.submit` and `App.get_known_submissions`). If this
-        operation is atomic, then at least the known-submissions file should be left in a
-        usable (but inaccurate) state.
+        initiated by the single user (`Workflow.submit` and `App.get_known_submissions`).
+        If this operation is atomic, then at least the known-submissions file should be
+        left in a usable (but inaccurate) state.
 
         Returns
         -------
@@ -1066,30 +1092,41 @@ class BaseApp(metaclass=Singleton):
                 continue
             item = self._parse_known_submissions_line(line)
             line_IDs.append(item["local_id"])
-            is_active = item["is_active"]
+            shows_as_active = item["is_active"]
+            is_inactive = item["local_id"] in inactive_IDs
+            start_time = item["start_time"] or start_times.get(item["local_id"], "")
+            end_time = item["end_time"] or end_times.get(item["local_id"], "")
 
-            if item["local_id"] in inactive_IDs and is_active:
-                # need to modify to set as inactive:
-                non_run_line = self._format_known_submissions_line(
+            update_inactive = is_inactive and shows_as_active
+            update_start = item["local_id"] in start_times
+            update_end = item["local_id"] in end_times
+
+            if update_inactive or update_start or update_end:
+
+                updated = self._format_known_submissions_line(
                     local_id=item["local_id"],
                     workflow_id=item["workflow_id"],
-                    is_active=False,
+                    is_active=not is_inactive,
                     submit_time=item["submit_time"],
                     sub_idx=item["sub_idx"],
                     wk_path=item["path"],
+                    start_time=start_time,
+                    end_time=end_time,
                 )
-                new_lines.append(non_run_line)
-                is_active = False
+                new_lines.append(updated)
+
                 self.submission_logger.debug(
-                    f"will set the following (workflow, submission) from the "
-                    f"known-submissions file to inactive: "
+                    f"Updating (workflow, submission) from the known-submissions file: "
+                    f"{'set to inactive; ' if update_inactive else ''}"
+                    f"{f'set start_time: {start_time!r}; ' if update_start else ''}"
+                    f"{f'set end_time: {end_time!r}; ' if update_end else ''}"
                     f"({item['path']}, {item['sub_idx']})"
                 )
             else:
                 # leave this one alone:
                 new_lines.append(line + "\n")
 
-            if not is_active:
+            if is_inactive:
                 line_date[ln_idx] = item["submit_time"]
 
         ld_srt_idx = list(dict(sorted(line_date.items(), key=lambda i: i[1])).keys())
@@ -1644,6 +1681,10 @@ class BaseApp(metaclass=Singleton):
 
         out = []
         inactive_IDs = []
+        start_times = {}
+        end_times = {}
+
+        ts_fmt = self._submission_ts_fmt
 
         try:
             if status:
@@ -1658,14 +1699,31 @@ class BaseApp(metaclass=Singleton):
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
             submit_time_str = file_dat_i["submit_time"]
-            submit_time_obj = datetime.strptime(submit_time_str, self._submission_ts_fmt)
+            submit_time_obj = datetime.strptime(submit_time_str, ts_fmt)
             submit_time_obj = submit_time_obj.replace(tzinfo=timezone.utc).astimezone()
+
+            start_time_str = file_dat_i["start_time"]
+            start_time_obj = None
+            if start_time_str:
+                start_time_obj = datetime.strptime(start_time_str, ts_fmt)
+                start_time_obj = start_time_obj.replace(tzinfo=timezone.utc).astimezone()
+
+            end_time_str = file_dat_i["end_time"]
+            end_time_obj = None
+            if end_time_str:
+                end_time_obj = datetime.strptime(end_time_str, ts_fmt)
+                end_time_obj = end_time_obj.replace(tzinfo=timezone.utc).astimezone()
+
             out_item = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
                 "workflow_path": file_dat_i["path"],
                 "submit_time": submit_time_str,
                 "submit_time_obj": submit_time_obj,
+                "start_time": start_time_str,
+                "start_time_obj": start_time_obj,
+                "end_time": end_time_str,
+                "end_time_obj": end_time_obj,
                 "sub_idx": file_dat_i["sub_idx"],
                 "jobscripts": [],
                 "active_jobscripts": {},
@@ -1683,6 +1741,8 @@ class BaseApp(metaclass=Singleton):
                         if status:
                             status.update(f"Inspecting workflow {file_dat_i['path']!r}.")
                         wk_i = self.Workflow(file_dat_i["path"])
+                    except KeyboardInterrupt:
+                        raise
                     except Exception:
                         wk_i = None
                         self.submission_logger.info(
@@ -1720,10 +1780,24 @@ class BaseApp(metaclass=Singleton):
                             {
                                 "jobscripts": all_jobscripts,
                                 "submission": sub,
-                                "sub_start_time": sub.start_time,
-                                "sub_end_time": sub.end_time,
                             }
                         )
+                        if not out_item["start_time"]:
+                            start_time_obj = sub.start_time
+                            if start_time_obj:
+                                start_time = datetime.strftime(start_time_obj, ts_fmt)
+                                out_item["start_time"] = start_time
+                                start_times[file_dat_i["local_id"]] = start_time
+                            out_item["start_time_obj"] = start_time_obj
+
+                        if not out_item["end_time"]:
+                            end_time_obj = sub.end_time
+                            if end_time_obj:
+                                end_time = datetime.strftime(end_time_obj, ts_fmt)
+                                out_item["end_time"] = end_time
+                                end_times[file_dat_i["local_id"]] = end_time
+                            out_item["end_time_obj"] = end_time_obj
+
                     if file_dat_i["is_active"]:
                         # check it really is active:
                         run_key = (file_dat_i["path"], file_dat_i["sub_idx"])
@@ -1732,6 +1806,8 @@ class BaseApp(metaclass=Singleton):
                         else:
                             try:
                                 act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                            except KeyboardInterrupt:
+                                raise
                             except Exception:
                                 self.submission_logger.info(
                                     f"failed to retrieve active jobscripts from workflow "
@@ -1754,8 +1830,10 @@ class BaseApp(metaclass=Singleton):
 
             out.append(out_item)
 
-        if inactive_IDs and not no_update:
-            removed_IDs = self.set_inactive_in_known_subs_file(inactive_IDs)
+        if (inactive_IDs or start_times or end_times) and not no_update:
+            removed_IDs = self.update_known_subs_file(
+                inactive_IDs, start_times, end_times
+            )
             # remove these from the output, to avoid confusion (if kept, they would not
             # appear in the next invocation of this method):
             out = [i for i in out if i["local_id"] not in removed_IDs]
@@ -1769,7 +1847,7 @@ class BaseApp(metaclass=Singleton):
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["sub_end_time"] or i["sub_start_time"] or i["submit_time_obj"]
+                i["end_time_obj"] or i["start_time_obj"] or i["submit_time_obj"]
             ),
             reverse=True,
         )
@@ -1829,6 +1907,7 @@ class BaseApp(metaclass=Singleton):
         )
         rich_print(group)
 
+    @TimeIt.decorator
     def _show(
         self,
         max_recent: int = 3,
@@ -1901,7 +1980,7 @@ class BaseApp(metaclass=Singleton):
                 no_update=no_update,
                 status=status,
             )
-        except Exception:
+        except (Exception, KeyboardInterrupt):
             status.stop()
             raise
         else:
@@ -1952,8 +2031,8 @@ class BaseApp(metaclass=Singleton):
 
             start_time, end_time = None, None
             if not no_access:
-                start_time = dat_i["submission"].start_time
-                end_time = dat_i["submission"].end_time if not act_js else None
+                start_time = dat_i["start_time_obj"]
+                end_time = dat_i["end_time_obj"]
 
             if "actions" in columns:
                 if not no_access:
