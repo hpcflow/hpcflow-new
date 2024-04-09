@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a161"></a>
+## [v0.2.0a161](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a160...v0.2.0a161) - 2024.04.09
+
+### 🐛 Bug Fixes
+
+* consider not-yet-set submission start/end times in `_get_known_submissions`
+* cache submission start and end times in known-submissions file
+* add missing path arg in a test
+* properly catch `KeyboardInterrupt` in `show` command
+* treat `InputFileGenerator` and `OutputFileParser` script snippets similarly to standard actions scripts
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a160"></a>
 ## [v0.2.0a160](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a159...v0.2.0a160) - 2024.04.05
 
