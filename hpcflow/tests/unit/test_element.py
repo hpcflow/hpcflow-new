@@ -603,3 +603,66 @@ def test_element_get_group_sequence_obj(new_null_config, tmp_path):
         8,
         9,
     ]
+
+
+def test_element_resources_get_jobscript_hash_equal_empty():
+    assert (
+        hf.ElementResources().get_jobscript_hash()
+        == hf.ElementResources().get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_unequal_num_cores():
+    assert (
+        hf.ElementResources(num_cores=1).get_jobscript_hash()
+        != hf.ElementResources(num_cores=2).get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_equal_num_cores():
+    assert (
+        hf.ElementResources(num_cores=1).get_jobscript_hash()
+        == hf.ElementResources(num_cores=1).get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_unequal_scheduler_args_empty():
+
+    assert (
+        hf.ElementResources().get_jobscript_hash()
+        != hf.ElementResources(
+            scheduler_args={"options": {"--time": "01:00:00"}}
+        ).get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_equal_non_truthy_scheduler_args():
+
+    assert (
+        hf.ElementResources().get_jobscript_hash()
+        == hf.ElementResources(scheduler_args={}).get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_options():
+
+    assert (
+        hf.ElementResources(
+            scheduler_args={"options": {"--time": "02:00:00"}}
+        ).get_jobscript_hash()
+        != hf.ElementResources(
+            scheduler_args={"options": {"--partition": "MULTICORE"}}
+        ).get_jobscript_hash()
+    )
+
+
+def test_element_resources_get_jobscript_hash_unequal_scheduler_args_same_options():
+
+    assert (
+        hf.ElementResources(
+            scheduler_args={"options": {"--time": "02:00:00"}}
+        ).get_jobscript_hash()
+        != hf.ElementResources(
+            scheduler_args={"options": {"--time": "01:00:00"}}
+        ).get_jobscript_hash()
+    )
