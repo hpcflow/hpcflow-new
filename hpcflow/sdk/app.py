@@ -1784,17 +1784,19 @@ class BaseApp(metaclass=Singleton):
                         )
                         if not out_item["start_time"]:
                             start_time_obj = sub.start_time
-                            start_time = datetime.strftime(start_time_obj, ts_fmt)
-                            out_item["start_time"] = start_time
+                            if start_time_obj:
+                                start_time = datetime.strftime(start_time_obj, ts_fmt)
+                                out_item["start_time"] = start_time
+                                start_times[file_dat_i["local_id"]] = start_time
                             out_item["start_time_obj"] = start_time_obj
-                            start_times[file_dat_i["local_id"]] = start_time
 
                         if not out_item["end_time"]:
                             end_time_obj = sub.end_time
-                            end_time = datetime.strftime(end_time_obj, ts_fmt)
-                            out_item["end_time"] = end_time
+                            if end_time_obj:
+                                end_time = datetime.strftime(end_time_obj, ts_fmt)
+                                out_item["end_time"] = end_time
+                                end_times[file_dat_i["local_id"]] = end_time
                             out_item["end_time_obj"] = end_time_obj
-                            end_times[file_dat_i["local_id"]] = end_time
 
                     if file_dat_i["is_active"]:
                         # check it really is active:
@@ -1905,6 +1907,7 @@ class BaseApp(metaclass=Singleton):
         )
         rich_print(group)
 
+    @TimeIt.decorator
     def _show(
         self,
         max_recent: int = 3,
