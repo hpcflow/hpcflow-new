@@ -69,7 +69,7 @@ def test_element_inputs_removes_schema_param_trivial_label(null_config, tmp_path
         inputs=[hf.SchemaInput(parameter="p1", labels={label: {}})],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[hf.Command(command=f"echo <<parameter:p1[{label}]>>")],
             ),
         ],
@@ -118,7 +118,7 @@ def test_element_inputs_does_not_remove_multiple_schema_param_label(
         inputs=[hf.SchemaInput(parameter="p1", labels={label: {}}, multiple=True)],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[hf.Command(command=f"echo <<parameter:p1[{label}]>>")],
             ),
         ],
@@ -153,7 +153,7 @@ def test_get_input_values_for_multiple_schema_input_single_label(null_config, tm
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(command=f"echo <<parameter:p1[{label}]>> <<parameter:p2>>")
                 ],
@@ -180,7 +180,7 @@ def test_get_input_values_subset(null_config, tmp_path):
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[hf.Command(command=f"echo <<parameter:p1>> <<parameter:p2>>")],
             ),
         ],
@@ -210,7 +210,7 @@ def test_get_input_values_subset_labelled_label_dict_False(null_config, tmp_path
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command=f"echo <<parameter:p1[one]>> <<parameter:p2[two]>>"
@@ -244,7 +244,7 @@ def test_get_input_values_subset_labelled_label_dict_True(null_config, tmp_path)
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command=f"echo <<parameter:p1[one]>> <<parameter:p2[two]>>"
@@ -276,7 +276,7 @@ def test_get_input_values_for_multiple_schema_input(null_config, tmp_path):
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(command=f"echo <<parameter:p1[{label}]>> <<parameter:p2>>")
                 ],
@@ -304,7 +304,7 @@ def test_get_input_values_for_multiple_schema_input_with_object(null_config, tmp
         ],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command=f"echo <<parameter:p1c[{label}]>> <<parameter:p2>>"

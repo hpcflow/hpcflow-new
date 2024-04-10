@@ -6,13 +6,8 @@ from hpcflow.sdk.core.test_utils import make_actions, make_parameters
 
 
 @pytest.fixture
-def env_1():
-    return hf.Environment(name="env_1")
-
-
-@pytest.fixture
-def act_env_1(env_1):
-    return hf.ActionEnvironment(env_1)
+def act_env_1():
+    return hf.ActionEnvironment("env_1")
 
 
 @pytest.fixture

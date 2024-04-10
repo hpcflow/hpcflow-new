@@ -113,13 +113,8 @@ def file_spec_fs1():
 
 
 @pytest.fixture
-def env_1():
-    return hf.Environment(name="env_1")
-
-
-@pytest.fixture
-def act_env_1(env_1):
-    return hf.ActionEnvironment(env_1)
+def act_env_1():
+    return hf.ActionEnvironment("env_1")
 
 
 @pytest.fixture
@@ -146,13 +141,8 @@ def workflow_w4(null_config, tmp_path, schema_s3, param_p1):
 
 
 @pytest.fixture
-def env_1():
-    return hf.Environment(name="env_1")
-
-
-@pytest.fixture
-def act_env_1(env_1):
-    return hf.ActionEnvironment(env_1)
+def act_env_1():
+    return hf.ActionEnvironment("env_1")
 
 
 @pytest.fixture
@@ -1512,13 +1502,8 @@ def test_add_task_before_no_ref(workflow_w0):
 
 
 @pytest.fixture
-def env_1():
-    return hf.Environment(name="env_1")
-
-
-@pytest.fixture
-def act_env_1(env_1):
-    return hf.ActionEnvironment(env_1)
+def act_env_1():
+    return hf.ActionEnvironment("env_1")
 
 
 def test_parameter_two_modifying_actions_expected_data_indices(
@@ -1572,7 +1557,7 @@ def test_conditional_shell_schema_single_initialised_action(null_config, tmp_pat
         outputs=[hf.SchemaInput("p2")],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="echo $((<<parameter:p1>> + 100))",
@@ -1582,7 +1567,7 @@ def test_conditional_shell_schema_single_initialised_action(null_config, tmp_pat
                 rules=[rules["posix"]],
             ),
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="Write-Output ((<<parameter:p1>> + 100))",
@@ -1617,7 +1602,7 @@ def test_element_iteration_EARs_initialised_on_make_workflow(
         outputs=[hf.SchemaInput("p2")],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="echo $((<<parameter:p1>> + 100))",
@@ -1670,7 +1655,7 @@ def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
         outputs=[hf.SchemaInput("p2")],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="echo $((<<parameter:p1>> + 100))",
@@ -1686,7 +1671,7 @@ def test_element_iteration_EARs_not_initialised_on_make_workflow_due_to_unset(
         outputs=[hf.SchemaInput("p3")],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="echo $((<<parameter:p2>> + 100))",
@@ -1729,7 +1714,7 @@ def test_element_iteration_EARs_initialised_on_make_workflow_with_no_valid_actio
         outputs=[hf.SchemaInput("p2")],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[
                     hf.Command(
                         command="some command that uses <<parameter:p1>>",
