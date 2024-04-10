@@ -1380,15 +1380,19 @@ class BaseApp(metaclass=Singleton):
             variables=variables,
             status=status,
         )
-        return wk.submit(
+        submitted_js = wk.submit(
             JS_parallelism=JS_parallelism,
             wait=wait,
             add_to_known=add_to_known,
-            return_idx=return_idx,
+            return_idx=True,
             tasks=tasks,
             cancel=cancel,
             status=status,
         )
+        if return_idx:
+            return (wk, submitted_js)
+        else:
+            return wk
 
     def _make_demo_workflow(
         self,
@@ -1553,15 +1557,19 @@ class BaseApp(metaclass=Singleton):
             store_kwargs=store_kwargs,
             variables=variables,
         )
-        return wk.submit(
+        submitted_js = wk.submit(
             JS_parallelism=JS_parallelism,
             wait=wait,
             add_to_known=add_to_known,
-            return_idx=return_idx,
+            return_idx=True,
             tasks=tasks,
             cancel=cancel,
             status=status,
         )
+        if return_idx:
+            return (wk, submitted_js)
+        else:
+            return wk
 
     def _submit_workflow(
         self,
