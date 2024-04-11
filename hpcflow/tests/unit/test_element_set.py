@@ -69,3 +69,30 @@ def test_repeats_single_int_equivalence(null_config):
     es1 = hf.ElementSet(repeats=2)
     es2 = hf.ElementSet(repeats=[{"name": "", "number": 2, "nesting_order": 0}])
     assert es1 == es2
+
+
+def test_merge_envs(null_config):
+    envs = {"my_env": {"version": "1.0"}}
+    es = hf.ElementSet(environments=envs)
+    assert es.resources.get(scope=hf.ActionScope.any()).environments == envs
+
+
+def test_merge_envs_existing_any_resources(null_config):
+    envs = {"my_env": {"version": "1.0"}}
+    num_cores = 2
+    es = hf.ElementSet(resources={"any": {"num_cores": num_cores}}, environments=envs)
+    assert es.resources.get(scope=hf.ActionScope.any()).environments == envs
+    assert es.resources.get(scope=hf.ActionScope.any()).num_cores == num_cores
+
+
+def test_merge_envs_resource_envs_precedence(null_config):
+    envs = {"my_env": {"version": "1.0"}}
+    res_envs = {"other_env": {"version": "2.0"}}
+    es = hf.ElementSet(resources={"any": {"environments": res_envs}}, environments=envs)
+    assert es.resources.get(scope=hf.ActionScope.any()).environments == res_envs
+
+
+def test_merge_envs_no_envs_with_resource_envs(null_config):
+    envs = {"my_env": {"version": "1.0"}}
+    es = hf.ElementSet(resources={"any": {"environments": envs}})
+    assert es.resources.get(scope=hf.ActionScope.any()).environments == envs

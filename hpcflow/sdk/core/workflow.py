@@ -146,7 +146,7 @@ class WorkflowTemplate(JSONLike):
         if self.merge_resources:
             for task in self.tasks:
                 for element_set in task.element_sets:
-                    element_set.resources.merge_template_resources(self.resources)
+                    element_set.resources.merge_other(self.resources)
             self.merge_resources = False
 
         if self.doc and not isinstance(self.doc, list):

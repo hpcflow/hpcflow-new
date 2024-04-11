@@ -90,20 +90,26 @@ class Submission(JSONLike):
         req_envs = defaultdict(lambda: defaultdict(set))
         for js_idx, js_i in enumerate(self.jobscripts):
             for run in js_i.all_EARs:
-                env_label = run.action.get_environment_label()
+                env_spec = run.resources.environments[run.action.get_environment_name()]
+                env_spec_h = tuple(zip(*env_spec.items()))  # hashable
                 for exec_label_j in run.action.get_required_executables():
-                    req_envs[env_label][exec_label_j].add(js_idx)
-                if env_label not in req_envs:
-                    req_envs[env_label] = {}
+                    req_envs[env_spec_h][exec_label_j].add(js_idx)
+                if env_spec_h not in req_envs:
+                    req_envs[env_spec_h] = {}
 
         # check these envs/execs exist in app data:
         envs = []
-        for env_lab, exec_js in req_envs.items():
+        for env_spec_h, exec_js in req_envs.items():
+            env_spec = dict(zip(*env_spec_h))
+            non_name_spec = {k: v for k, v in env_spec.items() if k != "name"}
+            spec_str = f" with specifiers {non_name_spec!r}" if non_name_spec else ""
+            env_ref = f"{env_spec['name']!r}{spec_str}"
             try:
-                env_i = self.app.envs.get(env_lab)
+                env_i = self.app.envs.get(**env_spec)
             except ValueError:
+
                 raise MissingEnvironmentError(
-                    f"The environment {env_lab!r} is not defined on this machine, so the "
+                    f"The environment {env_ref} is not defined on this machine, so the "
                     f"submission cannot be created."
                 ) from None
             else:
@@ -114,7 +120,7 @@ class Submission(JSONLike):
                     exec_i = env_i.executables.get(exec_i_lab)
                 except ValueError:
                     raise MissingEnvironmentExecutableError(
-                        f"The environment {env_lab!r} as defined on this machine has no "
+                        f"The environment {env_ref} as defined on this machine has no "
                         f"executable labelled {exec_i_lab!r}, which is required for this "
                         f"submission, so the submission cannot be created."
                     ) from None
@@ -127,7 +133,7 @@ class Submission(JSONLike):
                     if not exec_instances:
                         raise MissingEnvironmentExecutableInstanceError(
                             f"No matching executable instances found for executable "
-                            f"{exec_i_lab!r} of environment {env_lab!r} for jobscript "
+                            f"{exec_i_lab!r} of environment {env_ref} for jobscript "
                             f"index {js_idx_j!r} with requested resources "
                             f"{filter_exec!r}."
                         )

@@ -95,6 +95,10 @@ class MissingActionEnvironment(Exception):
     pass
 
 
+class ActionEnvironmentMissingNameError(Exception):
+    pass
+
+
 class FromSpecMissingObjectError(Exception):
     pass
 

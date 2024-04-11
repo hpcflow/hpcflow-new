@@ -442,3 +442,8 @@ def test_from_rectangle_coord_none(null_config):
     )
     seq = hf.ValueSequence.from_rectangle(**kwargs)
     assert np.allclose(seq.values, [[0, 1], [1, 1], [0, 0], [1, 0]])
+
+
+def test_environments_sequence_to_resources(null_config):
+    seq = hf.ValueSequence(path="environments.my_env.version", values=[1, 2])
+    assert seq.path == "resources.any.environments.my_env.version"

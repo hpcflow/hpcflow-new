@@ -678,9 +678,11 @@ class ValueSequence(JSONLike):
             )
         path_l = path.lower()
         path_split = path_l.split(".")
-        if not path_split[0] in ("inputs", "resources"):
+        allowed_path_start = ("inputs", "resources", "environments", "environment")
+        if not path_split[0] in allowed_path_start:
             raise MalformedParameterPathError(
-                f'`path` must start with "inputs", "outputs", or "resources", but given path '
+                f"`path` must start with one of: "
+                f'{", ".join(f"{i!r}" for i in allowed_path_start)}, but given path '
                 f"is: {path!r}."
             )
 
@@ -703,7 +705,7 @@ class ValueSequence(JSONLike):
             elif label_from_path:
                 label = label_from_path
 
-        if path_split[0] == "resources":
+        elif path_split[0] == "resources":
             if label_from_path or label_arg:
                 raise ValueError(
                     f"{self.__class__.__name__} `label` argument ({label_arg!r}) and/or "
@@ -727,6 +729,10 @@ class ValueSequence(JSONLike):
                         f"Resource item name {path_split_2!r} is unknown. Allowed "
                         f"resource item names are: {allowed_keys_str}."
                     )
+
+        elif path_split[0] == "environments":
+            # rewrite as a resources path:
+            path = f"resources.any.{path}"
 
         return path, label
 
@@ -1330,6 +1336,7 @@ class ResourceSpec(JSONLike):
         "scheduler_args",
         "shell_args",
         "os_name",
+        "environments",
         "SGE_parallel_env",
         "SLURM_partition",
         "SLURM_num_tasks",
@@ -1364,6 +1371,7 @@ class ResourceSpec(JSONLike):
         scheduler_args: Optional[Dict] = None,
         shell_args: Optional[Dict] = None,
         os_name: Optional[str] = None,
+        environments: Optional[Dict] = None,
         SGE_parallel_env: Optional[str] = None,
         SLURM_partition: Optional[str] = None,
         SLURM_num_tasks: Optional[str] = None,
@@ -1392,6 +1400,7 @@ class ResourceSpec(JSONLike):
         self._scheduler = self._process_string(scheduler)
         self._shell = self._process_string(shell)
         self._os_name = self._process_string(os_name)
+        self._environments = environments
         self._use_job_array = use_job_array
         self._max_array_items = max_array_items
         self._time_limit = time_limit
@@ -1526,6 +1535,7 @@ class ResourceSpec(JSONLike):
             self._scheduler_args = None
             self._shell_args = None
             self._os_name = None
+            self._environments = None
 
         return (self.normalised_path, [data_ref], is_new)
 
@@ -1624,6 +1634,10 @@ class ResourceSpec(JSONLike):
     @property
     def os_name(self):
         return self._get_value("os_name")
+
+    @property
+    def environments(self):
+        return self._get_value("environments")
 
     @property
     def SGE_parallel_env(self):

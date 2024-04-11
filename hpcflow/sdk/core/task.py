@@ -126,8 +126,10 @@ class ElementSet(JSONLike):
         groups: Optional[List[app.ElementGroup]] = None,
         input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
+        environments: Optional[Dict[str, Dict[str, Any]]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
         allow_non_coincident_task_sources: Optional[bool] = False,
+        merge_envs: Optional[bool] = True,
     ):
         """
         Parameters
@@ -140,7 +142,10 @@ class ElementSet(JSONLike):
             If True, if more than one parameter is sourced from the same task, then allow
             these sources to come from distinct element sub-sets. If False (default),
             only the intersection of element sub-sets for all parameters are included.
-
+        merge_envs
+            If True, merge `environments` into `resources` using the "any" scope. If
+            False, `environments` are ignored. This is required on first initialisation,
+            but not on subsequent re-initialisation from a persistent workflow.
         """
 
         self.inputs = inputs or []
@@ -151,8 +156,10 @@ class ElementSet(JSONLike):
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
         self.nesting_order = nesting_order or {}
+        self.environments = environments
         self.sourceable_elem_iters = sourceable_elem_iters
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
+        self.merge_envs = merge_envs
 
         self._validate()
         self._set_parent_refs()
@@ -160,6 +167,16 @@ class ElementSet(JSONLike):
         self._task_template = None  # assigned by parent Task
         self._defined_input_types = None  # assigned on _task_template assignment
         self._element_local_idx_range = None  # assigned by WorkflowTask._add_element_set
+
+        # merge `environments` into element set resources (this mutates `resources`, and
+        # should only happen on creation of the element set, not re-initialisation from a
+        # persistent workflow):
+        if self.environments and self.merge_envs:
+            envs_res = self.app.ResourceList(
+                [self.app.ResourceSpec(scope="any", environments=self.environments)]
+            )
+            self.resources.merge_other(envs_res)
+            self.merge_envs = False
 
     def __deepcopy__(self, memo):
         dct = self.to_dict()

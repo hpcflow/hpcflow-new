@@ -16,6 +16,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
+    ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
     OutputFileParserNoOutputError,
     UnknownScriptDataKey,
@@ -464,8 +465,8 @@ class ElementActionRun:
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
 
-    def get_environment_label(self) -> str:
-        return self.action.get_environment_label()
+    def get_environment_spec(self) -> str:
+        return self.action.get_environment_spec()
 
     def get_environment(self) -> app.Environment:
         return self.action.get_environment()
@@ -691,8 +692,8 @@ class ElementActionRun:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         command_lns = []
-        env_label = self.action.get_environment_label()
-        env = jobscript.submission.environments.get(env_label)
+        env_spec = self.resources.environments[self.action.get_environment_name()]
+        env = jobscript.submission.environments.get(**env_spec)
         if env.setup:
             command_lns += list(env.setup)
 
@@ -953,12 +954,23 @@ class ActionEnvironment(JSONLike):
         ),
     )
 
-    environment: str  # app.Environment
+    environment: Union[str, Dict[str, Any]]
     scope: Optional[app.ActionScope] = None
 
     def __post_init__(self):
         if self.scope is None:
             self.scope = self.app.ActionScope.any()
+
+        orig_env = copy.deepcopy(self.environment)
+        if isinstance(self.environment, str):
+            self.environment = {"name": self.environment}
+
+        if "name" not in self.environment:
+            raise ActionEnvironmentMissingNameError(
+                f"The action-environment environment specification must include a string "
+                f"`name` key, or be specified as string that is that name. Provided "
+                f"environment key was {orig_env!r}."
+            )
 
 
 class ActionRule(JSONLike):
@@ -1413,7 +1425,10 @@ class Action(JSONLike):
             commands=self.commands,
         )
 
-    def get_environment_label(self) -> str:
+    def get_environment_name(self) -> str:
+        return self.get_environment_spec()["name"]
+
+    def get_environment_spec(self) -> Dict[str, Any]:
         if not self._from_expand:
             raise RuntimeError(
                 f"Cannot choose a single environment from this action because it is not "
@@ -1422,7 +1437,7 @@ class Action(JSONLike):
         return self.environments[0].environment
 
     def get_environment(self) -> app.Environment:
-        return self.app.envs.get(self.get_environment_label())
+        return self.app.envs.get(**self.get_environment_spec())
 
     @staticmethod
     def is_snippet_script(script: str) -> bool:
