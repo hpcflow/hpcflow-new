@@ -729,49 +729,28 @@ class BaseApp(metaclass=Singleton):
 
     @TimeIt.decorator
     def _load_scripts(self):
-        from setuptools import find_packages
 
         # TODO: load custom directories / custom functions (via decorator)
+        scripts_package = f"{self.package_name}.{self.scripts_dir}"
 
-        app_module = import_module(self.package_name)
-        root_scripts_dir = self.scripts_dir
-
-        packages = find_packages(
-            where=str(Path(app_module.__path__[0], *root_scripts_dir.split(".")))
-        )
-        packages = [root_scripts_dir] + [root_scripts_dir + "." + i for i in packages]
-        packages = [self.package_name + "." + i for i in packages]
-        num_root_dirs = len(root_scripts_dir.split(".")) + 1
+        try:
+            ctx = resources.as_file(resources.files(scripts_package))
+        except AttributeError:
+            # < python 3.9; `resource.path` deprecated since 3.11
+            ctx = resources.path(scripts_package, "")
 
         scripts = {}
-        for pkg in packages:
-            try:
-                contents = (
-                    resource.name
-                    for resource in resources.files(pkg).iterdir()
-                    if resource.is_file()
-                )
-                _is_rsrc = lambda pkg, name: resources.files(pkg).joinpath(name).is_file()
-
-            except AttributeError:
-                # < python 3.9; `resource.contents` deprecated since 3.11
-                contents = resources.contents(pkg)
-                _is_rsrc = lambda pkg, name: resources.is_resource(pkg, name)
-
-            script_names = (
-                name for name in contents if name != "__init__.py" and _is_rsrc(pkg, name)
-            )
-
-            for i in script_names:
-                script_key = "/".join(pkg.split(".")[num_root_dirs:] + [i])
-                try:
-                    script_ctx = resources.as_file(resources.files(pkg).joinpath(i))
-                except AttributeError:
-                    # < python 3.9; `resource.path` deprecated since 3.11
-                    script_ctx = resources.path(pkg, i)
-
-                with script_ctx as script:
-                    scripts[script_key] = script
+        with ctx as path:
+            for dirpath, _, filenames in os.walk(path):
+                dirpath = Path(dirpath)
+                if dirpath.name == "__pycache__":
+                    continue
+                for filename in filenames:
+                    if filename == "__init__.py":
+                        continue
+                    val = dirpath.joinpath(filename)
+                    key = str(val.relative_to(path).as_posix())
+                    scripts[key] = Path(val)
 
         return scripts
 
