@@ -459,6 +459,10 @@ class ElementActionRun:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
+    @property
+    def env_spec(self) -> Dict[str, Any]:
+        return self.resources.environments[self.action.get_environment_name()]
+
     @TimeIt.decorator
     def get_resources(self):
         """Resolve specific resources for this EAR, considering all applicable scopes and
@@ -627,7 +631,7 @@ class ElementActionRun:
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
-        snip_path = self.action.get_snippet_script_path(self.action.script)
+        snip_path = self.action.get_snippet_script_path(self.action.script, self.env_spec)
         if snip_path:
             script_name = snip_path.name
             source_str = self.action.compose_source(snip_path)
@@ -678,21 +682,22 @@ class ElementActionRun:
             "stdout"/"stderr").
         """
         self.app.persistence_logger.debug("EAR.compose_commands")
+        env_spec = self.env_spec
+
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
-            ifg.write_source(self.action)
+            ifg.write_source(self.action, env_spec)
 
         for ofp in self.action.output_file_parsers:
             # TODO: there should only be one at this stage if expanded?
             if ofp.output is None:
                 raise OutputFileParserNoOutputError()
-            ofp.write_source(self.action)
+            ofp.write_source(self.action, env_spec)
 
         if self.action.script:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         command_lns = []
-        env_spec = self.resources.environments[self.action.get_environment_name()]
         env = jobscript.submission.environments.get(**env_spec)
         if env.setup:
             command_lns += list(env.setup)
@@ -1457,7 +1462,9 @@ class Action(JSONLike):
             return script
 
     @classmethod
-    def get_snippet_script_str(cls, script) -> str:
+    def get_snippet_script_str(
+        cls, script, env_spec: Optional[Dict[str, Any]] = None
+    ) -> str:
         if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
@@ -1465,14 +1472,24 @@ class Action(JSONLike):
             )
         pattern = r"\<\<script:(.*:?)\>\>"
         match_obj = re.match(pattern, script)
-        return match_obj.group(1)
+        out = match_obj.group(1)
+
+        if env_spec:
+            out = re.sub(
+                pattern=r"\<\<env:(.*?)\>\>",
+                repl=lambda match_obj: env_spec[match_obj.group(1)],
+                string=out,
+            )
+        return out
 
     @classmethod
-    def get_snippet_script_path(cls, script_path) -> Path:
+    def get_snippet_script_path(
+        cls, script_path, env_spec: Optional[Dict[str, Any]] = None
+    ) -> Path:
         if not cls.is_snippet_script(script_path):
             return False
 
-        path = cls.get_snippet_script_str(script_path)
+        path = cls.get_snippet_script_str(script_path, env_spec)
         if path in cls.app.scripts:
             path = cls.app.scripts.get(path)
 

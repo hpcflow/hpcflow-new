@@ -188,11 +188,11 @@ class InputFileGenerator(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action):
+    def write_source(self, action, env_spec: Dict[str, Any]):
 
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
-        snip_path = action.get_snippet_script_path(self.script)
+        snip_path = action.get_snippet_script_path(self.script, env_spec)
         if snip_path:
             source_str = self.compose_source(snip_path)
             with Path(snip_path.name).open("wt", newline="\n") as fp:
@@ -342,14 +342,14 @@ class OutputFileParser(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action):
+    def write_source(self, action, env_spec: Dict[str, Any]):
         if self.output is None:
             # might be used just for saving files:
             return
 
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
-        snip_path = action.get_snippet_script_path(self.script)
+        snip_path = action.get_snippet_script_path(self.script, env_spec)
         if snip_path:
             source_str = self.compose_source(snip_path)
             with Path(snip_path.name).open("wt", newline="\n") as fp:
