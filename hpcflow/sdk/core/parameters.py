@@ -734,6 +734,10 @@ class ValueSequence(JSONLike):
             # rewrite as a resources path:
             path = f"resources.any.{path}"
 
+        # note: `environment` (*singular*) paths also need to be transformed into
+        # `resources` paths, but we cannot do that until the sequence is part of a task,
+        # since the available environment presets are defined in the task schema.
+
         return path, label
 
     def to_dict(self):

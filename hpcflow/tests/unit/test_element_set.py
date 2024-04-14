@@ -96,3 +96,8 @@ def test_merge_envs_no_envs_with_resource_envs(null_config):
     envs = {"my_env": {"version": "1.0"}}
     es = hf.ElementSet(resources={"any": {"environments": envs}})
     assert es.resources.get(scope=hf.ActionScope.any()).environments == envs
+
+
+def test_raise_env_and_envs_specified(null_config):
+    with pytest.raises(ValueError):
+        hf.ElementSet(environment="my_preset", environments={"my_env": {"version": 1}})

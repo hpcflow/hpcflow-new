@@ -90,8 +90,7 @@ class Submission(JSONLike):
         req_envs = defaultdict(lambda: defaultdict(set))
         for js_idx, js_i in enumerate(self.jobscripts):
             for run in js_i.all_EARs:
-                env_spec = run.resources.environments[run.action.get_environment_name()]
-                env_spec_h = tuple(zip(*env_spec.items()))  # hashable
+                env_spec_h = tuple(zip(*run.env_spec.items()))  # hashable
                 for exec_label_j in run.action.get_required_executables():
                     req_envs[env_spec_h][exec_label_j].add(js_idx)
                 if env_spec_h not in req_envs:
@@ -107,13 +106,13 @@ class Submission(JSONLike):
             try:
                 env_i = self.app.envs.get(**env_spec)
             except ValueError:
-
                 raise MissingEnvironmentError(
                     f"The environment {env_ref} is not defined on this machine, so the "
                     f"submission cannot be created."
                 ) from None
             else:
-                envs.append(env_i)
+                if env_i not in envs:
+                    envs.append(env_i)
 
             for exec_i_lab, js_idx_set in exec_js.items():
                 try:

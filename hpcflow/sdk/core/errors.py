@@ -395,3 +395,11 @@ class UnknownScriptDataKey(ValueError):
 
 class MissingVariableSubstitutionError(KeyError):
     pass
+
+
+class EnvironmentPresetUnknownEnvironmentError(ValueError):
+    pass
+
+
+class UnknownEnvironmentPresetError(ValueError):
+    pass

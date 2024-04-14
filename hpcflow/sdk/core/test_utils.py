@@ -61,8 +61,11 @@ def make_parameters(num):
     return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
-def make_actions(ins_outs: List[Tuple[Union[Tuple, str], str]]) -> List[hf.Action]:
-    act_env = hf.ActionEnvironment(environment="env1")
+def make_actions(
+    ins_outs: List[Tuple[Union[Tuple, str], str]],
+    env="env1",
+) -> List[hf.Action]:
+    act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
         if len(ins_outs_i) == 2:

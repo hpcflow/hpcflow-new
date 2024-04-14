@@ -11,6 +11,7 @@ from hpcflow.sdk.core.errors import (
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
+    UnknownEnvironmentPresetError,
     UnsetParameterDataError,
 )
 from hpcflow.sdk.core.parameters import NullDefault
@@ -2162,3 +2163,16 @@ def test_labelled_input_values_specified_by_dict(null_config):
     )
     t2 = hf.Task(schema=ts, inputs={"p1[one]": 101})
     assert t1 == t2
+
+
+def test_raise_UnknownEnvironmentPresetError(null_config):
+    ts = hf.TaskSchema(objective="t1")
+    with pytest.raises(UnknownEnvironmentPresetError):
+        hf.Task(schema=ts, environment="my_env_preset")
+
+
+def test_raise_UnknownEnvironmentPresetError_sequence(null_config):
+    ts = hf.TaskSchema(objective="t1")
+    seq = hf.ValueSequence(path="environment", values=["my_env_preset"])
+    with pytest.raises(UnknownEnvironmentPresetError):
+        hf.Task(schema=ts, sequences=[seq])

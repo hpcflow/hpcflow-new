@@ -1,7 +1,10 @@
 import pytest
 
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import InvalidIdentifier
+from hpcflow.sdk.core.errors import (
+    EnvironmentPresetUnknownEnvironmentError,
+    InvalidIdentifier,
+)
 from hpcflow.sdk.core.test_utils import make_actions, make_parameters
 
 
@@ -107,3 +110,36 @@ def test_dot_access_object_list_raise_on_bad_access_attr_name():
     ts = hf.TaskSchema("add_object", actions=[])
     with pytest.raises(ValueError):
         hf.TaskSchemasList([ts])
+
+
+def test_env_preset():
+    p1, p2 = make_parameters(2)
+    (act_1,) = make_actions([("p1", "p2")], env="env1")
+    hf.TaskSchema(
+        "t1",
+        inputs=[p1],
+        outputs=[p2],
+        actions=[act_1],
+        environment_presets={"my_preset": {"env1": {"version": 1}}},
+    )
+
+
+def test_env_preset_raise_bad_env():
+    p1, p2 = make_parameters(2)
+    (act_1,) = make_actions([("p1", "p2")], env="env1")
+    with pytest.raises(EnvironmentPresetUnknownEnvironmentError):
+        hf.TaskSchema(
+            "t1",
+            inputs=[p1],
+            outputs=[p2],
+            actions=[act_1],
+            environment_presets={"my_preset": {"env2": {"version": 1}}},
+        )
+
+
+def test_env_preset_raise_bad_env_no_actions():
+    with pytest.raises(EnvironmentPresetUnknownEnvironmentError):
+        hf.TaskSchema(
+            "t1",
+            environment_presets={"my_preset": {"env1": {"version": 1}}},
+        )

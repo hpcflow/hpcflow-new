@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from html import escape
 
 from rich import print as rich_print
@@ -13,6 +13,7 @@ from rich.markup import escape as rich_esc
 from rich.text import Text
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
@@ -89,6 +90,7 @@ class TaskSchema(JSONLike):
         version: Optional[str] = None,
         parameter_class_modules: Optional[List[str]] = None,
         web_doc: Optional[bool] = True,
+        environment_presets: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
         _hash_value: Optional[str] = None,
     ):
         self.objective = objective
@@ -99,6 +101,7 @@ class TaskSchema(JSONLike):
         self.outputs = outputs or []
         self.parameter_class_modules = parameter_class_modules or []
         self.web_doc = web_doc
+        self.environment_presets = environment_presets
         self._hash_value = _hash_value
 
         self._set_parent_refs()
@@ -113,6 +116,18 @@ class TaskSchema(JSONLike):
         self._task_template = None  # assigned by parent Task
 
         self._update_parameter_value_classes()
+
+        if self.environment_presets:
+            # validate against env names in actions:
+            env_names = {act.get_environment_name() for act in self.actions}
+            preset_envs = {i for v in self.environment_presets.values() for i in v.keys()}
+            bad_envs = preset_envs - env_names
+            if bad_envs:
+                raise EnvironmentPresetUnknownEnvironmentError(
+                    f"Task schema {self.name} has environment presets that refer to one "
+                    f"or more environments that are not referenced in any of the task "
+                    f"schema's actions: {', '.join(f'{i!r}' for i in bad_envs)}."
+                )
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
