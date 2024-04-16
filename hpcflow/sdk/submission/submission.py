@@ -15,9 +15,11 @@ from hpcflow.sdk.core.errors import (
     MissingEnvironmentError,
     MissingEnvironmentExecutableError,
     MissingEnvironmentExecutableInstanceError,
+    MultipleEnvironmentsError,
     SubmissionFailure,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.log import TimeIt
 
 
@@ -105,6 +107,10 @@ class Submission(JSONLike):
             env_ref = f"{env_spec['name']!r}{spec_str}"
             try:
                 env_i = self.app.envs.get(**env_spec)
+            except ObjectListMultipleMatchError:
+                raise MultipleEnvironmentsError(
+                    f"Multiple environments {env_ref} are defined on this machine."
+                )
             except ValueError:
                 raise MissingEnvironmentError(
                     f"The environment {env_ref} is not defined on this machine, so the "

@@ -678,7 +678,7 @@ class ValueSequence(JSONLike):
             )
         path_l = path.lower()
         path_split = path_l.split(".")
-        allowed_path_start = ("inputs", "resources", "environments", "environment")
+        allowed_path_start = ("inputs", "resources", "environments", "env_preset")
         if not path_split[0] in allowed_path_start:
             raise MalformedParameterPathError(
                 f"`path` must start with one of: "
@@ -734,9 +734,9 @@ class ValueSequence(JSONLike):
             # rewrite as a resources path:
             path = f"resources.any.{path}"
 
-        # note: `environment` (*singular*) paths also need to be transformed into
-        # `resources` paths, but we cannot do that until the sequence is part of a task,
-        # since the available environment presets are defined in the task schema.
+        # note: `env_preset` paths also need to be transformed into `resources` paths, but
+        # we cannot do that until the sequence is part of a task, since the available
+        # environment presets are defined in the task schema.
 
         return path, label
 

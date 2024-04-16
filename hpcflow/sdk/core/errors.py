@@ -403,3 +403,7 @@ class EnvironmentPresetUnknownEnvironmentError(ValueError):
 
 class UnknownEnvironmentPresetError(ValueError):
     pass
+
+
+class MultipleEnvironmentsError(ValueError):
+    pass

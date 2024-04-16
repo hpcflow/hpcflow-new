@@ -2168,11 +2168,11 @@ def test_labelled_input_values_specified_by_dict(null_config):
 def test_raise_UnknownEnvironmentPresetError(null_config):
     ts = hf.TaskSchema(objective="t1")
     with pytest.raises(UnknownEnvironmentPresetError):
-        hf.Task(schema=ts, environment="my_env_preset")
+        hf.Task(schema=ts, env_preset="my_env_preset")
 
 
 def test_raise_UnknownEnvironmentPresetError_sequence(null_config):
     ts = hf.TaskSchema(objective="t1")
-    seq = hf.ValueSequence(path="environment", values=["my_env_preset"])
+    seq = hf.ValueSequence(path="env_preset", values=["my_env_preset"])
     with pytest.raises(UnknownEnvironmentPresetError):
         hf.Task(schema=ts, sequences=[seq])

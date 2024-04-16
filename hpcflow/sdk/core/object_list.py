@@ -4,6 +4,10 @@ from types import SimpleNamespace
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
 
+class ObjectListMultipleMatchError(ValueError):
+    pass
+
+
 class ObjectList(JSONLike):
     """A list-like class that provides item access via a `get` method according to
     attributes or dict-keys.
@@ -129,7 +133,9 @@ class ObjectList(JSONLike):
             )
 
         elif len(result) > 1:
-            raise ValueError(f"Multiple objects with attributes: {kwargs}.")
+            raise ObjectListMultipleMatchError(
+                f"Multiple objects with attributes: {kwargs}."
+            )
 
         return result[0]
 
