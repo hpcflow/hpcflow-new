@@ -671,7 +671,7 @@ class Task(JSONLike):
                     es.resources.merge_other(envs_res)
 
                 for seq in es.sequences:
-                    if seq.path.startswith("environment"):
+                    if seq.path == "env_preset":
                         # change to a resources path:
                         seq.path = f"resources.any.environments"
                         _values = []
