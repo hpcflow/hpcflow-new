@@ -169,11 +169,9 @@ class WorkflowTemplate(JSONLike):
                 "Workflow template: specify at most one of `env_presets` and "
                 "`environments`."
             )
-        elif not (self.env_presets or self.environments):
-            return
 
         if not isinstance(self.env_presets, list):
-            self.env_presets = [self.env_presets]
+            self.env_presets = [self.env_presets] if self.env_presets else []
 
         for task in self.tasks:
 
@@ -189,7 +187,7 @@ class WorkflowTemplate(JSONLike):
             schema_presets = schema.environment_presets
             app_envs = {act.get_environment_name() for act in schema.actions}
             for es in task.element_sets:
-                app_presets_i = None
+                app_env_specs_i = None
                 if not es.environments and not es.env_preset:
                     # no task level envs/presets specified, so merge template-level:
                     if self.environments:
@@ -197,6 +195,11 @@ class WorkflowTemplate(JSONLike):
                             k: v for k, v in self.environments.items() if k in app_envs
                         }
                         if app_env_specs_i:
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): using "
+                                f"template-level requested `environment` specifiers: "
+                                f"{app_env_specs_i!r}."
+                            )
                             es.environments = app_env_specs_i
 
                     elif self.env_presets:
@@ -206,13 +209,24 @@ class WorkflowTemplate(JSONLike):
                         ]
                         if app_presets_i:
                             app_env_specs_i = schema_presets[app_presets_i[0]]
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): using "
+                                f"template-level requested {app_presets_i[0]!r} "
+                                f"`env_preset`: {app_env_specs_i!r}."
+                            )
                             es.env_preset = app_presets_i[0]
 
-                    if not app_presets_i:
+                    else:
                         # no env/preset applicable here (and no env/preset at task level),
                         # so apply a default preset if available:
                         app_env_specs_i = (schema_presets or {}).get("", None)
-                        es.env_preset = ""
+                        if app_env_specs_i:
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): setting "
+                                f"to default (empty-string named) `env_preset`: "
+                                f"{app_env_specs_i}."
+                            )
+                            es.env_preset = ""
 
                     if app_env_specs_i:
                         es.resources.merge_other(
