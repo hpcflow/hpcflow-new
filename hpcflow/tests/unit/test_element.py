@@ -519,11 +519,12 @@ def test_element_get_group_sequence(null_config, tmp_path):
     wkt_yaml = dedent(
         """\
         name: test_list_idx_sequence
-        task_schemas:
-          - objective: test_group_schema
-            inputs:
-              - parameter: p1
-                group: my_group
+        template_components:
+          task_schemas:
+            - objective: test_group_schema
+              inputs:
+                - parameter: p1
+                  group: my_group
         tasks:
           - schema: test_t1_ps
             inputs:
@@ -556,26 +557,27 @@ def test_element_get_group_sequence_obj(new_null_config, tmp_path):
     wkt_yaml = dedent(
         """\
         name: test_list_idx_sequence
-        task_schemas:
-          - objective: test_t1_ps_obj
-            parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
-            inputs:
-              - parameter: p1c
-            outputs:
-              - parameter: p2
-            actions:
-              - environments:
-                  - scope:
-                      type: any
-                    environment: null_env
-                commands:
-                  - command: Write-Output ((<<parameter:p1c>> + 100))
-                    stdout: <<parameter:p2>>
-          - objective: test_group_schema
-            parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
-            inputs:
-              - parameter: p1c
-                group: my_group
+        template_components:
+          task_schemas:
+            - objective: test_t1_ps_obj
+              parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
+              inputs:
+                - parameter: p1c
+              outputs:
+                - parameter: p2
+              actions:
+                - environments:
+                    - scope:
+                        type: any
+                      environment: null_env
+                  commands:
+                    - command: Write-Output ((<<parameter:p1c>> + 100))
+                      stdout: <<parameter:p2>>
+            - objective: test_group_schema
+              parameter_class_modules: ["hpcflow.sdk.core.test_utils"]
+              inputs:
+                - parameter: p1c
+                  group: my_group
 
         tasks:
           - schema: test_t1_ps_obj

@@ -181,7 +181,7 @@ class ElementSet(JSONLike):
             self.resources.merge_other(envs_res)
             self.merge_envs = False
 
-        # note: `env_preset` is merged into resources by the Task.
+        # note: `env_preset` is merged into resources by the Task init.
 
     def __deepcopy__(self, memo):
         dct = self.to_dict()
@@ -631,59 +631,72 @@ class Task(JSONLike):
         self._insert_ID = None
         self._dir_name = None
 
-        self._merge_envs()
+        if self.merge_envs:
+            self._merge_envs_into_resources()
+
         # TODO: consider adding a new element_set; will need to merge new environments?
 
         self._set_parent_refs({"schema": "schemas"})
 
-    def _merge_envs(self):
+    def _merge_envs_into_resources(self):
         # for each element set, merge `env_preset` into `resources` (this mutates
         # `resources`, and should only happen on creation of the task, not
         # re-initialisation from a persistent workflow):
-        if self.merge_envs:
-            self.merge_envs = False
-            try:
-                env_presets = self.schema.environment_presets
-            except ValueError:
-                # TODO: consider multiple schemas
-                return
-            else:
-                default_preset = env_presets.get("", None) if env_presets else None
-            for es in self.element_sets:
-                if es.env_preset:
-                    # retrieve env specifiers from presets defined in the schema:
-                    try:
-                        env_specs = env_presets[es.env_preset]
-                    except (TypeError, KeyError):
-                        raise UnknownEnvironmentPresetError(
-                            f"There is no environment preset named {es.env_preset!r} "
-                            f"defined in the task schema {self.schema.name}."
-                        )
-                    envs_res = self.app.ResourceList(
-                        [self.app.ResourceSpec(scope="any", environments=env_specs)]
-                    )
-                    es.resources.merge_other(envs_res)
-                elif not es.environments and default_preset:
-                    # default preset to apply if no environments set
-                    envs_res = self.app.ResourceList(
-                        [self.app.ResourceSpec(scope="any", environments=default_preset)]
-                    )
-                    es.resources.merge_other(envs_res)
+        self.merge_envs = False
 
-                for seq in es.sequences:
-                    if seq.path == "env_preset":
-                        # change to a resources path:
-                        seq.path = f"resources.any.environments"
-                        _values = []
-                        for i in seq.values:
-                            try:
-                                _values.append(env_presets[i])
-                            except (TypeError, KeyError):
-                                raise UnknownEnvironmentPresetError(
-                                    f"There is no environment preset named {i!r} defined "
-                                    f"in the task schema {self.schema.name}."
-                                )
-                        seq._values = _values
+        # TODO: required so we don't raise below; can be removed once we consider multiple
+        # schemas:
+        has_presets = False
+        for es in self.element_sets:
+            if es.env_preset:
+                has_presets = True
+                break
+            for seq in es.sequences:
+                if seq.path == "env_preset":
+                    has_presets = True
+                    break
+            if has_presets:
+                break
+
+        if not has_presets:
+            return
+        try:
+            env_presets = self.schema.environment_presets
+        except ValueError:
+            # TODO: consider multiple schemas
+            raise NotImplementedError(
+                "Cannot merge environment presets into a task with multiple schemas."
+            )
+
+        for es in self.element_sets:
+            if es.env_preset:
+                # retrieve env specifiers from presets defined in the schema:
+                try:
+                    env_specs = env_presets[es.env_preset]
+                except (TypeError, KeyError):
+                    raise UnknownEnvironmentPresetError(
+                        f"There is no environment preset named {es.env_preset!r} "
+                        f"defined in the task schema {self.schema.name}."
+                    )
+                envs_res = self.app.ResourceList(
+                    [self.app.ResourceSpec(scope="any", environments=env_specs)]
+                )
+                es.resources.merge_other(envs_res)
+
+            for seq in es.sequences:
+                if seq.path == "env_preset":
+                    # change to a resources path:
+                    seq.path = f"resources.any.environments"
+                    _values = []
+                    for i in seq.values:
+                        try:
+                            _values.append(env_presets[i])
+                        except (TypeError, KeyError):
+                            raise UnknownEnvironmentPresetError(
+                                f"There is no environment preset named {i!r} defined "
+                                f"in the task schema {self.schema.name}."
+                            )
+                    seq._values = _values
 
     def _reset_pending_element_sets(self):
         self._pending_element_sets = []
