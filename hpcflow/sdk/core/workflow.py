@@ -105,6 +105,7 @@ class WorkflowTemplate(JSONLike):
     """
 
     _app_attr = "app"
+    _validation_schema = "workflow_spec_schema.yaml"
 
     _child_objects = (
         ChildObjectSpec(
