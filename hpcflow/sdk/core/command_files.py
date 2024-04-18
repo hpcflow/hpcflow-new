@@ -131,6 +131,7 @@ class InputFileGenerator(JSONLike):
     inputs: List[app.Parameter]
     script: str = None
     environment: app.Environment = None
+    script_pass_env_spec: Optional[bool] = False
     abortable: Optional[bool] = False
     rules: Optional[List[app.ActionRule]] = None
 
@@ -255,6 +256,7 @@ class OutputFileParser(JSONLike):
     inputs: List[str] = None
     outputs: List[str] = None
     options: Dict = None
+    script_pass_env_spec: Optional[bool] = False
     abortable: Optional[bool] = False
     save_files: Union[List[str], bool] = True
     clean_up: Optional[List[str]] = None

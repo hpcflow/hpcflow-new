@@ -547,6 +547,9 @@ class ElementActionRun:
             else:
                 out[key] = val_i
 
+        if self.action.script_pass_env_spec:
+            out["env_spec"] = self.env_spec
+
         return out
 
     def get_input_values_direct(self, label_dict: bool = True):
@@ -567,6 +570,10 @@ class ElementActionRun:
             typ = i.path[len("inputs.") :]
             if typ in input_types:
                 inputs[typ] = i.value
+
+        if self.action.script_pass_env_spec:
+            inputs["env_spec"] = self.env_spec
+
         return inputs
 
     def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
@@ -590,6 +597,10 @@ class ElementActionRun:
         inputs = {}
         for inp_typ in self.action.output_file_parsers[0].inputs or []:
             inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
+
+        if self.action.script_pass_env_spec:
+            inputs["env_spec"] = self.env_spec
+
         return inputs
 
     def get_OFP_outputs(self) -> Dict[str, Union[str, List[str]]]:
@@ -1106,6 +1117,7 @@ class Action(JSONLike):
         script_data_out: Optional[str] = None,
         script_data_files_use_opt: Optional[bool] = False,
         script_exe: Optional[str] = None,
+        script_pass_env_spec: Optional[bool] = False,
         abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
         output_file_parsers: Optional[List[app.OutputFileParser]] = None,
@@ -1134,6 +1146,7 @@ class Action(JSONLike):
             script_data_files_use_opt if not self.script_is_python else True
         )
         self.script_exe = script_exe.lower() if script_exe else None
+        self.script_pass_env_spec = script_pass_env_spec
         self.environments = environments or [
             self.app.ActionEnvironment(environment="null_env")
         ]
@@ -1559,7 +1572,9 @@ class Action(JSONLike):
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + ifg.get_action_rules(),
+                    script_pass_env_spec=ifg.script_pass_env_spec,
                     abortable=ifg.abortable,
+                    # TODO: add script_data_in etc? and to OFP?
                 )
                 act_i._task_schema = self.task_schema
                 if ifg.input_file not in inp_files:
@@ -1590,6 +1605,7 @@ class Action(JSONLike):
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules) + ofp.get_action_rules(),
+                    script_pass_env_spec=ofp.script_pass_env_spec,
                     abortable=ofp.abortable,
                 )
                 act_i._task_schema = self.task_schema
@@ -1648,6 +1664,7 @@ class Action(JSONLike):
                 script_data_in=self.script_data_in,
                 script_data_out=self.script_data_out,
                 script_exe=self.script_exe,
+                script_pass_env_spec=self.script_pass_env_spec,
                 environments=[self.get_commands_action_env()],
                 abortable=self.abortable,
                 rules=main_rules,
