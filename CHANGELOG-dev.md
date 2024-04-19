@@ -1,4 +1,31 @@
 
+<a name="v0.2.0a163"></a>
+## [v0.2.0a163](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a162...v0.2.0a163) - 2024.04.19
+
+### ♻ Code Refactoring
+
+* rename `ElementSet.envrionment` to `env_preset` to disambiguate from `environments`
+* simplify `BaseApp._load_script`, allow arbitrary script/dir naming
+
+### ✨ Features
+
+* add `script_pass_env_spec` to Action
+* support template-level `envrionments` and `env_presets` and add `template_components` scope to `WorkflowTemplate._from_data` for inline task schemas etc
+* support defining environment presets in `TaskSchema`
+* support `<<env:[SPECIFIER]>>` variables in action script paths
+* use specifiers to distinguish multiple environments of the same name
+* return workflow object from `make_and_submit_(demo_)workflow`
+
+### 🐛 Bug Fixes
+
+* use workflow template validation schema
+* Task._merge_envs for sequences on `env_preset`
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a162"></a>
 ## [v0.2.0a162](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a161...v0.2.0a162) - 2024.04.09
 
