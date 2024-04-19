@@ -860,7 +860,7 @@ class ValueSequence(JSONLike):
         return vals
 
     @classmethod
-    def _values_from_random_uniform(cls, num, low=0., high=1., **kwargs):
+    def _values_from_random_uniform(cls, num, low=0.0, high=1.0, **kwargs):
         rng = np.random.default_rng()
         return rng.uniform(low=low, high=high, size=num).tolist()
 
@@ -1021,14 +1021,14 @@ class ValueSequence(JSONLike):
         obj._values_method = "from_rectangle"
         obj._values_method_args = args
         return obj
-    
+
     @classmethod
     def from_random_uniform(
         cls,
         path,
         num,
-        low=0.,
-        high=1.,
+        low=0.0,
+        high=1.0,
         nesting_order=0,
         label=None,
         **kwargs,
