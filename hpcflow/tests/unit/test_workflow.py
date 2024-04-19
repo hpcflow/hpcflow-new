@@ -93,13 +93,8 @@ def param_p3(null_config):
 
 
 @pytest.fixture
-def env_1(null_config):
-    return hf.Environment(name="env_1")
-
-
-@pytest.fixture
-def act_env_1(null_config, env_1):
-    return hf.ActionEnvironment(env_1)
+def act_env_1(null_config):
+    return hf.ActionEnvironment("env_1")
 
 
 @pytest.fixture
@@ -161,7 +156,7 @@ def schema_s4(
         inputs=[hf.SchemaInput(parameter=param_p1)],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[hf.Command("Write-Output '<<parameter:p1>>'")],
             )
         ],
@@ -178,7 +173,7 @@ def schema_s4c(
         inputs=[hf.SchemaInput(parameter=param_p1c)],
         actions=[
             hf.Action(
-                environments=[hf.ActionEnvironment(environment=hf.envs.null_env)],
+                environments=[hf.ActionEnvironment("null_env")],
                 commands=[hf.Command("Write-Output '<<parameter:p1c>>'")],
             )
         ],

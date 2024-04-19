@@ -25,6 +25,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
     TaskTemplateUnexpectedSequenceInput,
+    UnknownEnvironmentPresetError,
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
@@ -126,8 +127,11 @@ class ElementSet(JSONLike):
         groups: Optional[List[app.ElementGroup]] = None,
         input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
+        env_preset: Optional[str] = None,
+        environments: Optional[Dict[str, Dict[str, Any]]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
         allow_non_coincident_task_sources: Optional[bool] = False,
+        merge_envs: Optional[bool] = True,
     ):
         """
         Parameters
@@ -140,7 +144,10 @@ class ElementSet(JSONLike):
             If True, if more than one parameter is sourced from the same task, then allow
             these sources to come from distinct element sub-sets. If False (default),
             only the intersection of element sub-sets for all parameters are included.
-
+        merge_envs
+            If True, merge `environments` into `resources` using the "any" scope. If
+            False, `environments` are ignored. This is required on first initialisation,
+            but not on subsequent re-initialisation from a persistent workflow.
         """
 
         self.inputs = inputs or []
@@ -151,8 +158,11 @@ class ElementSet(JSONLike):
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
         self.nesting_order = nesting_order or {}
+        self.env_preset = env_preset
+        self.environments = environments
         self.sourceable_elem_iters = sourceable_elem_iters
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
+        self.merge_envs = merge_envs
 
         self._validate()
         self._set_parent_refs()
@@ -160,6 +170,18 @@ class ElementSet(JSONLike):
         self._task_template = None  # assigned by parent Task
         self._defined_input_types = None  # assigned on _task_template assignment
         self._element_local_idx_range = None  # assigned by WorkflowTask._add_element_set
+
+        # merge `environments` into element set resources (this mutates `resources`, and
+        # should only happen on creation of the element set, not re-initialisation from a
+        # persistent workflow):
+        if self.environments and self.merge_envs:
+            envs_res = self.app.ResourceList(
+                [self.app.ResourceSpec(scope="any", environments=self.environments)]
+            )
+            self.resources.merge_other(envs_res)
+            self.merge_envs = False
+
+        # note: `env_preset` is merged into resources by the Task init.
 
     def __deepcopy__(self, memo):
         dct = self.to_dict()
@@ -278,6 +300,10 @@ class ElementSet(JSONLike):
                     f"provided for parameter {src_key!r}."
                 )
 
+        # disallow both `env_preset` and `environments` specifications:
+        if self.env_preset and self.environments:
+            raise ValueError("Specify at most one of `env_preset` and `environments`.")
+
     def _validate_against_template(self):
         unexpected_types = (
             set(self.input_types) - self.task_template.all_schema_input_types
@@ -330,6 +356,8 @@ class ElementSet(JSONLike):
         groups=None,
         input_sources=None,
         nesting_order=None,
+        env_preset=None,
+        environments=None,
         element_sets=None,
         sourceable_elem_iters=None,
     ):
@@ -342,6 +370,8 @@ class ElementSet(JSONLike):
             groups,
             input_sources,
             nesting_order,
+            env_preset,
+            environments,
         )
         args_not_none = [i is not None for i in args]
 
@@ -520,9 +550,12 @@ class Task(JSONLike):
         sequences: Optional[List[app.ValueSequence]] = None,
         input_sources: Optional[Dict[str, app.InputSource]] = None,
         nesting_order: Optional[List] = None,
+        env_preset: Optional[str] = None,
+        environments: Optional[Dict[str, Dict[str, Any]]] = None,
         element_sets: Optional[List[app.ElementSet]] = None,
         output_labels: Optional[List[app.OutputLabel]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
+        merge_envs: Optional[bool] = True,
     ):
         """
         Parameters
@@ -532,7 +565,11 @@ class Task(JSONLike):
             schema names that uniquely identify a task schema. If strings are provided,
             the `TaskSchema` object will be fetched from the known task schemas loaded by
             the app configuration.
-
+        merge_envs
+            If True, merge environment presets (set via the element set `env_preset` key)
+            into `resources` using the "any" scope. If False, these presets are ignored.
+            This is required on first initialisation, but not on subsequent
+            re-initialisation from a persistent workflow.
         """
 
         # TODO: allow init via specifying objective and/or method and/or implementation
@@ -576,10 +613,13 @@ class Task(JSONLike):
             groups=groups,
             input_sources=input_sources,
             nesting_order=nesting_order,
+            env_preset=env_preset,
+            environments=environments,
             element_sets=element_sets,
             sourceable_elem_iters=sourceable_elem_iters,
         )
         self._output_labels = output_labels or []
+        self.merge_envs = merge_envs
 
         # appended to when new element sets are added and reset on dump to disk:
         self._pending_element_sets = []
@@ -591,7 +631,72 @@ class Task(JSONLike):
         self._insert_ID = None
         self._dir_name = None
 
+        if self.merge_envs:
+            self._merge_envs_into_resources()
+
+        # TODO: consider adding a new element_set; will need to merge new environments?
+
         self._set_parent_refs({"schema": "schemas"})
+
+    def _merge_envs_into_resources(self):
+        # for each element set, merge `env_preset` into `resources` (this mutates
+        # `resources`, and should only happen on creation of the task, not
+        # re-initialisation from a persistent workflow):
+        self.merge_envs = False
+
+        # TODO: required so we don't raise below; can be removed once we consider multiple
+        # schemas:
+        has_presets = False
+        for es in self.element_sets:
+            if es.env_preset:
+                has_presets = True
+                break
+            for seq in es.sequences:
+                if seq.path == "env_preset":
+                    has_presets = True
+                    break
+            if has_presets:
+                break
+
+        if not has_presets:
+            return
+        try:
+            env_presets = self.schema.environment_presets
+        except ValueError:
+            # TODO: consider multiple schemas
+            raise NotImplementedError(
+                "Cannot merge environment presets into a task with multiple schemas."
+            )
+
+        for es in self.element_sets:
+            if es.env_preset:
+                # retrieve env specifiers from presets defined in the schema:
+                try:
+                    env_specs = env_presets[es.env_preset]
+                except (TypeError, KeyError):
+                    raise UnknownEnvironmentPresetError(
+                        f"There is no environment preset named {es.env_preset!r} "
+                        f"defined in the task schema {self.schema.name}."
+                    )
+                envs_res = self.app.ResourceList(
+                    [self.app.ResourceSpec(scope="any", environments=env_specs)]
+                )
+                es.resources.merge_other(envs_res)
+
+            for seq in es.sequences:
+                if seq.path == "env_preset":
+                    # change to a resources path:
+                    seq.path = f"resources.any.environments"
+                    _values = []
+                    for i in seq.values:
+                        try:
+                            _values.append(env_presets[i])
+                        except (TypeError, KeyError):
+                            raise UnknownEnvironmentPresetError(
+                                f"There is no environment preset named {i!r} defined "
+                                f"in the task schema {self.schema.name}."
+                            )
+                    seq._values = _values
 
     def _reset_pending_element_sets(self):
         self._pending_element_sets = []

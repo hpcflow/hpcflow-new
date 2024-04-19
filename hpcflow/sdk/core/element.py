@@ -199,6 +199,7 @@ class ElementResources(JSONLike):
     scheduler_args: Optional[Dict] = None
     shell_args: Optional[Dict] = None
     os_name: Optional[str] = None
+    environments: Optional[Dict] = None
 
     # SGE scheduler specific:
     SGE_parallel_env: str = None
@@ -241,16 +242,24 @@ class ElementResources(JSONLike):
             return hash(tuple((keys, vals)))
 
         exclude = ("time_limit",)
-        sub_dicts = ("scheduler_args", "shell_args")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
-        if "options" in dct.get("scheduler_args", []):
-            dct["scheduler_args"]["options"] = _hash_dict(
-                dct["scheduler_args"]["options"]
-            )
 
-        for k in sub_dicts:
-            if k in dct:
-                dct[k] = _hash_dict(dct[k])
+        scheduler_args = dct["scheduler_args"]
+        shell_args = dct["shell_args"]
+        envs = dct["environments"]
+
+        if isinstance(scheduler_args, dict):
+            if "options" in scheduler_args:
+                dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
+            dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
+
+        if isinstance(shell_args, dict):
+            dct["shell_args"] = _hash_dict(shell_args)
+
+        if isinstance(envs, dict):
+            for k, v in envs.items():
+                dct["environments"][k] = _hash_dict(v)
+            dct["environments"] = _hash_dict(dct["environments"])
 
         return _hash_dict(dct)
 
@@ -878,6 +887,28 @@ class ElementIteration:
         # an EAR?" which would then allow us to test a resources-based action rule.
 
         resource_specs = copy.deepcopy(self.get("resources"))
+
+        env_spec = action.get_environment_spec()
+        env_name = env_spec["name"]
+
+        # set default env specifiers, if none set:
+        if "any" not in resource_specs:
+            resource_specs["any"] = {}
+        if "environments" not in resource_specs["any"]:
+            resource_specs["any"]["environments"] = {env_name: copy.deepcopy(env_spec)}
+
+        for scope, dat in resource_specs.items():
+            if "environments" in dat:
+                # keep only relevant user-provided environment specifiers:
+                resource_specs[scope]["environments"] = {
+                    k: v for k, v in dat["environments"].items() if k == env_name
+                }
+                # merge user-provided specifiers into action specifiers:
+                resource_specs[scope]["environments"][env_name] = {
+                    **resource_specs[scope]["environments"].get(env_name, {}),
+                    **copy.deepcopy(env_spec),
+                }
+
         resources = {}
         for scope in action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:

@@ -4,6 +4,10 @@ from types import SimpleNamespace
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
 
+class ObjectListMultipleMatchError(ValueError):
+    pass
+
+
 class ObjectList(JSONLike):
     """A list-like class that provides item access via a `get` method according to
     attributes or dict-keys.
@@ -116,14 +120,22 @@ class ObjectList(JSONLike):
         if not result:
             available = []
             for obj in self._objects:
-                available.append({k: getattr(obj, k) for k in kwargs})
+                attr_vals = {}
+                for k in kwargs:
+                    try:
+                        attr_vals[k] = self._get_obj_attr(obj, k)
+                    except (AttributeError, KeyError):
+                        continue
+                available.append(attr_vals)
             raise ValueError(
                 f"No {self._descriptor} objects with attributes: {kwargs}. Available "
                 f"objects have attributes: {tuple(available)!r}."
             )
 
         elif len(result) > 1:
-            raise ValueError(f"Multiple objects with attributes: {kwargs}.")
+            raise ObjectListMultipleMatchError(
+                f"Multiple objects with attributes: {kwargs}."
+            )
 
         return result[0]
 
@@ -571,23 +583,23 @@ class ResourceList(ObjectList):
     def get_scopes(self):
         return tuple(i.scope for i in self._objects)
 
-    def merge_template_resources(self, temp_res_lst):
-        """Merge lower-precedence template-level resources into this resource list."""
-        for scope_i in temp_res_lst.get_scopes():
+    def merge_other(self, other):
+        """Merge lower-precedence other resource list into this resource list."""
+        for scope_i in other.get_scopes():
             try:
-                es_scoped = self.get(scope=scope_i)
+                self_scoped = self.get(scope=scope_i)
             except ValueError:
-                in_es = False
+                in_self = False
             else:
-                in_es = True
+                in_self = True
 
-            temp_res_scoped = temp_res_lst.get(scope=scope_i)
-            if in_es:
-                for k, v in temp_res_scoped._get_members().items():
-                    if getattr(es_scoped, k) is None:
-                        setattr(es_scoped, f"_{k}", v)
+            other_scoped = other.get(scope=scope_i)
+            if in_self:
+                for k, v in other_scoped._get_members().items():
+                    if getattr(self_scoped, k) is None:
+                        setattr(self_scoped, f"_{k}", copy.deepcopy(v))
             else:
-                self.add_object(copy.deepcopy(temp_res_scoped))
+                self.add_object(copy.deepcopy(other_scoped))
 
 
 def index(obj_lst, obj):

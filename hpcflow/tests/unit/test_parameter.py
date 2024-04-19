@@ -152,11 +152,12 @@ def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_pa
     yaml_str = dedent(
         """\
         name: temp
-        task_schemas:
-          - objective: test
-            inputs:
-              - parameter: p1c
-            parameter_class_modules: [hpcflow.sdk.core.test_utils]
+        template_components:
+          task_schemas:
+            - objective: test
+              inputs:
+                - parameter: p1c
+              parameter_class_modules: [hpcflow.sdk.core.test_utils]
         tasks: 
           - schema: test
             inputs:
@@ -174,10 +175,11 @@ def test_demo_data_substitution_value_sequence_class_method(new_null_config, tmp
     yaml_str = dedent(
         """\
         name: temp
-        task_schemas:
-          - objective: test
-            inputs:
-              - parameter: p1
+        template_components:
+          task_schemas:
+            - objective: test
+              inputs:
+                - parameter: p1
         tasks:
           - schema: test
             sequences:

@@ -184,7 +184,7 @@ def get_demo_workflow_CLI(app):
             status=status,
         )
         if print_idx:
-            click.echo(out)
+            click.echo(out[1])
 
     @demo_workflow.command("copy")
     @click.argument("workflow_name")

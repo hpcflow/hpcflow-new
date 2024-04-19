@@ -447,3 +447,63 @@ def test_script_hdf5_out_obj(null_config, tmp_path):
     # to be later Python versions):
     time.sleep(10)
     assert wk.tasks[0].elements[0].outputs.p1c.value == P1(a=p1_val + 100)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_direct_in_pass_env_spec(new_null_config, tmp_path):
+
+    vers_spec = {"version": "1.2"}
+    env = hf.Environment(
+        name="python_env_with_specifiers",
+        specifiers=vers_spec,
+        executables=[
+            hf.Executable(
+                label="python_script",
+                instances=[
+                    hf.ExecutableInstance(
+                        command="python <<script_name>> <<args>>",
+                        num_cores=1,
+                        parallel_mode=None,
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(env, skip_duplicates=True)
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_direct_in_direct_out_env_spec.py>>",
+                script_data_in="direct",
+                script_data_out="direct",
+                script_exe="python_script",
+                script_pass_env_spec=True,
+                environments=[
+                    hf.ActionEnvironment(environment="python_env_with_specifiers")
+                ],
+            )
+        ],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": 101},
+        environments={"python_env_with_specifiers": vers_spec},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="main_script_test",
+        path=tmp_path,
+    )
+    wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+    assert wk.tasks[0].elements[0].outputs.p2.value == {
+        "name": "python_env_with_specifiers",
+        **vers_spec,
+    }

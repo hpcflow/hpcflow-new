@@ -3,6 +3,7 @@ import pytest
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import (
+    ActionEnvironmentMissingNameError,
     UnknownScriptDataKey,
     UnknownScriptDataParameter,
     UnsupportedScriptDataFormat,
@@ -602,3 +603,18 @@ def test_process_script_data_in_fmt_dict_mixed(null_config):
         "p1": {"format": "json"},
         "p2": {"format": "hdf5"},
     }
+
+
+def test_ActionEnvironment_env_str(null_config):
+    act_env = hf.ActionEnvironment(environment="my_env")
+    assert act_env.environment == {"name": "my_env"}
+
+
+def test_ActionEnvironment_env_dict(null_config):
+    act_env = hf.ActionEnvironment(environment={"name": "my_env", "key": "value"})
+    assert act_env.environment == {"name": "my_env", "key": "value"}
+
+
+def test_ActionEnvironment_raises_on_missing_name(null_config):
+    with pytest.raises(ActionEnvironmentMissingNameError):
+        hf.ActionEnvironment(environment={"key": "value"})

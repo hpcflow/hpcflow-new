@@ -95,6 +95,10 @@ class MissingActionEnvironment(Exception):
     pass
 
 
+class ActionEnvironmentMissingNameError(Exception):
+    pass
+
+
 class FromSpecMissingObjectError(Exception):
     pass
 
@@ -390,4 +394,16 @@ class UnknownScriptDataKey(ValueError):
 
 
 class MissingVariableSubstitutionError(KeyError):
+    pass
+
+
+class EnvironmentPresetUnknownEnvironmentError(ValueError):
+    pass
+
+
+class UnknownEnvironmentPresetError(ValueError):
+    pass
+
+
+class MultipleEnvironmentsError(ValueError):
     pass

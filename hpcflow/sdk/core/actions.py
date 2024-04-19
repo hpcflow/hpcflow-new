@@ -16,6 +16,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
+    ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
     OutputFileParserNoOutputError,
     UnknownScriptDataKey,
@@ -458,14 +459,18 @@ class ElementActionRun:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
+    @property
+    def env_spec(self) -> Dict[str, Any]:
+        return self.resources.environments[self.action.get_environment_name()]
+
     @TimeIt.decorator
     def get_resources(self):
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
 
-    def get_environment_label(self) -> str:
-        return self.action.get_environment_label()
+    def get_environment_spec(self) -> str:
+        return self.action.get_environment_spec()
 
     def get_environment(self) -> app.Environment:
         return self.action.get_environment()
@@ -542,6 +547,9 @@ class ElementActionRun:
             else:
                 out[key] = val_i
 
+        if self.action.script_pass_env_spec:
+            out["env_spec"] = self.env_spec
+
         return out
 
     def get_input_values_direct(self, label_dict: bool = True):
@@ -562,6 +570,10 @@ class ElementActionRun:
             typ = i.path[len("inputs.") :]
             if typ in input_types:
                 inputs[typ] = i.value
+
+        if self.action.script_pass_env_spec:
+            inputs["env_spec"] = self.env_spec
+
         return inputs
 
     def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
@@ -585,6 +597,10 @@ class ElementActionRun:
         inputs = {}
         for inp_typ in self.action.output_file_parsers[0].inputs or []:
             inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
+
+        if self.action.script_pass_env_spec:
+            inputs["env_spec"] = self.env_spec
+
         return inputs
 
     def get_OFP_outputs(self) -> Dict[str, Union[str, List[str]]]:
@@ -626,7 +642,7 @@ class ElementActionRun:
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
-        snip_path = self.action.get_snippet_script_path(self.action.script)
+        snip_path = self.action.get_snippet_script_path(self.action.script, self.env_spec)
         if snip_path:
             script_name = snip_path.name
             source_str = self.action.compose_source(snip_path)
@@ -677,22 +693,23 @@ class ElementActionRun:
             "stdout"/"stderr").
         """
         self.app.persistence_logger.debug("EAR.compose_commands")
+        env_spec = self.env_spec
+
         for ifg in self.action.input_file_generators:
             # TODO: there should only be one at this stage if expanded?
-            ifg.write_source(self.action)
+            ifg.write_source(self.action, env_spec)
 
         for ofp in self.action.output_file_parsers:
             # TODO: there should only be one at this stage if expanded?
             if ofp.output is None:
                 raise OutputFileParserNoOutputError()
-            ofp.write_source(self.action)
+            ofp.write_source(self.action, env_spec)
 
         if self.action.script:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
         command_lns = []
-        env_label = self.action.get_environment_label()
-        env = jobscript.submission.environments.get(env_label)
+        env = jobscript.submission.environments.get(**env_spec)
         if env.setup:
             command_lns += list(env.setup)
 
@@ -953,12 +970,23 @@ class ActionEnvironment(JSONLike):
         ),
     )
 
-    environment: str  # app.Environment
+    environment: Union[str, Dict[str, Any]]
     scope: Optional[app.ActionScope] = None
 
     def __post_init__(self):
         if self.scope is None:
             self.scope = self.app.ActionScope.any()
+
+        orig_env = copy.deepcopy(self.environment)
+        if isinstance(self.environment, str):
+            self.environment = {"name": self.environment}
+
+        if "name" not in self.environment:
+            raise ActionEnvironmentMissingNameError(
+                f"The action-environment environment specification must include a string "
+                f"`name` key, or be specified as string that is that name. Provided "
+                f"environment key was {orig_env!r}."
+            )
 
 
 class ActionRule(JSONLike):
@@ -1089,6 +1117,7 @@ class Action(JSONLike):
         script_data_out: Optional[str] = None,
         script_data_files_use_opt: Optional[bool] = False,
         script_exe: Optional[str] = None,
+        script_pass_env_spec: Optional[bool] = False,
         abortable: Optional[bool] = False,
         input_file_generators: Optional[List[app.InputFileGenerator]] = None,
         output_file_parsers: Optional[List[app.OutputFileParser]] = None,
@@ -1117,6 +1146,7 @@ class Action(JSONLike):
             script_data_files_use_opt if not self.script_is_python else True
         )
         self.script_exe = script_exe.lower() if script_exe else None
+        self.script_pass_env_spec = script_pass_env_spec
         self.environments = environments or [
             self.app.ActionEnvironment(environment="null_env")
         ]
@@ -1413,7 +1443,10 @@ class Action(JSONLike):
             commands=self.commands,
         )
 
-    def get_environment_label(self) -> str:
+    def get_environment_name(self) -> str:
+        return self.get_environment_spec()["name"]
+
+    def get_environment_spec(self) -> Dict[str, Any]:
         if not self._from_expand:
             raise RuntimeError(
                 f"Cannot choose a single environment from this action because it is not "
@@ -1422,7 +1455,7 @@ class Action(JSONLike):
         return self.environments[0].environment
 
     def get_environment(self) -> app.Environment:
-        return self.app.envs.get(self.get_environment_label())
+        return self.app.envs.get(**self.get_environment_spec())
 
     @staticmethod
     def is_snippet_script(script: str) -> bool:
@@ -1442,7 +1475,9 @@ class Action(JSONLike):
             return script
 
     @classmethod
-    def get_snippet_script_str(cls, script) -> str:
+    def get_snippet_script_str(
+        cls, script, env_spec: Optional[Dict[str, Any]] = None
+    ) -> str:
         if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
@@ -1450,14 +1485,24 @@ class Action(JSONLike):
             )
         pattern = r"\<\<script:(.*:?)\>\>"
         match_obj = re.match(pattern, script)
-        return match_obj.group(1)
+        out = match_obj.group(1)
+
+        if env_spec:
+            out = re.sub(
+                pattern=r"\<\<env:(.*?)\>\>",
+                repl=lambda match_obj: env_spec[match_obj.group(1)],
+                string=out,
+            )
+        return out
 
     @classmethod
-    def get_snippet_script_path(cls, script_path) -> Path:
+    def get_snippet_script_path(
+        cls, script_path, env_spec: Optional[Dict[str, Any]] = None
+    ) -> Path:
         if not cls.is_snippet_script(script_path):
             return False
 
-        path = cls.get_snippet_script_str(script_path)
+        path = cls.get_snippet_script_str(script_path, env_spec)
         if path in cls.app.scripts:
             path = cls.app.scripts.get(path)
 
@@ -1527,7 +1572,9 @@ class Action(JSONLike):
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + ifg.get_action_rules(),
+                    script_pass_env_spec=ifg.script_pass_env_spec,
                     abortable=ifg.abortable,
+                    # TODO: add script_data_in etc? and to OFP?
                 )
                 act_i._task_schema = self.task_schema
                 if ifg.input_file not in inp_files:
@@ -1558,6 +1605,7 @@ class Action(JSONLike):
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules) + ofp.get_action_rules(),
+                    script_pass_env_spec=ofp.script_pass_env_spec,
                     abortable=ofp.abortable,
                 )
                 act_i._task_schema = self.task_schema
@@ -1616,6 +1664,7 @@ class Action(JSONLike):
                 script_data_in=self.script_data_in,
                 script_data_out=self.script_data_out,
                 script_exe=self.script_exe,
+                script_pass_env_spec=self.script_pass_env_spec,
                 environments=[self.get_commands_action_env()],
                 abortable=self.abortable,
                 rules=main_rules,

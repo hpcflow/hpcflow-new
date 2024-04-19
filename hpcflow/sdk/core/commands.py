@@ -107,6 +107,7 @@ class Command(JSONLike):
 
         file_regex = r"(\<\<file:{}\>\>?)"
         exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
+        env_specs_regex = r"\<\<env:(.*?)\>\>"
 
         # substitute executables:
         cmd_str = re.sub(
@@ -118,6 +119,12 @@ class Command(JSONLike):
         # executable command might itself contain variables defined in `variables`, and/or
         # an `<<args>>` variable::
         for var_key, var_val in (self.variables or {}).items():
+            # substitute any `<<env:>>` specifiers
+            var_val = re.sub(
+                pattern=env_specs_regex,
+                repl=lambda match_obj: EAR.env_spec[match_obj.group(1)],
+                string=var_val,
+            )
             cmd_str = cmd_str.replace(f"<<{var_key}>>", var_val)
             if "<<args>>" in cmd_str:
                 args_str = " ".join(self.arguments or [])

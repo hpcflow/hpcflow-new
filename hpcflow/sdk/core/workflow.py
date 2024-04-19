@@ -105,6 +105,7 @@ class WorkflowTemplate(JSONLike):
     """
 
     _app_attr = "app"
+    _validation_schema = "workflow_spec_schema.yaml"
 
     _child_objects = (
         ChildObjectSpec(
@@ -132,9 +133,12 @@ class WorkflowTemplate(JSONLike):
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
+    environments: Optional[Dict[str, Dict[str, Any]]] = None
+    env_presets: Optional[Union[str, List[str]]] = None
     source_file: Optional[str] = field(default=None, compare=False)
     store_kwargs: Optional[Dict] = field(default_factory=lambda: {})
     merge_resources: Optional[bool] = True
+    merge_envs: Optional[bool] = True
 
     def __post_init__(self):
         self.resources = self.app.ResourceList.normalise(self.resources)
@@ -146,11 +150,94 @@ class WorkflowTemplate(JSONLike):
         if self.merge_resources:
             for task in self.tasks:
                 for element_set in task.element_sets:
-                    element_set.resources.merge_template_resources(self.resources)
+                    element_set.resources.merge_other(self.resources)
             self.merge_resources = False
+
+        if self.merge_envs:
+            self._merge_envs_into_task_resources()
 
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
+
+    def _merge_envs_into_task_resources(self):
+
+        self.merge_envs = False
+
+        # disallow both `env_presets` and `environments` specifications:
+        if self.env_presets and self.environments:
+            raise ValueError(
+                "Workflow template: specify at most one of `env_presets` and "
+                "`environments`."
+            )
+
+        if not isinstance(self.env_presets, list):
+            self.env_presets = [self.env_presets] if self.env_presets else []
+
+        for task in self.tasks:
+
+            # get applicable environments and environment preset names:
+            try:
+                schema = task.schema
+            except ValueError:
+                # TODO: consider multiple schemas
+                raise NotImplementedError(
+                    "Cannot merge environment presets into a task without multiple "
+                    "schemas."
+                )
+            schema_presets = schema.environment_presets
+            app_envs = {act.get_environment_name() for act in schema.actions}
+            for es in task.element_sets:
+                app_env_specs_i = None
+                if not es.environments and not es.env_preset:
+                    # no task level envs/presets specified, so merge template-level:
+                    if self.environments:
+                        app_env_specs_i = {
+                            k: v for k, v in self.environments.items() if k in app_envs
+                        }
+                        if app_env_specs_i:
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): using "
+                                f"template-level requested `environment` specifiers: "
+                                f"{app_env_specs_i!r}."
+                            )
+                            es.environments = app_env_specs_i
+
+                    elif self.env_presets:
+                        # take only the first applicable preset:
+                        app_presets_i = [
+                            k for k in self.env_presets if k in schema_presets
+                        ]
+                        if app_presets_i:
+                            app_env_specs_i = schema_presets[app_presets_i[0]]
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): using "
+                                f"template-level requested {app_presets_i[0]!r} "
+                                f"`env_preset`: {app_env_specs_i!r}."
+                            )
+                            es.env_preset = app_presets_i[0]
+
+                    else:
+                        # no env/preset applicable here (and no env/preset at task level),
+                        # so apply a default preset if available:
+                        app_env_specs_i = (schema_presets or {}).get("", None)
+                        if app_env_specs_i:
+                            self.app.logger.info(
+                                f"(task {task.name!r}, element set {es.index}): setting "
+                                f"to default (empty-string named) `env_preset`: "
+                                f"{app_env_specs_i}."
+                            )
+                            es.env_preset = ""
+
+                    if app_env_specs_i:
+                        es.resources.merge_other(
+                            self.app.ResourceList(
+                                [
+                                    self.app.ResourceSpec(
+                                        scope="any", environments=app_env_specs_i
+                                    )
+                                ]
+                            )
+                        )
 
     @classmethod
     @TimeIt.decorator
@@ -172,28 +259,29 @@ class WorkflowTemplate(JSONLike):
                 }
 
         # extract out any template components:
-        params_dat = data.pop("parameters", [])
+        tcs = data.pop("template_components", {})
+        params_dat = tcs.pop("parameters", [])
         if params_dat:
             parameters = cls.app.ParametersList.from_json_like(
                 params_dat, shared_data=cls.app.template_components
             )
             cls.app.parameters.add_objects(parameters, skip_duplicates=True)
 
-        cmd_files_dat = data.pop("command_files", [])
+        cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
             cmd_files = cls.app.CommandFilesList.from_json_like(
                 cmd_files_dat, shared_data=cls.app.template_components
             )
             cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
-        envs_dat = data.pop("environments", [])
+        envs_dat = tcs.pop("environments", [])
         if envs_dat:
             envs = cls.app.EnvironmentsList.from_json_like(
                 envs_dat, shared_data=cls.app.template_components
             )
             cls.app.envs.add_objects(envs, skip_duplicates=True)
 
-        ts_dat = data.pop("task_schemas", [])
+        ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
             task_schemas = cls.app.TaskSchemasList.from_json_like(
                 ts_dat, shared_data=cls.app.template_components

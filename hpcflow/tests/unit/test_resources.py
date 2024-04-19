@@ -29,33 +29,31 @@ def test_resource_list_raise_on_identical_scopes():
         hf.ResourceList.normalise([{"scope": "any"}, {"scope": "any"}])
 
 
-def test_merge_template_resources_same_scope():
+def test_merge_other_same_scope():
     res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
     res_lst_2 = hf.ResourceList.from_json_like({"any": {}})
-    res_lst_2.merge_template_resources(res_lst_1)
+    res_lst_2.merge_other(res_lst_1)
     assert res_lst_2 == hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
 
 
-def test_merge_template_resources_same_scope_no_overwrite():
+def test_merge_other_same_scope_no_overwrite():
     res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
     res_lst_2 = hf.ResourceList.from_json_like({"any": {"num_cores": 2}})
-    res_lst_2.merge_template_resources(res_lst_1)
+    res_lst_2.merge_other(res_lst_1)
     assert res_lst_2 == hf.ResourceList.from_json_like({"any": {"num_cores": 2}})
 
 
-def test_merge_template_resources_multi_scope():
+def test_merge_other_multi_scope():
     res_lst_1 = hf.ResourceList.from_json_like({"any": {"num_cores": 1}})
     res_lst_2 = hf.ResourceList.from_json_like({"any": {}, "main": {"num_cores": 3}})
-    res_lst_2.merge_template_resources(res_lst_1)
+    res_lst_2.merge_other(res_lst_1)
     assert res_lst_2 == hf.ResourceList.from_json_like(
         {"any": {"num_cores": 1}, "main": {"num_cores": 3}}
     )
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_merge_template_resources_persistent_workflow_reload(
-    null_config, tmp_path, store
-):
+def test_merge_other_persistent_workflow_reload(null_config, tmp_path, store):
     wkt = hf.WorkflowTemplate(
         name="test_load",
         resources={"any": {"num_cores": 2}},

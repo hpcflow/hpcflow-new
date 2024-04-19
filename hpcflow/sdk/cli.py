@@ -173,7 +173,7 @@ def _make_API_CLI(app):
             status=status,
         )
         if print_idx:
-            click.echo(out)
+            click.echo(out[1])
 
     @click.command(context_settings={"ignore_unknown_options": True})
     @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
