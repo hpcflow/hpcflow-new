@@ -528,7 +528,7 @@ class TaskSchema(JSONLike):
                 f'</tr><tr><td class="action-header-cell">scope:</td>'
                 f"<td><code>{act.get_precise_scope().to_string()}</code></td></tr>"
                 f'<tr><td class="action-header-cell">environment:</td>'
-                f"<td><code>{act.get_environment().name}</code></td></tr>"
+                f"<td><code>{act.get_environment_name()}</code></td></tr>"
                 f"{inp_fg_rows}"
                 f"{out_fp_rows}"
                 f"{act_i_script_rows}"
