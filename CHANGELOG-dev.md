@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a164"></a>
+## [v0.2.0a164](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a163...v0.2.0a164) - 2024.04.23
+
+### ✨ Features
+
+* support rules in `Command`
+
+### 🐛 Bug Fixes
+
+* get_info_html when multiple envs are present
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a163"></a>
 ## [v0.2.0a163](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a162...v0.2.0a163) - 2024.04.19
 
