@@ -1269,10 +1269,14 @@ class Task(JSONLike):
         for es_i in self.element_sets:
             for inp_j in es_i.inputs:
                 if inp_j.is_sub_value:
-                    out.append(("input", inp_j.normalised_inputs_path))
+                    val_j = ("input", inp_j.normalised_inputs_path)
+                    if val_j not in out:
+                        out.append(val_j)
             for seq_j in es_i.sequences:
                 if seq_j.is_sub_value:
-                    out.append(("input", seq_j.normalised_inputs_path))
+                    val_j = ("input", seq_j.normalised_inputs_path)
+                    if val_j not in out:
+                        out.append(val_j)
 
         return tuple(out)
 
