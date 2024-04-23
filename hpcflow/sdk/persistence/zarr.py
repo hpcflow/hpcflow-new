@@ -237,6 +237,7 @@ class ZarrStoreEAR(StoreEAR):
             self.exit_code,
             self.metadata,
             self.run_hostname,
+            self.commands_idx,
         ]
         return EAR_enc
 
@@ -258,6 +259,7 @@ class ZarrStoreEAR(StoreEAR):
             "exit_code": EAR_dat[11],
             "metadata": EAR_dat[12],
             "run_hostname": EAR_dat[13],
+            "commands_idx": EAR_dat[14],
         }
         return cls(is_pending=False, **obj_dat)
 

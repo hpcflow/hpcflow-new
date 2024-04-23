@@ -1944,8 +1944,8 @@ class WorkflowTask:
             # run-specific data index to `test_rules` and `generate_data_index`
             # (e.g. if we wanted to increase the memory requirements of a action because
             # it previously failed)
-            rules_valid = action.test_rules(element_iter=element_iter)
-            if all(rules_valid):
+            act_valid, cmds_idx = action.test_rules(element_iter=element_iter)
+            if act_valid:
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
                 param_source = {
@@ -1969,6 +1969,7 @@ class WorkflowTask:
                 run_0 = {
                     "elem_iter_ID": element_iter.id_,
                     "action_idx": act_idx,
+                    "commands_idx": cmds_idx,
                     "metadata": {},
                 }
                 action_runs[(act_idx, EAR_ID)] = run_0
@@ -1982,6 +1983,7 @@ class WorkflowTask:
             self.workflow._store.add_EAR(
                 elem_iter_ID=element_iter.id_,
                 action_idx=act_idx,
+                commands_idx=run["commands_idx"],
                 data_idx=all_data_idx[(act_idx, EAR_ID_i)],
                 metadata={},
             )

@@ -141,6 +141,7 @@ class ElementActionRun:
         element_action,
         index: int,
         data_idx: Dict,
+        commands_idx: List[int],
         start_time: Union[datetime, None],
         end_time: Union[datetime, None],
         snapshot_start: Union[Dict, None],
@@ -157,6 +158,7 @@ class ElementActionRun:
         self._element_action = element_action
         self._index = index  # local index of this run with the action
         self._data_idx = data_idx
+        self._commands_idx = commands_idx
         self._start_time = start_time
         self._end_time = end_time
         self._submission_idx = submission_idx
@@ -221,6 +223,10 @@ class ElementActionRun:
     @property
     def data_idx(self):
         return self._data_idx
+
+    @property
+    def commands_idx(self):
+        return self._commands_idx
 
     @property
     def metadata(self):
@@ -715,11 +721,13 @@ class ElementActionRun:
 
         shell_vars = {}  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
-            cmd_str, shell_vars_i = command.get_command_line(
-                EAR=self, shell=jobscript.shell, env=env
-            )
-            shell_vars[cmd_idx] = shell_vars_i
-            command_lns.append(cmd_str)
+            if cmd_idx in self.commands_idx:
+                # only execute commands that have no rules, or all valid rules:
+                cmd_str, shell_vars_i = command.get_command_line(
+                    EAR=self, shell=jobscript.shell, env=env
+                )
+                shell_vars[cmd_idx] = shell_vars_i
+                command_lns.append(cmd_str)
 
         commands = "\n".join(command_lns) + "\n"
 
@@ -1025,6 +1033,7 @@ class ActionRule(JSONLike):
 
         self.rule = rule
         self.action = None  # assigned by parent action
+        self.command = None  # assigned by parent command
 
     def __eq__(self, other):
         if type(other) is not self.__class__:
@@ -1958,9 +1967,17 @@ class Action(JSONLike):
                 return True
 
     @TimeIt.decorator
-    def test_rules(self, element_iter) -> List[bool]:
+    def test_rules(self, element_iter) -> Tuple[bool, List[int]]:
         """Test all rules against the specified element iteration."""
-        return [i.test(element_iteration=element_iter) for i in self.rules]
+        rules_valid = [rule.test(element_iteration=element_iter) for rule in self.rules]
+        action_valid = all(rules_valid)
+        commands_idx = []
+        if action_valid:
+            for cmd_idx, cmd in enumerate(self.commands):
+                if any(not i.test(element_iteration=element_iter) for i in cmd.rules):
+                    continue
+                commands_idx.append(cmd_idx)
+        return action_valid, commands_idx
 
     def get_required_executables(self) -> Tuple[str]:
         """Return executable labels required by this action."""

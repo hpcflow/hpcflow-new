@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 import re
@@ -6,15 +6,24 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
+from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
-from hpcflow.sdk.core.json_like import JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParameterValue
 
 
 @dataclass
 class Command(JSONLike):
     _app_attr = "app"
+    _child_objects = (
+        ChildObjectSpec(
+            name="rules",
+            class_name="ActionRule",
+            is_multiple=True,
+            parent_ref="command",
+        ),
+    )
 
     command: Optional[str] = None
     executable: Optional[str] = None
@@ -23,6 +32,7 @@ class Command(JSONLike):
     stdout: Optional[str] = None
     stderr: Optional[str] = None
     stdin: Optional[str] = None
+    rules: Optional[List[app.ActionRule]] = field(default_factory=lambda: [])
 
     def __repr__(self) -> str:
         out = []
@@ -40,6 +50,8 @@ class Command(JSONLike):
             out.append(f"stderr={self.stderr!r}")
         if self.stdin:
             out.append(f"stdin={self.stdin!r}")
+        if self.rules:
+            out.append(f"rules={self.rules!r}")
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 

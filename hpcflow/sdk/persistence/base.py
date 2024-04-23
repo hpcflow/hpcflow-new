@@ -310,6 +310,7 @@ class StoreEAR:
     is_pending: bool
     elem_iter_ID: int
     action_idx: int
+    commands_idx: List[int]
     data_idx: Dict[str, int]
     submission_idx: Optional[int] = None
     skip: Optional[bool] = False
@@ -336,6 +337,7 @@ class StoreEAR:
             "id_": self.id_,
             "elem_iter_ID": self.elem_iter_ID,
             "action_idx": self.action_idx,
+            "commands_idx": self.commands_idx,
             "data_idx": self.data_idx,
             "submission_idx": self.submission_idx,
             "success": self.success,
@@ -371,6 +373,7 @@ class StoreEAR:
             "is_pending": self.is_pending,
             "elem_iter_ID": self.elem_iter_ID,
             "action_idx": self.action_idx,
+            "commands_idx": self.commands_idx,
             "data_idx": self.data_idx,
             "submission_idx": self.submission_idx,
             "success": self.success,
@@ -414,6 +417,7 @@ class StoreEAR:
             is_pending=self.is_pending,
             elem_iter_ID=self.elem_iter_ID,
             action_idx=self.action_idx,
+            commands_idx=self.commands_idx,
             data_idx=self.data_idx,
             metadata=self.metadata,
             submission_idx=sub_idx,
@@ -1013,6 +1017,7 @@ class PersistentStore(ABC):
         self,
         elem_iter_ID: int,
         action_idx: int,
+        commands_idx: List[int],
         data_idx: Dict,
         metadata: Dict,
         save: bool = True,
@@ -1025,6 +1030,7 @@ class PersistentStore(ABC):
             is_pending=True,
             elem_iter_ID=elem_iter_ID,
             action_idx=action_idx,
+            commands_idx=commands_idx,
             data_idx=data_idx,
             metadata=metadata,
         )
