@@ -618,3 +618,173 @@ def test_ActionEnvironment_env_dict(null_config):
 def test_ActionEnvironment_raises_on_missing_name(null_config):
     with pytest.raises(ActionEnvironmentMissingNameError):
         hf.ActionEnvironment(environment={"key": "value"})
+
+
+def test_rules_allow_runs_initialised(null_config, tmp_path):
+    """Test rules that do not depend on execution allow for runs to be initialised."""
+    act = hf.Action(
+        script="<<script:path/to/some/script>>",
+        rules=[hf.ActionRule(path="inputs.p1", condition={"value.less_than": 2})],
+    )
+    ts = hf.TaskSchema(
+        objective="ts1",
+        inputs=[hf.SchemaInput("p1")],
+        actions=[act],
+    )
+    t1 = hf.Task(
+        schema=ts, sequences=[hf.ValueSequence(path="inputs.p1", values=[1.5, 2.5])]
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        path=tmp_path,
+        tasks=[t1],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert wk.tasks[0].elements[1].iterations[0].EARs_initialised
+    assert len(wk.tasks[0].elements[0].actions) == 1
+    assert len(wk.tasks[0].elements[1].actions) == 0
+
+
+def test_rules_prevent_runs_initialised(null_config, tmp_path):
+    """Test rules that depend on execution prevent initialising runs."""
+    act1 = hf.Action(script="<<script:path/to/some/script>>")
+    act2 = hf.Action(
+        script="<<script:path/to/some/script>>",
+        rules=[hf.ActionRule(path="inputs.p2", condition={"value.less_than": 2})],
+    )
+    ts1 = hf.TaskSchema(
+        objective="ts1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[act1],
+    )
+    ts2 = hf.TaskSchema(
+        objective="ts2",
+        inputs=[hf.SchemaInput("p2")],
+        actions=[act2],
+    )
+    t1 = hf.Task(schema=ts1, inputs={"p1": 1.2})
+    t2 = hf.Task(schema=ts2)
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        path=tmp_path,
+        tasks=[t1, t2],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert not wk.tasks[1].elements[0].iterations[0].EARs_initialised
+
+
+def test_command_rules_allow_runs_initialised(null_config, tmp_path):
+    """Test command rules that do not depend on execution allow for runs to be
+    initialised."""
+    act = hf.Action(
+        commands=[
+            hf.Command(
+                command='echo "p1=<<parameter:p1>>"',
+                rules=[hf.ActionRule(path="inputs.p1", condition={"value.less_than": 2})],
+            )
+        ],
+    )
+    ts = hf.TaskSchema(
+        objective="ts1",
+        inputs=[hf.SchemaInput("p1")],
+        actions=[act],
+    )
+    t1 = hf.Task(
+        schema=ts, sequences=[hf.ValueSequence(path="inputs.p1", values=[1.5, 2.5])]
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        path=tmp_path,
+        tasks=[t1],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert wk.tasks[0].elements[1].iterations[0].EARs_initialised
+    assert len(wk.tasks[0].elements[0].actions) == 1
+    assert len(wk.tasks[0].elements[1].actions) == 1
+    assert len(wk.tasks[0].elements[0].action_runs[0].commands_idx) == 1
+    assert len(wk.tasks[0].elements[1].action_runs[0].commands_idx) == 0
+
+
+def test_command_rules_prevent_runs_initialised(null_config, tmp_path):
+    """Test command rules that do depend on execution prevent runs being initialised."""
+    act1 = hf.Action(
+        commands=[
+            hf.Command(command='echo "p1=<<parameter:p1>>"', stdout="<<parameter:p2>>")
+        ]
+    )
+    act2 = hf.Action(
+        commands=[
+            hf.Command(
+                command='echo "p1=<<parameter:p2>>"',
+                rules=[hf.ActionRule(path="inputs.p2", condition={"value.less_than": 2})],
+            )
+        ],
+    )
+    ts1 = hf.TaskSchema(
+        objective="ts1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[act1],
+    )
+    ts2 = hf.TaskSchema(
+        objective="ts2",
+        inputs=[hf.SchemaInput("p2")],
+        actions=[act2],
+    )
+    t1 = hf.Task(schema=ts1, inputs={"p1": 0})
+    t2 = hf.Task(schema=ts2)
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        path=tmp_path,
+        tasks=[t1, t2],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert len(wk.tasks[0].elements[0].action_runs[0].commands_idx) == 1
+    assert not wk.tasks[1].elements[0].iterations[0].EARs_initialised
+
+
+def test_command_rules_prevent_runs_initialised_with_valid_action_rules(
+    null_config, tmp_path
+):
+    """Test command rules that do depend on execution prevent runs being initialised, even
+    when the parent action rules can be tested and are valid."""
+    act1 = hf.Action(
+        commands=[
+            hf.Command(command='echo "p1=<<parameter:p1>>"', stdout="<<parameter:p2>>")
+        ]
+    )
+
+    # action rule is testable and valid, but command rule is not testable, so the action
+    # runs should not be initialised:
+    act2 = hf.Action(
+        commands=[
+            hf.Command(
+                command='echo "p1=<<parameter:p1>>; p2=<<parameter:p2>>"',
+                rules=[hf.ActionRule(path="inputs.p2", condition={"value.less_than": 2})],
+            )
+        ],
+        rules=[hf.ActionRule(path="inputs.p1", condition={"value.less_than": 2})],
+    )
+    ts1 = hf.TaskSchema(
+        objective="ts1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[act1],
+    )
+    ts2 = hf.TaskSchema(
+        objective="ts2",
+        inputs=[hf.SchemaInput("p1"), hf.SchemaInput("p2")],
+        actions=[act2],
+    )
+    t1 = hf.Task(schema=ts1, inputs={"p1": 0})
+    t2 = hf.Task(schema=ts2)
+    wk = hf.Workflow.from_template_data(
+        template_name="test",
+        path=tmp_path,
+        tasks=[t1, t2],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].EARs_initialised
+    assert len(wk.tasks[0].elements[0].action_runs[0].commands_idx) == 1
+
+    assert not wk.tasks[1].elements[0].iterations[0].EARs_initialised

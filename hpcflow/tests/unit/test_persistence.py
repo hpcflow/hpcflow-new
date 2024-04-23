@@ -74,6 +74,7 @@ def test_store_pending_add_EAR(tmp_path):
     EAR_ID = store.add_EAR(
         elem_iter_ID=0,
         action_idx=0,
+        commands_idx=[],
         data_idx={},
         metadata={},
     )
@@ -83,6 +84,7 @@ def test_store_pending_add_EAR(tmp_path):
             is_pending=True,
             elem_iter_ID=0,
             action_idx=0,
+            commands_idx=[],
             data_idx={},
             metadata={},
         )
@@ -186,7 +188,7 @@ def test_get_task_elements_single_element_iter_EAR_pending(tmp_path):
     store = JSONPersistentStore.make_test_store_from_spec(
         [{"elements": [{"iterations": [{}]}]}], dir=tmp_path
     )
-    store.add_EAR(elem_iter_ID=0, action_idx=0, data_idx={}, metadata={})
+    store.add_EAR(elem_iter_ID=0, action_idx=0, commands_idx=[], data_idx={}, metadata={})
     assert store.get_task_elements(0, slice(0, None)) == [
         {
             "id": 0,
@@ -209,6 +211,7 @@ def test_get_task_elements_single_element_iter_EAR_pending(tmp_path):
                                 "is_pending": True,
                                 "elem_iter_ID": 0,
                                 "action_idx": 0,
+                                "commands_idx": [],
                                 "data_idx": {},
                                 "metadata": {},
                             }
