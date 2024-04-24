@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import MissingInputs, UnavailableInputSource
+from hpcflow.sdk.core.errors import (
+    InapplicableInputSourceElementIters,
+    MissingInputs,
+    UnavailableInputSource,
+)
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
@@ -671,3 +675,86 @@ def test_raise_unavailable_input_source(null_config, tmp_path):
     wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
     with pytest.raises(UnavailableInputSource):
         hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+def test_input_source_specify_element_iters(null_config, tmp_path):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 2]
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 3]
+
+
+def test_input_source_raise_on_inapplicable_specified_element_iters(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 4]
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(InapplicableInputSourceElementIters):
+        hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+def test_input_source_specify_element_iters_and_where(null_config, tmp_path):
+    """Test the where argument further filters the element_iters argument."""
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0,
+                    task_source_type="input",
+                    element_iters=[0, 2],
+                    where=hf.Rule(path="inputs.p1.a", condition={"value.equal_to": 3}),
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 1
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [3]

@@ -59,6 +59,10 @@ class UnavailableInputSource(ValueError):
     pass
 
 
+class InapplicableInputSourceElementIters(ValueError):
+    pass
+
+
 class TaskTemplateInvalidNesting(ValueError):
     pass
 

@@ -17,6 +17,7 @@ from .element import ElementGroup
 from .errors import (
     ContainerKeyError,
     ExtraInputs,
+    InapplicableInputSourceElementIters,
     MayNeedObjectError,
     MissingInputs,
     NoAvailableElementSetsError,
@@ -1663,20 +1664,28 @@ class WorkflowTask:
                         f"input sources are: {[i.to_string() for i in avail_i]}."
                     ) from None
 
-                # overwrite with the source from available_sources, since it may have
-                # the `element_iters` attribute assigned, but first check if we need
-                # to filter:
-                filtered_IDs = None
+                elem_iters_IDs = available_source.element_iters
+                if specified_source.element_iters:
+                    # user-specified iter IDs; these must be a subset of available
+                    # element_iters:
+                    if not set(specified_source.element_iters).issubset(elem_iters_IDs):
+                        raise InapplicableInputSourceElementIters(
+                            f"The specified `element_iters` for input source "
+                            f"{specified_source.to_string()!r} are not all applicable. "
+                            f"Applicable element iteration IDs for this input source "
+                            f"are: {elem_iters_IDs!r}."
+                        )
+                    elem_iters_IDs = specified_source.element_iters
+
                 if specified_source.where:
+                    # filter iter IDs by user-specified rules:
                     elem_iters = self.workflow.get_element_iterations_from_IDs(
-                        available_source.element_iters
+                        elem_iters_IDs
                     )
                     filtered = specified_source.where.filter(elem_iters)
-                    filtered_IDs = [i.id_ for i in filtered]
+                    elem_iters_IDs = [i.id_ for i in filtered]
 
-                if filtered_IDs is not None:
-                    available_source.element_iters = filtered_IDs
-
+                available_source.element_iters = elem_iters_IDs
                 element_set.input_sources[path_i][s_idx] = available_source
 
         # sorting ensures that root parameters come before sub-parameters, which is
