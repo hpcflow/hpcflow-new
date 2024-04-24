@@ -25,6 +25,7 @@ from .errors import (
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
     TaskTemplateUnexpectedSequenceInput,
+    UnavailableInputSource,
     UnknownEnvironmentPresetError,
     UnrequiredInputSources,
     UnsetParameterDataError,
@@ -1653,29 +1654,30 @@ class WorkflowTask:
                     specified_source, self.unique_name
                 )
                 avail_idx = specified_source.is_in(avail_i)
-                available_source = avail_i[avail_idx]
-                if avail_idx is None:
-                    raise ValueError(
+                try:
+                    available_source = avail_i[avail_idx]
+                except TypeError:
+                    raise UnavailableInputSource(
                         f"The input source {specified_source.to_string()!r} is not "
                         f"available for input path {path_i!r}. Available "
                         f"input sources are: {[i.to_string() for i in avail_i]}."
+                    ) from None
+
+                # overwrite with the source from available_sources, since it may have
+                # the `element_iters` attribute assigned, but first check if we need
+                # to filter:
+                filtered_IDs = None
+                if specified_source.where:
+                    elem_iters = self.workflow.get_element_iterations_from_IDs(
+                        available_source.element_iters
                     )
-                else:
-                    # overwrite with the source from available_sources, since it may have
-                    # the `element_iters` attribute assigned, but first check if we need
-                    # to filter:
-                    filtered_IDs = None
-                    if specified_source.where:
-                        elem_iters = self.workflow.get_element_iterations_from_IDs(
-                            available_source.element_iters
-                        )
-                        filtered = specified_source.where.filter(elem_iters)
-                        filtered_IDs = [i.id_ for i in filtered]
+                    filtered = specified_source.where.filter(elem_iters)
+                    filtered_IDs = [i.id_ for i in filtered]
 
-                    if filtered_IDs is not None:
-                        available_source.element_iters = filtered_IDs
+                if filtered_IDs is not None:
+                    available_source.element_iters = filtered_IDs
 
-                    element_set.input_sources[path_i][s_idx] = available_source
+                element_set.input_sources[path_i][s_idx] = available_source
 
         # sorting ensures that root parameters come before sub-parameters, which is
         # necessary when considering if we want to include a sub-parameter, when setting

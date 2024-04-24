@@ -55,6 +55,10 @@ class ExtraInputs(Exception):
         super().__init__(message)
 
 
+class UnavailableInputSource(ValueError):
+    pass
+
+
 class TaskTemplateInvalidNesting(ValueError):
     pass
 

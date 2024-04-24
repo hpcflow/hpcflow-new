@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import MissingInputs
+from hpcflow.sdk.core.errors import MissingInputs, UnavailableInputSource
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
@@ -660,3 +660,14 @@ def test_sub_parameter_task_input_source_allowed_when_root_parameter_is_task_out
         ],
         "p2": [hf.InputSource.local()],
     }
+
+
+def test_raise_unavailable_input_source(null_config, tmp_path):
+    t1 = hf.Task(schema=hf.task_schemas.test_t1_ps, inputs={"p1": 1})
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={"p1": [hf.InputSource.local()]},
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(UnavailableInputSource):
+        hf.Workflow.from_template(wkt, path=tmp_path)
