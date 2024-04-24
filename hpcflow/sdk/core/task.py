@@ -1,7 +1,6 @@
 from __future__ import annotations
 import copy
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
@@ -11,7 +10,6 @@ from valida.rules import Rule
 from hpcflow.sdk import app
 from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
