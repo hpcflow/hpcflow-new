@@ -358,6 +358,7 @@ class ElementSet(JSONLike):
         nesting_order=None,
         env_preset=None,
         environments=None,
+        allow_non_coincident_task_sources=None,
         element_sets=None,
         sourceable_elem_iters=None,
     ):
@@ -381,10 +382,22 @@ class ElementSet(JSONLike):
                     "If providing an `element_set`, no other arguments are allowed."
                 )
             else:
-                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
+                element_sets = [
+                    cls(
+                        *args,
+                        sourceable_elem_iters=sourceable_elem_iters,
+                        allow_non_coincident_task_sources=allow_non_coincident_task_sources,
+                    )
+                ]
         else:
             if element_sets is None:
-                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
+                element_sets = [
+                    cls(
+                        *args,
+                        sourceable_elem_iters=sourceable_elem_iters,
+                        allow_non_coincident_task_sources=allow_non_coincident_task_sources,
+                    )
+                ]
 
         return element_sets
 
@@ -552,6 +565,7 @@ class Task(JSONLike):
         nesting_order: Optional[List] = None,
         env_preset: Optional[str] = None,
         environments: Optional[Dict[str, Dict[str, Any]]] = None,
+        allow_non_coincident_task_sources: Optional[bool] = False,
         element_sets: Optional[List[app.ElementSet]] = None,
         output_labels: Optional[List[app.OutputLabel]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
@@ -565,6 +579,10 @@ class Task(JSONLike):
             schema names that uniquely identify a task schema. If strings are provided,
             the `TaskSchema` object will be fetched from the known task schemas loaded by
             the app configuration.
+        allow_non_coincident_task_sources
+            If True, if more than one parameter is sourced from the same task, then allow
+            these sources to come from distinct element sub-sets. If False (default),
+            only the intersection of element sub-sets for all parameters are included.
         merge_envs
             If True, merge environment presets (set via the element set `env_preset` key)
             into `resources` using the "any" scope. If False, these presets are ignored.
@@ -616,6 +634,7 @@ class Task(JSONLike):
             env_preset=env_preset,
             environments=environments,
             element_sets=element_sets,
+            allow_non_coincident_task_sources=allow_non_coincident_task_sources,
             sourceable_elem_iters=sourceable_elem_iters,
         )
         self._output_labels = output_labels or []
