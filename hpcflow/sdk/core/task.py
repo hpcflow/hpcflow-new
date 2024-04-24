@@ -923,6 +923,9 @@ class Task(JSONLike):
     def _get_task_source_element_iters(
         self, in_or_out: str, src_task, labelled_path, element_set
     ) -> List[int]:
+        """Get a sorted list of element iteration IDs that provide either inputs or
+        outputs from the provided source task."""
+
         if in_or_out == "input":
             # input parameter might not be provided e.g. if it is only used
             # to generate an input file, and that input file is passed
@@ -940,7 +943,7 @@ class Task(JSONLike):
             src_elem_iters = []
             for es_idx_i in es_idx:
                 es_i = src_task.element_sets[es_idx_i]
-                src_elem_iters += es_i.elem_iter_IDs
+                src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
 
         if element_set.sourceable_elem_iters is not None:
             # can only use a subset of element iterations (this is the
@@ -948,8 +951,8 @@ class Task(JSONLike):
             # element set, in which case we only want to consider newly
             # added upstream elements when adding elements from this
             # element set):
-            src_elem_iters = list(
-                set(element_set.sourceable_elem_iters) & set(src_elem_iters)
+            src_elem_iters = sorted(
+                list(set(element_set.sourceable_elem_iters) & set(src_elem_iters))
             )
 
         return src_elem_iters
@@ -1422,8 +1425,8 @@ class WorkflowTask:
             return self.dir_name
         return self.dir_name + "_" + "_".join((f"{k}-{v}" for k, v in loop_idx.items()))
 
-    def get_all_element_iterations(self):
-        return [j for i in self.elements[:] for j in i.iterations]
+    def get_all_element_iterations(self) -> Dict[int, app.ElementIteration]:
+        return {j.id_: j for i in self.elements for j in i.iterations}
 
     def _make_new_elements_persistent(self, element_set, element_set_idx):
         """Save parameter data to the persistent workflow."""
@@ -1519,9 +1522,8 @@ class WorkflowTask:
                     if inp_src.element_iters:
                         # only include "sourceable" element iterations:
                         src_elem_iters = [
-                            i for i in src_elem_iters if i.id_ in inp_src.element_iters
+                            src_elem_iters[i] for i in inp_src.element_iters
                         ]
-
                         src_elem_set_idx = [
                             i.element.element_set_idx for i in src_elem_iters
                         ]
@@ -1695,7 +1697,7 @@ class WorkflowTask:
                     elem_iters_IDs = specified_source.element_iters
 
                 if specified_source.where:
-                    # filter iter IDs by user-specified rules:
+                    # filter iter IDs by user-specified rules, maintaining order:
                     elem_iters = self.workflow.get_element_iterations_from_IDs(
                         elem_iters_IDs
                     )
@@ -1806,11 +1808,13 @@ class WorkflowTask:
                 for src_i in sources.values():
                     intersect_task_i.intersection_update(src_i.element_iters)
 
-                # now change elements for the affected input sources:
+                # now change elements for the affected input sources.
+                # sort by original order of first_src.element_iters
+                int_task_i_lst = [
+                    i for i in first_src.element_iters if i in intersect_task_i
+                ]
                 for inp_type in sources.keys():
-                    element_set.input_sources[inp_type][0].element_iters = list(
-                        intersect_task_i
-                    )
+                    element_set.input_sources[inp_type][0].element_iters = int_task_i_lst
 
         if missing:
             missing_str = ", ".join(f"{i!r}" for i in missing)
