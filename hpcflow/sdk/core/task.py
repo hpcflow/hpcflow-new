@@ -19,6 +19,7 @@ from .errors import (
     MayNeedObjectError,
     MissingInputs,
     NoAvailableElementSetsError,
+    NoCoincidentInputSources,
     TaskTemplateInvalidNesting,
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
@@ -1779,7 +1780,7 @@ class WorkflowTask:
             # if multiple parameters are sourced from the same upstream task, only use
             # element iterations for which all parameters are available (the set
             # intersection):
-            for sources in sources_by_task.values():
+            for task_ref, sources in sources_by_task.items():
                 # if a parameter has multiple labels, disregard from this by removing all
                 # parameters:
                 seen_labelled = {}
@@ -1807,6 +1808,16 @@ class WorkflowTask:
                 intersect_task_i = set(first_src.element_iters)
                 for src_i in sources.values():
                     intersect_task_i.intersection_update(src_i.element_iters)
+                if not intersect_task_i:
+                    raise NoCoincidentInputSources(
+                        f"Task {self.name!r}: input sources from task {task_ref!r} have "
+                        f"no coincident applicable element iterations. Consider setting "
+                        f"the element set (or task) argument "
+                        f"`allow_non_coincident_task_sources` to `True`, which will "
+                        f"allow for input sources from the same task to use different "
+                        f"(non-coinciding) subsets of element iterations from the "
+                        f"source task."
+                    )
 
                 # now change elements for the affected input sources.
                 # sort by original order of first_src.element_iters

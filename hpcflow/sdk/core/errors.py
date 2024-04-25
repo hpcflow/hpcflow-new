@@ -63,6 +63,10 @@ class InapplicableInputSourceElementIters(ValueError):
     pass
 
 
+class NoCoincidentInputSources(ValueError):
+    pass
+
+
 class TaskTemplateInvalidNesting(ValueError):
     pass
 

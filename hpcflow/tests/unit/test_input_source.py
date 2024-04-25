@@ -4,6 +4,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import (
     InapplicableInputSourceElementIters,
     MissingInputs,
+    NoCoincidentInputSources,
     UnavailableInputSource,
 )
 from hpcflow.sdk.core.test_utils import (
@@ -1002,3 +1003,33 @@ def test_input_source_task_input_from_multiple_element_sets_with_param_sequence(
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
     assert len(wk.tasks[1].elements) == 3
     assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 2, 3]
+
+
+def test_raise_no_coincident_input_sources(null_config, tmp_path):
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": 100},
+        sequences=[
+            hf.ValueSequence.from_range(path="inputs.p2", start=0, stop=4),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        allow_non_coincident_task_sources=False,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[2, 3]
+                )
+            ],
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(NoCoincidentInputSources):
+        hf.Workflow.from_template(wkt, path=tmp_path)
