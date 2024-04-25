@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a165"></a>
+## [v0.2.0a165](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a164...v0.2.0a165) - 2024.04.25
+
+### ✨ Features
+
+* add `seed` input when creating random a `ValueSequence`
+* create a `ValueSequence` from a random sample of a uniform distribution a
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a164"></a>
 ## [v0.2.0a164](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a163...v0.2.0a164) - 2024.04.23
 
