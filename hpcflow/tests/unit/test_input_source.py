@@ -1209,3 +1209,54 @@ def test_input_source_inputs_from_multiple_element_sets_with_sub_parameter_seque
         {"a": 4, "b": 22},
         {"a": 5, "b": 33},
     ]
+
+
+def test_input_source_inputs_from_multiple_element_sets_with_sub_parameter_sequences_mixed_padding(
+    null_config, tmp_path
+):
+
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                nesting_order={"inputs.p1.a": 0, "inputs.p1.b": 1},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[4, 5],
+                    ),
+                    hf.ValueSequence(
+                        path="inputs.p1.b",
+                        values=[22],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        # `p1.b` has a different nesting order to the root param `p1`, so it will not be
+        # "padded" to have the same multiplicity as `p1`/`p1.a`. With a higher nesting
+        # order, it will be "applied" to all other elements, meaning we'll gain a value
+        # for `p1.b` for all elements (including from the first element set, which didn't
+        # have a value for `p1.b`):
+        nesting_order={
+            "inputs.p1": 0,
+            "inputs.p1.a": 0,
+            "inputs.p1.b": 1,
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 4
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [
+        {"a": 1, "b": 22},
+        {"a": 1, "b": 22},
+        {"a": 5, "b": 22},
+        {"a": 5, "b": 22},
+    ]
