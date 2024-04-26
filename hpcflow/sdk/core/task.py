@@ -853,10 +853,6 @@ class Task(JSONLike):
 
         return names
 
-    def _get_nesting_order(self, seq):
-        """Find the nesting order for a task sequence."""
-        return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
-
     @TimeIt.decorator
     def _prepare_persistent_outputs(self, workflow, local_element_idx_range):
         # TODO: check that schema is present when adding task? (should this be here?)
