@@ -826,12 +826,7 @@ class ValueSequence(JSONLike):
                     and self._values_are_objs[idx]
                     and not isinstance(val_i, self.parameter._value_class)
                 ):
-                    method_name = param_i.source.get("value_class_method")
-                    if method_name:
-                        method = getattr(self.parameter._value_class, method_name)
-                    else:
-                        method = self.parameter._value_class
-                    val_i = method(**val_i)
+                    val_i = self.parameter._value_class(**val_i)
 
                 vals.append(val_i)
             return vals
