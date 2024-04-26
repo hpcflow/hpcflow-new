@@ -17,6 +17,7 @@ from .errors import (
     ContainerKeyError,
     ExtraInputs,
     InapplicableInputSourceElementIters,
+    MalformedNestingOrderPath,
     MayNeedObjectError,
     MissingInputs,
     NoAvailableElementSetsError,
@@ -270,6 +271,16 @@ class ElementSet(JSONLike):
                     "nesting_order": 0,
                 }
             ]
+
+        # check `nesting_order` paths:
+        allowed_nesting_paths = ("inputs", "resources", "repeats")
+        for k in self.nesting_order:
+            if k.split(".")[0] not in allowed_nesting_paths:
+                raise MalformedNestingOrderPath(
+                    f"Element set: nesting order path {k!r} not understood. Each key in "
+                    f"`nesting_order` must be start with one of "
+                    f"{allowed_nesting_paths!r}."
+                )
 
         inp_paths = [i.normalised_inputs_path for i in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)

@@ -721,7 +721,7 @@ def test_expected_name_two_schemas_both_with_method_and_implementation():
 def test_raise_on_negative_nesting_order():
     s1 = make_schemas([[{"p1": None}, ()]])
     with pytest.raises(TaskTemplateInvalidNesting):
-        hf.Task(schema=s1, nesting_order={"p1": -1})
+        hf.Task(schema=s1, nesting_order={"inputs.p1": -1})
 
 
 # TODO: test resolution of elements and with raise MissingInputs

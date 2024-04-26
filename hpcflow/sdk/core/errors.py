@@ -143,6 +143,10 @@ class MalformedParameterPathError(ValueError):
     pass
 
 
+class MalformedNestingOrderPath(ValueError):
+    pass
+
+
 class UnknownResourceSpecItemError(ValueError):
     pass
 
