@@ -129,7 +129,7 @@ jobs:
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           ref: {% raw %}${{ github.ref }}{% endraw %}
 
@@ -145,7 +145,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ./.venv
           key: {% raw %}venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}{% endraw %}
@@ -211,7 +211,7 @@ jobs:
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           ref: {% raw %}${{ github.ref }}{% endraw %}
 
@@ -227,7 +227,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ./.venv
           key: {% raw %}venv-CentOS-test-${{ hashFiles('**/poetry.lock') }}{% endraw %}
