@@ -351,13 +351,13 @@ jobs:
         run: ./compress.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir 'onedir'
 
       - name: Upload executable artifact (file)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
           path: pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux
 
       - name: Upload executable artifact (compressed folder)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir.zip
           path: pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir.zip
