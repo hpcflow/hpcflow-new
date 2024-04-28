@@ -292,28 +292,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if: github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux
 
       - name: Upload executable artifact (folder)
         if: github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-linux.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: hpcflow-${{ env.vers }}-linux-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-linux
