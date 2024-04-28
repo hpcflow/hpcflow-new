@@ -1,10 +1,16 @@
 import numpy as np
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import MissingInputs
+from hpcflow.sdk.core.errors import (
+    InapplicableInputSourceElementIters,
+    MissingInputs,
+    NoCoincidentInputSources,
+    UnavailableInputSource,
+)
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
+    make_schemas,
 )
 
 
@@ -660,3 +666,597 @@ def test_sub_parameter_task_input_source_allowed_when_root_parameter_is_task_out
         ],
         "p2": [hf.InputSource.local()],
     }
+
+
+def test_raise_unavailable_input_source(null_config, tmp_path):
+    t1 = hf.Task(schema=hf.task_schemas.test_t1_ps, inputs={"p1": 1})
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={"p1": [hf.InputSource.local()]},
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(UnavailableInputSource):
+        hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+def test_input_source_specify_element_iters(null_config, tmp_path):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 2]
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 3]
+
+
+def test_input_source_raise_on_inapplicable_specified_element_iters(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 4]
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(InapplicableInputSourceElementIters):
+        hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+def test_input_source_specify_element_iters_and_where(null_config, tmp_path):
+    """Test the where argument further filters the element_iters argument."""
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[{"a": 1}, {"a": 2}, {"a": 3}],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0,
+                    task_source_type="input",
+                    element_iters=[0, 2],
+                    where=hf.Rule(path="inputs.p1.a", condition={"value.equal_to": 3}),
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 1
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [3]
+
+
+def test_element_iters_order_with_allow_non_coincident_task_sources_False(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[11, 12, 13],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[2, 0, 1]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=False,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 3
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [13, 11, 12]
+
+
+def test_element_iters_order_with_allow_non_coincident_task_sources_True(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[11, 12, 13],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[2, 0, 1]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=True,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 3
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [13, 11, 12]
+
+
+def test_element_iters_order_with_allow_non_coincident_task_sources_True_multiple_sources(
+    null_config, tmp_path
+):
+    """Test no-reordering of specified element iterations of sources from the same task."""
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+
+    t1 = hf.Task(
+        schema=s1,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[11, 12, 13],
+            ),
+            hf.ValueSequence(
+                path="inputs.p2",
+                values=[21, 22, 23],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[1, 0]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=True,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [11, 12]
+    assert [i.value for i in wk.tasks[1].inputs.p2] == [22, 21]
+
+
+def test_element_iters_order_with_allow_non_coincident_task_sources_False_multiple_sources(
+    null_config, tmp_path
+):
+    """Test reordering of specified element iterations of sources from the same task."""
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+
+    t1 = hf.Task(
+        schema=s1,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[11, 12, 13],
+            ),
+            hf.ValueSequence(
+                path="inputs.p2",
+                values=[21, 22, 23],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[1, 0]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=False,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [11, 12]
+    assert [i.value for i in wk.tasks[1].inputs.p2] == [21, 22]
+
+
+def test_not_allow_non_coincident_task_sources(null_config, tmp_path):
+    """Test only one coincident element from the two input sources"""
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": 1},
+        sequences=[
+            hf.ValueSequence(path="inputs.p2", values=[21, 22, 23]),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[1, 2]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=False,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 1
+    assert [i.value for i in wk.tasks[1].inputs.p2] == [22]
+
+
+def test_allow_non_coincident_task_sources(null_config, tmp_path):
+    """Test can combine inputs from non-coincident element iterations of the same task."""
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    t1 = hf.Task(
+        schema=s1,
+        sequences=[
+            hf.ValueSequence(
+                path="inputs.p1",
+                values=[11, 12, 13],
+            ),
+            hf.ValueSequence(
+                path="inputs.p2",
+                values=[21, 22, 23],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[1, 2]
+                )
+            ],
+        },
+        allow_non_coincident_task_sources=True,
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [11, 12]
+    assert [i.value for i in wk.tasks[1].inputs.p2] == [22, 23]
+
+
+def test_input_source_task_input_from_multiple_element_sets_with_param_sequence(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(inputs={"p1": {"a": 1}}),
+            hf.ElementSet(
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1",
+                        values=[{"a": 2}, {"a": 3}],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(schema=hf.task_schemas.test_t1_ps)
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 3
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 2, 3]
+
+
+def test_raise_no_coincident_input_sources(null_config, tmp_path):
+    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": 100},
+        sequences=[
+            hf.ValueSequence.from_range(path="inputs.p2", start=0, stop=4),
+        ],
+    )
+    t2 = hf.Task(
+        schema=s1,
+        allow_non_coincident_task_sources=False,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ],
+            "p2": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[2, 3]
+                )
+            ],
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    with pytest.raises(NoCoincidentInputSources):
+        hf.Workflow.from_template(wkt, path=tmp_path)
+
+
+def test_input_source_task_input_from_multiple_element_sets_with_sub_param_sequence(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(inputs={"p1": {"a": 1}}),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[2, 3],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(schema=hf.task_schemas.test_t1_ps)
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 3
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 2, 3]
+
+
+def test_input_source_task_input_from_multiple_element_sets_with_sub_param_sequence_manual_sources_root_param(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(inputs={"p1": {"a": 1}}),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[2, 3],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            "p1": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[0, 1]
+                )
+            ]
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+    assert len(wk.tasks[1].elements) == 2
+    assert [i.value["a"] for i in wk.tasks[1].inputs.p1] == [1, 2]
+
+
+def test_input_source_inputs_from_multiple_element_sets_with_sub_parameter_sequences_complex(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[2],
+                    ),
+                ],
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.c",
+                        values=[2, 3],
+                    ),
+                ],
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.b",
+                        values=[22, 33],
+                    ),
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[4, 5],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(schema=hf.task_schemas.test_t1_ps)
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 5
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [
+        {"a": 2},
+        {"a": 1, "c": 2},
+        {"a": 1, "c": 3},
+        {"a": 4, "b": 22},
+        {"a": 5, "b": 33},
+    ]
+
+
+def test_input_source_inputs_from_multiple_element_sets_with_sub_parameter_sequences_complex_reordered_iters(
+    null_config, tmp_path
+):
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[2],
+                    ),
+                ],
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.c",
+                        values=[2, 3],
+                    ),
+                ],
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.b",
+                        values=[22, 33],
+                    ),
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[4, 5],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        input_sources={
+            # reordered p1.c elem iters:
+            "p1.c": [
+                hf.InputSource.task(
+                    task_ref=0, task_source_type="input", element_iters=[2, 1]
+                )
+            ]
+        },
+        allow_non_coincident_task_sources=True,  # to maintain custom ordering
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 5
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [
+        {"a": 2},
+        {"a": 1, "c": 3},
+        {"a": 1, "c": 2},
+        {"a": 4, "b": 22},
+        {"a": 5, "b": 33},
+    ]
+
+
+def test_input_source_inputs_from_multiple_element_sets_with_sub_parameter_sequences_mixed_padding(
+    null_config, tmp_path
+):
+
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        element_sets=[
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+            ),
+            hf.ElementSet(
+                inputs={"p1": {"a": 1}},
+                nesting_order={"inputs.p1.a": 0, "inputs.p1.b": 1},
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1.a",
+                        values=[4, 5],
+                    ),
+                    hf.ValueSequence(
+                        path="inputs.p1.b",
+                        values=[22],
+                    ),
+                ],
+            ),
+        ],
+    )
+    t2 = hf.Task(
+        schema=hf.task_schemas.test_t1_ps,
+        # `p1.b` has a different nesting order to the root param `p1`, so it will not be
+        # "padded" to have the same multiplicity as `p1`/`p1.a`. With a higher nesting
+        # order, it will be "applied" to all other elements, meaning we'll gain a value
+        # for `p1.b` for all elements (including from the first element set, which didn't
+        # have a value for `p1.b`):
+        nesting_order={
+            "inputs.p1": 0,
+            "inputs.p1.a": 0,
+            "inputs.p1.b": 1,
+        },
+    )
+    wkt = hf.WorkflowTemplate(name="test", tasks=[t1, t2])
+    wk = hf.Workflow.from_template(wkt, path=tmp_path)
+
+    assert len(wk.tasks[1].elements) == 4
+    assert [i.value for i in wk.tasks[1].inputs.p1] == [
+        {"a": 1, "b": 22},
+        {"a": 1, "b": 22},
+        {"a": 5, "b": 22},
+        {"a": 5, "b": 22},
+    ]

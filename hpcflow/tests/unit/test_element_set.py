@@ -1,5 +1,6 @@
 import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.errors import MalformedNestingOrderPath
 
 
 @pytest.fixture
@@ -101,3 +102,12 @@ def test_merge_envs_no_envs_with_resource_envs(null_config):
 def test_raise_env_and_envs_specified(null_config):
     with pytest.raises(ValueError):
         hf.ElementSet(env_preset="my_preset", environments={"my_env": {"version": 1}})
+
+
+def test_nesting_order_paths_raise(null_config):
+    with pytest.raises(MalformedNestingOrderPath):
+        hf.ElementSet(nesting_order={"bad_path.p1": 1})
+
+
+def test_nesting_order_paths_no_raise(null_config):
+    hf.ElementSet(nesting_order={"inputs.p1": 1, "resources.any": 2, "repeats": 3})

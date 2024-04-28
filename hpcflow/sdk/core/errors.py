@@ -55,6 +55,18 @@ class ExtraInputs(Exception):
         super().__init__(message)
 
 
+class UnavailableInputSource(ValueError):
+    pass
+
+
+class InapplicableInputSourceElementIters(ValueError):
+    pass
+
+
+class NoCoincidentInputSources(ValueError):
+    pass
+
+
 class TaskTemplateInvalidNesting(ValueError):
     pass
 
@@ -128,6 +140,10 @@ class ValuesAlreadyPersistentError(Exception):
 
 
 class MalformedParameterPathError(ValueError):
+    pass
+
+
+class MalformedNestingOrderPath(ValueError):
     pass
 
 

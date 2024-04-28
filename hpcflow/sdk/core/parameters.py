@@ -1817,7 +1817,7 @@ class InputSource(JSONLike):
                 f"task_source_type={self.task_source_type.name.lower()!r}",
             )
 
-        if self.element_iters:
+        if self.element_iters is not None:
             args_lst.append(f"element_iters={self.element_iters}")
 
         if self.where is not None:
@@ -1855,7 +1855,7 @@ class InputSource(JSONLike):
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]
-            if self.element_iters:
+            if self.element_iters is not None:
                 out += ["[" + ",".join(f"{i}" for i in self.element_iters) + "]"]
         elif self.source_type is InputSourceType.IMPORT:
             out += [str(self.import_ref)]

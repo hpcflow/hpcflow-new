@@ -1,7 +1,7 @@
 from __future__ import annotations
+from collections import defaultdict
 import copy
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
@@ -11,20 +11,23 @@ from valida.rules import Rule
 from hpcflow.sdk import app
 from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.shells import DEFAULT_SHELL_NAMES
 from .json_like import ChildObjectSpec, JSONLike
 from .element import ElementGroup
 from .errors import (
     ContainerKeyError,
     ExtraInputs,
+    InapplicableInputSourceElementIters,
+    MalformedNestingOrderPath,
     MayNeedObjectError,
     MissingInputs,
     NoAvailableElementSetsError,
+    NoCoincidentInputSources,
     TaskTemplateInvalidNesting,
     TaskTemplateMultipleInputValues,
     TaskTemplateMultipleSchemaObjectives,
     TaskTemplateUnexpectedInput,
     TaskTemplateUnexpectedSequenceInput,
+    UnavailableInputSource,
     UnknownEnvironmentPresetError,
     UnrequiredInputSources,
     UnsetParameterDataError,
@@ -269,6 +272,16 @@ class ElementSet(JSONLike):
                 }
             ]
 
+        # check `nesting_order` paths:
+        allowed_nesting_paths = ("inputs", "resources", "repeats")
+        for k in self.nesting_order:
+            if k.split(".")[0] not in allowed_nesting_paths:
+                raise MalformedNestingOrderPath(
+                    f"Element set: nesting order path {k!r} not understood. Each key in "
+                    f"`nesting_order` must be start with one of "
+                    f"{allowed_nesting_paths!r}."
+                )
+
         inp_paths = [i.normalised_inputs_path for i in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)
         if dup_inp_paths:
@@ -358,6 +371,7 @@ class ElementSet(JSONLike):
         nesting_order=None,
         env_preset=None,
         environments=None,
+        allow_non_coincident_task_sources=None,
         element_sets=None,
         sourceable_elem_iters=None,
     ):
@@ -381,10 +395,22 @@ class ElementSet(JSONLike):
                     "If providing an `element_set`, no other arguments are allowed."
                 )
             else:
-                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
+                element_sets = [
+                    cls(
+                        *args,
+                        sourceable_elem_iters=sourceable_elem_iters,
+                        allow_non_coincident_task_sources=allow_non_coincident_task_sources,
+                    )
+                ]
         else:
             if element_sets is None:
-                element_sets = [cls(*args, sourceable_elem_iters=sourceable_elem_iters)]
+                element_sets = [
+                    cls(
+                        *args,
+                        sourceable_elem_iters=sourceable_elem_iters,
+                        allow_non_coincident_task_sources=allow_non_coincident_task_sources,
+                    )
+                ]
 
         return element_sets
 
@@ -552,6 +578,7 @@ class Task(JSONLike):
         nesting_order: Optional[List] = None,
         env_preset: Optional[str] = None,
         environments: Optional[Dict[str, Dict[str, Any]]] = None,
+        allow_non_coincident_task_sources: Optional[bool] = False,
         element_sets: Optional[List[app.ElementSet]] = None,
         output_labels: Optional[List[app.OutputLabel]] = None,
         sourceable_elem_iters: Optional[List[int]] = None,
@@ -565,6 +592,10 @@ class Task(JSONLike):
             schema names that uniquely identify a task schema. If strings are provided,
             the `TaskSchema` object will be fetched from the known task schemas loaded by
             the app configuration.
+        allow_non_coincident_task_sources
+            If True, if more than one parameter is sourced from the same task, then allow
+            these sources to come from distinct element sub-sets. If False (default),
+            only the intersection of element sub-sets for all parameters are included.
         merge_envs
             If True, merge environment presets (set via the element set `env_preset` key)
             into `resources` using the "any" scope. If False, these presets are ignored.
@@ -616,6 +647,7 @@ class Task(JSONLike):
             env_preset=env_preset,
             environments=environments,
             element_sets=element_sets,
+            allow_non_coincident_task_sources=allow_non_coincident_task_sources,
             sourceable_elem_iters=sourceable_elem_iters,
         )
         self._output_labels = output_labels or []
@@ -821,10 +853,6 @@ class Task(JSONLike):
 
         return names
 
-    def _get_nesting_order(self, seq):
-        """Find the nesting order for a task sequence."""
-        return self.nesting_order[seq.normalised_path] if len(seq.values) > 1 else -1
-
     @TimeIt.decorator
     def _prepare_persistent_outputs(self, workflow, local_element_idx_range):
         # TODO: check that schema is present when adding task? (should this be here?)
@@ -904,6 +932,9 @@ class Task(JSONLike):
     def _get_task_source_element_iters(
         self, in_or_out: str, src_task, labelled_path, element_set
     ) -> List[int]:
+        """Get a sorted list of element iteration IDs that provide either inputs or
+        outputs from the provided source task."""
+
         if in_or_out == "input":
             # input parameter might not be provided e.g. if it is only used
             # to generate an input file, and that input file is passed
@@ -921,7 +952,7 @@ class Task(JSONLike):
             src_elem_iters = []
             for es_idx_i in es_idx:
                 es_i = src_task.element_sets[es_idx_i]
-                src_elem_iters += es_i.elem_iter_IDs
+                src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
 
         if element_set.sourceable_elem_iters is not None:
             # can only use a subset of element iterations (this is the
@@ -929,8 +960,8 @@ class Task(JSONLike):
             # element set, in which case we only want to consider newly
             # added upstream elements when adding elements from this
             # element set):
-            src_elem_iters = list(
-                set(element_set.sourceable_elem_iters) & set(src_elem_iters)
+            src_elem_iters = sorted(
+                list(set(element_set.sourceable_elem_iters) & set(src_elem_iters))
             )
 
         return src_elem_iters
@@ -1269,10 +1300,14 @@ class Task(JSONLike):
         for es_i in self.element_sets:
             for inp_j in es_i.inputs:
                 if inp_j.is_sub_value:
-                    out.append(("input", inp_j.normalised_inputs_path))
+                    val_j = ("input", inp_j.normalised_inputs_path)
+                    if val_j not in out:
+                        out.append(val_j)
             for seq_j in es_i.sequences:
                 if seq_j.is_sub_value:
-                    out.append(("input", seq_j.normalised_inputs_path))
+                    val_j = ("input", seq_j.normalised_inputs_path)
+                    if val_j not in out:
+                        out.append(val_j)
 
         return tuple(out)
 
@@ -1399,10 +1434,12 @@ class WorkflowTask:
             return self.dir_name
         return self.dir_name + "_" + "_".join((f"{k}-{v}" for k, v in loop_idx.items()))
 
-    def get_all_element_iterations(self):
-        return [j for i in self.elements[:] for j in i.iterations]
+    def get_all_element_iterations(self) -> Dict[int, app.ElementIteration]:
+        return {j.id_: j for i in self.elements for j in i.iterations}
 
-    def _make_new_elements_persistent(self, element_set, element_set_idx):
+    def _make_new_elements_persistent(
+        self, element_set, element_set_idx, padded_elem_iters
+    ):
         """Save parameter data to the persistent workflow."""
 
         # TODO: rewrite. This method is a little hard to follow and results in somewhat
@@ -1496,9 +1533,8 @@ class WorkflowTask:
                     if inp_src.element_iters:
                         # only include "sourceable" element iterations:
                         src_elem_iters = [
-                            i for i in src_elem_iters if i.id_ in inp_src.element_iters
+                            src_elem_iters[i] for i in inp_src.element_iters
                         ]
-
                         src_elem_set_idx = [
                             i.element.element_set_idx for i in src_elem_iters
                         ]
@@ -1512,8 +1548,14 @@ class WorkflowTask:
                     else:
                         src_key = f"{task_source_type}s.{labelled_path_i}"
 
+                    padded_iters = padded_elem_iters.get(labelled_path_i, [])
                     grp_idx = [
-                        iter_i.get_data_idx()[src_key] for iter_i in src_elem_iters
+                        (
+                            iter_i.get_data_idx()[src_key]
+                            if iter_i_idx not in padded_iters
+                            else -1
+                        )
+                        for iter_i_idx, iter_i in enumerate(src_elem_iters)
                     ]
 
                     if inp_group_name:
@@ -1523,7 +1565,6 @@ class WorkflowTask:
                         ):
                             src_es = src_task.template.element_sets[src_set_idx_i]
                             if inp_group_name in [i.name for i in src_es.groups or []]:
-                                # print(f"IN GROUP; {dat_idx_i}; {src_set_idx_i=}")
                                 group_dat_idx.append(dat_idx_i)
                             else:
                                 # if for any recursive iteration dependency, this group is
@@ -1570,7 +1611,7 @@ class WorkflowTask:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
 
-                    else:
+                    else:  # BUG: doesn't work for multiple task inputs sources
                         # overwrite existing local source (if it exists):
                         input_data_idx[key] = grp_idx
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
@@ -1594,7 +1635,7 @@ class WorkflowTask:
 
         return (input_data_idx, sequence_idx, source_idx)
 
-    def ensure_input_sources(self, element_set):
+    def ensure_input_sources(self, element_set) -> Dict[str, List[int]]:
         """Check valid input sources are specified for a new task to be added to the
         workflow in a given position. If none are specified, set them according to the
         default behaviour.
@@ -1649,29 +1690,38 @@ class WorkflowTask:
                     specified_source, self.unique_name
                 )
                 avail_idx = specified_source.is_in(avail_i)
-                available_source = avail_i[avail_idx]
-                if avail_idx is None:
-                    raise ValueError(
+                try:
+                    available_source = avail_i[avail_idx]
+                except TypeError:
+                    raise UnavailableInputSource(
                         f"The input source {specified_source.to_string()!r} is not "
                         f"available for input path {path_i!r}. Available "
                         f"input sources are: {[i.to_string() for i in avail_i]}."
-                    )
-                else:
-                    # overwrite with the source from available_sources, since it may have
-                    # the `element_iters` attribute assigned, but first check if we need
-                    # to filter:
-                    filtered_IDs = None
-                    if specified_source.where:
-                        elem_iters = self.workflow.get_element_iterations_from_IDs(
-                            available_source.element_iters
+                    ) from None
+
+                elem_iters_IDs = available_source.element_iters
+                if specified_source.element_iters:
+                    # user-specified iter IDs; these must be a subset of available
+                    # element_iters:
+                    if not set(specified_source.element_iters).issubset(elem_iters_IDs):
+                        raise InapplicableInputSourceElementIters(
+                            f"The specified `element_iters` for input source "
+                            f"{specified_source.to_string()!r} are not all applicable. "
+                            f"Applicable element iteration IDs for this input source "
+                            f"are: {elem_iters_IDs!r}."
                         )
-                        filtered = specified_source.where.filter(elem_iters)
-                        filtered_IDs = [i.id_ for i in filtered]
+                    elem_iters_IDs = specified_source.element_iters
 
-                    if filtered_IDs is not None:
-                        available_source.element_iters = filtered_IDs
+                if specified_source.where:
+                    # filter iter IDs by user-specified rules, maintaining order:
+                    elem_iters = self.workflow.get_element_iterations_from_IDs(
+                        elem_iters_IDs
+                    )
+                    filtered = specified_source.where.filter(elem_iters)
+                    elem_iters_IDs = [i.id_ for i in filtered]
 
-                    element_set.input_sources[path_i][s_idx] = available_source
+                available_source.element_iters = elem_iters_IDs
+                element_set.input_sources[path_i][s_idx] = available_source
 
         # sorting ensures that root parameters come before sub-parameters, which is
         # necessary when considering if we want to include a sub-parameter, when setting
@@ -1729,23 +1779,98 @@ class WorkflowTask:
                 if not has_root_param:
                     set_root_params.append(input_type)
 
+        # for task sources that span multiple element sets, pad out sub-parameter
+        # `element_iters` to include the element iterations from other element sets in
+        # which the "root" parameter is defined:
+        sources_by_task = defaultdict(dict)
+        elem_iter_by_task = defaultdict(dict)
+        all_elem_iters = set()
+        for inp_type, sources in element_set.input_sources.items():
+            source = sources[0]
+            if source.source_type is InputSourceType.TASK:
+                sources_by_task[source.task_ref][inp_type] = source
+                all_elem_iters.update(source.element_iters)
+                elem_iter_by_task[source.task_ref][inp_type] = source.element_iters
+
+        all_elem_iter_objs = self.workflow.get_element_iterations_from_IDs(all_elem_iters)
+        all_elem_iters_by_ID = {i.id_: i for i in all_elem_iter_objs}
+
+        # element set indices:
+        padded_elem_iters = defaultdict(list)
+        es_idx_by_task = defaultdict(dict)
+        for task_ref, task_iters in elem_iter_by_task.items():
+            for inp_type, inp_iters in task_iters.items():
+                es_indices = [
+                    all_elem_iters_by_ID[i].element.element_set_idx for i in inp_iters
+                ]
+                es_idx_by_task[task_ref][inp_type] = (es_indices, set(es_indices))
+            root_params = {k for k in task_iters if "." not in k}
+            root_param_nesting = {
+                k: element_set.nesting_order.get(f"inputs.{k}", None) for k in root_params
+            }
+            for root_param_i in root_params:
+                sub_params = {
+                    k
+                    for k in task_iters
+                    if k.split(".")[0] == root_param_i and k != root_param_i
+                }
+                rp_elem_sets = es_idx_by_task[task_ref][root_param_i][0]
+                rp_elem_sets_uniq = es_idx_by_task[task_ref][root_param_i][1]
+
+                for sub_param_j in sub_params:
+                    sub_param_nesting = element_set.nesting_order.get(
+                        f"inputs.{sub_param_j}", None
+                    )
+                    if sub_param_nesting == root_param_nesting[root_param_i]:
+
+                        sp_elem_sets_uniq = es_idx_by_task[task_ref][sub_param_j][1]
+
+                        if sp_elem_sets_uniq != rp_elem_sets_uniq:
+
+                            # replace elem_iters in sub-param sequence with those from the
+                            # root parameter, but re-order the elem iters to match their
+                            # original order:
+                            iters_copy = elem_iter_by_task[task_ref][root_param_i][:]
+
+                            # "mask" iter IDs corresponding to the sub-parameter's element
+                            # sets, and keep track of the extra indices so they can be
+                            # ignored later:
+                            sp_iters_new = []
+                            for idx, (i, j) in enumerate(zip(iters_copy, rp_elem_sets)):
+                                if j in sp_elem_sets_uniq:
+                                    sp_iters_new.append(None)
+                                else:
+                                    sp_iters_new.append(i)
+                                    padded_elem_iters[sub_param_j].append(idx)
+
+                            # fill in sub-param elem_iters in their specified order
+                            sub_iters_it = iter(elem_iter_by_task[task_ref][sub_param_j])
+                            sp_iters_new = [
+                                i if i is not None else next(sub_iters_it)
+                                for i in sp_iters_new
+                            ]
+
+                            # update sub-parameter element iters:
+                            for src_idx, src in enumerate(
+                                element_set.input_sources[sub_param_j]
+                            ):
+                                if src.source_type is InputSourceType.TASK:
+                                    element_set.input_sources[sub_param_j][
+                                        src_idx
+                                    ].element_iters = sp_iters_new
+                                    # assumes only a single task-type source for this
+                                    # parameter
+                                    break
+
         # TODO: collate all input sources separately, then can fall back to a different
         # input source (if it was not specified manually) and if the "top" input source
         # results in no available elements due to `allow_non_coincident_task_sources`.
 
         if not element_set.allow_non_coincident_task_sources:
-            sources_by_task = {}
-            for inp_type, sources in element_set.input_sources.items():
-                source = sources[0]
-                if source.source_type is InputSourceType.TASK:
-                    if source.task_ref not in sources_by_task:
-                        sources_by_task[source.task_ref] = {}
-                    sources_by_task[source.task_ref][inp_type] = source
-
             # if multiple parameters are sourced from the same upstream task, only use
             # element iterations for which all parameters are available (the set
             # intersection):
-            for sources in sources_by_task.values():
+            for task_ref, sources in sources_by_task.items():
                 # if a parameter has multiple labels, disregard from this by removing all
                 # parameters:
                 seen_labelled = {}
@@ -1773,12 +1898,24 @@ class WorkflowTask:
                 intersect_task_i = set(first_src.element_iters)
                 for src_i in sources.values():
                     intersect_task_i.intersection_update(src_i.element_iters)
-
-                # now change elements for the affected input sources:
-                for inp_type in sources.keys():
-                    element_set.input_sources[inp_type][0].element_iters = list(
-                        intersect_task_i
+                if not intersect_task_i:
+                    raise NoCoincidentInputSources(
+                        f"Task {self.name!r}: input sources from task {task_ref!r} have "
+                        f"no coincident applicable element iterations. Consider setting "
+                        f"the element set (or task) argument "
+                        f"`allow_non_coincident_task_sources` to `True`, which will "
+                        f"allow for input sources from the same task to use different "
+                        f"(non-coinciding) subsets of element iterations from the "
+                        f"source task."
                     )
+
+                # now change elements for the affected input sources.
+                # sort by original order of first_src.element_iters
+                int_task_i_lst = [
+                    i for i in first_src.element_iters if i in intersect_task_i
+                ]
+                for inp_type in sources.keys():
+                    element_set.input_sources[inp_type][0].element_iters = int_task_i_lst
 
         if missing:
             missing_str = ", ".join(f"{i!r}" for i in missing)
@@ -1786,6 +1923,8 @@ class WorkflowTask:
                 message=f"The following inputs have no sources: {missing_str}.",
                 missing_inputs=missing,
             )
+
+        return padded_elem_iters
 
     def generate_new_elements(
         self,
@@ -1799,7 +1938,11 @@ class WorkflowTask:
         element_sequence_indices = {}
         element_src_indices = {}
         for i_idx, i in enumerate(element_data_indices):
-            elem_i = {k: input_data_indices[k][v] for k, v in i.items()}
+            elem_i = {
+                k: input_data_indices[k][v]
+                for k, v in i.items()
+                if input_data_indices[k][v] != -1
+            }
             elem_i.update({k: v[i_idx] for k, v in output_data_indices.items()})
             new_elements.append(elem_i)
 
@@ -1815,7 +1958,11 @@ class WorkflowTask:
                 if k in source_indices:
                     if k not in element_src_indices:
                         element_src_indices[k] = []
-                    element_src_indices[k].append(source_indices[k][v])
+                    if input_data_indices[k][v] != -1:
+                        src_idx_k = source_indices[k][v]
+                    else:
+                        src_idx_k = -1
+                    element_src_indices[k].append(src_idx_k)
 
         return new_elements, element_sequence_indices, element_src_indices
 
@@ -2003,13 +2150,14 @@ class WorkflowTask:
 
         self.template.set_sequence_parameters(element_set)
 
-        self.ensure_input_sources(element_set)  # may modify element_set.input_sources
+        # may modify element_set.input_sources:
+        padded_elem_iters = self.ensure_input_sources(element_set)
 
         (input_data_idx, seq_idx, src_idx) = self._make_new_elements_persistent(
             element_set=element_set,
             element_set_idx=self.num_element_sets,
+            padded_elem_iters=padded_elem_iters,
         )
-
         element_set.task_template = self.template  # may modify element_set.nesting_order
 
         multiplicities = self.template.prepare_element_resolution(
@@ -2047,7 +2195,7 @@ class WorkflowTask:
                 task_ID=self.insert_ID,
                 es_idx=self.num_element_sets - 1,
                 seq_idx={k: v[elem_idx] for k, v in element_seq_idx.items()},
-                src_idx={k: v[elem_idx] for k, v in element_src_idx.items()},
+                src_idx={k: v[elem_idx] for k, v in element_src_idx.items() if v != -1},
             )
             iter_ID_i = self.workflow._store.add_element_iteration(
                 element_ID=elem_ID_i,
