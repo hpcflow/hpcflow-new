@@ -1,4 +1,74 @@
 
+<a name="v0.2.0a168"></a>
+## [v0.2.0a168](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a167...v0.2.0a168) - 2024.04.28
+
+### 🐛 Bug Fixes
+
+* add a download-artifact[@v3](https://github.com/v3) step in release-github-PyPI to grab CentOS (docker) built executable which cannot use upload-artifact[@v4](https://github.com/v4)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a167"></a>
+## [v0.2.0a167](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a166...v0.2.0a167) - 2024.04.28
+
+### 🐛 Bug Fixes
+
+* revert upload/download-artifact updates in CentOS (docker) job in build-exes
+* revert upload/download-artifact updates in CentOS (docker) job in release
+
+### 👷 Build changes
+
+* update GHAs to fix deprecation warnings
+* update binary download links file [skip ci]
+
+
+<a name="v0.2.0a166"></a>
+## [v0.2.0a166](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a165...v0.2.0a166) - 2024.04.28
+
+### ♻ Code Refactoring
+
+* remove unused method
+* remove unused imports in task.py
+
+### ✨ Features
+
+* maintain input source `element_iter` order if `allow_coincident_task_input_sources` is `False`
+* support user-specified `element_iters` in `InputSource` with `source_type="task"`
+
+### 🐛 Bug Fixes
+
+* partially revert GHA version updates to fix running in old-GLIBC container
+* fix macos runner to macos-13 to workaround macos-latest issues in [#657](https://github.com/hpcflow/hpcflow-new/issues/657)
+* validate `nesting_order` paths
+* support sourcing inputs from sub-parameter sequences in multiple element sets in the upstream task
+* raise on no coincident input sources from the same task
+* add `allow_non_coincident_task_sources` to `Task`
+* raise on unavailable user-specified input source
+* for sub-parameters that appear in multiple element sets of the same ask, fix `Task.provides_parameters`
+
+### 👷 Build changes
+
+* update GHAs to fix deprecation warnings
+* update GHAs to fix deprecation warnings
+* update GHAs to fix deprecation warnings
+
+
+<a name="v0.2.0a165"></a>
+## [v0.2.0a165](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a164...v0.2.0a165) - 2024.04.25
+
+### ✨ Features
+
+* add `seed` input when creating random a `ValueSequence`
+* create a `ValueSequence` from a random sample of a uniform distribution a
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a164"></a>
 ## [v0.2.0a164](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a163...v0.2.0a164) - 2024.04.23
 

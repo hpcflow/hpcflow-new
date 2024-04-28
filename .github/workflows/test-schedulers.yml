@@ -19,7 +19,7 @@ jobs:
       - name: setup slurm
         run: /etc/startup.sh
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
@@ -32,7 +32,7 @@ jobs:
           # this is to fix GIT not liking owner of the checkout dir
           chown -R $(id -u):$(id -g) $PWD
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -45,7 +45,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-slurm-test-${{ hashFiles('**/poetry.lock') }}
@@ -60,11 +60,11 @@ jobs:
   test-direct-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -77,7 +77,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-direct-linux-test-${{ hashFiles('**/poetry.lock') }}
