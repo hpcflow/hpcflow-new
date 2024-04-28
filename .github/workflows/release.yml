@@ -33,7 +33,7 @@ jobs:
     outputs:
       new_tag_name: ${{ steps.get_new_tag.outputs.new_tag_name }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # get all history and tags
           ref: ${{ github.event.pull_request.base.ref }}
@@ -43,7 +43,7 @@ jobs:
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_BUMP }}
 
@@ -161,16 +161,16 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_BUILD_EXES }}
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
@@ -286,7 +286,7 @@ jobs:
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
 
@@ -302,7 +302,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-build-CentOS-${{ hashFiles('**/poetry.lock') }}
@@ -442,16 +442,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_RELEASE }}
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-release-${{ hashFiles('**/poetry.lock') }}
@@ -525,7 +525,7 @@ jobs:
     needs: release-github-PyPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # get all history and tags
           ref: ${{ github.event.pull_request.base.ref }} # otherwise we get the ref when the workflow started (missing above commit)
@@ -535,7 +535,7 @@ jobs:
           git config user.name hpcflow-actions
           git config user.email hpcflow-actions@users.noreply.github.com
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_BUILD_DOCS }}
 
@@ -562,7 +562,7 @@ jobs:
           fi
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: venv-release-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}
@@ -594,11 +594,11 @@ jobs:
     needs: [bump-version, release-github-PyPI, build-documentation]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION_UPDATE_WEB }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: hpcflow/hpcflow.github.io
           token: ${{ secrets.HPCFLOW_ACTIONS_TOKEN }}

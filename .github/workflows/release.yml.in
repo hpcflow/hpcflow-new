@@ -33,7 +33,7 @@ jobs:
     outputs:
       new_tag_name: {% raw %}${{ steps.get_new_tag.outputs.new_tag_name }}{% endraw %}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # get all history and tags
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %}
@@ -43,7 +43,7 @@ jobs:
           git config user.name {{ bot_account_name }}
           git config user.email {{ bot_account_email }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: {% raw %}${{ env.PYTHON_VERSION_BUMP }}{% endraw %}
 
@@ -161,16 +161,16 @@ jobs:
 
     runs-on: {% raw %}${{ matrix.os }}{% endraw %}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: {% raw %}${{ env.PYTHON_VERSION_BUILD_EXES }}{% endraw %}
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: {% raw %}venv-build-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
@@ -286,7 +286,7 @@ jobs:
     container:
       image: ghcr.io/hpcflow/centos7-poetry:latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
@@ -302,7 +302,7 @@ jobs:
           poetry config installer.modern-installation false
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: {% raw %}venv-build-CentOS-${{ hashFiles('**/poetry.lock') }}{% endraw %}
@@ -442,16 +442,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: {% raw %}${{ env.PYTHON_VERSION_RELEASE }}{% endraw %}
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: {% raw %}venv-release-${{ hashFiles('**/poetry.lock') }}{% endraw %}
@@ -525,7 +525,7 @@ jobs:
     needs: release-github-PyPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # get all history and tags
           ref: {% raw %}${{ github.event.pull_request.base.ref }}{% endraw %} # otherwise we get the ref when the workflow started (missing above commit)
@@ -535,7 +535,7 @@ jobs:
           git config user.name {{ bot_account_name }}
           git config user.email {{ bot_account_email }}
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: {% raw %}${{ env.PYTHON_VERSION_BUILD_DOCS }}{% endraw %}
 
@@ -562,7 +562,7 @@ jobs:
           fi
 
       - name: Cache the virtualenv
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./.venv
           key: {% raw %}venv-release-${{ matrix.os }}-${{ hashFiles('**/poetry.lock') }}{% endraw %}
@@ -594,11 +594,11 @@ jobs:
     needs: [bump-version, release-github-PyPI, build-documentation]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: {% raw %}${{ env.PYTHON_VERSION_UPDATE_WEB }}{% endraw %}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: {{ website_source_org }}/{{ website_source_repo }}
           token: {{ '${{' }} secrets.{{ website_source_token_name }} {{ '}}' }}
