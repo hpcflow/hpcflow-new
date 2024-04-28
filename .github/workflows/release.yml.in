@@ -372,7 +372,7 @@ jobs:
           - "3.12"
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
           - windows-latest      
         num_elements: 
           - 1
