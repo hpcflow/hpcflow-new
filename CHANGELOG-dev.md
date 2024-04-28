@@ -1,4 +1,18 @@
 
+<a name="v0.2.0a167"></a>
+## [v0.2.0a167](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a166...v0.2.0a167) - 2024.04.28
+
+### 🐛 Bug Fixes
+
+* revert upload/download-artifact updates in CentOS (docker) job in build-exes
+* revert upload/download-artifact updates in CentOS (docker) job in release
+
+### 👷 Build changes
+
+* update GHAs to fix deprecation warnings
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a166"></a>
 ## [v0.2.0a166](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a165...v0.2.0a166) - 2024.04.28
 
