@@ -1,4 +1,35 @@
 
+<a name="v0.2.0a166"></a>
+## [v0.2.0a166](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a165...v0.2.0a166) - 2024.04.28
+
+### ♻ Code Refactoring
+
+* remove unused method
+* remove unused imports in task.py
+
+### ✨ Features
+
+* maintain input source `element_iter` order if `allow_coincident_task_input_sources` is `False`
+* support user-specified `element_iters` in `InputSource` with `source_type="task"`
+
+### 🐛 Bug Fixes
+
+* partially revert GHA version updates to fix running in old-GLIBC container
+* fix macos runner to macos-13 to workaround macos-latest issues in [#657](https://github.com/hpcflow/hpcflow-new/issues/657)
+* validate `nesting_order` paths
+* support sourcing inputs from sub-parameter sequences in multiple element sets in the upstream task
+* raise on no coincident input sources from the same task
+* add `allow_non_coincident_task_sources` to `Task`
+* raise on unavailable user-specified input source
+* for sub-parameters that appear in multiple element sets of the same ask, fix `Task.provides_parameters`
+
+### 👷 Build changes
+
+* update GHAs to fix deprecation warnings
+* update GHAs to fix deprecation warnings
+* update GHAs to fix deprecation warnings
+
+
 <a name="v0.2.0a165"></a>
 ## [v0.2.0a165](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a164...v0.2.0a165) - 2024.04.25
 
