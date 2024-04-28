@@ -140,7 +140,7 @@ jobs:
           ./git-chglog --template .chglog/RELEASE.tpl.md --output CHANGELOG_increment.md ${{ env.new_tag }}
           cat CHANGELOG_increment.md
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: CHANGELOG_increment
           path: CHANGELOG_increment.md
@@ -150,12 +150,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, macos-11]
+        os: [windows-2019, macos-13]
         include:
           - os: windows-2019
             executable_ext: .exe
             executable_os: win
-          - os: macos-11
+          - os: macos-13
             executable_ext: ""
             executable_os: macOS
 
@@ -269,13 +269,13 @@ jobs:
         run: ./compress.sh hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir 'onedir'
           
       - name: Upload executable artifact (file)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
           path: pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}${{ matrix.executable_ext }}
 
       - name: Upload executable artifact (compressed folder)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir.zip
           path: pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir.zip
@@ -429,7 +429,7 @@ jobs:
       - name: zip benchmark results
         run: |
           zip -r ./benchmarks.zip benchmarks
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:             
           name: benchmarks.zip
           path: benchmarks.zip
@@ -473,7 +473,7 @@ jobs:
 
       - run: mkdir release-artifacts
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         id: download_executables
         with:
           path: release-artifacts
@@ -483,7 +483,7 @@ jobs:
 
       - name: Release
         id: release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           body_path: release-artifacts/CHANGELOG_increment/CHANGELOG_increment.md
           tag_name: ${{ needs.bump-version.outputs.new_tag_name }}
@@ -585,7 +585,7 @@ jobs:
           poetry run make html
 
       - name: Upload documentation artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docs_html
           path: docs/build/html
@@ -608,7 +608,7 @@ jobs:
           git config user.email hpcflow-actions@users.noreply.github.com
 
       - name: Download documentation artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: docs_html
           path: docs/${{ needs.bump-version.outputs.new_tag_name }}
