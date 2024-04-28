@@ -91,28 +91,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if:  github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win.exe
           path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win.exe
 
       - name: Upload executable artifact (folder)
         if:  github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win-dir
           path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win.spec
           path: {{ pyinstaller_dir }}/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win-build
           path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-win
@@ -191,28 +191,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if:  github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS
           path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS
 
       - name: Upload executable artifact (folder)
         if:  github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS-dir
           path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS.spec
           path: {{ pyinstaller_dir }}/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS-build
           path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-macOS
@@ -292,28 +292,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if: github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
           path: {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux
 
       - name: Upload executable artifact (folder)
         if: github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-dir
           path: {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux.spec
           path: {{ pyinstaller_dir }}/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: {{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux-build
           path: {{ pyinstaller_dir }}/build/{{ executable_name }}-{% raw %}${{ env.vers }}{% endraw %}-linux

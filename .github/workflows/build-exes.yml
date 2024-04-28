@@ -91,28 +91,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if:  github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-win.exe
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe
 
       - name: Upload executable artifact (folder)
         if:  github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-win-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-win-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-win.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-win.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-win-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-win
@@ -191,28 +191,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if:  github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-macOS
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS
 
       - name: Upload executable artifact (folder)
         if:  github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-macOS-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-macOS-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-macOS.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-macOS.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-macOS-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-macOS
@@ -292,28 +292,28 @@ jobs:
 
       - name: Upload executable artifact (file)
         if: github.event.inputs.build_onefile == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-linux
           path: pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux
 
       - name: Upload executable artifact (folder)
         if: github.event.inputs.build_onedir == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-linux-dir
           path: pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir
 
       - name: Upload spec file
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-linux.spec
           path: pyinstaller/hpcflow-${{ env.vers }}-linux.spec
 
       - name: Upload build directory
         if:  ((github.event.inputs.build_onefile == 'true') || (github.event.inputs.build_onedir == 'true'))
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: hpcflow-${{ env.vers }}-linux-build
           path: pyinstaller/build/hpcflow-${{ env.vers }}-linux
