@@ -500,31 +500,79 @@ class ValueSequence(JSONLike):
         nesting_order: Optional[int] = 0,
         label: Optional[str] = None,
         value_class_method: Optional[str] = None,
+        __check_vals: Optional[bool] = True,
     ):
         label = str(label) if label is not None else ""
-        path, label = self._validate_parameter_path(path, label)
+        path_, label = self._validate_parameter_path(path, label)
 
-        self.path = path
+        self.path = path_
         self.label = label
         self.nesting_order = nesting_order
         self.value_class_method = value_class_method
 
-        if values is not None:
-            self._values = [_process_demo_data_strings(self.app, i) for i in values]
-
-        self._values_group_idx = None
-        self._values_are_objs = None  # assigned initially on `make_persistent`
+        self._values_group_idx = None  # assigned by method make_persistent
 
         self._workflow = None
         self._element_set = None  # assigned by parent ElementSet
-
-        # assigned if this is an "inputs" sequence in `WorkflowTask._add_element_set`:
-        self._parameter = None
 
         self._path_split = None  # assigned by property `path_split`
 
         self._values_method = None
         self._values_method_args = None
+
+        if self.input_type:
+            # assign parameter
+            try:
+                self._parameter = self.app.parameters.get(self.input_type)
+            except ValueError:
+                self._parameter = self.app.Parameter(self.input_type)
+        else:
+            self._parameter = None
+
+        # modified by `_validate_values`:
+        self._values = values
+        self._values_are_objs = None
+
+        if __check_vals:
+            self._validate_values()
+
+    def _validate_values(self):
+        if self._values_group_idx is None:
+            # first-time initialisation (i.e. not from a persistent workflow template)
+
+            self._values_are_objs = []
+            for val_idx, val in enumerate(self._values):
+                is_obj = isinstance(val, ParameterValue)
+                self._values_are_objs.append(is_obj)
+                if not is_obj:
+                    self._values[val_idx] = _process_demo_data_strings(self.app, val)
+
+                # for non-persistent input values, check that, if a matching
+                # `ParameterValue` class exists and the specified value is not of that
+                # type, then the specified value is a dict, which can later be passed as
+                # keyword arguments to the ParameterValue sub-class to initialise the
+                # object:
+                if (
+                    self.parameter
+                    and not self.is_sub_value
+                    and not is_obj
+                    and self.parameter._value_class
+                    and val is not None
+                    and not isinstance(val, dict)
+                ):
+                    raise ValueError(
+                        f"{self.__class__.__name__} with specified value index {val_idx} "
+                        f"{val!r} is associated with a `ParameterValue` subclass "
+                        f"({self.parameter._value_class!r}), but the value data type is "
+                        f"not a dict."
+                    )
+
+            if all(self._values_are_objs) and self.value_class_method:
+                raise ValueError(
+                    f"Sequence {self.path!r}: `value_class_method` should not "
+                    f"be set when all values are already initialised `ParameterValue` "
+                    f"sub-class objects."
+                )
 
     def __repr__(self):
         label_str = ""
@@ -561,7 +609,9 @@ class ValueSequence(JSONLike):
         _values_method = kwargs.pop("_values_method", None)
         _values_method_args = kwargs.pop("_values_method_args", None)
 
-        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        obj = self.__class__(
+            **copy.deepcopy(kwargs, memo), _ValueSequence__check_vals=False
+        )
 
         obj._values_group_idx = _values_group_idx
         obj._values_are_objs = _values_are_objs
@@ -586,6 +636,7 @@ class ValueSequence(JSONLike):
         for i in json_like:
             if "values" in i:
                 val_key = i
+
         if "::" in val_key:
             # class method (e.g. `from_range`, `from_file` etc):
             _, method = val_key.split("::")
@@ -652,14 +703,17 @@ class ValueSequence(JSONLike):
         _values_are_objs = json_like.pop("_values_are_objs", None)
         _values_method = json_like.pop("_values_method", None)
         _values_method_args = json_like.pop("_values_method_args", None)
+
         if "_values" in json_like:
             json_like["values"] = json_like.pop("_values")
 
-        obj = cls(**json_like)
+        obj = cls(**json_like, _ValueSequence__check_vals=False)
+
         obj._values_group_idx = _values_group_idx
         obj._values_are_objs = _values_are_objs
         obj._values_method = _values_method
         obj._values_method_args = _values_method_args
+        obj._validate_values()
         return obj
 
     def _validate_parameter_path(self, path, label):
@@ -782,13 +836,10 @@ class ValueSequence(JSONLike):
             data_ref = []
             source = copy.deepcopy(source)
             source["value_class_method"] = self.value_class_method
-            are_objs = []
             for idx, i in enumerate(self._values):
-                # record if ParameterValue sub-classes are passed for values, which allows
-                # us to re-init the objects on access to `.value`:
-                are_objs.append(isinstance(i, ParameterValue))
                 source = copy.deepcopy(source)
                 source["sequence_idx"] = idx
+                source["value_is_obj"] = self._values_are_objs[idx]
                 pg_idx_i = workflow._add_parameter_data(i, source=source)
                 data_ref.append(pg_idx_i)
 
@@ -796,7 +847,6 @@ class ValueSequence(JSONLike):
             self._values_group_idx = data_ref
             self._workflow = workflow
             self._values = None
-            self._values_are_objs = are_objs
 
         return (self.normalised_path, data_ref, is_new)
 
@@ -1173,7 +1223,7 @@ class InputValue(AbstractInputValue):
         label: Optional[str] = None,
         value_class_method: Optional[str] = None,
         path: Optional[str] = None,
-        __check_obj: Optional[bool] = True,
+        __check_val: Optional[bool] = True,
     ):
         if isinstance(parameter, str):
             try:
@@ -1187,7 +1237,6 @@ class InputValue(AbstractInputValue):
         self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
-        self._value = _process_demo_data_strings(self.app, value)
 
         self._value_group_idx = None  # assigned by method make_persistent
         self._element_set = None  # assigned by parent ElementSet (if belonging)
@@ -1196,32 +1245,46 @@ class InputValue(AbstractInputValue):
         # SchemaInput):
         self._schema_input = None
 
-        # record if a ParameterValue sub-class is passed for value, which allows us
-        # to re-init the object on `.value`:
-        self._value_is_obj = isinstance(value, ParameterValue)
-        if __check_obj:
-            self._check_dict_value_if_object()
+        # modified by `_validate_value`:
+        self._value = value
+        self._value_is_obj = False
 
-    def _check_dict_value_if_object(self):
-        """For non-persistent input values, check that, if a matching `ParameterValue`
-        class exists and the specified value is not of that type, then the specified
-        value is a dict, which can later be passed to the ParameterValue sub-class
-        to initialise the object.
-        """
-        if (
-            self._value_group_idx is None
-            and not self.path
-            and not self._value_is_obj
-            and self.parameter._value_class
-            and self._value is not None
-            and not isinstance(self._value, dict)
-        ):
-            raise ValueError(
-                f"{self.__class__.__name__} with specified value {self._value!r} is "
-                f"associated with a ParameterValue subclass "
-                f"({self.parameter._value_class!r}), but the value data type is not a "
-                f"dict."
-            )
+        if __check_val:
+            self._validate_value()
+
+    def _validate_value(self):
+        if self._value_group_idx is None:
+            # first-time initialisation (i.e. not from a persistent workflow template)
+
+            self._value_is_obj = isinstance(self._value, ParameterValue)
+
+            if not self._value_is_obj:
+                self._value = _process_demo_data_strings(self.app, self._value)
+
+            if self._value_is_obj and self.value_class_method:
+                raise ValueError(
+                    f"InputValue for {self.parameter!r}: `value_class_method` should not "
+                    f"be set when the provided value is already an initialised "
+                    f"`ParameterValue` sub-class object."
+                )
+            # for non-persistent input values, check that, if a matching `ParameterValue`
+            # class exists and the specified value is not of that type, then the specified
+            # value is a dict, which can later be passed as keyword arguments to the
+            # ParameterValue sub-class to initialise the object:
+            if (
+                self._value_group_idx is None
+                and not self.path
+                and not self._value_is_obj
+                and self.parameter._value_class
+                and self._value is not None
+                and not isinstance(self._value, dict)
+            ):
+                raise ValueError(
+                    f"{self.__class__.__name__} with specified value {self._value!r} is "
+                    f"associated with a `ParameterValue` subclass "
+                    f"({self.parameter._value_class!r}), but the value data type is not "
+                    f"a dict."
+                )
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1229,7 +1292,7 @@ class InputValue(AbstractInputValue):
         kwargs.pop("_schema_input", None)
         _value_group_idx = kwargs.pop("_value_group_idx")
         _value_is_obj = kwargs.pop("_value_is_obj")
-        obj = self.__class__(**copy.deepcopy(kwargs, memo), _InputValue__check_obj=False)
+        obj = self.__class__(**copy.deepcopy(kwargs, memo), _InputValue__check_val=False)
         obj._value = _value
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
@@ -1276,14 +1339,15 @@ class InputValue(AbstractInputValue):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("_value_group_idx", None)
-        _value_is_obj = json_like.pop("_value_is_obj", None)
+        _value_is_obj = json_like.pop("_value_is_obj", False)
+
         if "_value" in json_like:
             json_like["value"] = json_like.pop("_value")
 
-        obj = cls(**json_like, _InputValue__check_obj=False)
+        obj = cls(**json_like, _InputValue__check_val=False)
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
-        obj._check_dict_value_if_object()
+        obj._validate_value()
         return obj
 
     @property
@@ -1302,6 +1366,7 @@ class InputValue(AbstractInputValue):
     def make_persistent(self, workflow: Any, source: Dict) -> Tuple[str, List[int], bool]:
         source = copy.deepcopy(source)
         source["value_class_method"] = self.value_class_method
+        source["value_is_obj"] = self._value_is_obj
         return super().make_persistent(workflow, source)
 
     @classmethod

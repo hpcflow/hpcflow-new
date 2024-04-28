@@ -447,3 +447,118 @@ def test_from_rectangle_coord_none(null_config):
 def test_environments_sequence_to_resources(null_config):
     seq = hf.ValueSequence(path="environments.my_env.version", values=[1, 2])
     assert seq.path == "resources.any.environments.my_env.version"
+
+
+def test_raise_on_unrequired_value_class_method_arg(null_config):
+    with pytest.raises(ValueError):
+        hf.ValueSequence(
+            path="inputs.p1c",
+            value_class_method="from_data",
+            values=[P1.from_data(b=1, c=2)],
+        )
+
+
+def test_no_raise_on_required_value_class_method_arg(null_config):
+    seq = hf.ValueSequence(
+        path="inputs.p1c",
+        value_class_method="from_data",
+        values=[
+            P1.from_data(b=1, c=2),
+            {"b": 10, "c": 20},
+        ],
+    )
+
+
+def test_values_are_objects(null_config):
+    seq = hf.ValueSequence(
+        path="inputs.p1c",
+        value_class_method="from_data",
+        values=[
+            P1.from_data(b=1, c=2),
+            {"b": 10, "c": 20},
+        ],
+    )
+    assert seq._values_are_objs == [True, False]
+
+
+def test_task_sequence_values_as_provided(null_config, tmp_path):
+    """Test `ValueSequence.values` of a persistent workflow returns objects where objects
+    were originally provided in the template.."""
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        element_sets=[
+            hf.ElementSet(
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1c",
+                        values=[P1(a=1), {"b": 1, "c": 2}],
+                        value_class_method="from_data",
+                    )
+                ]
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(template_name="test", path=tmp_path, tasks=[t1])
+    assert wk.tasks[0].template.element_sets[0].sequences[0].values == [
+        P1(a=1),
+        {"b": 1, "c": 2},
+    ]
+
+
+def test_element_sequence_init_via_class_method(null_config, tmp_path):
+    """Test element inputs are initialised via the `value_class_method` that is
+    specified in their associated `ValueSequence`, but only for values that were not
+    originally passed as objects."""
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        element_sets=[
+            hf.ElementSet(
+                sequences=[
+                    hf.ValueSequence(
+                        path="inputs.p1c",
+                        values=[P1(a=1), {"b": 1, "c": 2}],
+                        value_class_method="from_data",
+                    )
+                ]
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(template_name="test", path=tmp_path, tasks=[t1])
+    assert wk.tasks[0].elements[0].inputs.p1c.value == P1(a=1)
+    assert wk.tasks[0].elements[1].inputs.p1c.value == P1.from_data(b=1, c=2)
+
+
+def test_from_json_like_equivalence(null_config):
+    kwargs = {"path": "inputs.p1.0", "values": [9]}
+    s1 = hf.ValueSequence.from_json_like(kwargs, shared_data=hf.template_components)
+    s2 = hf.ValueSequence(**kwargs)
+    assert s1 == s2
+
+
+def test_values_are_dict_check_success(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class, so data should be a dict:
+    hf.ValueSequence("inputs.p1c", values=[{"a": 101}])
+
+
+def test_values_are_dict_check_raise(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class so data should be a dict:
+    with pytest.raises(ValueError):
+        hf.ValueSequence("inputs.p1c", values=[101])
+
+
+def test_values_are_dict_check_no_raise_if_sub_parameter(null_config):
+    # Parameter("p1c") has an associated `ParameterValue` class, but the specified value
+    # is for some sub-data:
+    hf.ValueSequence("inputs.p1c.a", values=[101])

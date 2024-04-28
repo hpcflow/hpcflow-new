@@ -138,6 +138,13 @@ def test_from_json_like_with_label(null_config):
     assert inp.label == "1"
 
 
+def test_from_json_like_equivalence(null_config):
+    kwargs = {"parameter": "p1", "value": 9}
+    i1 = hf.InputValue.from_json_like(kwargs, shared_data=hf.template_components)
+    i2 = hf.InputValue(**kwargs)
+    assert i1 == i2
+
+
 def test_value_is_dict_check_success(null_config):
     # Parameter("p1c") has an associated `ParameterValue` class, so data should be a dict:
     hf.InputValue("p1c", {"a": 101})
@@ -160,3 +167,75 @@ def test_demo_data_value(null_config):
     assert hf.InputValue("p1", value=f"<<demo_data_file:{name}>>").value == str(
         hf.demo_data_cache_dir.joinpath(name)
     )
+
+
+def test_raise_on_unrequired_value_class_method_arg(null_config):
+    with pytest.raises(ValueError):
+        hf.InputValue(
+            parameter="p1c",
+            value=P1(a=1),
+            value_class_method="from_data",
+        )
+
+
+def test_task_input_values_as_provided(null_config, tmp_path):
+    """Test `InputValue.value` of a persistent workflow returns objects where objects were
+    originally provided in the template."""
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        element_sets=[
+            hf.ElementSet(
+                inputs=[
+                    hf.InputValue(
+                        parameter="p1c",
+                        value={"b": 1, "c": 2},
+                        value_class_method="from_data",
+                    )
+                ]
+            ),
+            hf.ElementSet(
+                inputs=[
+                    hf.InputValue(
+                        parameter="p1c",
+                        value=P1(a=1),
+                    )
+                ]
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(template_name="test", path=tmp_path, tasks=[t1])
+    assert wk.tasks[0].template.element_sets[0].inputs[0].value == {"b": 1, "c": 2}
+    assert wk.tasks[0].template.element_sets[1].inputs[0].value == P1(a=1)
+
+
+def test_element_input_init_via_class_method(null_config, tmp_path):
+    """Test retrieval of an input on an element initialises an object via the
+    `value_class_method` that is specified in it's associated `InputValue`."""
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter="p1c")],
+        parameter_class_modules=["hpcflow.sdk.core.test_utils"],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        element_sets=[
+            hf.ElementSet(
+                inputs=[
+                    hf.InputValue(
+                        parameter="p1c",
+                        value={"b": 1, "c": 2},
+                        value_class_method="from_data",
+                    )
+                ]
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(template_name="test", path=tmp_path, tasks=[t1])
+    assert wk.tasks[0].elements[0].inputs.p1c.value == P1.from_data(b=1, c=2)

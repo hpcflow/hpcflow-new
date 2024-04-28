@@ -798,15 +798,6 @@ class Task(JSONLike):
             if k not in ("_name", "_pending_element_sets")
         }
 
-    def set_sequence_parameters(self, element_set):
-        # set ValueSequence Parameter objects:
-        for seq in element_set.sequences:
-            if seq.input_type:
-                for schema_i in self.schemas:
-                    for inp_j in schema_i.inputs:
-                        if inp_j.typ == seq.input_type:
-                            seq._parameter = inp_j.parameter
-
     def _validate(self):
         # TODO: check a nesting order specified for each sequence?
 
@@ -2148,8 +2139,6 @@ class WorkflowTask:
 
         """
 
-        self.template.set_sequence_parameters(element_set)
-
         # may modify element_set.input_sources:
         padded_elem_iters = self.ensure_input_sources(element_set)
 
@@ -2561,6 +2550,7 @@ class WorkflowTask:
                 data_i = []
                 methods_i = []
                 is_param_set_i = []
+                is_obj_i = []
                 for data_idx_ij in data_idx_i:
                     meth_i = None
                     is_set_i = True
@@ -2578,6 +2568,7 @@ class WorkflowTask:
                             data_j = data_j.as_posix()
                         else:
                             meth_i = param_j.source.get("value_class_method")
+                            is_obj_j = param_j.source.get("value_is_obj")
                             if param_j.is_pending:
                                 # if pending, we need to convert `ParameterValue` objects
                                 # to their dict representation, so they can be merged with
@@ -2601,16 +2592,19 @@ class WorkflowTask:
                         data_i.append(data_j)
                         methods_i.append(meth_i)
                         is_param_set_i.append(is_set_i)
+                        is_obj_i.append(is_obj_j)
                     else:
                         data_i = data_j
                         methods_i = meth_i
                         is_param_set_i = is_set_i
+                        is_obj_i = is_obj_j
 
                 relevant_data[path_i] = {
                     "data": data_i,
                     "value_class_method": methods_i,
                     "is_set": is_param_set_i,
                     "is_multi": is_multi,
+                    "value_is_obj": is_obj_i,
                 }
             if not raise_on_unset:
                 to_remove = []
@@ -2634,6 +2628,7 @@ class WorkflowTask:
             val_cls_method = None
             path_is_multi = False
             path_is_set = False
+            val_is_obj = None
             all_multi_len = None
             for path_i, data_info_i in relevant_data.items():
                 data_i = data_info_i["data"]
@@ -2641,6 +2636,7 @@ class WorkflowTask:
                     val_cls_method = data_info_i["value_class_method"]
                     path_is_multi = data_info_i["is_multi"]
                     path_is_set = data_info_i["is_set"]
+                    val_is_obj = data_info_i["value_is_obj"]
 
                 if data_info_i["is_multi"]:
                     if all_multi_len:
@@ -2668,6 +2664,7 @@ class WorkflowTask:
                             path_is_multi = True
                             path_is_set = data_info_i["is_set"]
                             val_cls_method = data_info_i["value_class_method"]
+                            val_is_obj = data_info_i["value_is_obj"]
                         else:
                             current_val = get_in_container(
                                 data_i,
@@ -2747,6 +2744,7 @@ class WorkflowTask:
                                 path_is_multi = relevant_par["is_multi"]
                                 path_is_set = relevant_par["is_set"]
                                 current_val = relevant_par["data"]
+                                val_is_obj = relevant_par["value_is_obj"]
                                 break
 
                 # initialise objects
@@ -2764,7 +2762,12 @@ class WorkflowTask:
                         _current_val.append(_cur_val_i)
                     current_val = _current_val
                 elif path_is_set and isinstance(current_val, dict):
-                    method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
+                    if val_cls_method and not val_is_obj:
+                        # only use a class method if the value was not originally passed
+                        # as a `ParameterValue` sub-class object:
+                        method = getattr(PV_cls, val_cls_method)
+                    else:
+                        method = PV_cls
                     current_val = method(**current_val)
 
             return current_val, all_multi_len
