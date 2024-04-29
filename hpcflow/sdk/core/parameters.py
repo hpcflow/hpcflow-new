@@ -503,9 +503,9 @@ class ValueSequence(JSONLike):
         __check_vals: Optional[bool] = True,
     ):
         label = str(label) if label is not None else ""
-        path_, label = self._validate_parameter_path(path, label)
+        path, label = self._validate_parameter_path(path, label)
 
-        self.path = path_
+        self.path = path
         self.label = label
         self.nesting_order = nesting_order
         self.value_class_method = value_class_method
