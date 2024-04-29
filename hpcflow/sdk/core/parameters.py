@@ -561,9 +561,9 @@ class ValueSequence(JSONLike):
                     and not isinstance(val, dict)
                 ):
                     raise ValueError(
-                        f"{self.__class__.__name__} with specified value index {val_idx} "
-                        f"{val!r} is associated with a `ParameterValue` subclass "
-                        f"({self.parameter._value_class!r}), but the value data type is "
+                        f"{self.__class__.__name__} with specified value {val!r} (at "
+                        f"index {val_idx}) is associated with a `ParameterValue` subclass"
+                        f" ({self.parameter._value_class!r}), but the value data type is "
                         f"not a dict."
                     )
 
