@@ -92,7 +92,7 @@ class Bash(Shell):
               T6=$SECONDS
               {workflow_app_alias} internal workflow "$WK_PATH_ARG" write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> "$app_stream_file" 2>&1
               exc_wc=$?
-              $T6b=$SECONDS
+              T6b=$SECONDS
               echo "action $JS_act_idx: write commands time:             $(( $T6b - $T6 ))"
 
               T7=$SECONDS
