@@ -547,14 +547,14 @@ def _make_internal_CLI(app):
         ear_id: int,
     ):
         app.CLI_logger.info(f"write commands for EAR ID {ear_id!r}.")
-        ctx.exit(
-            ctx.obj["workflow"].write_commands(
-                submission_idx,
-                jobscript_idx,
-                js_action_idx,
-                ear_id,
-            )
+        ret = ctx.obj["workflow"].write_commands(
+            submission_idx,
+            jobscript_idx,
+            js_action_idx,
+            ear_id,
         )
+        app.CLI_logger.info(f"write_commands END.")
+        ctx.exit(ret)
 
     @workflow.command()
     @click.pass_context
@@ -593,7 +593,9 @@ def _make_internal_CLI(app):
     @click.argument("ear_id", type=click.INT)
     def set_EAR_start(ctx, ear_id: int):
         app.CLI_logger.info(f"set EAR start for EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].set_EAR_start(ear_id))
+        ret = ctx.obj["workflow"].set_EAR_start(ear_id)
+        app.CLI_logger.info("set_EAR_start END")
+        ctx.exit(ret)
 
     @workflow.command()
     @click.pass_context
@@ -611,14 +613,14 @@ def _make_internal_CLI(app):
         app.CLI_logger.info(
             f"set EAR end for EAR ID {ear_id!r} with exit code {exit_code!r}."
         )
-        ctx.exit(
-            ctx.obj["workflow"].set_EAR_end(
-                js_idx=js_idx,
-                js_act_idx=js_act_idx,
-                EAR_ID=ear_id,
-                exit_code=exit_code,
-            )
+        ret = ctx.obj["workflow"].set_EAR_end(
+            js_idx=js_idx,
+            js_act_idx=js_act_idx,
+            EAR_ID=ear_id,
+            exit_code=exit_code,
         )
+        app.CLI_logger.info("set_EAR_end END")
+        ctx.exit(ret)
 
     @workflow.command()
     @click.pass_context
@@ -634,6 +636,7 @@ def _make_internal_CLI(app):
         """Return 1 if the given EAR is to be skipped, else return 0."""
         app.CLI_logger.info(f"get EAR skip for EAR ID {ear_id!r}.")
         click.echo(int(ctx.obj["workflow"].get_EAR_skipped(ear_id)))
+        app.CLI_logger.info("get_EAR_skipped END")
 
     @workflow.command()
     @click.pass_context
