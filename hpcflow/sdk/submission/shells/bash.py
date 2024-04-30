@@ -21,6 +21,7 @@ class Bash(Shell):
     JS_SHEBANG = """#!{shebang_executable} {shebang_args}"""
     JS_HEADER = dedent(
         """\
+        T1=$SECONDS
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
@@ -29,8 +30,7 @@ class Bash(Shell):
                 --config-key "{config_invoc_key}"\\
                 "$@"
         )
-        }}
-
+        }}        
         WK_PATH=`pwd`
         WK_PATH_ARG="$WK_PATH"
         SUB_IDX={sub_idx}
@@ -57,12 +57,15 @@ class Bash(Shell):
     )
     JS_MAIN = dedent(
         """\
+        T2=$SECONDS
         elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
         elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
 
+        T3=$SECONDS
         for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
         do
 
+          T4=$SECONDS
           EAR_ID="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_EAR_IDs)"
           if [ "$EAR_ID" = "-1" ]; then
               continue
@@ -71,9 +74,14 @@ class Bash(Shell):
           run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
           cd "$WK_PATH/$run_dir"
           app_stream_file="`pwd`/{run_stream_file}"
+          T4b=$SECONDS
+          echo "action $JS_act_idx: cut time:                        $(( $T4b - $T4 ))"
 
+          T5=$SECONDS
           skip=`{workflow_app_alias} internal workflow "$WK_PATH_ARG" get-ear-skipped $EAR_ID 2>> "$app_stream_file"`
           exc_sk=$?
+          T5b=$SECONDS
+          echo "action $JS_act_idx: get EAR skipped time:            $(( $T5b - $T5 ))"
 
           if [ $exc_sk -eq 0 ]; then
 
@@ -81,15 +89,24 @@ class Bash(Shell):
                   continue
               fi
 
+              T6=$SECONDS
               {workflow_app_alias} internal workflow "$WK_PATH_ARG" write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> "$app_stream_file" 2>&1
               exc_wc=$?
+              $T6b=$SECONDS
+              echo "action $JS_act_idx: write commands time:             $(( $T6b - $T6 ))"
 
+              T7=$SECONDS
               {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-start $EAR_ID >> "$app_stream_file" 2>&1
               exc_se=$?
+              T7b=$SECONDS
+              echo "action $JS_act_idx: set EAR start time:              $(( $T7b - $T7 ))"
 
               if [ $exc_wc -eq 0 ] && [ $exc_se -eq 0 ]; then
+                  T8=$SECONDS
                   . {commands_file_name}
                   exit_code=$?
+                  T9=$SECONDS
+                  echo "action $JS_act_idx: commands execution time:         $(( $T9 - $T8 ))"
               else
                   exit_code=$([ $exc_wc -ne 0 ] && echo "$exc_wc" || echo "$exc_se")
               fi
@@ -98,9 +115,17 @@ class Bash(Shell):
               exit_code=$exc_sk
           fi
 
+          T10=$SECONDS
           {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-end $JS_IDX $JS_act_idx $EAR_ID "--" "$exit_code" >> "$app_stream_file" 2>&1
+          T11=$SECONDS
+          echo "action $JS_act_idx: set EAR end time:         $(( $T11 - $T10 ))"
 
+        T12=$SECONDS
+        echo "action loop time:                             $(( $T12 - $T3 ))"
+        echo "element time:                                 $(( $T12 - $T1 ))"
+          
         done
+        
     """
     )
     JS_ELEMENT_LOOP = dedent(
