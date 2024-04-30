@@ -108,7 +108,7 @@ class Bash(Shell):
                   T9=$SECONDS
                   echo "action $JS_act_idx: commands execution time:         $(( $T9 - $T8 ))"
               else
-                  exit_code=$([ $exc_wc -ne 0 ] && echo "$exc_wc" || echo "$exc_se")
+                  exit_code=$([ $exc_wc -ne 0 ] && echo "$exc_wc" || echo "$exc_se")                  
               fi
 
           else
@@ -118,11 +118,11 @@ class Bash(Shell):
           T10=$SECONDS
           {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-end $JS_IDX $JS_act_idx $EAR_ID "--" "$exit_code" >> "$app_stream_file" 2>&1
           T11=$SECONDS
-          echo "action $JS_act_idx: set EAR end time:         $(( $T11 - $T10 ))"
+          echo "action $JS_act_idx: set EAR end time:                $(( $T11 - $T10 ))"
 
         T12=$SECONDS
-        echo "action loop time:                             $(( $T12 - $T3 ))"
-        echo "element time:                                 $(( $T12 - $T1 ))"
+          echo "action loop time:                                    $(( $T12 - $T3 ))"
+          echo "element time:                                        $(( $T12 - $T1 ))"
           
         done
         
