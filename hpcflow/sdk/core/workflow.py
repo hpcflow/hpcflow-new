@@ -2661,20 +2661,21 @@ class Workflow:
 
                 # add loop-check command if this is the last action of this loop iteration
                 # for this element:
-                final_runs = (
-                    self.get_iteration_final_run_IDs(  # TODO: excessive reads here
-                        id_lst=jobscript.all_EAR_IDs
-                    )
-                )
-                self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
-                for loop_name, run_IDs in final_runs.items():
-                    if EAR.id_ in run_IDs:
-                        loop_cmd = jobscript.shell.format_loop_check(
-                            workflow_app_alias=jobscript.workflow_app_alias,
-                            loop_name=loop_name,
-                            run_ID=EAR.id_,
+                if self.loops:
+                    final_runs = (
+                        self.get_iteration_final_run_IDs(  # TODO: excessive reads here
+                            id_lst=jobscript.all_EAR_IDs
                         )
-                        commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
+                    )
+                    self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
+                    for loop_name, run_IDs in final_runs.items():
+                        if EAR.id_ in run_IDs:
+                            loop_cmd = jobscript.shell.format_loop_check(
+                                workflow_app_alias=jobscript.workflow_app_alias,
+                                loop_name=loop_name,
+                                run_ID=EAR.id_,
+                            )
+                            commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
             else:
                 # still need to write the file, the jobscript is expecting it.
                 commands = ""
