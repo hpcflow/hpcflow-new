@@ -96,11 +96,13 @@ def make_tasks(
     local_sequences=None,
     local_resources=None,
     nesting_orders=None,
+    input_sources=None,
 ):
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
     nesting_orders = nesting_orders or {}
+    input_sources = input_sources or {}
     schemas = make_schemas(schemas_spec, ret_list=True)
     tasks = []
     for s_idx, s in enumerate(schemas):
@@ -117,13 +119,13 @@ def make_tasks(
             for i in local_sequences.get(s_idx, [])
         ]
         res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
-
         task = hf.Task(
             schema=s,
             inputs=inputs,
             sequences=seqs,
             resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
+            input_sources=input_sources.get(s_idx, None),
         )
         tasks.append(task)
     return tasks
@@ -136,6 +138,7 @@ def make_workflow(
     local_sequences=None,
     local_resources=None,
     nesting_orders=None,
+    input_sources=None,
     resources=None,
     name="w1",
     overwrite=False,
@@ -147,6 +150,7 @@ def make_workflow(
         local_sequences=local_sequences,
         local_resources=local_resources,
         nesting_orders=nesting_orders,
+        input_sources=input_sources,
     )
     wk = hf.Workflow.from_template(
         hf.WorkflowTemplate(name=name, tasks=tasks, resources=resources),

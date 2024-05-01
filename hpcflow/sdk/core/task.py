@@ -941,6 +941,14 @@ class Task(JSONLike):
             # directly, so consider only source task element sets that
             # provide the input locally:
             es_idx = src_task.get_param_provided_element_sets(labelled_path)
+            for es_i in src_task.element_sets:
+                # add any element set that has task sources for this parameter
+                for inp_src_i in es_i.input_sources.get(labelled_path, []):
+                    if inp_src_i.source_type is InputSourceType.TASK:
+                        if es_i.index not in es_idx:
+                            es_idx.append(es_i.index)
+                            break
+
         else:
             # outputs are always available, so consider all source task
             # element sets:
