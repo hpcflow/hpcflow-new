@@ -120,11 +120,11 @@ class Bash(Shell):
           T11=$SECONDS
           echo "action $JS_act_idx: set EAR end time:                $(( $T11 - $T10 ))"
 
-        T12=$SECONDS
-        echo "action loop time:                                    $(( $T12 - $T3 ))"
-        echo "element time:                                        $(( $T12 - $T1 ))"
-          
+          T12=$SECONDS
+          echo "action loop time:                                    $(( $T12 - $T3 ))"
+
         done
+        echo "element time:                                        $(( $T12 - $T1 ))"
         
     """
     )
