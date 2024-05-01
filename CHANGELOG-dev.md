@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a169"></a>
+## [v0.2.0a169](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a168...v0.2.0a169) - 2024.05.01
+
+### 🐛 Bug Fixes
+
+* make loop termination command check conditional on any loops existing in the workflow
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a168"></a>
 ## [v0.2.0a168](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a167...v0.2.0a168) - 2024.04.28
 
