@@ -2332,6 +2332,7 @@ class WorkflowTask:
                 resources=elem_prop.element_set.resources[:],
                 repeats=elem_prop.element_set.repeats,
                 nesting_order=elem_prop.nesting_order,
+                input_sources=elem_prop.input_sources,
                 sourceable_elem_iters=src_elem_iters,
             )
 
@@ -3027,6 +3028,7 @@ class ElementPropagation:
 
     task: app.Task
     nesting_order: Optional[Dict] = None
+    input_sources: Optional[Dict] = None
 
     @property
     def element_set(self):
@@ -3037,6 +3039,7 @@ class ElementPropagation:
         return self.__class__(
             task=self.task,
             nesting_order=copy.deepcopy(self.nesting_order, memo),
+            input_sources=copy.deepcopy(self.input_sources, memo),
         )
 
     @classmethod
