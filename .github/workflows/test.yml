@@ -31,10 +31,15 @@ on:
         type: boolean
         default: true
       unit_test_args:
-        description: "CLI args to pass verbatim to the pytest command for unit tests."
+        description: "CLI args to pass verbatim to pytest (unit tests)."
         required: false
         type: string
         default: ""
+      integration_test_args:
+        description: "CLI args to pass verbatim to pytest (integration tests)."
+        required: false
+        type: string
+        default: ""        
   pull_request:
     types: [opened, edited, synchronize]
     branches: [main, develop] # have to manually change these
@@ -127,7 +132,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          
         run: |
-          poetry run python -m pytest 
+          poetry run python -m pytest ${{ github.event.inputs.unit_test_args }}
 
   test-units-CentOS:
     needs: pre-commit
@@ -209,7 +214,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run hpcflow test  --integration
+          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
 
   test-integration-CentOS:
     needs: pre-commit
@@ -244,7 +249,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run hpcflow test  --integration
+          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
