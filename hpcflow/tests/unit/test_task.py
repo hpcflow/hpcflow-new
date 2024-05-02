@@ -2394,3 +2394,67 @@ def test_raise_UnknownEnvironmentPresetError_sequence(null_config):
     seq = hf.ValueSequence(path="env_preset", values=["my_env_preset"])
     with pytest.raises(UnknownEnvironmentPresetError):
         hf.Task(schema=ts, sequences=[seq])
+
+
+def test_group_values_input_and_output_source_from_upstream(null_config, tmp_path):
+    """
+    | task | inputs | outputs | group    | num_elements               |
+    | ---- | ------ | ------- | -------- | ---------------------------|
+    | t1   | p0     | p1      | -        | 3                          |
+    | t2   | p1     | p2      | my_group | 3                          |
+    | t3   | p1, p2 | -       | -        | 1 (grouped p1, grouped p2) |
+    """
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p0")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo <<parameter:p0>> + 1",
+                        stdout="<<parameter:p1>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo <<parameter:p1>> + 1",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[
+            hf.SchemaInput("p1", group="my_group"),
+            hf.SchemaInput("p2", group="my_group"),
+        ],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p0": 1},
+        repeats=3,
+    )
+    t2 = hf.Task(schema=s2, groups=[hf.ElementGroup("my_group")])
+    t3 = hf.Task(schema=s3)
+    wk = hf.Workflow.from_template_data(
+        template_name="test_group",
+        tasks=[t1, t2, t3],
+        path=tmp_path,
+    )
+    assert wk.tasks[0].num_elements == 3
+    assert wk.tasks[1].num_elements == 3
+    assert wk.tasks[2].num_elements == 1
+    assert [i.value for i in wk.tasks[2].inputs.p1] == [[None, None, None]]
+    assert [i.value for i in wk.tasks[2].inputs.p2] == [[None, None, None]]
