@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
+import requests
 from reretry import retry
 import rich
 from rich.console import Console, Group
@@ -61,6 +62,23 @@ from hpcflow.sdk.typing import PathLike
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
+
+
+def rate_limit_safe_url_to_fs(*args, logger=None, **kwargs):
+    """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s"""
+
+    @retry(
+        requests.exceptions.HTTPError,
+        tries=10,
+        delay=1,
+        backoff=1.5,
+        jitter=(0, 5),
+        logger=logger,
+    )
+    def _inner(*args, **kwargs):
+        return url_to_fs(*args, **kwargs)
+
+    return _inner(*args, **kwargs)
 
 
 def __getattr__(name):
@@ -2278,7 +2296,10 @@ class BaseApp(metaclass=Singleton):
                 f"`demo_data_manifest_file`: "
                 f"{self.config.demo_data_manifest_file!r}."
             )
-            fs, url_path = url_to_fs(str(self.config.demo_data_manifest_file))
+            fs, url_path = rate_limit_safe_url_to_fs(
+                str(self.config.demo_data_manifest_file),
+                logger=self.logger,
+            )
             with fs.open(url_path) as fh:
                 manifest = json.load(fh)
         else:
@@ -2324,7 +2345,10 @@ class BaseApp(metaclass=Singleton):
         """
 
         def _retrieve_source_path_from_config(src_fn):
-            fs, url_path = url_to_fs(self.config.demo_data_dir)
+            fs, url_path = rate_limit_safe_url_to_fs(
+                self.config.demo_data_dir,
+                logger=self.logger,
+            )
             if isinstance(fs, LocalFileSystem):
                 out = url_path
                 delete = False
