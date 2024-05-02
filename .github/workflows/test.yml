@@ -39,7 +39,7 @@ on:
         description: "CLI args to pass verbatim to pytest (integration tests)."
         required: false
         type: string
-        default: ""        
+        default: ""         
   pull_request:
     types: [opened, edited, synchronize]
     branches: [main, develop] # have to manually change these
@@ -130,9 +130,9 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
         run: |
-          poetry run python -m pytest ${{ github.event.inputs.unit_test_args }}
+          poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}
 
   test-units-CentOS:
     needs: pre-commit
@@ -166,8 +166,10 @@ jobs:
         run: poetry install --without dev,pyinstaller
 
       - name: Run tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
         run: |
-          poetry run python -m pytest ${{ github.event.inputs.unit_test_args }}
+          poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}
 
   test-integration:
     needs: pre-commit
@@ -213,8 +215,10 @@ jobs:
           poetry install --without dev,pyinstaller
 
       - name: Run tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
         run: |
-          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
+          poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}
 
   test-integration-CentOS:
     needs: pre-commit
@@ -248,8 +252,10 @@ jobs:
         run: poetry install --without dev,pyinstaller
 
       - name: Run tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
         run: |
-          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
+          poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'

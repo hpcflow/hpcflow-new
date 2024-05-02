@@ -135,14 +135,14 @@ jobs:
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}        
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-win.exe test ${{ github.event.inputs.unit_test_args }}
 
       - name: Run test suite on the frozen app (folder)
         if:  github.event.inputs.build_onedir == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}                
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-win-dir/hpcflow-${{ env.vers }}-win-dir.exe test ${{ github.event.inputs.unit_test_args }}
 
@@ -239,14 +239,14 @@ jobs:
       - name: Run test suite on the frozen app (file)
         if:  github.event.inputs.build_onefile == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}           
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-macOS test ${{ github.event.inputs.unit_test_args }}
 
       - name: Run test suite on the frozen app (folder)
         if:  github.event.inputs.build_onedir == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}           
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-macOS-dir/hpcflow-${{ env.vers }}-macOS-dir test ${{ github.event.inputs.unit_test_args }}
 
@@ -344,13 +344,13 @@ jobs:
       - name: Run test suite on the frozen app (file)
         if: github.event.inputs.build_onefile == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}           
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onefile/hpcflow-${{ env.vers }}-linux test ${{ github.event.inputs.unit_test_args }}
 
       - name: Run test suite on the frozen app (folder)
         if: github.event.inputs.build_onedir == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}           
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller/dist/onedir/hpcflow-${{ env.vers }}-linux-dir/hpcflow-${{ env.vers }}-linux-dir test ${{ github.event.inputs.unit_test_args }}
