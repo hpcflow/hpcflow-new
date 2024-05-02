@@ -1,4 +1,22 @@
 
+<a name="v0.2.0a171"></a>
+## [v0.2.0a171](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a170...v0.2.0a171) - 2024.05.02
+
+### 🐛 Bug Fixes
+
+* missing endraw
+* missing arg in `rate_limit_safe_url_to_fs`
+* apply pytest args option to build-exe workflow tests
+* apply pytest args option to all tests
+* allow passing pytest args in GHA unit tests
+* try to use GITHUB_TOKEN to auth in `url_to_fs` when running tests
+* add a retry loop on calling `fsspec`s `url_to_fs` function in demo-data-related methods
+
+### 👷 Build changes
+
+* sync GHA updates
+
+
 <a name="v0.2.0a170"></a>
 ## [v0.2.0a170](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a169...v0.2.0a170) - 2024.05.02
 
