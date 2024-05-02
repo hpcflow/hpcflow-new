@@ -130,7 +130,7 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}{% endraw %}
 
@@ -167,7 +167,7 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}{% endraw %}
 
@@ -216,7 +216,7 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}{% endraw %}
 
@@ -253,7 +253,7 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}{% endraw %}
 

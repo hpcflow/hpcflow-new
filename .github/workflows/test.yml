@@ -130,9 +130,9 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}
+          poetry run python -m pytest  ${{ github.event.inputs.unit_test_args }}
 
   test-units-CentOS:
     needs: pre-commit
@@ -167,9 +167,9 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          poetry run python -m pytest {{ pytest_args }} {% raw %}${{ github.event.inputs.unit_test_args }}
+          poetry run python -m pytest  ${{ github.event.inputs.unit_test_args }}
 
   test-integration:
     needs: pre-commit
@@ -216,9 +216,9 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}
+          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
 
   test-integration-CentOS:
     needs: pre-commit
@@ -253,9 +253,9 @@ jobs:
 
       - name: Run tests
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          poetry run {{ executable_name }} test {{ pytest_args }} --integration {% raw %}${{ github.event.inputs.integration_test_args }}
+          poetry run hpcflow test  --integration ${{ github.event.inputs.integration_test_args }}
 
   test-invocation-ubuntu:
     if: github.event_name == 'pull_request' || github.event.inputs.invocation_tests == 'true'
