@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a170"></a>
+## [v0.2.0a170](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a169...v0.2.0a170) - 2024.05.02
+
+### ✨ Features
+
+* add `input_sources` to `ElementPropagation`
+
+### 🐛 Bug Fixes
+
+* consider non-local inputs as `task_source_type="input"` sources; fix [#671](https://github.com/hpcflow/hpcflow-new/issues/671)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a169"></a>
 ## [v0.2.0a169](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a168...v0.2.0a169) - 2024.05.01
 
