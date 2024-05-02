@@ -256,7 +256,7 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/{% endraw %}{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }}{% endraw %} test
 
@@ -342,13 +342,13 @@ jobs:
 
       - name: Run test suite on the frozen app (file)
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux test
 
       - name: Run test suite on the frozen app (folder)
         env:
-          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
         run: |
           {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux-dir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }{% endraw %}}-linux-dir test
 

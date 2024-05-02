@@ -256,9 +256,9 @@ jobs:
 
       - name: Run test suite on the frozen app (folder)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
+          pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-${{ matrix.executable_os }}-dir${{ matrix.executable_ext }} test
 
       - name: Compress folder (windows, folder)
         if: contains(matrix.os, 'windows')
@@ -342,15 +342,15 @@ jobs:
 
       - name: Run test suite on the frozen app (file)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          {{ pyinstaller_dir }}/dist/onefile/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-linux test
+          pyinstaller/dist/onefile/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux test
 
       - name: Run test suite on the frozen app (folder)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}{% raw %}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          {{ pyinstaller_dir }}/dist/onedir/{{ executable_name }}-{% raw %}${{ needs.bump-version.outputs.new_tag_name }}-linux-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir test
+          pyinstaller/dist/onedir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir/hpcflow-${{ needs.bump-version.outputs.new_tag_name }}-linux-dir test
 
       - name: Compress folder (folder)
         working-directory: pyinstaller
