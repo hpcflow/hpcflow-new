@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a173"></a>
+## [v0.2.0a173](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a172...v0.2.0a173) - 2024.05.02
+
+### 🐛 Bug Fixes
+
+* fix failing MacOS GHA test by marking as expected to fail
+
+
 <a name="v0.2.0a172"></a>
 ## [v0.2.0a172](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a171...v0.2.0a172) - 2024.05.02
 
