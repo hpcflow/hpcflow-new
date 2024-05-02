@@ -941,6 +941,14 @@ class Task(JSONLike):
             # directly, so consider only source task element sets that
             # provide the input locally:
             es_idx = src_task.get_param_provided_element_sets(labelled_path)
+            for es_i in src_task.element_sets:
+                # add any element set that has task sources for this parameter
+                for inp_src_i in es_i.input_sources.get(labelled_path, []):
+                    if inp_src_i.source_type is InputSourceType.TASK:
+                        if es_i.index not in es_idx:
+                            es_idx.append(es_i.index)
+                            break
+
         else:
             # outputs are always available, so consider all source task
             # element sets:
@@ -2332,6 +2340,7 @@ class WorkflowTask:
                 resources=elem_prop.element_set.resources[:],
                 repeats=elem_prop.element_set.repeats,
                 nesting_order=elem_prop.nesting_order,
+                input_sources=elem_prop.input_sources,
                 sourceable_elem_iters=src_elem_iters,
             )
 
@@ -3027,6 +3036,7 @@ class ElementPropagation:
 
     task: app.Task
     nesting_order: Optional[Dict] = None
+    input_sources: Optional[Dict] = None
 
     @property
     def element_set(self):
@@ -3037,6 +3047,7 @@ class ElementPropagation:
         return self.__class__(
             task=self.task,
             nesting_order=copy.deepcopy(self.nesting_order, memo),
+            input_sources=copy.deepcopy(self.input_sources, memo),
         )
 
     @classmethod

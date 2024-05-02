@@ -404,7 +404,7 @@ def test_task_get_available_task_input_sources_expected_return_two_params_one_ou
     assert available == available_exp
 
 
-def test_task_get_available_task_input_sources_input_source_excluded_if_not_local(
+def test_task_get_available_task_input_sources_one_parameter_extravaganza(
     tmp_path,
 ):
     """Test an input source is excluded if it is not locally defined (meaning it comes
@@ -431,6 +431,12 @@ def test_task_get_available_task_input_sources_input_source_excluded_if_not_loca
                 source_type=hf.InputSourceType.TASK,
                 task_ref=1,
                 task_source_type=hf.TaskSourceType.OUTPUT,
+                element_iters=[1],
+            ),
+            hf.InputSource(
+                source_type=hf.InputSourceType.TASK,
+                task_ref=1,
+                task_source_type=hf.TaskSourceType.INPUT,
                 element_iters=[1],
             ),
             hf.InputSource(
@@ -1194,7 +1200,7 @@ def test_task_add_elements_multi_task_dependence_expected_workflow_num_elements(
         },
     )
     num_elems_new = wk.num_elements
-    assert num_elems_new - num_elems == 5
+    assert num_elems_new - num_elems == 7
 
 
 def test_task_add_elements_multi_task_dependence_expected_task_num_elements(
@@ -1217,6 +1223,39 @@ def test_task_add_elements_multi_task_dependence_expected_task_num_elements(
         propagate_to={
             "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
             "t3": {"nesting_order": {"inputs.p3": 0, "inputs.p4": 1}},
+        },
+    )
+    num_elems_new = [task.num_elements for task in wk.tasks]
+    num_elems_diff = [i - j for i, j in zip(num_elems_new, num_elems)]
+    assert num_elems_diff == [1, 2, 4]
+
+
+def test_task_add_elements_multi_task_dependence_expected_task_num_elements_custom_input_source(
+    tmp_path, param_p1
+):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p3",), "t1"],
+            [{"p2": None, "p3": None}, ("p4",), "t2"],
+            [{"p3": None, "p4": None}, (), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        local_sequences={1: [("inputs.p2", 2, 1)]},
+        nesting_orders={2: {"inputs.p3": 0, "inputs.p4": 1}},
+        input_sources={
+            2: {"p3": [hf.InputSource.task(0)]}
+        },  # override default (t2 input)
+        path=tmp_path,
+    )
+    num_elems = [task.num_elements for task in wk.tasks]
+    wk.tasks.t1.add_elements(
+        inputs=[hf.InputValue(param_p1, 102)],
+        propagate_to={
+            "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
+            "t3": {
+                "nesting_order": {"inputs.p3": 0, "inputs.p4": 1},
+                "input_sources": {"p3": [hf.InputSource.task(0)]},  # override default
+            },
         },
     )
     num_elems_new = [task.num_elements for task in wk.tasks]
@@ -1268,6 +1307,60 @@ def test_task_add_elements_multi_task_dependence_expected_new_data_index(
         new_elems_t1 == [["inputs.p1", "outputs.p3", "resources.any"]]
         and new_elems_t2
         == [["inputs.p2", "inputs.p3", "outputs.p4", "resources.any"]] * 2
+        and new_elems_t3 == [["inputs.p3", "inputs.p4", "resources.any"]] * 4
+    )
+
+
+def test_task_add_elements_multi_task_dependence_expected_new_data_index_custom_input_source(
+    tmp_path, param_p1
+):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p3",), "t1"],
+            [{"p2": None, "p3": None}, ("p4",), "t2"],
+            [{"p3": None, "p4": None}, (), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        local_sequences={1: [("inputs.p2", 2, 1)]},
+        nesting_orders={2: {"inputs.p3": 0, "inputs.p4": 1}},
+        input_sources={
+            2: {"p3": [hf.InputSource.task(0)]}
+        },  # override default (t2 input)
+        path=tmp_path,
+    )
+    t1_num_elems = wk.tasks.t1.num_elements
+    t2_num_elems = wk.tasks.t2.num_elements
+    t3_num_elems = wk.tasks.t3.num_elements
+    wk.tasks.t1.add_elements(
+        inputs=[hf.InputValue(param_p1, 102)],
+        propagate_to={
+            "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
+            "t3": {
+                "nesting_order": {"inputs.p3": 0, "inputs.p4": 1},
+                "input_sources": {"p3": [hf.InputSource.task(0)]},  # override default
+            },
+        },
+    )
+    t1_num_elems_new = wk.tasks.t1.num_elements
+    t2_num_elems_new = wk.tasks.t2.num_elements
+    t3_num_elems_new = wk.tasks.t3.num_elements
+    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
+    new_elems_t2 = data_index_new[
+        t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
+    ]
+    new_elems_t3 = data_index_new[
+        t1_num_elems_new
+        + t2_num_elems_new
+        + t3_num_elems : t1_num_elems_new
+        + t2_num_elems_new
+        + t3_num_elems_new
+    ]
+
+    assert (
+        new_elems_t1 == [["inputs.p1", "outputs.p3", "resources.any"]]
+        and new_elems_t2
+        == [["inputs.p2", "inputs.p3", "outputs.p4", "resources.any"]] * 2
         and new_elems_t3 == [["inputs.p3", "inputs.p4", "resources.any"]] * 2
     )
 
@@ -1294,6 +1387,40 @@ def test_task_add_elements_sequence_multi_task_dependence_workflow_num_elements(
         propagate_to={
             "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
             "t3": {"nesting_order": {"inputs.p3": 0, "inputs.p4": 1}},
+        },
+    )
+    num_elems_new = wk.num_elements
+    assert num_elems_new - num_elems == 45
+
+
+def test_task_add_elements_sequence_multi_task_dependence_workflow_num_elements_custom_input_source(
+    tmp_path,
+):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p3",), "t1"],
+            [{"p2": None, "p3": None}, ("p4",), "t2"],
+            [{"p3": None, "p4": None}, (), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        local_sequences={1: [("inputs.p2", 2, 1)]},
+        nesting_orders={2: {"inputs.p3": 0, "inputs.p4": 1}},
+        input_sources={
+            2: {"p3": [hf.InputSource.task(0)]}
+        },  # override default (t2 input)
+        path=tmp_path,
+    )
+    num_elems = wk.num_elements
+    wk.tasks.t1.add_elements(
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=[102, 103, 104], nesting_order=1)
+        ],
+        propagate_to={
+            "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
+            "t3": {
+                "nesting_order": {"inputs.p3": 0, "inputs.p4": 1},
+                "input_sources": {"p3": [hf.InputSource.task(0)]},  # override default
+            },
         },
     )
     num_elems_new = wk.num_elements
@@ -1326,6 +1453,41 @@ def test_task_add_elements_sequence_multi_task_dependence_expected_task_num_elem
     )
     num_elems_new = [task.num_elements for task in wk.tasks]
     num_elems_diff = [i - j for i, j in zip(num_elems_new, num_elems)]
+    assert num_elems_diff == [3, 6, 36]
+
+
+def test_task_add_elements_sequence_multi_task_dependence_expected_task_num_elements_custom_input_source(
+    tmp_path,
+):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p3",), "t1"],
+            [{"p2": None, "p3": None}, ("p4",), "t2"],
+            [{"p3": None, "p4": None}, (), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        local_sequences={1: [("inputs.p2", 2, 1)]},
+        nesting_orders={2: {"inputs.p3": 0, "inputs.p4": 1}},
+        input_sources={
+            2: {"p3": [hf.InputSource.task(0)]}
+        },  # override default (t2 input)
+        path=tmp_path,
+    )
+    num_elems = [task.num_elements for task in wk.tasks]
+    wk.tasks.t1.add_elements(
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=[102, 103, 104], nesting_order=1)
+        ],
+        propagate_to={
+            "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
+            "t3": {
+                "nesting_order": {"inputs.p3": 0, "inputs.p4": 1},
+                "input_sources": {"p3": [hf.InputSource.task(0)]},  # override default
+            },
+        },
+    )
+    num_elems_new = [task.num_elements for task in wk.tasks]
+    num_elems_diff = [i - j for i, j in zip(num_elems_new, num_elems)]
     assert num_elems_diff == [3, 6, 18]
 
 
@@ -1353,6 +1515,62 @@ def test_task_add_elements_sequence_multi_task_dependence_expected_new_data_inde
         propagate_to={
             "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
             "t3": {"nesting_order": {"inputs.p3": 0, "inputs.p4": 1}},
+        },
+    )
+    t1_num_elems_new = wk.tasks.t1.num_elements
+    t2_num_elems_new = wk.tasks.t2.num_elements
+    t3_num_elems_new = wk.tasks.t3.num_elements
+
+    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
+    new_elems_t2 = data_index_new[
+        t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
+    ]
+    new_elems_t3 = data_index_new[
+        t1_num_elems_new
+        + t2_num_elems_new
+        + t3_num_elems : t1_num_elems_new
+        + t2_num_elems_new
+        + t3_num_elems_new
+    ]
+    assert (
+        new_elems_t1 == [["inputs.p1", "outputs.p3", "resources.any"]] * 3
+        and new_elems_t2
+        == [["inputs.p2", "inputs.p3", "outputs.p4", "resources.any"]] * 6
+        and new_elems_t3 == [["inputs.p3", "inputs.p4", "resources.any"]] * 36
+    )
+
+
+def test_task_add_elements_sequence_multi_task_dependence_expected_new_data_index_custom_input_source(
+    tmp_path,
+):
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p3",), "t1"],
+            [{"p2": None, "p3": None}, ("p4",), "t2"],
+            [{"p3": None, "p4": None}, (), "t3"],
+        ],
+        local_inputs={0: ("p1",)},
+        local_sequences={1: [("inputs.p2", 2, 1)]},
+        nesting_orders={2: {"inputs.p3": 0, "inputs.p4": 1}},
+        input_sources={
+            2: {"p3": [hf.InputSource.task(0)]}
+        },  # override default (t2 input)
+        path=tmp_path,
+    )
+    t1_num_elems = wk.tasks.t1.num_elements
+    t2_num_elems = wk.tasks.t2.num_elements
+    t3_num_elems = wk.tasks.t3.num_elements
+    wk.tasks.t1.add_elements(
+        sequences=[
+            hf.ValueSequence("inputs.p1", values=[102, 103, 104], nesting_order=1)
+        ],
+        propagate_to={
+            "t2": {"nesting_order": {"inputs.p2": 0, "inputs.p3": 1}},
+            "t3": {
+                "nesting_order": {"inputs.p3": 0, "inputs.p4": 1},
+                "input_sources": {"p3": [hf.InputSource.task(0)]},  # override default
+            },
         },
     )
     t1_num_elems_new = wk.tasks.t1.num_elements
@@ -2176,3 +2394,67 @@ def test_raise_UnknownEnvironmentPresetError_sequence(null_config):
     seq = hf.ValueSequence(path="env_preset", values=["my_env_preset"])
     with pytest.raises(UnknownEnvironmentPresetError):
         hf.Task(schema=ts, sequences=[seq])
+
+
+def test_group_values_input_and_output_source_from_upstream(null_config, tmp_path):
+    """
+    | task | inputs | outputs | group    | num_elements               |
+    | ---- | ------ | ------- | -------- | ---------------------------|
+    | t1   | p0     | p1      | -        | 3                          |
+    | t2   | p1     | p2      | my_group | 3                          |
+    | t3   | p1, p2 | -       | -        | 1 (grouped p1, grouped p2) |
+    """
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p0")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo <<parameter:p0>> + 1",
+                        stdout="<<parameter:p1>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo <<parameter:p1>> + 1",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[
+            hf.SchemaInput("p1", group="my_group"),
+            hf.SchemaInput("p2", group="my_group"),
+        ],
+    )
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p0": 1},
+        repeats=3,
+    )
+    t2 = hf.Task(schema=s2, groups=[hf.ElementGroup("my_group")])
+    t3 = hf.Task(schema=s3)
+    wk = hf.Workflow.from_template_data(
+        template_name="test_group",
+        tasks=[t1, t2, t3],
+        path=tmp_path,
+    )
+    assert wk.tasks[0].num_elements == 3
+    assert wk.tasks[1].num_elements == 3
+    assert wk.tasks[2].num_elements == 1
+    assert [i.value for i in wk.tasks[2].inputs.p1] == [[None, None, None]]
+    assert [i.value for i in wk.tasks[2].inputs.p2] == [[None, None, None]]
