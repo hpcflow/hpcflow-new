@@ -64,9 +64,31 @@ SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 
-def rate_limit_safe_url_to_fs(*args, logger=None, **kwargs):
-    """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s"""
+def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
+    """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s
 
+    References
+    ----------
+    [1]: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?
+            apiVersion=2022-11-28#about-secondary-rate-limits
+    """
+
+    auth = {}
+    if app.run_time_info.in_pytest:
+        gh_token = os.environ.get("GH_TOKEN")
+        if gh_token:
+            # using the GitHub actions built in token increases the number of API
+            # requests allowed per hour to 1000 [1]. fsspec requires "username" to be
+            # set if using "token":
+            auth = {"username": "", "token": gh_token}
+            logger.info(
+                "calling fsspec's `url_to_fs` with a token from the env variable "
+                "`GH_TOKEN`."
+            )
+
+    # GitHub actions testing is potentially highly concurrent, with multiple
+    # Python versions and OSes being tested at the same time; so we might hit
+    # GitHub's secondary rate limit:
     @retry(
         requests.exceptions.HTTPError,
         tries=10,
@@ -76,6 +98,7 @@ def rate_limit_safe_url_to_fs(*args, logger=None, **kwargs):
         logger=logger,
     )
     def _inner(*args, **kwargs):
+        kwargs.update(auth)
         return url_to_fs(*args, **kwargs)
 
     return _inner(*args, **kwargs)
