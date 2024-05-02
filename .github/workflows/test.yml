@@ -30,6 +30,11 @@ on:
         required: true
         type: boolean
         default: true
+      unit_test_args:
+        description: "CLI args to pass verbatim to the pytest command for unit tests."
+        required: false
+        type: string
+        default: ""
   pull_request:
     types: [opened, edited, synchronize]
     branches: [main, develop] # have to manually change these
@@ -157,7 +162,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run python -m pytest 
+          poetry run python -m pytest ${{ github.event.inputs.unit_test_args }}
 
   test-integration:
     needs: pre-commit
