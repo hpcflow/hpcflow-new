@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import random
 import string
+import sys
 from textwrap import dedent
 
 import pytest
+import requests
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
@@ -148,6 +150,14 @@ def test_slice(new_null_config, tmp_path):
     assert p1_params[1].value == values[2]
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "darwin",
+    raises=requests.exceptions.HTTPError,
+    reason=(
+        "GHA MacOS runners use the same IP address, so we get rate limited when "
+        "retrieving demo data from GitHub."
+    ),
+)
 def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_path):
     yaml_str = dedent(
         """\
@@ -171,6 +181,14 @@ def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_pa
     }
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "darwin",
+    raises=requests.exceptions.HTTPError,
+    reason=(
+        "GHA MacOS runners use the same IP address, so we get rate limited when "
+        "retrieving demo data from GitHub."
+    ),
+)
 def test_demo_data_substitution_value_sequence_class_method(new_null_config, tmp_path):
     yaml_str = dedent(
         """\

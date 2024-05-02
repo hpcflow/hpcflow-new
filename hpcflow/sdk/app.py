@@ -91,10 +91,10 @@ def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
     # GitHub's secondary rate limit:
     @retry(
         requests.exceptions.HTTPError,
-        tries=10,
-        delay=1,
+        tries=3,
+        delay=5,
         backoff=1.5,
-        jitter=(0, 5),
+        jitter=(0, 20),
         logger=logger,
     )
     def _inner(*args, **kwargs):

@@ -1,4 +1,6 @@
+import sys
 import pytest
+import requests
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import InputValueDuplicateSequenceAddress
@@ -155,6 +157,14 @@ def test_value_is_dict_check_no_raise_if_sub_parameter(null_config):
     hf.InputValue("p1c", path="a", value=101)
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "darwin",
+    raises=requests.exceptions.HTTPError,
+    reason=(
+        "GHA MacOS runners use the same IP address, so we get rate limited when "
+        "retrieving demo data from GitHub."
+    ),
+)
 def test_demo_data_value(null_config):
     name = "text_file.txt"
     assert hf.InputValue("p1", value=f"<<demo_data_file:{name}>>").value == str(

@@ -1,4 +1,6 @@
+import sys
 import pytest
+import requests
 
 from hpcflow.app import app as hf
 
@@ -87,6 +89,14 @@ def test_get_demo_data_manifest(null_config):
     hf.get_demo_data_files_manifest()
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "darwin",
+    raises=requests.exceptions.HTTPError,
+    reason=(
+        "GHA MacOS runners use the same IP address, so we get rate limited when "
+        "retrieving demo data from GitHub."
+    ),
+)
 def test_get_demo_data_cache(null_config):
     hf.clear_demo_data_cache_dir()
     hf.cache_demo_data_file("text_file.txt")

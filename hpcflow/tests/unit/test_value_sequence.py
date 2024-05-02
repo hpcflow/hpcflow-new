@@ -1,5 +1,7 @@
+import sys
 import numpy as np
 import pytest
+import requests
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
@@ -407,6 +409,14 @@ def test_nesting_order_three_seqs_all_decimal(null_config, tmp_path):
     assert wk.tasks.test.elements[5].get("inputs") == {"p1": "b", "p2": "e", "p3": "k"}
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "darwin",
+    raises=requests.exceptions.HTTPError,
+    reason=(
+        "GHA MacOS runners use the same IP address, so we get rate limited when "
+        "retrieving demo data from GitHub."
+    ),
+)
 def test_demo_data_values(null_config):
     name = "text_file.txt"
     assert hf.ValueSequence(
