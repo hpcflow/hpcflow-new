@@ -2320,6 +2320,7 @@ class BaseApp(metaclass=Singleton):
                 f"{self.config.demo_data_manifest_file!r}."
             )
             fs, url_path = rate_limit_safe_url_to_fs(
+                self,
                 str(self.config.demo_data_manifest_file),
                 logger=self.logger,
             )
@@ -2369,6 +2370,7 @@ class BaseApp(metaclass=Singleton):
 
         def _retrieve_source_path_from_config(src_fn):
             fs, url_path = rate_limit_safe_url_to_fs(
+                self,
                 self.config.demo_data_dir,
                 logger=self.logger,
             )
