@@ -1,4 +1,12 @@
 
+<a name="v0.2.0a172"></a>
+## [v0.2.0a172](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a171...v0.2.0a172) - 2024.05.02
+
+### 🐛 Bug Fixes
+
+* missing endraw again
+
+
 <a name="v0.2.0a171"></a>
 ## [v0.2.0a171](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a170...v0.2.0a171) - 2024.05.02
 
