@@ -591,3 +591,35 @@ def test_loop_local_sub_parameters(null_config, tmp_path):
     assert t1_iter_1["inputs.p1c"] == t2_iter_0["outputs.p1c"]
     assert t2_iter_1["inputs.p2"] == t1_iter_1["outputs.p2"]
     assert t1_iter_0["inputs.p1c.d"] == t1_iter_1["inputs.p1c.d"]
+
+
+def test_nested_loop_iter_loop_idx(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+        loops=[
+            hf.Loop(name="outer_loop", tasks=[0], num_iterations=1),
+            hf.Loop(name="inner_loop", tasks=[0], num_iterations=1),
+        ],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].loop_idx == {
+        "inner_loop": 0,
+        "outer_loop": 0,
+    }

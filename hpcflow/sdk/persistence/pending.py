@@ -69,7 +69,7 @@ class PendingChanges:
         self.set_parameters: Dict[int, AnySParameter] = None
 
         self.update_param_sources: Dict[int, Dict] = None
-        self.update_loop_indices: Dict[int, Dict] = None
+        self.update_loop_indices: Dict[int, Dict[str, int]] = None
         self.update_loop_num_iters: Dict[int, int] = None
 
         self.reset(is_init=True)  # set up initial data structures
@@ -482,7 +482,7 @@ class PendingChanges:
         self.update_param_sources = {}
 
     def clear_update_loop_indices(self):
-        self.update_loop_indices = {}
+        self.update_loop_indices = defaultdict(dict)
 
     def clear_update_loop_num_iters(self):
         self.update_loop_num_iters = {}

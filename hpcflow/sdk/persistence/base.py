@@ -946,7 +946,7 @@ class PersistentStore(ABC):
         }
 
         for i in iter_IDs:
-            self._pending.update_loop_indices[i] = {loop_template["name"]: 0}
+            self._pending.update_loop_indices[i].update({loop_template["name"]: 0})
 
         if save:
             self.save()
