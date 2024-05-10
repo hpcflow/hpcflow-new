@@ -19,6 +19,7 @@ from .errors import (
     InapplicableInputSourceElementIters,
     MalformedNestingOrderPath,
     MayNeedObjectError,
+    MissingElementGroup,
     MissingInputs,
     NoAvailableElementSetsError,
     NoCoincidentInputSources,
@@ -1611,6 +1612,13 @@ class WorkflowTask:
                                         group_dat_idx.append(dat_idx_i)
 
                                 # TODO: this only goes to one level of dependency
+
+                        if not group_dat_idx:
+                            raise MissingElementGroup(
+                                f"Adding elements to task {self.unique_name!r}: no "
+                                f"element group named {inp_group_name!r} found for input "
+                                f"{labelled_path_i!r}."
+                            )
 
                         grp_idx = [group_dat_idx]  # TODO: generalise to multiple groups
 

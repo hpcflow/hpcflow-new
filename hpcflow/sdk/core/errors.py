@@ -423,3 +423,7 @@ class UnknownEnvironmentPresetError(ValueError):
 
 class MultipleEnvironmentsError(ValueError):
     pass
+
+
+class MissingElementGroup(ValueError):
+    pass
