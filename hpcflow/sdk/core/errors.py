@@ -171,6 +171,10 @@ class LoopAlreadyExistsError(Exception):
     pass
 
 
+class LoopTaskSubsetError(ValueError):
+    pass
+
+
 class SchedulerVersionsFailure(RuntimeError):
     """We couldn't get the scheduler and or shell versions."""
 

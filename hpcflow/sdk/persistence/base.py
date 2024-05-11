@@ -934,15 +934,20 @@ class PersistentStore(ABC):
         self,
         loop_template: Dict,
         iterable_parameters,
+        parents: List[str],
+        num_added_iterations: Dict[Tuple[int], int],
         iter_IDs: List[int],
         save: bool = True,
     ):
         """Add a new loop to the workflow."""
         self.logger.debug(f"Adding store loop.")
         new_idx = self._get_num_total_loops()
+        added_iters = [[list(k), v] for k, v in num_added_iterations.items()]
         self._pending.add_loops[new_idx] = {
             "loop_template": loop_template,
             "iterable_parameters": iterable_parameters,
+            "parents": parents,
+            "num_added_iterations": added_iters,
         }
 
         for i in iter_IDs:
@@ -1298,12 +1303,30 @@ class PersistentStore(ABC):
             self.save()
 
     def update_loop_num_iters(
-        self, index: int, num_iters: int, save: bool = True
+        self, index: int, num_added_iters: int, save: bool = True
     ) -> None:
         self.logger.debug(
-            f"Updating loop {index!r} num added iterations to {num_iters!r}."
+            f"Updating loop {index!r} num added iterations to {num_added_iters!r}."
         )
-        self._pending.update_loop_num_iters[index] = num_iters
+        num_added_iters = [[list(k), v] for k, v in num_added_iters.items()]
+        self._pending.update_loop_num_iters[index] = num_added_iters
+        if save:
+            self.save()
+
+    def update_loop_parents(
+        self,
+        index: int,
+        num_added_iters: int,
+        parents: List[str],
+        save: bool = True,
+    ) -> None:
+        self.logger.debug(
+            f"Updating loop {index!r} parents to {parents!r}, and num added iterations "
+            f"to {num_added_iters}."
+        )
+        num_added_iters = [[list(k), v] for k, v in num_added_iters.items()]
+        self._pending.update_loop_num_iters[index] = num_added_iters
+        self._pending.update_loop_parents[index] = parents
         if save:
             self.save()
 
@@ -1349,6 +1372,11 @@ class PersistentStore(ABC):
             pend_num_iters = self._pending.update_loop_num_iters.get(id_)
             if pend_num_iters:
                 loop_i["num_added_iterations"] = pend_num_iters
+            # consider pending change to parents:
+            pend_parents = self._pending.update_loop_parents.get(id_)
+            if pend_parents:
+                loop_i["parents"] = pend_parents
+
             loops_new[id_] = loop_i
         return loops_new
 

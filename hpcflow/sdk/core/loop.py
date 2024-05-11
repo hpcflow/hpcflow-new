@@ -4,6 +4,7 @@ import copy
 from typing import Dict, List, Optional, Tuple, Union
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
@@ -175,17 +176,25 @@ class WorkflowLoop:
         index: int,
         workflow: app.Workflow,
         template: app.Loop,
-        num_added_iterations: int,
+        num_added_iterations: Dict[Tuple[int], int],
         iterable_parameters: Dict[int : List[int, List[int]]],
+        parents: List[str],
     ):
         self._index = index
         self._workflow = workflow
         self._template = template
         self._num_added_iterations = num_added_iterations
         self._iterable_parameters = iterable_parameters
+        self._parents = parents
 
-        # incremented when a new loop iteration is added, reset on dump to disk:
-        self._pending_num_added_iterations = 0
+        # appended to on adding a empty loop to the workflow that's a parent of this loop,
+        # reset and added to `self._parents` on dump to disk:
+        self._pending_parents = []
+
+        # used for `num_added_iterations` when a new loop iteration is added, or when
+        # parents are append to; reset to None on dump to disk. Each key is a tuple of
+        # parent loop indices and each value is the number of pending new iterations:
+        self._pending_num_added_iterations = None
 
         self._validate()
 
@@ -194,7 +203,20 @@ class WorkflowLoop:
         task_indices = self.task_indices
         task_min, task_max = task_indices[0], task_indices[-1]
         if task_indices != tuple(range(task_min, task_max + 1)):
-            raise ValueError(f"Loop task subset must be a contiguous range")
+            raise LoopTaskSubsetError(
+                f"Loop {self.name!r}: task subset must be an ascending contiguous range, "
+                f"but specified task indices were: {self.task_indices!r}."
+            )
+
+        for task in self.downstream_tasks:
+            for param in self.iterable_parameters:
+                if param in task.template.all_schema_input_types:
+                    raise NotImplementedError(
+                        f"Downstream task {task.unique_name!r} of loop {self.name!r} "
+                        f"has as one of its input parameters this loop's iterable "
+                        f"parameter {param!r}. This parameter cannot be sourced "
+                        f"correctly."
+                    )
 
     def __repr__(self) -> str:
         return (
@@ -202,12 +224,57 @@ class WorkflowLoop:
             f"num_added_iterations={self.num_added_iterations!r})"
         )
 
+    @property
+    def num_added_iterations(self):
+
+        if self._pending_num_added_iterations:
+            return self._pending_num_added_iterations
+        else:
+            return self._num_added_iterations
+
+    def _initialise_pending_added_iters(self, added_iters_key):
+        if not self._pending_num_added_iterations:
+            self._pending_num_added_iterations = copy.deepcopy(self._num_added_iterations)
+
+        if added_iters_key not in self._pending_num_added_iterations:
+            self._pending_num_added_iterations[added_iters_key] = 1
+
+    def _increment_pending_added_iters(self, added_iters_key):
+        if not self._pending_num_added_iterations:
+            self._pending_num_added_iterations = copy.deepcopy(self._num_added_iterations)
+
+        self._pending_num_added_iterations[added_iters_key] += 1
+
+    def _update_parents(self, parent: app.WorkflowLoop):
+        self._pending_parents.append(parent.name)
+
+        if not self._pending_num_added_iterations:
+            self._pending_num_added_iterations = copy.deepcopy(self._num_added_iterations)
+
+        self._pending_num_added_iterations = {
+            tuple(list(k) + [0]): v for k, v in self._pending_num_added_iterations.items()
+        }
+
+        self.workflow._store.update_loop_parents(
+            index=self.index,
+            num_added_iters=self.num_added_iterations,
+            parents=self.parents,
+        )
+
     def _reset_pending_num_added_iters(self):
-        self._pending_num_added_iterations = 0
+        self._pending_num_added_iterations = None
 
     def _accept_pending_num_added_iters(self):
-        self._num_added_iterations = self.num_added_iterations
-        self._reset_pending_num_added_iters()
+        if self._pending_num_added_iterations:
+            self._num_added_iterations = copy.deepcopy(self._pending_num_added_iterations)
+            self._reset_pending_num_added_iters()
+
+    def _reset_pending_parents(self):
+        self._pending_parents = []
+
+    def _accept_pending_parents(self):
+        self._parents += self._pending_parents
+        self._reset_pending_parents()
 
     @property
     def index(self):
@@ -235,6 +302,10 @@ class WorkflowLoop:
         return self._template
 
     @property
+    def parents(self) -> List[str]:
+        return self._parents + self._pending_parents
+
+    @property
     def name(self):
         return self.template.name
 
@@ -247,8 +318,14 @@ class WorkflowLoop:
         return self.template.num_iterations
 
     @property
-    def num_added_iterations(self):
-        return self._num_added_iterations + self._pending_num_added_iterations
+    def downstream_tasks(self) -> List[app.WorkflowLoop]:
+        """Return tasks that are not part of the loop, and downstream from this loop."""
+        return self.workflow.tasks[self.task_objects[-1].index + 1 :]
+
+    @property
+    def upstream_tasks(self) -> List[app.WorkflowLoop]:
+        """Return tasks that are not part of the loop, and upstream from this loop."""
+        return self.workflow.tasks[: self.task_objects[0].index]
 
     @staticmethod
     def _find_iterable_parameters(loop_template: app.Loop):
@@ -262,8 +339,6 @@ class WorkflowLoop:
                 if typ not in all_outputs_idx:
                     all_outputs_idx[typ] = []
                 all_outputs_idx[typ].append(task.insert_ID)
-
-        all_inputs_first_idx, all_outputs_idx
 
         iterable_params = {}
         for typ, first_idx in all_inputs_first_idx.items():
@@ -280,38 +355,60 @@ class WorkflowLoop:
         return iterable_params
 
     @classmethod
-    def new_empty_loop(cls, index: int, workflow: app.Workflow, template: app.Loop):
+    def new_empty_loop(
+        cls,
+        index: int,
+        workflow: app.Workflow,
+        template: app.Loop,
+        iterations: List[app.ElementIteration],
+    ) -> Tuple[app.WorkflowLoop, List[Dict[str, int]]]:
+        parent_loops = cls._get_parent_loops(index, workflow, template)
+        parent_names = [i.name for i in parent_loops]
+        num_added_iters = {}
+        for iter_i in iterations:
+            num_added_iters[tuple([iter_i.loop_idx[j] for j in parent_names])] = 1
+
         obj = cls(
             index=index,
             workflow=workflow,
             template=template,
-            num_added_iterations=1,
+            num_added_iterations=num_added_iters,
             iterable_parameters=cls._find_iterable_parameters(template),
+            parents=parent_names,
         )
         return obj
 
-    def get_parent_loops(self) -> List[app.WorkflowLoop]:
-        """Get loops whose task subset is a superset of this loop's task subset. If two
-        loops have identical task subsets, the first loop in the workflow loop index is
-        considered the parent."""
+    @classmethod
+    def _get_parent_loops(
+        cls,
+        index: int,
+        workflow: app.Workflow,
+        template: app.Loop,
+    ) -> List[app.WorkflowLoop]:
         parents = []
         passed_self = False
-        self_tasks = set(self.task_insert_IDs)
-        for loop_i in self.workflow.loops:
-            if loop_i.index == self.index:
+        self_tasks = set(template.task_insert_IDs)
+        for loop_i in workflow.loops:
+            if loop_i.index == index:
                 passed_self = True
                 continue
             other_tasks = set(loop_i.task_insert_IDs)
             if self_tasks.issubset(other_tasks):
-                if (self_tasks == other_tasks) and passed_self:
+                if (self_tasks == other_tasks) and not passed_self:
                     continue
                 parents.append(loop_i)
         return parents
 
+    def get_parent_loops(self) -> List[app.WorkflowLoop]:
+        """Get loops whose task subset is a superset of this loop's task subset. If two
+        loops have identical task subsets, the first loop in the workflow loop list is
+        considered the child."""
+        return self._get_parent_loops(self.index, self.workflow, self.template)
+
     def get_child_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
-        loops have identical task subsets, the first loop in the workflow loop index is
-        considered the parent."""
+        loops have identical task subsets, the first loop in the workflow loop list is
+        considered the child."""
         children = []
         passed_self = False
         self_tasks = set(self.task_insert_IDs)
@@ -321,23 +418,21 @@ class WorkflowLoop:
                 continue
             other_tasks = set(loop_i.task_insert_IDs)
             if self_tasks.issuperset(other_tasks):
-                if (self_tasks == other_tasks) and not passed_self:
+                if (self_tasks == other_tasks) and passed_self:
                     continue
                 children.append(loop_i)
         return children
 
     def add_iteration(self, parent_loop_indices=None):
-        parent_loop_indices = parent_loop_indices or {}
-        cur_loop_idx = self.num_added_iterations - 1
         parent_loops = self.get_parent_loops()
         child_loops = self.get_child_loops()
+        child_loop_names = [i.name for i in child_loops]
+        parent_loop_indices = parent_loop_indices or {}
+        if parent_loops and not parent_loop_indices:
+            parent_loop_indices = {i.name: 0 for i in parent_loops}
 
-        for parent_loop in parent_loops:
-            if parent_loop.name not in parent_loop_indices:
-                raise ValueError(
-                    f"Parent loop {parent_loop.name!r} must be specified in "
-                    f"`parent_loop_indices`."
-                )
+        iters_key = tuple([parent_loop_indices[k] for k in self.parents])
+        cur_loop_idx = self.num_added_iterations[iters_key] - 1
         all_new_data_idx = {}  # keys are (task.insert_ID and element.index)
 
         for task in self.task_objects:
@@ -346,6 +441,16 @@ class WorkflowLoop:
                 element = task.elements[elem_idx]
                 inp_statuses = task.template.get_input_statuses(element.element_set)
                 new_data_idx = {}
+                existing_inners = []
+                for iter_i in element.iterations:
+                    if iter_i.loop_idx[self.name] == cur_loop_idx:
+                        existing_inner_i = {
+                            k: v
+                            for k, v in iter_i.loop_idx.items()
+                            if k in child_loop_names
+                        }
+                        if existing_inner_i:
+                            existing_inners.append(existing_inner_i)
 
                 # copy resources from zeroth iteration:
                 for key, val in element.iterations[0].get_data_idx().items():
@@ -367,17 +472,29 @@ class WorkflowLoop:
                         # parametrised:
                         if task.insert_ID == iter_dat["output_tasks"][-1]:
                             src_elem = element
+                            grouped_elems = None
                         else:
                             src_elems = element.get_dependent_elements_recursively(
                                 task_insert_ID=iter_dat["output_tasks"][-1]
                             )
-                            if len(src_elems) > 1:
+                            # consider groups
+                            inp_group_name = inp.single_labelled_data.get("group")
+                            grouped_elems = []
+                            for i in src_elems:
+                                i_in_group = any(
+                                    j.name == inp_group_name for j in i.element_set.groups
+                                )
+                                if i_in_group:
+                                    grouped_elems.append(i)
+
+                            if not grouped_elems and len(src_elems) > 1:
                                 raise NotImplementedError(
                                     f"Multiple elements found in the iterable parameter {inp!r}'s"
                                     f" latest output task (insert ID: "
                                     f"{iter_dat['output_tasks'][-1]}) that can be used to "
-                                    f"parametrise the next iteration."
+                                    f"parametrise the next iteration: {src_elems!r}."
                                 )
+
                             elif not src_elems:
                                 # TODO: maybe OK?
                                 raise NotImplementedError(
@@ -386,11 +503,18 @@ class WorkflowLoop:
                                     f"{iter_dat['output_tasks'][-1]}) that can be used to "
                                     f"parametrise the next iteration."
                                 )
-                            src_elem = src_elems[0]
 
-                        child_loop_max_iters = {
-                            i.name: i.num_added_iterations - 1 for i in child_loops
-                        }
+                            else:
+                                src_elem = src_elems[0]
+
+                        child_loop_max_iters = {}
+                        for i in child_loops:
+                            iters_key = [parent_loop_indices[k] for k in self.parents] + [
+                                cur_loop_idx
+                            ]
+                            child_loop_max_iters[i.name] = (
+                                i.num_added_iterations[tuple(iters_key)] - 1
+                            )
                         parent_loop_same_iters = {
                             i.name: parent_loop_indices[i.name] for i in parent_loops
                         }
@@ -403,12 +527,32 @@ class WorkflowLoop:
                         # identify the ElementIteration from which this input should be
                         # parametrised:
                         source_iter = None
-                        for iter_i in src_elem.iterations:
-                            if iter_i.loop_idx == source_iter_loop_idx:
-                                source_iter = iter_i
-                                break
+                        if grouped_elems:
+                            source_iter = []
+                            for src_elem in grouped_elems:
+                                for iter_i in src_elem.iterations:
+                                    if iter_i.loop_idx == source_iter_loop_idx:
+                                        source_iter.append(iter_i)
+                                        break
+                        else:
+                            for iter_i in src_elem.iterations:
+                                if iter_i.loop_idx == source_iter_loop_idx:
+                                    source_iter = iter_i
+                                    break
 
-                        inp_dat_idx = source_iter.get_data_idx()[f"outputs.{inp.typ}"]
+                        if not source_iter:
+                            raise RuntimeError(
+                                f"Could not find a source iteration with loop_idx: "
+                                f"{source_iter_loop_idx!r}."
+                            )
+
+                        if grouped_elems:
+                            inp_dat_idx = [
+                                i.get_data_idx()[f"outputs.{inp.typ}"]
+                                for i in source_iter
+                            ]
+                        else:
+                            inp_dat_idx = source_iter.get_data_idx()[f"outputs.{inp.typ}"]
                         new_data_idx[f"inputs.{inp.typ}"] = inp_dat_idx
 
                     else:
@@ -467,11 +611,16 @@ class WorkflowLoop:
                                                 task_insert_ID=task.insert_ID
                                             )
                                         )
+                                        # filter src_elems_i for matching element IDs:
+                                        src_elems_i = [
+                                            i for i in src_elems_i if i.id_ == element.id_
+                                        ]
                                         if (
                                             len(src_elems_i) == 1
                                             and src_elems_i[0].id_ == element.id_
                                         ):
                                             new_sources.append((tiID, e_idx))
+
                                 if is_group:
                                     inp_dat_idx = [
                                         all_new_data_idx[i][prev_dat_idx_key]
@@ -515,20 +664,49 @@ class WorkflowLoop:
                     i for i in new_data_idx.keys() if len(i.split(".")) == 2
                 )
                 all_new_data_idx[(task.insert_ID, element.index)] = new_data_idx
+
+                new_loop_idx = {
+                    **parent_loop_indices,
+                    self.name: cur_loop_idx + 1,
+                    **{
+                        child.name: 0
+                        for child in child_loops
+                        if task.insert_ID in child.task_insert_IDs
+                    },
+                }
+                # increment num_added_iterations on child loop for this parent loop index:
+                added_iters_key_chd = tuple(
+                    [parent_loop_indices[k] for k in self.parents] + [cur_loop_idx + 1]
+                )
+                for i in child_loops:
+                    i._initialise_pending_added_iters(added_iters_key_chd)
+
                 iter_ID_i = self.workflow._store.add_element_iteration(
                     element_ID=element.id_,
                     data_idx=new_data_idx,
                     schema_parameters=list(schema_params),
-                    loop_idx={**parent_loop_indices, self.name: cur_loop_idx + 1},
+                    loop_idx=new_loop_idx,
                 )
 
                 task.initialise_EARs()
 
-        self._pending_num_added_iterations += 1
+        added_iters_key = tuple(parent_loop_indices[k] for k in self.parents)
+        self._increment_pending_added_iters(added_iters_key)
         self.workflow._store.update_loop_num_iters(
             index=self.index,
-            num_iters=self.num_added_iterations,
+            num_added_iters=self.num_added_iterations,
         )
+
+        # add child loops of fixed-number iterations
+        for loop in child_loops:
+            if loop.num_iterations is not None:
+                for _ in range(loop.num_iterations - 1):
+                    loop.add_iteration(
+                        parent_loop_indices={
+                            **parent_loop_indices,
+                            self.name: cur_loop_idx + 1,
+                        }
+                    )
 
     def test_termination(self, element_iter):
         """Check if a loop should terminate, given the specified completed element
