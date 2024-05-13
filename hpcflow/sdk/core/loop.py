@@ -421,6 +421,9 @@ class WorkflowLoop:
                 if (self_tasks == other_tasks) and passed_self:
                     continue
                 children.append(loop_i)
+
+        # order by depth, so direct child is first:
+        children = sorted(children, key=lambda x: len(next(iter(x.num_added_iterations))))
         return children
 
     def add_iteration(self, parent_loop_indices=None):
@@ -508,16 +511,21 @@ class WorkflowLoop:
                                 src_elem = src_elems[0]
 
                         child_loop_max_iters = {}
-                        for i in child_loops:
-                            iters_key = [parent_loop_indices[k] for k in self.parents] + [
-                                cur_loop_idx
-                            ]
-                            child_loop_max_iters[i.name] = (
-                                i.num_added_iterations[tuple(iters_key)] - 1
-                            )
                         parent_loop_same_iters = {
                             i.name: parent_loop_indices[i.name] for i in parent_loops
                         }
+                        child_iter_parents = {
+                            **parent_loop_same_iters,
+                            self.name: cur_loop_idx,
+                        }
+                        for i in child_loops:
+                            i_num_iters = i.num_added_iterations[
+                                tuple(child_iter_parents[j] for j in i.parents)
+                            ]
+                            i_max = i_num_iters - 1
+                            child_iter_parents[i.name] = i_max
+                            child_loop_max_iters[i.name] = i_max
+
                         source_iter_loop_idx = {
                             **child_loop_max_iters,
                             **parent_loop_same_iters,
@@ -675,10 +683,8 @@ class WorkflowLoop:
                     },
                 }
                 # increment num_added_iterations on child loop for this parent loop index:
-                added_iters_key_chd = tuple(
-                    [parent_loop_indices[k] for k in self.parents] + [cur_loop_idx + 1]
-                )
                 for i in child_loops:
+                    added_iters_key_chd = tuple([new_loop_idx[j] for j in i.parents])
                     i._initialise_pending_added_iters(added_iters_key_chd)
 
                 iter_ID_i = self.workflow._store.add_element_iteration(
@@ -697,12 +703,14 @@ class WorkflowLoop:
             num_added_iters=self.num_added_iterations,
         )
 
-        # add child loops of fixed-number iterations
-        for loop in child_loops:
-            if loop.num_iterations is not None:
-                for _ in range(loop.num_iterations - 1):
-                    loop.add_iteration(
+        # add iterations to fixed-number-iteration children only:
+        for child in child_loops[::-1]:
+            if child.num_iterations is not None:
+                for _ in range(child.num_iterations - 1):
+                    par_idx = {k: 0 for k in child.parents}
+                    child.add_iteration(
                         parent_loop_indices={
+                            **par_idx,
                             **parent_loop_indices,
                             self.name: cur_loop_idx + 1,
                         }

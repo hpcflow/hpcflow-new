@@ -1069,3 +1069,93 @@ def test_adjacent_loops_iteration_pathway(null_config, tmp_path):
         (2, {"loop_B": 0}),
         (2, {"loop_B": 1}),
     ]
+
+
+def test_get_child_loops_ordered_by_depth(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+        ],
+        loops=[
+            hf.Loop(name="inner", tasks=[0], num_iterations=1),
+            hf.Loop(name="middle", tasks=[0], num_iterations=1),
+            hf.Loop(name="outer", tasks=[0], num_iterations=1),
+        ],
+    )
+    assert wk.loops.inner.get_child_loops() == []
+    assert wk.loops.middle.get_child_loops() == [wk.loops.inner]
+    assert wk.loops.outer.get_child_loops() == [wk.loops.middle, wk.loops.inner]
+
+
+def test_multi_nested_loops(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+        loops=[
+            hf.Loop(name="inner", tasks=[0], num_iterations=2),
+            hf.Loop(name="middle_1", tasks=[0], num_iterations=3),
+            hf.Loop(name="middle_2", tasks=[0], num_iterations=2),
+            hf.Loop(name="outer", tasks=[0], num_iterations=2),
+        ],
+    )
+    pathway = wk.get_iteration_task_pathway(ret_iter_IDs=True)
+    assert len(pathway) == 2 * 3 * 2 * 2
+    assert wk.get_iteration_task_pathway(ret_iter_IDs=True) == [
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 0, "outer": 0}, (0,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 0, "outer": 0}, (1,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 0, "outer": 0}, (2,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 0, "outer": 0}, (3,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 0, "outer": 0}, (4,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 0, "outer": 0}, (5,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 1, "outer": 0}, (6,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 1, "outer": 0}, (7,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 1, "outer": 0}, (8,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 1, "outer": 0}, (9,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 1, "outer": 0}, (10,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 1, "outer": 0}, (11,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 0, "outer": 1}, (12,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 0, "outer": 1}, (13,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 0, "outer": 1}, (14,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 0, "outer": 1}, (15,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 0, "outer": 1}, (16,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 0, "outer": 1}, (17,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 1, "outer": 1}, (18,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 1, "outer": 1}, (19,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 1, "outer": 1}, (20,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 1, "outer": 1}, (21,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 1, "outer": 1}, (22,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 1, "outer": 1}, (23,)),
+    ]

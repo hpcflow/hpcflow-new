@@ -1129,7 +1129,6 @@ class Workflow:
 
         # update any child loops of the new loop to include their new parent:
         for chd_loop in wk_loop.get_child_loops():
-            # if chd loop is great index, then raise
             chd_loop._update_parents(wk_loop)
 
         loop_js, _ = loop_c.to_json_like()
