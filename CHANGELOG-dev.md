@@ -1,4 +1,20 @@
 
+<a name="v0.2.0a174"></a>
+## [v0.2.0a174](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a173...v0.2.0a174) - 2024.05.13
+
+### 🐛 Bug Fixes
+
+* multi-level nested loops
+* nested loops, and raise on some scenarios we cannot yet support
+* raise on missing element group
+* iteration loop_idx for nested loops
+
+### 👷 Build changes
+
+* update platformdirs
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a173"></a>
 ## [v0.2.0a173](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a172...v0.2.0a173) - 2024.05.02
 
