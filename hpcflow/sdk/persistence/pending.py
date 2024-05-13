@@ -69,8 +69,9 @@ class PendingChanges:
         self.set_parameters: Dict[int, AnySParameter] = None
 
         self.update_param_sources: Dict[int, Dict] = None
-        self.update_loop_indices: Dict[int, Dict] = None
+        self.update_loop_indices: Dict[int, Dict[str, int]] = None
         self.update_loop_num_iters: Dict[int, int] = None
+        self.update_loop_parents: Dict[int, List[str]] = None
 
         self.reset(is_init=True)  # set up initial data structures
 
@@ -101,6 +102,7 @@ class PendingChanges:
             or bool(self.update_param_sources)
             or bool(self.update_loop_indices)
             or bool(self.update_loop_num_iters)
+            or bool(self.update_loop_parents)
         )
 
     def where_pending(self) -> List[str]:
@@ -158,6 +160,16 @@ class PendingChanges:
             loop_ids = list(self.add_loops.keys())
             self.logger.debug(f"commit: adding pending loops with indices {loop_ids!r}")
             self.store._append_loops(loops)
+
+            # pending num_added_iters and parents that belong to pending loops are now
+            # committed:
+            self.update_loop_num_iters = {
+                k: v for k, v in self.update_loop_num_iters.items() if k not in loop_ids
+            }
+            self.update_loop_parents = {
+                k: v for k, v in self.update_loop_parents.items() if k not in loop_ids
+            }
+
         self.clear_add_loops()
 
     @TimeIt.decorator
@@ -415,6 +427,14 @@ class PendingChanges:
             self.store._update_loop_num_iters(index, num_iters)
         self.clear_update_loop_num_iters()
 
+    @TimeIt.decorator
+    def commit_loop_parents(self) -> None:
+        """Make pending update to additional loop parents."""
+        for index, parents in self.update_loop_parents.items():
+            self.logger.debug(f"commit: updating loop {index!r} parents to {parents!r}.")
+            self.store._update_loop_parents(index, parents)
+        self.clear_update_loop_parents()
+
     def clear_add_tasks(self):
         self.add_tasks = {}
 
@@ -482,10 +502,13 @@ class PendingChanges:
         self.update_param_sources = {}
 
     def clear_update_loop_indices(self):
-        self.update_loop_indices = {}
+        self.update_loop_indices = defaultdict(dict)
 
     def clear_update_loop_num_iters(self):
         self.update_loop_num_iters = {}
+
+    def clear_update_loop_parents(self):
+        self.update_loop_parents = {}
 
     def reset(self, is_init=False) -> None:
         """Clear all pending data and prepare to accept new pending data."""
@@ -526,6 +549,7 @@ class PendingChanges:
         self.clear_update_param_sources()
         self.clear_update_loop_indices()
         self.clear_update_loop_num_iters()
+        self.clear_update_loop_parents()
 
 
 @dataclass
@@ -561,6 +585,7 @@ class CommitResourceMap:
     commit_param_sources: Optional[Tuple[str]] = tuple()
     commit_loop_indices: Optional[Tuple[str]] = tuple()
     commit_loop_num_iters: Optional[Tuple[str]] = tuple()
+    commit_loop_parents: Optional[Tuple[str]] = tuple()
 
     def __post_init__(self):
         self.groups = self.group_by_resource()

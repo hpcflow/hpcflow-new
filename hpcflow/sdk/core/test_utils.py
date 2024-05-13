@@ -43,7 +43,6 @@ def make_schemas(ins_outs, ret_list=False):
             output_file_parsers=out_file_parsers,
             environments=[hf.ActionEnvironment("env_1")],
         )
-        print(f"{ins_i=}")
         out.append(
             hf.TaskSchema(
                 objective=obj,
@@ -97,12 +96,14 @@ def make_tasks(
     local_resources=None,
     nesting_orders=None,
     input_sources=None,
+    groups=None,
 ):
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
     nesting_orders = nesting_orders or {}
     input_sources = input_sources or {}
+    groups = groups or {}
     schemas = make_schemas(schemas_spec, ret_list=True)
     tasks = []
     for s_idx, s in enumerate(schemas):
@@ -126,6 +127,7 @@ def make_tasks(
             resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
             input_sources=input_sources.get(s_idx, None),
+            groups=groups.get(s_idx),
         )
         tasks.append(task)
     return tasks
@@ -140,6 +142,8 @@ def make_workflow(
     nesting_orders=None,
     input_sources=None,
     resources=None,
+    loops=None,
+    groups=None,
     name="w1",
     overwrite=False,
     store="zarr",
@@ -151,9 +155,17 @@ def make_workflow(
         local_resources=local_resources,
         nesting_orders=nesting_orders,
         input_sources=input_sources,
+        groups=groups,
     )
+    template = {
+        "name": name,
+        "tasks": tasks,
+        "resources": resources,
+    }
+    if loops:
+        template["loops"] = loops
     wk = hf.Workflow.from_template(
-        hf.WorkflowTemplate(name=name, tasks=tasks, resources=resources),
+        hf.WorkflowTemplate(**template),
         path=path,
         name=name,
         overwrite=overwrite,

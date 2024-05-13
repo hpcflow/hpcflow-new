@@ -497,6 +497,7 @@ class ZarrPersistentStore(PersistentStore):
                     {
                         "num_added_iterations": loop["num_added_iterations"],
                         "iterable_parameters": loop["iterable_parameters"],
+                        "parents": loop["parents"],
                     }
                 )
                 attrs["template"]["loops"].append(loop["loop_template"])
@@ -586,6 +587,10 @@ class ZarrPersistentStore(PersistentStore):
     def _update_loop_num_iters(self, index: int, num_iters: int):
         with self.using_resource("attrs", action="update") as attrs:
             attrs["loops"][index]["num_added_iterations"] = num_iters
+
+    def _update_loop_parents(self, index: int, parents: List[str]):
+        with self.using_resource("attrs", action="update") as attrs:
+            attrs["loops"][index]["parents"] = parents
 
     def _append_EARs(self, EARs: List[ZarrStoreEAR]):
         arr = self._get_EARs_arr(mode="r+")

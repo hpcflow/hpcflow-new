@@ -54,6 +54,7 @@ class JSONPersistentStore(PersistentStore):
         commit_tasks=(_meta_res,),
         commit_loops=(_meta_res,),
         commit_loop_num_iters=(_meta_res,),
+        commit_loop_parents=(_meta_res,),
         commit_submissions=(_subs_res,),
         commit_submission_parts=(_subs_res,),
         commit_js_metadata=(_subs_res,),
@@ -169,6 +170,7 @@ class JSONPersistentStore(PersistentStore):
                     {
                         "num_added_iterations": loop["num_added_iterations"],
                         "iterable_parameters": loop["iterable_parameters"],
+                        "parents": loop["parents"],
                     }
                 )
                 md["template"]["loops"].append(loop["loop_template"])
@@ -224,6 +226,10 @@ class JSONPersistentStore(PersistentStore):
     def _update_loop_num_iters(self, index: int, num_iters: int):
         with self.using_resource("metadata", action="update") as md:
             md["loops"][index]["num_added_iterations"] = num_iters
+
+    def _update_loop_parents(self, index: int, parents: List[str]):
+        with self.using_resource("metadata", action="update") as md:
+            md["loops"][index]["parents"] = parents
 
     def _append_EARs(self, EARs: List[StoreEAR]):
         with self.using_resource("metadata", action="update") as md:

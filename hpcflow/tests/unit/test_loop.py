@@ -4,7 +4,7 @@ from valida.conditions import Value
 
 
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import LoopAlreadyExistsError
+from hpcflow.sdk.core.errors import LoopAlreadyExistsError, LoopTaskSubsetError
 from hpcflow.sdk.core.test_utils import P1_parameter_cls, make_workflow
 
 
@@ -243,6 +243,209 @@ def test_get_iteration_task_pathway_single_task_single_element_three_iters(
         (0, {"loop_0": 1}),
         (0, {"loop_0": 2}),
     ]
+
+
+def test_get_iteration_task_pathway_nested_loops_multi_iter(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+        ],
+        loops=[
+            hf.Loop(name="inner_loop", tasks=[2], num_iterations=2),
+            hf.Loop(name="outer_loop", tasks=[1, 2], num_iterations=2),
+        ],
+    )
+    assert wk.get_iteration_task_pathway() == [
+        (0, {}),
+        (1, {"outer_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 1}),
+        (1, {"outer_loop": 1}),
+        (2, {"outer_loop": 1, "inner_loop": 0}),
+        (2, {"outer_loop": 1, "inner_loop": 1}),
+    ]
+
+
+@pytest.mark.skip(
+    reason="second set of asserts fail; need to re-source inputs on adding iterations."
+)
+def test_get_iteration_task_pathway_nested_loops_multi_iter_jagged(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+        ],
+        loops=[
+            hf.Loop(name="inner_loop", tasks=[2], num_iterations=2),
+            hf.Loop(name="outer_loop", tasks=[1, 2], num_iterations=2),
+        ],
+    )
+    wk.loops.inner_loop.add_iteration(parent_loop_indices={"outer_loop": 1})
+    wk.loops.inner_loop.add_iteration(parent_loop_indices={"outer_loop": 1})
+    assert wk.get_iteration_task_pathway() == [
+        (0, {}),
+        (1, {"outer_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 1}),
+        (1, {"outer_loop": 1}),
+        (2, {"outer_loop": 1, "inner_loop": 0}),
+        (2, {"outer_loop": 1, "inner_loop": 1}),
+        (2, {"outer_loop": 1, "inner_loop": 2}),
+        (2, {"outer_loop": 1, "inner_loop": 3}),
+        (3, {}),
+    ]
+    pathway = wk.get_iteration_task_pathway(ret_data_idx=True)
+    assert pathway[1][2][0]["inputs.p1"] == pathway[0][2][0]["outputs.p1"]
+    assert pathway[2][2][0]["inputs.p1"] == pathway[1][2][0]["outputs.p1"]
+    assert pathway[3][2][0]["inputs.p1"] == pathway[2][2][0]["outputs.p1"]
+    assert pathway[4][2][0]["inputs.p1"] == pathway[3][2][0]["outputs.p1"]
+    assert pathway[5][2][0]["inputs.p1"] == pathway[4][2][0]["outputs.p1"]
+    assert pathway[6][2][0]["inputs.p1"] == pathway[5][2][0]["outputs.p1"]
+    assert pathway[7][2][0]["inputs.p1"] == pathway[6][2][0]["outputs.p1"]
+    assert pathway[8][2][0]["inputs.p1"] == pathway[7][2][0]["outputs.p1"]
+
+    # FAILS currently:
+    assert pathway[9][2][0]["inputs.p1"] == pathway[8][2][0]["outputs.p1"]
+
+
+def test_get_iteration_task_pathway_nested_loops_multi_iter_add_outer_iter(
+    null_config, tmp_path
+):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+        ],
+        loops=[
+            hf.Loop(name="inner_loop", tasks=[2], num_iterations=2),
+            hf.Loop(name="outer_loop", tasks=[1, 2], num_iterations=2),
+        ],
+    )
+    wk.loops.outer_loop.add_iteration()
+    assert wk.get_iteration_task_pathway() == [
+        (0, {}),
+        (1, {"outer_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 0}),
+        (2, {"outer_loop": 0, "inner_loop": 1}),
+        (1, {"outer_loop": 1}),
+        (2, {"outer_loop": 1, "inner_loop": 0}),
+        (2, {"outer_loop": 1, "inner_loop": 1}),
+        (1, {"outer_loop": 2}),
+        (2, {"outer_loop": 2, "inner_loop": 0}),
+        (2, {"outer_loop": 2, "inner_loop": 1}),
+    ]
+
+
+@pytest.mark.skip(
+    reason="second set of asserts fail; need to re-source inputs on adding iterations."
+)
+def test_get_iteration_task_pathway_unconnected_loops(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+        ],
+        loops=[
+            hf.Loop(name="loop_A", tasks=[0, 1], num_iterations=2),
+            hf.Loop(name="loop_B", tasks=[2, 3], num_iterations=2),
+        ],
+    )
+    assert wk.get_iteration_task_pathway() == [
+        (0, {"loop_A": 0}),
+        (1, {"loop_A": 0}),
+        (0, {"loop_A": 1}),
+        (1, {"loop_A": 1}),
+        (2, {"loop_B": 0}),
+        (3, {"loop_B": 0}),
+        (2, {"loop_B": 1}),
+        (3, {"loop_B": 1}),
+    ]
+
+    pathway = wk.get_iteration_task_pathway(ret_data_idx=True)
+    assert pathway[1][2][0]["inputs.p1"] == pathway[0][2][0]["outputs.p1"]
+    assert pathway[2][2][0]["inputs.p1"] == pathway[1][2][0]["outputs.p1"]
+    assert pathway[3][2][0]["inputs.p1"] == pathway[2][2][0]["outputs.p1"]
+    assert pathway[5][2][0]["inputs.p1"] == pathway[4][2][0]["outputs.p1"]
+    assert pathway[6][2][0]["inputs.p1"] == pathway[5][2][0]["outputs.p1"]
+    assert pathway[7][2][0]["inputs.p1"] == pathway[6][2][0]["outputs.p1"]
+
+    # FAILS currently:
+    assert pathway[4][2][0]["inputs.p1"] == pathway[3][2][0]["outputs.p1"]
 
 
 def test_wk_loop_input_sources_including_non_iteration_task_source(null_config, tmp_path):
@@ -591,3 +794,368 @@ def test_loop_local_sub_parameters(null_config, tmp_path):
     assert t1_iter_1["inputs.p1c"] == t2_iter_0["outputs.p1c"]
     assert t2_iter_1["inputs.p2"] == t1_iter_1["outputs.p2"]
     assert t1_iter_0["inputs.p1c.d"] == t1_iter_1["inputs.p1c.d"]
+
+
+def test_nested_loop_iter_loop_idx(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+        loops=[
+            hf.Loop(name="outer_loop", tasks=[0], num_iterations=1),
+            hf.Loop(name="inner_loop", tasks=[0], num_iterations=1),
+        ],
+    )
+    assert wk.tasks[0].elements[0].iterations[0].loop_idx == {
+        "inner_loop": 0,
+        "outer_loop": 0,
+    }
+
+
+def test_schema_input_with_group_sourced_from_prev_iteration(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "echo $(( <<parameter:p1>> + 1 ))", stdout="<<parameter:p2>>"
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2", group="my_group")],
+        outputs=[hf.SchemaOutput("p3")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "echo $(( <<parameter:p2>> + 2 ))", stdout="<<parameter:p3>>"
+                    )
+                ]
+            )
+        ],
+    )
+    s3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[hf.SchemaInput("p3")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "echo $(( <<parameter:p3>> + 3 ))", stdout="<<parameter:p2>>"
+                    )
+                ]
+            )
+        ],
+    )
+
+    t1 = hf.Task(
+        schema=s1,
+        sequences=[hf.ValueSequence("inputs.p1", values=[1, 2, 3])],
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+    t2 = hf.Task(schema=s2)
+    t3 = hf.Task(
+        schema=s3,
+        repeats=3,
+        groups=[hf.ElementGroup(name="my_group")],
+    )
+
+    l1 = hf.Loop(name="my_loop", tasks=[1, 2], num_iterations=2)
+
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loops",
+        path=tmp_path,
+        tasks=[t1, t2, t3],
+        loops=[l1],
+    )
+
+    assert wk.tasks.t2.elements[0].iterations[0].get_data_idx()["inputs.p2"] == [
+        i.get_data_idx()["outputs.p2"] for i in wk.tasks.t1.elements
+    ]
+    assert [
+        i.iterations[0].get_data_idx()["inputs.p3"] for i in wk.tasks.t3.elements
+    ] == [wk.tasks.t2.elements[0].iterations[0].get_data_idx()["outputs.p3"]] * 3
+    assert wk.tasks.t2.elements[0].iterations[1].get_data_idx()["inputs.p2"] == [
+        i.iterations[0].get_data_idx()["outputs.p2"] for i in wk.tasks.t3.elements
+    ]
+    assert [
+        i.iterations[1].get_data_idx()["inputs.p3"] for i in wk.tasks.t3.elements
+    ] == [wk.tasks.t2.elements[0].iterations[1].get_data_idx()["outputs.p3"]] * 3
+
+
+def test_loop_downstream_tasks(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p2>> + 100)",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts2, inputs={"p2": 201}),
+        ],
+        loops=[
+            hf.Loop(name="my_loop", tasks=[1, 2], num_iterations=2),
+        ],
+    )
+    assert wk.loops.my_loop.downstream_tasks == [wk.tasks[3]]
+    assert wk.loops.my_loop.upstream_tasks == [wk.tasks[0]]
+
+
+def test_raise_loop_task_subset_error(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    with pytest.raises(LoopTaskSubsetError):
+        hf.Workflow.from_template_data(
+            template_name="test_loop",
+            path=tmp_path,
+            tasks=[
+                hf.Task(schema=ts1, inputs={"p1": 101}),
+                hf.Task(schema=ts1),
+                hf.Task(schema=ts1),
+            ],
+            loops=[
+                hf.Loop(name="my_loop", tasks=[2, 1], num_iterations=2),
+            ],
+        )
+
+
+def test_raise_downstream_task_with_iterable_parameter(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    with pytest.raises(NotImplementedError):
+        hf.Workflow.from_template_data(
+            template_name="test_loop",
+            path=tmp_path,
+            tasks=[
+                hf.Task(schema=ts1, inputs={"p1": 101}),
+                hf.Task(schema=ts1),
+                hf.Task(schema=ts1),
+            ],
+            loops=[
+                hf.Loop(name="my_loop", tasks=[1], num_iterations=2),
+            ],
+        )
+
+
+def test_adjacent_loops_iteration_pathway(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    ts2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p2>> + 100)",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+            hf.Task(schema=ts1),
+            hf.Task(schema=ts2, inputs={"p2": 201}),
+        ],
+        loops=[
+            hf.Loop(name="loop_A", tasks=[0, 1], num_iterations=2),
+            hf.Loop(name="loop_B", tasks=[2], num_iterations=2),
+        ],
+    )
+    assert wk.get_iteration_task_pathway() == [
+        (0, {"loop_A": 0}),
+        (1, {"loop_A": 0}),
+        (0, {"loop_A": 1}),
+        (1, {"loop_A": 1}),
+        (2, {"loop_B": 0}),
+        (2, {"loop_B": 1}),
+    ]
+
+
+def test_get_child_loops_ordered_by_depth(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(schema=ts1, inputs={"p1": 101}),
+        ],
+        loops=[
+            hf.Loop(name="inner", tasks=[0], num_iterations=1),
+            hf.Loop(name="middle", tasks=[0], num_iterations=1),
+            hf.Loop(name="outer", tasks=[0], num_iterations=1),
+        ],
+    )
+    assert wk.loops.inner.get_child_loops() == []
+    assert wk.loops.middle.get_child_loops() == [wk.loops.inner]
+    assert wk.loops.outer.get_child_loops() == [wk.loops.middle, wk.loops.inner]
+
+
+def test_multi_nested_loops(null_config, tmp_path):
+    ts1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        "Write-Output (<<parameter:p1>> + 100)",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ],
+            ),
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts1, inputs={"p1": 101})],
+        loops=[
+            hf.Loop(name="inner", tasks=[0], num_iterations=2),
+            hf.Loop(name="middle_1", tasks=[0], num_iterations=3),
+            hf.Loop(name="middle_2", tasks=[0], num_iterations=2),
+            hf.Loop(name="outer", tasks=[0], num_iterations=2),
+        ],
+    )
+    pathway = wk.get_iteration_task_pathway(ret_iter_IDs=True)
+    assert len(pathway) == 2 * 3 * 2 * 2
+    assert wk.get_iteration_task_pathway(ret_iter_IDs=True) == [
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 0, "outer": 0}, (0,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 0, "outer": 0}, (1,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 0, "outer": 0}, (2,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 0, "outer": 0}, (3,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 0, "outer": 0}, (4,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 0, "outer": 0}, (5,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 1, "outer": 0}, (6,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 1, "outer": 0}, (7,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 1, "outer": 0}, (8,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 1, "outer": 0}, (9,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 1, "outer": 0}, (10,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 1, "outer": 0}, (11,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 0, "outer": 1}, (12,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 0, "outer": 1}, (13,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 0, "outer": 1}, (14,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 0, "outer": 1}, (15,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 0, "outer": 1}, (16,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 0, "outer": 1}, (17,)),
+        (0, {"inner": 0, "middle_1": 0, "middle_2": 1, "outer": 1}, (18,)),
+        (0, {"inner": 1, "middle_1": 0, "middle_2": 1, "outer": 1}, (19,)),
+        (0, {"inner": 0, "middle_1": 1, "middle_2": 1, "outer": 1}, (20,)),
+        (0, {"inner": 1, "middle_1": 1, "middle_2": 1, "outer": 1}, (21,)),
+        (0, {"inner": 0, "middle_1": 2, "middle_2": 1, "outer": 1}, (22,)),
+        (0, {"inner": 1, "middle_1": 2, "middle_2": 1, "outer": 1}, (23,)),
+    ]

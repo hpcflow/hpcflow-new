@@ -1100,7 +1100,9 @@ class Workflow:
         # TODO: add new downstream elements?
 
     @TimeIt.decorator
-    def _add_empty_loop(self, loop: app.Loop) -> app.WorkflowLoop:
+    def _add_empty_loop(
+        self, loop: app.Loop
+    ) -> Tuple[app.WorkflowLoop, List[app.ElementIteration]]:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
         new_index = self.num_loops
@@ -1111,27 +1113,32 @@ class Workflow:
         # add to the WorkflowTemplate:
         self.template._add_empty_loop(loop_c)
 
+        # all these element iterations will be initialised for the new loop:
+        iters = self.get_element_iterations_of_tasks(loop_c.task_insert_IDs)
+        iter_IDs = [i.id_ for i in iters]
+
         # create and insert a new WorkflowLoop:
-        self.loops.add_object(
-            self.app.WorkflowLoop.new_empty_loop(
-                index=new_index,
-                workflow=self,
-                template=loop_c,
-            )
+        new_loop = self.app.WorkflowLoop.new_empty_loop(
+            index=new_index,
+            workflow=self,
+            template=loop_c,
+            iterations=iters,
         )
+        self.loops.add_object(new_loop)
         wk_loop = self.loops[new_index]
 
-        loop_js, _ = loop_c.to_json_like()
+        # update any child loops of the new loop to include their new parent:
+        for chd_loop in wk_loop.get_child_loops():
+            chd_loop._update_parents(wk_loop)
 
-        # all these element iterations will be initialised for the new loop:
-        iter_IDs = [
-            i.id_ for i in self.get_element_iterations_of_tasks(loop_c.task_insert_IDs)
-        ]
+        loop_js, _ = loop_c.to_json_like()
 
         # update persistent store:
         self._store.add_loop(
             loop_template=loop_js,
             iterable_parameters=wk_loop.iterable_parameters,
+            parents=wk_loop.parents,
+            num_added_iterations=wk_loop.num_added_iterations,
             iter_IDs=iter_IDs,
         )
 
@@ -1140,18 +1147,18 @@ class Workflow:
         return wk_loop
 
     @TimeIt.decorator
-    def _add_loop(self, loop: app.Loop, parent_loop_indices: Dict = None) -> None:
+    def _add_loop(self, loop: app.Loop) -> None:
         new_wk_loop = self._add_empty_loop(loop)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
             for _ in range(loop.num_iterations - 1):
-                new_wk_loop.add_iteration(parent_loop_indices=parent_loop_indices)
+                new_wk_loop.add_iteration()
 
-    def add_loop(self, loop: app.Loop, parent_loop_indices: Dict = None) -> None:
+    def add_loop(self, loop: app.Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
         with self._store.cached_load():
             with self.batch_update():
-                self._add_loop(loop, parent_loop_indices)
+                self._add_loop(loop)
 
     @property
     def creation_info(self):
@@ -1231,11 +1238,15 @@ class Workflow:
             with self._store.cached_load():
                 wk_loops = []
                 for idx, loop_dat in self._store.get_loops().items():
+                    num_add_iters = {
+                        tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
+                    }
                     wk_loop = self.app.WorkflowLoop(
                         index=idx,
                         workflow=self,
                         template=self.template.loops[idx],
-                        num_added_iterations=loop_dat["num_added_iterations"],
+                        parents=loop_dat["parents"],
+                        num_added_iterations=num_add_iters,
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
                     wk_loops.append(wk_loop)
@@ -1472,6 +1483,7 @@ class Workflow:
 
                 for loop in self.loops:
                     loop._reset_pending_num_added_iters()
+                    loop._reset_pending_parents()
 
                 self._reject_pending()
 
@@ -1496,6 +1508,7 @@ class Workflow:
 
                     for loop in self.loops:
                         loop._accept_pending_num_added_iters()
+                        loop._accept_pending_parents()
 
                     # TODO: handle errors in commit pending?
                     self._store._pending.commit_all()
@@ -2073,26 +2086,78 @@ class Workflow:
                 yield element
 
     @TimeIt.decorator
-    def get_iteration_task_pathway(self):
+    def get_iteration_task_pathway(self, ret_iter_IDs=False, ret_data_idx=False):
         pathway = []
         for task in self.tasks:
-            loop_idx = {}
-            pathway.append((task.insert_ID, loop_idx))
+            pathway.append((task.insert_ID, {}))
 
-        for loop in self.loops:  # TODO: order by depth (inner loops first?)
-            task_subset = loop.task_insert_IDs
-            subset_idx = [idx for idx, i in enumerate(pathway) if i[0] in task_subset]
-            looped_pathway = []
-            for iter_i in range(loop.num_added_iterations):
-                for j in subset_idx:
-                    item_j = copy.deepcopy(pathway[j])
-                    item_j[1][loop.name] = iter_i
-                    looped_pathway.append(item_j)
+        added_loop_names = set()
+        for _ in range(self.num_loops):
+            to_add = None
+            for loop in self.loops:
+                if loop.name in added_loop_names:
+                    continue
+                elif set(loop.parents).issubset(added_loop_names):
+                    # add a loop only once their parents have been added:
+                    to_add = loop
+                    break
 
-            # replaced pathway `sub_idx` items with `looped_pathway` items:
-            pathway = replace_items(
-                pathway, subset_idx[0], subset_idx[-1] + 1, looped_pathway
+            if to_add is None:
+                raise RuntimeError(
+                    "Failed to find a loop whose parents have already been added to the "
+                    "iteration task pathway."
+                )
+
+            iIDs = to_add.task_insert_IDs
+            relevant_idx = [idx for idx, i in enumerate(pathway) if i[0] in iIDs]
+
+            for num_add_k, num_add in to_add.num_added_iterations.items():
+                parent_loop_idx = {
+                    to_add.parents[idx]: i for idx, i in enumerate(num_add_k)
+                }
+
+                repl = []
+                repl_idx = []
+                for i in range(num_add):
+                    for p_idx, p in enumerate(pathway):
+                        skip = False
+                        if p[0] not in iIDs:
+                            continue
+                        for k, v in parent_loop_idx.items():
+                            if p[1][k] != v:
+                                skip = True
+                                break
+                        if skip:
+                            continue
+                        p = copy.deepcopy(p)
+                        p[1].update({to_add.name: i})
+                        repl_idx.append(p_idx)
+                        repl.append(p)
+
+                if repl:
+                    repl_start, repl_stop = min(repl_idx), max(repl_idx)
+                    pathway = replace_items(pathway, repl_start, repl_stop + 1, repl)
+
+            added_loop_names.add(to_add.name)
+
+        if added_loop_names != set(i.name for i in self.loops):
+            raise RuntimeError(
+                "Not all loops have been considered in the iteration task pathway."
             )
+
+        if ret_iter_IDs or ret_data_idx:
+            all_iters = self.get_all_element_iterations()
+            for idx, i in enumerate(pathway):
+                i_iters = []
+                for iter_j in all_iters:
+                    if iter_j.task.insert_ID == i[0] and iter_j.loop_idx == i[1]:
+                        i_iters.append(iter_j)
+                new = list(i)
+                if ret_iter_IDs:
+                    new += [tuple([j.id_ for j in i_iters])]
+                if ret_data_idx:
+                    new += [tuple(j.get_data_idx() for j in i_iters)]
+                pathway[idx] = tuple(new)
 
         return pathway
 
