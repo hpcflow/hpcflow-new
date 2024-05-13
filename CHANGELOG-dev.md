@@ -1,4 +1,16 @@
 
+<a name="v0.2.0a175"></a>
+## [v0.2.0a175](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a174...v0.2.0a175) - 2024.05.13
+
+### 🐛 Bug Fixes
+
+* restrict Zarr version to workaround [#680](https://github.com/hpcflow/hpcflow-new/issues/680)
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a174"></a>
 ## [v0.2.0a174](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a173...v0.2.0a174) - 2024.05.13
 
