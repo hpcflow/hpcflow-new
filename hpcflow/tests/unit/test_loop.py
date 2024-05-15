@@ -1159,3 +1159,58 @@ def test_multi_nested_loops(null_config, tmp_path):
         (0, {"inner": 0, "middle_1": 2, "middle_2": 1, "outer": 1}, (22,)),
         (0, {"inner": 1, "middle_1": 2, "middle_2": 1, "outer": 1}, (23,)),
     ]
+
+
+def test_nested_loop_input_from_parent_loop_task(null_config, tmp_path):
+    """Test that an input in a nested-loop task is correctly sourced from latest
+    iteration of the parent loop."""
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p1": None}, ("p2", "p3")],
+            [{"p2": None}, ("p4",)],
+            [{"p4": None, "p3": None}, ("p2", "p1")],  # testing p3 source
+        ],
+        path=tmp_path,
+        local_inputs={0: {"p1": 101}},
+        loops=[
+            hf.Loop(name="inner", tasks=[1, 2], num_iterations=3),
+            hf.Loop(name="outer", tasks=[0, 1, 2], num_iterations=2),
+        ],
+    )
+    pathway = wk.get_iteration_task_pathway(ret_data_idx=True)
+    assert len(pathway) == 14
+    p3_out_idx = [i[2][0]["outputs.p3"] for i in pathway if i[0] == 0]
+    p3_inp_idx = [i[2][0]["inputs.p3"] for i in pathway if i[0] == 2]
+    assert len(p3_out_idx) == 2  # 2 outer iterations
+    assert len(p3_inp_idx) == 6  # 2 * 3 iterations
+    assert p3_inp_idx == [p3_out_idx[0]] * 3 + [p3_out_idx[1]] * 3
+
+
+def test_doubly_nested_loop_input_from_parent_loop_task(null_config, tmp_path):
+    """Test that an input in a doubly-nested-loop task is correctly sourced from latest
+    iteration of the parent loop."""
+    # test source of p6 in final task:
+    wk = make_workflow(
+        schemas_spec=[
+            [{"p5": None}, ("p6", "p1")],
+            [{"p1": None}, ("p2", "p3")],
+            [{"p2": None}, ("p4",)],
+            [{"p4": None, "p3": None, "p6": None}, ("p2", "p1", "p5")],
+        ],
+        path=tmp_path,
+        local_inputs={0: {"p5": 101}},
+        loops=[
+            hf.Loop(name="inner", tasks=[2, 3], num_iterations=3),
+            hf.Loop(name="middle", tasks=[1, 2, 3], num_iterations=3),
+            hf.Loop(name="outer", tasks=[0, 1, 2, 3], num_iterations=3),
+        ],
+        overwrite=True,
+    )
+    pathway = wk.get_iteration_task_pathway(ret_data_idx=True)
+    assert len(pathway) == 66
+
+    p6_out_idx = [i[2][0]["outputs.p6"] for i in pathway if i[0] == 0]
+    p6_inp_idx = [i[2][0]["inputs.p6"] for i in pathway if i[0] == 3]
+    assert len(p6_out_idx) == 3  # 2 outer iterations
+    assert len(p6_inp_idx) == 27  # 3 * 3 * 3 iterations
+    assert p6_inp_idx == [p6_out_idx[0]] * 9 + [p6_out_idx[1]] * 9 + [p6_out_idx[2]] * 9

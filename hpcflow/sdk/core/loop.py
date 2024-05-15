@@ -438,7 +438,26 @@ class WorkflowLoop:
         cur_loop_idx = self.num_added_iterations[iters_key] - 1
         all_new_data_idx = {}  # keys are (task.insert_ID and element.index)
 
+        # initialise a new `num_added_iterations` key on each child loop:
+        for child in child_loops:
+            iters_key_dct = {
+                **parent_loop_indices,
+                self.name: cur_loop_idx + 1,
+            }
+            added_iters_key_chd = tuple([iters_key_dct.get(j, 0) for j in child.parents])
+            child._initialise_pending_added_iters(added_iters_key_chd)
+
         for task in self.task_objects:
+
+            new_loop_idx = {
+                **parent_loop_indices,
+                self.name: cur_loop_idx + 1,
+                **{
+                    child.name: 0
+                    for child in child_loops
+                    if task.insert_ID in child.task_insert_IDs
+                },
+            }
             for elem_idx in range(task.num_elements):
                 # element needs to take into account changes made in this code
                 element = task.elements[elem_idx]
@@ -587,10 +606,25 @@ class WorkflowLoop:
 
                         elif orig_inp_src.source_type is InputSourceType.TASK:
                             if orig_inp_src.task_ref not in self.task_insert_IDs:
-                                # source task not part of the loop; copy existing data idx:
-                                inp_dat_idx = element.iterations[0].get_data_idx()[
-                                    inp_key
-                                ]
+                                # TODO: what about groups?
+                                # source the data_idx from the iteration with same parent
+                                # loop indices as the new iteration to add:
+                                src_iters = []
+                                for iter_i in element.iterations:
+                                    print(f"  {iter_i.loop_idx=!r}")
+                                    print(f"  {iter_i.data_idx=!r}")
+                                    skip_iter = False
+                                    for p_k, p_v in parent_loop_indices.items():
+                                        if iter_i.loop_idx.get(p_k) != p_v:
+                                            skip_iter = True
+                                            break
+                                    if not skip_iter:
+                                        src_iters.append(iter_i)
+
+                                # could be multiple, but they should all have the same
+                                # data index for this parameter:
+                                src_iter = src_iters[0]
+                                inp_dat_idx = src_iter.get_data_idx()[inp_key]
                             else:
                                 is_group = False
                                 if (
@@ -672,20 +706,6 @@ class WorkflowLoop:
                     i for i in new_data_idx.keys() if len(i.split(".")) == 2
                 )
                 all_new_data_idx[(task.insert_ID, element.index)] = new_data_idx
-
-                new_loop_idx = {
-                    **parent_loop_indices,
-                    self.name: cur_loop_idx + 1,
-                    **{
-                        child.name: 0
-                        for child in child_loops
-                        if task.insert_ID in child.task_insert_IDs
-                    },
-                }
-                # increment num_added_iterations on child loop for this parent loop index:
-                for i in child_loops:
-                    added_iters_key_chd = tuple([new_loop_idx[j] for j in i.parents])
-                    i._initialise_pending_added_iters(added_iters_key_chd)
 
                 iter_ID_i = self.workflow._store.add_element_iteration(
                     element_ID=element.id_,
