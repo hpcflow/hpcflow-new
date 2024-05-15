@@ -611,8 +611,6 @@ class WorkflowLoop:
                                 # loop indices as the new iteration to add:
                                 src_iters = []
                                 for iter_i in element.iterations:
-                                    print(f"  {iter_i.loop_idx=!r}")
-                                    print(f"  {iter_i.data_idx=!r}")
                                     skip_iter = False
                                     for p_k, p_v in parent_loop_indices.items():
                                         if iter_i.loop_idx.get(p_k) != p_v:
