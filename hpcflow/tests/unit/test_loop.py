@@ -1214,3 +1214,75 @@ def test_doubly_nested_loop_input_from_parent_loop_task(null_config, tmp_path):
     assert len(p6_out_idx) == 3  # 2 outer iterations
     assert len(p6_inp_idx) == 27  # 3 * 3 * 3 iterations
     assert p6_inp_idx == [p6_out_idx[0]] * 9 + [p6_out_idx[1]] * 9 + [p6_out_idx[2]] * 9
+
+
+def test_loop_non_input_task_input_from_element_group(null_config, tmp_path):
+    """Test correct sourcing of an element group input within a loop, for a task that is
+    not that loop's "input task" with respect to that parameter."""
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2"), hf.SchemaOutput("p3")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 1))",
+                        stdout="<<parameter:p2>>",
+                        stderr="<<parameter:p3>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2", group="my_group")],
+        outputs=[hf.SchemaOutput("p4")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<sum(parameter:p2)>> + 1))",
+                        stdout="<<parameter:p4>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s3 = hf.TaskSchema(
+        objective="t3",
+        inputs=[hf.SchemaInput("p3", group="my_group"), hf.SchemaInput("p4")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<sum(parameter:p3)>> + <<parameter:p4>>))",
+                        stdout="<<parameter:p2>>",
+                    )
+                ]
+            )
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_loop",
+        path=tmp_path,
+        tasks=[
+            hf.Task(
+                schema=s1,
+                sequences=[hf.ValueSequence("inputs.p1", values=[1, 2, 3])],
+                groups=[hf.ElementGroup("my_group")],
+            ),
+            hf.Task(schema=s2),
+            hf.Task(schema=s3),  # test source of p3 (should be group from t1)
+        ],
+        loops=[hf.Loop(name="inner", tasks=[1, 2], num_iterations=2)],
+    )
+    pathway = wk.get_iteration_task_pathway(ret_data_idx=True)
+    assert len(pathway) == 5
+
+    expected = [i["outputs.p3"] for i in pathway[0][2]]
+    for i in pathway:
+        if i[0] == 2:  # task 3
+            assert i[2][0]["inputs.p3"] == expected
