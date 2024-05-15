@@ -65,6 +65,11 @@ ipykernel = "^6.25.1"
 [tool.poetry.group.pyinstaller.dependencies]
 pyinstaller = "^5.13"
 
+[tool.poetry.group.typecheck]
+optional = true
+[tool.poetry.group.typecheck.dependencies]
+mypy = "^1.10.0"
+
 [tool.poetry.extras]
 test = ["pytest"]
 
