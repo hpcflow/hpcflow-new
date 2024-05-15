@@ -1,4 +1,17 @@
 
+<a name="v0.2.0a176"></a>
+## [v0.2.0a176](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a175...v0.2.0a176) - 2024.05.15
+
+### 🐛 Bug Fixes
+
+* remove debugging prints
+* sourcing iterated inputs from the latest parent loop iteration
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a175"></a>
 ## [v0.2.0a175](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a174...v0.2.0a175) - 2024.05.13
 
