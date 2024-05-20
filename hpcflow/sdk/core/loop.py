@@ -468,6 +468,7 @@ class WorkflowLoop:
                     if task.insert_ID in child.task_insert_IDs
                 },
             }
+            added_iter_IDs = []
             for elem_idx in range(task.num_elements):
 
                 elem_ID = task.element_IDs[elem_idx]
@@ -729,7 +730,9 @@ class WorkflowLoop:
                         data_idx=new_data_idx,
                     )
 
-                task.initialise_EARs()
+                added_iter_IDs.append(iter_ID_i)
+
+            task.initialise_EARs(iter_IDs=added_iter_IDs)
 
         added_iters_key = tuple(parent_loop_indices[k] for k in self.parents)
         self._increment_pending_added_iters(added_iters_key)
