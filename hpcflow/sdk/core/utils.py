@@ -874,7 +874,10 @@ def dict_values_process_flat(d, callable):
 
 
 def nth_key(dct, n):
-    # TODO: test
     it = iter(dct)
     next(islice(it, n, n), None)
     return next(it)
+
+
+def nth_value(dct, n):
+    return dct[nth_key(dct, n)]

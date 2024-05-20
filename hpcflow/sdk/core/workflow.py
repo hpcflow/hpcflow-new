@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
@@ -635,7 +636,7 @@ class Workflow:
                         wk._add_task(task)
                     if status:
                         status.update(f"Preparing to add {len(template.loops)} loops...")
-                    cache = wk._build_loop_cache(template.loops)
+                    cache = LoopCache.build(workflow=wk, loops=template.loops)
                     for idx, loop in enumerate(template.loops):
                         if status:
                             status.update(
@@ -1104,51 +1105,8 @@ class Workflow:
         # TODO: add new downstream elements?
 
     @TimeIt.decorator
-    def _build_loop_cache(self, loops: List[app.Loop]):
-        """Build a cache of data for use in adding loops and iterations."""
-        # "data_idx", "iterations" and "task_iterations" must be updated by
-        # `WorkflowLoop.add_iteration`
-
-        task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
-        tasks = [self.tasks.get(insert_ID=i) for i in sorted(task_iIDs)]
-        elem_deps = {}
-
-        # keys: element IDs, values: dict with keys: tuple(loop_idx), values: data index
-        data_idx_cache = {}
-
-        # keys: iteration IDs, values: tuple of (element ID, integer index into values
-        # dict in `data_idx_cache` [accessed via `.keys()[index]`])
-        iters = {}
-
-        zeroth_iters = {}
-        task_iterations = defaultdict(list)
-        for task in tasks:
-            for element in task.elements:
-                elem_deps[element.id_] = {
-                    i.id_: tuple(j.name for j in i.element_set.groups)
-                    for i in element.get_dependent_elements_recursively()
-                }
-                elem_iters = {}
-                for idx, iter_i in enumerate(element.iterations):
-                    if idx == 0:
-                        zeroth_iters[element.id_] = iter_i.id_
-                    loop_idx_key = tuple(iter_i.loop_idx.items())
-                    elem_iters[loop_idx_key] = iter_i.get_data_idx()
-                    task_iterations[task.insert_ID].append(iter_i.id_)
-                    iters[iter_i.id_] = (element.id_, idx)
-                data_idx_cache[element.id_] = elem_iters
-
-        return {
-            "element_dependents": elem_deps,
-            "zeroth_iters": zeroth_iters,
-            "data_idx": data_idx_cache,
-            "iterations": iters,
-            "task_iterations": dict(task_iterations),
-        }
-
-    @TimeIt.decorator
     def _add_empty_loop(
-        self, loop: app.Loop, cache: Dict
+        self, loop: app.Loop, cache: LoopCache
     ) -> Tuple[app.WorkflowLoop, List[app.ElementIteration]]:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
@@ -1161,14 +1119,8 @@ class Workflow:
         self.template._add_empty_loop(loop_c)
 
         # all these element iterations will be initialised for the new loop:
-        iter_IDs = [
-            j for i in loop_c.task_insert_IDs for j in cache["task_iterations"][i]
-        ]
-
-        iter_loop_idx = []
-        for i in iter_IDs:
-            elem_id, idx = cache["iterations"][i]
-            iter_loop_idx.append(dict(nth_key(cache["data_idx"][elem_id], idx)))
+        iter_IDs = cache.get_iter_IDs(loop_c)
+        iter_loop_idx = cache.get_iter_loop_indices(iter_IDs)
 
         # create and insert a new WorkflowLoop:
         new_loop = self.app.WorkflowLoop.new_empty_loop(
@@ -1198,14 +1150,7 @@ class Workflow:
         self._pending["loops"].append(new_index)
 
         # update cache loop indices:
-        elem_ids = {v[0] for k, v in cache["iterations"].items() if k in iter_IDs}
-        for i in elem_ids:
-            new_item = {}
-            for k, v in cache["data_idx"][i].items():
-                new_k = dict(k)
-                new_k.update({loop.name: 0})
-                new_item[tuple(new_k.items())] = v
-            cache["data_idx"][i] = new_item
+        cache.update_loop_indices(new_loop_name=loop_c.name, iter_IDs=iter_IDs)
 
         return wk_loop
 
@@ -1214,7 +1159,7 @@ class Workflow:
         self, loop: app.Loop, cache: Optional[Dict] = None, status: Optional[Any] = None
     ) -> None:
         if not cache:
-            cache = self._build_loop_cache([loop])
+            cache = LoopCache.build(workflow=self, loops=[loop])
         new_wk_loop = self._add_empty_loop(loop, cache)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:

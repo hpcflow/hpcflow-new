@@ -13,6 +13,8 @@ from hpcflow.sdk.core.utils import (
     get_nested_indices,
     is_fsspec_url,
     linspace_rect,
+    nth_key,
+    nth_value,
     process_string_nodes,
     replace_items,
     check_valid_py_identifier,
@@ -556,3 +558,22 @@ def test_dict_values_process_flat_single_item_lists():
         "b": [4],
         "c": [5],
     }
+
+
+def test_nth_key():
+    dct = {"a": 1, "b": 2}
+    assert [nth_key(dct, i) for i in range(len(dct))] == ["a", "b"]
+
+
+def test_nth_value():
+    dct = {"a": 1, "b": 2}
+    assert [nth_value(dct, i) for i in range(len(dct))] == [1, 2]
+
+
+def test_nth_key_raises():
+    dct = {"a": 1, "b": 2}
+    with pytest.raises(Exception):
+        nth_key(dct, 2)
+
+    with pytest.raises(Exception):
+        nth_key(dct, -1)
