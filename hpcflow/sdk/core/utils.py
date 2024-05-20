@@ -3,7 +3,7 @@ import enum
 from functools import wraps
 import contextlib
 import hashlib
-from itertools import accumulate
+from itertools import accumulate, islice
 import json
 import keyword
 import os
@@ -871,3 +871,10 @@ def dict_values_process_flat(d, callable):
         out[k] = proc_idx_k
 
     return out
+
+
+def nth_key(dct, n):
+    # TODO: test
+    it = iter(dct)
+    next(islice(it, n, n), None)
+    return next(it)

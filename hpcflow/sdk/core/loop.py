@@ -9,6 +9,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.log import TimeIt
 
 # from .parameters import Parameter
 
@@ -198,6 +199,7 @@ class WorkflowLoop:
 
         self._validate()
 
+    @TimeIt.decorator
     def _validate(self):
         # task subset must be a contiguous range of task indices:
         task_indices = self.task_indices
@@ -328,6 +330,7 @@ class WorkflowLoop:
         return self.workflow.tasks[: self.task_objects[0].index]
 
     @staticmethod
+    @TimeIt.decorator
     def _find_iterable_parameters(loop_template: app.Loop):
         all_inputs_first_idx = {}
         all_outputs_idx = {}
@@ -355,18 +358,19 @@ class WorkflowLoop:
         return iterable_params
 
     @classmethod
+    @TimeIt.decorator
     def new_empty_loop(
         cls,
         index: int,
         workflow: app.Workflow,
         template: app.Loop,
-        iterations: List[app.ElementIteration],
+        iter_loop_idx: List[Dict],
     ) -> Tuple[app.WorkflowLoop, List[Dict[str, int]]]:
         parent_loops = cls._get_parent_loops(index, workflow, template)
         parent_names = [i.name for i in parent_loops]
         num_added_iters = {}
-        for iter_i in iterations:
-            num_added_iters[tuple([iter_i.loop_idx[j] for j in parent_names])] = 1
+        for i in iter_loop_idx:
+            num_added_iters[tuple([i[j] for j in parent_names])] = 1
 
         obj = cls(
             index=index,
@@ -379,6 +383,7 @@ class WorkflowLoop:
         return obj
 
     @classmethod
+    @TimeIt.decorator
     def _get_parent_loops(
         cls,
         index: int,
@@ -399,12 +404,14 @@ class WorkflowLoop:
                 parents.append(loop_i)
         return parents
 
+    @TimeIt.decorator
     def get_parent_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a superset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
         considered the child."""
         return self._get_parent_loops(self.index, self.workflow, self.template)
 
+    @TimeIt.decorator
     def get_child_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
@@ -426,7 +433,8 @@ class WorkflowLoop:
         children = sorted(children, key=lambda x: len(next(iter(x.num_added_iterations))))
         return children
 
-    def add_iteration(self, parent_loop_indices=None):
+    @TimeIt.decorator
+    def add_iteration(self, parent_loop_indices=None, cache=None):
         parent_loops = self.get_parent_loops()
         child_loops = self.get_child_loops()
         child_loop_names = [i.name for i in child_loops]
@@ -711,6 +719,14 @@ class WorkflowLoop:
                     schema_parameters=list(schema_params),
                     loop_idx=new_loop_idx,
                 )
+                if cache:
+                    # update the cache: # TODO: use a method to do this
+                    cache["task_iterations"][task.insert_ID].append(iter_ID_i)
+                    new_iter_idx = len(cache["data_idx"][element.id_])
+                    cache["data_idx"][element.id_][
+                        tuple(new_loop_idx.items())
+                    ] = new_data_idx
+                    cache["iterations"][iter_ID_i] = (element.id_, new_iter_idx)
 
                 task.initialise_EARs()
 
@@ -731,7 +747,8 @@ class WorkflowLoop:
                             **par_idx,
                             **parent_loop_indices,
                             self.name: cur_loop_idx + 1,
-                        }
+                        },
+                        cache=cache,
                     )
 
     def test_termination(self, element_iter):

@@ -41,6 +41,7 @@ from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
+    nth_key,
     read_JSON_file,
     read_JSON_string,
     read_YAML_str,
@@ -632,12 +633,15 @@ class Workflow:
                                 f"({task.name!r})..."
                             )
                         wk._add_task(task)
+                    if status:
+                        status.update(f"Preparing to add {len(template.loops)} loops...")
+                    cache = wk._build_loop_cache(template.loops)
                     for idx, loop in enumerate(template.loops):
                         if status:
                             status.update(
-                                f"Adding loop {idx + 1}/" f"{len(template.loops)}..."
+                                f"Adding loop {idx + 1}/" f"{len(template.loops)}"
                             )
-                        wk._add_loop(loop)
+                        wk._add_loop(loop, cache=cache, status=status)
         except Exception:
             if status:
                 status.stop()
@@ -1100,8 +1104,51 @@ class Workflow:
         # TODO: add new downstream elements?
 
     @TimeIt.decorator
+    def _build_loop_cache(self, loops: List[app.Loop]):
+        """Build a cache of data for use in adding loops and iterations."""
+        # "data_idx", "iterations" and "task_iterations" must be updated by
+        # `WorkflowLoop.add_iteration`
+
+        task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
+        tasks = [self.tasks.get(insert_ID=i) for i in sorted(task_iIDs)]
+        elem_deps = {}
+
+        # keys: element IDs, values: dict with keys: tuple(loop_idx), values: data index
+        data_idx_cache = {}
+
+        # keys: iteration IDs, values: tuple of (element ID, integer index into values
+        # dict in `data_idx_cache` [accessed via `.keys()[index]`])
+        iters = {}
+
+        zeroth_iters = {}
+        task_iterations = defaultdict(list)
+        for task in tasks:
+            for element in task.elements:
+                elem_deps[element.id_] = {
+                    i.id_: tuple(j.name for j in i.element_set.groups)
+                    for i in element.get_dependent_elements_recursively()
+                }
+                elem_iters = {}
+                for idx, iter_i in enumerate(element.iterations):
+                    if idx == 0:
+                        zeroth_iters[element.id_] = iter_i.id_
+                    loop_idx_key = tuple(iter_i.loop_idx.items())
+                    elem_iters[loop_idx_key] = iter_i.get_data_idx()
+                    task_iterations[task.insert_ID].append(iter_i.id_)
+                    iters[iter_i.id_] = (element.id_, idx)
+                data_idx_cache[element.id_] = elem_iters
+
+        return {
+            "element_dependents": elem_deps,
+            "zeroth_iters": zeroth_iters,
+            "data_idx": data_idx_cache,
+            "iterations": iters,
+            "task_iterations": dict(task_iterations),
+        }
+
+    @TimeIt.decorator
     def _add_empty_loop(
-        self, loop: app.Loop
+        self, loop: app.Loop, cache: Dict
     ) -> Tuple[app.WorkflowLoop, List[app.ElementIteration]]:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
@@ -1114,15 +1161,21 @@ class Workflow:
         self.template._add_empty_loop(loop_c)
 
         # all these element iterations will be initialised for the new loop:
-        iters = self.get_element_iterations_of_tasks(loop_c.task_insert_IDs)
-        iter_IDs = [i.id_ for i in iters]
+        iter_IDs = [
+            j for i in loop_c.task_insert_IDs for j in cache["task_iterations"][i]
+        ]
+
+        iter_loop_idx = []
+        for i in iter_IDs:
+            elem_id, idx = cache["iterations"][i]
+            iter_loop_idx.append(dict(nth_key(cache["data_idx"][elem_id], idx)))
 
         # create and insert a new WorkflowLoop:
         new_loop = self.app.WorkflowLoop.new_empty_loop(
             index=new_index,
             workflow=self,
             template=loop_c,
-            iterations=iters,
+            iter_loop_idx=iter_loop_idx,
         )
         self.loops.add_object(new_loop)
         wk_loop = self.loops[new_index]
@@ -1144,15 +1197,35 @@ class Workflow:
 
         self._pending["loops"].append(new_index)
 
+        # update cache loop indices:
+        elem_ids = {v[0] for k, v in cache["iterations"].items() if k in iter_IDs}
+        for i in elem_ids:
+            new_item = {}
+            for k, v in cache["data_idx"][i].items():
+                new_k = dict(k)
+                new_k.update({loop.name: 0})
+                new_item[tuple(new_k.items())] = v
+            cache["data_idx"][i] = new_item
+
         return wk_loop
 
     @TimeIt.decorator
-    def _add_loop(self, loop: app.Loop) -> None:
-        new_wk_loop = self._add_empty_loop(loop)
+    def _add_loop(
+        self, loop: app.Loop, cache: Optional[Dict] = None, status: Optional[Any] = None
+    ) -> None:
+        if not cache:
+            cache = self._build_loop_cache([loop])
+        new_wk_loop = self._add_empty_loop(loop, cache)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
-            for _ in range(loop.num_iterations - 1):
-                new_wk_loop.add_iteration()
+            if status:
+                status_prev = status.status
+            for iter_idx in range(loop.num_iterations - 1):
+                if status:
+                    status.update(
+                        f"{status_prev}: iteration {iter_idx + 2}/{loop.num_iterations}."
+                    )
+                new_wk_loop.add_iteration(cache=cache)
 
     def add_loop(self, loop: app.Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
@@ -1326,6 +1399,7 @@ class Workflow:
                     iters.append(iter_i)
         return iters
 
+    @TimeIt.decorator
     def get_elements_from_IDs(self, id_lst: Iterable[int]) -> List[app.Element]:
         """Return element objects from a list of IDs."""
 
@@ -1352,6 +1426,7 @@ class Workflow:
 
         return objs
 
+    @TimeIt.decorator
     def get_element_iterations_from_IDs(
         self, id_lst: Iterable[int]
     ) -> List[app.ElementIteration]:
