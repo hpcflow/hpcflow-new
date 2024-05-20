@@ -640,7 +640,8 @@ class Workflow:
                     for idx, loop in enumerate(template.loops):
                         if status:
                             status.update(
-                                f"Adding loop {idx + 1}/" f"{len(template.loops)}"
+                                f"Adding loop {idx + 1}/"
+                                f"{len(template.loops)} ({loop.name!r})"
                             )
                         wk._add_loop(loop, cache=cache, status=status)
         except Exception:
