@@ -774,9 +774,16 @@ class ZarrPersistentStore(PersistentStore):
         """Get the number of persistent element iterations."""
         return len(self._get_iters_arr())
 
+    @TimeIt.decorator
     def _get_num_persistent_EARs(self) -> int:
         """Get the number of persistent EARs."""
-        return len(self._get_EARs_arr())
+        if self.use_cache and self.num_EARs_cache is not None:
+            num = self.num_EARs_cache
+        else:
+            num = len(self._get_EARs_arr())
+        if self.use_cache and self.num_EARs_cache is None:
+            self.num_EARs_cache = num
+        return num
 
     def _get_num_persistent_parameters(self):
         return len(self._get_parameter_base_array())

@@ -303,12 +303,13 @@ class JSONPersistentStore(PersistentStore):
 
     def _get_num_persistent_tasks(self) -> int:
         """Get the number of persistent tasks."""
-        if self.num_tasks_cache is not None:
+        if self.use_cache and self.num_tasks_cache is not None:
             num = self.num_tasks_cache
         else:
             with self.using_resource("metadata", action="read") as md:
                 num = len(md["tasks"])
-                self.num_tasks_cache = num
+        if self.use_cache and self.num_tasks_cache is None:
+            self.num_tasks_cache = num
         return num
 
     def _get_num_persistent_loops(self) -> int:
@@ -333,8 +334,14 @@ class JSONPersistentStore(PersistentStore):
 
     def _get_num_persistent_EARs(self) -> int:
         """Get the number of persistent EARs."""
-        with self.using_resource("metadata", action="read") as md:
-            return len(md["runs"])
+        if self.use_cache and self.num_EARs_cache is not None:
+            num = self.num_EARs_cache
+        else:
+            with self.using_resource("metadata", action="read") as md:
+                num = len(md["runs"])
+        if self.use_cache and self.num_EARs_cache is None:
+            self.num_EARs_cache = num
+        return num
 
     def _get_num_persistent_parameters(self):
         with self.using_resource("parameters", "read") as params:

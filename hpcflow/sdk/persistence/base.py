@@ -717,6 +717,11 @@ class PersistentStore(ABC):
         return self._cache["num_tasks"]
 
     @property
+    def num_EARs_cache(self):
+        """Cache for total number of persistent EARs."""
+        return self._cache["num_EARs"]
+
+    @property
     def param_sources_cache(self):
         """Cache for persistent parameter sources."""
         return self._cache["param_sources"]
@@ -730,6 +735,10 @@ class PersistentStore(ABC):
     def num_tasks_cache(self, value):
         self._cache["num_tasks"] = value
 
+    @num_EARs_cache.setter
+    def num_EARs_cache(self, value):
+        self._cache["num_EARs"] = value
+
     def _reset_cache(self):
         self._cache = {
             "tasks": {},
@@ -739,6 +748,7 @@ class PersistentStore(ABC):
             "param_sources": {},
             "num_tasks": None,
             "parameters": {},
+            "num_EARs": None,
         }
 
     @contextlib.contextmanager
@@ -873,6 +883,7 @@ class PersistentStore(ABC):
         """Get the total number of persistent and pending element iterations."""
         return self._get_num_persistent_elem_iters() + len(self._pending.add_elem_iters)
 
+    @TimeIt.decorator
     def _get_num_total_EARs(self):
         """Get the total number of persistent and pending EARs."""
         return self._get_num_persistent_EARs() + len(self._pending.add_EARs)
