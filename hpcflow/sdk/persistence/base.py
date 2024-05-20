@@ -1307,9 +1307,11 @@ class PersistentStore(ABC):
             self.save()
 
     @TimeIt.decorator
-    def update_param_source(self, param_id: int, source: Dict, save: bool = True) -> None:
-        self.logger.debug(f"Updating parameter ID {param_id!r} source to {source!r}.")
-        self._pending.update_param_sources[param_id] = source
+    def update_param_source(
+        self, param_sources: Dict[int, Dict], save: bool = True
+    ) -> None:
+        self.logger.debug(f"Updating parameter sources with {param_sources!r}.")
+        self._pending.update_param_sources.update(param_sources)
         if save:
             self.save()
 

@@ -2159,8 +2159,7 @@ class WorkflowTask:
                 metadata={},
             )
 
-        for pid, src in param_src_updates.items():
-            self.workflow._store.update_param_source(pid, src)
+        self.workflow._store.update_param_source(param_src_updates)
 
     @TimeIt.decorator
     def _add_element_set(self, element_set):
