@@ -1386,6 +1386,8 @@ class Workflow:
         task_IDs = [i.task_ID for i in store_elems]
         store_tasks = self._store.get_tasks_by_IDs(task_IDs)
 
+        element_idx_by_task = defaultdict(set)
+
         index_paths = []
         for it, el, tk in zip(store_iters, store_elems, store_tasks):
             iter_idx = el.iteration_IDs.index(it.id_)
@@ -1397,11 +1399,18 @@ class Workflow:
                     "task_idx": tk.index,
                 }
             )
+            element_idx_by_task[tk.index].add(elem_idx)
+
+        elements_by_task = {}
+        for task_idx, elem_idx in element_idx_by_task.items():
+            task = self.tasks[task_idx]
+            elements_by_task[task_idx] = dict(
+                zip(elem_idx, task.elements[list(elem_idx)])
+            )
 
         objs = []
         for idx_dat in index_paths:
-            task = self.tasks[idx_dat["task_idx"]]
-            elem = task.elements[idx_dat["elem_idx"]]
+            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
             iter_ = elem.iterations[idx_dat["iter_idx"]]
             objs.append(iter_)
 
