@@ -2064,7 +2064,6 @@ class WorkflowTask:
     @TimeIt.decorator
     def initialise_EARs(self, iter_IDs: Optional[List[int]] = None) -> List[int]:
         """Try to initialise any uninitialised EARs of this task."""
-
         if iter_IDs:
             iters = self.workflow.get_element_iterations_from_IDs(iter_IDs)
         else:
@@ -2105,7 +2104,6 @@ class WorkflowTask:
         param_src_updates = {}
 
         count = 0
-        # TODO: generator is an IO op here, can be pre-calculated/cached?
         for act_idx, action in self.template.all_schema_actions():
             log_common = (
                 f"for action {act_idx} of element iteration {element_iter.index} of "

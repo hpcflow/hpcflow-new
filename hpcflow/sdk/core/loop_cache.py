@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from hpcflow.sdk import app
 from hpcflow.sdk.core.utils import nth_key
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.core.cache import DependencyCache
 
 
 @dataclass
@@ -81,7 +82,9 @@ class LoopCache:
     @TimeIt.decorator
     def build(cls, workflow: "app.Workflow", loops: Optional[List["app.Loop"]] = None):
         """Build a cache of data for use in adding loops and iterations."""
-        # loops = list(workflow.template.loops) + (loops or [])
+
+        deps_cache = DependencyCache.build(workflow)
+
         loops = list(workflow.template.loops) + (loops or [])
         task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
         tasks = [workflow.tasks.get(insert_ID=i) for i in sorted(task_iIDs)]
@@ -101,7 +104,8 @@ class LoopCache:
         zeroth_iters = {}
         task_iterations = defaultdict(list)
         for task in tasks:
-            for element in task.elements:
+            for elem_idx in task.element_IDs:
+                element = deps_cache.elements[elem_idx]
                 inp_statuses = task.template.get_input_statuses(element.element_set)
                 elements[element.id_] = {
                     "input_statuses": inp_statuses,
@@ -109,10 +113,12 @@ class LoopCache:
                     "task_insert_ID": task.insert_ID,
                 }
                 elem_deps[element.id_] = {
-                    i.id_: {
-                        "group_names": tuple(j.name for j in i.element_set.groups),
+                    i: {
+                        "group_names": tuple(
+                            j.name for j in deps_cache.elements[i].element_set.groups
+                        ),
                     }
-                    for i in element.get_dependent_elements_recursively()
+                    for i in deps_cache.elem_elem_dependents_rec[element.id_]
                 }
                 elem_iters = {}
                 for idx, iter_i in enumerate(element.iterations):

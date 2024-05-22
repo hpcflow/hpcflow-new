@@ -627,23 +627,28 @@ class Workflow:
             )
             with wk._store.cached_load():
                 with wk.batch_update(is_workflow_creation=True):
-                    for idx, task in enumerate(template.tasks):
+                    with wk._store.cache_ctx():
+                        for idx, task in enumerate(template.tasks):
+                            if status:
+                                status.update(
+                                    f"Adding task {idx + 1}/{len(template.tasks)} "
+                                    f"({task.name!r})..."
+                                )
+                            wk._add_task(task)
                         if status:
                             status.update(
-                                f"Adding task {idx + 1}/{len(template.tasks)} "
-                                f"({task.name!r})..."
+                                f"Preparing to add {len(template.loops)} loops..."
                             )
-                        wk._add_task(task)
-                    if status:
-                        status.update(f"Preparing to add {len(template.loops)} loops...")
-                    cache = LoopCache.build(workflow=wk, loops=template.loops)
-                    for idx, loop in enumerate(template.loops):
-                        if status:
-                            status.update(
-                                f"Adding loop {idx + 1}/"
-                                f"{len(template.loops)} ({loop.name!r})"
-                            )
-                        wk._add_loop(loop, cache=cache, status=status)
+                        if template.loops:
+                            # TODO: if loop with non-initialisable actions, will fail
+                            cache = LoopCache.build(workflow=wk, loops=template.loops)
+                            for idx, loop in enumerate(template.loops):
+                                if status:
+                                    status.update(
+                                        f"Adding loop {idx + 1}/"
+                                        f"{len(template.loops)} ({loop.name!r})"
+                                    )
+                                wk._add_loop(loop, cache=cache, status=status)
         except Exception:
             if status:
                 status.stop()
