@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Any
-
+from itertools import zip_longest
 from textwrap import dedent
+import re
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.errors import DuplicateExecutableError
+from hpcflow.sdk.core.errors import DuplicateExecutableError, SemanticVersionSpecError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ExecutablesList
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
@@ -165,3 +166,130 @@ class Environment(JSONLike):
                 f"Executables must have unique `label`s within each environment, but "
                 f"found label(s) multiple times: {dup_labels!r}"
             )
+
+
+class SortableVersionSpec:
+    def __init__(self, value) -> None:
+        self.value = value
+
+    def __eq__(self, __value: object) -> bool:
+        return self.value == __value.value
+
+    def __lt__(self, other) -> bool:
+        return self.value < other.value
+
+
+class SemanticVersionSpec(SortableVersionSpec):
+
+    # used to indicate a given environment definition version specifier should use this
+    # version spec class:
+    id_ = "semantic"
+
+    # from https://semver.org/
+    RE_PATTERN = (
+        r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)"
+        r"(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)"
+        r"(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
+        r"(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+    )
+
+    def __init__(self, value) -> None:
+        super().__init__(value)
+        self._parts = self._get_parts()
+
+    @property
+    def parts(self):
+        return self._parts
+
+    def _get_parts(self):
+        match = re.match(self.RE_PATTERN, self.value)
+        if not match:
+            raise SemanticVersionSpecError(
+                f"Version {self.value!r} does not seem to conform to the semantic "
+                f"versioning specification as defined at https://semver.org/."
+            )
+        dct = match.groupdict()
+        dct["major"] = int(dct["major"])
+        dct["minor"] = int(dct["minor"])
+        dct["patch"] = int(dct["patch"])
+        if dct["prerelease"]:
+            # split on dots, and try to cast to integers:
+            dct["prerelease"] = dct["prerelease"].split(".")
+            for idx, i in enumerate(dct["prerelease"]):
+                try:
+                    i_int = int(i)
+                except ValueError:
+                    pass
+                else:
+                    dct["prerelease"][idx] = i_int
+
+        return dct
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, SemanticVersionSpec):
+            __value = SemanticVersionSpec(__value)
+        parts = {k: v for k, v in self.parts.items() if k != "buildmetadata"}
+        parts_other = {k: v for k, v in __value.parts.items() if k != "buildmetadata"}
+        return parts == parts_other
+
+    def __gt__(self, other) -> bool:
+        if not isinstance(other, SemanticVersionSpec):
+            other = SemanticVersionSpec(other)
+        return other <= self
+
+    def __ge__(self, other) -> bool:
+        if not isinstance(other, SemanticVersionSpec):
+            other = SemanticVersionSpec(other)
+        return self == other or self > other
+
+    def __le__(self, other) -> bool:
+        if not isinstance(other, SemanticVersionSpec):
+            other = SemanticVersionSpec(other)
+        return self == other or self < other
+
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, SemanticVersionSpec):
+            other = SemanticVersionSpec(other)
+        parts = self.parts
+        parts_o = other.parts
+        if parts["major"] < parts_o["major"]:
+            return True
+        elif parts["major"] > parts_o["major"]:
+            return False
+        elif parts["minor"] < parts_o["minor"]:
+            return True
+        elif parts["minor"] > parts_o["minor"]:
+            return False
+        elif parts["patch"] < parts_o["patch"]:
+            return True
+        elif parts["patch"] > parts_o["patch"]:
+            return False
+        else:
+            # same (major, minor, patch), look at prerelease (buildmetadata not
+            # considered)
+
+            # prerelease has lower precedence than normal release:
+            if parts["prerelease"] and parts_o["prerelease"] is None:
+                return True
+            elif parts["prerelease"] is None and parts_o["prerelease"]:
+                return False
+            else:
+                # both have some prerelease defined
+                for i, j in zip_longest(parts["prerelease"], parts_o["prerelease"]):
+                    if i is None:
+                        return True
+                    elif j is None:
+                        return False
+                    try:
+                        if i < j:
+                            return True
+                        elif j < i:
+                            return False
+                        else:
+                            continue
+                    except TypeError:
+                        # numeric identifiers have lower precedence:
+                        if isinstance(i, int):
+                            return True
+                        elif isinstance(j, int):
+                            return False
