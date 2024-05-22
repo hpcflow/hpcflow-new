@@ -431,3 +431,7 @@ class MultipleEnvironmentsError(ValueError):
 
 class MissingElementGroup(ValueError):
     pass
+
+
+class SemanticVersionSpecError(ValueError):
+    pass
