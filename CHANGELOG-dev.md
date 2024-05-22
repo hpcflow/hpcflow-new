@@ -1,4 +1,30 @@
 
+<a name="v0.2.0a177"></a>
+## [v0.2.0a177](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a176...v0.2.0a177) - 2024.05.22
+
+### ♻ Code Refactoring
+
+* add `LoopCache` and use in `WorkflowLoop.add_iteration`
+* add a cache for later use in `WorkflowLoop.add_iteration`
+
+### ⚡ Performance Improvements
+
+* add a dependencies cache to pre-compute dependencies during loop preparation
+* batch up element retrieval in `get_elements_from_IDs`
+* batch up `PersistentStore.update_param_source`
+* add `num_EARS` to persistentstore cache
+* batch up element retrieval in `Workflow.get_element_iterations_from_IDs`
+* defer `initialise_EARs` in `add_iteration` and support passing iter_IDs to `initialise_EARs`
+
+### ✨ Features
+
+* print loop name in status when adding a loop
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a176"></a>
 ## [v0.2.0a176](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a175...v0.2.0a176) - 2024.05.15
 
