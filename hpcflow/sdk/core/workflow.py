@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
@@ -41,6 +42,7 @@ from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
+    nth_key,
     read_JSON_file,
     read_JSON_string,
     read_YAML_str,
@@ -625,19 +627,28 @@ class Workflow:
             )
             with wk._store.cached_load():
                 with wk.batch_update(is_workflow_creation=True):
-                    for idx, task in enumerate(template.tasks):
+                    with wk._store.cache_ctx():
+                        for idx, task in enumerate(template.tasks):
+                            if status:
+                                status.update(
+                                    f"Adding task {idx + 1}/{len(template.tasks)} "
+                                    f"({task.name!r})..."
+                                )
+                            wk._add_task(task)
                         if status:
                             status.update(
-                                f"Adding task {idx + 1}/{len(template.tasks)} "
-                                f"({task.name!r})..."
+                                f"Preparing to add {len(template.loops)} loops..."
                             )
-                        wk._add_task(task)
-                    for idx, loop in enumerate(template.loops):
-                        if status:
-                            status.update(
-                                f"Adding loop {idx + 1}/" f"{len(template.loops)}..."
-                            )
-                        wk._add_loop(loop)
+                        if template.loops:
+                            # TODO: if loop with non-initialisable actions, will fail
+                            cache = LoopCache.build(workflow=wk, loops=template.loops)
+                            for idx, loop in enumerate(template.loops):
+                                if status:
+                                    status.update(
+                                        f"Adding loop {idx + 1}/"
+                                        f"{len(template.loops)} ({loop.name!r})"
+                                    )
+                                wk._add_loop(loop, cache=cache, status=status)
         except Exception:
             if status:
                 status.stop()
@@ -1101,7 +1112,7 @@ class Workflow:
 
     @TimeIt.decorator
     def _add_empty_loop(
-        self, loop: app.Loop
+        self, loop: app.Loop, cache: LoopCache
     ) -> Tuple[app.WorkflowLoop, List[app.ElementIteration]]:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
@@ -1114,15 +1125,15 @@ class Workflow:
         self.template._add_empty_loop(loop_c)
 
         # all these element iterations will be initialised for the new loop:
-        iters = self.get_element_iterations_of_tasks(loop_c.task_insert_IDs)
-        iter_IDs = [i.id_ for i in iters]
+        iter_IDs = cache.get_iter_IDs(loop_c)
+        iter_loop_idx = cache.get_iter_loop_indices(iter_IDs)
 
         # create and insert a new WorkflowLoop:
         new_loop = self.app.WorkflowLoop.new_empty_loop(
             index=new_index,
             workflow=self,
             template=loop_c,
-            iterations=iters,
+            iter_loop_idx=iter_loop_idx,
         )
         self.loops.add_object(new_loop)
         wk_loop = self.loops[new_index]
@@ -1144,15 +1155,28 @@ class Workflow:
 
         self._pending["loops"].append(new_index)
 
+        # update cache loop indices:
+        cache.update_loop_indices(new_loop_name=loop_c.name, iter_IDs=iter_IDs)
+
         return wk_loop
 
     @TimeIt.decorator
-    def _add_loop(self, loop: app.Loop) -> None:
-        new_wk_loop = self._add_empty_loop(loop)
+    def _add_loop(
+        self, loop: app.Loop, cache: Optional[Dict] = None, status: Optional[Any] = None
+    ) -> None:
+        if not cache:
+            cache = LoopCache.build(workflow=self, loops=[loop])
+        new_wk_loop = self._add_empty_loop(loop, cache)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
-            for _ in range(loop.num_iterations - 1):
-                new_wk_loop.add_iteration()
+            if status:
+                status_prev = status.status
+            for iter_idx in range(loop.num_iterations - 1):
+                if status:
+                    status.update(
+                        f"{status_prev}: iteration {iter_idx + 2}/{loop.num_iterations}."
+                    )
+                new_wk_loop.add_iteration(cache=cache)
 
     def add_loop(self, loop: app.Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
@@ -1326,6 +1350,7 @@ class Workflow:
                     iters.append(iter_i)
         return iters
 
+    @TimeIt.decorator
     def get_elements_from_IDs(self, id_lst: Iterable[int]) -> List[app.Element]:
         """Return element objects from a list of IDs."""
 
@@ -1334,6 +1359,7 @@ class Workflow:
         task_IDs = [i.task_ID for i in store_elems]
         store_tasks = self._store.get_tasks_by_IDs(task_IDs)
 
+        element_idx_by_task = defaultdict(set)
         index_paths = []
         for el, tk in zip(store_elems, store_tasks):
             elem_idx = tk.element_IDs.index(el.id_)
@@ -1343,15 +1369,23 @@ class Workflow:
                     "task_idx": tk.index,
                 }
             )
+            element_idx_by_task[tk.index].add(elem_idx)
+
+        elements_by_task = {}
+        for task_idx, elem_idx in element_idx_by_task.items():
+            task = self.tasks[task_idx]
+            elements_by_task[task_idx] = dict(
+                zip(elem_idx, task.elements[list(elem_idx)])
+            )
 
         objs = []
         for idx_dat in index_paths:
-            task = self.tasks[idx_dat["task_idx"]]
-            elem = task.elements[idx_dat["elem_idx"]]
+            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
             objs.append(elem)
 
         return objs
 
+    @TimeIt.decorator
     def get_element_iterations_from_IDs(
         self, id_lst: Iterable[int]
     ) -> List[app.ElementIteration]:
@@ -1365,6 +1399,8 @@ class Workflow:
         task_IDs = [i.task_ID for i in store_elems]
         store_tasks = self._store.get_tasks_by_IDs(task_IDs)
 
+        element_idx_by_task = defaultdict(set)
+
         index_paths = []
         for it, el, tk in zip(store_iters, store_elems, store_tasks):
             iter_idx = el.iteration_IDs.index(it.id_)
@@ -1376,11 +1412,18 @@ class Workflow:
                     "task_idx": tk.index,
                 }
             )
+            element_idx_by_task[tk.index].add(elem_idx)
+
+        elements_by_task = {}
+        for task_idx, elem_idx in element_idx_by_task.items():
+            task = self.tasks[task_idx]
+            elements_by_task[task_idx] = dict(
+                zip(elem_idx, task.elements[list(elem_idx)])
+            )
 
         objs = []
         for idx_dat in index_paths:
-            task = self.tasks[idx_dat["task_idx"]]
-            elem = task.elements[idx_dat["elem_idx"]]
+            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
             iter_ = elem.iterations[idx_dat["iter_idx"]]
             objs.append(iter_)
 

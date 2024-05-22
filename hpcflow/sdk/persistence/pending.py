@@ -275,6 +275,7 @@ class PendingChanges:
             EAR_ids = list(self.add_EARs.keys())
             self.logger.debug(f"commit: adding pending EARs with IDs: {EAR_ids!r}")
             self.store._append_EARs(EARs)
+            self.store.num_EARs_cache = None  # invalidate cache
             # pending start/end times/snapshots, submission indices, and skips that belong
             # to pending EARs are now committed (accounted for in `get_EARs` above):
             self.set_EAR_submission_indices = {
@@ -408,6 +409,7 @@ class PendingChanges:
     @TimeIt.decorator
     def commit_loop_indices(self) -> None:
         """Make pending update to element iteration loop indices persistent."""
+        # TODO: batch up
         for iter_ID, loop_idx in self.update_loop_indices.items():
             self.logger.debug(
                 f"commit: updating loop indices of iteration ID {iter_ID!r} with "

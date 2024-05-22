@@ -2062,29 +2062,36 @@ class WorkflowTask:
         return element_dat_idx
 
     @TimeIt.decorator
-    def initialise_EARs(self) -> List[int]:
+    def initialise_EARs(self, iter_IDs: Optional[List[int]] = None) -> List[int]:
         """Try to initialise any uninitialised EARs of this task."""
+        if iter_IDs:
+            iters = self.workflow.get_element_iterations_from_IDs(iter_IDs)
+        else:
+            iters = []
+            for element in self.elements:
+                # We don't yet cache Element objects, so `element`, and also it's
+                # `ElementIterations, are transient. So there is no reason to update these
+                # objects in memory to account for the new EARs. Subsequent calls to
+                # `WorkflowTask.elements` will retrieve correct element data from the
+                # store. This might need changing once/if we start caching Element
+                # objects.
+                iters.extend(element.iterations)
+
         initialised = []
-        for element in self.elements[:]:
-            # We don't yet cache Element objects, so `element`, and also it's
-            # `ElementIterations, are transient. So there is no reason to update these
-            # objects in memory to account for the new EARs. Subsequent calls to
-            # `WorkflowTask.elements` will retrieve correct element data from the store.
-            # This might need changing once/if we start caching Element objects.
-            for iter_i in element.iterations:
-                if not iter_i.EARs_initialised:
-                    try:
-                        self._initialise_element_iter_EARs(iter_i)
-                        initialised.append(iter_i.id_)
-                    except UnsetParameterDataError:
-                        # raised by `Action.test_rules`; cannot yet initialise EARs
-                        self.app.logger.debug(
-                            f"UnsetParameterDataError raised: cannot yet initialise runs."
-                        )
-                        pass
-                    else:
-                        iter_i._EARs_initialised = True
-                        self.workflow.set_EARs_initialised(iter_i.id_)
+        for iter_i in iters:
+            if not iter_i.EARs_initialised:
+                try:
+                    self._initialise_element_iter_EARs(iter_i)
+                    initialised.append(iter_i.id_)
+                except UnsetParameterDataError:
+                    # raised by `Action.test_rules`; cannot yet initialise EARs
+                    self.app.logger.debug(
+                        f"UnsetParameterDataError raised: cannot yet initialise runs."
+                    )
+                    pass
+                else:
+                    iter_i._EARs_initialised = True
+                    self.workflow.set_EARs_initialised(iter_i.id_)
         return initialised
 
     @TimeIt.decorator
@@ -2097,7 +2104,6 @@ class WorkflowTask:
         param_src_updates = {}
 
         count = 0
-        # TODO: generator is an IO op here, can be pre-calculated/cached?
         for act_idx, action in self.template.all_schema_actions():
             log_common = (
                 f"for action {act_idx} of element iteration {element_iter.index} of "
@@ -2151,8 +2157,7 @@ class WorkflowTask:
                 metadata={},
             )
 
-        for pid, src in param_src_updates.items():
-            self.workflow._store.update_param_source(pid, src)
+        self.workflow._store.update_param_source(param_src_updates)
 
     @TimeIt.decorator
     def _add_element_set(self, element_set):

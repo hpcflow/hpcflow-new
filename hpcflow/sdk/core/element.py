@@ -675,6 +675,7 @@ class ElementIteration:
             default=default,
         )
 
+    @TimeIt.decorator
     def get_EAR_dependencies(
         self,
         as_objects: Optional[bool] = False,
@@ -708,6 +709,7 @@ class ElementIteration:
             out = self.workflow.get_EARs_from_IDs(out)
         return out
 
+    @TimeIt.decorator
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
     ) -> List[Union[int, app.ElementIteration]]:
@@ -719,6 +721,7 @@ class ElementIteration:
             out = self.workflow.get_element_iterations_from_IDs(out)
         return out
 
+    @TimeIt.decorator
     def get_element_dependencies(
         self,
         as_objects: Optional[bool] = False,
@@ -769,6 +772,7 @@ class ElementIteration:
 
         return out
 
+    @TimeIt.decorator
     def get_dependent_EARs(
         self, as_objects: bool = False
     ) -> List[Union[int, app.ElementActionRun]]:
@@ -793,6 +797,7 @@ class ElementIteration:
 
         return deps
 
+    @TimeIt.decorator
     def get_dependent_element_iterations(
         self, as_objects: bool = False
     ) -> List[Union[int, app.ElementIteration]]:
@@ -816,6 +821,7 @@ class ElementIteration:
 
         return deps
 
+    @TimeIt.decorator
     def get_dependent_elements(
         self,
         as_objects: bool = False,
@@ -1246,6 +1252,7 @@ class Element:
         """Get tasks that depend on the most recent iteration of this element."""
         return self.latest_iteration.get_dependent_tasks(as_objects=as_objects)
 
+    @TimeIt.decorator
     def get_dependent_elements_recursively(self, task_insert_ID=None):
         """Get downstream elements that depend on this element, including recursive
         dependencies.

@@ -6,9 +6,11 @@ from typing import Dict, List, Optional, Tuple, Union
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
-from hpcflow.sdk.core.utils import check_valid_py_identifier
+from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
+from hpcflow.sdk.log import TimeIt
 
 # from .parameters import Parameter
 
@@ -198,6 +200,7 @@ class WorkflowLoop:
 
         self._validate()
 
+    @TimeIt.decorator
     def _validate(self):
         # task subset must be a contiguous range of task indices:
         task_indices = self.task_indices
@@ -328,6 +331,7 @@ class WorkflowLoop:
         return self.workflow.tasks[: self.task_objects[0].index]
 
     @staticmethod
+    @TimeIt.decorator
     def _find_iterable_parameters(loop_template: app.Loop):
         all_inputs_first_idx = {}
         all_outputs_idx = {}
@@ -355,18 +359,19 @@ class WorkflowLoop:
         return iterable_params
 
     @classmethod
+    @TimeIt.decorator
     def new_empty_loop(
         cls,
         index: int,
         workflow: app.Workflow,
         template: app.Loop,
-        iterations: List[app.ElementIteration],
+        iter_loop_idx: List[Dict],
     ) -> Tuple[app.WorkflowLoop, List[Dict[str, int]]]:
         parent_loops = cls._get_parent_loops(index, workflow, template)
         parent_names = [i.name for i in parent_loops]
         num_added_iters = {}
-        for iter_i in iterations:
-            num_added_iters[tuple([iter_i.loop_idx[j] for j in parent_names])] = 1
+        for i in iter_loop_idx:
+            num_added_iters[tuple([i[j] for j in parent_names])] = 1
 
         obj = cls(
             index=index,
@@ -379,6 +384,7 @@ class WorkflowLoop:
         return obj
 
     @classmethod
+    @TimeIt.decorator
     def _get_parent_loops(
         cls,
         index: int,
@@ -399,12 +405,14 @@ class WorkflowLoop:
                 parents.append(loop_i)
         return parents
 
+    @TimeIt.decorator
     def get_parent_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a superset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
         considered the child."""
         return self._get_parent_loops(self.index, self.workflow, self.template)
 
+    @TimeIt.decorator
     def get_child_loops(self) -> List[app.WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
@@ -426,10 +434,12 @@ class WorkflowLoop:
         children = sorted(children, key=lambda x: len(next(iter(x.num_added_iterations))))
         return children
 
-    def add_iteration(self, parent_loop_indices=None):
+    @TimeIt.decorator
+    def add_iteration(self, parent_loop_indices=None, cache: Optional[LoopCache] = None):
+        if not cache:
+            cache = LoopCache.build(self.workflow)
         parent_loops = self.get_parent_loops()
         child_loops = self.get_child_loops()
-        child_loop_names = [i.name for i in child_loops]
         parent_loop_indices = parent_loop_indices or {}
         if parent_loops and not parent_loop_indices:
             parent_loop_indices = {i.name: 0 for i in parent_loops}
@@ -458,24 +468,19 @@ class WorkflowLoop:
                     if task.insert_ID in child.task_insert_IDs
                 },
             }
+            added_iter_IDs = []
             for elem_idx in range(task.num_elements):
-                # element needs to take into account changes made in this code
-                element = task.elements[elem_idx]
-                inp_statuses = task.template.get_input_statuses(element.element_set)
+
+                elem_ID = task.element_IDs[elem_idx]
+
                 new_data_idx = {}
-                existing_inners = []
-                for iter_i in element.iterations:
-                    if iter_i.loop_idx[self.name] == cur_loop_idx:
-                        existing_inner_i = {
-                            k: v
-                            for k, v in iter_i.loop_idx.items()
-                            if k in child_loop_names
-                        }
-                        if existing_inner_i:
-                            existing_inners.append(existing_inner_i)
 
                 # copy resources from zeroth iteration:
-                for key, val in element.iterations[0].get_data_idx().items():
+                zeroth_iter_ID, zi_iter_data_idx = cache.zeroth_iters[elem_ID]
+                zi_elem_ID, zi_idx = cache.iterations[zeroth_iter_ID]
+                zi_data_idx = nth_value(cache.data_idx[zi_elem_ID], zi_idx)
+
+                for key, val in zi_data_idx.items():
                     if key.startswith("resources."):
                         new_data_idx[key] = val
 
@@ -493,41 +498,47 @@ class WorkflowLoop:
                         # identify element(s) from which this iterable input should be
                         # parametrised:
                         if task.insert_ID == iter_dat["output_tasks"][-1]:
-                            src_elem = element
+                            src_elem_ID = elem_ID
                             grouped_elems = None
                         else:
-                            src_elems = element.get_dependent_elements_recursively(
-                                task_insert_ID=iter_dat["output_tasks"][-1]
-                            )
+                            src_elem_IDs_all = cache.element_dependents[elem_ID]
+                            src_elem_IDs = {
+                                k: v
+                                for k, v in src_elem_IDs_all.items()
+                                if cache.elements[k]["task_insert_ID"]
+                                == iter_dat["output_tasks"][-1]
+                            }
                             # consider groups
                             inp_group_name = inp.single_labelled_data.get("group")
                             grouped_elems = []
-                            for i in src_elems:
+                            for src_elem_j_ID, src_elem_j_dat in src_elem_IDs.items():
                                 i_in_group = any(
-                                    j.name == inp_group_name for j in i.element_set.groups
+                                    k == inp_group_name
+                                    for k in src_elem_j_dat["group_names"]
                                 )
                                 if i_in_group:
-                                    grouped_elems.append(i)
+                                    grouped_elems.append(src_elem_j_ID)
 
-                            if not grouped_elems and len(src_elems) > 1:
+                            if not grouped_elems and len(src_elem_IDs) > 1:
                                 raise NotImplementedError(
-                                    f"Multiple elements found in the iterable parameter {inp!r}'s"
-                                    f" latest output task (insert ID: "
-                                    f"{iter_dat['output_tasks'][-1]}) that can be used to "
-                                    f"parametrise the next iteration: {src_elems!r}."
+                                    f"Multiple elements found in the iterable parameter "
+                                    f"{inp!r}'s latest output task (insert ID: "
+                                    f"{iter_dat['output_tasks'][-1]}) that can be used "
+                                    f"to parametrise the next iteration: "
+                                    f"{list(src_elem_IDs.keys())!r}."
                                 )
 
-                            elif not src_elems:
+                            elif not src_elem_IDs:
                                 # TODO: maybe OK?
                                 raise NotImplementedError(
-                                    f"No elements found in the iterable parameter {inp!r}'s"
-                                    f" latest output task (insert ID: "
-                                    f"{iter_dat['output_tasks'][-1]}) that can be used to "
-                                    f"parametrise the next iteration."
+                                    f"No elements found in the iterable parameter "
+                                    f"{inp!r}'s latest output task (insert ID: "
+                                    f"{iter_dat['output_tasks'][-1]}) that can be used "
+                                    f"to parametrise the next iteration."
                                 )
 
                             else:
-                                src_elem = src_elems[0]
+                                src_elem_ID = nth_key(src_elem_IDs, 0)
 
                         child_loop_max_iters = {}
                         parent_loop_same_iters = {
@@ -553,76 +564,69 @@ class WorkflowLoop:
 
                         # identify the ElementIteration from which this input should be
                         # parametrised:
-                        source_iter = None
+                        loop_idx_key = tuple(sorted(source_iter_loop_idx.items()))
                         if grouped_elems:
-                            source_iter = []
-                            for src_elem in grouped_elems:
-                                for iter_i in src_elem.iterations:
-                                    if iter_i.loop_idx == source_iter_loop_idx:
-                                        source_iter.append(iter_i)
-                                        break
+                            src_data_idx = []
+                            for src_elem_ID in grouped_elems:
+                                src_data_idx.append(
+                                    cache.data_idx[src_elem_ID][loop_idx_key]
+                                )
                         else:
-                            for iter_i in src_elem.iterations:
-                                if iter_i.loop_idx == source_iter_loop_idx:
-                                    source_iter = iter_i
-                                    break
+                            src_data_idx = cache.data_idx[src_elem_ID][loop_idx_key]
 
-                        if not source_iter:
+                        if not src_data_idx:
                             raise RuntimeError(
                                 f"Could not find a source iteration with loop_idx: "
                                 f"{source_iter_loop_idx!r}."
                             )
 
                         if grouped_elems:
-                            inp_dat_idx = [
-                                i.get_data_idx()[f"outputs.{inp.typ}"]
-                                for i in source_iter
-                            ]
+                            inp_dat_idx = [i[f"outputs.{inp.typ}"] for i in src_data_idx]
                         else:
-                            inp_dat_idx = source_iter.get_data_idx()[f"outputs.{inp.typ}"]
+                            inp_dat_idx = src_data_idx[f"outputs.{inp.typ}"]
                         new_data_idx[f"inputs.{inp.typ}"] = inp_dat_idx
 
                     else:
                         inp_key = f"inputs.{inp.typ}"
 
-                        orig_inp_src = element.input_sources[inp_key]
+                        orig_inp_src = cache.elements[elem_ID]["input_sources"][inp_key]
                         inp_dat_idx = None
 
                         if orig_inp_src.source_type is InputSourceType.LOCAL:
                             # keep locally defined inputs from original element
-                            inp_dat_idx = element.iterations[0].get_data_idx()[inp_key]
+                            inp_dat_idx = zi_data_idx[inp_key]
 
                         elif orig_inp_src.source_type is InputSourceType.DEFAULT:
                             # keep default value from original element
-                            inp_dat_idx_iter_0 = element.iterations[0].get_data_idx()
                             try:
-                                inp_dat_idx = inp_dat_idx_iter_0[inp_key]
+                                inp_dat_idx = zi_data_idx[inp_key]
                             except KeyError:
                                 # if this input is required by a conditional action, and
                                 # that condition is not met, then this input will not
                                 # exist in the action-run data index, so use the initial
                                 # iteration data index:
-                                inp_dat_idx = element.iterations[0].data_idx[inp_key]
+                                inp_dat_idx = zi_iter_data_idx[inp_key]
 
                         elif orig_inp_src.source_type is InputSourceType.TASK:
                             if orig_inp_src.task_ref not in self.task_insert_IDs:
-                                # TODO: what about groups?
                                 # source the data_idx from the iteration with same parent
                                 # loop indices as the new iteration to add:
-                                src_iters = []
-                                for iter_i in element.iterations:
+                                # src_iters = []
+                                src_data_idx = []
+                                for li_k, di_k in cache.data_idx[elem_ID].items():
                                     skip_iter = False
+                                    li_k_dct = dict(li_k)
                                     for p_k, p_v in parent_loop_indices.items():
-                                        if iter_i.loop_idx.get(p_k) != p_v:
+                                        if li_k_dct.get(p_k) != p_v:
                                             skip_iter = True
                                             break
                                     if not skip_iter:
-                                        src_iters.append(iter_i)
+                                        src_data_idx.append(di_k)
 
                                 # could be multiple, but they should all have the same
                                 # data index for this parameter:
-                                src_iter = src_iters[0]
-                                inp_dat_idx = src_iter.get_data_idx()[inp_key]
+                                src_data_idx = src_data_idx[0]
+                                inp_dat_idx = src_data_idx[inp_key]
                             else:
                                 is_group = False
                                 if (
@@ -645,19 +649,24 @@ class WorkflowLoop:
                                         # find which element in that task `element`
                                         # depends on:
                                         task_i = self.workflow.tasks.get(insert_ID=tiID)
-                                        elem_i = task_i.elements[e_idx]
-                                        src_elems_i = (
-                                            elem_i.get_dependent_elements_recursively(
-                                                task_insert_ID=task.insert_ID
-                                            )
-                                        )
-                                        # filter src_elems_i for matching element IDs:
-                                        src_elems_i = [
-                                            i for i in src_elems_i if i.id_ == element.id_
+                                        elem_i_ID = task_i.element_IDs[e_idx]
+                                        src_elem_IDs_all = cache.element_dependents[
+                                            elem_i_ID
+                                        ]
+                                        src_elem_IDs_i = {
+                                            k: v
+                                            for k, v in src_elem_IDs_all.items()
+                                            if cache.elements[k]["task_insert_ID"]
+                                            == task.insert_ID
+                                        }
+
+                                        # filter src_elem_IDs_i for matching element IDs:
+                                        src_elem_IDs_i = [
+                                            i for i in src_elem_IDs_i if i == elem_ID
                                         ]
                                         if (
-                                            len(src_elems_i) == 1
-                                            and src_elems_i[0].id_ == element.id_
+                                            len(src_elem_IDs_i) == 1
+                                            and src_elem_IDs_i[0] == elem_ID
                                         ):
                                             new_sources.append((tiID, e_idx))
 
@@ -680,10 +689,11 @@ class WorkflowLoop:
                         new_data_idx[inp_key] = inp_dat_idx
 
                 # add any locally defined sub-parameters:
+                inp_statuses = cache.elements[elem_ID]["input_statuses"]
                 inp_status_inps = set([f"inputs.{i}" for i in inp_statuses])
                 sub_params = inp_status_inps - set(new_data_idx.keys())
                 for sub_param_i in sub_params:
-                    sub_param_data_idx_iter_0 = element.iterations[0].get_data_idx()
+                    sub_param_data_idx_iter_0 = zi_data_idx
                     try:
                         sub_param_data_idx = sub_param_data_idx_iter_0[sub_param_i]
                     except KeyError:
@@ -691,7 +701,7 @@ class WorkflowLoop:
                         # and that condition is not met, then this input will not exist in
                         # the action-run data index, so use the initial iteration data
                         # index:
-                        sub_param_data_idx = element.iterations[0].data_idx[sub_param_i]
+                        sub_param_data_idx = zi_data_idx[sub_param_i]
 
                     new_data_idx[sub_param_i] = sub_param_data_idx
 
@@ -703,16 +713,26 @@ class WorkflowLoop:
                 schema_params = set(
                     i for i in new_data_idx.keys() if len(i.split(".")) == 2
                 )
-                all_new_data_idx[(task.insert_ID, element.index)] = new_data_idx
+                all_new_data_idx[(task.insert_ID, elem_idx)] = new_data_idx
 
                 iter_ID_i = self.workflow._store.add_element_iteration(
-                    element_ID=element.id_,
+                    element_ID=elem_ID,
                     data_idx=new_data_idx,
                     schema_parameters=list(schema_params),
                     loop_idx=new_loop_idx,
                 )
+                if cache:
+                    cache.add_iteration(
+                        iter_ID=iter_ID_i,
+                        task_insert_ID=task.insert_ID,
+                        element_ID=elem_ID,
+                        loop_idx=new_loop_idx,
+                        data_idx=new_data_idx,
+                    )
 
-                task.initialise_EARs()
+                added_iter_IDs.append(iter_ID_i)
+
+            task.initialise_EARs(iter_IDs=added_iter_IDs)
 
         added_iters_key = tuple(parent_loop_indices[k] for k in self.parents)
         self._increment_pending_added_iters(added_iters_key)
@@ -731,7 +751,8 @@ class WorkflowLoop:
                             **par_idx,
                             **parent_loop_indices,
                             self.name: cur_loop_idx + 1,
-                        }
+                        },
+                        cache=cache,
                     )
 
     def test_termination(self, element_iter):
