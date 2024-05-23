@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Set, Dict
+from typing import Optional, Set, Dict
 
 from hpcflow.sdk.log import TimeIt
 
@@ -10,18 +10,18 @@ class ObjectCache:
     """Class to bulk-retrieve and store elements, iterations, runs and their various
     dependencies."""
 
-    elements: Dict
-    iterations: Dict
-    runs: Dict
+    elements: Optional[Dict] = None
+    iterations: Optional[Dict] = None
+    runs: Optional[Dict] = None
 
-    run_dependencies: Dict[int, Set]
-    run_dependents: Dict[int, Set]
-    iter_run_dependencies: Dict[int, Set]
-    iter_iter_dependencies: Dict[int, Set]
-    elem_iter_dependencies: Dict[int, Set]
-    elem_elem_dependencies: Dict[int, Set]
-    elem_elem_dependents: Dict[int, Set]
-    elem_elem_dependents_rec: Dict[int, Set]
+    run_dependencies: Optional[Dict[int, Set]] = None
+    run_dependents: Optional[Dict[int, Set]] = None
+    iter_run_dependencies: Optional[Dict[int, Set]] = None
+    iter_iter_dependencies: Optional[Dict[int, Set]] = None
+    elem_iter_dependencies: Optional[Dict[int, Set]] = None
+    elem_elem_dependencies: Optional[Dict[int, Set]] = None
+    elem_elem_dependents: Optional[Dict[int, Set]] = None
+    elem_elem_dependents_rec: Optional[Dict[int, Set]] = None
 
     @classmethod
     @TimeIt.decorator
