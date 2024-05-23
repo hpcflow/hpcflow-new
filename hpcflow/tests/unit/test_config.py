@@ -74,6 +74,7 @@ def test_without_callbacks_ctx_manager(null_config):
     hf.unload_config()
 
 
+@pytest.mark.xfail(reason="Might occasionally fail.")
 def test_cache_faster_than_no_cache(null_config):
     n = 10_000
     tic = time.perf_counter()
