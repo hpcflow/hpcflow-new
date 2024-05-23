@@ -6,8 +6,13 @@ from hpcflow.sdk.log import TimeIt
 
 
 @dataclass
-class DependencyCache:
-    """Class to bulk-retrieve dependencies between elements, iterations, and runs."""
+class ObjectCache:
+    """Class to bulk-retrieve and store elements, iterations, runs and their various
+    dependencies."""
+
+    elements: Dict
+    iterations: Dict
+    runs: Dict
 
     run_dependencies: Dict[int, Set]
     run_dependents: Dict[int, Set]
@@ -18,13 +23,34 @@ class DependencyCache:
     elem_elem_dependents: Dict[int, Set]
     elem_elem_dependents_rec: Dict[int, Set]
 
-    elements: Dict
-    iterations: Dict
-    runs: Dict
+    @classmethod
+    @TimeIt.decorator
+    def build(
+        cls,
+        workflow,
+        dependencies=False,
+        elements=False,
+        iterations=False,
+        runs=False,
+    ):
+        kwargs = {}
+        if dependencies:
+            kwargs.update(cls._get_dependencies(workflow))
+
+        if elements:
+            kwargs["elements"] = workflow.get_all_elements()
+
+        if iterations:
+            kwargs["iterations"] = workflow.get_all_element_iterations()
+
+        if runs:
+            kwargs["runs"] = workflow.get_all_EARs()
+
+        return cls(**kwargs)
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow, elements=True, iterations=True, runs=True):
+    def _get_dependencies(cls, workflow):
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs
@@ -126,14 +152,7 @@ class DependencyCache:
         elem_elem_dependents = dict(elem_elem_dependents)
         elem_elem_dependents_rec = dict(elem_elem_dependents_rec)
 
-        if elements:
-            element_objs = workflow.get_all_elements()
-        if iterations:
-            iter_objs = workflow.get_all_element_iterations()
-        if runs:
-            run_objs = workflow.get_all_EARs()
-
-        return cls(
+        return dict(
             run_dependencies=run_dependencies,
             run_dependents=run_dependents,
             iter_run_dependencies=iter_run_dependencies,
@@ -142,7 +161,4 @@ class DependencyCache:
             elem_elem_dependencies=elem_elem_dependencies,
             elem_elem_dependents=elem_elem_dependents,
             elem_elem_dependents_rec=elem_elem_dependents_rec,
-            elements=element_objs,
-            iterations=iter_objs,
-            runs=run_objs,
         )

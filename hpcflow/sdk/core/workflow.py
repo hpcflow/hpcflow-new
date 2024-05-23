@@ -25,7 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
-from hpcflow.sdk.core.cache import DependencyCache
+from hpcflow.sdk.core.cache import ObjectCache
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
@@ -2606,7 +2606,7 @@ class Workflow:
         self, tasks: Optional[List[int]] = None
     ) -> List[app.Jobscript]:
         with self.app.config.cached_config():
-            cache = DependencyCache.build(self)
+            cache = ObjectCache.build(self, elements=True, iterations=True, runs=True)
             js, element_deps = self._resolve_singular_jobscripts(cache, tasks)
             js_deps = resolve_jobscript_dependencies(js, element_deps)
 
@@ -2641,6 +2641,7 @@ class Workflow:
 
         if self._store.use_cache:
             # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
+            # note: this cache is unrelated to the `cache` argument
             self.get_all_parameter_sources()
 
         submission_jobscripts = {}
