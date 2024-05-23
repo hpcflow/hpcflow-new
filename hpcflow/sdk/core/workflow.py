@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.cache import DependencyCache
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
@@ -2604,22 +2605,24 @@ class Workflow:
     def resolve_jobscripts(
         self, tasks: Optional[List[int]] = None
     ) -> List[app.Jobscript]:
-        js, element_deps = self._resolve_singular_jobscripts(tasks)
-        js_deps = resolve_jobscript_dependencies(js, element_deps)
+        with self.app.config.cached_config():
+            cache = DependencyCache.build(self)
+            js, element_deps = self._resolve_singular_jobscripts(cache, tasks)
+            js_deps = resolve_jobscript_dependencies(js, element_deps)
 
-        for js_idx in js:
-            if js_idx in js_deps:
-                js[js_idx]["dependencies"] = js_deps[js_idx]
+            for js_idx in js:
+                if js_idx in js_deps:
+                    js[js_idx]["dependencies"] = js_deps[js_idx]
 
-        js = merge_jobscripts_across_tasks(js)
-        js = jobscripts_to_list(js)
-        js_objs = [self.app.Jobscript(**i) for i in js]
+            js = merge_jobscripts_across_tasks(js)
+            js = jobscripts_to_list(js)
+            js_objs = [self.app.Jobscript(**i) for i in js]
 
         return js_objs
 
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
-        self, tasks: Optional[List[int]] = None
+        self, cache, tasks: Optional[List[int]] = None
     ) -> Tuple[Dict[int, Dict], Dict]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
@@ -2647,7 +2650,9 @@ class Workflow:
             task = self.tasks.get(insert_ID=task_iID)
             if task.index not in tasks:
                 continue
-            res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
+            res, res_hash, res_map, EAR_map = generate_EAR_resource_map(
+                task, loop_idx_i, cache
+            )
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
 
             for js_dat in jobscripts:
@@ -2697,7 +2702,7 @@ class Workflow:
                         js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
-                all_EAR_objs = dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+                all_EAR_objs = {k: cache.runs[k] for k in all_EAR_IDs}
 
                 for js_elem_idx, (elem_idx, act_indices) in enumerate(
                     js_dat["elements"].items()
