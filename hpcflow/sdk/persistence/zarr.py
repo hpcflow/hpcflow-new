@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, List, TYPE_CHECKING
 
 import numpy as np
 import zarr
@@ -37,6 +37,8 @@ from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -130,7 +132,7 @@ def append_items_to_ragged_array(arr, items):
 
 @dataclass
 class ZarrStoreTask(StoreTask):
-    def encode(self) -> Tuple[int, np.ndarray, Dict]:
+    def encode(self) -> tuple[int, np.ndarray, Dict]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
         task = {"id_": self.id_, **self.task_template}
@@ -214,7 +216,7 @@ class ZarrStoreElementIter(StoreElementIter):
 
 @dataclass
 class ZarrStoreEAR(StoreEAR):
-    def encode(self, attrs: Dict, ts_fmt: str) -> Tuple[List, Tuple[np.datetime64]]:
+    def encode(self, attrs: Dict, ts_fmt: str):
         """Prepare store EAR data for the persistent store.
 
         This method mutates `attrs`.
@@ -275,17 +277,17 @@ class ZarrStoreParameter(StoreParameter):
         "masked_arrays": _decode_masked_arrays,
     }
 
-    def encode(self, root_group: zarr.Group, arr_path: str) -> Dict[str, Any]:
+    def encode(self, root_group: zarr.Group, arr_path: str) -> dict[str, Any]:
         return super().encode(root_group=root_group, arr_path=arr_path)
 
     @classmethod
     def decode(
         cls,
         id_: int,
-        data: Union[None, Dict],
+        data: Dict | None,
         source: Dict,
         arr_group: zarr.Group,
-        path: Optional[List[str]] = None,
+        path: list[str] | None = None,
         dataset_copy: bool = False,
     ) -> Any:
         return super().decode(
@@ -375,8 +377,8 @@ class ZarrPersistentStore(PersistentStore):
         ts_fmt: str,
         ts_name_fmt: str,
         creation_info: Dict,
-        compressor: Optional[Union[str, None]] = "blosc",
-        compressor_kwargs: Optional[Dict[str, Any]] = None,
+        compressor: str | None = "blosc",
+        compressor_kwargs: dict[str, Any] | None = None,
     ) -> None:
         attrs = {
             "name": name,
@@ -473,7 +475,7 @@ class ZarrPersistentStore(PersistentStore):
         )
         parameter_data.create_group(name=cls._param_user_arr_grp_name)
 
-    def _append_tasks(self, tasks: List[ZarrStoreTask]):
+    def _append_tasks(self, tasks: list[ZarrStoreTask]):
         elem_IDs_arr = self._get_tasks_arr(mode="r+")
         elem_IDs = []
         with self.using_resource("attrs", "update") as attrs:
@@ -490,7 +492,7 @@ class ZarrPersistentStore(PersistentStore):
         # increasing IDs.
         append_items_to_ragged_array(arr=elem_IDs_arr, items=elem_IDs)
 
-    def _append_loops(self, loops: Dict[int, Dict]):
+    def _append_loops(self, loops: dict[int, Dict]):
         with self.using_resource("attrs", action="update") as attrs:
             for loop_idx, loop in loops.items():
                 attrs["loops"].append(
@@ -502,12 +504,12 @@ class ZarrPersistentStore(PersistentStore):
                 )
                 attrs["template"]["loops"].append(loop["loop_template"])
 
-    def _append_submissions(self, subs: Dict[int, Dict]):
+    def _append_submissions(self, subs: dict[int, Dict]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, sub_i in subs.items():
                 attrs["submissions"].append(sub_i)
 
-    def _append_task_element_IDs(self, task_ID: int, elem_IDs: List[int]):
+    def _append_task_element_IDs(self, task_ID: int, elem_IDs: list[int]):
         # I don't think there's a way to "append" to an existing array in a zarr ragged
         # array? So we have to build a new array from existing + new.
         arr = self._get_tasks_arr(mode="r+")
@@ -515,7 +517,7 @@ class ZarrPersistentStore(PersistentStore):
         elem_IDs_new = np.concatenate((elem_IDs_cur, elem_IDs))
         arr[task_ID] = elem_IDs_new
 
-    def _append_elements(self, elems: List[ZarrStoreElement]):
+    def _append_elements(self, elems: list[ZarrStoreElement]):
         arr = self._get_elements_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
@@ -525,12 +527,12 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _append_element_sets(self, task_id: int, es_js: List[Dict]):
+    def _append_element_sets(self, task_id: int, es_js: list[Dict]):
         task_idx = task_idx = self._get_task_id_to_idx_map()[task_id]
         with self.using_resource("attrs", "update") as attrs:
             attrs["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
 
-    def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: List[int]):
+    def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: list[int]):
         arr = self._get_elements_arr(mode="r+")
         attrs = arr.attrs.asdict()
         elem_dat = arr[elem_ID]
@@ -540,7 +542,7 @@ class ZarrPersistentStore(PersistentStore):
             attrs
         )  # attrs shouldn't be mutated (TODO: test!)
 
-    def _append_elem_iters(self, iters: List[ZarrStoreElementIter]):
+    def _append_elem_iters(self, iters: list[ZarrStoreElementIter]):
         arr = self._get_iters_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
@@ -550,7 +552,7 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: List[int]):
+    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: list[int]):
         arr = self._get_iters_arr(mode="r+")
         attrs = arr.attrs.asdict()
         iter_dat = arr[iter_ID]
@@ -570,7 +572,7 @@ class ZarrPersistentStore(PersistentStore):
             attrs
         )  # attrs shouldn't be mutated (TODO: test!)
 
-    def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
+    def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, sub_i_parts in sub_parts.items():
                 for dt_str, parts_j in sub_i_parts.items():
@@ -588,11 +590,11 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", action="update") as attrs:
             attrs["loops"][index]["num_added_iterations"] = num_iters
 
-    def _update_loop_parents(self, index: int, parents: List[str]):
+    def _update_loop_parents(self, index: int, parents: list[str]):
         with self.using_resource("attrs", action="update") as attrs:
             attrs["loops"][index]["parents"] = parents
 
-    def _append_EARs(self, EARs: List[ZarrStoreEAR]):
+    def _append_EARs(self, EARs: list[ZarrStoreEAR]):
         arr = self._get_EARs_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
@@ -604,7 +606,7 @@ class ZarrPersistentStore(PersistentStore):
             arr.attrs.put(attrs)
 
     @TimeIt.decorator
-    def _update_EAR_submission_indices(self, sub_indices: Dict[int:int]):
+    def _update_EAR_submission_indices(self, sub_indices: dict[int:int]):
         EAR_IDs = list(sub_indices.keys())
         EARs = self._get_persistent_EARs(EAR_IDs)
 
@@ -677,7 +679,7 @@ class ZarrPersistentStore(PersistentStore):
                         **js_meta_i
                     )
 
-    def _append_parameters(self, params: List[ZarrStoreParameter]):
+    def _append_parameters(self, params: list[ZarrStoreParameter]):
         """Add new persistent parameters."""
         base_arr = self._get_parameter_base_array(mode="r+", write_empty_chunks=False)
         src_arr = self._get_parameter_sources_array(mode="r+")
@@ -702,7 +704,7 @@ class ZarrPersistentStore(PersistentStore):
             f"PersistentStore._append_parameters: finished adding {len(params)} parameters."
         )
 
-    def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
+    def _set_parameter_values(self, set_parameters: dict[int, tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
 
         param_ids = list(set_parameters.keys())
@@ -729,7 +731,7 @@ class ZarrPersistentStore(PersistentStore):
         base_arr = self._get_parameter_base_array(mode="r+")
         base_arr.set_coordinate_selection(param_ids, new_data)
 
-    def _update_parameter_sources(self, sources: Dict[int, Dict]):
+    def _update_parameter_sources(self, sources: dict[int, Dict]):
         """Update the sources of multiple persistent parameters."""
 
         param_ids = list(sources.keys())
@@ -945,7 +947,7 @@ class ZarrPersistentStore(PersistentStore):
             return attrs["template"]
 
     @TimeIt.decorator
-    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreTask]:
+    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, ZarrStoreTask]:
         tasks, id_lst = self._get_cached_persistent_tasks(id_lst)
         if id_lst:
             with self.using_resource("attrs", action="read") as attrs:
@@ -977,7 +979,7 @@ class ZarrPersistentStore(PersistentStore):
         return tasks
 
     @TimeIt.decorator
-    def _get_persistent_loops(self, id_lst: Optional[Iterable[int]] = None):
+    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None):
         with self.using_resource("attrs", "read") as attrs:
             loop_dat = {
                 idx: i
@@ -987,7 +989,7 @@ class ZarrPersistentStore(PersistentStore):
         return loop_dat
 
     @TimeIt.decorator
-    def _get_persistent_submissions(self, id_lst: Optional[Iterable[int]] = None):
+    def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None):
         self.logger.debug("loading persistent submissions from the zarr store")
         with self.using_resource("attrs", "read") as attrs:
             subs_dat = copy.deepcopy(
@@ -1012,7 +1014,7 @@ class ZarrPersistentStore(PersistentStore):
     @TimeIt.decorator
     def _get_persistent_elements(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, ZarrStoreElement]:
+    ) -> dict[int, ZarrStoreElement]:
         elems, id_lst = self._get_cached_persistent_elements(id_lst)
         if id_lst:
             arr = self._get_elements_arr()
@@ -1032,7 +1034,7 @@ class ZarrPersistentStore(PersistentStore):
     @TimeIt.decorator
     def _get_persistent_element_iters(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, ZarrStoreElementIter]:
+    ) -> dict[int, ZarrStoreElementIter]:
         iters, id_lst = self._get_cached_persistent_element_iters(id_lst)
         if id_lst:
             arr = self._get_iters_arr()
@@ -1050,7 +1052,7 @@ class ZarrPersistentStore(PersistentStore):
         return iters
 
     @TimeIt.decorator
-    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, ZarrStoreEAR]:
+    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> dict[int, ZarrStoreEAR]:
         runs, id_lst = self._get_cached_persistent_EARs(id_lst)
         if id_lst:
             arr = self._get_EARs_arr()
@@ -1074,8 +1076,8 @@ class ZarrPersistentStore(PersistentStore):
     def _get_persistent_parameters(
         self,
         id_lst: Iterable[int],
-        dataset_copy: Optional[bool] = False,
-    ) -> Dict[int, ZarrStoreParameter]:
+        dataset_copy: bool = False,
+    ) -> dict[int, ZarrStoreParameter]:
 
         params, id_lst = self._get_cached_persistent_parameters(id_lst)
         if id_lst:
@@ -1107,7 +1109,7 @@ class ZarrPersistentStore(PersistentStore):
         return params
 
     @TimeIt.decorator
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, Dict]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
             src_arr = self._get_parameter_sources_array(mode="r")
@@ -1122,7 +1124,7 @@ class ZarrPersistentStore(PersistentStore):
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, bool]:
+    ) -> dict[int, bool]:
         base_arr = self._get_parameter_base_array(mode="r")
         try:
             param_arr_dat = base_arr.get_coordinate_selection(list(id_lst))
@@ -1131,7 +1133,7 @@ class ZarrPersistentStore(PersistentStore):
 
         return dict(zip(id_lst, [i is not None for i in param_arr_dat]))
 
-    def _get_persistent_parameter_IDs(self) -> List[int]:
+    def _get_persistent_parameter_IDs(self) -> list[int]:
         # we assume the row index is equivalent to ID, might need to revisit in future
         base_arr = self._get_parameter_base_array(mode="r")
         return list(range(len(base_arr)))

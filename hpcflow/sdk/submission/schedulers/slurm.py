@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 import time
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -385,8 +385,8 @@ class SlurmPosix(Scheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: List[Tuple],
-    ) -> List[str]:
+        deps: list[tuple[Any, ...]],
+    ) -> list[str]:
         cmd = [self.submit_cmd, "--parsable"]
 
         dep_cmd = []
@@ -433,15 +433,15 @@ class SlurmPosix(Scheduler):
                             # indicates max concurrent array items; not needed
                             range_parts[1] = range_parts[1].split("%")[0]
                         i_args = [int(j) - 1 for j in range_parts]
-                        _arr_idx.extend(list(range(i_args[0], i_args[1] + 1)))
+                        _arr_idx.extend(range(i_args[0], i_args[1] + 1))
                     else:
                         _arr_idx.append(int(i_range_str) - 1)
                 arr_idx = _arr_idx
         return base_job_ID, arr_idx
 
-    def _parse_job_states(self, stdout) -> Dict[str, Dict[int, JobscriptElementState]]:
+    def _parse_job_states(self, stdout) -> dict[str, dict[int, JobscriptElementState]]:
         """Parse output from Slurm `squeue` command with a simple format."""
-        info = {}
+        info: dict[str, dict[int, JobscriptElementState]] = {}
         for ln in stdout.split("\n"):
             if not ln:
                 continue
@@ -449,11 +449,9 @@ class SlurmPosix(Scheduler):
             base_job_ID, arr_idx = self._parse_job_IDs(ln_s[0])
             state = self.state_lookup.get(ln_s[1], None)
 
-            if base_job_ID not in info:
-                info[base_job_ID] = {}
-
-            for arr_idx_i in arr_idx or [None]:
-                info[base_job_ID][arr_idx_i] = state
+            entry = info.setdefault(base_job_ID, {})
+            for arr_idx_i in arr_idx or ():
+                entry[arr_idx_i] = state
 
         return info
 
@@ -488,8 +486,8 @@ class SlurmPosix(Scheduler):
         return job_IDs
 
     def get_job_state_info(
-        self, js_refs: List[str] = None
-    ) -> Dict[str, Dict[int, JobscriptElementState]]:
+        self, js_refs: list[str] = None
+    ) -> dict[str, dict[int, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -527,7 +525,7 @@ class SlurmPosix(Scheduler):
         info = self._parse_job_states(stdout)
         return info
 
-    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+    def cancel_jobs(self, js_refs: list[str], jobscripts: List = None):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

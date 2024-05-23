@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 from hpcflow.sdk.core.errors import UnsupportedShellError
 
@@ -21,12 +21,12 @@ DEFAULT_SHELL_NAMES = {
 }
 
 
-def get_supported_shells(os_name: Optional[str] = None) -> Dict[str, Shell]:
+def get_supported_shells(os_name: str | None = None) -> dict[str, Shell]:
     os_name = os_name or os.name
     return {k: v.get(os_name) for k, v in ALL_SHELLS.items() if v.get(os_name)}
 
 
-def get_shell(shell_name, os_name: Optional[str] = None, **kwargs) -> Shell:
+def get_shell(shell_name, os_name: str | None = None, **kwargs) -> Shell:
     # TODO: apply config default shell args?
 
     os_name = os_name or os.name

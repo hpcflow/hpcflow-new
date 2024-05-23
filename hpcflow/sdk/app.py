@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
+from typing import Any, Dict, List, Type, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -59,6 +59,11 @@ from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_windows,
 )
 from hpcflow.sdk.typing import PathLike
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+    from .core.workflow import Workflow, WorkflowTemplate
+    from .core.object_list import (
+        CommandFilesList, EnvironmentsList, ParametersList, TaskSchemasList)
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
@@ -175,17 +180,17 @@ class BaseApp(metaclass=Singleton):
 
     def __init__(
         self,
-        name,
-        version,
+        name: str,
+        version: str,
         module,
-        description,
-        gh_org,
-        gh_repo,
+        description: str,
+        gh_org: str,
+        gh_repo: str,
         config_options,
-        scripts_dir,
-        workflows_dir: str = None,
-        demo_data_dir: str = None,
-        demo_data_manifest_dir: str = None,
+        scripts_dir: str,
+        workflows_dir: str | None = None,
+        demo_data_dir: str | None = None,
+        demo_data_manifest_dir: str | None = None,
         template_components: Dict = None,
         pytest_args=None,
         package_name=None,
@@ -308,7 +313,7 @@ class BaseApp(metaclass=Singleton):
         TimeIt.active = bool(value)
 
     @property
-    def template_components(self) -> Dict[str, ObjectList]:
+    def template_components(self) -> dict[str, ObjectList]:
         if not self.is_template_components_loaded:
             self._load_template_components()
         return self._template_components
@@ -405,7 +410,7 @@ class BaseApp(metaclass=Singleton):
     @classmethod
     def load_builtin_template_component_data(
         cls, package
-    ) -> Dict[str, Union[List, Dict]]:
+    ) -> dict[str, List | Dict]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
@@ -425,17 +430,17 @@ class BaseApp(metaclass=Singleton):
         return components
 
     @property
-    def parameters(self) -> get_app_attribute("ParametersList"):
+    def parameters(self) -> ParametersList:
         self._ensure_template_component("parameters")
         return self._parameters
 
     @property
-    def command_files(self) -> get_app_attribute("CommandFilesList"):
+    def command_files(self) -> CommandFilesList:
         self._ensure_template_component("command_files")
         return self._command_files
 
     @property
-    def envs(self) -> get_app_attribute("EnvironmentsList"):
+    def envs(self) -> EnvironmentsList:
         self._ensure_template_component("environments")
         return self._environments
 
@@ -445,7 +450,7 @@ class BaseApp(metaclass=Singleton):
         return self._scripts
 
     @property
-    def task_schemas(self) -> get_app_attribute("TaskSchemasList"):
+    def task_schemas(self) -> TaskSchemasList:
         self._ensure_template_component("task_schemas")
         return self._task_schemas
 
@@ -795,7 +800,7 @@ class BaseApp(metaclass=Singleton):
 
         return scripts
 
-    def _get_demo_workflows(self) -> Dict[str, Path]:
+    def _get_demo_workflows(self) -> dict[str, Path]:
         """Get all builtin demo workflow template file paths."""
         templates = {}
         pkg = f"{self.package_name}.{self.workflows_dir}"
@@ -809,14 +814,14 @@ class BaseApp(metaclass=Singleton):
                 templates[i.stem] = i
         return templates
 
-    def list_demo_workflows(self) -> Tuple[str]:
+    def list_demo_workflows(self) -> tuple[str, ...]:
         """Return a list of demo workflow templates included in the app."""
         return tuple(sorted(self._get_demo_workflows().keys()))
 
     @contextmanager
     def get_demo_workflow_template_file(
         self, name: str, doc: bool = True, delete: bool = True
-    ) -> Path:
+    ) -> Iterator[Path]:
         """Context manager to get a (temporary) file path to an included demo workflow
         template.
 
@@ -857,7 +862,7 @@ class BaseApp(metaclass=Singleton):
             path.unlink()
 
     def copy_demo_workflow(
-        self, name: str, dst: Optional[PathLike] = None, doc: bool = True
+        self, name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
         """Copy a builtin demo workflow to the specified location.
 
@@ -904,7 +909,7 @@ class BaseApp(metaclass=Singleton):
             else:
                 print(contents)
 
-    def load_demo_workflow(self, name: str) -> get_app_attribute("WorkflowTemplate"):
+    def load_demo_workflow(self, name: str) -> WorkflowTemplate:
         """Load a WorkflowTemplate object from a builtin demo template file."""
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
@@ -926,7 +931,7 @@ class BaseApp(metaclass=Singleton):
             tc[k] = tc_k
         return tc
 
-    def get_parameter_task_schema_map(self) -> Dict[str, List[List]]:
+    def get_parameter_task_schema_map(self) -> dict[str, list[List]]:
         """Get a dict mapping parameter types to task schemas that input/output each
         parameter."""
 
@@ -943,7 +948,7 @@ class BaseApp(metaclass=Singleton):
 
         return param_map
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
@@ -1006,7 +1011,7 @@ class BaseApp(metaclass=Singleton):
         return item
 
     @TimeIt.decorator
-    def read_known_submissions_file(self) -> List[Dict]:
+    def read_known_submissions_file(self) -> list[Dict]:
         """Retrieve existing workflows that *might* be running."""
         known = []
         with self.known_subs_file_path.open("rt", newline="\n") as fh:
@@ -1070,9 +1075,9 @@ class BaseApp(metaclass=Singleton):
     @TimeIt.decorator
     def update_known_subs_file(
         self,
-        inactive_IDs: List[int],
-        start_times: Dict[int, str],
-        end_times: Dict[int, str],
+        inactive_IDs: list[int],
+        start_times: dict[int, str],
+        end_times: dict[int, str],
     ):
         """Update submission records in the known-submission file.
 
@@ -1190,19 +1195,19 @@ class BaseApp(metaclass=Singleton):
 
     def _make_workflow(
         self,
-        template_file_or_str: Union[PathLike, str],
-        is_string: Optional[bool] = False,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[bool] = True,
-    ) -> get_app_attribute("Workflow"):
+        template_file_or_str: PathLike | str,
+        is_string: bool = False,
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: Dict | None = None,
+        variables: dict[str, str] | None = None,
+        status: bool = True,
+    ) -> Workflow:
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
 
@@ -1307,25 +1312,25 @@ class BaseApp(metaclass=Singleton):
 
     def _make_and_submit_workflow(
         self,
-        template_file_or_str: Union[PathLike, str],
-        is_string: Optional[bool] = False,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-        cancel: Optional[bool] = False,
-        status: Optional[bool] = True,
-    ) -> Dict[int, int]:
+        template_file_or_str: PathLike | str,
+        is_string: bool = False,
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: Dict | None = None,
+        variables: dict[str, str] | None = None,
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1417,17 +1422,17 @@ class BaseApp(metaclass=Singleton):
     def _make_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[bool] = True,
-    ) -> get_app_attribute("Workflow"):
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: Dict | None = None,
+        variables: dict[str, str] | None = None,
+        status: bool = True,
+    ) -> Workflow:
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
         Parameters
@@ -1492,23 +1497,23 @@ class BaseApp(metaclass=Singleton):
     def _make_and_submit_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-        cancel: Optional[bool] = False,
-        status: Optional[bool] = True,
-    ) -> Dict[int, int]:
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: Dict | None = None,
+        variables: dict[str, str] | None = None,
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, int]:
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1594,11 +1599,11 @@ class BaseApp(metaclass=Singleton):
     def _submit_workflow(
         self,
         workflow_path: PathLike,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-    ) -> Dict[int, int]:
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+    ) -> dict[int, int]:
         """Submit an existing {app_name} workflow.
 
         Parameters
@@ -1663,7 +1668,7 @@ class BaseApp(metaclass=Singleton):
     def _get_shell_info(
         self,
         shell_name: str,
-        exclude_os: Optional[bool] = False,
+        exclude_os: bool = False,
     ) -> Dict:
         """Get information about a given shell and the operating system.
 
@@ -1686,7 +1691,7 @@ class BaseApp(metaclass=Singleton):
         max_recent: int = 3,
         no_update: bool = False,
         as_json: bool = False,
-        status: Optional[Any] = None,
+        status: Any | None = None,
     ):
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
@@ -2180,7 +2185,7 @@ class BaseApp(metaclass=Singleton):
         return path
 
     def _resolve_workflow_reference(
-        self, workflow_ref, ref_type: Union[str, None]
+        self, workflow_ref, ref_type: str | None
     ) -> Path:
         path = None
         if ref_type == "path":
@@ -2223,7 +2228,7 @@ class BaseApp(metaclass=Singleton):
                 )
         return path.resolve()
 
-    def _cancel(self, workflow_ref: Union[int, str, PathLike], ref_is_path=None):
+    def _cancel(self, workflow_ref: int | str | PathLike, ref_is_path=None):
         """Cancel the execution of a workflow submission.
 
         Parameters
@@ -2303,7 +2308,7 @@ class BaseApp(metaclass=Singleton):
             self.config.append("environment_sources", str(env_source_file))
             self.config.save()
 
-    def get_demo_data_files_manifest(self) -> Dict[str, Union[None, str]]:
+    def get_demo_data_files_manifest(self) -> dict[str, str | None]:
         """Get a dict whose keys are example data file names and whose values are the
         source files if the source file required unzipping or `None` otherwise.
 
@@ -2343,11 +2348,11 @@ class BaseApp(metaclass=Singleton):
             fh.close()
         return manifest
 
-    def list_demo_data_files(self) -> Tuple[str]:
+    def list_demo_data_files(self) -> tuple[str, ...]:
         """List available example data files."""
         return tuple(self.get_demo_data_files_manifest().keys())
 
-    def _get_demo_data_file_source_path(self, file_name) -> Tuple[Path, bool, bool]:
+    def _get_demo_data_file_source_path(self, file_name) -> tuple[Path, bool, bool]:
         """Get the full path to an example data file on the local file system, whether
         the file must be unpacked, and whether the file should be deleted.
 
@@ -2507,11 +2512,11 @@ class BaseApp(metaclass=Singleton):
     def cache_demo_data_file(self, file_name) -> Path:
         return self.get_demo_data_file_path(file_name)
 
-    def cache_all_demo_data_files(self) -> List[Path]:
+    def cache_all_demo_data_files(self) -> list[Path]:
         return [self.get_demo_data_file_path(i) for i in self.list_demo_data_files()]
 
     def copy_demo_data(
-        self, file_name: str, dst: Optional[PathLike] = None, doc: bool = True
+        self, file_name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
         """Copy a builtin demo data file to the specified location.
 

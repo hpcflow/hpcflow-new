@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 
 class Shell(ABC):
@@ -24,19 +24,19 @@ class Shell(ABC):
         return False
 
     @property
-    def executable(self) -> List[str]:
+    def executable(self) -> list[str]:
         return [self._executable]
 
     @property
-    def shebang_executable(self) -> List[str]:
+    def shebang_executable(self) -> list[str]:
         return self.executable
 
-    def get_direct_submit_command(self, js_path) -> List[str]:
+    def get_direct_submit_command(self, js_path) -> list[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + [js_path]
 
     @abstractmethod
-    def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> Dict:
         """Get shell and operating system information."""
 
     def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Dict):
@@ -64,5 +64,5 @@ class Shell(ABC):
     def prepare_JS_path(self, js_path: Path) -> str:
         return str(js_path)
 
-    def prepare_element_run_dirs(self, run_dirs: List[List[Path]]) -> List[List[str]]:
+    def prepare_element_run_dirs(self, run_dirs: list[list[Path]]) -> list[list[str]]:
         return [[str(j) for j in i] for i in run_dirs]

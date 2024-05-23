@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 import re
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -11,6 +11,9 @@ from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParameterValue
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from .actions import ActionRule
 
 
 @dataclass
@@ -25,14 +28,14 @@ class Command(JSONLike):
         ),
     )
 
-    command: Optional[str] = None
-    executable: Optional[str] = None
-    arguments: Optional[List[str]] = None
-    variables: Optional[Dict[str, str]] = None
-    stdout: Optional[str] = None
-    stderr: Optional[str] = None
-    stdin: Optional[str] = None
-    rules: Optional[List[app.ActionRule]] = field(default_factory=lambda: [])
+    command: str | None = None
+    executable: str | None = None
+    arguments: list[str] | None = None
+    variables: dict[str, str] | None = None
+    stdout: str | None = None
+    stderr: str | None = None
+    stdin: str | None = None
+    rules: list[ActionRule] | None = field(default_factory=lambda: [])
 
     def __repr__(self) -> str:
         out = []
@@ -61,7 +64,7 @@ class Command(JSONLike):
         else:
             return self.executable or ""
 
-    def get_command_line(self, EAR, shell, env) -> Tuple[str, List[Tuple[str, str]]]:
+    def get_command_line(self, EAR, shell, env) -> tuple[str, list[tuple[str, str]]]:
         """Return the resolved command line.
 
         This is ordinarily called at run-time by `Workflow.write_commands`.
@@ -229,7 +232,7 @@ class Command(JSONLike):
         return out
 
     @staticmethod
-    def _prepare_kwargs_from_string(args_str: Union[str, None], doubled_quoted_args=None):
+    def _prepare_kwargs_from_string(args_str: str | None, doubled_quoted_args=None):
         kwargs = {}
         if args_str is None:
             return kwargs
@@ -320,11 +323,11 @@ class Command(JSONLike):
         return value
 
     @staticmethod
-    def _extract_executable_labels(cmd_str) -> List[str]:
+    def _extract_executable_labels(cmd_str) -> list[str]:
         exe_regex = r"\<\<(?:executable):(.*?)\>\>"
         return re.findall(exe_regex, cmd_str)
 
-    def get_required_executables(self) -> List[str]:
+    def get_required_executables(self) -> list[str]:
         """Return executable labels required by this command."""
         # an executable label might appear in the `command` or `executable` attribute:
         cmd_str = self._get_initial_command_line()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Any
+from typing import Any
 
 from textwrap import dedent
 
@@ -75,7 +75,7 @@ class Executable(JSONLike):
         ),
     )
 
-    def __init__(self, label: str, instances: List[app.ExecutableInstance]):
+    def __init__(self, label: str, instances: list[ExecutableInstance]):
         self.label = check_valid_py_identifier(label)
         self.instances = instances
 

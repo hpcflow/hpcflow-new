@@ -1,11 +1,12 @@
 from __future__ import annotations
 import copy
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 import enum
 from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, TypeAlias, TYPE_CHECKING
 
 import numpy as np
 import valida
@@ -29,10 +30,14 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
+if TYPE_CHECKING:
+    from .actions import ActionScope
+    from .task import TaskSchema, TaskTemplate
+    from .workflow import Workflow
 
 
-Address = List[Union[int, float, str]]
-Numeric = Union[int, float, np.number]
+Address: TypeAlias = list[int | float | str]
+Numeric: TypeAlias = int | float | np.number
 
 
 def _process_demo_data_strings(app, value):
@@ -82,10 +87,8 @@ class ParameterPropagationMode(enum.Enum):
 @dataclass
 class ParameterPath(JSONLike):
     # TODO: unused?
-    path: Sequence[Union[str, int, float]]
-    task: Optional[
-        Union[app.TaskTemplate, app.TaskSchema]
-    ] = None  # default is "current" task
+    path: Sequence[str | int | float]
+    task: TaskTemplate | TaskSchema | None = None  # default is "current" task
 
 
 @dataclass
@@ -104,10 +107,10 @@ class Parameter(JSONLike):
 
     typ: str
     is_file: bool = False
-    sub_parameters: List[app.SubParameter] = field(default_factory=lambda: [])
+    sub_parameters: list[SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
-    _hash_value: Optional[str] = field(default=None, repr=False)
-    _validation: Optional[valida.Schema] = None
+    _hash_value: str | None = field(default=None, repr=False)
+    _validation: valida.Schema | None = None
 
     def __repr__(self) -> str:
         is_file_str = ""
@@ -164,7 +167,7 @@ class Parameter(JSONLike):
 @dataclass
 class SubParameter:
     address: Address
-    parameter: app.Parameter
+    parameter: Parameter
 
 
 @dataclass
@@ -185,7 +188,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self):
         if isinstance(self.parameter, str):
-            self.parameter = self.app.Parameter(self.parameter)
+            self.parameter: Parameter = self.app.Parameter(self.parameter)
 
     @property
     def name(self):
@@ -251,12 +254,12 @@ class SchemaInput(SchemaParameter):
 
     def __init__(
         self,
-        parameter: app.Parameter,
+        parameter: Parameter,
         multiple: bool = False,
-        labels: Optional[Dict] = None,
-        default_value: Optional[Union[app.InputValue, NullDefault]] = NullDefault.NULL,
+        labels: Dict | None = None,
+        default_value: InputValue | NullDefault | None = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
-        group: Optional[str] = None,
+        group: str | None = None,
     ):
         # TODO: can we define elements groups on local inputs as well, or should these be
         # just for elements from other tasks?
@@ -496,10 +499,10 @@ class ValueSequence(JSONLike):
     def __init__(
         self,
         path: str,
-        values: List[Any],
-        nesting_order: Optional[int] = 0,
-        label: Optional[str] = None,
-        value_class_method: Optional[str] = None,
+        values: list[Any],
+        nesting_order: int | None = 0,
+        label: str | None = None,
+        value_class_method: str | None = None,
     ):
         label = str(label) if label is not None else ""
         path, label = self._validate_parameter_path(path, label)
@@ -764,8 +767,8 @@ class ValueSequence(JSONLike):
                 return self.labelled_type
 
     def make_persistent(
-        self, workflow: app.Workflow, source: Dict
-    ) -> Tuple[str, List[int], bool]:
+        self, workflow: Workflow, source: Dict
+    ) -> tuple[str, list[int], bool]:
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
@@ -1002,8 +1005,8 @@ class ValueSequence(JSONLike):
         start,
         stop,
         num,
-        coord: Optional[int] = None,
-        include: Optional[list[str]] = None,
+        coord: int | None = None,
+        include: list[str] | None = None,
         nesting_order=0,
         label=None,
         **kwargs,
@@ -1080,8 +1083,8 @@ class AbstractInputValue(JSONLike):
         return out
 
     def make_persistent(
-        self, workflow: app.Workflow, source: Dict
-    ) -> Tuple[str, List[int], bool]:
+        self, workflow: Workflow, source: Dict
+    ) -> tuple[str, list[int], bool]:
         """Save value to a persistent workflow.
 
         Returns
@@ -1133,9 +1136,9 @@ class AbstractInputValue(JSONLike):
 @dataclass
 class ValuePerturbation(AbstractInputValue):
     name: str
-    path: Optional[Sequence[Union[str, int, float]]] = None
-    multiplicative_factor: Optional[Numeric] = 1
-    additive_factor: Optional[Numeric] = 0
+    path: Sequence[str | int | float] | None = None
+    multiplicative_factor: Numeric | None = 1
+    additive_factor: Numeric | None = 0
 
     @classmethod
     def from_spec(cls, spec):
@@ -1173,12 +1176,12 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Union[app.Parameter, str],
-        value: Optional[Any] = None,
-        label: Optional[str] = None,
-        value_class_method: Optional[str] = None,
-        path: Optional[str] = None,
-        __check_obj: Optional[bool] = True,
+        parameter: Parameter | str,
+        value: Any | None = None,
+        label: str | None = None,
+        value_class_method: str | None = None,
+        path: str | None = None,
+        __check_obj: bool = True,
     ):
         if isinstance(parameter, str):
             try:
@@ -1304,7 +1307,7 @@ class InputValue(AbstractInputValue):
     def normalised_path(self):
         return f"inputs.{self.normalised_inputs_path}"
 
-    def make_persistent(self, workflow: Any, source: Dict) -> Tuple[str, List[int], bool]:
+    def make_persistent(self, workflow: Any, source: Dict) -> tuple[str, list[int], bool]:
         source = copy.deepcopy(source)
         source["value_class_method"] = self.value_class_method
         return super().make_persistent(workflow, source)
@@ -1384,28 +1387,28 @@ class ResourceSpec(JSONLike):
 
     def __init__(
         self,
-        scope: app.ActionScope = None,
-        scratch: Optional[str] = None,
-        parallel_mode: Optional[Union[str, ParallelMode]] = None,
-        num_cores: Optional[int] = None,
-        num_cores_per_node: Optional[int] = None,
-        num_threads: Optional[int] = None,
-        num_nodes: Optional[int] = None,
-        scheduler: Optional[str] = None,
-        shell: Optional[str] = None,
-        use_job_array: Optional[bool] = None,
-        max_array_items: Optional[int] = None,
-        time_limit: Optional[Union[str, timedelta]] = None,
-        scheduler_args: Optional[Dict] = None,
-        shell_args: Optional[Dict] = None,
-        os_name: Optional[str] = None,
-        environments: Optional[Dict] = None,
-        SGE_parallel_env: Optional[str] = None,
-        SLURM_partition: Optional[str] = None,
-        SLURM_num_tasks: Optional[str] = None,
-        SLURM_num_tasks_per_node: Optional[str] = None,
-        SLURM_num_nodes: Optional[str] = None,
-        SLURM_num_cpus_per_task: Optional[str] = None,
+        scope: ActionScope = None,
+        scratch: str | None = None,
+        parallel_mode: str | ParallelMode | None = None,
+        num_cores: int | None = None,
+        num_cores_per_node: int | None = None,
+        num_threads: int | None = None,
+        num_nodes: int | None = None,
+        scheduler: str | None = None,
+        shell: str | None = None,
+        use_job_array: bool | None = None,
+        max_array_items: int | None = None,
+        time_limit: str | timedelta | None = None,
+        scheduler_args: Dict | None = None,
+        shell_args: Dict | None = None,
+        os_name: str | None = None,
+        environments: Dict | None = None,
+        SGE_parallel_env: str | None = None,
+        SLURM_partition: str | None = None,
+        SLURM_num_tasks: str | None = None,
+        SLURM_num_tasks_per_node: str | None = None,
+        SLURM_num_nodes: str | None = None,
+        SLURM_num_cpus_per_task: str | None = None,
     ):
         self.scope = scope or self.app.ActionScope.any()
         if not isinstance(self.scope, self.app.ActionScope):
@@ -1526,8 +1529,8 @@ class ResourceSpec(JSONLike):
         return out
 
     def make_persistent(
-        self, workflow: app.Workflow, source: Dict
-    ) -> Tuple[str, List[int], bool]:
+        self, workflow: Workflow, source: Dict
+    ) -> tuple[str, list[int], bool]:
         """Save to a persistent workflow.
 
         Returns
@@ -1585,7 +1588,7 @@ class ResourceSpec(JSONLike):
         return val
 
     @staticmethod
-    def _process_string(value: Union[str, None]):
+    def _process_string(value: str | None):
         return value.lower().strip() if value else value
 
     def _setter_persistent_check(self):
@@ -1756,9 +1759,7 @@ class InputSource(JSONLike):
         task_source_type=None,
         element_iters=None,
         path=None,
-        where: Optional[
-            Union[dict, app.Rule, List[dict], List[app.Rule], app.ElementFilter]
-        ] = None,
+        where: dict | Rule | list[dict] | list[Rule] | ElementFilter | None = None,
     ):
         if where is not None and not isinstance(where, ElementFilter):
             rules = where
@@ -1836,7 +1837,7 @@ class InputSource(JSONLike):
                 if task.insert_ID == self.task_ref:
                     return task
 
-    def is_in(self, other_input_sources: List[app.InputSource]) -> Union[None, int]:
+    def is_in(self, other_input_sources: list[InputSource]) -> int | None:
         """Check if this input source is in a list of other input sources, without
         considering the `element_iters` and `where` attributes."""
 
@@ -1868,13 +1869,12 @@ class InputSource(JSONLike):
         if isinstance(src_type, InputSourceType):
             return src_type
         try:
-            src_type = getattr(InputSourceType, src_type.upper())
+            return getattr(InputSourceType, src_type.upper())
         except AttributeError:
             raise ValueError(
                 f"InputSource `source_type` specified as {src_type!r}, but "
                 f"must be one of: {[i.name for i in InputSourceType]!r}."
             )
-        return src_type
 
     @classmethod
     def _validate_task_source_type(cls, task_src_type):

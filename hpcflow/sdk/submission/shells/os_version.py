@@ -1,13 +1,13 @@
+from __future__ import annotations
 import os
 import platform
 import re
 import subprocess
-from typing import Dict, List, Optional
 
 DEFAULT_LINUX_RELEASE_FILE = "/etc/os-release"
 
 
-def get_OS_info() -> Dict:
+def get_OS_info() -> dict[str, str]:
     uname = platform.uname()
     return {
         "OS_name": uname.system,
@@ -16,15 +16,15 @@ def get_OS_info() -> Dict:
     }
 
 
-def get_OS_info_windows() -> Dict:
+def get_OS_info_windows() -> dict[str, str]:
     return get_OS_info()
 
 
 def get_OS_info_POSIX(
-    WSL_executable: Optional[List[str]] = None,
-    use_py: Optional[bool] = True,
-    linux_release_file: Optional[str] = None,
-) -> Dict:
+    WSL_executable: list[str] | None = None,
+    use_py: bool = True,
+    linux_release_file: str | None = None,
+) -> dict[str, str]:
     """
     Parameters
     ----------
@@ -60,7 +60,7 @@ def get_OS_info_POSIX(
             return proc.stdout
 
     WSL_executable = WSL_executable or []
-    out = {}
+    out: dict[str, str] = {}
     if use_py:
         out.update(**get_OS_info())
 

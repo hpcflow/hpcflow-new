@@ -3,14 +3,17 @@ import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, TYPE_CHECKING
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
+if TYPE_CHECKING:
+    from .actions import ActionRule
+    from .parameters import Parameter
+    from .workflow import Workflow
 
 
 @dataclass
@@ -21,8 +24,8 @@ class FileSpec(JSONLike):
     _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
 
     label: str
-    name: str
-    _hash_value: Optional[str] = field(default=None, repr=False)
+    name: str | FileNameSpec
+    _hash_value: str | None = field(default=None, repr=False)
 
     def __post_init__(self):
         self.name = (
@@ -86,7 +89,7 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
-    file_name: app.FileNameSpec
+    file_name: FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).stem
@@ -94,7 +97,7 @@ class FileNameStem(JSONLike):
 
 @dataclass
 class FileNameExt(JSONLike):
-    file_name: app.FileNameSpec
+    file_name: FileNameSpec
 
     def value(self, directory=None):
         return Path(self.file_name.value(directory)).suffix
@@ -127,13 +130,13 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
-    input_file: app.FileSpec
-    inputs: List[app.Parameter]
-    script: str = None
-    environment: app.Environment = None
-    script_pass_env_spec: Optional[bool] = False
-    abortable: Optional[bool] = False
-    rules: Optional[List[app.ActionRule]] = None
+    input_file: FileSpec
+    inputs: list[Parameter]
+    script: str | None = None
+    environment: Environment | None = None
+    script_pass_env_spec: bool = False
+    abortable: bool = False
+    rules: list[ActionRule] | None = None
 
     def __post_init__(self):
         self.rules = self.rules or []
@@ -189,7 +192,7 @@ class InputFileGenerator(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action, env_spec: Dict[str, Any]):
+    def write_source(self, action, env_spec: dict[str, Any]):
 
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
@@ -249,18 +252,18 @@ class OutputFileParser(JSONLike):
         ),
     )
 
-    output_files: List[app.FileSpec]
-    output: Optional[app.Parameter] = None
+    output_files: list[FileSpec]
+    output: Parameter | None = None
     script: str = None
     environment: Environment = None
-    inputs: List[str] = None
-    outputs: List[str] = None
+    inputs: list[str] = None
+    outputs: list[str] = None
     options: Dict = None
-    script_pass_env_spec: Optional[bool] = False
-    abortable: Optional[bool] = False
-    save_files: Union[List[str], bool] = True
-    clean_up: Optional[List[str]] = None
-    rules: Optional[List[app.ActionRule]] = None
+    script_pass_env_spec: bool = False
+    abortable: bool = False
+    save_files: list[str] | bool = True
+    clean_up: list[str] | None = None
+    rules: list[ActionRule] | None = None
 
     def __post_init__(self):
         if not self.save_files:
@@ -344,7 +347,7 @@ class OutputFileParser(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action, env_spec: Dict[str, Any]):
+    def write_source(self, action, env_spec: dict[str, Any]):
         if self.output is None:
             # might be used just for saving files:
             return
@@ -364,10 +367,10 @@ class _FileContentsSpecifier(JSONLike):
 
     def __init__(
         self,
-        path: Union[Path, str] = None,
-        contents: Optional[str] = None,
-        extension: Optional[str] = "",
-        store_contents: Optional[bool] = True,
+        path: Path | str | None = None,
+        contents: str | None = None,
+        extension: str = "",
+        store_contents: bool = True,
     ):
         if path is not None and contents is not None:
             raise ValueError("Specify exactly one of `path` and `contents`.")
@@ -427,9 +430,9 @@ class _FileContentsSpecifier(JSONLike):
 
     def make_persistent(
         self,
-        workflow: app.Workflow,
+        workflow: Workflow,
         source: Dict,
-    ) -> Tuple[str, List[int], bool]:
+    ) -> tuple[str, list[int], bool]:
         """Save to a persistent workflow.
 
         Returns
@@ -511,7 +514,7 @@ class _FileContentsSpecifier(JSONLike):
         return self._get_value("extension")
 
     @property
-    def workflow(self) -> app.Workflow:
+    def workflow(self) -> Workflow:
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -530,11 +533,11 @@ class InputFile(_FileContentsSpecifier):
 
     def __init__(
         self,
-        file: Union[app.FileSpec, str],
-        path: Optional[Union[Path, str]] = None,
-        contents: Optional[str] = None,
-        extension: Optional[str] = "",
-        store_contents: Optional[bool] = True,
+        file: FileSpec | str,
+        path: Path | str | None = None,
+        contents: str | None = None,
+        extension: str = "",
+        store_contents: bool = True,
     ):
         self.file = file
         if not isinstance(self.file, FileSpec):
@@ -581,9 +584,9 @@ class InputFile(_FileContentsSpecifier):
 class InputFileGeneratorSource(_FileContentsSpecifier):
     def __init__(
         self,
-        generator: app.InputFileGenerator,
-        path: Union[Path, str] = None,
-        contents: str = None,
+        generator: InputFileGenerator,
+        path: Path | str | None = None,
+        contents: str | None= None,
         extension: str = "",
     ):
         self.generator = generator
@@ -593,9 +596,9 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
 class OutputFileParserSource(_FileContentsSpecifier):
     def __init__(
         self,
-        parser: app.OutputFileParser,
-        path: Union[Path, str] = None,
-        contents: str = None,
+        parser: OutputFileParser,
+        path: Path | str | None = None,
+        contents: str | None = None,
         extension: str = "",
     ):
         self.parser = parser

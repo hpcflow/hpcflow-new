@@ -8,7 +8,7 @@ import shutil
 import socket
 import subprocess
 from textwrap import indent
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, TypedDict, TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,13 +21,21 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
+from hpcflow.sdk.submission.shells.base import Shell
+if TYPE_CHECKING:
+    from ..core.element import ElementResources
+    from ..core.workflow import WorkflowTask
+
+    class JobScriptDescriptor(TypedDict):
+        resources: Any
+        elements: dict[Any, list[int]]  # FIXME: key!
 
 
 @TimeIt.decorator
 def generate_EAR_resource_map(
-    task: app.WorkflowTask,
+    task: WorkflowTask,
     loop_idx: Dict,
-) -> Tuple[List[app.ElementResources], List[int], NDArray, NDArray]:
+) -> tuple[list[ElementResources], list[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
     # TODO: assume single iteration for now; later we will loop over Loop tasks for each
@@ -80,15 +88,15 @@ def generate_EAR_resource_map(
 
 @TimeIt.decorator
 def group_resource_map_into_jobscripts(
-    resource_map: Union[List, NDArray],
+    resource_map: List | NDArray,
     none_val: Any = -1,
 ):
     resource_map = np.asanyarray(resource_map)
     resource_idx = np.unique(resource_map)
-    jobscripts = []
+    jobscripts: list[JobScriptDescriptor] = []
     allocated = np.zeros_like(resource_map)
     js_map = np.ones_like(resource_map, dtype=float) * np.nan
-    nones_bool = resource_map == none_val
+    nones_bool: NDArray = resource_map == none_val
     stop = False
     for act_idx in range(resource_map.shape[0]):
         for res_i in resource_idx:
@@ -117,7 +125,7 @@ def group_resource_map_into_jobscripts(
             ds_act_idx += act_idx + 1
             ds_elem_idx = elem_idx[ds_elem_idx]
 
-            EARs_by_elem = {k.item(): [act_idx] for k in act_elem_idx[0]}
+            EARs_by_elem: dict[Any, list[int]] = {k.item(): [act_idx] for k in act_elem_idx[0]}
             for ds_a, ds_e in zip(ds_act_idx, ds_elem_idx):
                 ds_e_item = ds_e.item()
                 if ds_e_item not in EARs_by_elem:
@@ -130,7 +138,7 @@ def group_resource_map_into_jobscripts(
             if not EARs.size:
                 continue
 
-            js = {
+            js: JobScriptDescriptor = {
                 "resources": res_i,
                 "elements": dict(sorted(EARs_by_elem.items(), key=lambda x: x[0])),
             }
@@ -222,7 +230,7 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
 
 
 @TimeIt.decorator
-def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
+def merge_jobscripts_across_tasks(jobscripts: dict[Any, JobScriptDescriptor]) -> Dict:
     """Try to merge jobscripts between tasks.
 
     This is possible if two jobscripts share the same resources and have an array
@@ -280,7 +288,7 @@ def merge_jobscripts_across_tasks(jobscripts: Dict) -> Dict:
 
 
 @TimeIt.decorator
-def jobscripts_to_list(jobscripts: Dict[int, Dict]) -> List[Dict]:
+def jobscripts_to_list(jobscripts: dict[int, Dict]) -> list[Dict]:
     """Convert the jobscripts dict to a list, normalising jobscript indices so they refer
     to list indices; also remove `resource_hash`."""
     lst = []
@@ -315,24 +323,24 @@ class Jobscript(JSONLike):
 
     def __init__(
         self,
-        task_insert_IDs: List[int],
-        task_actions: List[Tuple],
-        task_elements: Dict[int, List[int]],
+        task_insert_IDs: list[int],
+        task_actions: list[tuple[Any, ...]], # FIXME:
+        task_elements: dict[int, list[int]],
         EAR_ID: NDArray,
-        resources: app.ElementResources,
-        task_loop_idx: List[Dict],
-        dependencies: Dict[int:Dict],
-        submit_time: Optional[datetime] = None,
-        submit_hostname: Optional[str] = None,
-        submit_machine: Optional[str] = None,
-        submit_cmdline: Optional[str] = None,
-        scheduler_job_ID: Optional[str] = None,
-        process_ID: Optional[int] = None,
-        version_info: Optional[Tuple[str]] = None,
-        os_name: Optional[str] = None,
-        shell_name: Optional[str] = None,
-        scheduler_name: Optional[str] = None,
-        running: Optional[bool] = None,
+        resources: ElementResources,
+        task_loop_idx: list[Dict],
+        dependencies: dict[int, Dict],
+        submit_time: datetime | None = None,
+        submit_hostname: str | None = None,
+        submit_machine: str | None = None,
+        submit_cmdline: str | None = None,
+        scheduler_job_ID: str | None = None,
+        process_ID: int | None = None,
+        version_info: tuple[str, ...] | None = None,
+        os_name: str | None = None,
+        shell_name: str | None = None,
+        scheduler_name: str | None = None,
+        running: bool | None = None,
     ):
         self._task_insert_IDs = task_insert_IDs
         self._task_loop_idx = task_loop_idx
@@ -364,9 +372,9 @@ class Jobscript(JSONLike):
         self._scheduler_name = scheduler_name
 
         self._submission = None  # assigned by parent Submission
-        self._index = None  # assigned by parent Submission
+        self._index: int | None = None  # assigned by parent Submission
         self._scheduler_obj = None  # assigned on first access to `scheduler` property
-        self._shell_obj = None  # assigned on first access to `shell` property
+        self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
         self._submit_time_obj = None  # assigned on first access to `submit_time` property
         self._running = None
         self._all_EARs = None  # assigned on first access to `all_EARs` property
@@ -409,7 +417,7 @@ class Jobscript(JSONLike):
         )
 
     @property
-    def task_insert_IDs(self):
+    def task_insert_IDs(self) -> list[int]:
         return self._task_insert_IDs
 
     @property
@@ -417,15 +425,15 @@ class Jobscript(JSONLike):
         return self._task_actions
 
     @property
-    def task_elements(self):
+    def task_elements(self) -> dict[int, list[int]]:
         return self._task_elements
 
     @property
-    def EAR_ID(self):
+    def EAR_ID(self) -> NDArray:
         return self._EAR_ID
 
     @property
-    def all_EAR_IDs(self) -> List[int]:
+    def all_EAR_IDs(self) -> list[int]:
         return self.EAR_ID.flatten()
 
     @property
@@ -545,15 +553,15 @@ class Jobscript(JSONLike):
             return self.resources.use_job_array
 
     @property
-    def os_name(self) -> Union[str, None]:
+    def os_name(self) -> str | None:
         return self._os_name or self.resources.os_name
 
     @property
-    def shell_name(self) -> Union[str, None]:
+    def shell_name(self) -> str | None:
         return self._shell_name or self.resources.shell
 
     @property
-    def scheduler_name(self) -> Union[str, None]:
+    def scheduler_name(self) -> str | None:
         return self._scheduler_name or self.resources.scheduler
 
     def _get_submission_os_args(self):
@@ -577,7 +585,7 @@ class Jobscript(JSONLike):
         )
 
     @property
-    def shell(self):
+    def shell(self) -> Shell:
         """Retrieve the shell object for submission."""
         if self._shell_obj is None:
             self._shell_obj = self._get_shell(
@@ -674,7 +682,7 @@ class Jobscript(JSONLike):
             submit_machine=submit_machine,
         )
 
-    def _set_submit_cmdline(self, submit_cmdline: List[str]) -> None:
+    def _set_submit_cmdline(self, submit_cmdline: list[str]) -> None:
         self._submit_cmdline = submit_cmdline
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
@@ -758,7 +766,7 @@ class Jobscript(JSONLike):
             )
 
     @TimeIt.decorator
-    def write_element_run_dir_file(self, run_dirs: List[List[Path]]):
+    def write_element_run_dir_file(self, run_dirs: list[list[Path]]):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing the working directory for each EAR.
 
@@ -780,13 +788,13 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def compose_jobscript(
         self,
-        deps: Optional[Dict] = None,
+        deps: Dict | None = None,
         os_name: str = None,
         shell_name: str = None,
-        os_args: Optional[Dict] = None,
-        shell_args: Optional[Dict] = None,
-        scheduler_name: Optional[str] = None,
-        scheduler_args: Optional[Dict] = None,
+        os_args: Dict | None = None,
+        shell_args: Dict | None = None,
+        scheduler_name: str | None = None,
+        scheduler_args: Dict | None = None,
     ) -> str:
         """Prepare the jobscript file string."""
 
@@ -910,11 +918,11 @@ class Jobscript(JSONLike):
         self,
         os_name: str = None,
         shell_name: str = None,
-        deps: Optional[Dict] = None,
-        os_args: Optional[Dict] = None,
-        shell_args: Optional[Dict] = None,
-        scheduler_name: Optional[str] = None,
-        scheduler_args: Optional[Dict] = None,
+        deps: Dict | None = None,
+        os_args: Dict | None = None,
+        shell_args: Dict | None = None,
+        scheduler_name: str | None = None,
+        scheduler_args: Dict | None = None,
     ):
         js_str = self.compose_jobscript(
             deps=deps,
@@ -1033,8 +1041,8 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def submit(
         self,
-        scheduler_refs: Dict[int, (str, bool)],
-        print_stdout: Optional[bool] = False,
+        scheduler_refs: dict[int, (str, bool)],
+        print_stdout: bool = False,
     ) -> str:
         # map each dependency jobscript index to the JS ref (job/process ID) and if the
         # dependency is an array dependency:
@@ -1163,7 +1171,7 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def get_active_states(
         self, as_json: bool = False
-    ) -> Dict[int, JobscriptElementState]:
+    ) -> dict[int, JobscriptElementState]:
         """If this jobscript is active on this machine, return the state information from
         the scheduler."""
 

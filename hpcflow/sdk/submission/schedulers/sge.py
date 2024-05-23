@@ -1,6 +1,7 @@
+from __future__ import annotations
 from pathlib import Path
 import re
-from typing import Dict, List, Tuple
+from typing import Any, Dict, TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -11,6 +12,8 @@ from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
+if TYPE_CHECKING:
+    from ..jobscript import Jobscript
 
 
 class SGEPosix(Scheduler):
@@ -195,8 +198,8 @@ class SGEPosix(Scheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: List[Tuple],
-    ) -> List[str]:
+        deps: list[tuple[Any, ...]],
+    ) -> list[str]:
         cmd = [self.submit_cmd, "-terse"]
 
         dep_job_IDs = []
@@ -270,8 +273,8 @@ class SGEPosix(Scheduler):
         return info
 
     def get_job_state_info(
-        self, js_refs: List[str] = None
-    ) -> Dict[str, Dict[int, JobscriptElementState]]:
+        self, js_refs: list[str] = None
+    ) -> dict[str, dict[int, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -284,7 +287,7 @@ class SGEPosix(Scheduler):
             info = {k: v for k, v in info.items() if k in js_refs}
         return info
 
-    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+    def cancel_jobs(self, js_refs: list[str], jobscripts: list[Jobscript] | None = None):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import random
 import string
-from typing import Dict, Optional, Union
+from typing import Dict
 
 from ruamel.yaml import YAML
 
@@ -52,7 +52,7 @@ class ConfigFile:
         configs: Dict,
         run_time_info: Dict,
         path: Path,
-        config_key: Union[str, None] = None,
+        config_key: str | None = None,
     ) -> str:
         """Select a matching configuration for this invocation using run-time info."""
         if not config_key:
@@ -141,7 +141,7 @@ class ConfigFile:
 
     @staticmethod
     def _resolve_config_dir(
-        config_opt, logger, directory: Optional[Union[str, Path]] = None
+        config_opt, logger, directory: str | Path | None = None
     ) -> Path:
         """Find the directory in which to locate the configuration file.
 
@@ -180,7 +180,7 @@ class ConfigFile:
 
         return directory.resolve()
 
-    def _dump(self, config_data: Dict, path: Optional[Path] = None) -> str:
+    def _dump(self, config_data: Dict, path: Path | None = None) -> str:
         """Dump the specified config data to the specified config file path.
 
         Parameters
@@ -339,8 +339,8 @@ class ConfigFile:
     def update_invocation(
         self,
         config_key: str,
-        environment_setup: Optional[str] = None,
-        match: Optional[Dict] = None,
+        environment_setup: str | None = None,
+        match: Dict | None = None,
     ):
         """Modify the invocation parameters of the loaded config."""
 

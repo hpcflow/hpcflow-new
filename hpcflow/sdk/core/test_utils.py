@@ -1,9 +1,12 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
+if TYPE_CHECKING:
+    from .actions import Action
 
 
 def make_schemas(ins_outs, ret_list=False):
@@ -61,9 +64,9 @@ def make_parameters(num):
 
 
 def make_actions(
-    ins_outs: List[Tuple[Union[Tuple, str], str]],
+    ins_outs: list[tuple[tuple[Any, ...] | str, str]],
     env="env1",
-) -> List[hf.Action]:
+) -> list[Action]:
     act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
@@ -273,13 +276,13 @@ class P1_parameter_cls(ParameterValue):
         return str(sum(i.a for i in objs))
 
     def custom_CLI_format(
-        self, add: Optional[str] = None, sub: Optional[str] = None
+        self, add: str | None = None, sub: str | None = None
     ) -> str:
         add = 4 if add is None else int(add)
         sub = 0 if sub is None else int(sub)
         return str(self.a + add - sub)
 
-    def custom_CLI_format_prep(self, reps: Optional[str] = None) -> List[int]:
+    def custom_CLI_format_prep(self, reps: str | None = None) -> list[int]:
         """Used for testing custom object CLI formatting.
 
         For example, with a command like this:
@@ -291,7 +294,7 @@ class P1_parameter_cls(ParameterValue):
         return [self.a] * reps
 
     @classmethod
-    def CLI_parse(cls, a_str: str, double: Optional[str] = "", e: Optional[str] = None):
+    def CLI_parse(cls, a_str: str, double: str = "", e: str | None = None):
         a = int(a_str)
         if double.lower() == "true":
             a *= 2

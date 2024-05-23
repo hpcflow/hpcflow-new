@@ -1,13 +1,15 @@
 from __future__ import annotations
-from typing import Dict, Optional, Union
+from typing import Dict, TYPE_CHECKING
 
 from valida.conditions import ConditionLike
 from valida.rules import Rule as ValidaRule
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
+if TYPE_CHECKING:
+    from .actions import Action, ElementActionRun
+    from .element import ElementIteration
 
 
 class Rule(JSONLike):
@@ -15,12 +17,12 @@ class Rule(JSONLike):
 
     def __init__(
         self,
-        check_exists: Optional[str] = None,
-        check_missing: Optional[str] = None,
-        path: Optional[str] = None,
-        condition: Optional[Union[Dict, ConditionLike]] = None,
-        cast: Optional[str] = None,
-        doc: Optional[str] = None,
+        check_exists: str | None = None,
+        check_missing: str | None = None,
+        path: str | None = None,
+        condition: Dict | ConditionLike | None = None,
+        cast: str | None = None,
+        doc: str | None = None,
     ):
         if sum(i is not None for i in (check_exists, check_missing, condition)) != 1:
             raise ValueError(
@@ -72,8 +74,8 @@ class Rule(JSONLike):
     @TimeIt.decorator
     def test(
         self,
-        element_like: Union[app.ElementIteration, app.ElementActionRun],
-        action: Optional[app.Action] = None,
+        element_like: ElementIteration | ElementActionRun,
+        action: Action | None = None,
     ) -> bool:
         """Test if the rule evaluates to true or false for a given run, or element
         iteration and action combination."""

@@ -1,7 +1,11 @@
+from __future__ import annotations
 import copy
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+if TYPE_CHECKING:
+    from .parameters import ResourceSpec
 
 
 class ObjectListMultipleMatchError(ValueError):
@@ -552,7 +556,7 @@ class ResourceList(ObjectList):
         return as_dict, shared_data
 
     @classmethod
-    def normalise(cls, resources):
+    def normalise(cls, resources) -> ResourceSpec:
         """Generate from resource-specs specified in potentially several ways."""
 
         def _ensure_non_persistent(resource_spec):

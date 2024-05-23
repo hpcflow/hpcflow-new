@@ -52,7 +52,7 @@ workflow_ref_type_opt = click.option(
 )
 
 
-def parse_jobscript_wait_spec(jobscripts: str) -> Dict[int, List[int]]:
+def parse_jobscript_wait_spec(jobscripts: str) -> dict[int, list[int]]:
     sub_js_idx_dct = {}
     for sub_i in jobscripts.split(";"):
         sub_idx_str, js_idx_lst_str = sub_i.split(":")

@@ -1,5 +1,6 @@
+from __future__ import annotations
 import os
-from typing import Iterable, List
+from collections.abc import Iterable
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
@@ -366,7 +367,7 @@ class NoCLIFormatMethodError(AttributeError):
 
 
 class ContainerKeyError(KeyError):
-    def __init__(self, path: List[str]) -> None:
+    def __init__(self, path: list[str]) -> None:
         self.path = path
         super().__init__()
 

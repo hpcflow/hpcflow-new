@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator
 
 from fsspec import filesystem
 from hpcflow.sdk.core.errors import (
@@ -155,7 +155,7 @@ class JSONPersistentStore(PersistentStore):
         cls._get_store_resource(app, "parameters", wk_path, fs)._dump(parameters)
         cls._get_store_resource(app, "submissions", wk_path, fs)._dump(submissions)
 
-    def _append_tasks(self, tasks: List[StoreTask]):
+    def _append_tasks(self, tasks: list[StoreTask]):
         with self.using_resource("metadata", action="update") as md:
             for i in tasks:
                 idx, wk_task_i, task_i = i.encode()
@@ -163,7 +163,7 @@ class JSONPersistentStore(PersistentStore):
                 md["template"]["tasks"].insert(idx, task_i)
                 md["num_added_tasks"] += 1
 
-    def _append_loops(self, loops: Dict[int, Dict]):
+    def _append_loops(self, loops: dict[int, Dict]):
         with self.using_resource("metadata", action="update") as md:
             for loop_idx, loop in loops.items():
                 md["loops"].append(
@@ -175,33 +175,33 @@ class JSONPersistentStore(PersistentStore):
                 )
                 md["template"]["loops"].append(loop["loop_template"])
 
-    def _append_submissions(self, subs: Dict[int, Dict]):
+    def _append_submissions(self, subs: dict[int, Dict]):
         with self.using_resource("submissions", action="update") as subs_res:
             for sub_idx, sub_i in subs.items():
                 subs_res.append(sub_i)
 
-    def _append_task_element_IDs(self, task_ID: int, elem_IDs: List[int]):
+    def _append_task_element_IDs(self, task_ID: int, elem_IDs: list[int]):
         with self.using_resource("metadata", action="update") as md:
             md["tasks"][task_ID]["element_IDs"].extend(elem_IDs)
 
-    def _append_elements(self, elems: List[StoreElement]):
+    def _append_elements(self, elems: list[StoreElement]):
         with self.using_resource("metadata", action="update") as md:
             md["elements"].extend(i.encode() for i in elems)
 
-    def _append_element_sets(self, task_id: int, es_js: List[Dict]):
+    def _append_element_sets(self, task_id: int, es_js: list[Dict]):
         task_idx = self._get_task_id_to_idx_map()[task_id]
         with self.using_resource("metadata", "update") as md:
             md["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
 
-    def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: List[int]):
+    def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: list[int]):
         with self.using_resource("metadata", action="update") as md:
             md["elements"][elem_ID]["iteration_IDs"].extend(iter_IDs)
 
-    def _append_elem_iters(self, iters: List[StoreElementIter]):
+    def _append_elem_iters(self, iters: list[StoreElementIter]):
         with self.using_resource("metadata", action="update") as md:
             md["iters"].extend(i.encode() for i in iters)
 
-    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: List[int]):
+    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: list[int]):
         with self.using_resource("metadata", action="update") as md:
             if md["iters"][iter_ID]["EAR_IDs"] is None:
                 md["iters"][iter_ID]["EAR_IDs"] = {}
@@ -213,7 +213,7 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["iters"][iter_ID]["EARs_initialised"] = True
 
-    def _append_submission_parts(self, sub_parts: Dict[int, Dict[str, List[int]]]):
+    def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]):
         with self.using_resource("submissions", action="update") as subs_res:
             for sub_idx, sub_i_parts in sub_parts.items():
                 for dt_str, parts_j in sub_i_parts.items():
@@ -227,15 +227,15 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="update") as md:
             md["loops"][index]["num_added_iterations"] = num_iters
 
-    def _update_loop_parents(self, index: int, parents: List[str]):
+    def _update_loop_parents(self, index: int, parents: list[str]):
         with self.using_resource("metadata", action="update") as md:
             md["loops"][index]["parents"] = parents
 
-    def _append_EARs(self, EARs: List[StoreEAR]):
+    def _append_EARs(self, EARs: list[StoreEAR]):
         with self.using_resource("metadata", action="update") as md:
             md["runs"].extend(i.encode(self.ts_fmt) for i in EARs)
 
-    def _update_EAR_submission_indices(self, sub_indices: Dict[int, int]):
+    def _update_EAR_submission_indices(self, sub_indices: dict[int, int]):
         with self.using_resource("metadata", action="update") as md:
             for EAR_ID_i, sub_idx_i in sub_indices.items():
                 md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
@@ -265,13 +265,13 @@ class JSONPersistentStore(PersistentStore):
                 for js_idx, js_meta_i in all_js_md.items():
                     sub_res[sub_idx]["jobscripts"][js_idx].update(**js_meta_i)
 
-    def _append_parameters(self, new_params: List[StoreParameter]):
+    def _append_parameters(self, new_params: list[StoreParameter]):
         with self.using_resource("parameters", "update") as params:
             for param_i in new_params:
                 params["data"][str(param_i.id_)] = param_i.encode()
                 params["sources"][str(param_i.id_)] = param_i.source
 
-    def _set_parameter_values(self, set_parameters: Dict[int, Tuple[Any, bool]]):
+    def _set_parameter_values(self, set_parameters: dict[int, tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
         param_ids = list(set_parameters.keys())
         param_objs = self._get_persistent_parameters(param_ids)
@@ -284,7 +284,7 @@ class JSONPersistentStore(PersistentStore):
                     param_i = param_i.set_data(value)
                 params["data"][str(param_id)] = param_i.encode()
 
-    def _update_parameter_sources(self, sources: Dict[int, Dict]):
+    def _update_parameter_sources(self, sources: dict[int, Dict]):
         """Update the sources of multiple persistent parameters."""
 
         param_ids = list(sources.keys())
@@ -391,7 +391,7 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", "read") as md:
             return md["template"]
 
-    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> Dict[int, StoreTask]:
+    def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, StoreTask]:
         tasks, id_lst = self._get_cached_persistent_tasks(id_lst)
         if id_lst:
             with self.using_resource("metadata", action="read") as md:
@@ -404,7 +404,7 @@ class JSONPersistentStore(PersistentStore):
                 tasks.update(new_tasks)
         return tasks
 
-    def _get_persistent_loops(self, id_lst: Optional[Iterable[int]] = None):
+    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None):
         with self.using_resource("metadata", "read") as md:
             loop_dat = {
                 idx: i
@@ -413,7 +413,7 @@ class JSONPersistentStore(PersistentStore):
             }
         return loop_dat
 
-    def _get_persistent_submissions(self, id_lst: Optional[Iterable[int]] = None):
+    def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None):
         with self.using_resource("submissions", "read") as sub_res:
             subs_dat = copy.deepcopy(
                 {
@@ -434,7 +434,7 @@ class JSONPersistentStore(PersistentStore):
 
         return subs_dat
 
-    def _get_persistent_elements(self, id_lst: Iterable[int]) -> Dict[int, StoreElement]:
+    def _get_persistent_elements(self, id_lst: Iterable[int]) -> dict[int, StoreElement]:
         elems, id_lst = self._get_cached_persistent_elements(id_lst)
         if id_lst:
             # could convert `id_lst` to e.g. slices if more efficient for a given store
@@ -450,7 +450,7 @@ class JSONPersistentStore(PersistentStore):
 
     def _get_persistent_element_iters(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, StoreElementIter]:
+    ) -> dict[int, StoreElementIter]:
         iters, id_lst = self._get_cached_persistent_element_iters(id_lst)
         if id_lst:
             with self.using_resource("metadata", action="read") as md:
@@ -463,7 +463,7 @@ class JSONPersistentStore(PersistentStore):
                 iters.update(new_iters)
         return iters
 
-    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> Dict[int, StoreEAR]:
+    def _get_persistent_EARs(self, id_lst: Iterable[int]) -> dict[int, StoreEAR]:
         runs, id_lst = self._get_cached_persistent_EARs(id_lst)
         if id_lst:
             with self.using_resource("metadata", action="read") as md:
@@ -481,7 +481,7 @@ class JSONPersistentStore(PersistentStore):
     def _get_persistent_parameters(
         self,
         id_lst: Iterable[int],
-    ) -> Dict[int, StoreParameter]:
+    ) -> dict[int, StoreParameter]:
         params, id_lst = self._get_cached_persistent_parameters(id_lst)
         if id_lst:
             with self.using_resource("parameters", "read") as params:
@@ -499,7 +499,7 @@ class JSONPersistentStore(PersistentStore):
             params.update(new_params)
         return params
 
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, Dict]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
             with self.using_resource("parameters", "read") as params:
@@ -513,7 +513,7 @@ class JSONPersistentStore(PersistentStore):
 
     def _get_persistent_parameter_set_status(
         self, id_lst: Iterable[int]
-    ) -> Dict[int, bool]:
+    ) -> dict[int, bool]:
         with self.using_resource("parameters", "read") as params:
             try:
                 param_dat = {i: params["data"][str(i)] for i in id_lst}
@@ -521,7 +521,7 @@ class JSONPersistentStore(PersistentStore):
                 raise MissingParameterData(id_lst) from None
         return {k: v is not None for k, v in param_dat.items()}
 
-    def _get_persistent_parameter_IDs(self) -> List[int]:
+    def _get_persistent_parameter_IDs(self) -> list[int]:
         with self.using_resource("parameters", "read") as params:
             return list(int(i) for i in params["data"].keys())
 

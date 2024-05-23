@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Any
 
 import zarr
 import numpy as np
@@ -171,9 +171,9 @@ def _zarr_encode_NEW(
 
 
 def zarr_decode(
-    param_data: Union[None, Dict],
+    param_data: None | dict,
     arr_group: zarr.Group,
-    path=None,
+    path: list | None = None,
     dataset_copy=False,
 ):
     if param_data is None:

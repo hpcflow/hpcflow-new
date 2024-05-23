@@ -5,9 +5,12 @@ import contextlib
 from dataclasses import dataclass, fields
 from datetime import datetime
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
+if TYPE_CHECKING:
+    from .base import AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask
+    pass  # TODO: Get the type variables
 
 
 class PendingChanges:
@@ -42,36 +45,36 @@ class PendingChanges:
         self.store = store
         self.resource_map = resource_map
 
-        self.add_tasks: Dict[int, AnySTask] = None
-        self.add_loops: Dict[int, Dict] = None
-        self.add_submissions: Dict[int, Dict] = None
-        self.add_elements: Dict[int, AnySElement] = None
-        self.add_elem_iters: Dict[int, AnySElementIter] = None
-        self.add_EARs: Dict[int, AnySEAR] = None
-        self.add_parameters: Dict[int, AnySParameter] = None
-        self.add_files: List[Dict] = None
-        self.add_template_components: Dict[str, Dict[str, Dict]] = None
-        self.add_element_sets: Dict[int, Dict] = None
+        self.add_tasks: dict[int, AnySTask] = None
+        self.add_loops: dict[int, Dict] = None
+        self.add_submissions: dict[int, Dict] = None
+        self.add_elements: dict[int, AnySElement] = None
+        self.add_elem_iters: dict[int, AnySElementIter] = None
+        self.add_EARs: dict[int, AnySEAR] = None
+        self.add_parameters: dict[int, AnySParameter] = None
+        self.add_files: list[Dict] = None
+        self.add_template_components: dict[str, dict[str, Dict]] = None
+        self.add_element_sets: dict[int, Dict] = None
 
-        self.add_elem_IDs: Dict[int, List] = None
-        self.add_elem_iter_IDs: Dict[int, List] = None
-        self.add_elem_iter_EAR_IDs: Dict[int, Dict[int, List]] = None
-        self.add_submission_parts: Dict[int, Dict[str, List[int]]] = None
+        self.add_elem_IDs: dict[int, List] = None
+        self.add_elem_iter_IDs: dict[int, List] = None
+        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] = None
+        self.add_submission_parts: dict[int, dict[str, list[int]]] = None
 
-        self.set_EARs_initialised: List[int] = None
-        self.set_EAR_submission_indices: Dict[int, int] = None
-        self.set_EAR_skips: List[int] = None
-        self.set_EAR_starts: Dict[int, Tuple[datetime, Dict], str] = None
-        self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
+        self.set_EARs_initialised: list[int] = None
+        self.set_EAR_submission_indices: dict[int, int] = None
+        self.set_EAR_skips: list[int] = None
+        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] = None
+        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] = None
 
-        self.set_js_metadata: Dict[int, Dict[int, Any]] = None
+        self.set_js_metadata: dict[int, dict[int, Any]] = None
 
-        self.set_parameters: Dict[int, AnySParameter] = None
+        self.set_parameters: dict[int, AnySParameter] = None
 
-        self.update_param_sources: Dict[int, Dict] = None
-        self.update_loop_indices: Dict[int, Dict[str, int]] = None
-        self.update_loop_num_iters: Dict[int, int] = None
-        self.update_loop_parents: Dict[int, List[str]] = None
+        self.update_param_sources: dict[int, Dict] = None
+        self.update_loop_indices: dict[int, dict[str, int]] = None
+        self.update_loop_num_iters: dict[int, int] = None
+        self.update_loop_parents: dict[int, list[str]] = None
 
         self.reset(is_init=True)  # set up initial data structures
 
@@ -105,7 +108,7 @@ class PendingChanges:
             or bool(self.update_loop_parents)
         )
 
-    def where_pending(self) -> List[str]:
+    def where_pending(self) -> list[str]:
         return [
             k
             for k, v in self.__dict__.items()
@@ -564,35 +567,35 @@ class CommitResourceMap:
 
     """
 
-    commit_tasks: Optional[Tuple[str]] = tuple()
-    commit_loops: Optional[Tuple[str]] = tuple()
-    commit_submissions: Optional[Tuple[str]] = tuple()
-    commit_submission_parts: Optional[Tuple[str]] = tuple()
-    commit_elem_IDs: Optional[Tuple[str]] = tuple()
-    commit_elements: Optional[Tuple[str]] = tuple()
-    commit_element_sets: Optional[Tuple[str]] = tuple()
-    commit_elem_iter_IDs: Optional[Tuple[str]] = tuple()
-    commit_elem_iters: Optional[Tuple[str]] = tuple()
-    commit_elem_iter_EAR_IDs: Optional[Tuple[str]] = tuple()
-    commit_EARs_initialised: Optional[Tuple[str]] = tuple()
-    commit_EARs: Optional[Tuple[str]] = tuple()
-    commit_EAR_submission_indices: Optional[Tuple[str]] = tuple()
-    commit_EAR_skips: Optional[Tuple[str]] = tuple()
-    commit_EAR_starts: Optional[Tuple[str]] = tuple()
-    commit_EAR_ends: Optional[Tuple[str]] = tuple()
-    commit_js_metadata: Optional[Tuple[str]] = tuple()
-    commit_parameters: Optional[Tuple[str]] = tuple()
-    commit_files: Optional[Tuple[str]] = tuple()
-    commit_template_components: Optional[Tuple[str]] = tuple()
-    commit_param_sources: Optional[Tuple[str]] = tuple()
-    commit_loop_indices: Optional[Tuple[str]] = tuple()
-    commit_loop_num_iters: Optional[Tuple[str]] = tuple()
-    commit_loop_parents: Optional[Tuple[str]] = tuple()
+    commit_tasks: tuple[str, ...] | None = tuple()
+    commit_loops: tuple[str, ...] | None = tuple()
+    commit_submissions: tuple[str, ...] | None = tuple()
+    commit_submission_parts: tuple[str, ...] | None = tuple()
+    commit_elem_IDs: tuple[str, ...] | None = tuple()
+    commit_elements: tuple[str, ...] | None = tuple()
+    commit_element_sets: tuple[str, ...] | None = tuple()
+    commit_elem_iter_IDs: tuple[str, ...] | None = tuple()
+    commit_elem_iters: tuple[str, ...] | None = tuple()
+    commit_elem_iter_EAR_IDs: tuple[str, ...] | None = tuple()
+    commit_EARs_initialised: tuple[str, ...] | None = tuple()
+    commit_EARs: tuple[str, ...] | None = tuple()
+    commit_EAR_submission_indices: tuple[str, ...] | None = tuple()
+    commit_EAR_skips: tuple[str, ...] | None = tuple()
+    commit_EAR_starts: tuple[str, ...] | None = tuple()
+    commit_EAR_ends: tuple[str, ...] | None = tuple()
+    commit_js_metadata: tuple[str, ...] | None = tuple()
+    commit_parameters: tuple[str, ...] | None = tuple()
+    commit_files: tuple[str, ...] | None = tuple()
+    commit_template_components: tuple[str, ...] | None = tuple()
+    commit_param_sources: tuple[str, ...] | None = tuple()
+    commit_loop_indices: tuple[str, ...] | None = tuple()
+    commit_loop_num_iters: tuple[str, ...] | None = tuple()
+    commit_loop_parents: tuple[str, ...] | None = tuple()
 
     def __post_init__(self):
         self.groups = self.group_by_resource()
 
-    def group_by_resource(self) -> Dict[Tuple[str], List[str]]:
+    def group_by_resource(self) -> dict[tuple[str, ...], list[str]]:
         """Return a dict whose keys are tuples of resource labels and whose values are
         lists of `PendingChanges` commit method names that require those resource.
 
@@ -600,8 +603,8 @@ class CommitResourceMap:
         in turn means we can potentially minimise e.g. the number of network requests.
 
         """
-        groups = {}
-        cur_res_group = None
+        groups: dict[tuple[str, ...], list[str]] = {}
+        cur_res_group: list[list[str]] | None = None
         for fld in fields(self):
             res_labels = getattr(self, fld.name)
 

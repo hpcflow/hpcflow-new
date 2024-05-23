@@ -35,7 +35,7 @@ class NullScheduler:
         return None
 
     @staticmethod
-    def is_num_cores_supported(num_cores, core_range: List[int]):
+    def is_num_cores_supported(num_cores, core_range: list[int]):
         step = core_range[1] if core_range[1] is not None else 1
         upper = core_range[2] + 1 if core_range[2] is not None else sys.maxsize
         return num_cores in range(core_range[0], upper, step)
@@ -59,7 +59,7 @@ class Scheduler(NullScheduler):
     ):
         super().__init__(*args, **kwargs)
 
-        self.submit_cmd = submit_cmd or self.DEFAULT_SUBMIT_CMD
+        self.submit_cmd: str = submit_cmd or self.DEFAULT_SUBMIT_CMD
         self.show_cmd = show_cmd or self.DEFAULT_SHOW_CMD
         self.del_cmd = del_cmd or self.DEFAULT_DEL_CMD
         self.js_cmd = js_cmd or self.DEFAULT_JS_CMD
@@ -78,7 +78,7 @@ class Scheduler(NullScheduler):
         """Query if a jobscript is running/pending."""
         return bool(self.get_job_state_info([job_ID]))
 
-    def wait_for_jobscripts(self, js_refs: List[Any]) -> None:
+    def wait_for_jobscripts(self, js_refs: list[Any]) -> None:
         while js_refs:
             info = self.get_job_state_info(js_refs)
             print(info)

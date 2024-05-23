@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
-from typing import Dict, List, Optional, Union
+from typing import Dict
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import (
@@ -130,7 +130,7 @@ class Bash(Shell):
     def _get_OS_info_POSIX(self):
         return get_OS_info_POSIX(linux_release_file=self.linux_release_file)
 
-    def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> Dict:
         """Get bash version information.
 
         Parameters
@@ -260,9 +260,9 @@ class WSLBash(Bash):
 
     def __init__(
         self,
-        WSL_executable: Optional[str] = None,
-        WSL_distribution: Optional[str] = None,
-        WSL_user: Optional[str] = None,
+        WSL_executable: str | None = None,
+        WSL_distribution: str | None = None,
+        WSL_user: str | None = None,
         *args,
         **kwargs,
     ):
@@ -287,11 +287,11 @@ class WSLBash(Bash):
         return out
 
     @property
-    def executable(self) -> List[str]:
+    def executable(self) -> list[str]:
         return self._get_WSL_command() + super().executable
 
     @property
-    def shebang_executable(self) -> List[str]:
+    def shebang_executable(self) -> list[str]:
         return super().executable
 
     def _get_OS_info_POSIX(self):
@@ -302,7 +302,7 @@ class WSLBash(Bash):
         )
 
     @staticmethod
-    def _convert_to_wsl_path(win_path: Union[str, Path]) -> str:
+    def _convert_to_wsl_path(win_path: str | Path) -> str:
         win_path = Path(win_path)
         parts = list(win_path.parts)
         parts[0] = f"/mnt/{win_path.drive.lower().rstrip(':')}"
@@ -319,10 +319,10 @@ class WSLBash(Bash):
     def prepare_JS_path(self, js_path: Path) -> str:
         return self._convert_to_wsl_path(js_path)
 
-    def prepare_element_run_dirs(self, run_dirs: List[List[Path]]) -> List[List[str]]:
+    def prepare_element_run_dirs(self, run_dirs: list[list[Path]]) -> list[list[str]]:
         return [["/".join(str(j).split("\\")) for j in i] for i in run_dirs]
 
-    def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> Dict:
         """Get WSL and bash version information.
 
         Parameters

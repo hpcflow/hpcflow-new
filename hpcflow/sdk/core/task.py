@@ -1,9 +1,10 @@
 from __future__ import annotations
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 import copy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, overload, Literal, TypeAlias, TYPE_CHECKING
 
 from valida.rules import Rule
 
@@ -43,6 +44,12 @@ from .utils import (
     set_in_container,
     split_param_label,
 )
+if TYPE_CHECKING:
+    from .actions import Action
+    from .element import Element, ElementIteration, ElementFilter
+    from .parameters import InputValue, InputSource, ValueSequence, SchemaInput, SchemaOutput, ParameterPath
+    from .command_files import InputFile
+    from .workflow import Workflow
 
 
 INPUT_SOURCE_TYPES = ["local", "default", "task", "import"]
@@ -123,19 +130,19 @@ class ElementSet(JSONLike):
 
     def __init__(
         self,
-        inputs: Optional[List[app.InputValue]] = None,
-        input_files: Optional[List[app.InputFile]] = None,
-        sequences: Optional[List[app.ValueSequence]] = None,
-        resources: Optional[Dict[str, Dict]] = None,
-        repeats: Optional[List[Dict]] = None,
-        groups: Optional[List[app.ElementGroup]] = None,
-        input_sources: Optional[Dict[str, app.InputSource]] = None,
-        nesting_order: Optional[List] = None,
-        env_preset: Optional[str] = None,
-        environments: Optional[Dict[str, Dict[str, Any]]] = None,
-        sourceable_elem_iters: Optional[List[int]] = None,
-        allow_non_coincident_task_sources: Optional[bool] = False,
-        merge_envs: Optional[bool] = True,
+        inputs: list[InputValue] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, Dict] | None = None,
+        repeats: list[Dict] | None = None,
+        groups: list[ElementGroup] | None = None,
+        input_sources: dict[str, InputSource] | None = None,
+        nesting_order: list | None = None,
+        env_preset: str | None = None,
+        environments: dict[str, dict[str, Any]] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
+        allow_non_coincident_task_sources: bool = False,
+        merge_envs: bool = True,
     ):
         """
         Parameters
@@ -524,7 +531,7 @@ class OutputLabel(JSONLike):
         self,
         parameter: str,
         label: str,
-        where: Optional[List[app.ElementFilter]] = None,
+        where: list[ElementFilter] | None = None,
     ) -> None:
         self.parameter = parameter
         self.label = label
@@ -568,22 +575,22 @@ class Task(JSONLike):
 
     def __init__(
         self,
-        schema: Union[app.TaskSchema, str, List[app.TaskSchema], List[str]],
-        repeats: Optional[List[Dict]] = None,
-        groups: Optional[List[app.ElementGroup]] = None,
-        resources: Optional[Dict[str, Dict]] = None,
-        inputs: Optional[List[app.InputValue]] = None,
-        input_files: Optional[List[app.InputFile]] = None,
-        sequences: Optional[List[app.ValueSequence]] = None,
-        input_sources: Optional[Dict[str, app.InputSource]] = None,
-        nesting_order: Optional[List] = None,
-        env_preset: Optional[str] = None,
-        environments: Optional[Dict[str, Dict[str, Any]]] = None,
-        allow_non_coincident_task_sources: Optional[bool] = False,
-        element_sets: Optional[List[app.ElementSet]] = None,
-        output_labels: Optional[List[app.OutputLabel]] = None,
-        sourceable_elem_iters: Optional[List[int]] = None,
-        merge_envs: Optional[bool] = True,
+        schema: TaskSchema | str | list[TaskSchema] | list[str],
+        repeats: list[Dict] | None = None,
+        groups: list[ElementGroup] | None = None,
+        resources: dict[str, Dict] | None = None,
+        inputs: list[InputValue] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        input_sources: dict[str, InputSource] | None = None,
+        nesting_order: list | None = None,
+        env_preset: str | None = None,
+        environments: dict[str, dict[str, Any]] | None = None,
+        allow_non_coincident_task_sources: bool = False,
+        element_sets: list[ElementSet] | None = None,
+        output_labels: list[OutputLabel] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
+        merge_envs: bool = True,
     ):
         """
         Parameters
@@ -745,7 +752,7 @@ class Task(JSONLike):
             return True
         return False
 
-    def _add_element_set(self, element_set: app.ElementSet):
+    def _add_element_set(self, element_set: ElementSet):
         """Invoked by WorkflowTask._add_element_set."""
         self._pending_element_sets.append(element_set)
         self.workflow_template.workflow._store.add_element_set(
@@ -832,7 +839,7 @@ class Task(JSONLike):
         return out
 
     @staticmethod
-    def get_task_unique_names(tasks: List[app.Task]):
+    def get_task_unique_names(tasks: list[Task]):
         """Get the unique name of each in a list of tasks.
 
         Returns
@@ -932,7 +939,7 @@ class Task(JSONLike):
 
     def _get_task_source_element_iters(
         self, in_or_out: str, src_task, labelled_path, element_set
-    ) -> List[int]:
+    ) -> list[int]:
         """Get a sorted list of element iteration IDs that provide either inputs or
         outputs from the provided source task."""
 
@@ -977,9 +984,9 @@ class Task(JSONLike):
 
     def get_available_task_input_sources(
         self,
-        element_set: app.ElementSet,
-        source_tasks: Optional[List[app.WorkflowTask]] = None,
-    ) -> List[app.InputSource]:
+        element_set: ElementSet,
+        source_tasks: list[WorkflowTask] | None = None,
+    ) -> list[InputSource]:
         """For each input parameter of this task, generate a list of possible input sources
         that derive from inputs or outputs of this and other provided tasks.
 
@@ -1112,11 +1119,11 @@ class Task(JSONLike):
         return available
 
     @property
-    def schemas(self) -> List[app.TaskSchema]:
+    def schemas(self) -> list[TaskSchema]:
         return self._schemas
 
     @property
-    def schema(self) -> app.TaskSchema:
+    def schema(self) -> TaskSchema:
         """Returns the single task schema, if only one, else raises."""
         if len(self._schemas) == 1:
             return self._schemas[0]
@@ -1152,11 +1159,11 @@ class Task(JSONLike):
         return self.schemas[0].objective
 
     @property
-    def all_schema_inputs(self) -> Tuple[app.SchemaInput]:
+    def all_schema_inputs(self) -> tuple[SchemaInput, ...]:
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.inputs)
 
     @property
-    def all_schema_outputs(self) -> Tuple[app.SchemaOutput]:
+    def all_schema_outputs(self) -> tuple[SchemaOutput, ...]:
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
 
     @property
@@ -1182,7 +1189,7 @@ class Task(JSONLike):
                 _idx += 1
         raise ValueError(f"No action in task {self.name!r} with index {idx!r}.")
 
-    def all_schema_actions(self) -> Iterator[Tuple[int, app.Action]]:
+    def all_schema_actions(self) -> Iterator[tuple[int, Action]]:
         idx = 0
         for schema in self.schemas:
             for action in schema.actions:
@@ -1209,7 +1216,7 @@ class Task(JSONLike):
                     sourced_input_types.append(seq.normalised_path)
         return set(sourced_input_types) | self.all_schema_input_normalised_paths
 
-    def is_input_type_required(self, typ: str, element_set: app.ElementSet) -> bool:
+    def is_input_type_required(self, typ: str, element_set: ElementSet) -> bool:
         """Check if an given input type must be specified in the parametrisation of this
         element set.
 
@@ -1226,7 +1233,7 @@ class Task(JSONLike):
 
         return False
 
-    def get_param_provided_element_sets(self, labelled_path: str) -> List[int]:
+    def get_param_provided_element_sets(self, labelled_path: str) -> list[int]:
         """Get the element set indices of this task for which a specified parameter type
         is locally provided."""
         es_idx = []
@@ -1235,7 +1242,7 @@ class Task(JSONLike):
                 es_idx.append(idx)
         return es_idx
 
-    def get_input_statuses(self, elem_set: app.ElementSet) -> Dict[str, InputStatus]:
+    def get_input_statuses(self, elem_set: ElementSet) -> dict[str, InputStatus]:
         """Get a dict whose keys are normalised input paths (without the "inputs" prefix),
         and whose values are InputStatus objects.
 
@@ -1295,7 +1302,7 @@ class Task(JSONLike):
             if inp_j.typ in self.undefined_input_types
         ]
 
-    def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+    def provides_parameters(self) -> tuple[tuple[str, str], ...]:
         """Get all provided parameter labelled types and whether they are inputs and
         outputs, considering all element sets.
 
@@ -1321,12 +1328,12 @@ class Task(JSONLike):
         return tuple(out)
 
     def add_group(
-        self, name: str, where: app.ElementFilter, group_by_distinct: app.ParameterPath
+        self, name: str, where: ElementFilter, group_by_distinct: ParameterPath
     ):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
 
-    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+    def _get_single_label_lookup(self, prefix="") -> dict[str, str]:
         """Get a mapping between schema input types that have a single label (i.e.
         labelled but with `multiple=False`) and the non-labelled type string.
 
@@ -1352,10 +1359,10 @@ class WorkflowTask:
 
     def __init__(
         self,
-        workflow: app.Workflow,
-        template: app.Task,
+        workflow: Workflow,
+        template: Task,
         index: int,
-        element_IDs: List[int],
+        element_IDs: list[int],
     ):
         self._workflow = workflow
         self._template = template
@@ -1378,7 +1385,7 @@ class WorkflowTask:
         self._reset_pending_element_IDs()
 
     @classmethod
-    def new_empty_task(cls, workflow: app.Workflow, template: app.Task, index: int):
+    def new_empty_task(cls, workflow: Workflow, template: Task, index: int):
         obj = cls(
             workflow=workflow,
             template=template,
@@ -1438,12 +1445,12 @@ class WorkflowTask:
             self._elements = self.app.Elements(self)
         return self._elements
 
-    def get_dir_name(self, loop_idx: Dict[str, int] = None) -> str:
+    def get_dir_name(self, loop_idx: dict[str, int] | None = None) -> str:
         if not loop_idx:
             return self.dir_name
         return self.dir_name + "_" + "_".join((f"{k}-{v}" for k, v in loop_idx.items()))
 
-    def get_all_element_iterations(self) -> Dict[int, app.ElementIteration]:
+    def get_all_element_iterations(self) -> dict[int, ElementIteration]:
         return {j.id_: j for i in self.elements for j in i.iterations}
 
     def _make_new_elements_persistent(
@@ -1651,7 +1658,7 @@ class WorkflowTask:
 
         return (input_data_idx, sequence_idx, source_idx)
 
-    def ensure_input_sources(self, element_set) -> Dict[str, List[int]]:
+    def ensure_input_sources(self, element_set) -> dict[str, list[int]]:
         """Check valid input sources are specified for a new task to be added to the
         workflow in a given position. If none are specified, set them according to the
         default behaviour.
@@ -2062,7 +2069,7 @@ class WorkflowTask:
         return element_dat_idx
 
     @TimeIt.decorator
-    def initialise_EARs(self, iter_IDs: Optional[List[int]] = None) -> List[int]:
+    def initialise_EARs(self, iter_IDs: list[int] | None = None) -> list[int]:
         """Try to initialise any uninitialised EARs of this task."""
         if iter_IDs:
             iters = self.workflow.get_element_iterations_from_IDs(iter_IDs)
@@ -2095,7 +2102,7 @@ class WorkflowTask:
         return initialised
 
     @TimeIt.decorator
-    def _initialise_element_iter_EARs(self, element_iter: app.ElementIteration) -> None:
+    def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
         # keys are (act_idx, EAR_idx):
         all_data_idx = {}
         action_runs = {}
@@ -2278,7 +2285,7 @@ class WorkflowTask:
         nesting_order=None,
         element_sets=None,
         sourceable_elem_iters=None,
-        propagate_to: Dict[str, app.ElementPropagation] = None,
+        propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: bool = False,
     ):
         """Add more elements to this task.
@@ -2371,7 +2378,7 @@ class WorkflowTask:
     def get_element_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.Element]]:
+    ) -> list[int | Element]:
         """Get elements from upstream tasks that this task depends on."""
 
         deps = []
@@ -2390,10 +2397,18 @@ class WorkflowTask:
 
         return deps
 
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
+
     def get_task_dependencies(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get tasks (insert ID or WorkflowTask objects) that this task depends on.
 
         Dependencies may come from either elements from upstream tasks, or from locally
@@ -2403,7 +2418,7 @@ class WorkflowTask:
         # new "task_iteration" input source type, which may take precedence over any
         # other input source types.
 
-        deps = []
+        deps: list[int | WorkflowTask] = []
         for element_set in self.template.element_sets:
             for sources in element_set.input_sources.values():
                 for src in sources:
@@ -2419,10 +2434,18 @@ class WorkflowTask:
 
         return deps
 
+    @overload
+    def get_dependent_elements(self, as_objects: Literal[False] = False,) -> list[int]:
+        ...
+
+    @overload
+    def get_dependent_elements(self, as_objects: Literal[True]) -> list[Element]:
+        ...
+
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.Element]]:
+    ) -> list[int] | list[Element]:
         """Get elements from downstream tasks that depend on this task."""
         deps = []
         for task in self.downstream_tasks:
@@ -2438,11 +2461,19 @@ class WorkflowTask:
 
         return deps
 
+    @overload
+    def get_dependent_tasks(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_dependent_tasks(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
+
     @TimeIt.decorator
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get tasks (insert ID or WorkflowTask objects) that depends on this task."""
 
         # TODO: this method might become insufficient if/when we start considering a
@@ -2466,14 +2497,14 @@ class WorkflowTask:
         return deps
 
     @property
-    def inputs(self):
+    def inputs(self) -> TaskInputParameters:
         return self.app.TaskInputParameters(self)
 
     @property
-    def outputs(self):
+    def outputs(self) -> TaskOutputParameters:
         return self.app.TaskOutputParameters(self)
 
-    def get(self, path, raise_on_missing=False, default=None):
+    def get(self, path, raise_on_missing=False, default=None) -> Parameters:
         return self.app.Parameters(
             self,
             path=path,
@@ -2482,11 +2513,11 @@ class WorkflowTask:
             default=default,
         )
 
-    def _paths_to_PV_classes(self, paths: Iterable[str]) -> Dict:
+    def _paths_to_PV_classes(self, paths: Iterable[str]) -> dict[str, type[Any]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
 
-        params = {}
+        params: dict[str, type[Any]] = {}
         for path in paths:
             path_split = path.split(".")
             if len(path_split) == 1 or path_split[0] not in ("inputs", "outputs"):
@@ -2549,9 +2580,9 @@ class WorkflowTask:
         """Get element data from the persistent store."""
 
         def _get_relevant_paths(
-            data_index: Dict, path: List[str], children_of: str = None
+            data_index: dict[str, Any], path: list[str], children_of: str = None
         ):
-            relevant_paths = {}
+            relevant_paths: dict[str, str | Any] = {}
             # first extract out relevant paths in `data_index`:
             for path_i in data_index:
                 path_i_split = path_i.split(".")
@@ -2573,8 +2604,8 @@ class WorkflowTask:
 
             return relevant_paths
 
-        def _get_relevant_data(relevant_data_idx: Dict, raise_on_unset: bool, path: str):
-            relevant_data = {}
+        def _get_relevant_data(relevant_data_idx: dict, raise_on_unset: bool, path: str):
+            relevant_data: dict = {}
             for path_i, data_idx_i in relevant_data_idx.items():
                 is_multi = isinstance(data_idx_i, list)
                 if not is_multi:
@@ -2868,7 +2899,7 @@ class WorkflowTask:
 class Elements:
     __slots__ = ("_task",)
 
-    def __init__(self, task: app.WorkflowTask):
+    def __init__(self, task: WorkflowTask):
         self._task = task
 
         # TODO: cache Element objects
@@ -2884,7 +2915,7 @@ class Elements:
         return self._task
 
     @TimeIt.decorator
-    def _get_selection(self, selection: Union[int, slice, List[int]]) -> List[int]:
+    def _get_selection(self, selection: int | slice | list[int]) -> list[int]:
         """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
             lst = [selection]
@@ -2911,8 +2942,8 @@ class Elements:
     @TimeIt.decorator
     def __getitem__(
         self,
-        selection: Union[int, slice, List[int]],
-    ) -> Union[app.Element, List[app.Element]]:
+        selection: int | slice | list[int],
+    ) -> Element | list[Element]:
         idx_lst = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, idx_lst)
 
@@ -2926,15 +2957,15 @@ class Elements:
 class Parameters:
     _app_attr = "_app"
 
-    task: app.WorkflowTask
+    task: WorkflowTask
     path: str
     return_element_parameters: bool
-    raise_on_missing: Optional[bool] = False
-    raise_on_unset: Optional[bool] = False
-    default: Optional[Any] = None
+    raise_on_missing: bool = False
+    raise_on_unset: bool = False
+    default: Any | None = None
 
     @TimeIt.decorator
-    def _get_selection(self, selection: Union[int, slice, List[int]]) -> List[int]:
+    def _get_selection(self, selection: int | slice | list[int]) -> list[int]:
         """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
             lst = [selection]
@@ -2957,8 +2988,8 @@ class Parameters:
 
     def __getitem__(
         self,
-        selection: Union[int, slice, List[int]],
-    ) -> Union[Any, List[Any]]:
+        selection: int | slice | list[int],
+    ) -> Any | list[Any]:
         idx_lst = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, idx_lst)
         if self.return_element_parameters:
@@ -2994,7 +3025,7 @@ class TaskInputParameters:
 
     _app_attr = "_app"
 
-    task: app.WorkflowTask
+    task: WorkflowTask
 
     def __getattr__(self, name):
         if name not in self._get_input_names():
@@ -3020,7 +3051,7 @@ class TaskOutputParameters:
 
     _app_attr = "_app"
 
-    task: app.WorkflowTask
+    task: WorkflowTask
 
     def __getattr__(self, name):
         if name not in self._get_output_names():
@@ -3047,9 +3078,9 @@ class ElementPropagation:
 
     _app_attr = "app"
 
-    task: app.Task
-    nesting_order: Optional[Dict] = None
-    input_sources: Optional[Dict] = None
+    task: Task
+    nesting_order: Dict | None = None
+    input_sources: Dict | None = None
 
     @property
     def element_set(self):
@@ -3078,3 +3109,5 @@ class ElementPropagation:
                     **v,
                 )
         return propagate_to
+
+TaskTemplate: TypeAlias = Task

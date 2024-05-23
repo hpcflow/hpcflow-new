@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, TYPE_CHECKING
 from html import escape
 
 from rich import print as rich_print
@@ -18,6 +18,10 @@ from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
+if TYPE_CHECKING:
+    from .actions import Action
+    from .parameters import SchemaOutput, SchemaParameter
+    from .workflow import Workflow
 
 
 @dataclass
@@ -81,17 +85,17 @@ class TaskSchema(JSONLike):
 
     def __init__(
         self,
-        objective: Union[app.TaskObjective, str],
-        actions: List[app.Action] = None,
-        method: Optional[str] = None,
-        implementation: Optional[str] = None,
-        inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
-        outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
-        version: Optional[str] = None,
-        parameter_class_modules: Optional[List[str]] = None,
-        web_doc: Optional[bool] = True,
-        environment_presets: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
-        _hash_value: Optional[str] = None,
+        objective: TaskObjective | str,
+        actions: list[Action] = None,
+        method: str | None = None,
+        implementation: str | None = None,
+        inputs: list[Parameter | SchemaInput] | None = None,
+        outputs: list[Parameter | SchemaOutput] | None = None,
+        version: str | None = None,
+        parameter_class_modules: list[str] | None = None,
+        web_doc: bool | None = True,
+        environment_presets: dict[str, dict[str, dict[str, Any]]] | None = None,
+        _hash_value: str | None = None,
     ):
         self.objective = objective
         self.actions = actions or []
@@ -708,7 +712,7 @@ class TaskSchema(JSONLike):
         for out in self.outputs:
             out.parameter._set_value_class()
 
-    def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
+    def make_persistent(self, workflow: Workflow, source: Dict) -> list[int]:
         new_refs = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
@@ -737,7 +741,7 @@ class TaskSchema(JSONLike):
         return tuple(i.typ for i in self.outputs)
 
     @property
-    def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+    def provides_parameters(self) -> tuple[tuple[str, str], ...]:
         out = []
         for schema_inp in self.inputs:
             for labelled_info in schema_inp.labelled_info():
@@ -760,7 +764,7 @@ class TaskSchema(JSONLike):
         """Get a config-loaded task schema from a key."""
         return cls.app.task_schemas.get(key)
 
-    def get_parameter_dependence(self, parameter: app.SchemaParameter):
+    def get_parameter_dependence(self, parameter: SchemaParameter):
         """Find if/where a given parameter is used by the schema's actions."""
         out = {"input_file_writers": [], "commands": []}
         for act_idx, action in enumerate(self.actions):
@@ -772,7 +776,7 @@ class TaskSchema(JSONLike):
     def get_key(self):
         return (str(self.objective), self.method, self.implementation)
 
-    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+    def _get_single_label_lookup(self, prefix="") -> dict[str, str]:
         """Get a mapping between schema input types that have a single label (i.e.
         labelled but with `multiple=False`) and the non-labelled type string.
 
@@ -795,7 +799,7 @@ class TaskSchema(JSONLike):
         return lookup
 
     @property
-    def multi_input_types(self) -> List[str]:
+    def multi_input_types(self) -> list[str]:
         """Get a list of input types that have multiple labels."""
         out = []
         for inp in self.inputs:

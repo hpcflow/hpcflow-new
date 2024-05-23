@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Self, TYPE_CHECKING
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
@@ -11,6 +11,10 @@ from hpcflow.sdk.core.parameters import InputSourceType
 from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
 from hpcflow.sdk.log import TimeIt
+if TYPE_CHECKING:
+    from .element import ElementIteration
+    from .rule import Rule
+    from .workflow import Workflow, WorkflowTemplate
 
 # from .parameters import Parameter
 
@@ -36,11 +40,11 @@ class Loop(JSONLike):
 
     def __init__(
         self,
-        tasks: List[Union[int, app.WorkflowTask]],
+        tasks: list[int | WorkflowTask],
         num_iterations: int,
-        name: Optional[str] = None,
-        non_iterable_parameters: Optional[List[str]] = None,
-        termination: Optional[app.Rule] = None,
+        name: str | None = None,
+        non_iterable_parameters: list[str] | None = None,
+        termination: Rule | None = None,
     ) -> None:
         """
 
@@ -92,7 +96,7 @@ class Loop(JSONLike):
         return obj
 
     @property
-    def task_insert_IDs(self) -> Tuple[int]:
+    def task_insert_IDs(self) -> tuple[int, ...]:
         """Get the list of task insert_IDs that define the extent of the loop."""
         return tuple(self._task_insert_IDs)
 
@@ -117,12 +121,12 @@ class Loop(JSONLike):
         return self._workflow_template
 
     @workflow_template.setter
-    def workflow_template(self, template: app.WorkflowTemplate):
+    def workflow_template(self, template: WorkflowTemplate):
         self._workflow_template = template
         self._validate_against_template()
 
     @property
-    def task_objects(self) -> Tuple[app.WorkflowTask]:
+    def task_objects(self) -> tuple[WorkflowTask, ...]:
         if not self.workflow_template:
             raise RuntimeError(
                 "Workflow template must be assigned to retrieve task objects of the loop."
@@ -132,7 +136,7 @@ class Loop(JSONLike):
             for i in self.task_insert_IDs
         )
 
-    def _validate_against_template(self):
+    def _validate_against_template(self) -> None:
         """Validate the loop parameters against the associated workflow."""
 
         # insert IDs must exist:
@@ -145,7 +149,7 @@ class Loop(JSONLike):
                     f"Such as task does not exist in the associated workflow."
                 )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         num_iterations_str = ""
         if self.num_iterations is not None:
             num_iterations_str = f", num_iterations={self.num_iterations!r}"
@@ -160,7 +164,7 @@ class Loop(JSONLike):
             f")"
         )
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         kwargs["tasks"] = kwargs.pop("task_insert_IDs")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
@@ -176,12 +180,12 @@ class WorkflowLoop:
     def __init__(
         self,
         index: int,
-        workflow: app.Workflow,
-        template: app.Loop,
-        num_added_iterations: Dict[Tuple[int], int],
-        iterable_parameters: Dict[int : List[int, List[int]]],
-        parents: List[str],
-    ):
+        workflow: Workflow,
+        template: Loop,
+        num_added_iterations: dict[tuple[int, ...], int],
+        iterable_parameters: dict[int, list[int | list[int]]],
+        parents: list[str],
+    ) -> None:
         self._index = index
         self._workflow = workflow
         self._template = template
@@ -191,17 +195,17 @@ class WorkflowLoop:
 
         # appended to on adding a empty loop to the workflow that's a parent of this loop,
         # reset and added to `self._parents` on dump to disk:
-        self._pending_parents = []
+        self._pending_parents: list[str] = []
 
         # used for `num_added_iterations` when a new loop iteration is added, or when
         # parents are append to; reset to None on dump to disk. Each key is a tuple of
         # parent loop indices and each value is the number of pending new iterations:
-        self._pending_num_added_iterations = None
+        self._pending_num_added_iterations: dict[tuple[int, ...], int] | None = None
 
         self._validate()
 
     @TimeIt.decorator
-    def _validate(self):
+    def _validate(self) -> None:
         # task subset must be a contiguous range of task indices:
         task_indices = self.task_indices
         task_min, task_max = task_indices[0], task_indices[-1]
@@ -248,7 +252,7 @@ class WorkflowLoop:
 
         self._pending_num_added_iterations[added_iters_key] += 1
 
-    def _update_parents(self, parent: app.WorkflowLoop):
+    def _update_parents(self, parent: WorkflowLoop):
         self._pending_parents.append(parent.name)
 
         if not self._pending_num_added_iterations:
@@ -264,18 +268,18 @@ class WorkflowLoop:
             parents=self.parents,
         )
 
-    def _reset_pending_num_added_iters(self):
+    def _reset_pending_num_added_iters(self) -> None:
         self._pending_num_added_iterations = None
 
-    def _accept_pending_num_added_iters(self):
+    def _accept_pending_num_added_iters(self) -> None:
         if self._pending_num_added_iterations:
             self._num_added_iterations = copy.deepcopy(self._pending_num_added_iterations)
             self._reset_pending_num_added_iters()
 
-    def _reset_pending_parents(self):
+    def _reset_pending_parents(self) -> None:
         self._pending_parents = []
 
-    def _accept_pending_parents(self):
+    def _accept_pending_parents(self) -> None:
         self._parents += self._pending_parents
         self._reset_pending_parents()
 
@@ -288,11 +292,11 @@ class WorkflowLoop:
         return self.template.task_insert_IDs
 
     @property
-    def task_objects(self):
+    def task_objects(self) -> tuple[WorkflowTask, ...]:
         return self.template.task_objects
 
     @property
-    def task_indices(self) -> Tuple[int]:
+    def task_indices(self) -> tuple[int, ...]:
         """Get the list of task indices that define the extent of the loop."""
         return tuple(i.index for i in self.task_objects)
 
@@ -305,7 +309,7 @@ class WorkflowLoop:
         return self._template
 
     @property
-    def parents(self) -> List[str]:
+    def parents(self) -> list[str]:
         return self._parents + self._pending_parents
 
     @property
@@ -321,18 +325,18 @@ class WorkflowLoop:
         return self.template.num_iterations
 
     @property
-    def downstream_tasks(self) -> List[app.WorkflowLoop]:
+    def downstream_tasks(self) -> list[WorkflowLoop]:
         """Return tasks that are not part of the loop, and downstream from this loop."""
         return self.workflow.tasks[self.task_objects[-1].index + 1 :]
 
     @property
-    def upstream_tasks(self) -> List[app.WorkflowLoop]:
+    def upstream_tasks(self) -> list[WorkflowLoop]:
         """Return tasks that are not part of the loop, and upstream from this loop."""
         return self.workflow.tasks[: self.task_objects[0].index]
 
     @staticmethod
     @TimeIt.decorator
-    def _find_iterable_parameters(loop_template: app.Loop):
+    def _find_iterable_parameters(loop_template: Loop):
         all_inputs_first_idx = {}
         all_outputs_idx = {}
         for task in loop_template.task_objects:
@@ -363,10 +367,10 @@ class WorkflowLoop:
     def new_empty_loop(
         cls,
         index: int,
-        workflow: app.Workflow,
-        template: app.Loop,
-        iter_loop_idx: List[Dict],
-    ) -> Tuple[app.WorkflowLoop, List[Dict[str, int]]]:
+        workflow: Workflow,
+        template: Loop,
+        iter_loop_idx: list[dict[str, int]],
+    ) -> tuple[WorkflowLoop, list[dict[str, int]]]:
         parent_loops = cls._get_parent_loops(index, workflow, template)
         parent_names = [i.name for i in parent_loops]
         num_added_iters = {}
@@ -388,10 +392,10 @@ class WorkflowLoop:
     def _get_parent_loops(
         cls,
         index: int,
-        workflow: app.Workflow,
-        template: app.Loop,
-    ) -> List[app.WorkflowLoop]:
-        parents = []
+        workflow: Workflow,
+        template: Loop,
+    ) -> list[WorkflowLoop]:
+        parents: list[WorkflowLoop] = []
         passed_self = False
         self_tasks = set(template.task_insert_IDs)
         for loop_i in workflow.loops:
@@ -406,14 +410,14 @@ class WorkflowLoop:
         return parents
 
     @TimeIt.decorator
-    def get_parent_loops(self) -> List[app.WorkflowLoop]:
+    def get_parent_loops(self) -> list[WorkflowLoop]:
         """Get loops whose task subset is a superset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
         considered the child."""
         return self._get_parent_loops(self.index, self.workflow, self.template)
 
     @TimeIt.decorator
-    def get_child_loops(self) -> List[app.WorkflowLoop]:
+    def get_child_loops(self) -> list[WorkflowLoop]:
         """Get loops whose task subset is a subset of this loop's task subset. If two
         loops have identical task subsets, the first loop in the workflow loop list is
         considered the child."""
@@ -435,7 +439,8 @@ class WorkflowLoop:
         return children
 
     @TimeIt.decorator
-    def add_iteration(self, parent_loop_indices=None, cache: Optional[LoopCache] = None):
+    def add_iteration(self, parent_loop_indices: dict[str, int] | None = None,
+                      cache: LoopCache | None = None) -> None:
         if not cache:
             cache = LoopCache.build(self.workflow)
         parent_loops = self.get_parent_loops()
@@ -444,7 +449,7 @@ class WorkflowLoop:
         if parent_loops and not parent_loop_indices:
             parent_loop_indices = {i.name: 0 for i in parent_loops}
 
-        iters_key = tuple([parent_loop_indices[k] for k in self.parents])
+        iters_key = tuple(parent_loop_indices[k] for k in self.parents)
         cur_loop_idx = self.num_added_iterations[iters_key] - 1
         all_new_data_idx = {}  # keys are (task.insert_ID and element.index)
 
@@ -755,7 +760,7 @@ class WorkflowLoop:
                         cache=cache,
                     )
 
-    def test_termination(self, element_iter):
+    def test_termination(self, element_iter) -> bool:
         """Check if a loop should terminate, given the specified completed element
         iteration."""
         if self.template.termination:

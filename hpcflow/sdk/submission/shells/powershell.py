@@ -1,6 +1,6 @@
+from __future__ import annotations
 import subprocess
 from textwrap import dedent, indent
-from typing import Dict, List, Optional
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
@@ -129,11 +129,11 @@ class WindowsPowerShell(Shell):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_direct_submit_command(self, js_path) -> List[str]:
+    def get_direct_submit_command(self, js_path) -> list[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + ["-File", js_path]
 
-    def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> dict[str, str]:
         """Get powershell version information.
 
         Parameters

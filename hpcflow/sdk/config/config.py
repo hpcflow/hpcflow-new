@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from hashlib import new
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, TYPE_CHECKING
 import fsspec
 
 from rich.console import Console, Group
@@ -57,6 +57,8 @@ from .errors import (
     ConfigUnknownOverrideError,
     ConfigValidationError,
 )
+if TYPE_CHECKING:
+    from ..app import BaseApp
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +84,13 @@ DEFAULT_CONFIG = {
 class ConfigOptions:
     """Application-level options for configuration"""
 
-    default_directory: Union[Path, str]
+    default_directory: Path | str
     directory_env_var: str
-    default_config: Optional[Dict] = field(
+    default_config: Dict | None = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
-    extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
-    default_known_configs_dir: Optional[str] = None
+    extra_schemas: list[Schema] | None = field(default_factory=list)
+    default_known_configs_dir: str | None = None
 
     def __post_init__(self):
         cfg_schemas, cfg_keys = self.init_schemas()
@@ -150,7 +152,7 @@ class Config:
         config_file: ConfigFile,
         options: ConfigOptions,
         logger: logging.Logger,
-        config_key: Optional[str],
+        config_key: str | None,
         uid=None,
         callbacks=None,
         variables=None,
@@ -249,7 +251,7 @@ class Config:
         else:
             super().__setattr__(name, value)
 
-    def _disable_callbacks(self, callbacks) -> Tuple[Dict]:
+    def _disable_callbacks(self, callbacks) -> tuple[Dict, Dict]:
         """Disable named get and set callbacks.
 
         Returns
@@ -845,7 +847,7 @@ class Config:
         status.stop()
         print(f"Config {name!r} updated.")
 
-    def init(self, known_name: str, path: Optional[str] = None):
+    def init(self, known_name: str, path: str | None = None):
         """Configure from a known importable config."""
         if not path:
             path = self._options.default_known_configs_dir

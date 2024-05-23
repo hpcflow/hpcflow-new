@@ -1,13 +1,17 @@
+from __future__ import annotations
 from pathlib import Path
 import shutil
 import signal
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, TYPE_CHECKING
 
 import psutil
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 
 from hpcflow.sdk.submission.schedulers import NullScheduler
 from hpcflow.sdk.submission.shells.base import Shell
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from ..jobscript import Jobscript
 
 
 class DirectScheduler(NullScheduler):
@@ -27,13 +31,13 @@ class DirectScheduler(NullScheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: List[Tuple],
-    ) -> List[str]:
+        deps: list[tuple[Any, ...]],
+    ) -> list[str]:
         return shell.get_direct_submit_command(js_path)
 
     @staticmethod
     def _kill_processes(
-        procs: List[psutil.Process],
+        procs: list[psutil.Process],
         sig=signal.SIGTERM,
         timeout=None,
         on_terminate=None,
@@ -53,8 +57,8 @@ class DirectScheduler(NullScheduler):
             p.kill()
 
     @staticmethod
-    def _get_jobscript_processes(js_refs: List[Tuple[int, List[str]]]):
-        procs = []
+    def _get_jobscript_processes(js_refs: list[tuple[int, list[str]]]) -> list[psutil.Process]:
+        procs: list[psutil.Process] = []
         for p_id, p_cmdline in js_refs:
             try:
                 proc_i = psutil.Process(p_id)
@@ -69,8 +73,8 @@ class DirectScheduler(NullScheduler):
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: List[Tuple[int, List[str]]],
-        callback: Optional[Callable] = None,
+        js_refs: list[tuple[int, list[str]]],
+        callback: Callable | None = None,
     ) -> None:
         """Wait until the specified jobscripts have completed."""
         procs = cls._get_jobscript_processes(js_refs)
@@ -80,9 +84,9 @@ class DirectScheduler(NullScheduler):
 
     def get_job_state_info(
         self,
-        js_refs: List[Tuple[int, List[str]]],
+        js_refs: list[tuple[int, list[str]]],
         num_js_elements: int,
-    ) -> Dict[int, Dict[int, JobscriptElementState]]:
+    ) -> dict[int, dict[int, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -101,9 +105,10 @@ class DirectScheduler(NullScheduler):
 
     def cancel_jobs(
         self,
-        js_refs: List[Tuple[int, List[str]]],
-        jobscripts: List = None,
+        js_refs: list[tuple[int, list[str]]],
+        jobscripts: list[Jobscript] | None = None,
     ):
+        js_proc_id: dict[int, Jobscript]
         def callback(proc):
             try:
                 js = js_proc_id[proc.pid]
@@ -126,7 +131,7 @@ class DirectScheduler(NullScheduler):
         self._kill_processes(procs, timeout=3, on_terminate=callback)
         self.app.submission_logger.info(f"jobscripts cancel command executed.")
 
-    def is_jobscript_active(self, process_ID: int, process_cmdline: List[str]):
+    def is_jobscript_active(self, process_ID: int, process_cmdline: list[str]):
         """Query if a jobscript is running.
 
         Note that a "running" jobscript might be waiting on upstream jobscripts to
@@ -160,8 +165,8 @@ class DirectWindows(DirectScheduler):
         super().__init__(*args, **kwargs)
 
     def get_submit_command(
-        self, shell: Shell, js_path: str, deps: List[Tuple]
-    ) -> List[str]:
+        self, shell: Shell, js_path: str, deps: list[tuple[Any, ...]]
+    ) -> list[str]:
         cmd = super().get_submit_command(shell, js_path, deps)
         # `Start-Process` (see `Jobscript._launch_direct_js_win`) seems to resolve the
         # executable, which means the process's `cmdline` might look different to what we

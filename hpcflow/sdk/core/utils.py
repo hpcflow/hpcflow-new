@@ -15,7 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Dict, Optional, Tuple, Type, Union, List
+from typing import Dict, Type
 import fsspec
 import numpy as np
 
@@ -300,7 +300,7 @@ def get_relative_path(path1, path2):
     return path1[len_path2:]
 
 
-def search_dir_files_by_regex(pattern, group=0, directory=".") -> List[str]:
+def search_dir_files_by_regex(pattern, group=0, directory=".") -> list[str]:
     """Search recursively for files in a directory by a regex pattern and return matching
     file paths, relative to the given directory."""
     vals = []
@@ -373,7 +373,7 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
 
 
 @TimeIt.decorator
-def substitute_string_vars(string, variables: Dict[str, str] = None):
+def substitute_string_vars(string, variables: dict[str, str] = None):
     variables = variables or {}
 
     def var_repl(match_obj):
@@ -409,7 +409,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
 
 
 @TimeIt.decorator
-def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
+def read_YAML_str(yaml_str, typ="safe", variables: dict[str, str] = None):
     """Load a YAML string."""
     if variables is not False and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
@@ -418,7 +418,7 @@ def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
 
 
 @TimeIt.decorator
-def read_YAML_file(path: PathLike, typ="safe", variables: Dict[str, str] = None):
+def read_YAML_file(path: PathLike, typ="safe", variables: dict[str, str] = None):
     with fsspec.open(path, "rt") as f:
         yaml_str = f.read()
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
@@ -430,13 +430,13 @@ def write_YAML_file(obj, path: PathLike, typ="safe"):
         yaml.dump(obj, fp)
 
 
-def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
+def read_JSON_string(json_str: str, variables: dict[str, str] = None):
     if variables is not False and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 
 
-def read_JSON_file(path, variables: Dict[str, str] = None):
+def read_JSON_file(path, variables: dict[str, str] = None):
     with fsspec.open(path, "rt") as f:
         json_str = f.read()
     return read_JSON_string(json_str, variables=variables)
@@ -727,7 +727,7 @@ def open_file(filename):
         subprocess.call([opener, filename])
 
 
-def get_enum_by_name_or_val(enum_cls: Type, key: Union[str, None]) -> enum.Enum:
+def get_enum_by_name_or_val(enum_cls: Type, key: str | None) -> enum.Enum:
     """Retrieve an enum by name or value, assuming uppercase names and integer values."""
     err = f"Unknown enum key or value {key!r} for class {enum_cls!r}"
     if key is None or isinstance(key, enum_cls):
@@ -743,7 +743,7 @@ def get_enum_by_name_or_val(enum_cls: Type, key: Union[str, None]) -> enum.Enum:
         raise ValueError(err)
 
 
-def split_param_label(param_path: str) -> Tuple[Union[str, None]]:
+def split_param_label(param_path: str) -> tuple[str | None, str | None]:
     """Split a parameter path into the path and the label, if present."""
     pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
     match = re.match(pattern, param_path)
@@ -774,10 +774,10 @@ def process_string_nodes(data, str_processor):
 
 
 def linspace_rect(
-    start: List[float],
-    stop: List[float],
-    num: List[float],
-    include: Optional[List[str]] = None,
+    start: list[float],
+    stop: list[float],
+    num: list[float],
+    include: list[str] | None = None,
     **kwargs,
 ):
     """Generate a linear space around a rectangle.

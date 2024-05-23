@@ -6,7 +6,7 @@ import enum
 import os
 from pathlib import Path
 from textwrap import indent
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, TYPE_CHECKING
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
@@ -21,6 +21,13 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.submission.jobscript import Jobscript
+if TYPE_CHECKING:
+    from .jobscript import Jobscript, JobscriptElementState
+    from .schedulers import Scheduler
+    from .shells import Shell
+    from ..core.object_list import EnvironmentsList
+    from ..core.workflow import Workflow
 
 
 def timedelta_format(td: timedelta) -> str:
@@ -62,11 +69,11 @@ class Submission(JSONLike):
     def __init__(
         self,
         index: int,
-        jobscripts: List[app.Jobscript],
-        workflow: Optional[app.Workflow] = None,
-        submission_parts: Optional[Dict] = None,
-        JS_parallelism: Optional[bool] = None,
-        environments: Optional[app.EnvironmentsList] = None,
+        jobscripts: list[Jobscript],
+        workflow: Workflow | None = None,
+        submission_parts: Dict | None = None,
+        JS_parallelism: bool | None = None,
+        environments: EnvironmentsList | None = None,
     ):
         self._index = index
         self._jobscripts = jobscripts
@@ -163,7 +170,7 @@ class Submission(JSONLike):
         return self._environments
 
     @property
-    def submission_parts(self) -> List[Dict]:
+    def submission_parts(self) -> list[Dict]:
         if not self._submission_parts:
             return []
 
@@ -180,7 +187,7 @@ class Submission(JSONLike):
         return self._submission_parts_lst
 
     @TimeIt.decorator
-    def get_start_time(self, submit_time: str) -> Union[datetime, None]:
+    def get_start_time(self, submit_time: str) -> datetime | None:
         """Get the start time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
         all_part_starts = []
@@ -194,7 +201,7 @@ class Submission(JSONLike):
             return None
 
     @TimeIt.decorator
-    def get_end_time(self, submit_time: str) -> Union[datetime, None]:
+    def get_end_time(self, submit_time: str) -> datetime | None:
         """Get the end time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
         all_part_ends = []
@@ -236,7 +243,7 @@ class Submission(JSONLike):
             return None
 
     @property
-    def jobscripts(self) -> List:
+    def jobscripts(self) -> list[Jobscript]:
         return self._jobscripts
 
     @property
@@ -244,25 +251,25 @@ class Submission(JSONLike):
         return self._JS_parallelism
 
     @property
-    def workflow(self) -> List:
+    def workflow(self) -> Workflow:
         return self._workflow
 
     @workflow.setter
-    def workflow(self, wk):
+    def workflow(self, wk: Workflow):
         self._workflow = wk
 
     @property
-    def jobscript_indices(self) -> Tuple[int]:
+    def jobscript_indices(self) -> tuple[int, ...]:
         """All associated jobscript indices."""
         return tuple(i.index for i in self.jobscripts)
 
     @property
-    def submitted_jobscripts(self) -> Tuple[int]:
+    def submitted_jobscripts(self) -> tuple[int, ...]:
         """Jobscript indices that have been successfully submitted."""
         return tuple(j for i in self.submission_parts for j in i["jobscripts"])
 
     @property
-    def outstanding_jobscripts(self) -> Tuple[int]:
+    def outstanding_jobscripts(self) -> tuple[int, ...]:
         """Jobscript indices that have not yet been successfully submitted."""
         return tuple(set(self.jobscript_indices) - set(self.submitted_jobscripts))
 
@@ -314,7 +321,7 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
-    ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
+    ) -> list[tuple[int, dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
         # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
@@ -351,8 +358,8 @@ class Submission(JSONLike):
 
     @staticmethod
     def get_unique_schedulers_of_jobscripts(
-        jobscripts: List[Jobscript],
-    ) -> Dict[Tuple[Tuple[int, int]], Scheduler]:
+        jobscripts: list[Jobscript],
+    ) -> dict[tuple[tuple[int, int]], Scheduler]:
         """Get unique schedulers and which of the passed jobscripts they correspond to.
 
         Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
@@ -378,13 +385,13 @@ class Submission(JSONLike):
         return sched_js_idx
 
     @TimeIt.decorator
-    def get_unique_schedulers(self) -> Dict[Tuple[int], Scheduler]:
+    def get_unique_schedulers(self) -> dict[tuple[int, ...], Scheduler]:
         """Get unique schedulers and which of this submission's jobscripts they
         correspond to."""
         return self.get_unique_schedulers_of_jobscripts(self.jobscripts)
 
     @TimeIt.decorator
-    def get_unique_shells(self) -> Dict[Tuple[int], Shell]:
+    def get_unique_shells(self) -> dict[tuple[int, ...], Shell]:
         """Get unique shells and which jobscripts they correspond to."""
         js_idx = []
         shells = []
@@ -427,7 +434,7 @@ class Submission(JSONLike):
 
         raise SubmissionFailure(message=msg)
 
-    def _append_submission_part(self, submit_time: str, submitted_js_idx: List[int]):
+    def _append_submission_part(self, submit_time: str, submitted_js_idx: list[int]):
         self._submission_parts[submit_time] = submitted_js_idx
         self.workflow._store.add_submission_part(
             sub_idx=self.index,
@@ -439,10 +446,10 @@ class Submission(JSONLike):
     def submit(
         self,
         status,
-        ignore_errors: Optional[bool] = False,
-        print_stdout: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-    ) -> List[int]:
+        ignore_errors: bool = False,
+        print_stdout: bool = False,
+        add_to_known: bool = True,
+    ) -> list[int]:
         """Generate and submit the jobscripts of this submission."""
 
         # if JS_parallelism explicitly requested but store doesn't support, raise:
