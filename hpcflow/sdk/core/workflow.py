@@ -2884,6 +2884,7 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
+    @TimeIt.decorator
     def get_all_submission_run_IDs(self) -> List[int]:
         self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
         id_lst = []
@@ -2909,6 +2910,7 @@ class Workflow:
             for run_ID in to_skip:
                 self.set_EAR_skip(run_ID)
 
+    @TimeIt.decorator
     def get_loop_map(self, id_lst: Optional[List[int]] = None):
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
