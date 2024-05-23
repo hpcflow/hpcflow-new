@@ -1,8 +1,11 @@
+from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Set, Dict
+from typing import Set, Dict, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
+if TYPE_CHECKING:
+    from .element import Element
 
 
 @dataclass
@@ -18,7 +21,7 @@ class DependencyCache:
     elem_elem_dependents: Dict[int, Set]
     elem_elem_dependents_rec: Dict[int, Set]
 
-    elements: Dict
+    elements: Dict[int, Element]
     iterations: Dict
 
     @classmethod

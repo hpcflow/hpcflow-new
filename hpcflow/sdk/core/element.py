@@ -1045,7 +1045,7 @@ class Element:
 
     @property
     @TimeIt.decorator
-    def iterations(self) -> list[ElementAction]:
+    def iterations(self) -> list[ElementIteration]:
         # TODO: fix this
         if self._iteration_objs is None:
             self._iteration_objs = [
@@ -1063,7 +1063,7 @@ class Element:
         return f"e_{self.index}"
 
     @property
-    def latest_iteration(self) -> ElementAction:
+    def latest_iteration(self) -> ElementIteration:
         return self.iterations[-1]
 
     @property
