@@ -20,10 +20,11 @@ class DependencyCache:
 
     elements: Dict
     iterations: Dict
+    runs: Dict
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow):
+    def build(cls, workflow, elements=True, iterations=True, runs=True):
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs
@@ -125,8 +126,12 @@ class DependencyCache:
         elem_elem_dependents = dict(elem_elem_dependents)
         elem_elem_dependents_rec = dict(elem_elem_dependents_rec)
 
-        elements = workflow.get_all_elements()
-        iterations = workflow.get_all_element_iterations()
+        if elements:
+            element_objs = workflow.get_all_elements()
+        if iterations:
+            iter_objs = workflow.get_all_element_iterations()
+        if runs:
+            run_objs = workflow.get_all_EARs()
 
         return cls(
             run_dependencies=run_dependencies,
@@ -137,6 +142,7 @@ class DependencyCache:
             elem_elem_dependencies=elem_elem_dependencies,
             elem_elem_dependents=elem_elem_dependents,
             elem_elem_dependents_rec=elem_elem_dependents_rec,
-            elements=elements,
-            iterations=iterations,
+            elements=element_objs,
+            iterations=iter_objs,
+            runs=run_objs,
         )
