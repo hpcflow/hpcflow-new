@@ -4,15 +4,11 @@ from dataclasses import dataclass, field
 import os
 from typing import Any, Dict, TYPE_CHECKING
 
-from valida.conditions import ConditionLike
-from valida.rules import Rule
+from valida.rules import Rule  # type: ignore
 
-from hpcflow.sdk import app
-from hpcflow.sdk.core.actions import ElementAction
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.parameters import InputValue, ResourceSpec
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
@@ -22,6 +18,8 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from ..app import BaseApp
     from .actions import Action
     from .task import WorkflowTask
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
@@ -31,12 +29,13 @@ if TYPE_CHECKING:
 
 
 class _ElementPrefixedParameter:
+    _app: BaseApp
     _app_attr = "_app"
 
     def __init__(
         self,
         prefix: str,
-        element_iteration: Element | None = None,
+        element_iteration: ElementIteration | None = None,
         element_action: ElementAction | None = None,
         element_action_run: ElementActionRun | None = None,
     ) -> None:
@@ -45,7 +44,7 @@ class _ElementPrefixedParameter:
         self._element_action = element_action
         self._element_action_run = element_action_run
 
-        self._prefixed_names_unlabelled = None  # assigned on first access
+        self._prefixed_names_unlabelled: dict[str, list[str]] | None = None  # assigned on first access
 
     def __getattr__(self, name):
         if name not in self.prefixed_names_unlabelled:
@@ -86,7 +85,7 @@ class _ElementPrefixedParameter:
         return self._element_iteration or self._element_action or self._element_action_run
 
     @property
-    def _element_iteration_obj(self):
+    def _element_iteration_obj(self) -> ElementIteration:
         if self._element_iteration:
             return self._element_iteration
         else:
@@ -129,13 +128,12 @@ class _ElementPrefixedParameter:
 
     def _get_prefixed_names_unlabelled(self) -> dict[str, list[str]]:
         names = self._get_prefixed_names()
-        all_names = {}
+        all_names: dict[str, list[str]] = {}
         for i in list(names):
             if "[" in i:
                 unlab_i, label_i = split_param_label(i)
-                if unlab_i not in all_names:
-                    all_names[unlab_i] = []
-                all_names[unlab_i].append(label_i)
+                if unlab_i is not None and label_i is not None:
+                    all_names.setdefault(unlab_i, []).append(label_i)
             else:
                 all_names[i] = []
         return all_names
@@ -211,14 +209,14 @@ class ElementResources(JSONLike):
     environments: Dict | None = None
 
     # SGE scheduler specific:
-    SGE_parallel_env: str = None
+    SGE_parallel_env: str | None = None
 
     # SLURM scheduler specific:
-    SLURM_partition: str = None
-    SLURM_num_tasks: str = None
-    SLURM_num_tasks_per_node: str = None
-    SLURM_num_nodes: str = None
-    SLURM_num_cpus_per_task: str = None
+    SLURM_partition: str | None = None
+    SLURM_num_tasks: str | None = None
+    SLURM_num_tasks_per_node: str | None = None
+    SLURM_num_nodes: str | None = None
+    SLURM_num_cpus_per_task: str | None = None
 
     def __post_init__(self):
         if (
@@ -275,7 +273,7 @@ class ElementResources(JSONLike):
     @property
     def is_parallel(self) -> bool:
         """Returns True if any scheduler-agnostic arguments indicate a parallel job."""
-        return (
+        return bool(
             (self.num_cores and self.num_cores != 1)
             or (self.num_cores_per_node and self.num_cores_per_node != 1)
             or (self.num_nodes and self.num_nodes != 1)
@@ -285,7 +283,7 @@ class ElementResources(JSONLike):
     @property
     def SLURM_is_parallel(self) -> bool:
         """Returns True if any SLURM-specific arguments indicate a parallel job."""
-        return (
+        return bool(
             (self.SLURM_num_tasks and self.SLURM_num_tasks != 1)
             or (self.SLURM_num_tasks_per_node and self.SLURM_num_tasks_per_node != 1)
             or (self.SLURM_num_nodes and self.SLURM_num_nodes != 1)
@@ -299,7 +297,7 @@ class ElementResources(JSONLike):
         return ("num_cores",)  # TODO: filter on `parallel_mode` later
 
     @staticmethod
-    def get_default_os_name():
+    def get_default_os_name() -> str:
         return os.name
 
     @classmethod
@@ -362,6 +360,7 @@ class ElementResources(JSONLike):
 
 
 class ElementIteration:
+    app: BaseApp
     _app_attr = "app"
 
     def __init__(
@@ -373,7 +372,7 @@ class ElementIteration:
         data_idx: Dict,
         EARs_initialised: bool,
         EAR_IDs: dict[int, int],
-        EARs: list[Dict] | None,
+        EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
         schema_parameters: list[str],
         loop_idx: Dict,
     ):
@@ -389,11 +388,11 @@ class ElementIteration:
         self._EAR_IDs = EAR_IDs
 
         # assigned on first access of corresponding properties:
-        self._inputs = None
-        self._outputs = None
-        self._input_files = None
-        self._output_files = None
-        self._action_objs = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
+        self._action_objs: dict[int, ElementAction] | None = None
 
     def __repr__(self):
         return (
@@ -456,14 +455,11 @@ class ElementIteration:
     @property
     def actions(self) -> dict[int, ElementAction]:
         if self._action_objs is None:
-            self._action_objs = {
-                act_idx: self.app.ElementAction(
-                    element_iteration=self,
-                    action_idx=act_idx,
-                    runs=runs,
-                )
+            self._action_objs = ao = {
+                act_idx: self.app.ElementAction(self, act_idx, runs)
                 for act_idx, runs in (self._EARs or {}).items()
             }
+            return ao
         return self._action_objs
 
     @property
@@ -475,25 +471,29 @@ class ElementIteration:
     @property
     def inputs(self) -> ElementInputs:
         if not self._inputs:
-            self._inputs = self.app.ElementInputs(element_iteration=self)
+            self._inputs = ins = self.app.ElementInputs(element_iteration=self)
+            return ins
         return self._inputs
 
     @property
     def outputs(self) -> ElementOutputs:
         if not self._outputs:
-            self._outputs = self.app.ElementOutputs(element_iteration=self)
+            self._outputs = outs = self.app.ElementOutputs(element_iteration=self)
+            return outs
         return self._outputs
 
     @property
     def input_files(self) -> ElementInputFiles:
         if not self._input_files:
-            self._input_files = self.app.ElementInputFiles(element_iteration=self)
+            self._input_files = eif = self.app.ElementInputFiles(element_iteration=self)
+            return eif
         return self._input_files
 
     @property
     def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = self.app.ElementOutputFiles(element_iteration=self)
+            self._output_files = eof = self.app.ElementOutputFiles(element_iteration=self)
+            return eof
         return self._output_files
 
     def get_parameter_names(self, prefix: str) -> list[str]:
@@ -525,7 +525,7 @@ class ElementIteration:
     @TimeIt.decorator
     def get_data_idx(
         self,
-        path: str = None,
+        path: str | None = None,
         action_idx: int | None = None,
         run_idx: int = -1,
     ) -> dict[str, int]:
@@ -564,10 +564,10 @@ class ElementIteration:
     @TimeIt.decorator
     def get_parameter_sources(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ) -> dict[str, str | dict[str, Any]]:
@@ -650,8 +650,8 @@ class ElementIteration:
     @TimeIt.decorator
     def get(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
@@ -951,6 +951,7 @@ class ElementIteration:
 
 
 class Element:
+    app: BaseApp
     _app_attr = "app"
 
     # TODO: use slots
@@ -982,7 +983,7 @@ class Element:
         self._iterations = iterations
 
         # assigned on first access:
-        self._iteration_objs = None
+        self._iteration_objs: list[ElementIteration] | None = None
 
     def __repr__(self):
         return (
@@ -1087,7 +1088,7 @@ class Element:
         return self.latest_iteration.schema_parameters
 
     @property
-    def actions(self) -> Dict[ElementAction]:
+    def actions(self) -> dict[int, ElementAction]:
         return self.latest_iteration.actions
 
     @property
@@ -1136,8 +1137,8 @@ class Element:
 
     def get_data_idx(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
     ) -> dict[str, int]:
         """Get the data index of the most recent element iteration.
@@ -1155,10 +1156,10 @@ class Element:
 
     def get_parameter_sources(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ) -> dict[str, str | dict[str, Any]]:
@@ -1181,8 +1182,8 @@ class Element:
 
     def get(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
@@ -1295,6 +1296,7 @@ class Element:
 
 @dataclass(repr=False, eq=False)
 class ElementParameter:
+    app: BaseApp
     _app_attr = "app"
 
     task: WorkflowTask
@@ -1308,6 +1310,7 @@ class ElementParameter:
 
     @property
     def value(self) -> Any:
+        assert hasattr(self.parent, "get")
         return self.parent.get(path=self.path)
 
     def __repr__(self) -> str:
@@ -1316,8 +1319,7 @@ class ElementParameter:
     def __eq__(self, __o: object) -> bool:
         if not isinstance(__o, self.__class__):
             return False
-        if self.task == __o.task and self.path == __o.path:
-            return True
+        return self.task == __o.task and self.path == __o.path
 
     @property
     def data_idx_is_set(self):
@@ -1342,7 +1344,7 @@ class ElementFilter(JSONLike):
     def filter(
         self, element_iters: list[ElementIteration]
     ) -> list[ElementIteration]:
-        out = []
+        out: list[ElementIteration] = []
         for i in element_iters:
             if all(rule_j.test(i) for rule_j in self.rules):
                 out.append(i)

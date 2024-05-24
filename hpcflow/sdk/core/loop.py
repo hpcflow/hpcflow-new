@@ -12,6 +12,7 @@ from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
+    from ..app import BaseApp
     from .element import ElementIteration
     from .rule import Rule
     from .workflow import Workflow, WorkflowTemplate
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 
 
 class Loop(JSONLike):
+    app: BaseApp
     _app_attr = "app"
     _child_objects = (ChildObjectSpec(name="termination", class_name="Rule"),)
 
@@ -175,6 +177,7 @@ class Loop(JSONLike):
 class WorkflowLoop:
     """Class to represent a Loop that is bound to a Workflow."""
 
+    app: BaseApp
     _app_attr = "app"
 
     def __init__(

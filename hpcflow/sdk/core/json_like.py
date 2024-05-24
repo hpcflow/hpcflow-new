@@ -4,12 +4,14 @@ from collections.abc import Sequence, Mapping, Callable
 import copy
 from dataclasses import dataclass
 import enum
-from typing import Any, TypeAlias, overload, TypeGuard, Self, Protocol, runtime_checkable
+from typing import Any, TypeAlias, overload, TypeGuard, Self, Protocol, runtime_checkable, TYPE_CHECKING
 
 from hpcflow.sdk import app, get_SDK_logger
 from .utils import classproperty, get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
+if TYPE_CHECKING:
+    from ..app import BaseApp
 
 
 PRIMITIVES = (
@@ -536,7 +538,7 @@ class JSONLike(BaseJSONLike):
     _app_attr = "app"  # for some classes we change this to "_app"
 
     @classproperty
-    def _class_namespace(cls):
+    def _class_namespace(cls) -> BaseApp:
         return getattr(cls, cls._app_attr)
 
     def to_dict(self):

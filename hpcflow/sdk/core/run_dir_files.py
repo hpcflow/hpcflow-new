@@ -1,11 +1,16 @@
+from __future__ import annotations
 import re
+from typing import TYPE_CHECKING
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
+if TYPE_CHECKING:
+    from ..app import BaseApp
 
 
 class RunDirAppFiles:
     """A class to encapsulate the naming/recognition of app-created files within run
     directories."""
 
+    app: BaseApp
     _app_attr = "app"
 
     CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"

@@ -11,6 +11,7 @@ from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
+    from ..app import BaseApp
     from .actions import ActionRule
     from .parameters import Parameter
     from .workflow import Workflow
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class FileSpec(JSONLike):
+    app: BaseApp
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
@@ -52,6 +54,7 @@ class FileSpec(JSONLike):
 
 
 class FileNameSpec(JSONLike):
+    app: BaseApp
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
@@ -105,6 +108,7 @@ class FileNameExt(JSONLike):
 
 @dataclass
 class InputFileGenerator(JSONLike):
+    app: BaseApp
     _app_attr = "app"
 
     _child_objects = (

@@ -31,6 +31,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
+    from ..app import BaseApp
     from .actions import ActionScope
     from .task import TaskSchema, TaskTemplate
     from .workflow import Workflow
@@ -172,6 +173,7 @@ class SubParameter:
 
 @dataclass
 class SchemaParameter(JSONLike):
+    app: BaseApp
     _app_attr = "app"
 
     _child_objects = (

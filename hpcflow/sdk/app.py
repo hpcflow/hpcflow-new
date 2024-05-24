@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, Type, TYPE_CHECKING
+from typing import Any, Dict, List, Type, overload, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -61,15 +61,34 @@ from hpcflow.sdk.submission.shells.os_version import (
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from .core.workflow import Workflow, WorkflowTemplate
+    from typing import Literal
+    from .core.actions import ElementActionRun, ElementAction, ActionEnvironment, Action, ActionScope
+    from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
+    from .core.commands import Command
+    from .core.element import (
+        ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
+        ElementIteration, Element, ElementParameter)
+    from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
-        CommandFilesList, EnvironmentsList, ParametersList, TaskSchemasList)
+        CommandFilesList, EnvironmentsList, ExecutablesList, GroupList, ParametersList,
+        ResourceList, TaskList, TaskSchemasList, TaskTemplateList, WorkflowLoopList,
+        WorkflowTaskList)
+    from .core.parameters import SchemaParameter
+    from .core.run_dir_files import RunDirAppFiles
+    from .core.task import (
+        WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
+        ElementPropagation)
+    from .core.workflow import Workflow, WorkflowTemplate
+    from .submission.jobscript import Jobscript
+    from .submission.schedulers.direct import DirectPosix, DirectWindows
+    from .submission.schedulers.sge import SGEPosix
+    from .submission.schedulers.slurm import SlurmPosix
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 
-def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
+def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
     """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s
 
     References
@@ -108,9 +127,8 @@ def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
 
     return _inner(*args, **kwargs)
 
-
 def __getattr__(name):
-    """Allow access to core classes and API functions (useful for type annotations)."""
+    """Allow access to core classes and API functions."""
     try:
         return get_app_attribute(name)
     except AttributeError:
@@ -248,6 +266,178 @@ class BaseApp(metaclass=Singleton):
         self._user_cache_hostname_dir = None
         self._demo_data_cache_dir = None
 
+    @property
+    def ElementActionRun(self) -> type[ElementActionRun]:
+        return self._get_app_core_class("ElementActionRun")
+
+    @property
+    def ElementAction(self) -> type[ElementAction]:
+        return self._get_app_core_class("ElementAction")
+
+    @property
+    def ActionEnvironment(self) -> type[ActionEnvironment]:
+        return self._get_app_core_class("ActionEnvironment")
+
+    @property
+    def Action(self) -> type[Action]:
+        return self._get_app_core_class("Action")
+
+    @property
+    def ActionScope(self) -> type[ActionScope]:
+        return self._get_app_core_class("ActionScope")
+
+    @property
+    def FileSpec(self) -> type[FileSpec]:
+        return self._get_app_core_class("FileSpec")
+
+    @property
+    def FileNameSpec(self) -> type[FileNameSpec]:
+        return self._get_app_core_class("FileNameSpec")
+
+    @property
+    def InputFileGenerator(self) -> type[InputFileGenerator]:
+        return self._get_app_core_class("InputFileGenerator")
+
+    @property
+    def Command(self) -> type[Command]:
+        return self._get_app_core_class("Command")
+
+    @property
+    def ElementInputs(self) -> type[ElementInputs]:
+        return self._get_app_core_class("ElementInputs")
+
+    @property
+    def ElementOutputs(self) -> type[ElementOutputs]:
+        return self._get_app_core_class("ElementOutputs")
+
+    @property
+    def ElementInputFiles(self) -> type[ElementInputFiles]:
+        return self._get_app_core_class("ElementInputFiles")
+
+    @property
+    def ElementOutputFiles(self) -> type[ElementOutputFiles]:
+        return self._get_app_core_class("ElementOutputFiles")
+
+    @property
+    def ElementIteration(self) -> type[ElementIteration]:
+        return self._get_app_core_class("ElementIteration")
+
+    @property
+    def Element(self) -> type[Element]:
+        return self._get_app_core_class("Element")
+
+    @property
+    def ElementParameter(self) -> type[ElementParameter]:
+        return self._get_app_core_class("ElementParameter")
+
+    @property
+    def Loop(self) -> type[Loop]:
+        return self._get_app_core_class("Loop")
+
+    @property
+    def WorkflowLoop(self) -> type[WorkflowLoop]:
+        return self._get_app_core_class("WorkflowLoop")
+
+    @property
+    def CommandFilesList(self) -> type[CommandFilesList]:
+        return self._get_app_core_class("CommandFilesList")
+
+    @property
+    def EnvironmentsList(self) -> type[EnvironmentsList]:
+        return self._get_app_core_class("EnvironmentsList")
+
+    @property
+    def ExecutablesList(self) -> type[ExecutablesList]:
+        return self._get_app_core_class("ExecutablesList")
+
+    @property
+    def GroupList(self) -> type[GroupList]:
+        return self._get_app_core_class("GroupList")
+
+    @property
+    def ParametersList(self) -> type[ParametersList]:
+        return self._get_app_core_class("ParametersList")
+
+    @property
+    def ResourceList(self) -> type[ResourceList]:
+        return self._get_app_core_class("ResourceList")
+
+    @property
+    def TaskList(self) -> type[TaskList]:
+        return self._get_app_core_class("TaskList")
+
+    @property
+    def TaskSchemasList(self) -> type[TaskSchemasList]:
+        return self._get_app_core_class("TaskSchemasList")
+
+    @property
+    def TaskTemplateList(self) -> type[TaskTemplateList]:
+        return self._get_app_core_class("TaskTemplateList")
+
+    @property
+    def WorkflowLoopList(self) -> type[WorkflowLoopList]:
+        return self._get_app_core_class("WorkflowLoopList")
+
+    @property
+    def WorkflowTaskList(self) -> type[WorkflowTaskList]:
+        return self._get_app_core_class("WorkflowTaskList")
+
+    @property
+    def SchemaParameter(self) -> type[SchemaParameter]:
+        return self._get_app_core_class("SchemaParameter")
+
+    @property
+    def RunDirAppFiles(self) -> type[RunDirAppFiles]:
+        return self._get_app_core_class("RunDirAppFiles")
+
+    @property
+    def WorkflowTask(self) -> type[WorkflowTask]:
+        return self._get_app_core_class("WorkflowTask")
+
+    @property
+    def Parameters(self) -> type[Parameters]:
+        return self._get_app_core_class("Parameters")
+
+    @property
+    def TaskInputParameters(self) -> type[TaskInputParameters]:
+        return self._get_app_core_class("TaskInputParameters")
+
+    @property
+    def TaskOutputParameters(self) -> type[TaskOutputParameters]:
+        return self._get_app_core_class("TaskOutputParameters")
+
+    @property
+    def ElementPropagation(self) -> type[ElementPropagation]:
+        return self._get_app_core_class("ElementPropagation")
+
+    @property
+    def WorkflowTemplate(self) -> type[WorkflowTemplate]:
+        return self._get_app_core_class("WorkflowTemplate")
+
+    @property
+    def Workflow(self) -> type[Workflow]:
+        return self._get_app_core_class("Workflow")
+
+    @property
+    def Jobscript(self) -> type[Jobscript]:
+        return self._get_app_core_class("Jobscript")
+
+    @property
+    def DirectPosix(self) -> type[DirectPosix]:
+        return self._get_app_core_class("DirectPosix")
+
+    @property
+    def DirectWindows(self) -> type[DirectWindows]:
+        return self._get_app_core_class("DirectWindows")
+
+    @property
+    def SGEPosix(self) -> type[SGEPosix]:
+        return self._get_app_core_class("SGEPosix")
+
+    @property
+    def SlurmPosix(self) -> type[SlurmPosix]:
+        return self._get_app_core_class("SlurmPosix")
+
     def __getattr__(self, name):
         if name in sdk_classes:
             return self._get_app_core_class(name)
@@ -259,7 +449,7 @@ class BaseApp(metaclass=Singleton):
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
-    def _get_app_core_class(self, name: str) -> Type:
+    def _get_app_core_class(self, name: str) -> type:
         if name not in self._app_attr_cache:
             obj_mod = import_module(sdk_classes[name])
             cls = getattr(obj_mod, name)

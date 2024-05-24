@@ -1,7 +1,8 @@
+from __future__ import annotations
 from pathlib import Path
 import subprocess
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -14,6 +15,8 @@ from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
+if TYPE_CHECKING:
+    from ...app import BaseApp
 
 
 class SlurmPosix(Scheduler):
@@ -32,6 +35,7 @@ class SlurmPosix(Scheduler):
 
     """
 
+    app: BaseApp
     _app_attr = "app"
 
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"

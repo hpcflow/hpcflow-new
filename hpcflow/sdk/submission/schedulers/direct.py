@@ -11,6 +11,7 @@ from hpcflow.sdk.submission.schedulers import NullScheduler
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from ...app import BaseApp
     from ..jobscript import Jobscript
 
 
@@ -150,6 +151,7 @@ class DirectScheduler(NullScheduler):
 
 
 class DirectPosix(DirectScheduler):
+    app: BaseApp
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
 
@@ -158,6 +160,7 @@ class DirectPosix(DirectScheduler):
 
 
 class DirectWindows(DirectScheduler):
+    app: BaseApp
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "powershell.exe"
 

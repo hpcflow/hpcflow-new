@@ -60,6 +60,7 @@ from hpcflow.sdk.core.errors import (
 )
 if TYPE_CHECKING:
     from fsspec import AbstractFileSystem
+    from ..app import BaseApp
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .task import Task, WorkflowTask
@@ -118,6 +119,7 @@ class WorkflowTemplate(JSONLike):
         template-level resources are ignored.
     """
 
+    app: BaseApp
     _app_attr = "app"
     _validation_schema = "workflow_spec_schema.yaml"
 
@@ -499,6 +501,7 @@ def resolve_fsspec(path: PathLike, **kwargs) -> tuple[AbstractFileSystem, str, s
 
 
 class Workflow:
+    app: BaseApp
     _app_attr = "app"
     _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
     _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"

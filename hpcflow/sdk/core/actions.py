@@ -32,6 +32,8 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from ..app import BaseApp
     from .environment import Environment
     from .element import ElementIteration
     from ..submission.jobscript import Jobscript
@@ -140,6 +142,7 @@ class EARStatus(enum.Enum):
 
 
 class ElementActionRun:
+    app: BaseApp
     _app_attr = "app"
 
     def __init__(
@@ -743,9 +746,11 @@ class ElementActionRun:
 
 
 class ElementAction:
+    app: BaseApp
     _app_attr = "app"
 
-    def __init__(self, element_iteration, action_idx, runs):
+    def __init__(self, element_iteration: ElementIteration, action_idx: int,
+                 runs: dict[Mapping[str, Any], Any]):
         self._element_iteration = element_iteration
         self._action_idx = action_idx
         self._runs = runs
@@ -977,6 +982,7 @@ class ActionScope(JSONLike):
 
 @dataclass
 class ActionEnvironment(JSONLike):
+    app: BaseApp
     _app_attr = "app"
 
     _child_objects = (
@@ -1066,6 +1072,7 @@ class ActionRule(JSONLike):
 class Action(JSONLike):
     """"""
 
+    app: BaseApp
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(

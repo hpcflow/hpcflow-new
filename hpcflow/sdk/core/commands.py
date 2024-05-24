@@ -13,11 +13,13 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParameterValue
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from ..app import BaseApp
     from .actions import ActionRule
 
 
 @dataclass
 class Command(JSONLike):
+    app: BaseApp
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(

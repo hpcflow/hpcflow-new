@@ -13,6 +13,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
+    from ...app import BaseApp
     from ..jobscript import Jobscript
 
 
@@ -30,6 +31,7 @@ class SGEPosix(Scheduler):
 
     """
 
+    app: BaseApp
     _app_attr = "app"
 
     DEFAULT_SHEBANG_ARGS = ""

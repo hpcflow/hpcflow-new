@@ -45,6 +45,7 @@ from .utils import (
     split_param_label,
 )
 if TYPE_CHECKING:
+    from ..app import BaseApp
     from .actions import Action
     from .element import Element, ElementIteration, ElementFilter
     from .parameters import InputValue, InputSource, ValueSequence, SchemaInput, SchemaOutput, ParameterPath
@@ -1355,6 +1356,7 @@ class Task(JSONLike):
 class WorkflowTask:
     """Class to represent a Task that is bound to a Workflow."""
 
+    app: BaseApp
     _app_attr = "app"
 
     def __init__(
@@ -2955,6 +2957,7 @@ class Elements:
 
 @dataclass
 class Parameters:
+    _app: BaseApp
     _app_attr = "_app"
 
     task: WorkflowTask
@@ -3023,6 +3026,7 @@ class Parameters:
 class TaskInputParameters:
     """For retrieving schema input parameters across all elements."""
 
+    _app: BaseApp
     _app_attr = "_app"
 
     task: WorkflowTask
@@ -3049,6 +3053,7 @@ class TaskInputParameters:
 class TaskOutputParameters:
     """For retrieving schema output parameters across all elements."""
 
+    _app: BaseApp
     _app_attr = "_app"
 
     task: WorkflowTask
@@ -3076,6 +3081,7 @@ class ElementPropagation:
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""
 
+    app: BaseApp
     _app_attr = "app"
 
     task: Task

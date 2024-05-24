@@ -23,6 +23,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
+    from ..app import BaseApp
     from ..core.element import ElementResources
     from ..core.workflow import WorkflowTask
 
@@ -310,6 +311,7 @@ def jobscripts_to_list(jobscripts: dict[int, Dict]) -> list[Dict]:
 
 
 class Jobscript(JSONLike):
+    app: BaseApp
     _app_attr = "app"
     _EAR_files_delimiter = ":"
     _workflow_app_alias = "wkflow_app"
