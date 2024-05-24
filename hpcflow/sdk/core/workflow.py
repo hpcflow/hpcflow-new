@@ -1177,7 +1177,7 @@ class Workflow:
                     status.update(
                         f"{status_prev}: iteration {iter_idx + 2}/{loop.num_iterations}."
                     )
-                new_wk_loop.add_iteration(cache=cache)
+                new_wk_loop.add_iteration(cache=cache, status=status)
 
     def add_loop(self, loop: app.Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
