@@ -650,6 +650,11 @@ class Workflow:
                                         f"{len(template.loops)} ({loop.name!r})"
                                     )
                                 wk._add_loop(loop, cache=cache, status=status)
+                            if status:
+                                status.update(
+                                    f"Added {len(template.loops)} loops. "
+                                    f"Committing to store..."
+                                )
         except Exception:
             if status:
                 status.stop()
