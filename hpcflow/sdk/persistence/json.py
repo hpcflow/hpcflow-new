@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from typing import Any, Dict, Iterable, Iterator
+from typing import Any, Dict, TYPE_CHECKING
 
 from fsspec import filesystem
 from hpcflow.sdk.core.errors import (
@@ -27,6 +27,10 @@ from hpcflow.sdk.persistence.base import (
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
 from hpcflow.sdk.persistence.base import update_param_source_dict
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+    from fsspec import AbstractFileSystem
+    from ..app import BaseApp
 
 
 class JSONPersistentStore(PersistentStore):
@@ -75,7 +79,7 @@ class JSONPersistentStore(PersistentStore):
         commit_param_sources=(_params_res,),
     )
 
-    def __init__(self, app, workflow, path, fs):
+    def __init__(self, app, workflow, path, fs: AbstractFileSystem):
         self._resources = {
             self._meta_res: self._get_store_resource(app, "metadata", path, fs),
             self._params_res: self._get_store_resource(app, "parameters", path, fs),
@@ -105,7 +109,8 @@ class JSONPersistentStore(PersistentStore):
                 self.rename_path(md["replaced_workflow"], self.path, self.fs)
 
     @classmethod
-    def _get_store_resource(cls, app, name, path, fs):
+    def _get_store_resource(cls, app: BaseApp, name: str, path: str | Path,
+                            fs: AbstractFileSystem) -> JSONFileStoreResource:
         return JSONFileStoreResource(
             app=app,
             name=name,
@@ -117,11 +122,11 @@ class JSONPersistentStore(PersistentStore):
     @classmethod
     def write_empty_workflow(
         cls,
-        app,
+        app: BaseApp,
         template_js: Dict,
         template_components_js: Dict,
         wk_path: str,
-        fs,
+        fs: AbstractFileSystem,
         name: str,
         replaced_wk: str,
         creation_info: Dict,
@@ -354,7 +359,7 @@ class JSONPersistentStore(PersistentStore):
     @classmethod
     def make_test_store_from_spec(
         cls,
-        app,
+        app: BaseApp,
         spec,
         dir=None,
         path="test_store.json",

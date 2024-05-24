@@ -1,10 +1,13 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 import copy
 import json
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import get_md5_hash
+if TYPE_CHECKING:
+    from ..app import BaseApp
 
 
 class StoreResource(ABC):
@@ -15,7 +18,7 @@ class StoreResource(ABC):
 
     """
 
-    def __init__(self, app, name: str) -> None:
+    def __init__(self, app: BaseApp, name: str) -> None:
         self.app = app
         self.name = name
         self.data = {"read": None, "update": None}
@@ -90,7 +93,7 @@ class StoreResource(ABC):
 class JSONFileStoreResource(StoreResource):
     """For caching reads and writes to a JSON file."""
 
-    def __init__(self, app, name: str, filename: str, path: Union[str, Path], fs):
+    def __init__(self, app: BaseApp, name: str, filename: str, path: str | Path, fs):
         self.filename = filename
         self.path = path
         self.fs = fs
@@ -116,7 +119,7 @@ class JSONFileStoreResource(StoreResource):
 class ZarrAttrsStoreResource(StoreResource):
     """For caching reads and writes to Zarr attributes on groups and arrays."""
 
-    def __init__(self, app, name: str, open_call: Callable):
+    def __init__(self, app: BaseApp, name: str, open_call: Callable):
         self.open_call = open_call
         super().__init__(app, name)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 if TYPE_CHECKING:
@@ -236,8 +236,8 @@ class P1_parameter_cls(ParameterValue):
     _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 
     a: int
-    d: Optional[int] = None
-    sub_param: Optional[P1_sub_parameter_cls] = None
+    d: int | None = None
+    sub_param: P1_sub_parameter_cls | None = None
 
     def __post_init__(self):
         if self.sub_param is not None and not isinstance(

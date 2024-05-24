@@ -59,6 +59,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowSubmissionFailure,
 )
 if TYPE_CHECKING:
+    from fsspec import AbstractFileSystem
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .task import Task, WorkflowTask
@@ -464,7 +465,7 @@ class WorkflowTemplate(JSONLike):
         self.loops.append(loop)
 
 
-def resolve_fsspec(path: PathLike, **kwargs) -> tuple[Any, str, str]:
+def resolve_fsspec(path: PathLike, **kwargs) -> tuple[AbstractFileSystem, str, str | None]:
     """
     Parameters
     ----------
@@ -474,6 +475,7 @@ def resolve_fsspec(path: PathLike, **kwargs) -> tuple[Any, str, str]:
     """
 
     path = str(path)
+    fs: AbstractFileSystem
     if path.endswith(".zip"):
         # `url_to_fs` does not seem to work for zip combos e.g. `zip::ssh://`, so we
         # construct a `ZipFileSystem` ourselves and assume it is signified only by the
@@ -1575,7 +1577,7 @@ class Workflow:
                 self._in_batch_mode = False
 
     @classmethod
-    def temporary_rename(cls, path: str, fs) -> list[str]:
+    def temporary_rename(cls, path: str, fs: AbstractFileSystem) -> list[str]:
         """Rename an existing same-path workflow (directory) so we can restore it if
         workflow creation fails.
 
@@ -1586,7 +1588,7 @@ class Workflow:
         all_replaced = []
 
         @cls.app.perm_error_retry()
-        def _temp_rename(path: str, fs) -> str:
+        def _temp_rename(path: str, fs: AbstractFileSystem) -> str:
             temp_ext = "".join(random.choices(string.ascii_letters, k=10))
             replaced = str(Path(f"{path}.{temp_ext}").as_posix())
             cls.app.persistence_logger.debug(
@@ -1601,7 +1603,7 @@ class Workflow:
             return replaced
 
         @cls.app.perm_error_retry()
-        def _remove_path(path: str, fs) -> None:
+        def _remove_path(path: str, fs: AbstractFileSystem) -> None:
             cls.app.persistence_logger.debug(f"temporary_rename: _remove_path: {path!r}.")
             while fs.exists(path):
                 fs.rm(path, recursive=True)

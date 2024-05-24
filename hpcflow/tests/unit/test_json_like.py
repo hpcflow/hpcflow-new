@@ -1,7 +1,8 @@
+from __future__ import annotations
 from dataclasses import dataclass
 import enum
 from types import SimpleNamespace
-from typing import Optional, Any
+from typing import Any
 
 import pytest
 
@@ -549,7 +550,7 @@ def test_from_json_like_with_parent_ref(null_config):
     class ObjB(BaseJSONLike):
         name: str
         c: int
-        obj_A: Optional[Any] = None
+        obj_A: Any = None
 
         def __eq__(self, other):
             if self.name == other.name and self.c == other.c:
@@ -600,7 +601,7 @@ def test_json_like_round_trip_with_parent_ref(null_config):
     class ObjB(BaseJSONLike):
         name: str
         c: int
-        obj_A: Optional[Any] = None
+        obj_A: Any = None
 
         def __eq__(self, other):
             if self.name == other.name and self.c == other.c:
@@ -658,7 +659,7 @@ def test_from_json_like_optional_attr(null_config):
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     js_in = {"a": 9, "b": None}
     objA = ObjA.from_json_like(js_in)
@@ -683,7 +684,7 @@ def test_from_json_like_optional_attr_with_is_multiple_both_none(null_config):
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     js_in = {
         "a": 9,
@@ -711,7 +712,7 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none(null_config):
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     js_in = {
         "a": 9,
@@ -743,7 +744,7 @@ def test_from_json_like_optional_attr_with_is_multiple_one_none_and_shared_data_
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     dcts = [
         {"name": "c1", "c": 2},
@@ -782,7 +783,7 @@ def test_from_json_like_optional_attr_with_is_multiple_all_none_and_shared_data_
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     dcts = [
         {"name": "c1", "c": 2},
@@ -819,7 +820,7 @@ def test_from_json_like_optional_attr_with_shared_data_name(null_config):
             ),
         )
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     dcts = [
         {"name": "c1", "c": 2},
@@ -848,7 +849,7 @@ def test_from_json_like_optional_attr_with_enum(null_config):
     class ObjA(BaseJSONLikeSubClass):
         _child_objects = (ChildObjectSpec(name="b", class_obj=MyEnum, is_enum=True),)
         a: int
-        b: Optional[Any] = None
+        b: Any = None
 
     js_in = {
         "a": 9,
@@ -1079,7 +1080,7 @@ def test_from_json_like_with_is_multiple_and_shared_data_dict_lookup(null_config
     class ObjB(BaseJSONLikeSubClass):
         name: str
         c: int
-        _hash_value: Optional[str] = None
+        _hash_value: str | None = None
 
     @dataclass
     class ObjA(BaseJSONLikeSubClass):
@@ -1205,7 +1206,7 @@ def test_to_json_like_with_child_ref(null_config):
     class ObjB(BaseJSONLike):
         name: str
         c: int
-        obj_A: Optional[Any] = None
+        obj_A: Any = None
 
     @dataclass
     class ObjA(BaseJSONLike):

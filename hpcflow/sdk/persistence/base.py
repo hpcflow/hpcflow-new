@@ -27,6 +27,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from fsspec import AbstractFileSystem
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
 AnySElement = TypeVar("AnySElement", bound="StoreElement")
@@ -657,7 +658,7 @@ class PersistentStore(ABC):
 
     _resources = {}
 
-    def __init__(self, app, workflow, path, fs=None) -> None:
+    def __init__(self, app, workflow, path, fs: AbstractFileSystem | None = None) -> None:
         self.app = app
         self.workflow = workflow
         self.path = path
@@ -1753,7 +1754,7 @@ class PersistentStore(ABC):
         return [False if i in id_miss else True for i in id_lst]
 
     @contextlib.contextmanager
-    def using_resource(self, res_label, action):
+    def using_resource(self, res_label: str, action: str) -> Iterable[Any]:
         """Context manager for managing `StoreResource` objects associated with the store."""
 
         try:
