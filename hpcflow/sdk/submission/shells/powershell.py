@@ -17,7 +17,7 @@ class WindowsPowerShell(Shell):
     JS_INDENT = "    "
     JS_ENV_SETUP_INDENT = 2 * JS_INDENT
     JS_SHEBANG = ""
-    JS_HEADER = dedent(
+    JS_FUNCS = dedent(
         """\
         function {workflow_app_alias} {{
             & {{
@@ -52,10 +52,27 @@ class WindowsPowerShell(Shell):
             Start-Job -InitializationScript $jobInitBlock -Script $block
         }}
 
+    """
+    )
+    JS_HEADER = dedent(
+        """\
+        $ErrorActionPreference = 'Stop'
+        $JS_FUNCS_PATH = (Join-Path -Path $PSScriptRoot -ChildPath {jobscript_functions_path})
+        
+        . $JS_FUNCS_PATH
+
         $WK_PATH = $(Get-Location)
         $WK_PATH_ARG = $WK_PATH
-        $SUB_IDX = {sub_idx}
-        $JS_IDX = {js_idx}
+        $env:{app_caps}_WK_PATH = $WK_PATH
+        $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
+        $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
+        $env:{app_caps}_STD_STREAM_FILE = "{run_stream_file}"
+        $env:{app_caps}_SUB_IDX = {sub_idx}
+        $env:{app_caps}_JS_IDX = {js_idx}
+        
+        $SUB_IDX = $env:{app_caps}_SUB_IDX
+        $JS_IDX = $env:{app_caps}_JS_IDX
+
         $EAR_ID_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {EAR_file_name}
         $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
     """
@@ -72,6 +89,7 @@ class WindowsPowerShell(Shell):
         """\
         $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
         $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
+        $env:{app_caps}_JS_ELEM_IDX = $JS_elem_idx
 
         for ($JS_act_idx = 0; $JS_act_idx -lt {num_actions}; $JS_act_idx += 1) {{
 
@@ -80,39 +98,14 @@ class WindowsPowerShell(Shell):
                 continue
             }}
 
+            $env:{app_caps}_RUN_ID = $EAR_ID
+            $env:{app_caps}_JS_ACT_IDX = $JS_act_idx            
+
             $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$JS_act_idx]
-            $run_dir_abs = "$WK_PATH\\$run_dir"
+            $run_dir_abs = Join-Path "$WK_PATH" "$run_dir"
             Set-Location $run_dir_abs
-            $app_stream_file = "$pwd/{run_stream_file}"
-
-            $skip = {workflow_app_alias} internal workflow $WK_PATH get-ear-skipped $EAR_ID 2>> $app_stream_file
-            $exc_sk = $LASTEXITCODE
-
-            if ($exc_sk -eq 0) {{
             
-                if ($skip -eq "1") {{
-                    continue
-                }}
-
-                {workflow_app_alias} internal workflow $WK_PATH write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID 2>&1 >> $app_stream_file
-                $exc_wc = $LASTEXITCODE
-
-                {workflow_app_alias} internal workflow $WK_PATH set-ear-start $EAR_ID 2>&1 >> $app_stream_file
-                $exc_se = $LASTEXITCODE
-
-                if (($exc_wc -eq 0) -and ($exc_se -eq 0)) {{
-                    . (Join-Path $run_dir_abs "{commands_file_name}")
-                    $exit_code = $LASTEXITCODE
-                }}
-                else {{
-                    $exit_code = If ($exc_wc -ne 0) {{$exc_wc}} Else {{$exc_se}}
-                }}
-            }}
-            else {{ 
-                $exit_code = $exc_sk
-            }}
-            $global:LASTEXITCODE = $null
-            {workflow_app_alias} internal workflow $WK_PATH set-ear-end $JS_IDX $JS_act_idx $EAR_ID "--" "$exit_code" 2>&1 >> $app_stream_file
+            {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx $EAR_ID
 
         }}
     """
@@ -129,9 +122,14 @@ class WindowsPowerShell(Shell):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get_direct_submit_command(self, js_path) -> List[str]:
+    def get_direct_submit_command(self, js_path: str) -> List[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + ["-File", js_path]
+
+    def get_command_file_launch_command(self, cmd_file_path: str) -> List[str]:
+        """Get the command for launching the commands file for a given run."""
+        # note the "-File" argument is required for the correct exit code to be recorded.
+        return self.executable + ["-File", cmd_file_path]
 
     def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
         """Get powershell version information.
@@ -174,8 +172,26 @@ class WindowsPowerShell(Shell):
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
 
+    def format_source_functions_file(self, app_name):
+        return dedent(
+            """\
+            . $env:{app_name}_JS_FUNCS_PATH
+            $WK_PATH = $env:{app_name}_WK_PATH
+            $WK_PATH_ARG = $env:{app_name}_WK_PATH_ARG
+            $RUN_ID = $env:{app_name}_RUN_ID
+            $SUB_IDX = $env:{app_name}_SUB_IDX
+            $JS_IDX = $env:{app_name}_JS_IDX
+            $JS_ELEM_IDX = $env:{app_name}_JS_ELEM_IDX
+            $JS_ACT_IDX = $env:{app_name}_JS_ACT_IDX
+            $STD_STREAM_FILE = $env:{app_name}_STD_STREAM_FILE
+            ${app_name}_RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
+
+            """
+        ).format(app_name=app_name.upper())
+
     def format_save_parameter(
         self,
+        app_name: str,
         workflow_app_alias: str,
         param_name: str,
         shell_var_name: str,
@@ -186,20 +202,24 @@ class WindowsPowerShell(Shell):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
+        app_name = app_name.upper()
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH save-parameter "
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
-            f"2>&1 >> $app_stream_file"
+            f"2>&1 >> $STD_STREAM_FILE"
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+    def format_loop_check(
+        self, app_name: str, workflow_app_alias: str, loop_name: str, run_ID: int
+    ):
+        app_name = app_name.upper()
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH check-loop "
             f"{loop_name} {run_ID} "
-            f"2>&1 >> $app_stream_file"
+            f"2>&1 >> $STD_STREAM_FILE"
             f"\n"
         )
 
@@ -211,6 +231,8 @@ class WindowsPowerShell(Shell):
         """
         commands = indent(commands, self.JS_INDENT)
         if abortable:
+            # TODO: won't work anymore!
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!
             # run commands as a background job, and poll a file to check for abort
             # requests:
             return dedent(

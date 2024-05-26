@@ -537,6 +537,32 @@ def _make_internal_CLI(app):
     @click.pass_context
     @click.argument("submission_idx", type=click.INT)
     @click.argument("jobscript_idx", type=click.INT)
+    @click.argument("js_element_idx", type=click.INT)
+    @click.argument("js_action_idx", type=click.INT)
+    @click.argument("run_id", type=click.INT)
+    def execute_run(
+        ctx,
+        submission_idx: int,
+        jobscript_idx: int,
+        js_element_idx: int,
+        js_action_idx: int,
+        run_id: int,
+    ):
+        app.CLI_logger.info(f"execute commands for EAR ID {run_id!r}.")
+        ctx.exit(
+            ctx.obj["workflow"].execute_run(
+                submission_idx,
+                jobscript_idx,
+                js_element_idx,
+                js_action_idx,
+                run_id,
+            )
+        )
+
+    @workflow.command()
+    @click.pass_context
+    @click.argument("submission_idx", type=click.INT)
+    @click.argument("jobscript_idx", type=click.INT)
     @click.argument("js_action_idx", type=click.INT)
     @click.argument("ear_id", type=click.INT)
     def write_commands(

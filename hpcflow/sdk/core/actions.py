@@ -152,6 +152,7 @@ class ElementActionRun:
         exit_code: Union[int, None],
         metadata: Dict,
         run_hostname: Union[str, None],
+        port_number: Union[int, None],
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -169,6 +170,7 @@ class ElementActionRun:
         self._exit_code = exit_code
         self._metadata = metadata
         self._run_hostname = run_hostname
+        self._port_number = port_number
 
         # assigned on first access of corresponding properties:
         self._inputs = None
@@ -235,6 +237,10 @@ class ElementActionRun:
     @property
     def run_hostname(self):
         return self._run_hostname
+
+    @property
+    def port_number(self):
+        return self._port_number
 
     @property
     def start_time(self):
@@ -1560,12 +1566,13 @@ class Action(JSONLike):
 
             inp_files = []
             inp_acts = []
+
+            wk_path_env_var = '"$WK_PATH"'  # (could have spaces in it)
+            run_ID_env_var = "$RUN_ID"
+
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
-                args = [
-                    '"$WK_PATH"',
-                    "$EAR_ID",
-                ]  # WK_PATH could have a space in it
+                args = [wk_path_env_var, run_ID_env_var]
                 if ifg.script:
                     script_name = self.get_script_name(ifg.script)
                     variables = {
@@ -1595,10 +1602,7 @@ class Action(JSONLike):
             out_acts = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
-                args = [
-                    '"$WK_PATH"',
-                    "$EAR_ID",
-                ]  # WK_PATH could have a space in it
+                args = [wk_path_env_var, run_ID_env_var]
                 if ofp.script:
                     script_name = self.get_script_name(ofp.script)
                     variables = {
@@ -1637,10 +1641,11 @@ class Action(JSONLike):
                 else:
                     variables = {}
                 if self.script_data_in_has_direct or self.script_data_out_has_direct:
-                    # WK_PATH could have a space in it:
-                    args.extend(["--wk-path", '"$WK_PATH"', "--run-id", "$EAR_ID"])
+                    args.extend(
+                        ["--wk-path", wk_path_env_var, "--run-id", run_ID_env_var]
+                    )
 
-                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
+                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_ACT_idx}"}
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":

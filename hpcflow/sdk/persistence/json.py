@@ -240,11 +240,14 @@ class JSONPersistentStore(PersistentStore):
             for EAR_ID_i, sub_idx_i in sub_indices.items():
                 md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
 
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
+    def _update_EAR_start(
+        self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str, port_number: int
+    ):
         with self.using_resource("metadata", action="update") as md:
             md["runs"][EAR_id]["start_time"] = s_time.strftime(self.ts_fmt)
             md["runs"][EAR_id]["snapshot_start"] = s_snap
             md["runs"][EAR_id]["run_hostname"] = s_hn
+            md["runs"][EAR_id]["port_number"] = port_number
 
     def _update_EAR_end(
         self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool

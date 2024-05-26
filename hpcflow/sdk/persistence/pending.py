@@ -322,12 +322,12 @@ class PendingChanges:
     @TimeIt.decorator
     def commit_EAR_starts(self) -> None:
         # TODO: could be batched up?
-        for EAR_id, (time, snap, hostname) in self.set_EAR_starts.items():
+        for EAR_id, (time, snap, hostname, port_num) in self.set_EAR_starts.items():
             self.logger.debug(
                 f"commit: adding pending start time ({time!r}), run hostname "
                 f"({hostname!r}), and directory snapshot to EAR ID {EAR_id!r}."
             )
-            self.store._update_EAR_start(EAR_id, time, snap, hostname)
+            self.store._update_EAR_start(EAR_id, time, snap, hostname, port_num)
             self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
         self.clear_set_EAR_starts()
 

@@ -15,6 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
+import traceback
 from typing import Dict, Optional, Tuple, Type, Union, List
 import fsspec
 import numpy as np
@@ -881,3 +882,18 @@ def nth_key(dct, n):
 
 def nth_value(dct, n):
     return dct[nth_key(dct, n)]
+
+
+@contextlib.contextmanager
+def redirect_std_to_file(file, mode="a"):
+    """Temporarily redirect both stdout and stderr to a file, and if an exception is
+    raised, catch it, print the traceback to that file, and exit."""
+    # TODO: test
+    with Path(file).open(mode) as fp:
+        with contextlib.redirect_stdout(fp):
+            with contextlib.redirect_stderr(fp):
+                try:
+                    yield
+                except BaseException:
+                    traceback.print_exc()
+                    sys.exit(1)

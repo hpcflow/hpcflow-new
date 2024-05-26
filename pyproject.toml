@@ -39,6 +39,7 @@ h5py = "^3.9.0"
 valida = "^0.7.2"
 requests = "^2.31.0"
 platformdirs = "^4.2.1"
+pyzmq = "^26.0.3"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^2.12.2"

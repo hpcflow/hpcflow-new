@@ -5,6 +5,7 @@ import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import os
 from pathlib import Path
 import random
 import string
@@ -23,6 +24,7 @@ from hpcflow.sdk import app
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
+    SKIPPED_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
@@ -47,6 +49,7 @@ from .utils import (
     read_JSON_string,
     read_YAML_str,
     read_YAML_file,
+    redirect_std_to_file,
     replace_items,
 )
 from hpcflow.sdk.core.errors import (
@@ -649,7 +652,7 @@ class Workflow:
                                         f"{len(template.loops)} ({loop.name!r})"
                                     )
                                 wk._add_loop(loop, cache=cache, status=status)
-        except Exception:
+        except (Exception, NotImplementedError):
             if status:
                 status.stop()
             raise
@@ -1970,12 +1973,12 @@ class Workflow:
             with self.batch_update():
                 self._store.set_EAR_submission_index(EAR_ID, sub_idx)
 
-    def set_EAR_start(self, EAR_ID: int) -> None:
+    def set_EAR_start(self, EAR_ID: int, port_number: int) -> None:
         """Set the start time on an EAR."""
         self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_start(EAR_ID)
+                self._store.set_EAR_start(EAR_ID, port_number)
 
     def set_EAR_end(
         self,
@@ -2506,6 +2509,13 @@ class Workflow:
         aborted."""
         self.submissions[submission_idx]._set_run_abort(run_ID)
 
+    def _abort_run_ID_new(self, run):
+        # connect to the ZeroMQ server on the worker node:
+        self.app.logger.info(f"abort run: {run!r}")
+        self.app.Executor.send_abort(
+            hostname=run.run_hostname, port_number=run.port_number
+        )
+
     def abort_run(
         self,
         submission_idx: int = -1,
@@ -2550,7 +2560,7 @@ class Workflow:
                 "The run is not defined as abortable in the task schema, so it cannot "
                 "be aborted."
             )
-        self._abort_run_ID(submission_idx, run.id_)
+        self._abort_run_ID_new(run)
 
     @TimeIt.decorator
     def cancel(self, hard=False):
@@ -2726,6 +2736,77 @@ class Workflow:
 
         return submission_jobscripts, all_element_deps
 
+    def execute_run(
+        self,
+        submission_idx: int,
+        jobscript_idx: int,
+        JS_element_idx: int,
+        JS_action_idx: int,
+        run_ID: int,
+    ) -> None:
+        """Execute commands of a run via a subprocess."""
+        std_stream_file = self.app.RunDirAppFiles.get_std_file_name()
+        std_stream_path = Path(".").joinpath(std_stream_file)
+
+        # redirect (as much as possible) app-generated stdout/err to a dedicated file:
+        with redirect_std_to_file(std_stream_path):
+
+            # check if we should skip:
+            skip = self.get_EAR_skipped(EAR_ID=run_ID)
+            if not skip:
+                # write the command file that will be executed:
+                self.write_commands(
+                    submission_idx=submission_idx,
+                    jobscript_idx=jobscript_idx,
+                    JS_action_idx=JS_action_idx,
+                    EAR_ID=run_ID,
+                )
+
+                # prepare subprocess command:
+                jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+                cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
+                cmd_file_path = Path(".").joinpath(cmd_file_name).resolve()
+                if not cmd_file_path.is_file():
+                    raise RuntimeError(f"Command file {cmd_file_path!r} does not exist.")
+                cmd = jobscript.shell.get_command_file_launch_command(str(cmd_file_path))
+                add_env = {f"{self.app.package_name.upper()}_RUN_ID": str(run_ID)}
+                env = {**dict(os.environ), **add_env}
+                self.app.submission_logger.debug(
+                    f"Executing run commands via subprocess with command {cmd!r}, and "
+                    f"additional environment variables: {add_env!r}."
+                )
+
+                exe = self.app.Executor(cmd, env)
+                port = exe.start_zmq_server()  # start the server so we know the port
+
+                self.set_EAR_start(EAR_ID=run_ID, port_number=port)
+
+        # this subprocess may include commands that redirect to the std_stream file (e.g.
+        # calling the app to save a parameter from a shell command output):
+        if not skip:
+            ret_code = exe.run()
+
+            # TODO:
+            #   - if abortable:
+            #       - use async subprocess
+            #       - poll abort EAR file, and terminate subprocess if abort set
+            #       - or try out ZeroMQ somehow instead of polling?
+            #           - save hostname in set-run-start, and then can look it up from
+            #             the show command on the login node?
+
+        # redirect (as much as possible) app-generated stdout/err to a dedicated file:
+        with redirect_std_to_file(std_stream_path):
+            if skip:
+                ret_code = SKIPPED_EXIT_CODE
+
+            # set run end:
+            self.set_EAR_end(
+                js_idx=jobscript_idx,
+                js_act_idx=JS_action_idx,
+                EAR_ID=run_ID,
+                exit_code=ret_code,
+            )
+
     def write_commands(
         self,
         submission_idx: int,
@@ -2752,10 +2833,16 @@ class Workflow:
                 write_commands = False
 
             if write_commands:
+                app_name = self.app.package_name
+                commands = (
+                    jobscript.shell.format_source_functions_file(app_name=app_name)
+                    + commands
+                )
                 self.app.persistence_logger.debug("need to write commands")
                 for cmd_idx, var_dat in shell_vars.items():
                     for param_name, shell_var_name, st_typ in var_dat:
                         commands += jobscript.shell.format_save_parameter(
+                            app_name=app_name,
                             workflow_app_alias=jobscript.workflow_app_alias,
                             param_name=param_name,
                             shell_var_name=shell_var_name,
@@ -2763,9 +2850,9 @@ class Workflow:
                             cmd_idx=cmd_idx,
                             stderr=(st_typ == "stderr"),
                         )
-                commands = jobscript.shell.wrap_in_subshell(
-                    commands, EAR.action.abortable
-                )
+                # commands = jobscript.shell.wrap_in_subshell( # not needed anymore?
+                #     commands, EAR.action.abortable
+                # )
 
                 # add loop-check command if this is the last action of this loop iteration
                 # for this element:
@@ -2779,6 +2866,7 @@ class Workflow:
                     for loop_name, run_IDs in final_runs.items():
                         if EAR.id_ in run_IDs:
                             loop_cmd = jobscript.shell.format_loop_check(
+                                app_name=self.app.package_name.upper(),
                                 workflow_app_alias=jobscript.workflow_app_alias,
                                 loop_name=loop_name,
                                 run_ID=EAR.id_,

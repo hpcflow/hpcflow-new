@@ -42,6 +42,7 @@ sdk_classes = {
     "NumCores": "hpcflow.sdk.core.environment",
     "ExecutableInstance": "hpcflow.sdk.core.environment",
     "Executable": "hpcflow.sdk.core.environment",
+    "Executor": "hpcflow.sdk.core.execute",
     "Environment": "hpcflow.sdk.core.environment",
     "Loop": "hpcflow.sdk.core.loop",
     "WorkflowLoop": "hpcflow.sdk.core.loop",

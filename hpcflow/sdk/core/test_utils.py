@@ -41,7 +41,6 @@ def make_schemas(ins_outs, ret_list=False):
         act_i = hf.Action(
             commands=[cmd],
             output_file_parsers=out_file_parsers,
-            environments=[hf.ActionEnvironment("env_1")],
         )
         out.append(
             hf.TaskSchema(

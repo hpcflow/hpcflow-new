@@ -238,6 +238,7 @@ class ZarrStoreEAR(StoreEAR):
             self.metadata,
             self.run_hostname,
             self.commands_idx,
+            self.port_number,
         ]
         return EAR_enc
 
@@ -260,6 +261,7 @@ class ZarrStoreEAR(StoreEAR):
             "metadata": EAR_dat[12],
             "run_hostname": EAR_dat[13],
             "commands_idx": EAR_dat[14],
+            "port_number": EAR_dat[15],
         }
         return cls(is_pending=False, **obj_dat)
 
@@ -622,7 +624,9 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
+    def _update_EAR_start(
+        self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str, port_number: int
+    ):
         arr = self._get_EARs_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
@@ -632,6 +636,7 @@ class ZarrPersistentStore(PersistentStore):
             start_time=s_time,
             snapshot_start=s_snap,
             run_hostname=s_hn,
+            port_number=port_number,
         )
         arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
 

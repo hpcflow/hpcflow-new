@@ -11,31 +11,31 @@ class RunDirAppFiles:
     CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
     @classmethod
-    def get_log_file_name(cls):
+    def get_log_file_name(cls) -> str:
         """File name for the app log file."""
         return f"{cls.app.package_name}.log"
 
     @classmethod
-    def get_std_file_name(cls):
+    def get_std_file_name(cls) -> str:
         """File name for stdout and stderr streams from the app."""
         return f"{cls.app.package_name}_std.txt"
 
     @staticmethod
-    def get_run_file_prefix(js_idx: int, js_action_idx: int):
+    def get_run_file_prefix(js_idx: int, js_action_idx: int) -> str:
         return f"js_{js_idx}_act_{js_action_idx}"
 
     @classmethod
-    def get_commands_file_name(cls, js_idx: int, js_action_idx: int, shell):
+    def get_commands_file_name(cls, js_idx: int, js_action_idx: int, shell) -> str:
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
-    def get_run_param_dump_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_dump_file_prefix(cls, js_idx: int, js_action_idx: int) -> str:
         """Get the prefix to a file in the run directory that the app will dump parameter
         data to."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_inputs"
 
     @classmethod
-    def get_run_param_load_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_load_file_prefix(cls, js_idx: int, js_action_idx: int) -> str:
         """Get the prefix to a file in the run directory that the app will load parameter
         data from."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_outputs"

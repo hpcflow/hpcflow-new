@@ -35,6 +35,10 @@ class Shell(ABC):
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + [js_path]
 
+    def get_command_file_launch_command(self, cmd_file_path: str) -> List[str]:
+        """Get the command for launching the commands file for a given run."""
+        return self.executable + [cmd_file_path]
+
     @abstractmethod
     def get_version_info(self, exclude_os: Optional[bool] = False) -> Dict:
         """Get shell and operating system information."""

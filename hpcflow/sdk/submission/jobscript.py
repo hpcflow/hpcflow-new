@@ -626,6 +626,10 @@ class Jobscript(JSONLike):
         return f"js_{self.index}{self.shell.JS_EXT}"
 
     @property
+    def jobscript_functions_name(self):
+        return f"js_funcs_{self.index}{self.shell.JS_EXT}"
+
+    @property
     def EAR_ID_file_path(self):
         return self.submission.path / self.EAR_ID_file_name
 
@@ -636,6 +640,10 @@ class Jobscript(JSONLike):
     @property
     def jobscript_path(self):
         return self.submission.path / self.jobscript_name
+
+    @property
+    def jobscript_functions_path(self):
+        return self.submission.path / self.jobscript_functions_name
 
     @property
     def direct_stdout_path(self):
@@ -780,72 +788,34 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def compose_jobscript(
         self,
+        shell,
         deps: Optional[Dict] = None,
         os_name: str = None,
-        shell_name: str = None,
-        os_args: Optional[Dict] = None,
-        shell_args: Optional[Dict] = None,
         scheduler_name: Optional[str] = None,
         scheduler_args: Optional[Dict] = None,
     ) -> str:
         """Prepare the jobscript file string."""
-
-        os_name = os_name or self.os_name
-        shell_name = shell_name or self.shell_name
         scheduler_name = scheduler_name or self.scheduler_name
-
-        if not os_name:
-            raise RuntimeError(
-                f"Jobscript {self.index} `os_name` is not yet set. Pass the `os_name` as "
-                f"a method argument to compose the jobscript for a given `os_name`."
-            )
-        if not shell_name:
-            raise RuntimeError(
-                f"Jobscript {self.index} `shell_name` is not yet set. Pass the "
-                f"`shell_name` as a method argument to compose the jobscript for a given "
-                f"`shell_name`."
-            )
-
-        shell = self._get_shell(
-            os_name=os_name,
-            shell_name=shell_name,
-            os_args=os_args or self._get_submission_os_args(),
-            shell_args=shell_args or self._get_submission_shell_args(),
-        )
         scheduler = self.app.get_scheduler(
             scheduler_name=scheduler_name,
             os_name=os_name,
             scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
         )
 
-        cfg_invocation = self.app.config._file.get_invocation(self.app.config._config_key)
-        env_setup = cfg_invocation["environment_setup"]
-        if env_setup:
-            env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
-            env_setup += "\n\n" + shell.JS_ENV_SETUP_INDENT
-        else:
-            env_setup = shell.JS_ENV_SETUP_INDENT
-
         is_scheduled = True
         if not isinstance(scheduler, Scheduler):
             is_scheduled = False
 
-        app_invoc = list(self.app.run_time_info.invocation_command)
-        header_args = shell.process_JS_header_args(
-            {
-                "workflow_app_alias": self.workflow_app_alias,
-                "env_setup": env_setup,
-                "app_invoc": app_invoc,
-                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
-                "config_dir": str(self.app.config.config_directory),
-                "config_invoc_key": self.app.config.config_key,
-                "workflow_path": self.workflow.path,
-                "sub_idx": self.submission.index,
-                "js_idx": self.index,
-                "EAR_file_name": self.EAR_ID_file_name,
-                "element_run_dirs_file_path": self.element_run_dir_file_name,
-            }
-        )
+        header_args = {
+            "app_caps": self.app.package_name.upper(),
+            "jobscript_functions_path": self.jobscript_functions_name,
+            "workflow_path": self.workflow.path,  # TODO: where is this used?
+            "sub_idx": self.submission.index,
+            "js_idx": self.index,
+            "EAR_file_name": self.EAR_ID_file_name,
+            "element_run_dirs_file_path": self.element_run_dir_file_name,
+            "run_stream_file": self.app.RunDirAppFiles.get_std_file_name(),
+        }
 
         shebang = shell.JS_SHEBANG.format(
             shebang_executable=" ".join(shell.shebang_executable),
@@ -882,8 +852,8 @@ class Jobscript(JSONLike):
             num_actions=self.num_actions,
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
-            commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
-            run_stream_file=self.app.RunDirAppFiles.get_std_file_name(),
+            commands_file_name=self.get_commands_file_name(r"${JS_ACT_idx}", shell=shell),
+            app_caps=self.app.package_name.upper(),
         )
 
         out = header
@@ -905,6 +875,31 @@ class Jobscript(JSONLike):
 
         return out
 
+    def compose_functions_file(self, shell):
+        # TODO: refactor with write_jobscript
+
+        cfg_invocation = self.app.config._file.get_invocation(self.app.config._config_key)
+        env_setup = cfg_invocation["environment_setup"]
+        if env_setup:
+            env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
+            env_setup += "\n\n" + shell.JS_ENV_SETUP_INDENT
+        else:
+            env_setup = shell.JS_ENV_SETUP_INDENT
+        app_invoc = list(self.app.run_time_info.invocation_command)
+
+        func_file_args = shell.process_JS_header_args(  # TODO: rename?
+            {
+                "workflow_app_alias": self.workflow_app_alias,
+                "env_setup": env_setup,
+                "app_invoc": app_invoc,
+                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
+                "config_dir": str(self.app.config.config_directory),
+                "config_invoc_key": self.app.config.config_key,
+            }
+        )
+        out = shell.JS_FUNCS.format(**func_file_args)
+        return out
+
     @TimeIt.decorator
     def write_jobscript(
         self,
@@ -916,22 +911,62 @@ class Jobscript(JSONLike):
         scheduler_name: Optional[str] = None,
         scheduler_args: Optional[Dict] = None,
     ):
-        js_str = self.compose_jobscript(
-            deps=deps,
+        os_name = os_name or self.os_name
+        shell_name = shell_name or self.shell_name
+        if not os_name:
+            raise RuntimeError(
+                f"Jobscript {self.index} `os_name` is not yet set. Pass the `os_name` as "
+                f"a method argument to compose the jobscript for a given `os_name`."
+            )
+        if not shell_name:
+            raise RuntimeError(
+                f"Jobscript {self.index} `shell_name` is not yet set. Pass the "
+                f"`shell_name` as a method argument to compose the jobscript for a given "
+                f"`shell_name`."
+            )
+        shell = self._get_shell(
             os_name=os_name,
             shell_name=shell_name,
-            os_args=os_args,
-            shell_args=shell_args,
+            os_args=os_args or self._get_submission_os_args(),
+            shell_args=shell_args or self._get_submission_shell_args(),
+        )
+
+        js_str = self.compose_jobscript(
+            deps=deps,
+            shell=shell,
+            os_name=os_name,
             scheduler_name=scheduler_name,
             scheduler_args=scheduler_args,
         )
+        js_funcs_str = self.compose_functions_file(shell)
+
         with self.jobscript_path.open("wt", newline="\n") as fp:
             fp.write(js_str)
+
+        with self.jobscript_functions_path.open("wt", newline="\n") as fp:
+            fp.write(js_funcs_str)
+
         return self.jobscript_path
 
     def _get_EARs_arr(self):
         EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
         return EARs_arr
+
+    def get_run_dir(self, js_elem_idx, js_act_idx):
+        EARs_arr = self._get_EARs_arr()
+        task_loop_idx_arr = self.get_task_loop_idx_array()
+
+        EAR_i = EARs_arr[js_act_idx, js_elem_idx]
+        t_iID = EAR_i.task.insert_ID
+        l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
+        r_idx = EAR_i.index
+
+        loop_idx_i = self.task_loop_idx[l_idx]
+        task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(loop_idx_i)
+        elem_dir = EAR_i.element.dir_name
+        run_dir = f"r_{r_idx}"
+
+        return Path(self.workflow.execution_path, task_dir, elem_dir, run_dir)
 
     @TimeIt.decorator
     def make_artifact_dirs(self):

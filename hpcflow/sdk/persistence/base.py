@@ -322,6 +322,7 @@ class StoreEAR:
     exit_code: Optional[int] = None
     metadata: Dict[str, Any] = None
     run_hostname: Optional[str] = None
+    port_number: Optional[int] = None
 
     @staticmethod
     def _encode_datetime(dt: Union[datetime, None], ts_fmt: str) -> str:
@@ -349,6 +350,7 @@ class StoreEAR:
             "exit_code": self.exit_code,
             "metadata": self.metadata,
             "run_hostname": self.run_hostname,
+            "port_number": self.port_number,
         }
 
     @classmethod
@@ -385,6 +387,7 @@ class StoreEAR:
             "exit_code": self.exit_code,
             "metadata": self.metadata,
             "run_hostname": self.run_hostname,
+            "port_number": self.port_number,
         }
 
     @TimeIt.decorator
@@ -399,6 +402,7 @@ class StoreEAR:
         snapshot_end: Optional[Dict] = None,
         exit_code: Optional[int] = None,
         run_hostname: Optional[str] = None,
+        port_number: Optional[int] = None,
     ) -> AnySEAR:
         """Return a shallow copy, with specified data updated."""
 
@@ -411,6 +415,7 @@ class StoreEAR:
         snap_e = snapshot_end if snapshot_end is not None else self.snapshot_end
         exit_code = exit_code if exit_code is not None else self.exit_code
         run_hn = run_hostname if run_hostname is not None else self.run_hostname
+        port_num = port_number if port_number is not None else self.port_number
 
         return self.__class__(
             id_=self.id_,
@@ -429,6 +434,7 @@ class StoreEAR:
             snapshot_end=snap_e,
             exit_code=exit_code,
             run_hostname=run_hn,
+            port_number=port_num,
         )
 
 
@@ -1070,11 +1076,11 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
+    def set_EAR_start(self, EAR_ID: int, port_number: int, save: bool = True) -> datetime:
         dt = datetime.utcnow()
         ss_js = self.app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
-        self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname)
+        self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname, port_number)
         if save:
             self.save()
         return dt
@@ -1562,7 +1568,9 @@ class PersistentStore(ABC):
             pend_end = self._pending.set_EAR_ends.get(EAR_i.id_)
             pend_skip = True if EAR_i.id_ in self._pending.set_EAR_skips else None
 
-            p_st, p_ss, p_hn = pend_start if pend_start else (None, None, None)
+            p_st, p_ss, p_hn, p_pn = (
+                pend_start if pend_start else (None, None, None, None)
+            )
             p_et, p_se, p_ex, p_sx = pend_end if pend_end else (None, None, None, None)
 
             updates = {
@@ -1575,6 +1583,7 @@ class PersistentStore(ABC):
                 "snapshot_end": p_se,
                 "exit_code": p_ex,
                 "run_hostname": p_hn,
+                "port_number": p_pn,
             }
             if any(i is not None for i in updates.values()):
                 EAR_i = EAR_i.update(**updates)

@@ -1404,6 +1404,7 @@ class WorkflowTask:
         return self._element_IDs + self._pending_element_IDs
 
     @property
+    @TimeIt.decorator
     def num_elements(self):
         return len(self.element_IDs)
 
