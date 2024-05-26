@@ -53,6 +53,7 @@ from .errors import (
     ConfigItemAlreadyUnsetError,
     ConfigItemCallbackError,
     ConfigNonConfigurableError,
+    ConfigReadOnlyError,
     ConfigUnknownItemError,
     ConfigUnknownOverrideError,
     ConfigValidationError,
@@ -225,6 +226,11 @@ class Config:
         }
         self._meta_data = metadata
 
+        # used within context manager `cached_config`:
+        self._use_cache = False
+        self._config_cache = {}
+
+        # note: this must go at the end, after all instance attributes have been set!
         self._options.validate(
             data=self.get_all(include_overrides=True),
             logger=self._logger,
@@ -275,9 +281,11 @@ class Config:
     def _without_callbacks(self, *callbacks):
         """Context manager to temporarily exclude named get and set callbacks."""
         get_callbacks, set_callbacks = self._disable_callbacks(*callbacks)
-        yield
-        self._get_callbacks = get_callbacks
-        self._set_callbacks = set_callbacks
+        try:
+            yield
+        finally:
+            self._get_callbacks = get_callbacks
+            self._set_callbacks = set_callbacks
 
     def _validate(self):
         data = self.get_all(include_overrides=True)
@@ -413,6 +421,17 @@ class Config:
     ):
         """Get a configuration item."""
 
+        if self._use_cache:
+            # note: we default_value is not necessarily hashable, so we can't cache on it!
+            key = (
+                name,
+                include_overrides,
+                raise_on_missing,
+                as_str,
+            )
+            if key in self._config_cache:
+                return self._config_cache[key]
+
         if name not in self._all_keys:
             raise ConfigUnknownItemError(name=name)
 
@@ -449,6 +468,9 @@ class Config:
             else:
                 val = str(val)
 
+        if self._use_cache:
+            self._config_cache[key] = val
+
         return val
 
     def _parse_JSON(self, name, value):
@@ -459,6 +481,9 @@ class Config:
         return value
 
     def _set(self, name, value, is_json=False, callback=True, quiet=False):
+        if self._use_cache:
+            raise ConfigReadOnlyError
+
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         else:
@@ -887,3 +912,12 @@ class Config:
         path = "/".join(self._app.demo_data_dir.split("."))
         url = self._app._get_github_url(sha=sha, path=path)
         self.set("demo_data_dir", url)
+
+    @contextlib.contextmanager
+    def cached_config(self):
+        try:
+            self._use_cache = True
+            yield
+        finally:
+            self._use_cache = False
+            self._config_cache = {}  # reset the cache

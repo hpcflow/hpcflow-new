@@ -16,6 +16,17 @@ class TimeIt:
     trace_prev = []
     trace_idx_prev = []
 
+    def __enter__(self):
+        self.__class__.active = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self.__class__.summarise_string()
+        finally:
+            self.__class__.reset()
+            self.__class__.active = False
+
     @classmethod
     def decorator(cls, func):
         @wraps(func)
@@ -123,6 +134,14 @@ class TimeIt:
             Path(cls.file_path).write_text(out_str, encoding="utf-8")
         else:
             print(out_str)
+
+    @classmethod
+    def reset(cls):
+        cls.timers = defaultdict(list)
+        cls.trace = []
+        cls.trace_idx = []
+        cls.trace_prev = []
+        cls.trace_idx_prev = []
 
 
 class AppLog:
