@@ -368,6 +368,7 @@ class Jobscript(JSONLike):
         self._submit_time_obj = None  # assigned on first access to `submit_time` property
         self._running = None
         self._all_EARs = None  # assigned on first access to `all_EARs` property
+        self._is_scheduled = None  # assigned on first access to `is_scheduled`
 
     def __repr__(self):
         return (
@@ -525,7 +526,7 @@ class Jobscript(JSONLike):
 
     @property
     def is_array(self):
-        if self.scheduler_name == "direct":
+        if not self.is_scheduled:
             return False
 
         support_EAR_para = self.workflow._store._features.EAR_parallelism
@@ -654,6 +655,12 @@ class Jobscript(JSONLike):
     @property
     def direct_win_pid_file_path(self):
         return self.submission.path / self.direct_win_pid_file_name
+
+    @property
+    def is_scheduled(self) -> bool:
+        if self._is_scheduled is None:
+            self._is_scheduled = self.scheduler_name != "direct"
+        return self._is_scheduled
 
     def _set_submit_time(self, submit_time: datetime) -> None:
         submit_time = submit_time.strftime(self.workflow.ts_fmt)
@@ -800,10 +807,6 @@ class Jobscript(JSONLike):
             scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
         )
 
-        is_scheduled = True
-        if not isinstance(scheduler, Scheduler):
-            is_scheduled = False
-
         header_args = {
             "app_caps": self.app.package_name.upper(),
             "jobscript_functions_path": self.jobscript_functions_name,
@@ -821,7 +824,7 @@ class Jobscript(JSONLike):
         )
         header = shell.JS_HEADER.format(**header_args)
 
-        if is_scheduled:
+        if self.is_scheduled:
             header = shell.JS_SCHEDULER_HEADER.format(
                 shebang=shebang,
                 scheduler_options=scheduler.format_options(

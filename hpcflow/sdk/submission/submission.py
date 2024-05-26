@@ -311,6 +311,11 @@ class Submission(JSONLike):
     def abort_EARs_file_path(self):
         return self.path / self.abort_EARs_file_name
 
+    @property
+    def is_scheduled(self) -> Tuple[bool]:
+        """Return whether each jobscript of this submission uses a scheduler or not."""
+        return tuple(i.is_scheduled for i in self.jobscripts)
+
     @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
