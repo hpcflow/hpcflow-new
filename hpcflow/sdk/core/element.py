@@ -1,8 +1,9 @@
 from __future__ import annotations
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from operator import attrgetter
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from valida.conditions import ConditionLike
 from valida.rules import Rule
@@ -196,8 +197,8 @@ class ElementResources(JSONLike):
     max_array_items: Optional[int] = None
     time_limit: Optional[str] = None
 
-    scheduler_args: Optional[Dict] = None
-    shell_args: Optional[Dict] = None
+    scheduler_args: Optional[Dict] = field(default_factory=dict)
+    shell_args: Optional[Dict] = field(default_factory=dict)
     os_name: Optional[str] = None
     environments: Optional[Dict] = None
 
@@ -223,8 +224,21 @@ class ElementResources(JSONLike):
         if self.parallel_mode:
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
-        self.scheduler_args = self.scheduler_args or {}
-        self.shell_args = self.shell_args or {}
+    def __repr__(self):
+        """Only include non-default/non-default-factory values."""
+
+        items = []
+        for f in fields(self):
+            if isinstance(f.default_factory, Callable):
+                compare = f.default_factory()
+            else:
+                compare = f.default
+            val = attrgetter(f.name)(self)
+            if val != compare:
+                items.append((f.name, val))
+
+        items_repr = ", ".join(f"{name}={value!r}" for name, value in items)
+        return f"{self.__class__.__name__}({items_repr})"
 
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
@@ -326,7 +340,8 @@ class ElementResources(JSONLike):
         cfg_defs = cfg_sched.get("defaults", {})
         cfg_opts = cfg_defs.pop("options", {})
         opts = {**cfg_opts, **self.scheduler_args.get("options", {})}
-        self.scheduler_args["options"] = opts
+        if opts:
+            self.scheduler_args["options"] = opts
         self.scheduler_args = {**cfg_defs, **self.scheduler_args}
 
     def validate_against_machine(self):
