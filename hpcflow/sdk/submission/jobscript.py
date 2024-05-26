@@ -1082,12 +1082,19 @@ class Jobscript(JSONLike):
             dep_is_arr = deps_i["is_array"] and self.is_array and dep_js_is_arr
             deps[js_idx] = (dep_js_ref, dep_is_arr)
 
-        if not self.submission.JS_parallelism and self.index > 0:
-            # add fake dependencies to all previously submitted jobscripts to avoid
-            # simultaneous execution:
-            for js_idx, (js_ref, _) in scheduler_refs.items():
-                if js_idx not in deps:
-                    deps[js_idx] = (js_ref, False)
+        if self.index > 0:
+            # prevent this jobscript executing if jobscript parallelism is not available:
+            use_parallelism = (
+                self.submission.JS_parallelism is True
+                or {0: "direct", 1: "scheduled"}[self.is_scheduled]
+                == self.submission.JS_parallelism
+            )
+            if not use_parallelism:
+                # add fake dependencies to all previously submitted jobscripts to avoid
+                # simultaneous execution:
+                for js_idx, (js_ref, _) in scheduler_refs.items():
+                    if js_idx not in deps:
+                        deps[js_idx] = (js_ref, False)
 
         run_dirs = self.make_artifact_dirs()
         self.write_EAR_ID_file()

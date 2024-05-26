@@ -11,7 +11,7 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Literal, Optional, Tuple, Union
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem
@@ -2218,7 +2218,7 @@ class Workflow:
         self,
         status: Optional[Any] = None,
         ignore_errors: Optional[bool] = False,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         print_stdout: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
         tasks: Optional[List[int]] = None,
@@ -2269,7 +2269,7 @@ class Workflow:
     def submit(
         self,
         ignore_errors: Optional[bool] = False,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         print_stdout: Optional[bool] = False,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
@@ -2286,9 +2286,12 @@ class Workflow:
             If True, ignore jobscript submission errors. If False (the default) jobscript
             submission will halt when a jobscript fails to submit.
         JS_parallelism
-            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
-            True but the store type does not support the `jobscript_parallelism` feature.
-            If not set, jobscript parallelism will be used if the store type supports it.
+            If True, allow multiple jobscripts to execute simultaneously. If
+            'scheduled'/'direct', only allow simultaneous execution of scheduled/direct
+            jobscripts. Raises if set to True, 'scheduled', or 'direct', but the store
+            type does not support the `jobscript_parallelism` feature. If not set,
+            jobscript parallelism will be used if the store type supports it, for
+            scheduled jobscripts only.
         print_stdout
             If True, print any jobscript submission standard output, otherwise hide it.
         wait
@@ -2575,7 +2578,9 @@ class Workflow:
             sub.cancel()
 
     def add_submission(
-        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
+        self,
+        tasks: Optional[List[int]] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
     ) -> app.Submission:
         with self._store.cached_load():
             with self.batch_update():

@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
+from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple, Literal
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -1318,7 +1318,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
@@ -1363,9 +1363,12 @@ class BaseApp(metaclass=Singleton):
         variables
             String variables to substitute in `template_file_or_str`.
         JS_parallelism
-            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
-            True but the store type does not support the `jobscript_parallelism` feature. If
-            not set, jobscript parallelism will be used if the store type supports it.
+            If True, allow multiple jobscripts to execute simultaneously. If
+            'scheduled'/'direct', only allow simultaneous execution of scheduled/direct
+            jobscripts. Raises if set to True, 'scheduled', or 'direct', but the store
+            type does not support the `jobscript_parallelism` feature. If not set,
+            jobscript parallelism will be used if the store type supports it, for
+            scheduled jobscripts only.
         wait
             If True, this command will block until the workflow execution is complete.
         add_to_known
@@ -1501,7 +1504,7 @@ class BaseApp(metaclass=Singleton):
         ts_name_fmt: Optional[str] = None,
         store_kwargs: Optional[Dict] = None,
         variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         wait: Optional[bool] = False,
         add_to_known: Optional[bool] = True,
         return_idx: Optional[bool] = False,
@@ -1543,9 +1546,12 @@ class BaseApp(metaclass=Singleton):
         variables
             String variables to substitute in the demo workflow template file.
         JS_parallelism
-            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
-            True but the store type does not support the `jobscript_parallelism` feature. If
-            not set, jobscript parallelism will be used if the store type supports it.
+            If True, allow multiple jobscripts to execute simultaneously. If
+            'scheduled'/'direct', only allow simultaneous execution of scheduled/direct
+            jobscripts. Raises if set to True, 'scheduled', or 'direct', but the store
+            type does not support the `jobscript_parallelism` feature. If not set,
+            jobscript parallelism will be used if the store type supports it, for
+            scheduled jobscripts only.
         wait
             If True, this command will block until the workflow execution is complete.
         add_to_known
@@ -1594,7 +1600,7 @@ class BaseApp(metaclass=Singleton):
     def _submit_workflow(
         self,
         workflow_path: PathLike,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         wait: Optional[bool] = False,
         return_idx: Optional[bool] = False,
         tasks: Optional[List[int]] = None,
@@ -1606,9 +1612,12 @@ class BaseApp(metaclass=Singleton):
         workflow_path
             Path to an existing workflow
         JS_parallelism
-            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
-            True but the store type does not support the `jobscript_parallelism` feature. If
-            not set, jobscript parallelism will be used if the store type supports it.
+            If True, allow multiple jobscripts to execute simultaneously. If
+            'scheduled'/'direct', only allow simultaneous execution of scheduled/direct
+            jobscripts. Raises if set to True, 'scheduled', or 'direct', but the store
+            type does not support the `jobscript_parallelism` feature. If not set,
+            jobscript parallelism will be used if the store type supports it, for
+            scheduled jobscripts only.
         tasks
             List of task indices to include in this submission. By default all tasks are
             included.

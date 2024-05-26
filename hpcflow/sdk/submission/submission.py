@@ -6,7 +6,7 @@ import enum
 import os
 from pathlib import Path
 from textwrap import indent
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
@@ -65,7 +65,7 @@ class Submission(JSONLike):
         jobscripts: List[app.Jobscript],
         workflow: Optional[app.Workflow] = None,
         submission_parts: Optional[Dict] = None,
-        JS_parallelism: Optional[bool] = None,
+        JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
         environments: Optional[app.EnvironmentsList] = None,
     ):
         self._index = index
@@ -453,6 +453,7 @@ class Submission(JSONLike):
         # if JS_parallelism explicitly requested but store doesn't support, raise:
         supports_JS_para = self.workflow._store._features.jobscript_parallelism
         if self.JS_parallelism:
+            # could be: True | "direct" | "scheduled"
             if not supports_JS_para:
                 if status:
                     status.stop()
@@ -461,7 +462,8 @@ class Submission(JSONLike):
                     f"parallelism."
                 )
         elif self.JS_parallelism is None:
-            self._JS_parallelism = supports_JS_para
+            # by default only use JS parallelism for scheduled jobscripts:
+            self._JS_parallelism = "scheduled" if supports_JS_para else False
 
         # set os_name and shell_name for each jobscript:
         for js in self.jobscripts:
@@ -535,7 +537,9 @@ class Submission(JSONLike):
 
             try:
                 if status:
-                    status.update(f"Submitting jobscript {js.index}...")
+                    status.update(
+                        f"Submitting jobscript {js.index + 1}/{len(self.jobscripts)}..."
+                    )
                 js_ref_i = js.submit(scheduler_refs, print_stdout=print_stdout)
                 scheduler_refs[js.index] = (js_ref_i, js.is_array)
                 submitted_js_idx.append(js.index)
