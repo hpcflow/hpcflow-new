@@ -85,36 +85,70 @@ class WindowsPowerShell(Shell):
         {wait_command}
     """
     )
+    JS_RUN = dedent(
+        """\
+        $EAR_ID = ($elem_EAR_IDs -split "{EAR_files_delimiter}")[$block_act_idx]
+        if ($EAR_ID -eq -1) {{
+            continue
+        }}
+
+        $env:{app_caps}_RUN_ID = $EAR_ID
+        $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
+
+        $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$block_act_idx]
+        $run_dir_abs = Join-Path "$WK_PATH" "$run_dir"
+        Set-Location $run_dir_abs
+        
+        {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
+        """
+    )
+    JS_ACT_MULTI = dedent(
+        """\
+        for ($block_act_idx = 0; $block_act_idx -lt {num_actions}; $block_act_idx += 1) {{        
+        {run_block}
+        }}
+        """
+    )
+    JS_ACT_SINGLE = dedent(
+        """\
+        $block_act_idx = 0        
+        {run_block}
+        """
+    )
     JS_MAIN = dedent(
         """\
+        $block_elem_idx = ($JS_elem_idx - {block_start_elem_idx})
         $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
         $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
         $env:{app_caps}_JS_ELEM_IDX = $JS_elem_idx
+        $env:{app_caps}_BLOCK_ELEM_IDX = $block_elem_idx
 
-        for ($JS_act_idx = 0; $JS_act_idx -lt {num_actions}; $JS_act_idx += 1) {{
-
-            $EAR_ID = ($elem_EAR_IDs -split "{EAR_files_delimiter}")[$JS_act_idx]
-            if ($EAR_ID -eq -1) {{
-                continue
-            }}
-
-            $env:{app_caps}_RUN_ID = $EAR_ID
-            $env:{app_caps}_JS_ACT_IDX = $JS_act_idx            
-
-            $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$JS_act_idx]
-            $run_dir_abs = Join-Path "$WK_PATH" "$run_dir"
-            Set-Location $run_dir_abs
-            
-            {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $JS_elem_idx $JS_act_idx $EAR_ID
-
+        {action}
+    """
+    )
+    JS_BLOCK_HEADER = dedent(
+        """\
+        # block {block_index}
+        $block_idx = {block_index}
+        $env:{app_caps}_BLOCK_IDX = {block_index}
+        """
+    )
+    JS_ELEMENT_SINGLE = dedent(
+        """\
+        $JS_elem_idx = {block_start_elem_idx}
+        {main}
+    """
+    )
+    JS_ELEMENT_MULTI_LOOP = dedent(
+        """\
+        for ($JS_elem_idx = {block_start_elem_idx}; $JS_elem_idx -lt ({block_start_elem_idx} + {num_elements}); $JS_elem_idx += 1) {{            
+        {main}
         }}
     """
     )
-    JS_ELEMENT_LOOP = dedent(
+    JS_ELEMENT_MULTI_ARRAY = None  # not implemented # TODO: add to Shell class
+    JS_FOOTER = dedent(
         """\
-        for ($JS_elem_idx = 0; $JS_elem_idx -lt {num_elements}; $JS_elem_idx += 1) {{
-        {main}
-        }}
         Set-Location $WK_PATH
     """
     )

@@ -428,12 +428,19 @@ class JSONPersistentStore(PersistentStore):
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub_idx, sub in subs_dat.items():
                 for js_idx, js in enumerate(sub["jobscripts"]):
-                    for key in list(js["task_elements"].keys()):
-                        subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
-                            int(key)
-                        ] = subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"].pop(
-                            key
-                        )
+                    for block_idx, block in enumerate(js["blocks"]):
+                        for key in list(block["task_elements"].keys()):
+                            subs_dat[sub_idx]["jobscripts"][js_idx]["block"][block_idx][
+                                "task_elements"
+                            ][int(key)] = subs_dat[sub_idx]["jobscripts"][js_idx][
+                                "block"
+                            ][
+                                block_idx
+                            ][
+                                "task_elements"
+                            ].pop(
+                                key
+                            )
 
         return subs_dat
 

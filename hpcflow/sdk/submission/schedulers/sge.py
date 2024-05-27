@@ -1,6 +1,6 @@
 from pathlib import Path
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -227,7 +227,9 @@ class SGEPosix(Scheduler):
             raise RuntimeError(f"Could not parse Job ID from scheduler output {stdout!r}")
         return job_ID
 
-    def get_job_statuses(self):
+    def get_job_statuses(
+        self,
+    ) -> Dict[str, Union[JobscriptElementState, Dict[int, JobscriptElementState]]]:
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
         cmd = self.show_cmd + ["-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
@@ -266,12 +268,16 @@ class SGEPosix(Scheduler):
                 if base_job_ID not in info:
                     info[base_job_ID] = {}
 
-                info[base_job_ID][arr_idx] = state
+                if arr_idx is not None:
+                    info[base_job_ID][arr_idx] = state
+                else:
+                    info[base_job_ID] = state
+
         return info
 
     def get_job_state_info(
         self, js_refs: List[str] = None
-    ) -> Dict[str, Dict[int, JobscriptElementState]]:
+    ) -> Dict[str, Union[JobscriptElementState, Dict[int, JobscriptElementState]]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 

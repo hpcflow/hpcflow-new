@@ -81,9 +81,6 @@ class Submission(JSONLike):
 
         self._set_parent_refs()
 
-        for js_idx, js in enumerate(self.jobscripts):
-            js._index = js_idx
-
     @TimeIt.decorator
     def _set_environments(self):
         filterable = ElementResources.get_env_instance_filterable_attributes()
@@ -319,9 +316,9 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
-    ) -> List[Tuple[int, Dict[int, JobscriptElementState]]]:
+    ) -> Dict[int, Dict[int, Dict[int, Dict[int, JobscriptElementState]]]]:
         """Get jobscripts that are active on this machine, and their active states."""
-        # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
+        # this returns: {JS_IDX: {BLOCK_IDX: {JS_ELEMENT_IDX: STATE}}}
         # TODO: query the scheduler once for all jobscripts?
         out = {}
         for js in self.jobscripts:
@@ -464,6 +461,7 @@ class Submission(JSONLike):
         elif self.JS_parallelism is None:
             # by default only use JS parallelism for scheduled jobscripts:
             self._JS_parallelism = "scheduled" if supports_JS_para else False
+            # TODO: is this value saved?
 
         # set os_name and shell_name for each jobscript:
         for js in self.jobscripts:
@@ -547,6 +545,9 @@ class Submission(JSONLike):
             except JobscriptSubmissionFailure as err:
                 errs.append(err)
                 continue
+
+            # TODO: some way to handle KeyboardInterrupt during submission?
+            #   - stop, and cancel already submitted?
 
         if submitted_js_idx:
             dt_str = datetime.utcnow().strftime(self.app._submission_ts_fmt)

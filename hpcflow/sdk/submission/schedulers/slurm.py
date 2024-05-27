@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -439,7 +439,9 @@ class SlurmPosix(Scheduler):
                 arr_idx = _arr_idx
         return base_job_ID, arr_idx
 
-    def _parse_job_states(self, stdout) -> Dict[str, Dict[int, JobscriptElementState]]:
+    def _parse_job_states(
+        self, stdout
+    ) -> Dict[str, Union[JobscriptElementState, Dict[int, JobscriptElementState]]]:
         """Parse output from Slurm `squeue` command with a simple format."""
         info = {}
         for ln in stdout.split("\n"):
@@ -452,8 +454,11 @@ class SlurmPosix(Scheduler):
             if base_job_ID not in info:
                 info[base_job_ID] = {}
 
-            for arr_idx_i in arr_idx or [None]:
-                info[base_job_ID][arr_idx_i] = state
+            if arr_idx is not None:
+                for arr_idx_i in arr_idx:
+                    info[base_job_ID][arr_idx_i] = state
+            else:
+                info[base_job_ID] = state
 
         return info
 
@@ -489,7 +494,7 @@ class SlurmPosix(Scheduler):
 
     def get_job_state_info(
         self, js_refs: List[str] = None
-    ) -> Dict[str, Dict[int, JobscriptElementState]]:
+    ) -> Dict[str, Union[JobscriptElementState, Dict[int, JobscriptElementState]]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 

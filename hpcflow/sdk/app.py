@@ -2044,9 +2044,18 @@ class BaseApp(metaclass=Singleton):
             all_cells = {}
             if "status" in columns:
                 if act_js:
-                    act_js_states = set([j for i in act_js.values() for j in i.values()])
+                    act_js_states = set(
+                        [
+                            i
+                            for js_dat in act_js.values()
+                            for block_dat in js_dat.values()
+                            for v in block_dat.values()
+                            for i in v.values()
+                        ]
+                    )
                     status_text = "/".join(
-                        f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
+                        f"[{i.colour}]{i.symbol}[/{i.colour}]"
+                        for i in sorted(act_js_states)
                     )
                 else:
                     if deleted:
@@ -2105,7 +2114,9 @@ class BaseApp(metaclass=Singleton):
                                 EAR_stat_count[i.status] += 1
                     all_cells["actions_compact"] = " | ".join(
                         f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"
-                        for k, v in EAR_stat_count.items()
+                        for k, v in dict(
+                            sorted(EAR_stat_count.items(), key=lambda x: x[0].value)
+                        ).items()
                     )
                 else:
                     all_cells["actions_compact"] = ""

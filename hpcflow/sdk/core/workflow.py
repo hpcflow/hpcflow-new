@@ -36,8 +36,9 @@ from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
 from hpcflow.sdk.submission.jobscript import (
     generate_EAR_resource_map,
     group_resource_map_into_jobscripts,
-    jobscripts_to_list,
+    is_jobscript_array,
     merge_jobscripts_across_tasks,
+    resolve_jobscript_blocks,
     resolve_jobscript_dependencies,
 )
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
@@ -1988,8 +1989,7 @@ class Workflow:
 
     def set_EAR_end(
         self,
-        js_idx: int,
-        js_act_idx: int,
+        block_act_key: Tuple[int, int, int],
         EAR_ID: int,
         exit_code: int,
     ) -> None:
@@ -2031,7 +2031,7 @@ class Workflow:
                         )
 
                 if EAR.action.script_data_out_has_files:
-                    EAR._param_save(js_idx=js_idx, js_act_idx=js_act_idx)
+                    EAR._param_save(block_act_key)
 
                 # Save action-level files: (TODO: refactor with below for OFPs)
                 for save_file_j in EAR.action.save_files:
@@ -2465,14 +2465,16 @@ class Workflow:
         # keys are task_insert_IDs, values are element indices:
         active_elems = defaultdict(set)
         sub = self.submissions[submission_idx]
-        for js_idx, states in sub.get_active_jobscripts().items():
+        for js_idx, block_states in sub.get_active_jobscripts().items():
             js = sub.jobscripts[js_idx]
-            for js_elem_idx, state in states.items():
-                if state is JobscriptElementState.running:
-                    for task_iID, elem_idx in zip(
-                        js.task_insert_IDs, js.task_elements[js_elem_idx]
-                    ):
-                        active_elems[task_iID].add(elem_idx)
+            for block_idx, block in enumerate(js.blocks):
+                states = block_states[block_idx]
+                for js_elem_idx, state in states.items():
+                    if state is JobscriptElementState.running:
+                        for task_iID, elem_idx in zip(
+                            block.task_insert_IDs, block.task_elements[js_elem_idx]
+                        ):
+                            active_elems[task_iID].add(elem_idx)
 
         # retrieve Element objects:
         out = []
@@ -2599,7 +2601,7 @@ class Workflow:
             JS_parallelism=JS_parallelism,
         )
         sub_obj._set_environments()
-        all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.EAR_ID.flatten()]
+        all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.all_EAR_IDs]
         if not all_EAR_ID:
             print(
                 f"There are no pending element action runs, so a new submission was not "
@@ -2635,8 +2637,12 @@ class Workflow:
                     js[js_idx]["dependencies"] = js_deps[js_idx]
 
             js = merge_jobscripts_across_tasks(js)
-            js = jobscripts_to_list(js)
-            js_objs = [self.app.Jobscript(**i) for i in js]
+
+            # for direct or (non-array scheduled), combine into jobscripts of multiple
+            # blocks for dependent jobscripts that have the same resource hashes
+            js = resolve_jobscript_blocks(js)
+
+            js_objs = [self.app.Jobscript(**i, index=idx) for idx, i in enumerate(js)]
 
         return js_objs
 
@@ -2702,6 +2708,11 @@ class Workflow:
 
                 new_js_idx = len(submission_jobscripts)
 
+                is_array = is_jobscript_array(
+                    res[js_dat["resources"]],
+                    EAR_ID_arr.shape[1],
+                    self._store,
+                )
                 js_i = {
                     "task_insert_IDs": [task.insert_ID],
                     "task_loop_idx": [loop_idx_i],
@@ -2711,6 +2722,7 @@ class Workflow:
                     "resources": res[js_dat["resources"]],
                     "resource_hash": res_hash[js_dat["resources"]],
                     "dependencies": {},
+                    "is_array": is_array,
                 }
 
                 all_EAR_IDs = []
@@ -2755,9 +2767,7 @@ class Workflow:
     def execute_run(
         self,
         submission_idx: int,
-        jobscript_idx: int,
-        JS_element_idx: int,
-        JS_action_idx: int,
+        block_act_key: Tuple[int, int, int],
         run_ID: int,
     ) -> None:
         """Execute commands of a run via a subprocess."""
@@ -2767,20 +2777,17 @@ class Workflow:
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
         with redirect_std_to_file(std_stream_path):
 
+            js_idx = block_act_key[0]
+
             # check if we should skip:
             skip = self.get_EAR_skipped(EAR_ID=run_ID)
             if not skip:
                 # write the command file that will be executed:
-                self.write_commands(
-                    submission_idx=submission_idx,
-                    jobscript_idx=jobscript_idx,
-                    JS_action_idx=JS_action_idx,
-                    EAR_ID=run_ID,
-                )
+                self.write_commands(submission_idx, block_act_key, run_ID)
 
                 # prepare subprocess command:
-                jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
-                cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
+                jobscript = self.submissions[submission_idx].jobscripts[js_idx]
+                cmd_file_name = jobscript.get_commands_file_name(block_act_key)
                 cmd_file_path = Path(".").joinpath(cmd_file_name).resolve()
                 if not cmd_file_path.is_file():
                     raise RuntimeError(f"Command file {cmd_file_path!r} does not exist.")
@@ -2817,8 +2824,7 @@ class Workflow:
 
             # set run end:
             self.set_EAR_end(
-                js_idx=jobscript_idx,
-                js_act_idx=JS_action_idx,
+                block_act_key=block_act_key,
                 EAR_ID=run_ID,
                 exit_code=ret_code,
             )
@@ -2826,24 +2832,24 @@ class Workflow:
     def write_commands(
         self,
         submission_idx: int,
-        jobscript_idx: int,
-        JS_action_idx: int,
+        block_act_key: Tuple[int, int, int],
         EAR_ID: int,
     ) -> None:
         """Write run-time commands for a given EAR."""
+        js_idx = block_act_key[0]
         with self._store.cached_load():
             self.app.persistence_logger.debug("Workflow.write_commands")
             self.app.persistence_logger.debug(
                 f"loading jobscript (submission index: {submission_idx}; jobscript "
-                f"index: {jobscript_idx})"
+                f"index: {js_idx})"
             )
-            jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
+            jobscript = self.submissions[submission_idx].jobscripts[js_idx]
             self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
             EAR = self.get_EARs_from_IDs([EAR_ID])[0]
             self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
-                commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
+                commands, shell_vars = EAR.compose_commands(jobscript, block_act_key)
             except OutputFileParserNoOutputError:
                 # no commands to write
                 write_commands = False
@@ -2893,7 +2899,7 @@ class Workflow:
                 commands = ""
 
             self.app.persistence_logger.debug(f"commands to write: {commands!r}")
-            cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
+            cmd_file_name = jobscript.get_commands_file_name(block_act_key)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands)

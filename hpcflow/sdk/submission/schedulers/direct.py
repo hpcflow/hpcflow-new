@@ -81,21 +81,15 @@ class DirectScheduler(NullScheduler):
     def get_job_state_info(
         self,
         js_refs: List[Tuple[int, List[str]]],
-        num_js_elements: int,
-    ) -> Dict[int, Dict[int, JobscriptElementState]]:
-        """Query the scheduler to get the states of all of this user's jobs, optionally
-        filtering by specified job IDs.
-
-        Jobs that are not in the scheduler's status output will not appear in the output
-        of this method."""
+    ) -> Dict[int, JobscriptElementState]:
+        """Return a running status for jobscript references that are currently active."""
         info = {}
         for p_id, p_cmdline in js_refs:
             is_active = self.is_jobscript_active(p_id, p_cmdline)
             if is_active:
-                # as far as the "scheduler" is concerned, all elements are running:
-                info[p_id] = {
-                    i: JobscriptElementState.running for i in range(num_js_elements)
-                }
+                # as far as the "scheduler" is concerned, all elements of all blocks are
+                # running:
+                info[p_id] = JobscriptElementState.running
 
         return info
 

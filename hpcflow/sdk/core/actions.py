@@ -626,13 +626,12 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
-    def write_source(self, js_idx: int, js_act_idx: int):
-        import h5py
+    def write_source(self, block_act_key: Tuple[int, int, int]):
 
         for fmt, ins in self.action.script_data_in_grouped.items():
             if fmt == "json":
                 in_vals = self.get_input_values(inputs=ins, label_dict=False)
-                dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
+                dump_path = self.action.get_param_dump_file_path_JSON(block_act_key)
                 in_vals_processed = {}
                 for k, v in in_vals.items():
                     try:
@@ -645,8 +644,10 @@ class ElementActionRun:
                     json.dump(in_vals_processed, fp)
 
             elif fmt == "hdf5":
+                import h5py
+
                 in_vals = self.get_input_values(inputs=ins, label_dict=False)
-                dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
+                dump_path = self.action.get_param_dump_file_path_HDF5(block_act_key)
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
                         grp_k = f.create_group(k)
@@ -661,14 +662,13 @@ class ElementActionRun:
             with Path(script_name).open("wt", newline="\n") as fp:
                 fp.write(source_str)
 
-    def _param_save(self, js_idx: int, js_act_idx: int):
+    def _param_save(self, block_act_key: Tuple[int, int, int]):
         """Save script-generated parameters that are stored within the supported script
         data output formats (HDF5, JSON, etc)."""
-        import h5py
 
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
-                load_path = self.action.get_param_load_file_path_JSON(js_idx, js_act_idx)
+                load_path = self.action.get_param_load_file_path_JSON(block_act_key)
                 with load_path.open(mode="rt") as f:
                     file_data = json.load(f)
                     for param_name, param_dat in file_data.items():
@@ -685,7 +685,9 @@ class ElementActionRun:
                         )
 
             elif fmt == "hdf5":
-                load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
+                import h5py
+
+                load_path = self.action.get_param_load_file_path_HDF5(block_act_key)
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
                         param_id = self.data_idx[f"outputs.{param_name}"]
@@ -693,7 +695,9 @@ class ElementActionRun:
                         param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
 
     def compose_commands(
-        self, jobscript: app.Jobscript, JS_action_idx: int
+        self,
+        jobscript: app.Jobscript,
+        block_act_key: Tuple[int, int, int],
     ) -> Tuple[str, List[str], List[int]]:
         """
         Returns
@@ -718,7 +722,7 @@ class ElementActionRun:
             ofp.write_source(self.action, env_spec)
 
         if self.action.script:
-            self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
+            self.write_source(block_act_key)
 
         command_lns = []
         env = jobscript.submission.environments.get(**env_spec)
@@ -1524,24 +1528,24 @@ class Action(JSONLike):
         return Path(path)
 
     @staticmethod
-    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
-        return RunDirAppFiles.get_run_param_dump_file_prefix(js_idx, js_act_idx)
+    def get_param_dump_file_stem(block_act_key: Tuple[int, int, int]):
+        return RunDirAppFiles.get_run_param_dump_file_prefix(block_act_key)
 
     @staticmethod
-    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
-        return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
+    def get_param_load_file_stem(block_act_key: Tuple[int, int, int]):
+        return RunDirAppFiles.get_run_param_load_file_prefix(block_act_key)
 
-    def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
+    def get_param_dump_file_path_JSON(self, block_act_key: Tuple[int, int, int]):
+        return Path(self.get_param_dump_file_stem(block_act_key) + ".json")
 
-    def get_param_dump_file_path_HDF5(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
+    def get_param_dump_file_path_HDF5(self, block_act_key: Tuple[int, int, int]):
+        return Path(self.get_param_dump_file_stem(block_act_key) + ".h5")
 
-    def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
+    def get_param_load_file_path_JSON(self, block_act_key: Tuple[int, int, int]):
+        return Path(self.get_param_load_file_stem(block_act_key) + ".json")
 
-    def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
+    def get_param_load_file_path_HDF5(self, block_act_key: Tuple[int, int, int]):
+        return Path(self.get_param_load_file_stem(block_act_key) + ".h5")
 
     def expand(self):
         if self._from_expand:
@@ -1645,27 +1649,27 @@ class Action(JSONLike):
                         ["--wk-path", wk_path_env_var, "--run-id", run_ID_env_var]
                     )
 
-                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_ACT_idx}"}
+                fn_args = (r"${JS_IDX}", r"${block_idx}", r"{block_act_idx}")
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
                         if self.script_data_files_use_opt:
                             args.append("--inputs-json")
-                        args.append(str(self.get_param_dump_file_path_JSON(**fn_args)))
+                        args.append(str(self.get_param_dump_file_path_JSON(fn_args)))
                     elif fmt == "hdf5":
                         if self.script_data_files_use_opt:
                             args.append("--inputs-hdf5")
-                        args.append(str(self.get_param_dump_file_path_HDF5(**fn_args)))
+                        args.append(str(self.get_param_dump_file_path_HDF5(fn_args)))
 
                 for fmt in self.script_data_out_grouped:
                     if fmt == "json":
                         if self.script_data_files_use_opt:
                             args.append("--outputs-json")
-                        args.append(str(self.get_param_load_file_path_JSON(**fn_args)))
+                        args.append(str(self.get_param_load_file_path_JSON(fn_args)))
                     elif fmt == "hdf5":
                         if self.script_data_files_use_opt:
                             args.append("--outputs-hdf5")
-                        args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
+                        args.append(str(self.get_param_load_file_path_HDF5(fn_args)))
 
                 commands += [
                     self.app.Command(executable=exe, arguments=args, variables=variables)
