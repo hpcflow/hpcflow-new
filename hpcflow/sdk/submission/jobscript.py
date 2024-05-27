@@ -1026,13 +1026,14 @@ class Jobscript(JSONLike):
             )
 
         out = header
-        block_start_elem_idx = 0
-        for block_idx, block in enumerate(self.blocks):
-            block_run = shell.JS_RUN.format(
-                EAR_files_delimiter=self._EAR_files_delimiter,
-                workflow_app_alias=self.workflow_app_alias,
-                app_caps=app_caps,
-            )
+        block_run = shell.JS_RUN.format(
+            EAR_files_delimiter=self._EAR_files_delimiter,
+            workflow_app_alias=self.workflow_app_alias,
+            app_caps=app_caps,
+        )
+        if len(self.blocks) == 1:
+            # forgo element and action loops if not necessary:
+            block = self.blocks[0]
             if block.num_actions > 1:
                 block_act = shell.JS_ACT_MULTI.format(
                     num_actions=block.num_actions,
@@ -1044,13 +1045,10 @@ class Jobscript(JSONLike):
             main = shell.JS_MAIN.format(
                 action=block_act,
                 app_caps=app_caps,
-                block_start_elem_idx=block_start_elem_idx,
+                block_start_elem_idx=0,
             )
 
-            out += shell.JS_BLOCK_HEADER.format(
-                block_index=block_idx,
-                app_caps=app_caps,
-            )
+            out += shell.JS_BLOCK_HEADER.format(app_caps=app_caps)
             if self.is_array:
                 out += shell.JS_ELEMENT_MULTI_ARRAY.format(
                     scheduler_command=scheduler.js_cmd,
@@ -1061,17 +1059,42 @@ class Jobscript(JSONLike):
                 )
             elif block.num_elements == 1:
                 out += shell.JS_ELEMENT_SINGLE.format(
-                    block_start_elem_idx=block_start_elem_idx,
+                    block_start_elem_idx=0,
                     main=main,
                 )
             else:
                 out += shell.JS_ELEMENT_MULTI_LOOP.format(
-                    block_start_elem_idx=block_start_elem_idx,
+                    block_start_elem_idx=0,
                     num_elements=block.num_elements,
                     main=indent(main, shell.JS_INDENT),
                 )
 
-            block_start_elem_idx += block.num_elements
+        else:
+            # use a shell loop for blocks, so always write the inner element and action
+            # loops:
+            block_act = shell.JS_ACT_MULTI.format(
+                num_actions="$num_actions[$block_idx]",
+                run_block=indent(block_run, shell.JS_INDENT),
+            )
+            main = shell.JS_MAIN.format(
+                action=block_act,
+                app_caps=app_caps,
+                block_start_elem_idx="$block_start_elem_idx",
+            )
+
+            # only non-array jobscripts will have multiple blocks:
+            element_loop = shell.JS_ELEMENT_MULTI_LOOP.format(
+                block_start_elem_idx="$block_start_elem_idx",
+                num_elements="$num_elements[$block_idx]",
+                main=indent(main, shell.JS_INDENT),
+            )
+            out += shell.JS_BLOCK_LOOP.format(
+                num_elements=shell.format_array([i.num_elements for i in self.blocks]),
+                num_actions=shell.format_array([i.num_actions for i in self.blocks]),
+                num_blocks=len(self.blocks),
+                app_caps=app_caps,
+                element_loop=indent(element_loop, shell.JS_INDENT),
+            )
 
         out += shell.JS_FOOTER
 

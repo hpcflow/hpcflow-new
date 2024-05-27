@@ -76,3 +76,8 @@ def test_process_JS_header_args_app_invoc_bash():
     for i, j in zip(app_invocs, expected):
         processed = shell.process_JS_header_args({"app_invoc": i})
         assert processed["app_invoc"] == j
+
+
+def test_format_array_powershell():
+    shell = ALL_SHELLS["powershell"]["nt"]()
+    assert shell.format_array([1, 2, 3]) == "@(1, 2, 3)"

@@ -126,11 +126,10 @@ class WindowsPowerShell(Shell):
         {action}
     """
     )
-    JS_BLOCK_HEADER = dedent(
+    JS_BLOCK_HEADER = dedent(  # for single-block jobscripts only
         """\
-        # block {block_index}
-        $block_idx = {block_index}
-        $env:{app_caps}_BLOCK_IDX = {block_index}
+        $block_idx = 0
+        $env:{app_caps}_BLOCK_IDX = 0
         """
     )
     JS_ELEMENT_SINGLE = dedent(
@@ -147,6 +146,18 @@ class WindowsPowerShell(Shell):
     """
     )
     JS_ELEMENT_MULTI_ARRAY = None  # not implemented # TODO: add to Shell class
+    JS_BLOCK_LOOP = dedent(
+        """\
+        $num_elements = {num_elements}
+        $num_actions = {num_actions}
+        $block_start_elem_idx = 0
+        for ($block_idx = 0; $block_idx -lt {num_blocks}; $block_idx += 1 ) {{
+            $env:{app_caps}_BLOCK_IDX = $block_idx
+        {element_loop}
+            $block_start_elem_idx += $num_elements[$block_idx]
+        }}
+    """
+    )
     JS_FOOTER = dedent(
         """\
         Set-Location $WK_PATH
@@ -202,6 +213,9 @@ class WindowsPowerShell(Shell):
             # use call operator and single-quote the executable path:
             app_invoc_exe = f"& '{app_invoc_exe}'"
         return app_invoc_exe
+
+    def format_array(self, lst: List) -> str:
+        return "@(" + ", ".join(str(i) for i in lst) + ")"
 
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
