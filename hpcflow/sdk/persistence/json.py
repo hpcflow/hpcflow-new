@@ -430,10 +430,10 @@ class JSONPersistentStore(PersistentStore):
                 for js_idx, js in enumerate(sub["jobscripts"]):
                     for block_idx, block in enumerate(js["blocks"]):
                         for key in list(block["task_elements"].keys()):
-                            subs_dat[sub_idx]["jobscripts"][js_idx]["block"][block_idx][
+                            subs_dat[sub_idx]["jobscripts"][js_idx]["blocks"][block_idx][
                                 "task_elements"
                             ][int(key)] = subs_dat[sub_idx]["jobscripts"][js_idx][
-                                "block"
+                                "blocks"
                             ][
                                 block_idx
                             ][
