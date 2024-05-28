@@ -19,7 +19,7 @@ class Bash(Shell):
     JS_INDENT = "  "
     JS_ENV_SETUP_INDENT = 2 * JS_INDENT
     JS_SHEBANG = """#!{shebang_executable} {shebang_args}"""
-    JS_HEADER = dedent(
+    JS_FUNCS = dedent(
         """\
         {workflow_app_alias} () {{
         (
@@ -30,11 +30,28 @@ class Bash(Shell):
                 "$@"
         )
         }}
+    """
+    )
+    JS_HEADER = dedent(
+        """\
+        SCRIPT_DIR=$( cd -- "$( dirname -- "${{BASH_SOURCE[0]}}" )" &> /dev/null && pwd )
+        JS_FUNCS_PATH="$SCRIPT_DIR/{jobscript_functions_path}"
+
+        . "$JS_FUNCS_PATH"
 
         WK_PATH=`pwd`
         WK_PATH_ARG="$WK_PATH"
         SUB_IDX={sub_idx}
         JS_IDX={js_idx}
+        APP_CAPS={app_caps}
+
+        export {app_caps}_WK_PATH=$WK_PATH
+        export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
+        export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
+        export {app_caps}_STD_STREAM_FILE="{run_stream_file}"
+        export {app_caps}_SUB_IDX={sub_idx}
+        export {app_caps}_JS_IDX={js_idx}
+        
         EAR_ID_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{EAR_file_name}"
         ELEM_RUN_DIR_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{element_run_dirs_file_path}"
     """
@@ -55,68 +72,94 @@ class Bash(Shell):
         {wait_command}
     """
     )
-    JS_MAIN = dedent(
+    JS_RUN_CMD = dedent(
         """\
-        elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
-        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
-
-        for ((JS_act_idx=0;JS_act_idx<{num_actions};JS_act_idx++))
-        do
-
-          EAR_ID="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_EAR_IDs)"
-          if [ "$EAR_ID" = "-1" ]; then
-              continue
-          fi
-
-          run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($JS_act_idx + 1)) <<< $elem_run_dirs)"
-          cd "$WK_PATH/$run_dir"
-          app_stream_file="`pwd`/{run_stream_file}"
-
-          skip=`{workflow_app_alias} internal workflow "$WK_PATH_ARG" get-ear-skipped $EAR_ID 2>> "$app_stream_file"`
-          exc_sk=$?
-
-          if [ $exc_sk -eq 0 ]; then
-
-              if [ "$skip" = "1" ]; then
-                  continue
-              fi
-
-              {workflow_app_alias} internal workflow "$WK_PATH_ARG" write-commands $SUB_IDX $JS_IDX $JS_act_idx $EAR_ID >> "$app_stream_file" 2>&1
-              exc_wc=$?
-
-              {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-start $EAR_ID >> "$app_stream_file" 2>&1
-              exc_se=$?
-
-              if [ $exc_wc -eq 0 ] && [ $exc_se -eq 0 ]; then
-                  . {commands_file_name}
-                  exit_code=$?
-              else
-                  exit_code=$([ $exc_wc -ne 0 ] && echo "$exc_wc" || echo "$exc_se")
-              fi
-
-          else
-              exit_code=$exc_sk
-          fi
-
-          {workflow_app_alias} internal workflow "$WK_PATH_ARG" set-ear-end $JS_IDX $JS_act_idx $EAR_ID "--" "$exit_code" >> "$app_stream_file" 2>&1
-
-        done
+        {workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
     """
     )
-    JS_ELEMENT_LOOP = dedent(
+    JS_RUN = dedent(
         """\
-        for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
+        EAR_ID="$(cut -d'{EAR_files_delimiter}' -f $(($block_act_idx + 1)) <<< $elem_EAR_IDs)"
+        if [ "$EAR_ID" = "-1" ]; then
+            continue
+        fi
+
+        export {app_caps}_RUN_ID=$EAR_ID
+        export {app_caps}_BLOCK_ACT_IDX=$block_act_idx
+        
+        run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($block_act_idx + 1)) <<< $elem_run_dirs)"
+        cd "$WK_PATH/$run_dir"
+        
+        {run_cmd}
+    """
+    )
+    JS_ACT_MULTI = dedent(
+        """\
+        for ((block_act_idx=0;block_act_idx<{num_actions};block_act_idx++))
+        do      
+        {run_block}
+        done  
+        """
+    )
+    JS_ACT_SINGLE = dedent(
+        """\
+        block_act_idx=0        
+        {run_block}
+        """
+    )
+    JS_MAIN = dedent(
+        """\
+        block_elem_idx=$(( $JS_elem_idx - {block_start_elem_idx} ))
+        elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
+        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
+        export {app_caps}_JS_ELEM_IDX=$JS_elem_idx
+        export {app_caps}_BLOCK_ELEM_IDX=$block_elem_idx
+        
+        {action}
+    """
+    )
+    JS_BLOCK_HEADER = dedent(  # for single-block jobscripts only
+        """\
+        block_idx=0
+        export {app_caps}_BLOCK_IDX=0
+        """
+    )
+    JS_ELEMENT_SINGLE = dedent(
+        """\
+        JS_elem_idx={block_start_elem_idx}
+        {main}
+    """
+    )
+    JS_ELEMENT_MULTI_LOOP = dedent(
+        """\
+        for ((JS_elem_idx={block_start_elem_idx};JS_elem_idx<$(({block_start_elem_idx} + {num_elements}));JS_elem_idx++))
         do
         {main}
         done
-        cd "$WK_PATH"
     """
     )
-    JS_ELEMENT_ARRAY = dedent(
+    JS_ELEMENT_MULTI_ARRAY = dedent(
         """\
         JS_elem_idx=$(({scheduler_array_item_var} - 1))
         {main}
-        cd "$WK_PATH"
+    """
+    )
+    JS_BLOCK_LOOP = dedent(
+        """\
+        num_elements={num_elements}
+        num_actions={num_actions}
+        block_start_elem_idx=0
+        for ((block_idx=0;block_idx<{num_blocks};block_idx++))
+        do
+            export {app_caps}_BLOCK_IDX=$block_idx
+        {element_loop}
+            block_start_elem_idx=$(($block_start_elem_idx + $num_elements[$block_idx]))
+        done
+    """
+    )
+    JS_FOOTER = dedent(
+        """\
+        cd $WK_PATH
     """
     )
 
@@ -168,8 +211,31 @@ class Bash(Shell):
         app_invoc_exe = app_invoc_exe.replace(" ", r"\ ")
         return app_invoc_exe
 
+    def format_array(self, lst: List) -> str:
+        return "(" + " ".join(str(i) for i in lst) + ")"
+
+    def format_array_get_item(self, arr_name, index) -> str:
+        return f"${{{arr_name}[{index}]}}"
+
     def format_stream_assignment(self, shell_var_name, command):
         return f"{shell_var_name}=`{command}`"
+
+    def format_source_functions_file(self, app_name):
+        return dedent(
+            """\
+            . "${app_name}_JS_FUNCS_PATH"
+            WK_PATH=${app_name}_WK_PATH
+            WK_PATH_ARG=${app_name}_WK_PATH_ARG
+            RUN_ID=${app_name}_RUN_ID
+            SUB_IDX=${app_name}_SUB_IDX
+            JS_IDX=${app_name}_JS_IDX
+            JS_ELEM_IDX=${app_name}_JS_ELEM_IDX
+            JS_ACT_IDX=${app_name}_JS_ACT_IDX
+            STD_STREAM_FILE=${app_name}_STD_STREAM_FILE
+            RUN_PORT_NUMBER=${app_name}_RUN_PORT_NUMBER
+
+            """
+        ).format(app_name=app_name.upper())
 
     def format_save_parameter(
         self,
@@ -187,7 +253,7 @@ class Bash(Shell):
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" save-parameter '
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
-            f'>> "$app_stream_file" 2>&1'
+            f'>> "$STD_STREAM_FILE" 2>&1'
             f"\n"
         )
 
@@ -196,7 +262,7 @@ class Bash(Shell):
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" check-loop '
             f"{loop_name} {run_ID} "
-            f'>> "$app_stream_file" 2>&1'
+            f'>> "$STD_STREAM_FILE" 2>&1'
             f"\n"
         )
 
@@ -253,9 +319,29 @@ class WSLBash(Bash):
     JS_HEADER = Bash.JS_HEADER.replace(
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',
-    ).replace(
+    )
+    JS_FUNCS = Bash.JS_FUNCS.replace(
         '--with-config log_file_path "`pwd`',
         '--with-config log_file_path "$(wslpath -m `pwd`)',
+    )
+    JS_RUN_CMD = (
+        dedent(
+            """\
+        WSLENV=$WSLENV:${{APP_CAPS}}_WK_PATH
+        WSLENV=$WSLENV:${{APP_CAPS}}_WK_PATH_ARG
+        WSLENV=$WSLENV:${{APP_CAPS}}_JS_FUNCS_PATH
+        WSLENV=$WSLENV:${{APP_CAPS}}_STD_STREAM_FILE
+        WSLENV=$WSLENV:${{APP_CAPS}}_SUB_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_JS_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_RUN_ID
+        WSLENV=$WSLENV:${{APP_CAPS}}_BLOCK_ACT_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_JS_ELEM_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_BLOCK_ELEM_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_BLOCK_IDX
+
+    """
+        )
+        + Bash.JS_RUN_CMD
     )
 
     def __init__(
@@ -346,3 +432,7 @@ class WSLBash(Bash):
             vers_info.update(**get_OS_info_windows())
 
         return vers_info
+
+    def get_command_file_launch_command(self, cmd_file_path: str) -> List[str]:
+        """Get the command for launching the commands file for a given run."""
+        return self.executable + [self._convert_to_wsl_path(cmd_file_path)]

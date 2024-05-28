@@ -2864,7 +2864,6 @@ class Workflow:
                 for cmd_idx, var_dat in shell_vars.items():
                     for param_name, shell_var_name, st_typ in var_dat:
                         commands += jobscript.shell.format_save_parameter(
-                            app_name=app_name,
                             workflow_app_alias=jobscript.workflow_app_alias,
                             param_name=param_name,
                             shell_var_name=shell_var_name,
@@ -2888,7 +2887,6 @@ class Workflow:
                     for loop_name, run_IDs in final_runs.items():
                         if EAR.id_ in run_IDs:
                             loop_cmd = jobscript.shell.format_loop_check(
-                                app_name=self.app.package_name.upper(),
                                 workflow_app_alias=jobscript.workflow_app_alias,
                                 loop_name=loop_name,
                                 run_ID=EAR.id_,

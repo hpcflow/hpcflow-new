@@ -63,6 +63,9 @@ class WindowsPowerShell(Shell):
 
         $WK_PATH = $(Get-Location)
         $WK_PATH_ARG = $WK_PATH
+        $SUB_IDX = {sub_idx}
+        $JS_IDX = {js_idx}
+
         $env:{app_caps}_WK_PATH = $WK_PATH
         $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
         $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
@@ -70,9 +73,6 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_SUB_IDX = {sub_idx}
         $env:{app_caps}_JS_IDX = {js_idx}
         
-        $SUB_IDX = $env:{app_caps}_SUB_IDX
-        $JS_IDX = $env:{app_caps}_JS_IDX
-
         $EAR_ID_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {EAR_file_name}
         $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
     """
@@ -83,6 +83,11 @@ class WindowsPowerShell(Shell):
 
         {header}
         {wait_command}
+    """
+    )
+    JS_RUN_CMD = dedent(
+        """\
+        {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
     """
     )
     JS_RUN = dedent(
@@ -99,7 +104,7 @@ class WindowsPowerShell(Shell):
         $run_dir_abs = Join-Path "$WK_PATH" "$run_dir"
         Set-Location $run_dir_abs
         
-        {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
+        {run_cmd}
         """
     )
     JS_ACT_MULTI = dedent(
@@ -217,6 +222,9 @@ class WindowsPowerShell(Shell):
     def format_array(self, lst: List) -> str:
         return "@(" + ", ".join(str(i) for i in lst) + ")"
 
+    def format_array_get_item(self, arr_name, index) -> str:
+        return f"${arr_name}[{index}]"
+
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
 
@@ -232,14 +240,13 @@ class WindowsPowerShell(Shell):
             $JS_ELEM_IDX = $env:{app_name}_JS_ELEM_IDX
             $JS_ACT_IDX = $env:{app_name}_JS_ACT_IDX
             $STD_STREAM_FILE = $env:{app_name}_STD_STREAM_FILE
-            ${app_name}_RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
+            $RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
 
             """
         ).format(app_name=app_name.upper())
 
     def format_save_parameter(
         self,
-        app_name: str,
         workflow_app_alias: str,
         param_name: str,
         shell_var_name: str,
@@ -250,7 +257,6 @@ class WindowsPowerShell(Shell):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
-        app_name = app_name.upper()
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH save-parameter "
@@ -259,10 +265,7 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
-    def format_loop_check(
-        self, app_name: str, workflow_app_alias: str, loop_name: str, run_ID: int
-    ):
-        app_name = app_name.upper()
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH check-loop "

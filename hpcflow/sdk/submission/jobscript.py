@@ -25,7 +25,7 @@ from hpcflow.sdk.submission.shells import get_shell
 
 def is_jobscript_array(resources, num_elements, store):
     """Return True if a job array should be used for the specified `ElementResources`."""
-    if resources.scheduler == "direct":
+    if resources.scheduler in ("direct", "direct_posix"):
         return False
 
     run_parallelism = store._features.EAR_parallelism
@@ -877,7 +877,7 @@ class Jobscript(JSONLike):
 
     @property
     def is_scheduled(self) -> bool:
-        return self.scheduler_name != "direct"
+        return self.scheduler_name not in ("direct", "direct_posix")
 
     def _set_submit_time(self, submit_time: datetime) -> None:
         submit_time = submit_time.strftime(self.workflow.ts_fmt)
@@ -1026,10 +1026,11 @@ class Jobscript(JSONLike):
             )
 
         out = header
+        run_cmd = shell.JS_RUN_CMD.format(workflow_app_alias=self.workflow_app_alias)
         block_run = shell.JS_RUN.format(
             EAR_files_delimiter=self._EAR_files_delimiter,
-            workflow_app_alias=self.workflow_app_alias,
             app_caps=app_caps,
+            run_cmd=run_cmd,
         )
         if len(self.blocks) == 1:
             # forgo element and action loops if not necessary:
@@ -1073,7 +1074,7 @@ class Jobscript(JSONLike):
             # use a shell loop for blocks, so always write the inner element and action
             # loops:
             block_act = shell.JS_ACT_MULTI.format(
-                num_actions="$num_actions[$block_idx]",
+                num_actions=shell.format_array_get_item("num_actions", "$block_idx"),
                 run_block=indent(block_run, shell.JS_INDENT),
             )
             main = shell.JS_MAIN.format(
@@ -1085,7 +1086,7 @@ class Jobscript(JSONLike):
             # only non-array jobscripts will have multiple blocks:
             element_loop = shell.JS_ELEMENT_MULTI_LOOP.format(
                 block_start_elem_idx="$block_start_elem_idx",
-                num_elements="$num_elements[$block_idx]",
+                num_elements=shell.format_array_get_item("num_elements", "$block_idx"),
                 main=indent(main, shell.JS_INDENT),
             )
             out += shell.JS_BLOCK_LOOP.format(
