@@ -1005,7 +1005,7 @@ class Jobscript(JSONLike):
                 shebang=shebang,
                 scheduler_options=scheduler.format_options(
                     resources=self.resources,
-                    num_elements=self.num_elements,
+                    num_elements=self.blocks[0].num_elements,  # only used for array jobs
                     is_array=self.is_array,
                     sub_idx=self.submission.index,
                 ),
