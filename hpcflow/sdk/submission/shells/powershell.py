@@ -241,6 +241,8 @@ class WindowsPowerShell(Shell):
             $JS_ACT_IDX = $env:{app_name}_JS_ACT_IDX
             $STD_STREAM_FILE = $env:{app_name}_STD_STREAM_FILE
             $RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
+            $BLOCK_ACT_IDX = $env:{app_name}_BLOCK_ACT_IDX
+            $BLOCK_IDX = $env:{app_name}_BLOCK_IDX
 
             """
         ).format(app_name=app_name.upper())

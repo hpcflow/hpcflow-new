@@ -1649,7 +1649,7 @@ class Action(JSONLike):
                         ["--wk-path", wk_path_env_var, "--run-id", run_ID_env_var]
                     )
 
-                fn_args = (r"${JS_IDX}", r"${block_idx}", r"{block_act_idx}")
+                fn_args = (r"${JS_IDX}", r"${block_idx}", r"${block_act_idx}")
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
