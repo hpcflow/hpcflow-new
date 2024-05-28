@@ -153,7 +153,7 @@ class Bash(Shell):
         do
             export {app_caps}_BLOCK_IDX=$block_idx
         {element_loop}
-            block_start_elem_idx=$(($block_start_elem_idx + $num_elements[$block_idx]))
+            block_start_elem_idx=$(($block_start_elem_idx + ${{num_elements[$block_idx]}}))
         done
     """
     )
