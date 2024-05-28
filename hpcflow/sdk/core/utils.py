@@ -1,7 +1,10 @@
+from asyncio import events
+import contextvars
 import copy
 import enum
 from functools import wraps
 import contextlib
+import functools
 import hashlib
 from itertools import accumulate, islice
 import json
@@ -897,3 +900,22 @@ def redirect_std_to_file(file, mode="a"):
                 except BaseException:
                     traceback.print_exc()
                     sys.exit(1)
+
+
+async def to_thread(func, /, *args, **kwargs):
+    """Copied from https://github.com/python/cpython/blob/4b4227b907a262446b9d276c274feda2590a4e6e/Lib/asyncio/threads.py
+    to support Python 3.8, which does not have `asyncio.to_thread`.
+
+    Asynchronously run function *func* in a separate thread.
+
+    Any *args and **kwargs supplied for this function are directly passed
+    to *func*. Also, the current :class:`contextvars.Context` is propagated,
+    allowing context variables from the main thread to be accessed in the
+    separate thread.
+
+    Return a coroutine that can be awaited to get the eventual result of *func*.
+    """
+    loop = events.get_running_loop()
+    ctx = contextvars.copy_context()
+    func_call = functools.partial(ctx.run, func, *args, **kwargs)
+    return await loop.run_in_executor(None, func_call)

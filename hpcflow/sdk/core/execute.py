@@ -135,7 +135,15 @@ class Executor:
     async def _run(self) -> int:
 
         # create tasks for the subprocess and a synchronous Queue.get retrieval:
-        wait_abort_task = asyncio.create_task(asyncio.to_thread(self._receive_stop))
+        try:
+            wait_abort_thread = asyncio.to_thread(self._receive_stop)
+        except AttributeError:
+            # Python 3.8
+            from hpcflow.sdk.core.utils import to_thread
+
+            wait_abort_thread = to_thread(self._receive_stop)
+
+        wait_abort_task = asyncio.create_task(wait_abort_thread)
         subprocess_task = asyncio.create_task(self._subprocess_runner())
 
         # wait for either: subprocess to finish, or a stop signal from the server:
