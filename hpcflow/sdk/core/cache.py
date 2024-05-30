@@ -6,27 +6,28 @@ from typing import Set, Dict, TYPE_CHECKING
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from .element import Element
+    from .workflow import Workflow
 
 
 @dataclass
 class DependencyCache:
     """Class to bulk-retrieve dependencies between elements, iterations, and runs."""
 
-    run_dependencies: Dict[int, Set]
-    run_dependents: Dict[int, Set]
-    iter_run_dependencies: Dict[int, Set]
-    iter_iter_dependencies: Dict[int, Set]
-    elem_iter_dependencies: Dict[int, Set]
-    elem_elem_dependencies: Dict[int, Set]
-    elem_elem_dependents: Dict[int, Set]
-    elem_elem_dependents_rec: Dict[int, Set]
+    run_dependencies: dict[int, Set]
+    run_dependents: dict[int, Set]
+    iter_run_dependencies: dict[int, Set]
+    iter_iter_dependencies: dict[int, Set]
+    elem_iter_dependencies: dict[int, Set]
+    elem_elem_dependencies: dict[int, Set]
+    elem_elem_dependents: dict[int, Set]
+    elem_elem_dependents_rec: dict[int, Set]
 
-    elements: Dict[int, Element]
+    elements: dict[int, Element]
     iterations: Dict
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow):
+    def build(cls, workflow: Workflow):
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs

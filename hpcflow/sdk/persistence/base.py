@@ -1,6 +1,6 @@
 # Store* classes represent the element-metadata in the store, in a store-agnostic way
 from __future__ import annotations
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import contextlib
 import copy
@@ -144,14 +144,14 @@ class StoreElement:
     task_ID: int
     iteration_IDs: list[int]
 
-    def encode(self) -> Dict:
+    def encode(self) -> dict[str, Any]:
         """Prepare store element data for the persistent store."""
         dct = self.__dict__
         del dct["is_pending"]
         return dct
 
     @classmethod
-    def decode(cls, elem_dat: Dict) -> StoreElement:
+    def decode(cls, elem_dat: dict[str, Any]) -> StoreElement:
         """Initialise a `StoreElement` from store element data"""
         return cls(is_pending=False, **elem_dat)
 
@@ -208,14 +208,14 @@ class StoreElementIter:
     schema_parameters: list[str]
     loop_idx: dict[str, int] = field(default_factory=dict)
 
-    def encode(self) -> Dict:
+    def encode(self) -> dict[str, Any]:
         """Prepare store element iteration data for the persistent store."""
         dct = self.__dict__
         del dct["is_pending"]
         return dct
 
     @classmethod
-    def decode(cls, iter_dat: Dict) -> StoreElementIter:
+    def decode(cls, iter_dat: dict[str, Any]) -> StoreElementIter:
         """Initialise a `StoreElementIter` from persistent store element iteration data"""
 
         iter_dat = copy.deepcopy(iter_dat)  # to avoid mutating; can we avoid this?
@@ -334,7 +334,7 @@ class StoreEAR:
     def _decode_datetime(dt_str: str | None, ts_fmt: str) -> datetime:
         return datetime.strptime(dt_str, ts_fmt) if dt_str else None
 
-    def encode(self, ts_fmt: str) -> Dict:
+    def encode(self, ts_fmt: str) -> dict[str, Any]:
         """Prepare store EAR data for the persistent store."""
         return {
             "id_": self.id_,
@@ -363,7 +363,7 @@ class StoreEAR:
         EAR_dat["end_time"] = cls._decode_datetime(EAR_dat["end_time"], ts_fmt)
         return cls(is_pending=False, **EAR_dat)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         """Prepare data for the user-facing `ElementActionRun` object."""
 
         def _process_datetime(dt: datetime) -> datetime:
@@ -1008,9 +1008,9 @@ class PersistentStore(ABC):
     def add_element_iteration(
         self,
         element_ID: int,
-        data_idx: Dict,
+        data_idx: dict[str, int],
         schema_parameters: list[str],
-        loop_idx: Dict | None = None,
+        loop_idx: dict[str, int] | None = None,
         save: bool = True,
     ) -> int:
         """Add a new iteration to an element."""
@@ -1037,7 +1037,7 @@ class PersistentStore(ABC):
         elem_iter_ID: int,
         action_idx: int,
         commands_idx: list[int],
-        data_idx: Dict,
+        data_idx: dict[str, int],
         metadata: Dict,
         save: bool = True,
     ) -> int:
@@ -1311,7 +1311,7 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def update_param_source(
-        self, param_sources: Dict[int, Dict], save: bool = True
+        self, param_sources: dict[int, Dict], save: bool = True
     ) -> None:
         self.logger.debug(f"Updating parameter sources with {param_sources!r}.")
         self._pending.update_param_sources.update(param_sources)
@@ -1823,3 +1823,7 @@ class PersistentStore(ABC):
             self.fs.rm(self.path, recursive=True)
 
         return _delete_no_confirm()
+
+    @abstractmethod
+    def _append_task_element_IDs(self, task_ID: int, elem_IDs: list[int]):
+        raise NotImplementedError

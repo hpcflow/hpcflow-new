@@ -17,6 +17,7 @@ from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from ...app import BaseApp
+    from ..jobscript import Jobscript
 
 
 class SlurmPosix(Scheduler):
@@ -529,7 +530,7 @@ class SlurmPosix(Scheduler):
         info = self._parse_job_states(stdout)
         return info
 
-    def cancel_jobs(self, js_refs: list[str], jobscripts: List = None):
+    def cancel_jobs(self, js_refs: list[str], jobscripts: list[Jobscript] | None = None):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

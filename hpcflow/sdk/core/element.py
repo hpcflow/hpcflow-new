@@ -369,7 +369,7 @@ class ElementIteration:
         is_pending: bool,
         index: int,
         element: Element,
-        data_idx: Dict,
+        data_idx: dict[str, int],
         EARs_initialised: bool,
         EAR_IDs: dict[int, int],
         EARs: dict[int, dict[Mapping[str, Any], Any]] | None,

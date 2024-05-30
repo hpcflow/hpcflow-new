@@ -503,7 +503,7 @@ class BaseApp(metaclass=Singleton):
         TimeIt.active = bool(value)
 
     @property
-    def template_components(self) -> dict[str, ObjectList]:
+    def template_components(self) -> dict[str, ObjectList[Any]]:
         if not self.is_template_components_loaded:
             self._load_template_components()
         return self._template_components
@@ -604,7 +604,7 @@ class BaseApp(metaclass=Singleton):
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
-        components = {}
+        components: dict[str, List | Dict] = {}
         for comp_type in TEMPLATE_COMP_TYPES:
             resource = f"{comp_type}.yaml"
             try:
@@ -964,7 +964,7 @@ class BaseApp(metaclass=Singleton):
         self._load_config(config_dir, config_key, **overrides)
 
     @TimeIt.decorator
-    def _load_scripts(self):
+    def _load_scripts(self) -> dict[str, Path]:
 
         # TODO: load custom directories / custom functions (via decorator)
         scripts_package = f"{self.package_name}.{self.scripts_dir}"
@@ -975,7 +975,7 @@ class BaseApp(metaclass=Singleton):
             # < python 3.9; `resource.path` deprecated since 3.11
             ctx = resources.path(scripts_package, "")
 
-        scripts = {}
+        scripts: dict[str, Path] = {}
         with ctx as path:
             for dirpath, _, filenames in os.walk(path):
                 dirpath = Path(dirpath)

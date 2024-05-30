@@ -669,7 +669,7 @@ class Task(JSONLike):
         self._name = self._get_name()
 
         self.workflow_template = None  # assigned by parent WorkflowTemplate
-        self._insert_ID = None
+        self._insert_ID: int | None = None
         self._dir_name = None
 
         if self.merge_envs:

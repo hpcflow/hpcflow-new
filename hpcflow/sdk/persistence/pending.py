@@ -9,7 +9,7 @@ from typing import Any, Dict, List, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
-    from .base import AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask
+    from .base import AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask, PersistentStore
     pass  # TODO: Get the type variables
 
 
@@ -40,7 +40,7 @@ class PendingChanges:
         code, and success boolean.
     """
 
-    def __init__(self, app, store, resource_map):
+    def __init__(self, app, store: PersistentStore, resource_map):
         self.app = app
         self.store = store
         self.resource_map = resource_map
@@ -56,7 +56,7 @@ class PendingChanges:
         self.add_template_components: dict[str, dict[str, Dict]] = None
         self.add_element_sets: dict[int, Dict] = None
 
-        self.add_elem_IDs: dict[int, List] = None
+        self.add_elem_IDs: dict[int, list[int]] = None
         self.add_elem_iter_IDs: dict[int, List] = None
         self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] = None
         self.add_submission_parts: dict[int, dict[str, list[int]]] = None

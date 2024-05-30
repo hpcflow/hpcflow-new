@@ -1,6 +1,6 @@
+from __future__ import annotations
 import json
 import os
-from typing import Dict, List
 import click
 from colorama import init as colorama_init
 from termcolor import colored

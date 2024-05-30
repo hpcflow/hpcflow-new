@@ -19,6 +19,12 @@ if TYPE_CHECKING:
         input_sources: dict[str, InputSource]
         task_insert_ID: int
 
+    class _DependentDescriptor(TypedDict):
+        group_names: tuple[str, ...]
+
+    class DependentDescriptor(_DependentDescriptor, total=False):
+        pass
+
 
 @dataclass
 class LoopCache:
@@ -51,10 +57,10 @@ class LoopCache:
 
     """
 
-    element_dependents: dict[int, Dict]
+    element_dependents: dict[int, dict[int, DependentDescriptor]]
     elements: dict[int, ElementDescriptor]
-    zeroth_iters: dict[int, tuple[Any, ...]]
-    data_idx: dict[int, dict[tuple[tuple[str, int], ...], int]]
+    zeroth_iters: dict[int, tuple[int, dict[str, int]]]
+    data_idx: dict[int, dict[tuple[tuple[str, int], ...], dict[str, int]]]
     iterations: dict[int, tuple[int, int]]
     task_iterations: dict[int, list[int]]
 
@@ -75,7 +81,7 @@ class LoopCache:
     def update_loop_indices(self, new_loop_name: str, iter_IDs: list[int]):
         elem_ids = {v[0] for k, v in self.iterations.items() if k in iter_IDs}
         for i in elem_ids:
-            new_item: dict[tuple[tuple[str, int], ...], int] = {}
+            new_item: dict[tuple[tuple[str, int], ...], dict[str, int]] = {}
             for k, v in self.data_idx[i].items():
                 new_k = dict(k)
                 new_k[new_loop_name] = 0
@@ -83,7 +89,7 @@ class LoopCache:
             self.data_idx[i] = new_item
 
     @TimeIt.decorator
-    def add_iteration(self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx, data_idx: int):
+    def add_iteration(self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx, data_idx: dict[str, int]):
         """Update the cache to include a newly added iteration."""
         self.task_iterations[task_insert_ID].append(iter_ID)
         new_iter_idx = len(self.data_idx[element_ID])
@@ -100,20 +106,20 @@ class LoopCache:
         loops = list(workflow.template.loops or []) + (loops or [])
         task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
         tasks: list[WorkflowTask] = [workflow.tasks.get(insert_ID=i) for i in sorted(task_iIDs)]
-        elem_deps = {}
+        elem_deps: dict[int, dict[int, DependentDescriptor]] = {}
 
         # keys: element IDs, values: dict with keys: tuple(loop_idx), values: data index
-        data_idx_cache = {}
+        data_idx_cache: dict[int, dict[tuple[tuple[str, int], ...], dict[str, int]]] = {}
 
         # keys: iteration IDs, values: tuple of (element ID, integer index into values
         # dict in `data_idx_cache` [accessed via `.keys()[index]`])
-        iters = {}
+        iters: dict[int, tuple[int, int]] = {}
 
         # keys: element IDs, values: dict with keys: "input_statues", "input_sources",
         # "task_insert_ID":
         elements: dict[int, ElementDescriptor] = {}
 
-        zeroth_iters = {}
+        zeroth_iters: dict[int, tuple[int, dict[str, int]]] = {}
         task_iterations = defaultdict(list)
         for task in tasks:
             for elem_idx in task.element_IDs:
@@ -132,7 +138,7 @@ class LoopCache:
                     }
                     for i in deps_cache.elem_elem_dependents_rec[element.id_]
                 }
-                elem_iters = {}
+                elem_iters: dict[tuple[tuple[str, int], ...], dict[str, int]] = {}
                 for idx, iter_i in enumerate(element.iterations):
                     if idx == 0:
                         zeroth_iters[element.id_] = (iter_i.id_, iter_i.data_idx)

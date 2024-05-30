@@ -1809,7 +1809,7 @@ class Workflow:
             exists = exists[0]
         return exists
 
-    def _add_unset_parameter_data(self, source: Dict) -> int:
+    def _add_unset_parameter_data(self, source: dict[str, str]) -> int:
         # TODO: use this for unset files as well
         return self._store.add_unset_parameter(source)
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import copy
 import enum
 from functools import wraps
@@ -15,7 +16,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Dict, Type
+from typing import Type, TYPE_CHECKING
 import fsspec
 import numpy as np
 
@@ -30,6 +31,11 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from typing import Any, TypeVar
+
+    T = TypeVar('T')
 
 
 def load_config(func):
@@ -873,11 +879,11 @@ def dict_values_process_flat(d, callable):
     return out
 
 
-def nth_key(dct, n):
+def nth_key(dct: Iterable[T], n: int) -> T:
     it = iter(dct)
     next(islice(it, n, n), None)
     return next(it)
 
 
-def nth_value(dct, n):
+def nth_value(dct: dict[Any, T], n: int) -> T:
     return dct[nth_key(dct, n)]

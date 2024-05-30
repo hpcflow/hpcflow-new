@@ -151,7 +151,7 @@ class ElementActionRun:
         is_pending: bool,
         element_action,
         index: int,
-        data_idx: dict,
+        data_idx: dict[str, int],
         commands_idx: list[int],
         start_time: datetime | None,
         end_time: datetime | None,
