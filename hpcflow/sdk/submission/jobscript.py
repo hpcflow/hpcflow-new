@@ -26,6 +26,10 @@ from hpcflow.sdk.submission.shells import get_shell
 def is_jobscript_array(resources, num_elements, store):
     """Return True if a job array should be used for the specified `ElementResources`."""
     if resources.scheduler in ("direct", "direct_posix"):
+        if resources.use_job_array:
+            raise ValueError(
+                f"`use_job_array` not supported by scheduler: {resources.scheduler!r}"
+            )
         return False
 
     run_parallelism = store._features.EAR_parallelism

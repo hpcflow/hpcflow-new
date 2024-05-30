@@ -2583,21 +2583,41 @@ class Workflow:
         self,
         tasks: Optional[List[int]] = None,
         JS_parallelism: Optional[Union[bool, Literal["direct", "scheduled"]]] = None,
+        force_array: Optional[bool] = False,
     ) -> app.Submission:
+        """Add a new submission.
+
+        Parameters
+        ----------
+        force_array
+            Used to force the use of job arrays, even if the scheduler does not support
+            it. This is provided for testing purposes only.
+        """
         with self._store.cached_load():
             with self.batch_update():
-                return self._add_submission(tasks, JS_parallelism)
+                return self._add_submission(tasks, JS_parallelism, force_array)
 
     @TimeIt.decorator
     def _add_submission(
-        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
+        self,
+        tasks: Optional[List[int]] = None,
+        JS_parallelism: Optional[bool] = None,
+        force_array: Optional[bool] = False,
     ) -> app.Submission:
+        """Add a new submission.
+
+        Parameters
+        ----------
+        force_array
+            Used to force the use of job arrays, even if the scheduler does not support
+            it. This is provided for testing purposes only.
+        """
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
         sub_obj = self.app.Submission(
             index=new_idx,
             workflow=self,
-            jobscripts=self.resolve_jobscripts(tasks),
+            jobscripts=self.resolve_jobscripts(tasks, force_array),
             JS_parallelism=JS_parallelism,
         )
         sub_obj._set_environments()
@@ -2625,11 +2645,25 @@ class Workflow:
 
     @TimeIt.decorator
     def resolve_jobscripts(
-        self, tasks: Optional[List[int]] = None
+        self,
+        tasks: Optional[List[int]] = None,
+        force_array: Optional[bool] = False,
     ) -> List[app.Jobscript]:
+        """Generate jobscripts for a new submission.
+
+        Parameters
+        ----------
+        force_array
+            Used to force the use of job arrays, even if the scheduler does not support
+            it. This is provided for testing purposes only.
+
+        """
         with self.app.config.cached_config():
             cache = ObjectCache.build(self, elements=True, iterations=True, runs=True)
-            js, element_deps = self._resolve_singular_jobscripts(cache, tasks)
+            js, element_deps = self._resolve_singular_jobscripts(
+                cache, tasks, force_array
+            )
+
             js_deps = resolve_jobscript_dependencies(js, element_deps)
 
             for js_idx in js:
@@ -2648,11 +2682,20 @@ class Workflow:
 
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
-        self, cache, tasks: Optional[List[int]] = None
+        self,
+        cache,
+        tasks: Optional[List[int]] = None,
+        force_array: Optional[bool] = False,
     ) -> Tuple[Dict[int, Dict], Dict]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
         by EAR idx in the `EARs` dict.
+
+        Parameters
+        ----------
+        force_array
+            Used to force the use of job arrays, even if the scheduler does not support
+            it. This is provided for testing purposes only.
 
         Returns
         -------
@@ -2708,7 +2751,7 @@ class Workflow:
 
                 new_js_idx = len(submission_jobscripts)
 
-                is_array = is_jobscript_array(
+                is_array = force_array or is_jobscript_array(
                     res[js_dat["resources"]],
                     EAR_ID_arr.shape[1],
                     self._store,
