@@ -1267,7 +1267,7 @@ class Jobscript(JSONLike):
         # map each dependency jobscript index to the JS ref (job/process ID) and if the
         # dependency is an array dependency:
         deps = {}
-        for js_idx, deps_i in self.dependencies.items():
+        for (js_idx, _), deps_i in self.dependencies.items():
             dep_js_ref, dep_js_is_arr = scheduler_refs[js_idx]
             # only submit an array dependency if both this jobscript and the dependency
             # are array jobs:
