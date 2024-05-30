@@ -254,10 +254,28 @@ def merge_jobscripts_across_tasks(jobscripts: Dict[int, Dict]) -> Dict[int, Dict
 
     for js_idx, js in jobscripts.items():
         # for now only attempt to merge a jobscript with a single dependency:
-        if len(js["dependencies"]) == 1:
-            js_j_idx = next(iter(js["dependencies"]))
+
+        if not js["dependencies"]:
+            continue
+
+        closest_idx = max(js["dependencies"])
+        closest_js = jobscripts[closest_idx]
+        other_deps = {k: v for k, v in js["dependencies"].items() if k != closest_idx}
+
+        # if all `other_deps` are also found within `closest_js`'s dependencies, then we
+        # can merge `js` into `closest_js`:
+        merge = True
+        for dep_idx, dep_i in other_deps.items():
+            try:
+                if closest_js["dependencies"][dep_idx] != dep_i:
+                    merge = False
+            except KeyError:
+                merge = False
+
+        if merge:
+            js_j = closest_js  # the jobscript we are merging `js` into
+            js_j_idx = closest_idx
             dep_info = js["dependencies"][js_j_idx]
-            js_j = jobscripts[js_j_idx]  # the jobscript we are merging `js` into
 
             # can only merge if resources are the same and is array dependency:
             if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
