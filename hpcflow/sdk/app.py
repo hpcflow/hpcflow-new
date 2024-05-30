@@ -2055,7 +2055,7 @@ class BaseApp(metaclass=Singleton):
                     )
                     status_text = "/".join(
                         f"[{i.colour}]{i.symbol}[/{i.colour}]"
-                        for i in sorted(act_js_states)
+                        for i in sorted(act_js_states, key=lambda x: x.value)
                     )
                 else:
                     if deleted:
