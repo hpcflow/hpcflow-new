@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from textwrap import indent
 from typing import Dict, List, Literal, Optional, Tuple, Union
+import warnings
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
@@ -528,9 +529,13 @@ class Submission(JSONLike):
 
             # check all dependencies were submitted now or previously:
             if not all(
-                i in submitted_js_idx or i in self.submitted_jobscripts
-                for i in js.dependencies
+                js_idx in submitted_js_idx or js_idx in self.submitted_jobscripts
+                for js_idx, _ in js.dependencies
             ):
+                warnings.warn(
+                    f"Cannot submit jobscript index {js.index} since not all of its "
+                    f"dependencies have been submitted: {js.dependencies!r}"
+                )
                 continue
 
             try:
