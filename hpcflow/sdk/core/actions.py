@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import Any, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 
 from valida.conditions import ConditionLike
 
@@ -142,8 +142,8 @@ class EARStatus(enum.Enum):
 
 
 class ElementActionRun:
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
@@ -746,7 +746,7 @@ class ElementActionRun:
 
 
 class ElementAction:
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
     def __init__(self, element_iteration: ElementIteration, action_idx: int,
@@ -982,7 +982,7 @@ class ActionScope(JSONLike):
 
 @dataclass
 class ActionEnvironment(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
     _child_objects = (
@@ -1072,7 +1072,7 @@ class ActionRule(JSONLike):
 class Action(JSONLike):
     """"""
 
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(

@@ -6,7 +6,7 @@ from datetime import timedelta
 import enum
 from pathlib import Path
 import re
-from typing import Any, Dict, TypeAlias, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TypeAlias, TYPE_CHECKING
 
 import numpy as np
 import valida
@@ -33,7 +33,7 @@ from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
     from ..app import BaseApp
     from .actions import ActionScope
-    from .task import TaskSchema, TaskTemplate
+    from .task import ElementSet, TaskSchema, TaskTemplate
     from .workflow import Workflow
 
 
@@ -173,7 +173,7 @@ class SubParameter:
 
 @dataclass
 class SchemaParameter(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
     _child_objects = (
@@ -1200,7 +1200,7 @@ class InputValue(AbstractInputValue):
         self._value = _process_demo_data_strings(self.app, value)
 
         self._value_group_idx = None  # assigned by method make_persistent
-        self._element_set = None  # assigned by parent ElementSet (if belonging)
+        self._element_set: ElementSet | None = None  # assigned by parent ElementSet (if belonging)
 
         # assigned by parent SchemaInput (if this object is a default value of a
         # SchemaInput):

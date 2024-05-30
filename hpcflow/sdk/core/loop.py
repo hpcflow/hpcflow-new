@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from itertools import chain
-from typing import Self, TYPE_CHECKING
+from typing import ClassVar, Self, TYPE_CHECKING
 
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 
 class Loop(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
     _child_objects = (ChildObjectSpec(name="termination", class_name="Rule"),)
 
@@ -179,8 +179,8 @@ class Loop(JSONLike):
 class WorkflowLoop:
     """Class to represent a Loop that is bound to a Workflow."""
 
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,

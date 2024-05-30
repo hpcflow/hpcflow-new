@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 import signal
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 
 import psutil
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
@@ -151,18 +151,18 @@ class DirectScheduler(NullScheduler):
 
 
 class DirectPosix(DirectScheduler):
-    app: BaseApp
-    _app_attr = "app"
-    DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
+    DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
 class DirectWindows(DirectScheduler):
-    app: BaseApp
-    _app_attr = "app"
-    DEFAULT_SHELL_EXECUTABLE = "powershell.exe"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
+    DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "powershell.exe"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

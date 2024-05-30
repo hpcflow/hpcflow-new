@@ -627,6 +627,7 @@ class BaseApp(metaclass=Singleton):
     @property
     def command_files(self) -> CommandFilesList:
         self._ensure_template_component("command_files")
+        assert self._command_files is not None
         return self._command_files
 
     @property

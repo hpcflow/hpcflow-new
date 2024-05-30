@@ -11,7 +11,7 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem
@@ -119,7 +119,7 @@ class WorkflowTemplate(JSONLike):
         template-level resources are ignored.
     """
 
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
     _validation_schema = "workflow_spec_schema.yaml"
 
@@ -501,12 +501,12 @@ def resolve_fsspec(path: PathLike, **kwargs) -> tuple[AbstractFileSystem, str, s
 
 
 class Workflow:
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
-    _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
-    _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
-    _input_files_dir_name = "input_files"
-    _exec_dir_name = "execute"
+    _default_ts_fmt: ClassVar[str] = r"%Y-%m-%d %H:%M:%S.%f"
+    _default_ts_name_fmt: ClassVar[str] = r"%Y-%m-%d_%H%M%S"
+    _input_files_dir_name: ClassVar[str] = "input_files"
+    _exec_dir_name: ClassVar[str] = "execute"
 
     def __init__(
         self,

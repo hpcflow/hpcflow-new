@@ -3,7 +3,7 @@ import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.environment import Environment
@@ -13,25 +13,27 @@ from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
     from ..app import BaseApp
     from .actions import ActionRule
+    from .object_list import CommandFilesList
     from .parameters import Parameter
+    from .task import ElementSet
     from .workflow import Workflow
 
 
 @dataclass
 class FileSpec(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
     _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
 
     label: str
-    name: str | FileNameSpec
+    _name: str | FileNameSpec
     _hash_value: str | None = field(default=None, repr=False)
 
     def __post_init__(self):
-        self.name = (
-            self.app.FileNameSpec(self.name) if isinstance(self.name, str) else self.name
+        self._name = (
+            self.app.FileNameSpec(self._name) if isinstance(self._name, str) else self._name
         )
 
     def value(self, directory="."):
@@ -45,6 +47,11 @@ class FileSpec(JSONLike):
         return False
 
     @property
+    def name(self) -> FileNameSpec:
+        assert isinstance(self._name, FileNameSpec)
+        return self._name
+
+    @property
     def stem(self):
         return self.name.stem
 
@@ -54,7 +61,7 @@ class FileSpec(JSONLike):
 
 
 class FileNameSpec(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
@@ -72,11 +79,11 @@ class FileNameSpec(JSONLike):
         )
 
     @property
-    def stem(self):
+    def stem(self) -> FileNameStem:
         return self.app.FileNameStem(self)
 
     @property
-    def ext(self):
+    def ext(self) -> FileNameExt:
         return self.app.FileNameExt(self)
 
     def value(self, directory="."):
@@ -108,8 +115,7 @@ class FileNameExt(JSONLike):
 
 @dataclass
 class InputFileGenerator(JSONLike):
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
 
     _child_objects = (
         ChildObjectSpec(
@@ -256,13 +262,14 @@ class OutputFileParser(JSONLike):
         ),
     )
 
+    app: ClassVar[BaseApp]
     output_files: list[FileSpec]
     output: Parameter | None = None
-    script: str = None
-    environment: Environment = None
-    inputs: list[str] = None
-    outputs: list[str] = None
-    options: Dict = None
+    script: str | None = None
+    environment: Environment | None = None
+    inputs: list[str] | None = None
+    outputs: list[str] | None = None
+    options: Dict | None = None
     script_pass_env_spec: bool = False
     abortable: bool = False
     save_files: list[str] | bool = True
@@ -302,7 +309,7 @@ class OutputFileParser(JSONLike):
 
         if self.output is None:
             # might be used just for saving files:
-            return
+            return ""
 
         script_main_func = snip_path.stem
         with snip_path.open("rt") as fp:
@@ -369,6 +376,9 @@ class _FileContentsSpecifier(JSONLike):
     """Class to represent the contents of a file, either via a file-system path or
     directly."""
 
+    app: ClassVar[BaseApp]
+    file: FileSpec
+    normalised_path: str
     def __init__(
         self,
         path: Path | str | None = None,
@@ -390,11 +400,11 @@ class _FileContentsSpecifier(JSONLike):
         self._store_contents = store_contents
 
         # assigned by `make_persistent`
-        self._workflow = None
-        self._value_group_idx = None
+        self._workflow: Workflow | None = None
+        self._value_group_idx: int | None = None
 
         # assigned by parent `ElementSet`
-        self._element_set = None
+        self._element_set: ElementSet | None = None
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -450,7 +460,8 @@ class _FileContentsSpecifier(JSONLike):
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False
-            if not workflow.check_parameter_group_exists(data_ref):
+            # FIXME: check_parameter_group_exists method doesn't exist anywhere!
+            if False and not workflow.check_parameter_group_exists(data_ref):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
                     f"({data_ref}), but does not exist in the workflow."
@@ -474,8 +485,8 @@ class _FileContentsSpecifier(JSONLike):
             self._workflow = workflow
             self._path = None
             self._contents = None
-            self._extension = None
-            self._store_contents = None
+            self._extension = ""
+            self._store_contents = True
 
         return (self.normalised_path, [data_ref], is_new)
 
@@ -523,10 +534,12 @@ class _FileContentsSpecifier(JSONLike):
             return self._workflow
         elif self._element_set:
             return self._element_set.task_template.workflow_template.workflow
+        else:
+            raise NotImplementedError
 
 
 class InputFile(_FileContentsSpecifier):
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="file",
             class_name="FileSpec",
@@ -543,9 +556,11 @@ class InputFile(_FileContentsSpecifier):
         extension: str = "",
         store_contents: bool = True,
     ):
-        self.file = file
-        if not isinstance(self.file, FileSpec):
-            self.file = self.app.command_files.get(self.file.label)
+        if not isinstance(file, FileSpec):
+            files: CommandFilesList = self.app.command_files
+            self.file = files.get(file)
+        else:
+            self.file = file
 
         super().__init__(path, contents, extension, store_contents)
 

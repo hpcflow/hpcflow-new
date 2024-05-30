@@ -4,7 +4,7 @@ from collections.abc import Sequence, Mapping, Callable
 import copy
 from dataclasses import dataclass
 import enum
-from typing import Any, TypeAlias, overload, TypeGuard, Self, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import Any, ClassVar, TypeAlias, overload, TypeGuard, Self, Protocol, runtime_checkable, TYPE_CHECKING
 
 from hpcflow.sdk import app, get_SDK_logger
 from .utils import classproperty, get_md5_hash
@@ -217,11 +217,11 @@ class BaseJSONLike:
         in child objects.
     """
 
-    _child_objects: Sequence[ChildObjectSpec] | None = None
-    _validation_schema: str | None = None
+    _child_objects: ClassVar[Sequence[ChildObjectSpec] | None] = None
+    _validation_schema: ClassVar[str | None] = None
 
-    __class_namespace: dict[str, Any] | None = None
-    __class_namespace_is_dict = False
+    __class_namespace: ClassVar[dict[str, Any] | None] = None
+    __class_namespace_is_dict: ClassVar[bool] = False
 
     @classmethod
     def _set_class_namespace(cls, value: dict[str, Any], is_dict=False) -> None:
@@ -535,7 +535,7 @@ class BaseJSONLike:
 class JSONLike(BaseJSONLike):
     """BaseJSONLike, where the class namespace is the App instance."""
 
-    _app_attr = "app"  # for some classes we change this to "_app"
+    _app_attr: ClassVar[str] = "app"  # for some classes we change this to "_app"
 
     @classproperty
     def _class_namespace(cls) -> BaseApp:

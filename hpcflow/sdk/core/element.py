@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import os
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 
 
 class _ElementPrefixedParameter:
-    _app: BaseApp
-    _app_attr = "_app"
+    _app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "_app"
 
     def __init__(
         self,
@@ -360,8 +360,8 @@ class ElementResources(JSONLike):
 
 
 class ElementIteration:
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
@@ -951,8 +951,8 @@ class ElementIteration:
 
 
 class Element:
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     # TODO: use slots
     # TODO:
@@ -1296,8 +1296,8 @@ class Element:
 
 @dataclass(repr=False, eq=False)
 class ElementParameter:
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     task: WorkflowTask
     path: str

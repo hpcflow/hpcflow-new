@@ -1,7 +1,7 @@
 from __future__ import annotations
 import copy
 from types import SimpleNamespace
-from typing import Dict, Generic, TypeVar, cast, TYPE_CHECKING
+from typing import ClassVar, Dict, Generic, TypeVar, cast, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.task import ElementSet
@@ -289,7 +289,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
 
 
 class AppDataList(DotAccessObjectList[T], Generic[T]):
-    _app: BaseApp
+    _app: ClassVar[BaseApp]
     _app_attr = "_app"
 
     def to_dict(self):
@@ -516,7 +516,7 @@ class WorkflowLoopList(DotAccessObjectList[WorkflowLoop]):
 
 
 class ResourceList(ObjectList[ResourceSpec]):
-    _app: BaseApp
+    _app: ClassVar[BaseApp]
     _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(

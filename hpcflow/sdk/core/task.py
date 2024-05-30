@@ -4,7 +4,7 @@ from collections.abc import Iterable, Iterator
 import copy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, overload, Literal, TypeAlias, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, overload, Literal, TypeAlias, TYPE_CHECKING
 
 from valida.rules import Rule
 
@@ -1356,8 +1356,8 @@ class Task(JSONLike):
 class WorkflowTask:
     """Class to represent a Task that is bound to a Workflow."""
 
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
@@ -2957,8 +2957,8 @@ class Elements:
 
 @dataclass
 class Parameters:
-    _app: BaseApp
-    _app_attr = "_app"
+    _app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
     path: str
@@ -3026,8 +3026,8 @@ class Parameters:
 class TaskInputParameters:
     """For retrieving schema input parameters across all elements."""
 
-    _app: BaseApp
-    _app_attr = "_app"
+    _app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
 
@@ -3053,8 +3053,8 @@ class TaskInputParameters:
 class TaskOutputParameters:
     """For retrieving schema output parameters across all elements."""
 
-    _app: BaseApp
-    _app_attr = "_app"
+    _app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
 
@@ -3081,8 +3081,8 @@ class ElementPropagation:
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""
 
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     task: Task
     nesting_order: Dict | None = None

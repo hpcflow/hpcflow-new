@@ -1,12 +1,13 @@
 from pathlib import Path
 import sys
 import time
-from typing import Any, List, Tuple
+from typing import Any, ClassVar
+from abc import abstractmethod
 
 
 class NullScheduler:
-    DEFAULT_SHELL_ARGS = ""
-    DEFAULT_SHEBANG_ARGS = ""
+    DEFAULT_SHELL_ARGS: ClassVar[str] = ""
+    DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 
     def __init__(
         self,
@@ -42,8 +43,8 @@ class NullScheduler:
 
 
 class Scheduler(NullScheduler):
-    DEFAULT_LOGIN_NODES_CMD = None
-    DEFAULT_LOGIN_NODE_MATCH = "*login*"
+    DEFAULT_LOGIN_NODES_CMD: ClassVar[str | None] = None
+    DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
 
     def __init__(
         self,
@@ -68,15 +69,19 @@ class Scheduler(NullScheduler):
         self.array_item_var = array_item_var or self.DEFAULT_ARRAY_ITEM_VAR
 
     @property
-    def unique_properties(self):
+    def unique_properties(self) -> tuple[str, str, Any, Any]:
         return (self.__class__.__name__, self.submit_cmd, self.show_cmd, self.del_cmd)
 
-    def format_switch(self, switch):
+    def format_switch(self, switch) -> str:
         return f"{self.js_cmd} {switch}"
 
-    def is_jobscript_active(self, job_ID: str):
+    def is_jobscript_active(self, job_ID: str) -> bool:
         """Query if a jobscript is running/pending."""
         return bool(self.get_job_state_info([job_ID]))
+
+    @abstractmethod
+    def get_job_state_info(js_refs: list[Any]) -> dict[Any, Any]:
+        raise NotImplementedError
 
     def wait_for_jobscripts(self, js_refs: list[Any]) -> None:
         while js_refs:

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+from typing import ClassVar, TYPE_CHECKING
 
 import numpy as np
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Command(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(

@@ -8,7 +8,7 @@ import shutil
 import socket
 import subprocess
 from textwrap import indent
-from typing import Any, Dict, List, TypedDict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, List, TypedDict, TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
@@ -311,10 +311,10 @@ def jobscripts_to_list(jobscripts: dict[int, Dict]) -> list[Dict]:
 
 
 class Jobscript(JSONLike):
-    app: BaseApp
+    app: ClassVar[BaseApp]
     _app_attr = "app"
-    _EAR_files_delimiter = ":"
-    _workflow_app_alias = "wkflow_app"
+    _EAR_files_delimiter: ClassVar[str] = ":"
+    _workflow_app_alias: ClassVar[str] = "wkflow_app"
 
     _child_objects = (
         ChildObjectSpec(

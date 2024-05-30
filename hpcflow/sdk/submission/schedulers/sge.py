@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import re
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -31,8 +31,8 @@ class SGEPosix(Scheduler):
 
     """
 
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     DEFAULT_SHEBANG_ARGS = ""
     DEFAULT_SUBMIT_CMD = "qsub"

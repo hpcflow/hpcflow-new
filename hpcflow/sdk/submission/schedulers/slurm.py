@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import time
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -36,8 +36,8 @@ class SlurmPosix(Scheduler):
 
     """
 
-    app: BaseApp
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
     DEFAULT_SHEBANG_ARGS = ""
