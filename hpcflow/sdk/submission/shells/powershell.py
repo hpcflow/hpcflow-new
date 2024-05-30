@@ -33,15 +33,6 @@ class WindowsPowerShell(Shell):
             Get-Content $file | Select-Object -Skip $line -First 1
         }}
 
-        function JoinMultiPath {{
-            $numArgs = $args.Length
-            $path = $args[0]
-            for ($i = 1; $i -lt $numArgs; $i++) {{
-                $path = Join-Path $path $args[$i]
-            }}
-            return $path
-        }}
-
         function StartJobHere($block) {{
             $jobInitBlock = [scriptblock]::Create(@"
                 Function wkflow_app {{ $function:wkflow_app }}
@@ -57,14 +48,23 @@ class WindowsPowerShell(Shell):
     JS_HEADER = dedent(
         """\
         $ErrorActionPreference = 'Stop'
-        $JS_FUNCS_PATH = (Join-Path -Path $PSScriptRoot -ChildPath {jobscript_functions_path})
-        
-        . $JS_FUNCS_PATH
+
+        function JoinMultiPath {{
+            $numArgs = $args.Length
+            $path = $args[0]
+            for ($i = 1; $i -lt $numArgs; $i++) {{
+                $path = Join-Path $path $args[$i]
+            }}
+            return $path
+        }}        
 
         $WK_PATH = $(Get-Location)
         $WK_PATH_ARG = $WK_PATH
         $SUB_IDX = {sub_idx}
         $JS_IDX = {js_idx}
+
+        $JS_FUNCS_PATH = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {jobscript_functions_path}
+        . $JS_FUNCS_PATH
 
         $env:{app_caps}_WK_PATH = $WK_PATH
         $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
@@ -72,7 +72,7 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_STD_STREAM_FILE = "{run_stream_file}"
         $env:{app_caps}_SUB_IDX = {sub_idx}
         $env:{app_caps}_JS_IDX = {js_idx}
-        
+
         $EAR_ID_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {EAR_file_name}
         $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
     """

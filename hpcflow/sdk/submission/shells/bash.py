@@ -34,16 +34,14 @@ class Bash(Shell):
     )
     JS_HEADER = dedent(
         """\
-        SCRIPT_DIR=$( cd -- "$( dirname -- "${{BASH_SOURCE[0]}}" )" &> /dev/null && pwd )
-        JS_FUNCS_PATH="$SCRIPT_DIR/{jobscript_functions_path}"
-
-        . "$JS_FUNCS_PATH"
-
         WK_PATH=`pwd`
         WK_PATH_ARG="$WK_PATH"
         SUB_IDX={sub_idx}
         JS_IDX={js_idx}
         APP_CAPS={app_caps}
+
+        JS_FUNCS_PATH="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{jobscript_functions_path}"
+        . "$JS_FUNCS_PATH"
 
         export {app_caps}_WK_PATH=$WK_PATH
         export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
