@@ -37,7 +37,7 @@ class Command(JSONLike):
     stdout: str | None = None
     stderr: str | None = None
     stdin: str | None = None
-    rules: list[ActionRule] | None = field(default_factory=lambda: [])
+    rules: list[ActionRule] = field(default_factory=lambda: [])
 
     def __repr__(self) -> str:
         out = []

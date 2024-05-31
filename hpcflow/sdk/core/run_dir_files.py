@@ -4,6 +4,7 @@ from typing import ClassVar, TYPE_CHECKING
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 if TYPE_CHECKING:
     from ..app import BaseApp
+    from ..submission.shells.base import Shell
 
 
 class RunDirAppFiles:
@@ -26,21 +27,21 @@ class RunDirAppFiles:
         return f"{cls.app.package_name}_std.txt"
 
     @staticmethod
-    def get_run_file_prefix(js_idx: int, js_action_idx: int):
+    def get_run_file_prefix(js_idx: int | str, js_action_idx: int | str) -> str:
         return f"js_{js_idx}_act_{js_action_idx}"
 
     @classmethod
-    def get_commands_file_name(cls, js_idx: int, js_action_idx: int, shell):
+    def get_commands_file_name(cls, js_idx: int | str, js_action_idx: int | str, shell: Shell):
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
-    def get_run_param_dump_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_dump_file_prefix(cls, js_idx: int | str, js_action_idx: int | str) -> str:
         """Get the prefix to a file in the run directory that the app will dump parameter
         data to."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_inputs"
 
     @classmethod
-    def get_run_param_load_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_load_file_prefix(cls, js_idx: int | str, js_action_idx: int | str) -> str:
         """Get the prefix to a file in the run directory that the app will load parameter
         data from."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_outputs"

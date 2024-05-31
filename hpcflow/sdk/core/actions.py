@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import overload, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
 
 from valida.conditions import ConditionLike
 
@@ -15,6 +15,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
+from hpcflow.sdk.core.command_files import InputFile
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
@@ -25,6 +26,7 @@ from hpcflow.sdk.core.errors import (
     UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
     split_param_label,
@@ -34,7 +36,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import Any, ClassVar, Literal
+    from typing import Any, ClassVar, Literal, Self
     from ..app import BaseApp
     from ..submission.jobscript import Jobscript
     from .commands import Command
@@ -46,6 +48,7 @@ if TYPE_CHECKING:
     from .parameters import SchemaParameter
     from .rule import Rule
     from .task import WorkflowTask
+    from .task_schema import TaskSchema
     from .workflow import Workflow
 
 
@@ -798,15 +801,15 @@ class ElementAction:
         )
 
     @property
-    def element_iteration(self):
+    def element_iteration(self) -> ElementIteration:
         return self._element_iteration
 
     @property
-    def element(self):
+    def element(self) -> Element:
         return self.element_iteration.element
 
     @property
-    def num_runs(self):
+    def num_runs(self) -> int:
         return len(self._runs)
 
     @property
@@ -946,13 +949,13 @@ class ActionScope(JSONLike):
                 f"{self.typ.name}: {bad_keys}."
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         kwargs_str = ""
         if self.kwargs:
             kwargs_str = ", ".join(f"{k}={v!r}" for k, v in self.kwargs.items())
         return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
         if self.typ is other.typ and self.kwargs == other.kwargs:
@@ -960,23 +963,23 @@ class ActionScope(JSONLike):
         return False
 
     @classmethod
-    def _parse_from_string(cls, string):
+    def _parse_from_string(cls, string) -> dict[str, str]:
         typ_str, kwargs_str = re.search(ACTION_SCOPE_REGEX, string).groups()
-        kwargs = {}
+        kwargs: dict[str, str] = {}
         if kwargs_str:
             for i in kwargs_str.split(","):
                 name, val = i.split("=")
                 kwargs[name.strip()] = val.strip()
-        return {"type": typ_str, **kwargs}
+        return {"type": cast(str, typ_str), **kwargs}
 
-    def to_string(self):
+    def to_string(self) -> str:
         kwargs_str = ""
         if self.kwargs:
             kwargs_str = "[" + ", ".join(f"{k}={v}" for k, v in self.kwargs.items()) + "]"
         return f"{self.typ.name.lower()}{kwargs_str}"
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
+    def from_json_like(cls, json_like, shared_data=None) -> ActionScope:
         if isinstance(json_like, str):
             json_like = cls._parse_from_string(json_like)
         else:
@@ -985,23 +988,23 @@ class ActionScope(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     @classmethod
-    def any(cls):
+    def any(cls) -> ActionScope:
         return cls(typ=ActionScopeType.ANY)
 
     @classmethod
-    def main(cls):
+    def main(cls) -> ActionScope:
         return cls(typ=ActionScopeType.MAIN)
 
     @classmethod
-    def processing(cls):
+    def processing(cls) -> ActionScope:
         return cls(typ=ActionScopeType.PROCESSING)
 
     @classmethod
-    def input_file_generator(cls, file=None):
+    def input_file_generator(cls, file=None) -> ActionScope:
         return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, file=file)
 
     @classmethod
-    def output_file_parser(cls, output=None):
+    def output_file_parser(cls, output=None) -> ActionScope:
         return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, output=output)
 
 
@@ -1020,7 +1023,7 @@ class ActionEnvironment(JSONLike):
     environment: str | dict[str, Any]
     scope: ActionScope | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.scope is None:
             self.scope = self.app.ActionScope.any()
 
@@ -1070,11 +1073,11 @@ class ActionRule(JSONLike):
                 f"constructor arguments."
             )
 
-        self.rule = rule
-        self.action = None  # assigned by parent action
-        self.command = None  # assigned by parent command
+        self.rule: Rule = rule
+        self.action: Action | None = None  # assigned by parent action
+        self.command: Command | None = None  # assigned by parent command
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if type(other) is not self.__class__:
             return False
         if self.rule == other.rule:
@@ -1086,11 +1089,11 @@ class ActionRule(JSONLike):
         return self.rule.test(element_like=element_iteration, action=self.action)
 
     @classmethod
-    def check_exists(cls, check_exists):
+    def check_exists(cls, check_exists) -> ActionRule:
         return cls(rule=app.Rule(check_exists=check_exists))
 
     @classmethod
-    def check_missing(cls, check_missing):
+    def check_missing(cls, check_missing) -> ActionRule:
         return cls(rule=app.Rule(check_missing=check_missing))
 
 
@@ -1208,7 +1211,7 @@ class Action(JSONLike):
         self.save_files = save_files or []
         self.clean_up = clean_up or []
 
-        self._task_schema = None  # assigned by parent TaskSchema
+        self._task_schema: TaskSchema | None = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
 
         self._set_parent_refs()
@@ -1218,7 +1221,7 @@ class Action(JSONLike):
         self.script_data_out = self._process_script_data_out(self.script_data_out)
 
     def _process_script_data_format(
-        self, data_fmt: str | dict[str, str | dict[str, str]], prefix: str
+        self, data_fmt: str | dict[str, str] | dict[str, dict[str, str]], prefix: str
     ) -> dict[str, str]:
         if not data_fmt:
             return {}
@@ -1345,6 +1348,7 @@ class Action(JSONLike):
             snip_path = self.get_snippet_script_path(self.script)
             if snip_path:
                 return snip_path.suffix == ".py"
+        return False
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -1356,17 +1360,18 @@ class Action(JSONLike):
         return obj
 
     @property
-    def task_schema(self):
+    def task_schema(self) -> TaskSchema:
+        assert self._task_schema is not None
         return self._task_schema
 
-    def _resolve_input_files(self, input_files):
+    def _resolve_input_files(self, input_files: list[FileSpec]) -> list[FileSpec]:
         in_files = input_files
         for i in self.input_file_generators:
             if i.input_file not in in_files:
                 in_files.append(i.input_file)
         return in_files
 
-    def _resolve_output_files(self, output_files):
+    def _resolve_output_files(self, output_files: list[FileSpec]) -> list[FileSpec]:
         out_files = output_files
         for i in self.output_file_parsers:
             for j in i.output_files:
@@ -1419,7 +1424,7 @@ class Action(JSONLike):
         return False
 
     @classmethod
-    def _json_like_constructor(cls, json_like):
+    def _json_like_constructor(cls, json_like) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
         _from_expand = json_like.pop("_from_expand", None)
         obj = cls(**json_like)
@@ -1547,7 +1552,7 @@ class Action(JSONLike):
     @classmethod
     def get_snippet_script_path(
         cls, script_path, env_spec: dict[str, Any] | None = None
-    ) -> Path:
+    ) -> Path | Literal[False]:
         if not cls.is_snippet_script(script_path):
             return False
 
@@ -1558,23 +1563,23 @@ class Action(JSONLike):
         return Path(path)
 
     @staticmethod
-    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
+    def get_param_dump_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
         return RunDirAppFiles.get_run_param_dump_file_prefix(js_idx, js_act_idx)
 
     @staticmethod
-    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
+    def get_param_load_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
         return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
 
-    def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
+    def get_param_dump_file_path_JSON(self, js_idx: int | str, js_act_idx: int | str) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_dump_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+    def get_param_dump_file_path_HDF5(self, js_idx: int | str, js_act_idx: int | str) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
 
-    def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
+    def get_param_load_file_path_JSON(self, js_idx: int | str, js_act_idx: int | str) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+    def get_param_load_file_path_HDF5(self, js_idx: int | str, js_act_idx: int | str) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
     def expand(self) -> list[Action]:
@@ -1680,7 +1685,7 @@ class Action(JSONLike):
                     # WK_PATH could have a space in it:
                     args.extend(["--wk-path", '"$WK_PATH"', "--run-id", "$EAR_ID"])
 
-                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
+                fn_args = {"js_idx": "${JS_IDX}", "js_act_idx": "${JS_act_idx}"}
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
@@ -1792,19 +1797,18 @@ class Action(JSONLike):
             inputs will be returned untouched. If False (default), only return the root
             parameter type and disregard the sub-parameter part.
         """
-        is_script = (
+        if (
             self.script
             and not self.input_file_generators
             and not self.output_file_parsers
-        )
-        if is_script:
+        ):
             params = self.task_schema.input_types
         else:
             params = list(self.get_command_input_types(sub_parameters))
-            for i in self.input_file_generators:
-                params.extend([j.typ for j in i.inputs])
-            for i in self.output_file_parsers:
-                params.extend([j for j in i.inputs or []])
+            for ifg in self.input_file_generators:
+                params.extend(j.typ for j in ifg.inputs)
+            for ofp in self.output_file_parsers:
+                params.extend(ofp.inputs or [])
         return tuple(set(params))
 
     def get_output_types(self) -> tuple[str, ...]:
@@ -1825,21 +1829,21 @@ class Action(JSONLike):
                 params.extend([j for j in i.outputs or []])
         return tuple(set(params))
 
-    def get_input_file_labels(self):
+    def get_input_file_labels(self) -> tuple[str, ...]:
         return tuple(i.label for i in self.input_files)
 
-    def get_output_file_labels(self):
+    def get_output_file_labels(self) -> tuple[str, ...]:
         return tuple(i.label for i in self.output_files)
 
     @TimeIt.decorator
     def generate_data_index(
         self,
-        act_idx,
-        EAR_ID,
-        schema_data_idx,
-        all_data_idx,
-        workflow,
-        param_source,
+        act_idx: int,
+        EAR_ID: str,
+        schema_data_idx: dict[str, int],
+        all_data_idx: dict[tuple[int, str], dict[str, int]],
+        workflow: Workflow,
+        param_source: dict[str, str],
     ) -> list[int]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.
@@ -1878,7 +1882,7 @@ class Action(JSONLike):
             ):
                 # look for an index in previous data indices (where for inputs we look
                 # for *output* parameters of the same name):
-                k_idx = None
+                k_idx: int | None = None
                 for prev_data_idx in all_data_idx.values():
                     if key.startswith("inputs"):
                         k_param = key.split("inputs.")[1]
@@ -1938,6 +1942,7 @@ class Action(JSONLike):
         specificity."""
 
         scope = self.get_precise_scope()
+        scopes: tuple[ActionScope, ...]
 
         if self.input_file_generators:
             scopes = (
