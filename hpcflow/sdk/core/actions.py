@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import Any, ClassVar, TYPE_CHECKING
+from typing import overload, TYPE_CHECKING
 
 from valida.conditions import ConditionLike
 
@@ -15,6 +15,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
+from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
@@ -33,14 +34,19 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from typing import Any, ClassVar, Literal
     from ..app import BaseApp
-    from .environment import Environment
-    from .element import ElementIteration
     from ..submission.jobscript import Jobscript
-    from .rule import Rule
     from .commands import Command
     from .command_files import InputFileGenerator, OutputFileParser, FileSpec
+    from .element import (
+        Element, ElementIteration, ElementInputs, ElementOutputs, ElementResources,
+        ElementInputFiles, ElementOutputFiles)
+    from .environment import Environment
     from .parameters import SchemaParameter
+    from .rule import Rule
+    from .task import WorkflowTask
+    from .workflow import Workflow
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
@@ -149,14 +155,14 @@ class ElementActionRun:
         self,
         id_: int,
         is_pending: bool,
-        element_action,
+        element_action: ElementAction,
         index: int,
         data_idx: dict[str, int],
         commands_idx: list[int],
         start_time: datetime | None,
         end_time: datetime | None,
-        snapshot_start: dict | None,
-        snapshot_end: dict | None,
+        snapshot_start: dict[str, Any] | None,
+        snapshot_end: dict[str, Any] | None,
         submission_idx: int | None,
         success: bool | None,
         skip: bool,
@@ -182,16 +188,16 @@ class ElementActionRun:
         self._run_hostname = run_hostname
 
         # assigned on first access of corresponding properties:
-        self._inputs = None
-        self._outputs = None
-        self._resources = None
-        self._input_files = None
-        self._output_files = None
-        self._ss_start_obj = None
-        self._ss_end_obj = None
-        self._ss_diff_obj = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._resources: ElementResources | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
+        self._ss_start_obj: JSONLikeDirSnapShot | None = None
+        self._ss_end_obj: JSONLikeDirSnapShot | None = None
+        self._ss_diff_obj: DirectorySnapshotDiff | None = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"id={self.id_!r}, index={self.index!r}, "
@@ -207,36 +213,36 @@ class ElementActionRun:
         return self._is_pending
 
     @property
-    def element_action(self):
+    def element_action(self) -> ElementAction:
         return self._element_action
 
     @property
-    def index(self):
+    def index(self) -> int:
         """Run index."""
         return self._index
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self.element_action.action
 
     @property
-    def element_iteration(self):
+    def element_iteration(self) -> ElementIteration:
         return self.element_action.element_iteration
 
     @property
-    def element(self):
+    def element(self) -> Element:
         return self.element_iteration.element
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow:
         return self.element_iteration.workflow
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> dict[str, int]:
         return self._data_idx
 
     @property
-    def commands_idx(self):
+    def commands_idx(self) -> list[int]:
         return self._commands_idx
 
     @property
@@ -244,31 +250,31 @@ class ElementActionRun:
         return self._metadata
 
     @property
-    def run_hostname(self):
+    def run_hostname(self) -> str | None:
         return self._run_hostname
 
     @property
-    def start_time(self):
+    def start_time(self) -> datetime | None:
         return self._start_time
 
     @property
-    def end_time(self):
+    def end_time(self) -> datetime | None:
         return self._end_time
 
     @property
-    def submission_idx(self):
+    def submission_idx(self) -> int | None:
         return self._submission_idx
 
     @property
-    def success(self):
+    def success(self) -> bool | None:
         return self._success
 
     @property
-    def skip(self):
+    def skip(self) -> bool:
         return self._skip
 
     @property
-    def snapshot_start(self):
+    def snapshot_start(self) -> JSONLikeDirSnapShot | None:
         if self._ss_start_obj is None and self._snapshot_start:
             self._ss_start_obj = JSONLikeDirSnapShot(
                 root_path=".",
@@ -277,13 +283,13 @@ class ElementActionRun:
         return self._ss_start_obj
 
     @property
-    def snapshot_end(self):
+    def snapshot_end(self) -> JSONLikeDirSnapShot | None:
         if self._ss_end_obj is None and self._snapshot_end:
             self._ss_end_obj = JSONLikeDirSnapShot(root_path=".", **self._snapshot_end)
         return self._ss_end_obj
 
     @property
-    def dir_diff(self) -> DirectorySnapshotDiff:
+    def dir_diff(self) -> DirectorySnapshotDiff | None:
         """Get the changes to the EAR working directory due to the execution of this
         EAR."""
         if self._ss_diff_obj is None and self.snapshot_end:
@@ -293,15 +299,15 @@ class ElementActionRun:
         return self._ss_diff_obj
 
     @property
-    def exit_code(self):
+    def exit_code(self) -> int | None:
         return self._exit_code
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element_action.task
 
     @property
-    def status(self):
+    def status(self) -> EARStatus:
         """Return the state of this EAR."""
 
         if self.skip:
@@ -346,7 +352,7 @@ class ElementActionRun:
         """
         return self.action.get_parameter_names(prefix)
 
-    def get_data_idx(self, path: str = None):
+    def get_data_idx(self, path: str | None = None) -> dict[str, int]:
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
@@ -356,8 +362,8 @@ class ElementActionRun:
     @TimeIt.decorator
     def get_parameter_sources(
         self,
-        path: str = None,
-        typ: str = None,
+        path: str | None = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
@@ -372,8 +378,8 @@ class ElementActionRun:
 
     def get(
         self,
-        path: str = None,
-        default: Any = None,
+        path: str | None = None,
+        default: Any | None = None,
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ):
@@ -386,16 +392,24 @@ class ElementActionRun:
             raise_on_unset=raise_on_unset,
         )
 
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
+
     @TimeIt.decorator
-    def get_EAR_dependencies(self, as_objects=False):
+    def get_EAR_dependencies(self, as_objects=False) -> list[ElementActionRun] | list[int]:
         """Get EARs that this EAR depends on."""
 
-        out = []
+        out: list[int] = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
             if not isinstance(src, list):
                 src = [src]
             for src_i in src:
-                EAR_ID_i = src_i["EAR_ID"]
+                EAR_ID_i: int = src_i["EAR_ID"]
                 if EAR_ID_i != self.id_:
                     # don't record a self dependency!
                     out.append(EAR_ID_i)
@@ -403,34 +417,45 @@ class ElementActionRun:
         out = sorted(out)
 
         if as_objects:
-            out = self.workflow.get_EARs_from_IDs(out)
+            return self.workflow.get_EARs_from_IDs(out)
 
         return out
 
-    def get_input_dependencies(self):
+    def get_input_dependencies(self) -> dict[str, dict[str, Any]]:
         """Get information about locally defined input, sequence, and schema-default
         values that this EAR depends on. Note this does not get values from this EAR's
         task/schema, because the aim of this method is to help determine which upstream
         tasks this EAR depends on."""
 
-        out = {}
+        out: dict[str, dict[str, Any]] = {}
+        wanted_types = ("local_input", "default_input")
         for k, v in self.get_parameter_sources().items():
             if not isinstance(v, list):
                 v = [v]
             for v_i in v:
                 if (
-                    v_i["type"] in ["local_input", "default_input"]
+                    v_i["type"] in wanted_types
                     and v_i["task_insert_ID"] != self.task.insert_ID
                 ):
                     out[k] = v_i
 
         return out
 
+    @overload
     def get_dependent_EARs(
-        self, as_objects=False
-    ) -> list[int | ElementActionRun]:
+        self, as_objects: Literal[False]=False
+    ) -> list[int]:
+        ...
+
+    @overload
+    def get_dependent_EARs(
+        self, as_objects: Literal[True]
+    ) -> list[ElementActionRun]:
+        ...
+
+    def get_dependent_EARs(self, as_objects=False) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
-        deps = []
+        deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:
             for elem in task.elements[:]:
                 for iter_ in elem.iterations:
@@ -441,37 +466,37 @@ class ElementActionRun:
                                 deps.append(run.id_)
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_EARs_from_IDs(deps)
+            return self.workflow.get_EARs_from_IDs(deps)
 
         return deps
 
     @property
-    def inputs(self):
+    def inputs(self) -> ElementInputs:
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action_run=self)
         return self._inputs
 
     @property
-    def outputs(self):
+    def outputs(self) -> ElementOutputs:
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action_run=self)
         return self._outputs
 
     @property
     @TimeIt.decorator
-    def resources(self):
+    def resources(self) -> ElementResources:
         if not self._resources:
             self._resources = self.app.ElementResources(**self.get_resources())
         return self._resources
 
     @property
-    def input_files(self):
+    def input_files(self) -> ElementInputFiles:
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action_run=self)
         return self._input_files
 
     @property
-    def output_files(self):
+    def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
@@ -481,25 +506,25 @@ class ElementActionRun:
         return self.resources.environments[self.action.get_environment_name()]
 
     @TimeIt.decorator
-    def get_resources(self):
+    def get_resources(self) -> dict[str, ElementResources]:
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
 
-    def get_environment_spec(self) -> str:
+    def get_environment_spec(self) -> dict[str, Any]:
         return self.action.get_environment_spec()
 
     def get_environment(self) -> Environment:
         return self.action.get_environment()
 
-    def get_all_previous_iteration_runs(self, include_self: bool = True):
+    def get_all_previous_iteration_runs(self, include_self: bool = True) -> list[ElementActionRun]:
         """Get a list of run over all iterations that correspond to this run, optionally
         including this run."""
         self_iter = self.element_iteration
         self_elem = self_iter.element
         self_act_idx = self.element_action.action_idx
         max_idx = self_iter.index + 1 if include_self else self_iter.index
-        all_runs = []
+        all_runs: list[ElementActionRun] = []
         for iter_i in self_elem.iterations[:max_idx]:
             all_runs.append(iter_i.actions[self_act_idx].runs[-1])
         return all_runs
@@ -528,7 +553,7 @@ class ElementActionRun:
         if not inputs:
             inputs = self.get_parameter_names("inputs")
 
-        out = {}
+        out: dict[str, Any] = {}
         for inp_name in inputs:
             path_i, label_i = split_param_label(inp_name)
 
@@ -582,7 +607,7 @@ class ElementActionRun:
                 f"associated action is not expanded, meaning multiple IFGs might exists."
             )
         input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
-        inputs = {}
+        inputs: dict[str, Any] = {}
         for i in self.inputs:
             typ = i.path[len("inputs.") :]
             if typ in input_types:
@@ -593,14 +618,14 @@ class ElementActionRun:
 
         return inputs
 
-    def get_OFP_output_files(self) -> dict[str, str | list[str]]:
+    def get_OFP_output_files(self) -> dict[str, Path]:
         # TODO: can this return multiple files for a given FileSpec?
         if not self.action._from_expand:
             raise RuntimeError(
                 f"Cannot get output file parser files from this from EAR because the "
                 f"associated action is not expanded, meaning multiple OFPs might exist."
             )
-        out_files = {}
+        out_files: dict[str, Path] = {}
         for file_spec in self.action.output_file_parsers[0].output_files:
             out_files[file_spec.label] = Path(file_spec.name.value())
         return out_files
@@ -632,7 +657,7 @@ class ElementActionRun:
         return outputs
 
     def write_source(self, js_idx: int, js_act_idx: int):
-        import h5py
+        import h5py  # type: ignore
 
         for fmt, ins in self.action.script_data_in_grouped.items():
             if fmt == "json":
@@ -756,12 +781,12 @@ class ElementAction:
         self._runs = runs
 
         # assigned on first access of corresponding properties:
-        self._run_objs = None
-        self._inputs = None
-        self._outputs = None
-        self._resources = None
-        self._input_files = None
-        self._output_files = None
+        self._run_objs: list[ElementActionRun] | None = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._resources: ElementResources | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
 
     def __repr__(self):
         return (
@@ -785,7 +810,7 @@ class ElementAction:
         return len(self._runs)
 
     @property
-    def runs(self):
+    def runs(self) -> list[ElementActionRun]:
         if self._run_objs is None:
             self._run_objs = [
                 self.app.ElementActionRun(
@@ -802,42 +827,42 @@ class ElementAction:
         return self._run_objs
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element_iteration.task
 
     @property
-    def action_idx(self):
+    def action_idx(self) -> int:
         return self._action_idx
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self.task.template.get_schema_action(self.action_idx)
 
     @property
-    def inputs(self):
+    def inputs(self) -> ElementInputs:
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action=self)
         return self._inputs
 
     @property
-    def outputs(self):
+    def outputs(self) -> ElementOutputs:
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action=self)
         return self._outputs
 
     @property
-    def input_files(self):
+    def input_files(self) -> ElementInputFiles:
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action=self)
         return self._input_files
 
     @property
-    def output_files(self):
+    def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action=self)
         return self._output_files
 
-    def get_data_idx(self, path: str = None, run_idx: int = -1):
+    def get_data_idx(self, path: str | None = None, run_idx: int = -1):
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.action_idx,
@@ -846,9 +871,9 @@ class ElementAction:
 
     def get_parameter_sources(
         self,
-        path: str = None,
+        path: str | None = None,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
@@ -863,9 +888,9 @@ class ElementAction:
 
     def get(
         self,
-        path: str = None,
+        path: str | None = None,
         run_idx: int = -1,
-        default: Any = None,
+        default: Any | None = None,
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ):
@@ -1415,10 +1440,10 @@ class Action(JSONLike):
     def get_resolved_action_env(
         self,
         relevant_scopes: tuple[ActionScopeType, ...],
-        input_file_generator: InputFileGenerator = None,
-        output_file_parser: OutputFileParser = None,
-        commands: list[Command] = None,
-    ):
+        input_file_generator: InputFileGenerator | None = None,
+        output_file_parser: OutputFileParser | None = None,
+        commands: list[Command] | None = None,
+    ) -> ActionEnvironment:
         possible = [i for i in self.environments if i.scope.typ in relevant_scopes]
         if not possible:
             if input_file_generator:
@@ -1441,7 +1466,7 @@ class Action(JSONLike):
 
     def get_input_file_generator_action_env(
         self, input_file_generator: InputFileGenerator
-    ):
+    ) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1451,7 +1476,7 @@ class Action(JSONLike):
             input_file_generator=input_file_generator,
         )
 
-    def get_output_file_parser_action_env(self, output_file_parser: OutputFileParser):
+    def get_output_file_parser_action_env(self, output_file_parser: OutputFileParser) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1461,7 +1486,7 @@ class Action(JSONLike):
             output_file_parser=output_file_parser,
         )
 
-    def get_commands_action_env(self):
+    def get_commands_action_env(self) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(ActionScopeType.ANY, ActionScopeType.MAIN),
             commands=self.commands,
@@ -1552,7 +1577,7 @@ class Action(JSONLike):
     def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
-    def expand(self):
+    def expand(self) -> list[Action]:
         if self._from_expand:
             # already expanded
             return [self]
@@ -1574,7 +1599,7 @@ class Action(JSONLike):
             # used/produced.
 
             inp_files = []
-            inp_acts = []
+            inp_acts: list[Action] = []
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
                 args = [
@@ -1607,7 +1632,7 @@ class Action(JSONLike):
                 inp_acts.append(act_i)
 
             out_files = []
-            out_acts = []
+            out_acts: list[Action] = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
                 args = [
@@ -1980,6 +2005,7 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
+        return False
 
     @TimeIt.decorator
     def test_rules(self, element_iter) -> tuple[bool, list[int]]:

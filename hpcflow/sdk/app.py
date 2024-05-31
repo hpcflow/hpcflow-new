@@ -67,7 +67,7 @@ if TYPE_CHECKING:
     from .core.commands import Command
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
-        ElementIteration, Element, ElementParameter)
+        ElementIteration, Element, ElementParameter, ElementResources)
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
         CommandFilesList, EnvironmentsList, ExecutablesList, GroupList, ParametersList,
@@ -317,6 +317,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementOutputFiles(self) -> type[ElementOutputFiles]:
         return self._get_app_core_class("ElementOutputFiles")
+
+    @property
+    def ElementResources(self) -> type[ElementResources]:
+        return self._get_app_core_class("ElementResources")
 
     @property
     def ElementIteration(self) -> type[ElementIteration]:
