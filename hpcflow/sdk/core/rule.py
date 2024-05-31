@@ -102,7 +102,7 @@ class Rule(JSONLike):
                     return self.check_missing not in schema_data_idx
 
         else:
-            if self.path.startswith("resources."):
+            if self.path and self.path.startswith("resources."):
                 try:
                     # assume an `ElementIteration`
                     elem_res = element_like.get_resources(
@@ -127,3 +127,6 @@ class Rule(JSONLike):
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):
             rule = ValidaRule(path=[0], condition=self.condition, cast=self.cast)
             return rule.test([element_dat]).is_valid
+        
+        # Something bizarre was specified. Don't match it!
+        return False

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
@@ -6,22 +7,25 @@ from typing import Any, Dict, TYPE_CHECKING
 from html import escape
 
 from rich import print as rich_print
-from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from hpcflow.sdk.core.parameters import Parameter
+from hpcflow.sdk.core.task import Task
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import ClassVar
     from .actions import Action
     from .parameters import SchemaOutput, SchemaParameter
+    from .task import TaskTemplate
     from .workflow import Workflow
+    from ..app import BaseApp
 
 
 @dataclass
@@ -62,7 +66,8 @@ class TaskSchema(JSONLike):
         of built-in task schemas). True by default.
     """
 
-    _validation_schema = "task_schema_spec_schema.yaml"
+    _validation_schema: ClassVar[str] = "task_schema_spec_schema.yaml"
+    app: ClassVar[BaseApp]
     _hash_value = None
     _validate_actions = True
 
@@ -86,7 +91,7 @@ class TaskSchema(JSONLike):
     def __init__(
         self,
         objective: TaskObjective | str,
-        actions: list[Action] = None,
+        actions: list[Action] | None = None,
         method: str | None = None,
         implementation: str | None = None,
         inputs: list[Parameter | SchemaInput] | None = None,
@@ -117,7 +122,7 @@ class TaskSchema(JSONLike):
         self._validate()
         self.actions = self._expand_actions()
         self.version = version
-        self._task_template = None  # assigned by parent Task
+        self._task_template: TaskTemplate | None = None  # assigned by parent Task
 
         self._update_parameter_value_classes()
 
@@ -144,7 +149,7 @@ class TaskSchema(JSONLike):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
-    def _get_info(self, include=None):
+    def _get_info(self, include: Sequence[str] = ()):
         def _get_param_type_str(parameter) -> str:
             type_fmt = "-"
             if parameter._validation:
@@ -756,11 +761,11 @@ class TaskSchema(JSONLike):
         return tuple(out)
 
     @property
-    def task_template(self):
+    def task_template(self) -> TaskTemplate | None:
         return self._task_template
 
     @classmethod
-    def get_by_key(cls, key):
+    def get_by_key(cls, key) -> TaskSchema:
         """Get a config-loaded task schema from a key."""
         return cls.app.task_schemas.get(key)
 
@@ -789,7 +794,7 @@ class TaskSchema(JSONLike):
         `{"inputs.p1[one]": "inputs.p1"}`.
 
         """
-        lookup = {}
+        lookup: dict[str, str] = {}
         if prefix and not prefix.endswith("."):
             prefix += "."
         for sch_inp in self.inputs:
@@ -801,7 +806,7 @@ class TaskSchema(JSONLike):
     @property
     def multi_input_types(self) -> list[str]:
         """Get a list of input types that have multiple labels."""
-        out = []
+        out: list[str, str] = []
         for inp in self.inputs:
             if inp.multiple:
                 out.append(inp.parameter.typ)
