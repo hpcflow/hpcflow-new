@@ -19,11 +19,7 @@ if TYPE_CHECKING:
 class NumCores(JSONLike):
     start: int
     stop: int
-    step: int | None = None
-
-    def __post_init__(self):
-        if self.step is None:
-            self.step = 1
+    step: int = 1
 
     def __contains__(self, x):
         return x in range(self.start, self.stop + 1, self.step)

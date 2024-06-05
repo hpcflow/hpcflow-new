@@ -16,7 +16,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import Type, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
 import fsspec
 import numpy as np
 
@@ -32,7 +32,7 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from typing import Any, TypeVar
 
     T = TypeVar('T')
@@ -733,7 +733,15 @@ def open_file(filename):
         subprocess.call([opener, filename])
 
 
-def get_enum_by_name_or_val(enum_cls: Type, key: str | None) -> enum.Enum:
+E = TypeVar("E", bound=enum.Enum)
+
+@overload
+def get_enum_by_name_or_val(enum_cls: type[E], key: None) -> None: ...
+
+@overload
+def get_enum_by_name_or_val(enum_cls: type[E], key: str | int | float | E) -> E: ...
+
+def get_enum_by_name_or_val(enum_cls: type[E], key: str | int | float | E | None) -> E | None:
     """Retrieve an enum by name or value, assuming uppercase names and integer values."""
     err = f"Unknown enum key or value {key!r} for class {enum_cls!r}"
     if key is None or isinstance(key, enum_cls):
@@ -742,21 +750,23 @@ def get_enum_by_name_or_val(enum_cls: Type, key: str | None) -> enum.Enum:
         return enum_cls(int(key))  # retrieve by value
     elif isinstance(key, str):
         try:
-            return getattr(enum_cls, key.upper())  # retrieve by name
+            return cast(E, getattr(enum_cls, key.upper()))  # retrieve by name
         except AttributeError:
             raise ValueError(err)
     else:
         raise ValueError(err)
 
 
-def split_param_label(param_path: str) -> tuple[str | None, str | None]:
+def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     """Split a parameter path into the path and the label, if present."""
     pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
     match = re.match(pattern, param_path)
+    if not match:
+        return None, None
     return match.group(1), match.group(2)
 
 
-def process_string_nodes(data, str_processor):
+def process_string_nodes[T](data: T, str_processor: Callable[[str], str]) -> T:
     """Walk through a nested data structure and process string nodes using a provided
     callable."""
 
@@ -765,13 +775,13 @@ def process_string_nodes(data, str_processor):
             data[k] = process_string_nodes(v, str_processor)
 
     elif isinstance(data, (list, tuple, set)):
-        _data = [process_string_nodes(i, str_processor) for i in data]
+        _data = (process_string_nodes(i, str_processor) for i in data)
         if isinstance(data, tuple):
             data = tuple(_data)
         elif isinstance(data, set):
             data = set(_data)
         else:
-            data = _data
+            data = list(_data)
 
     elif isinstance(data, str):
         data = str_processor(data)

@@ -1,6 +1,7 @@
 from __future__ import annotations
+from collections.abc import Mapping
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import enum
 import json
@@ -9,14 +10,10 @@ import re
 from textwrap import indent, dedent
 from typing import cast, overload, TYPE_CHECKING
 
-from valida.conditions import ConditionLike
-
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.core.command_files import InputFile
-from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
@@ -35,8 +32,10 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Sequence
     from typing import Any, ClassVar, Literal, Self
+    from valida.conditions import ConditionLike  # type: ignore
+
     from ..app import BaseApp
     from ..submission.jobscript import Jobscript
     from .commands import Command
@@ -45,6 +44,7 @@ if TYPE_CHECKING:
         Element, ElementIteration, ElementInputs, ElementOutputs, ElementResources,
         ElementInputFiles, ElementOutputFiles)
     from .environment import Environment
+    from .object_list import EnvironmentsList, ParametersList
     from .parameters import SchemaParameter
     from .rule import Rule
     from .task import WorkflowTask
@@ -556,12 +556,12 @@ class ElementActionRun:
         if not inputs:
             inputs = self.get_parameter_names("inputs")
 
-        out: dict[str, Any] = {}
+        out: dict[str, dict[str, Any]] = {}
         for inp_name in inputs:
             path_i, label_i = split_param_label(inp_name)
 
             try:
-                all_iters = inputs[inp_name]["all_iterations"]
+                all_iters = isinstance(inputs, dict) and inputs[inp_name]["all_iterations"]
             except (TypeError, KeyError):
                 all_iters = False
 
@@ -578,7 +578,7 @@ class ElementActionRun:
                 val_i = self.get(f"inputs.{inp_name}")
 
             key = inp_name
-            if label_dict and label_i:
+            if label_dict and label_i and path_i:
                 key = path_i  # exclude label from key
 
             if "." in key:
@@ -586,9 +586,7 @@ class ElementActionRun:
                 key = key.split(".")[-1]
 
             if label_dict and label_i:
-                if key not in out:
-                    out[key] = {}
-                out[key][label_i] = val_i
+                out.setdefault(key, {})[label_i] = val_i
             else:
                 out[key] = val_i
 
@@ -600,7 +598,7 @@ class ElementActionRun:
     def get_input_values_direct(self, label_dict: bool = True):
         """Get a dict of input values that are to be passed directly to a Python script
         function."""
-        inputs = self.action.script_data_in_grouped.get("direct", {})
+        inputs = self.action.script_data_in_grouped.get("direct", [])
         return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
     def get_IFG_input_values(self) -> dict[str, Any]:
@@ -699,6 +697,8 @@ class ElementActionRun:
         data output formats (HDF5, JSON, etc)."""
         import h5py
 
+        parameters: ParametersList = self.app.parameters
+
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
                 load_path = self.action.get_param_load_file_path_JSON(js_idx, js_act_idx)
@@ -706,7 +706,7 @@ class ElementActionRun:
                     file_data = json.load(f)
                     for param_name, param_dat in file_data.items():
                         param_id = self.data_idx[f"outputs.{param_name}"]
-                        param_cls = self.app.parameters.get(param_name)._value_class
+                        param_cls = parameters.get(param_name)._value_class
                         try:
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
                             continue
@@ -722,12 +722,12 @@ class ElementActionRun:
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
                         param_id = self.data_idx[f"outputs.{param_name}"]
-                        param_cls = self.app.parameters.get(param_name)._value_class
+                        param_cls = parameters.get(param_name)._value_class
                         param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
 
     def compose_commands(
         self, jobscript: Jobscript, JS_action_idx: int
-    ) -> tuple[str, list[str], list[int]]:
+    ) -> tuple[str, dict[int, list[tuple[str, ...]]]]:
         """
         Returns
         -------
@@ -758,7 +758,7 @@ class ElementActionRun:
         if env.setup:
             command_lns += list(env.setup)
 
-        shell_vars = {}  # keys are cmd_idx, each value is a list of tuples
+        shell_vars: dict[int, list[tuple[str, ...]]] = {}  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
             if cmd_idx in self.commands_idx:
                 # only execute commands that have no rules, or all valid rules:
@@ -926,6 +926,8 @@ class ActionScope(JSONLike):
     filtering process.
     """
 
+    app: ClassVar[BaseApp]
+
     _child_objects = (
         ChildObjectSpec(
             name="typ",
@@ -937,9 +939,10 @@ class ActionScope(JSONLike):
 
     def __init__(self, typ: ActionScopeType | str, **kwargs):
         if isinstance(typ, str):
-            typ = getattr(self.app.ActionScopeType, typ.upper())
+            self.typ = cast(ActionScopeType, getattr(self.app.ActionScopeType, typ.upper()))
+        else:
+            self.typ = typ
 
-        self.typ = typ
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         bad_keys = set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]
@@ -962,16 +965,22 @@ class ActionScope(JSONLike):
             return True
         return False
 
+    class _customdict(dict):
+        pass
+
     @classmethod
-    def _parse_from_string(cls, string) -> dict[str, str]:
-        typ_str, kwargs_str = re.search(ACTION_SCOPE_REGEX, string).groups()
-        kwargs: dict[str, str] = {}
+    def _parse_from_string(cls, string: str) -> dict[str, str]:
+        match = re.search(ACTION_SCOPE_REGEX, string)
+        if not match:
+            raise TypeError(f"unparseable ActionScope: '{string}'")
+        typ_str, kwargs_str = match.groups()
+        kwargs: dict[str, str] = cls._customdict({"type": cast(str, typ_str)})
         if kwargs_str:
             for i in kwargs_str.split(","):
                 name, val = i.split("=")
                 kwargs[name.strip()] = val.strip()
-        return {"type": cast(str, typ_str), **kwargs}
-
+        return kwargs
+    
     def to_string(self) -> str:
         kwargs_str = ""
         if self.kwargs:
@@ -979,13 +988,13 @@ class ActionScope(JSONLike):
         return f"{self.typ.name.lower()}{kwargs_str}"
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None) -> ActionScope:
-        if isinstance(json_like, str):
-            json_like = cls._parse_from_string(json_like)
-        else:
-            typ = json_like.pop("type")
-            json_like = {"type": typ, **json_like.pop("kwargs", {})}
-        return super().from_json_like(json_like, shared_data)
+    def _from_json_like(cls, json_like: Mapping[str, Any] | Sequence[Mapping[str, Any]],
+                        shared_data: Mapping[str, Any]) -> Self:
+        if not isinstance(json_like, Mapping):
+            raise TypeError("only mappings are supported for becoming an ActionScope")
+        if not isinstance(json_like, cls._customdict):
+            json_like = {"type": json_like["type"], **json_like.get("kwargs", {})}
+        return super()._from_json_like(json_like, shared_data)
 
     @classmethod
     def any(cls) -> ActionScope:
@@ -1021,12 +1030,9 @@ class ActionEnvironment(JSONLike):
     )
 
     environment: str | dict[str, Any]
-    scope: ActionScope | None = None
+    scope: ActionScope = field(default_factory=ActionScope.any)
 
     def __post_init__(self) -> None:
-        if self.scope is None:
-            self.scope = self.app.ActionScope.any()
-
         orig_env = copy.deepcopy(self.environment)
         if isinstance(self.environment, str):
             self.environment = {"name": self.environment}
@@ -1220,55 +1226,58 @@ class Action(JSONLike):
         self.script_data_in = self._process_script_data_in(self.script_data_in)
         self.script_data_out = self._process_script_data_out(self.script_data_out)
 
+    def __process_script_data_format(self, data_fmt: dict[str, str] | dict[str, dict[str, str]],
+                                     prefix: str, param_names: list[str]) -> dict[str, dict[str, str]]:
+        _all_other_sym = "*"
+        all_params: dict[str, dict[str, str]] = {}
+        for k, v in data_fmt.items():
+            # values might be strings, or dicts with "format" and potentially other
+            # kwargs:
+            if isinstance(v, dict):
+                v = dict(v)
+                fmt = v.pop("format").lower()
+                # Make sure format is first key
+                all_params[k] = {"format": fmt, **v}
+            else:
+                all_params[k] = {"format": v.lower()}
+
+        if prefix == "inputs":
+            # expand unlabelled-multiple inputs to multiple labelled inputs:
+            multi_types = self.task_schema.multi_input_types
+            multis: dict[str, dict[str, str]] = {}
+            for k in list(all_params.keys()):
+                if k in multi_types:
+                    k_fmt = all_params.pop(k)
+                    for i in param_names:
+                        if i.startswith(k):
+                            multis[i] = copy.deepcopy(k_fmt)
+            all_params = {
+                **multis,
+                **all_params,
+            }
+
+        if _all_other_sym in all_params:
+            # replace catch-all with all other input/output names:
+            other_fmt = all_params[_all_other_sym]
+            all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
+            other = set(param_names) - set(all_params.keys())
+            for i in other:
+                all_params[i] = copy.deepcopy(other_fmt)
+        return all_params
+
     def _process_script_data_format(
         self, data_fmt: str | dict[str, str] | dict[str, dict[str, str]], prefix: str
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         if not data_fmt:
             return {}
 
-        _all_other_sym = "*"
         param_names = self.get_parameter_names(prefix)
         if isinstance(data_fmt, str):
             # include all input parameters, using specified data format
             data_fmt = data_fmt.lower()
             all_params = {k: {"format": data_fmt} for k in param_names}
         else:
-            all_params = copy.copy(data_fmt)
-            for k, v in all_params.items():
-                # values might be strings, or dicts with "format" and potentially other
-                # kwargs:
-                try:
-                    fmt = v["format"]
-                except TypeError:
-                    fmt = v
-                    kwargs = {}
-                else:
-                    kwargs = {k2: v2 for k2, v2 in v.items() if k2 != "format"}
-                finally:
-                    all_params[k] = {"format": fmt.lower(), **kwargs}
-
-            if prefix == "inputs":
-                # expand unlabelled-multiple inputs to multiple labelled inputs:
-                multi_types = self.task_schema.multi_input_types
-                multis = {}
-                for k in list(all_params.keys()):
-                    if k in multi_types:
-                        k_fmt = all_params.pop(k)
-                        for i in param_names:
-                            if i.startswith(k):
-                                multis[i] = copy.deepcopy(k_fmt)
-                all_params = {
-                    **multis,
-                    **all_params,
-                }
-
-            if _all_other_sym in all_params:
-                # replace catch-all with all other input/output names:
-                other_fmt = all_params[_all_other_sym]
-                all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
-                other = set(param_names) - set(all_params.keys())
-                for i in other:
-                    all_params[i] = copy.deepcopy(other_fmt)
+            all_params = self.__process_script_data_format(data_fmt, prefix, param_names)
 
         # validation:
         allowed_keys = ("format", "all_iterations")
@@ -1298,12 +1307,12 @@ class Action(JSONLike):
 
     def _process_script_data_in(
         self, data_fmt: str | dict[str, str]
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         return self._process_script_data_format(data_fmt, "inputs")
 
     def _process_script_data_out(
         self, data_fmt: str | dict[str, str]
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         return self._process_script_data_format(data_fmt, "outputs")
 
     @property
@@ -1433,12 +1442,13 @@ class Action(JSONLike):
 
     def get_parameter_dependence(self, parameter: SchemaParameter):
         """Find if/where a given parameter is used by the action."""
+        # TODO: return a TypedDict
         writer_files = [
             i.input_file
             for i in self.input_file_generators
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
-        commands = []  # TODO: indices of commands in which this parameter appears
+        commands: list[Any] = []  # TODO: indices of commands in which this parameter appears
         out = {"input_file_writers": writer_files, "commands": commands}
         return out
 
@@ -1449,7 +1459,7 @@ class Action(JSONLike):
         output_file_parser: OutputFileParser | None = None,
         commands: list[Command] | None = None,
     ) -> ActionEnvironment:
-        possible = [i for i in self.environments if i.scope.typ in relevant_scopes]
+        possible = [i for i in self.environments if i.scope and i.scope.typ in relevant_scopes]
         if not possible:
             if input_file_generator:
                 msg = f"input file generator {input_file_generator.input_file.label!r}"
@@ -1466,7 +1476,7 @@ class Action(JSONLike):
             )
 
         # sort by scope type specificity:
-        possible_srt = sorted(possible, key=lambda i: i.scope.typ.value, reverse=True)
+        possible_srt = sorted(possible, key=lambda i: cast(ActionScope, i.scope).typ.value, reverse=True)
         return possible_srt[0]
 
     def get_input_file_generator_action_env(
@@ -1506,10 +1516,13 @@ class Action(JSONLike):
                 f"Cannot choose a single environment from this action because it is not "
                 f"expanded, meaning multiple action environments might exist."
             )
-        return self.environments[0].environment
+        e = self.environments[0].environment
+        assert not isinstance(e, str)
+        return e
 
     def get_environment(self) -> Environment:
-        return self.app.envs.get(**self.get_environment_spec())
+        envs: EnvironmentsList = self.app.envs
+        return envs.get(**self.get_environment_spec())
 
     @staticmethod
     def is_snippet_script(script: str) -> bool:
@@ -1523,10 +1536,11 @@ class Action(JSONLike):
         if cls.is_snippet_script(script):
             pattern = r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
             match_obj = re.match(pattern, script)
+            if not match_obj:
+                raise ValueError("incomplete <<script:>>")
             return match_obj.group(1)
-        else:
-            # a script we can expect in the working directory:
-            return script
+        # a script we can expect in the working directory:
+        return script
 
     @classmethod
     def get_snippet_script_str(
@@ -1539,7 +1553,9 @@ class Action(JSONLike):
             )
         pattern = r"\<\<script:(.*:?)\>\>"
         match_obj = re.match(pattern, script)
-        out = match_obj.group(1)
+        if not match_obj:
+            raise ValueError("incomplete <<script:>>")
+        out = cast(str, match_obj.group(1))
 
         if env_spec:
             out = re.sub(

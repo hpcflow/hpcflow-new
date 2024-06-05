@@ -146,10 +146,7 @@ class InputFileGenerator(JSONLike):
     environment: Environment | None = None
     script_pass_env_spec: bool = False
     abortable: bool = False
-    rules: list[ActionRule] | None = None
-
-    def __post_init__(self):
-        self.rules = self.rules or []
+    rules: list[ActionRule] = field(default_factory=list)
 
     def get_action_rules(self):
         """Get the rules that allow testing if this input file generator must be run or
@@ -273,8 +270,8 @@ class OutputFileParser(JSONLike):
     script_pass_env_spec: bool = False
     abortable: bool = False
     save_files: list[str] | bool = True
-    clean_up: list[str] | None = None
-    rules: list[ActionRule] | None = None
+    clean_up: list[str] = field(default_factory=list)
+    rules: list[ActionRule] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.save_files:
@@ -283,9 +280,6 @@ class OutputFileParser(JSONLike):
         elif self.save_files is True:
             # save all output files
             self.save_files = [i for i in self.output_files]
-        if self.clean_up is None:
-            self.clean_up = []
-        self.rules = self.rules or []
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):

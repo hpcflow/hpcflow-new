@@ -1,17 +1,15 @@
 from __future__ import annotations
 import copy
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 import enum
 from pathlib import Path
 import re
-from typing import Any, ClassVar, Dict, TypeAlias, TYPE_CHECKING
+from typing import TypeVar, cast, TYPE_CHECKING
 
 import numpy as np
-import valida
+from valida import Schema  # type: ignore
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementFilter
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
@@ -19,6 +17,7 @@ from hpcflow.sdk.core.errors import (
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.object_list import ParametersList
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.utils import (
@@ -28,21 +27,23 @@ from hpcflow.sdk.core.utils import (
     process_string_nodes,
     split_param_label,
 )
-from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import Any, ClassVar, Dict, TypeAlias, Self
     from ..app import BaseApp
     from .actions import ActionScope
-    from .task import ElementSet, TaskSchema, TaskTemplate
+    from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .workflow import Workflow
 
 
 Address: TypeAlias = list[int | float | str]
 Numeric: TypeAlias = int | float | np.number
+T = TypeVar("T")
 
 
-def _process_demo_data_strings(app, value):
-    def string_processor(str_in):
+def _process_demo_data_strings(app: BaseApp, value: T) -> T:
+    def string_processor(str_in: str) -> str:
         demo_pattern = r"\<\<demo_data_file:(.*)\>\>"
         str_out = re.sub(
             pattern=demo_pattern,
@@ -55,14 +56,16 @@ def _process_demo_data_strings(app, value):
 
 
 class ParameterValue:
-    _typ = None
-    _sub_parameters = {}
+    _typ: str | None = None
+    _sub_parameters: dict[str, str] = {}
 
     def to_dict(self):
         if hasattr(self, "__dict__"):
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
+        else:
+            raise NotImplementedError
 
     def prepare_JSON_dump(self) -> Dict:
         raise NotImplementedError
@@ -102,16 +105,17 @@ class Parameter(JSONLike):
         ),
         ChildObjectSpec(
             name="_validation",
-            class_obj=valida.Schema,
+            class_obj=Schema,
         ),
     )
 
     typ: str
     is_file: bool = False
     sub_parameters: list[SubParameter] = field(default_factory=lambda: [])
+    name: str | None = None
     _value_class: Any = None
     _hash_value: str | None = field(default=None, repr=False)
-    _validation: valida.Schema | None = None
+    _validation: Schema | None = None
 
     def __repr__(self) -> str:
         is_file_str = ""
@@ -185,19 +189,19 @@ class SchemaParameter(JSONLike):
         ),
     )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._validate()
 
-    def _validate(self):
+    def _validate(self) -> None:
         if isinstance(self.parameter, str):
-            self.parameter: Parameter = self.app.Parameter(self.parameter)
+            self.parameter: Parameter = Parameter(typ=self.parameter)
 
     @property
-    def name(self):
-        return self.parameter.name
+    def name(self) -> str:
+        return self.parameter.name or ""
 
     @property
-    def typ(self):
+    def typ(self) -> str:
         return self.parameter.typ
 
 
@@ -243,6 +247,7 @@ class SchemaInput(SchemaParameter):
         does not exist.
     """
 
+    app: ClassVar[BaseApp]
     _task_schema = None  # assigned by parent TaskSchema
 
     _child_objects = (
@@ -256,9 +261,9 @@ class SchemaInput(SchemaParameter):
 
     def __init__(
         self,
-        parameter: Parameter,
+        parameter: Parameter | str,
         multiple: bool = False,
-        labels: Dict | None = None,
+        labels: dict[str, Any] | None = None,
         default_value: InputValue | NullDefault | None = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
         group: str | None = None,
@@ -269,22 +274,25 @@ class SchemaInput(SchemaParameter):
         # TODO: test we allow unlabelled with accepts-multiple True.
         # TODO: test we allow a single labelled with accepts-multiple False.
 
-        if isinstance(parameter, str):
-            try:
-                parameter = self.app.parameters.get(parameter)
-            except ValueError:
-                parameter = self.app.Parameter(parameter)
+        try:
+            if isinstance(parameter, str):
+                # Workaround for mypy bug
+                self.parameter = cast(ParametersList, self.app.parameters).get(parameter)
+            else:
+                self.parameter = parameter
+        except ValueError:
+            self.parameter = Parameter(cast(str, parameter))
 
-        self.parameter = parameter
         self.multiple = multiple
-        self.labels = labels
 
-        if self.labels is None:
+        self.labels: dict[str, Any]
+        if labels is None:
             if self.multiple:
                 self.labels = {"*": {}}
             else:
                 self.labels = {"": {}}
         else:
+            self.labels = labels
             if not self.multiple:
                 # check single-item:
                 if len(self.labels) > 1:
@@ -294,7 +302,7 @@ class SchemaInput(SchemaParameter):
                         f"`labels` is: {self.labels!r}."
                     )
 
-        labels_defaults = {}
+        labels_defaults: dict[str, Any] = {}
         if propagation_mode is not None:
             labels_defaults["propagation_mode"] = propagation_mode
         if group is not None:
@@ -305,7 +313,7 @@ class SchemaInput(SchemaParameter):
             labels_defaults_i = copy.deepcopy(labels_defaults)
             if default_value is not NullDefault.NULL:
                 if not isinstance(default_value, InputValue):
-                    default_value = app.InputValue(
+                    default_value = self.app.InputValue(
                         parameter=self.parameter,
                         value=default_value,
                         label=k,
@@ -327,7 +335,7 @@ class SchemaInput(SchemaParameter):
         default_str = ""
         group_str = ""
         labels_str = ""
-        if not self.multiple:
+        if not self.multiple and self.labels:
             label = next(iter(self.labels.keys()))  # the single key
 
             default_str = ""
@@ -498,6 +506,7 @@ class BuiltinSchemaParameter:
 
 
 class ValueSequence(JSONLike):
+    app: ClassVar[BaseApp]
     def __init__(
         self,
         path: str,
@@ -506,8 +515,7 @@ class ValueSequence(JSONLike):
         label: str | None = None,
         value_class_method: str | None = None,
     ):
-        label = str(label) if label is not None else ""
-        path, label = self._validate_parameter_path(path, label)
+        path, label = self._validate_parameter_path(path, label or "")
 
         self.path = path
         self.label = label
@@ -515,21 +523,25 @@ class ValueSequence(JSONLike):
         self.value_class_method = value_class_method
 
         if values is not None:
-            self._values = [_process_demo_data_strings(self.app, i) for i in values]
+            self._values: list[Any] | None = [
+                _process_demo_data_strings(self.app, i)
+                for i in values]
+        else:
+            self._values = None
 
-        self._values_group_idx = None
-        self._values_are_objs = None  # assigned initially on `make_persistent`
+        self._values_group_idx: list[int] | None = None
+        self._values_are_objs: list[bool] | None = None  # assigned initially on `make_persistent`
 
-        self._workflow = None
-        self._element_set = None  # assigned by parent ElementSet
+        self._workflow: Workflow | None = None
+        self._element_set: ElementSet | None = None  # assigned by parent ElementSet
 
         # assigned if this is an "inputs" sequence in `WorkflowTask._add_element_set`:
-        self._parameter = None
+        self._parameter: Parameter | None = None
 
-        self._path_split = None  # assigned by property `path_split`
+        self._path_split: list[str] | None = None  # assigned by property `path_split`
 
-        self._values_method = None
-        self._values_method_args = None
+        self._values_method: str | None = None
+        self._values_method_args: dict | None = None
 
     def __repr__(self):
         label_str = ""
@@ -667,7 +679,7 @@ class ValueSequence(JSONLike):
         obj._values_method_args = _values_method_args
         return obj
 
-    def _validate_parameter_path(self, path, label):
+    def _validate_parameter_path(self, path: str, label: str):
         """Parse the supplied path and perform basic checks on it.
 
         This method also adds the specified `SchemaInput` label to the path and checks for
@@ -774,50 +786,51 @@ class ValueSequence(JSONLike):
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
-            is_new = False
-            data_ref = self._values_group_idx
-            if not all(workflow.check_parameters_exist(data_ref)):
+            if not all(workflow.check_parameters_exist(self._values_group_idx)):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
-                    f"({data_ref}), but does not exist in the workflow."
+                    f"({self._values_group_idx}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
+            return self.normalised_path, self._values_group_idx, False
 
-        else:
-            data_ref = []
+        data_ref: list[int] = []
+        source = copy.deepcopy(source)
+        source["value_class_method"] = self.value_class_method
+        are_objs: list[bool] = []
+        assert self._values is not None
+        for idx, i in enumerate(cast(list, self._values)):
+            # record if ParameterValue sub-classes are passed for values, which allows
+            # us to re-init the objects on access to `.value`:
+            are_objs.append(isinstance(i, ParameterValue))
             source = copy.deepcopy(source)
-            source["value_class_method"] = self.value_class_method
-            are_objs = []
-            for idx, i in enumerate(self._values):
-                # record if ParameterValue sub-classes are passed for values, which allows
-                # us to re-init the objects on access to `.value`:
-                are_objs.append(isinstance(i, ParameterValue))
-                source = copy.deepcopy(source)
-                source["sequence_idx"] = idx
-                pg_idx_i = workflow._add_parameter_data(i, source=source)
-                data_ref.append(pg_idx_i)
+            source["sequence_idx"] = idx
+            pg_idx_i = workflow._add_parameter_data(i, source=source)
+            data_ref.append(pg_idx_i)
 
-            is_new = True
-            self._values_group_idx = data_ref
-            self._workflow = workflow
-            self._values = None
-            self._values_are_objs = are_objs
-
-        return (self.normalised_path, data_ref, is_new)
+        self._values_group_idx = data_ref
+        self._workflow = workflow
+        self._values = None
+        self._values_are_objs = are_objs
+        return self.normalised_path, data_ref, True
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow | None:
         if self._workflow:
             return self._workflow
         elif self._element_set:
             return self._element_set.task_template.workflow_template.workflow
+        return None
 
     @property
-    def values(self):
+    def values(self) -> list[Any] | None:
         if self._values_group_idx is not None:
-            vals = []
+            vals: list[Any] = []
             for idx, pg_idx_i in enumerate(self._values_group_idx):
-                param_i = self.workflow.get_parameter(pg_idx_i)
+                w = self.workflow
+                if not w:
+                    continue
+                param_i = w.get_parameter(pg_idx_i)
                 if param_i.data is not None:
                     val_i = param_i.data
                 else:
@@ -828,6 +841,7 @@ class ValueSequence(JSONLike):
                 if (
                     self.parameter
                     and self.parameter._value_class
+                    and self._values_are_objs
                     and self._values_are_objs[idx]
                     and not isinstance(val_i, self.parameter._value_class)
                 ):
@@ -1061,9 +1075,13 @@ class ValueSequence(JSONLike):
 class AbstractInputValue(JSONLike):
     """Class to represent all sequence-able inputs to a task."""
 
-    _workflow = None
+    _workflow: Workflow | None = None
+    _element_set: ElementSet | None = None
+    _schema_input: SchemaInput | None = None
+    _value: Any | None = None
+    _value_group_idx: int | None = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         try:
             value_str = f", value={self.value}"
         except WorkflowParameterMissingError:
@@ -1076,7 +1094,7 @@ class AbstractInputValue(JSONLike):
             f")"
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         out = super().to_dict()
         if "_workflow" in out:
             del out["_workflow"]
@@ -1115,32 +1133,33 @@ class AbstractInputValue(JSONLike):
         return (self.normalised_path, [data_ref], is_new)
 
     @property
-    def workflow(self):
+    def normalised_path(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def workflow(self) -> Workflow | None:
         if self._workflow:
             return self._workflow
         elif self._element_set:
             return self._element_set.task_template.workflow_template.workflow
         elif self._schema_input:
             return self._schema_input.task_schema.task_template.workflow_template.workflow
+        return None
 
     @property
-    def value(self):
-        if self._value_group_idx is not None:
-            val = self.workflow.get_parameter_data(self._value_group_idx)
-            if self._value_is_obj and self.parameter._value_class:
-                val = self.parameter._value_class(**val)
-        else:
-            val = self._value
-
-        return val
+    def value(self) -> Any:
+        return self._value
 
 
 @dataclass
 class ValuePerturbation(AbstractInputValue):
-    name: str
+    name: str = ""
     path: Sequence[str | int | float] | None = None
     multiplicative_factor: Numeric | None = 1
     additive_factor: Numeric | None = 0
+
+    def __post_init__(self):
+        assert self.name
 
     @classmethod
     def from_spec(cls, spec):
@@ -1167,6 +1186,7 @@ class InputValue(AbstractInputValue):
 
     """
 
+    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="parameter",
@@ -1178,33 +1198,29 @@ class InputValue(AbstractInputValue):
 
     def __init__(
         self,
-        parameter: Parameter | str,
+        parameter: Parameter | SchemaInput | str,
         value: Any | None = None,
         label: str | None = None,
         value_class_method: str | None = None,
         path: str | None = None,
         __check_obj: bool = True,
     ):
+        super().__init__()
         if isinstance(parameter, str):
             try:
-                parameter = self.app.parameters.get(parameter)
+                _parameter = cast(ParametersList, self.app.parameters).get(parameter)
             except ValueError:
-                parameter = self.app.Parameter(parameter)
+                _parameter = Parameter(parameter)
         elif isinstance(parameter, SchemaInput):
-            parameter = parameter.parameter
+            _parameter = parameter.parameter
+        else:
+            _parameter = parameter
 
-        self.parameter = parameter
+        self.parameter = _parameter
         self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
         self._value = _process_demo_data_strings(self.app, value)
-
-        self._value_group_idx = None  # assigned by method make_persistent
-        self._element_set: ElementSet | None = None  # assigned by parent ElementSet (if belonging)
-
-        # assigned by parent SchemaInput (if this object is a default value of a
-        # SchemaInput):
-        self._schema_input = None
 
         # record if a ParameterValue sub-class is passed for value, which allows us
         # to re-init the object on `.value`:
@@ -1277,9 +1293,7 @@ class InputValue(AbstractInputValue):
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.to_dict() == other.to_dict():
-            return True
-        return False
+        return self.to_dict() == other.to_dict()
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -1337,11 +1351,22 @@ class InputValue(AbstractInputValue):
         return obj
 
     @property
-    def is_sub_value(self):
+    def is_sub_value(self) -> bool:
         """True if the value is for a sub part of the parameter (i.e. if `path` is set).
         Sub-values are not added to the base parameter data, but are interpreted as
         single-value sequences."""
         return True if self.path else False
+
+    @property
+    def value(self) -> Any:
+        if self._value_group_idx is not None and self.workflow:
+            val = self.workflow.get_parameter_data(self._value_group_idx)
+            if self._value_is_obj and self.parameter._value_class:
+                val = self.parameter._value_class(**val)
+        else:
+            val = self._value
+
+        return val
 
 
 class ResourceSpec(JSONLike):
@@ -1354,7 +1379,8 @@ class ResourceSpec(JSONLike):
 
     """
 
-    ALLOWED_PARAMETERS = {
+    app: ClassVar[BaseApp]
+    ALLOWED_PARAMETERS: ClassVar[set[str]] = {
         "scratch",
         "parallel_mode",
         "num_cores",
@@ -1387,9 +1413,18 @@ class ResourceSpec(JSONLike):
         ),
     )
 
+    @staticmethod
+    def __parse_thing(typ: type[ActionScope], val: ActionScope | str | None) -> ActionScope | None:
+        if isinstance(val, typ):
+            return val
+        elif val is None:
+            return typ.any()
+        else:
+            return typ.from_json_like(cast(str, val))
+
     def __init__(
         self,
-        scope: ActionScope = None,
+        scope: ActionScope | str | None = None,
         scratch: str | None = None,
         parallel_mode: str | ParallelMode | None = None,
         num_cores: int | None = None,
@@ -1412,16 +1447,14 @@ class ResourceSpec(JSONLike):
         SLURM_num_nodes: str | None = None,
         SLURM_num_cpus_per_task: str | None = None,
     ):
-        self.scope = scope or self.app.ActionScope.any()
-        if not isinstance(self.scope, self.app.ActionScope):
-            self.scope = self.app.ActionScope.from_json_like(self.scope)
+        self.scope = self.__parse_thing(self.app.ActionScope, scope)
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
 
         # assigned by `make_persistent`
-        self._workflow = None
-        self._value_group_idx = None
+        self._workflow: Workflow | None = None
+        self._value_group_idx: int | None = None
 
         # user-specified resource parameters:
         self._scratch = scratch
@@ -1665,8 +1698,13 @@ class ResourceSpec(JSONLike):
         return self._get_value("shell_args")
 
     @property
-    def os_name(self):
+    def os_name(self) -> str:
         return self._get_value("os_name")
+
+    @os_name.setter
+    def os_name(self, value: str):
+        self._setter_persistent_check()
+        self._os_name = self._process_string(value)
 
     @property
     def environments(self):
@@ -1695,11 +1733,6 @@ class ResourceSpec(JSONLike):
     @property
     def SLURM_num_cpus_per_task(self):
         return self._get_value("SLURM_num_cpus_per_task")
-
-    @os_name.setter
-    def os_name(self, value):
-        self._setter_persistent_check()
-        self._os_name = self._process_string(value)
 
     @property
     def workflow(self):
@@ -1743,7 +1776,11 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
+_Where: TypeAlias = dict[str, Any] | Rule | list[dict[str, Any]] | list[Rule] | ElementFilter
+
+
 class InputSource(JSONLike):
+    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="source_type",
@@ -1755,29 +1792,26 @@ class InputSource(JSONLike):
 
     def __init__(
         self,
-        source_type,
-        import_ref=None,
-        task_ref=None,
-        task_source_type=None,
-        element_iters=None,
-        path=None,
-        where: dict | Rule | list[dict] | list[Rule] | ElementFilter | None = None,
+        source_type: InputSourceType | str,
+        import_ref: int | None = None,
+        task_ref: int | None = None,
+        task_source_type: TaskSourceType | str | None = None,
+        element_iters: list[int] | None = None,
+        path: str | None = None,
+        where: _Where | None = None,
     ):
-        if where is not None and not isinstance(where, ElementFilter):
-            rules = where
-            if not isinstance(rules, list):
-                rules = [rules]
-            for idx, i in enumerate(rules):
-                if not isinstance(i, Rule):
-                    rules[idx] = app.Rule(**i)
-            where = app.ElementFilter(rules=rules)
+        if where is None or isinstance(where, ElementFilter):
+            self.where: ElementFilter | None = where
+        else:
+            self.where = self.app.ElementFilter(rules=[
+                rule if isinstance(rule, Rule) else Rule(**rule)
+                for rule in (where if isinstance(where, list) else [where])])
 
-        self.source_type = self._validate_source_type(source_type)
+        self.source_type = get_enum_by_name_or_val(InputSourceType, source_type)
         self.import_ref = import_ref
         self.task_ref = task_ref
-        self.task_source_type = self._validate_task_source_type(task_source_type)
+        self.task_source_type = get_enum_by_name_or_val(TaskSourceType, task_source_type)
         self.element_iters = element_iters
-        self.where = where
         self.path = path
 
         if self.source_type is InputSourceType.TASK:
@@ -1806,6 +1840,7 @@ class InputSource(JSONLike):
             return False
 
     def __repr__(self) -> str:
+        assert self.source_type
         cls_method_name = self.source_type.name.lower()
 
         args_lst = []
@@ -1815,6 +1850,7 @@ class InputSource(JSONLike):
             args_lst.append(f"import_ref={self.import_ref}")
 
         elif self.source_type is InputSourceType.TASK:
+            assert self.task_source_type
             args_lst += (
                 f"task_ref={self.task_ref}",
                 f"task_source_type={self.task_source_type.name.lower()!r}",
@@ -1831,13 +1867,14 @@ class InputSource(JSONLike):
 
         return out
 
-    def get_task(self, workflow):
+    def get_task(self, workflow: Workflow) -> WorkflowTask | None:
         """If source_type is task, then return the referenced task from the given
         workflow."""
         if self.source_type is InputSourceType.TASK:
             for task in workflow.tasks:
                 if task.insert_ID == self.task_ref:
                     return task
+        return None
 
     def is_in(self, other_input_sources: list[InputSource]) -> int | None:
         """Check if this input source is in a list of other input sources, without
@@ -1854,9 +1891,11 @@ class InputSource(JSONLike):
                 return idx
         return None
 
-    def to_string(self):
+    def to_string(self) -> str:
+        assert self.source_type
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
+            assert self.task_source_type
             out += [str(self.task_ref), self.task_source_type.name.lower()]
             if self.element_iters is not None:
                 out += ["[" + ",".join(f"{i}" for i in self.element_iters) + "]"]
@@ -1864,41 +1903,12 @@ class InputSource(JSONLike):
             out += [str(self.import_ref)]
         return ".".join(out)
 
-    @staticmethod
-    def _validate_source_type(src_type):
-        if src_type is None:
-            return None
-        if isinstance(src_type, InputSourceType):
-            return src_type
-        try:
-            return getattr(InputSourceType, src_type.upper())
-        except AttributeError:
-            raise ValueError(
-                f"InputSource `source_type` specified as {src_type!r}, but "
-                f"must be one of: {[i.name for i in InputSourceType]!r}."
-            )
-
     @classmethod
-    def _validate_task_source_type(cls, task_src_type):
-        if task_src_type is None:
-            return None
-        if isinstance(task_src_type, TaskSourceType):
-            return task_src_type
-        try:
-            task_source_type = getattr(cls.app.TaskSourceType, task_src_type.upper())
-        except AttributeError:
-            raise ValueError(
-                f"InputSource `task_source_type` specified as {task_src_type!r}, but "
-                f"must be one of: {[i.name for i in TaskSourceType]!r}."
-            )
-        return task_source_type
-
-    @classmethod
-    def from_string(cls, str_defn):
+    def from_string(cls, str_defn: str) -> Self:
         return cls(**cls._parse_from_string(str_defn))
 
     @classmethod
-    def _parse_from_string(cls, str_defn):
+    def _parse_from_string(cls, str_defn: str):
         """Parse a dot-delimited string definition of an InputSource.
 
         Examples:
@@ -1910,37 +1920,33 @@ class InputSource(JSONLike):
 
         """
         parts = str_defn.split(".")
-        source_type = cls._validate_source_type(parts[0])
-        task_ref = None
-        task_source_type = None
-        import_ref = None
+        source_type = get_enum_by_name_or_val(InputSourceType, parts[0])
+        task_ref: int | None = None
+        task_source_type: TaskSourceType | None = None
+        import_ref: int | None = None
         if (
             (
-                source_type
-                in (cls.app.InputSourceType.LOCAL, cls.app.InputSourceType.DEFAULT)
+                source_type in (InputSourceType.LOCAL, InputSourceType.DEFAULT)
                 and len(parts) > 1
             )
-            or (source_type is cls.app.InputSourceType.TASK and len(parts) > 3)
-            or (source_type is cls.app.InputSourceType.IMPORT and len(parts) > 2)
+            or (source_type is InputSourceType.TASK and len(parts) > 3)
+            or (source_type is InputSourceType.IMPORT and len(parts) > 2)
         ):
             raise ValueError(f"InputSource string not understood: {str_defn!r}.")
 
-        if source_type is cls.app.InputSourceType.TASK:
+        if source_type is InputSourceType.TASK:
             # TODO: does this include element_iters?
-            task_ref = parts[1]
             try:
-                task_ref = int(task_ref)
+                task_ref = int(parts[1])
             except ValueError:
                 pass
             try:
-                task_source_type_str = parts[2]
+                task_source_type = get_enum_by_name_or_val(TaskSourceType, parts[2])
             except IndexError:
-                task_source_type_str = cls.app.TaskSourceType.OUTPUT
-            task_source_type = cls._validate_task_source_type(task_source_type_str)
-        elif source_type is cls.app.InputSourceType.IMPORT:
-            import_ref = parts[1]
+                task_source_type = TaskSourceType.OUTPUT
+        elif source_type is InputSourceType.IMPORT:
             try:
-                import_ref = int(import_ref)
+                import_ref = int(parts[1])
             except ValueError:
                 pass
 
@@ -1952,36 +1958,31 @@ class InputSource(JSONLike):
         }
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
-        if isinstance(json_like, str):
-            json_like = cls._parse_from_string(json_like)
-        return super().from_json_like(json_like, shared_data)
-
-    @classmethod
-    def import_(cls, import_ref, element_iters=None, where=None):
+    def import_(cls, import_ref: int, element_iters: list[int] | None = None,
+                where: _Where | None = None) -> Self:
         return cls(
-            source_type=cls.app.InputSourceType.IMPORT,
+            source_type=InputSourceType.IMPORT,
             import_ref=import_ref,
             element_iters=element_iters,
             where=where,
         )
 
     @classmethod
-    def local(cls):
-        return cls(source_type=cls.app.InputSourceType.LOCAL)
+    def local(cls) -> Self:
+        return cls(source_type=InputSourceType.LOCAL)
 
     @classmethod
-    def default(cls):
-        return cls(source_type=cls.app.InputSourceType.DEFAULT)
+    def default(cls) -> Self:
+        return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref, task_source_type=None, element_iters=None, where=None):
-        if not task_source_type:
-            task_source_type = cls.app.TaskSourceType.OUTPUT
+    def task(cls, task_ref: int, task_source_type: TaskSourceType | str | None = None,
+             element_iters: list[int] | None = None, where: _Where | None = None) -> Self:
         return cls(
-            source_type=cls.app.InputSourceType.TASK,
+            source_type=InputSourceType.TASK,
             task_ref=task_ref,
-            task_source_type=cls._validate_task_source_type(task_source_type),
+            task_source_type=get_enum_by_name_or_val(
+                TaskSourceType, task_source_type or TaskSourceType.OUTPUT),
             where=where,
             element_iters=element_iters,
         )

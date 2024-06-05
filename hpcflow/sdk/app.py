@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, Type, overload, TYPE_CHECKING
+from typing import Any, Dict, List, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -61,23 +61,24 @@ from hpcflow.sdk.submission.shells.os_version import (
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from typing import Literal
+    from types import ModuleType
     from .core.actions import ElementActionRun, ElementAction, ActionEnvironment, Action, ActionScope
     from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
     from .core.commands import Command
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
-        ElementIteration, Element, ElementParameter, ElementResources)
+        ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
         CommandFilesList, EnvironmentsList, ExecutablesList, GroupList, ParametersList,
         ResourceList, TaskList, TaskSchemasList, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
-    from .core.parameters import SchemaParameter
+    from .core.parameters import SchemaParameter, InputValue, Parameter
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
         WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
         ElementPropagation)
+    from .core.task_schema import TaskSchema
     from .core.workflow import Workflow, WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.schedulers.direct import DirectPosix, DirectWindows
@@ -252,7 +253,7 @@ class BaseApp(metaclass=Singleton):
         self._template_components = {}
         self._parameters = None
         self._command_files = None
-        self._environments = None
+        self._environments: EnvironmentsList | None = None
         self._task_schemas = None
         self._scripts = None
 
@@ -273,6 +274,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementAction(self) -> type[ElementAction]:
         return self._get_app_core_class("ElementAction")
+
+    @property
+    def ElementFilter(self) -> type[ElementFilter]:
+        return self._get_app_core_class("ElementFilter")
 
     @property
     def ActionEnvironment(self) -> type[ActionEnvironment]:
@@ -401,6 +406,18 @@ class BaseApp(metaclass=Singleton):
     @property
     def Parameters(self) -> type[Parameters]:
         return self._get_app_core_class("Parameters")
+
+    @property
+    def Parameter(self) -> type[Parameter]:
+        return self._get_app_core_class("Parameter")
+
+    @property
+    def InputValue(self) -> type[InputValue]:
+        return self._get_app_core_class("InputValue")
+
+    @property
+    def TaskSchema(self) -> type[TaskSchema]:
+        return self._get_app_core_class("TaskSchema")
 
     @property
     def TaskInputParameters(self) -> type[TaskInputParameters]:
@@ -555,19 +572,21 @@ class BaseApp(metaclass=Singleton):
             params = self._builtin_template_components.get("parameters", [])
             for path in self.config.parameter_sources:
                 params.extend(read_YAML_file(path))
-            self_tc["parameters"] = self.ParametersList.from_json_like(
+            param_list = self.ParametersList.from_json_like(
                 params, shared_data=self_tc
             )
-            self._parameters = self_tc["parameters"]
+            self_tc["parameters"] = param_list
+            self._parameters = param_list
 
         if "command_files" in include:
             cmd_files = self._builtin_template_components.get("command_files", [])
             for path in self.config.command_file_sources:
                 cmd_files.extend(read_YAML_file(path))
-            self_tc["command_files"] = self.CommandFilesList.from_json_like(
+            cf_list = self.CommandFilesList.from_json_like(
                 cmd_files, shared_data=self_tc
             )
-            self._command_files = self_tc["command_files"]
+            self_tc["command_files"] = cf_list
+            self._command_files = cf_list
 
         if "environments" in include:
             envs = []
@@ -581,29 +600,32 @@ class BaseApp(metaclass=Singleton):
                             builtin_envs.pop(b_idx)
                     envs.append(env_j)
             envs = builtin_envs + envs
-            self_tc["environments"] = self.EnvironmentsList.from_json_like(
+            env_list = self.EnvironmentsList.from_json_like(
                 envs, shared_data=self_tc
             )
-            self._environments = self_tc["environments"]
+            self_tc["environments"] = env_list
+            self._environments = env_list
 
         if "task_schemas" in include:
             schemas = self._builtin_template_components.get("task_schemas", [])
             for path in self.config.task_schema_sources:
                 schemas.extend(read_YAML_file(path))
-            self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
+            ts_list = self.TaskSchemasList.from_json_like(
                 schemas, shared_data=self_tc
             )
-            self._task_schemas = self_tc["task_schemas"]
+            self_tc["task_schemas"] = ts_list
+            self._task_schemas = ts_list
 
         if "scripts" in include:
-            self_tc["scripts"] = self._load_scripts()
-            self._scripts = self_tc["scripts"]
+            scripts = self._load_scripts()
+            self_tc["scripts"] = scripts
+            self._scripts = scripts
 
         self.logger.info(f"Template components loaded ({include!r}).")
 
     @classmethod
     def load_builtin_template_component_data(
-        cls, package
+        cls, package: ModuleType | str
     ) -> dict[str, List | Dict]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
@@ -1114,16 +1136,15 @@ class BaseApp(metaclass=Singleton):
             "parameters": self.ParametersList,
             "command_files": self.CommandFilesList,
             "environments": self.EnvironmentsList,
-            "task_schemas": self.TaskSchemasList,
+            "task_schemas": self.TaskSchemasList
         }
         tc = {}
         for k, v in cls_lookup.items():
-            tc_k = v.from_json_like(
+            tc[k] = v.from_json_like(
                 json_like.get(k, {}),
                 shared_data=tc,
-                is_hashed=True,
+                is_hashed=True
             )
-            tc[k] = tc_k
         return tc
 
     def get_parameter_task_schema_map(self) -> dict[str, list[List]]:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Dict, overload, Literal, TypeAlias, TYPE_CHECKING
 
-from valida.rules import Rule
+from valida.rules import Rule  # type: ignore
 
 
 from hpcflow.sdk import app
@@ -137,7 +137,7 @@ class ElementSet(JSONLike):
         resources: dict[str, Dict] | None = None,
         repeats: list[Dict] | None = None,
         groups: list[ElementGroup] | None = None,
-        input_sources: dict[str, InputSource] | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
         nesting_order: list | None = None,
         env_preset: str | None = None,
         environments: dict[str, dict[str, Any]] | None = None,
@@ -552,6 +552,7 @@ class Task(JSONLike):
         A list of `InputValue` objects.
     """
 
+    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="schema",
@@ -629,7 +630,7 @@ class Task(JSONLike):
         if not isinstance(schema, list):
             schema = [schema]
 
-        _schemas = []
+        _schemas: list[TaskSchema] = []
         for i in schema:
             if isinstance(i, str):
                 try:
@@ -663,7 +664,7 @@ class Task(JSONLike):
         self.merge_envs = merge_envs
 
         # appended to when new element sets are added and reset on dump to disk:
-        self._pending_element_sets = []
+        self._pending_element_sets: list[ElementSet] = []
 
         self._validate()
         self._name = self._get_name()
@@ -807,7 +808,7 @@ class Task(JSONLike):
             if k not in ("_name", "_pending_element_sets")
         }
 
-    def set_sequence_parameters(self, element_set):
+    def set_sequence_parameters(self, element_set: ElementSet):
         # set ValueSequence Parameter objects:
         for seq in element_set.sequences:
             if seq.input_type:
@@ -987,7 +988,7 @@ class Task(JSONLike):
         self,
         element_set: ElementSet,
         source_tasks: list[WorkflowTask] | None = None,
-    ) -> list[InputSource]:
+    ) -> dict[str, list[InputSource]]:
         """For each input parameter of this task, generate a list of possible input sources
         that derive from inputs or outputs of this and other provided tasks.
 
@@ -1001,13 +1002,11 @@ class Task(JSONLike):
         else:
             source_tasks = []
 
-        available = {}
+        available: dict[str, list[InputSource]] = {}
         for inputs_path, inp_status in self.get_input_statuses(element_set).items():
             # local specification takes precedence:
             if inputs_path in element_set.get_locally_defined_inputs():
-                if inputs_path not in available:
-                    available[inputs_path] = []
-                available[inputs_path].append(self.app.InputSource.local())
+                available.setdefault(inputs_path, []).append(self.app.InputSource.local())
 
             # search for task sources:
             for src_wk_task_i in source_tasks:
@@ -1020,7 +1019,7 @@ class Task(JSONLike):
                     key=lambda x: x[0],
                     reverse=True,
                 ):
-                    src_elem_iters = []
+                    src_elem_iters: list[int] = []
                     lab_s = labelled_path.split(".")
                     inp_s = inputs_path.split(".")
                     try:
@@ -1108,15 +1107,10 @@ class Task(JSONLike):
                         element_iters=src_elem_iters,
                     )
 
-                    if avail_src_path not in available:
-                        available[avail_src_path] = []
-
-                    available[avail_src_path].append(task_source)
+                    available.setdefault(avail_src_path, []).append(task_source)
 
             if inp_status.has_default:
-                if inputs_path not in available:
-                    available[inputs_path] = []
-                available[inputs_path].append(self.app.InputSource.default())
+                available.setdefault(inputs_path, []).append(self.app.InputSource.default())
         return available
 
     @property
@@ -1374,7 +1368,7 @@ class WorkflowTask:
         # appended to when new elements are added and reset on dump to disk:
         self._pending_element_IDs = []
 
-        self._elements = None  # assigned on `elements` first access
+        self._elements: Elements | None = None  # assigned on `elements` first access
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.unique_name!r})"
@@ -1456,7 +1450,7 @@ class WorkflowTask:
         return {j.id_: j for i in self.elements for j in i.iterations}
 
     def _make_new_elements_persistent(
-        self, element_set, element_set_idx, padded_elem_iters
+        self, element_set: ElementSet, element_set_idx, padded_elem_iters
     ):
         """Save parameter data to the persistent workflow."""
 
@@ -1660,7 +1654,7 @@ class WorkflowTask:
 
         return (input_data_idx, sequence_idx, source_idx)
 
-    def ensure_input_sources(self, element_set) -> dict[str, list[int]]:
+    def ensure_input_sources(self, element_set: ElementSet) -> dict[str, list[int]]:
         """Check valid input sources are specified for a new task to be added to the
         workflow in a given position. If none are specified, set them according to the
         default behaviour.
@@ -1715,6 +1709,7 @@ class WorkflowTask:
                     specified_source, self.unique_name
                 )
                 avail_idx = specified_source.is_in(avail_i)
+                available_source: InputSource
                 try:
                     available_source = avail_i[avail_idx]
                 except TypeError:
@@ -1807,8 +1802,8 @@ class WorkflowTask:
         # for task sources that span multiple element sets, pad out sub-parameter
         # `element_iters` to include the element iterations from other element sets in
         # which the "root" parameter is defined:
-        sources_by_task = defaultdict(dict)
-        elem_iter_by_task = defaultdict(dict)
+        sources_by_task: dict[int, dict[str, InputSource]] = defaultdict(dict)
+        elem_iter_by_task: dict[int, dict[str, Any]] = defaultdict(dict)
         all_elem_iters = set()
         for inp_type, sources in element_set.input_sources.items():
             source = sources[0]
@@ -2169,7 +2164,7 @@ class WorkflowTask:
         self.workflow._store.update_param_source(param_src_updates)
 
     @TimeIt.decorator
-    def _add_element_set(self, element_set):
+    def _add_element_set(self, element_set: ElementSet) -> list[int]:
         """
         Returns
         -------
@@ -2217,7 +2212,7 @@ class WorkflowTask:
             src_idx,
         )
 
-        iter_IDs = []
+        iter_IDs: list[int] = []
         elem_IDs = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
@@ -2515,11 +2510,11 @@ class WorkflowTask:
             default=default,
         )
 
-    def _paths_to_PV_classes(self, paths: Iterable[str]) -> dict[str, type[Any]]:
+    def _paths_to_PV_classes(self, paths: Iterable[str]) -> dict[str, type[ParameterValue]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
 
-        params: dict[str, type[Any]] = {}
+        params: dict[str, type[ParameterValue]] = {}
         for path in paths:
             path_split = path.split(".")
             if len(path_split) == 1 or path_split[0] not in ("inputs", "outputs"):

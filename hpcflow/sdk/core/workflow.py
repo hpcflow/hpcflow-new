@@ -11,7 +11,7 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, ClassVar, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, override, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem
@@ -1797,17 +1797,18 @@ class Workflow:
         params = self.get_all_parameters(**kwargs)
         return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
+    @override
+    def check_parameters_exist(self, id_lst: int) -> bool: ...
+
+    @override
+    def check_parameters_exist(self, id_lst: list[int]) -> list[bool]: ...
+
     def check_parameters_exist(
         self, id_lst: int | list[int]
     ) -> bool | list[bool]:
-        is_multi = True
         if isinstance(id_lst, int):
-            is_multi = False
-            id_lst = [id_lst]
-        exists = self._store.check_parameters_exist(id_lst)
-        if not is_multi:
-            exists = exists[0]
-        return exists
+            return self._store.check_parameters_exist([id_lst])[0]
+        return self._store.check_parameters_exist(id_lst)
 
     def _add_unset_parameter_data(self, source: dict[str, str]) -> int:
         # TODO: use this for unset files as well

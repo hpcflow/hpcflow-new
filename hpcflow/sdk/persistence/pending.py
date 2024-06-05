@@ -618,6 +618,7 @@ class CommitResourceMap:
                 # group and this commit method, so we merge resource labels and add the
                 # new commit method:
                 cur_res_group[0] = list(set(cur_res_group[0] + list(res_labels)))
+                # FIXME: Assumes that sets preserve order! NOT TRUE!
                 cur_res_group[1].append(fld.name)
 
             else:

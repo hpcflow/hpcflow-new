@@ -1,14 +1,15 @@
 from __future__ import annotations
 import copy
 from types import SimpleNamespace
-from typing import ClassVar, Dict, Generic, TypeVar, cast, TYPE_CHECKING
+from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
-from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
 from hpcflow.sdk.core.task import ElementSet
 from hpcflow.sdk.core.workflow import WorkflowTemplate
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
-    from zarr import Group
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from typing import ClassVar, Any, Self
+    from zarr import Group  # type: ignore
     from ..app import BaseApp
     from .actions import ActionScope
     from .command_files import FileSpec
@@ -78,9 +79,16 @@ class ObjectList(JSONLike, Generic[T]):
         else:
             return self._objects.__iter__()
 
-    def __getitem__(self, key: int) -> T:
+    @overload
+    def __getitem__(self, key: int) -> T: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[T]: ...
+
+    def __getitem__(self, key) -> T | list[T]:
         """Provide list-like index access."""
-        return self._get_item(self._objects.__getitem__(key))
+        result = self._objects.__getitem__(key)
+        return list(map(self._get_item, result)) if isinstance(key, slice) else self._get_item(result)
 
     def __contains__(self, item: T) -> bool:
         if self._objects:
@@ -296,7 +304,31 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         return {"_objects": super().to_dict()["_objects"]}
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data: Dict | None = None, is_hashed: bool = False):
+    def _get_default_shared_data(cls) -> dict[str, Any]:
+        return cls._app.template_components
+
+    @overload
+    @classmethod
+    def from_json_like(cls, json_like: str,
+                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+                       is_hashed: bool = False) -> Self | None: ...
+
+    @overload
+    @classmethod
+    def from_json_like(cls, json_like: Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]],
+                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+                       is_hashed: bool = False) -> Self: ...
+
+    @overload
+    @classmethod
+    def from_json_like(cls, json_like: None,
+                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+                       is_hashed: bool = False) -> None: ...
+
+    @classmethod
+    def from_json_like(cls, json_like: str | Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]] | None,
+                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+                       is_hashed: bool = False) -> Self | None:
         """
         Parameters
         ----------
@@ -305,13 +337,13 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
 
         """
         if is_hashed:
-            json_like = [
-                {**obj_js, "_hash_value": hash_val}
+            assert isinstance(json_like, Mapping)
+            return super().from_json_like([
+                {**cast(Mapping, obj_js), "_hash_value": hash_val}
                 for hash_val, obj_js in json_like.items()
-            ]
-        if shared_data is None:
-            shared_data = cls._app.template_components
-        return super().from_json_like(json_like, shared_data=shared_data)
+            ], shared_data=shared_data)
+        else:
+            return super().from_json_like(json_like, shared_data=shared_data)    
 
     def _remove_object(self, index: int):
         self._objects.pop(index)
@@ -449,13 +481,13 @@ class ParametersList(AppDataList[Parameter]):
     def __init__(self, _objects: Iterable[Parameter]):
         super().__init__(_objects, access_attribute="typ", descriptor="parameter")
 
-    def __getattr__(self, attribute):
+    def __getattr__(self, attribute) -> Parameter:
         """Overridden to provide a default Parameter object if none exists."""
-        if not attribute.startswith("__"):
-            try:
+        try:
+            if not attribute.startswith("__"):
                 return super().__getattr__(attribute)
-            except (AttributeError, ValueError):
-                return self._app.Parameter(typ=attribute)
+        except (AttributeError, ValueError):
+            return self._app.Parameter(typ=attribute)
         raise AttributeError
 
     def get_all(self, access_attribute_value=None, **kwargs):
