@@ -710,7 +710,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
 
         # store efficiently:
         inode_invert = {v: k for k, v in self._inode_to_path.items()}
-        data: dict[str, list]= {}
+        data: dict[str, list] = {}
         for k, v in self._stat_info.items():
             k_rel = str(PurePath(k).relative_to(root_path))
             data[k_rel] = list(v) + list(inode_invert[k])
