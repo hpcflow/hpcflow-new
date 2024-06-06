@@ -256,7 +256,7 @@ def set_in_container(cont, path: Sequence, value, ensure_path=False, cast_indice
     sub_data[path_comp] = value
 
 
-def get_relative_path(path1: tuple[T, ...], path2: tuple[T, ...]) -> tuple[T, ...]:
+def get_relative_path(path1: Sequence[T], path2: Sequence[T]) -> Sequence[T]:
     """Get relative path components between two paths.
 
     Parameters

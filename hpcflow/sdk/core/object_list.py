@@ -602,7 +602,7 @@ class ResourceList(ObjectList[ResourceSpec]):
         return as_dict, shared_data
 
     @classmethod
-    def normalise(cls, resources) -> ResourceSpec:
+    def normalise(cls, resources) -> Self:
         """Generate from resource-specs specified in potentially several ways."""
 
         def _ensure_non_persistent(resource_spec):

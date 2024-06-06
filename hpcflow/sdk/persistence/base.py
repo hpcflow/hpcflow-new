@@ -26,7 +26,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
     from fsspec import AbstractFileSystem
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
@@ -978,7 +978,7 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def add_element_set(self, task_id: int, es_js: Dict, save: bool = True):
+    def add_element_set(self, task_id: int, es_js: Mapping, save: bool = True):
         self._pending.add_element_sets[task_id].append(es_js)
         if save:
             self.save()

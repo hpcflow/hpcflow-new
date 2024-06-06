@@ -5,7 +5,7 @@ from datetime import timedelta
 import enum
 from pathlib import Path
 import re
-from typing import TypeVar, cast, TYPE_CHECKING
+from typing import TypedDict, TypeVar, cast, TYPE_CHECKING
 
 import numpy as np
 from valida import Schema  # type: ignore
@@ -29,8 +29,8 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Any, ClassVar, Dict, TypeAlias, Self
+    from collections.abc import Iterable, Sequence
+    from typing import Any, ClassVar, Dict, TypeAlias, Self, NotRequired
     from ..app import BaseApp
     from .actions import ActionScope
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
@@ -437,10 +437,10 @@ class SchemaInput(SchemaParameter):
         if not self.multiple:
             return self.labels[self.single_label]
 
-    def labelled_info(self):
+    def labelled_info(self) -> Iterable[LabellingDescriptor]: 
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""
-            dct = {
+            dct: LabellingDescriptor = {
                 "labelled_type": self.parameter.typ + label,
                 "propagation_mode": v["propagation_mode"],
                 "group": v.get("group"),
@@ -472,6 +472,13 @@ class SchemaInput(SchemaParameter):
     @property
     def input_or_output(self):
         return "input"
+
+
+class LabellingDescriptor(TypedDict):
+    labelled_type: str
+    propagation_mode: ParameterPropagationMode
+    group: str
+    default_value: NotRequired[InputValue]
 
 
 @dataclass

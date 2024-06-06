@@ -19,7 +19,7 @@ from .json_like import ChildObjectSpec, JSONLike
 from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
     from typing import ClassVar
     from .actions import Action
     from .parameters import SchemaOutput, SchemaParameter
@@ -95,19 +95,19 @@ class TaskSchema(JSONLike):
         method: str | None = None,
         implementation: str | None = None,
         inputs: list[Parameter | SchemaInput] | None = None,
-        outputs: list[Parameter | SchemaOutput] | None = None,
+        outputs: list[Parameter | SchemaOutput | SchemaOutput] | None = None,
         version: str | None = None,
         parameter_class_modules: list[str] | None = None,
         web_doc: bool | None = True,
         environment_presets: dict[str, dict[str, dict[str, Any]]] | None = None,
         _hash_value: str | None = None,
     ):
-        self.objective = objective
+        self.objective = self.__coerce_objective(objective)
         self.actions = actions or []
         self.method = method
         self.implementation = implementation
-        self.inputs = inputs or []
-        self.outputs = outputs or []
+        self.inputs = self.__coerce_inputs(inputs or [])
+        self.outputs = self.__coerce_outputs(outputs or [])
         self.parameter_class_modules = parameter_class_modules or []
         self.web_doc = web_doc
         self.environment_presets = environment_presets
@@ -601,28 +601,31 @@ class TaskSchema(JSONLike):
         finally:
             cls._validate_actions = True
 
-    def _validate(self):
-        if isinstance(self.objective, str):
-            self.objective = self.app.TaskObjective(self.objective)
+    @classmethod
+    def __coerce_objective(cls, objective: TaskObjective | str) -> TaskObjective:
+        if isinstance(objective, str):
+            return cls.app.TaskObjective(objective)
+        else:
+            return objective
 
+    @classmethod
+    def __coerce_inputs(cls, inputs: Iterable[Parameter | SchemaInput]) -> list[SchemaInput]:
+        """ coerce Parameters to SchemaInputs """
+        return [cls.app.SchemaInput(i) if isinstance(i, Parameter) else i for i in inputs]
+
+    @classmethod
+    def __coerce_outputs(cls, outputs: Iterable[Parameter | SchemaInput | SchemaOutput]
+                         ) -> list[SchemaOutput]:
+        """ coerce Parameters to SchemaOutputs """
+        return [o if isinstance(o, SchemaOutput)
+                else cls.app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter) 
+                for o in outputs]
+
+    def _validate(self):
         if self.method:
             self.method = check_valid_py_identifier(self.method)
         if self.implementation:
             self.implementation = check_valid_py_identifier(self.implementation)
-
-        # coerce Parameters to SchemaInputs
-        for idx, i in enumerate(self.inputs):
-            if isinstance(
-                i, Parameter
-            ):  # TODO: doc. that we should use the sdk class for type checking!
-                self.inputs[idx] = self.app.SchemaInput(i)
-
-        # coerce Parameters to SchemaOutputs
-        for idx, i in enumerate(self.outputs):
-            if isinstance(i, Parameter):
-                self.outputs[idx] = self.app.SchemaOutput(i)
-            elif isinstance(i, SchemaInput):
-                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
 
         # check action input/outputs
         if self._validate_actions:
