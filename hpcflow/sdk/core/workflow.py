@@ -1100,7 +1100,7 @@ class Workflow:
             with self.batch_update():
                 self._add_task(task, new_index=new_index)
 
-    def add_task_after(self, new_task: Task, task_ref: Task = None) -> None:
+    def add_task_after(self, new_task: Task, task_ref: Task | None = None) -> None:
         """Add a new task after the specified task.
 
         Parameters
@@ -1113,7 +1113,7 @@ class Workflow:
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
-    def add_task_before(self, new_task: Task, task_ref: Task = None) -> None:
+    def add_task_before(self, new_task: Task, task_ref: Task | None = None) -> None:
         """Add a new task before the specified task.
 
         Parameters
@@ -1824,7 +1824,7 @@ class Workflow:
         source: Dict,
         path=None,
         contents=None,
-        filename: str = None,
+        filename: str | None = None,
     ) -> int:
         return self._store.add_file(
             store_contents=store_contents,
@@ -1842,7 +1842,7 @@ class Workflow:
         is_input: bool,
         path=None,
         contents=None,
-        filename: str = None,
+        filename: str | None = None,
         clean_up: bool = False,
     ) -> int:
         self._store.set_file(
@@ -2497,7 +2497,7 @@ class Workflow:
         submission_idx: int = -1,
         task_idx: int | None = None,
         task_insert_ID: int | None = None,
-        element_idx: int = None,
+        element_idx: int | None = None,
     ) -> list[ElementActionRun]:
         """Retrieve runs that are running according to the scheduler."""
 
@@ -2528,7 +2528,7 @@ class Workflow:
         submission_idx: int = -1,
         task_idx: int | None = None,
         task_insert_ID: int | None = None,
-        element_idx: int = None,
+        element_idx: int | None = None,
     ):
         """Abort the currently running action-run of the specified task/element.
 

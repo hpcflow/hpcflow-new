@@ -2577,7 +2577,7 @@ class WorkflowTask:
         """Get element data from the persistent store."""
 
         def _get_relevant_paths(
-            data_index: dict[str, Any], path: list[str], children_of: str = None
+            data_index: dict[str, Any], path: list[str], children_of: str | None = None
         ):
             relevant_paths: dict[str, str | Any] = {}
             # first extract out relevant paths in `data_index`:

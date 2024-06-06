@@ -17,7 +17,7 @@ import subprocess
 from datetime import datetime, timezone
 import sys
 from typing import cast, overload, TYPE_CHECKING
-import fsspec
+import fsspec  # type: ignore
 import numpy as np
 
 from ruamel.yaml import YAML
@@ -32,10 +32,14 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
-    from typing import Any, TypeVar
+    from collections.abc import Callable, Container, Iterable, Sequence
+    from typing import Any, TypeVar, TypeAlias
+    from numpy.typing import NDArray
 
     T = TypeVar('T')
+    T2 = TypeVar('T2')
+    T3 = TypeVar('T3')
+    TList: TypeAlias = T | list['TList']
 
 
 def load_config(func):
@@ -50,13 +54,13 @@ def load_config(func):
     return wrapper
 
 
-def make_workflow_id():
+def make_workflow_id() -> str:
     length = 12
     chars = string.ascii_letters + "0123456789"
     return "".join(random.choices(chars, k=length))
 
 
-def get_time_stamp():
+def get_time_stamp() -> str:
     return datetime.now(timezone.utc).astimezone().strftime("%Y.%m.%d_%H:%M:%S_%z")
 
 
@@ -116,7 +120,7 @@ def check_valid_py_identifier(name: str) -> str:
     return name
 
 
-def group_by_dict_key_values(lst, *keys):
+def group_by_dict_key_values(lst: list[dict[T, T2]], *keys: T):
     """Group a list of dicts according to specified equivalent key-values.
 
     Parameters
@@ -158,7 +162,7 @@ def group_by_dict_key_values(lst, *keys):
     return grouped
 
 
-def swap_nested_dict_keys(dct, inner_key):
+def swap_nested_dict_keys(dct: dict[T, dict[T2, T3]], inner_key: T2):
     """Return a copy where top-level keys have been swapped with a second-level inner key.
 
     Examples:
@@ -177,16 +181,32 @@ def swap_nested_dict_keys(dct, inner_key):
     }
 
     """
-    out = {}
+    out: dict[T3, dict[T, dict[T2, T3]]] = {}
     for k, v in copy.deepcopy(dct or {}).items():
-        inner_val = v.pop(inner_key)
-        if inner_val not in out:
-            out[inner_val] = {}
-        out[inner_val][k] = v
+        out.setdefault(v.pop(inner_key), {})[k] = v
     return out
 
 
-def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
+def _ensure_int(path_comp: int, cur_data, cast_indices: bool) -> int:
+    """
+    Helper for get_in_container() and set_in_container()
+    """
+    if not isinstance(path_comp, int):
+        msg = (
+            f"Path component {path_comp!r} must be an integer index "
+            f"since data is a sequence: {cur_data!r}."
+        )
+        if cast_indices:
+            try:
+                path_comp = int(path_comp)
+            except TypeError:
+                raise TypeError(msg)
+        else:
+            raise TypeError(msg)
+    return path_comp
+
+
+def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=False):
     cur_data = cont
     err_msg = (
         "Data at path {path_comps!r} is not a sequence, but is of type "
@@ -194,24 +214,12 @@ def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
     )
     for idx, path_comp in enumerate(path):
         if isinstance(cur_data, (list, tuple)):
-            if not isinstance(path_comp, int):
-                msg = (
-                    f"Path component {path_comp!r} must be an integer index "
-                    f"since data is a sequence: {cur_data!r}."
-                )
-                if cast_indices:
-                    try:
-                        path_comp = int(path_comp)
-                    except TypeError:
-                        raise TypeError(msg)
-                else:
-                    raise TypeError(msg)
-            cur_data = cur_data[path_comp]
+            cur_data = cur_data[_ensure_int(path_comp, cur_data, cast_indices)]
         elif isinstance(cur_data, dict):
             try:
                 cur_data = cur_data[path_comp]
             except KeyError:
-                raise ContainerKeyError(path=path[: idx + 1])
+                raise ContainerKeyError(path=cast(list[str], path[: idx + 1]))
         elif allow_getattr:
             try:
                 cur_data = getattr(cur_data, path_comp)
@@ -226,7 +234,7 @@ def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
     return cur_data
 
 
-def set_in_container(cont, path, value, ensure_path=False, cast_indices=False):
+def set_in_container(cont, path: Sequence, value, ensure_path=False, cast_indices=False) -> None:
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
@@ -244,22 +252,11 @@ def set_in_container(cont, path, value, ensure_path=False, cast_indices=False):
     sub_data = get_in_container(cont, path[:-1], cast_indices=cast_indices)
     path_comp = path[-1]
     if isinstance(sub_data, (list, tuple)):
-        if not isinstance(path_comp, int):
-            msg = (
-                f"Path component {path_comp!r} must be an integer index "
-                f"since data is a sequence: {sub_data!r}."
-            )
-            if cast_indices:
-                try:
-                    path_comp = int(path_comp)
-                except ValueError:
-                    raise ValueError(msg)
-            else:
-                raise ValueError(msg)
+        path_comp = _ensure_int(path_comp, sub_data, cast_indices)
     sub_data[path_comp] = value
 
 
-def get_relative_path(path1, path2):
+def get_relative_path(path1: tuple[T, ...], path2: tuple[T, ...]) -> tuple[T, ...]:
     """Get relative path components between two paths.
 
     Parameters
@@ -306,7 +303,7 @@ def get_relative_path(path1, path2):
     return path1[len_path2:]
 
 
-def search_dir_files_by_regex(pattern, group=0, directory=".") -> list[str]:
+def search_dir_files_by_regex(pattern: str | re.Pattern[str], group=0, directory=".") -> list[str]:
     """Search recursively for files in a directory by a regex pattern and return matching
     file paths, relative to the given directory."""
     vals = []
@@ -337,7 +334,7 @@ class PrettyPrinter(object):
 
 
 class Singleton(type):
-    _instances = {}
+    _instances: dict[type, object] = {}
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
@@ -352,7 +349,7 @@ class Singleton(type):
         return cls._instances[cls]
 
 
-def capitalise_first_letter(chars):
+def capitalise_first_letter(chars: str) -> str:
     return chars[0].upper() + chars[1:]
 
 
@@ -379,14 +376,13 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
 
 
 @TimeIt.decorator
-def substitute_string_vars(string, variables: dict[str, str] = None):
-    variables = variables or {}
-
-    def var_repl(match_obj):
-        kwargs = {}
-        var_name, kwargs_str = match_obj.groups()
+def substitute_string_vars(string: str, variables: dict[str, str]):
+    def var_repl(match_obj: re.Match):
+        kwargs: dict[str, str] = {}
+        var_name: str = match_obj.group(1)
+        kwargs_str: str | None = match_obj.group(2)
         if kwargs_str:
-            kwargs_lst = kwargs_str.split(",")
+            kwargs_lst: list[str] = kwargs_str.split(",")
             for i in kwargs_lst:
                 k, v = i.strip().split("=")
                 kwargs[k.strip()] = v.strip()
@@ -406,54 +402,54 @@ def substitute_string_vars(string, variables: dict[str, str] = None):
                 )
         return out
 
-    new_str = re.sub(
+    return re.sub(
         pattern=r"\<\<var:(.*?)(?:\[(.*)\])?\>\>",
         repl=var_repl,
         string=string,
     )
-    return new_str
 
 
 @TimeIt.decorator
-def read_YAML_str(yaml_str, typ="safe", variables: dict[str, str] = None):
+def read_YAML_str(yaml_str: str, typ="safe", variables: dict[str, str] | None = None) -> Any:
     """Load a YAML string."""
-    if variables is not False and "<<var:" in yaml_str:
+    if variables is not None and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
     return yaml.load(yaml_str)
 
 
 @TimeIt.decorator
-def read_YAML_file(path: PathLike, typ="safe", variables: dict[str, str] = None):
+def read_YAML_file(path: PathLike, typ="safe", variables: dict[str, str] | None = None) -> Any:
     with fsspec.open(path, "rt") as f:
-        yaml_str = f.read()
+        yaml_str: str = f.read()
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
 
 
-def write_YAML_file(obj, path: PathLike, typ="safe"):
+def write_YAML_file(obj, path: str | Path, typ="safe") -> None:
     yaml = YAML(typ=typ)
     with Path(path).open("wt") as fp:
         yaml.dump(obj, fp)
 
 
-def read_JSON_string(json_str: str, variables: dict[str, str] = None):
-    if variables is not False and "<<var:" in json_str:
+def read_JSON_string(json_str: str, variables: dict[str, str] | None = None) -> Any:
+    if variables is not None and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 
 
-def read_JSON_file(path, variables: dict[str, str] = None):
+def read_JSON_file(path, variables: dict[str, str] | None = None) -> Any:
     with fsspec.open(path, "rt") as f:
-        json_str = f.read()
+        json_str: str = f.read()
     return read_JSON_string(json_str, variables=variables)
 
 
-def write_JSON_file(obj, path: PathLike):
+def write_JSON_file(obj, path: str | Path) -> None:
     with Path(path).open("wt") as fp:
         json.dump(obj, fp)
 
 
-def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
+def get_item_repeat_index(lst: Sequence[T], distinguish_singular: bool = False,
+                          item_callable: Callable[[T], Any] | None = None):
     """Get the repeat index for each item in a list.
 
     Parameters
@@ -474,16 +470,12 @@ def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
 
     """
 
-    idx = {}
+    idx: dict[Any, list[int]] = {}
     for i_idx, item in enumerate(lst):
-        if item_callable:
-            item = item_callable(item)
-        if item not in idx:
-            idx[item] = []
-        idx[item] += [i_idx]
+        idx.setdefault(item_callable(item) if item_callable else item, []).append(i_idx)
 
-    rep_idx = [None] * len(lst)
-    for k, v in idx.items():
+    rep_idx = [0] * len(lst)
+    for v in idx.values():
         start = len(v) > 1 if distinguish_singular else 0
         for i_idx, i in enumerate(v, start):
             rep_idx[i] = i_idx
@@ -491,7 +483,7 @@ def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
     return rep_idx
 
 
-def get_process_stamp():
+def get_process_stamp() -> str:
     return "{} {} {}".format(
         datetime.now(),
         socket.gethostname(),
@@ -499,17 +491,18 @@ def get_process_stamp():
     )
 
 
-def remove_ansi_escape_sequences(string):
+def remove_ansi_escape_sequences(string: str) -> str:
     ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
     return ansi_escape.sub("", string)
 
 
-def get_md5_hash(obj):
+def get_md5_hash(obj) -> str:
     json_str = json.dumps(obj, sort_keys=True)
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
 
-def get_nested_indices(idx, size, nest_levels, raise_on_rollover=False):
+def get_nested_indices(idx: int, size: int, nest_levels: int,
+                       raise_on_rollover: bool = False) -> list[int]:
     """Generate the set of nested indices of length `n` that correspond to a global
     `idx`.
 
@@ -555,7 +548,7 @@ def get_nested_indices(idx, size, nest_levels, raise_on_rollover=False):
     return [(idx // (size ** (nest_levels - (i + 1)))) % size for i in range(nest_levels)]
 
 
-def ensure_in(item, lst) -> int:
+def ensure_in(item: T, lst: list[T]) -> int:
     """Get the index of an item in a list and append the item if it is not in the
     list."""
     # TODO: add tests
@@ -567,10 +560,11 @@ def ensure_in(item, lst) -> int:
     return idx
 
 
-def list_to_dict(lst, exclude=None):
+def list_to_dict(lst: list[dict[T, T2]],
+                 exclude: Container[T] | None = None) -> dict[T, list[T2]]:
     # TODD: test
-    exclude = exclude or []
-    dct = {k: [] for k in lst[0].keys() if k not in exclude}
+    exclude = exclude or ()
+    dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exclude}
     for i in lst:
         for k, v in i.items():
             if k not in exclude:
@@ -579,7 +573,7 @@ def list_to_dict(lst, exclude=None):
     return dct
 
 
-def bisect_slice(selection: slice, len_A: int):
+def bisect_slice(selection: slice, len_A: int) -> tuple[slice, slice]:
     """Given two sequences (the first of which of known length), get the two slices that
     are equivalent to a given slice if the two sequences were combined."""
 
@@ -601,25 +595,27 @@ def bisect_slice(selection: slice, len_A: int):
     return A_slice, B_slice
 
 
-def replace_items(lst, start, end, repl):
+def replace_items(lst: list[T], start: int, end: int, repl: list[T]) -> list[T]:
     """Replaced a range of items in a list with items in another list."""
-    if end <= start:
+    # Convert to actual indices for our safety checks; handles end-relative addressing
+    real_start, real_end, _ = slice(start, end).indices(len(lst))
+    if real_end <= real_start:
         raise ValueError(
             f"`end` ({end}) must be greater than or equal to `start` ({start})."
         )
-    if start >= len(lst):
+    if real_start >= len(lst):
         raise ValueError(f"`start` ({start}) must be less than length ({len(lst)}).")
-    if end > len(lst):
+    if real_end > len(lst):
         raise ValueError(
             f"`end` ({end}) must be less than or equal to length ({len(lst)})."
         )
 
-    lst_a = lst[:start]
-    lst_b = lst[end:]
-    return lst_a + repl + lst_b
+    lst = list(lst)
+    lst[start:end] = repl
+    return lst
 
 
-def flatten(lst):
+def flatten(lst: list[TList[T]]) -> tuple[list[T], tuple[list[int], ...]]:
     """Flatten an arbitrarily (but of uniform depth) nested list and return shape
     information to enable un-flattening.
 
@@ -634,17 +630,17 @@ def flatten(lst):
 
     """
 
-    def _flatten(lst, _depth=0):
-        out = []
+    def _flatten(lst: list[TList[T]], depth=0) -> list[T]:
+        out: list[T] = []
         for i in lst:
             if isinstance(i, list):
-                out += _flatten(i, _depth=_depth + 1)
-                all_lens[_depth].append(len(i))
+                out += _flatten(i, depth + 1)
+                all_lens[depth].append(len(i))
             else:
                 out.append(i)
         return out
 
-    def _get_max_depth(lst):
+    def _get_max_depth(lst: list[TList]) -> int:
         lst = lst[:]
         max_depth = 0
         while isinstance(lst, list):
@@ -657,21 +653,21 @@ def flatten(lst):
         return max_depth
 
     max_depth = _get_max_depth(lst) - 1
-    all_lens = tuple([] for _ in range(max_depth))
+    all_lens: tuple[list[int], ...] = tuple([] for _ in range(max_depth))
 
     return _flatten(lst), all_lens
 
 
-def reshape(lst, lens):
-    def _reshape(lst, lens):
-        lens_acc = [0] + list(accumulate(lens))
-        lst_rs = [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
-        return lst_rs
+def reshape(lst: list[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
+    def _reshape(lst: list[T2], lens: Sequence[int]) -> list[list[T2]]:
+        lens_acc = [0, *accumulate(lens)]
+        return [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
 
+    result: list[TList[T]] = cast(list[TList[T]], lst)
     for lens_i in lens[::-1]:
-        lst = _reshape(lst, lens_i)
+        result = cast(list[TList[T]], _reshape(result, lens_i))
 
-    return lst
+    return result
 
 
 def is_fsspec_url(url: str) -> bool:
@@ -681,14 +677,15 @@ def is_fsspec_url(url: str) -> bool:
 class JSONLikeDirSnapShot(DirectorySnapshot):
     """Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON."""
 
-    def __init__(self, root_path=None, data=None):
+    def __init__(self, root_path: str | None = None, data: dict[str, list] | None = None):
         """Create an empty snapshot or load from JSON-like data."""
 
         self.root_path = root_path
-        self._stat_info = {}
-        self._inode_to_path = {}
+        self._stat_info: dict[str, os.stat_result] = {}
+        self._inode_to_path: dict[tuple, str] = {}
 
         if data:
+            assert root_path
             for k in list((data or {}).keys()):
                 # add root path
                 full_k = str(PurePath(root_path) / PurePath(k))
@@ -696,11 +693,11 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
                 self._stat_info[full_k] = os.stat_result(stat_dat)
                 self._inode_to_path[tuple(inode_key)] = full_k
 
-    def take(self, *args, **kwargs):
+    def take(self, *args, **kwargs) -> None:
         """Take the snapshot."""
         super().__init__(*args, **kwargs)
 
-    def to_json_like(self):
+    def to_json_like(self) -> dict[str, Any]:
         """Export to a dict that is JSON-compatible and can be later reloaded.
 
         The last two integers in `data` for each path are the keys in
@@ -713,7 +710,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
 
         # store efficiently:
         inode_invert = {v: k for k, v in self._inode_to_path.items()}
-        data = {}
+        data: dict[str, list]= {}
         for k, v in self._stat_info.items():
             k_rel = str(PurePath(k).relative_to(root_path))
             data[k_rel] = list(v) + list(inode_invert[k])
@@ -766,25 +763,28 @@ def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     return match.group(1), match.group(2)
 
 
-def process_string_nodes[T](data: T, str_processor: Callable[[str], str]) -> T:
+def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:
     """Walk through a nested data structure and process string nodes using a provided
     callable."""
 
     if isinstance(data, dict):
-        for k, v in data.items():
-            data[k] = process_string_nodes(v, str_processor)
+        return cast(T, {
+            k: process_string_nodes(v, str_processor)
+            for k, v in data.items()})
 
     elif isinstance(data, (list, tuple, set)):
-        _data = (process_string_nodes(i, str_processor) for i in data)
+        _data = (
+            process_string_nodes(i, str_processor)
+            for i in data)
         if isinstance(data, tuple):
-            data = tuple(_data)
+            return cast(T, tuple(_data))
         elif isinstance(data, set):
-            data = set(_data)
+            return cast(T, set(_data))
         else:
-            data = list(_data)
+            return cast(T, list(_data))
 
     elif isinstance(data, str):
-        data = str_processor(data)
+        return cast(T, str_processor(data))
 
     return data
 
@@ -792,10 +792,10 @@ def process_string_nodes[T](data: T, str_processor: Callable[[str], str]) -> T:
 def linspace_rect(
     start: list[float],
     stop: list[float],
-    num: list[float],
+    num: list[int],
     include: list[str] | None = None,
     **kwargs,
-):
+) -> NDArray:
     """Generate a linear space around a rectangle.
 
     Parameters
@@ -852,7 +852,8 @@ def linspace_rect(
     return rect
 
 
-def dict_values_process_flat(d, callable):
+def dict_values_process_flat(d: dict[T, T2 | list[T2]],
+                             callable: Callable[[list[T2]], list[T3]]) -> dict[T, T3 | list[T3]]:
     """
     Return a copy of a dict, where the values are processed by a callable that is to
     be called only once, and where the values may be single items or lists of items.
@@ -864,27 +865,29 @@ def dict_values_process_flat(d, callable):
     {'a': 1, 'b': [2, 3], 'c': 6}
 
     """
-    flat = []  # values of `d`, flattened
-    is_multi = []  # whether a list, and the number of items to process
+    flat: list[T2] = []  # values of `d`, flattened
+    is_multi: list[tuple[bool, int]] = []  # whether a list, and the number of items to process
     for i in d.values():
         try:
-            flat.extend(i)
-            is_multi.append((True, len(i)))
+            i_list = cast(list[T2], i)
+            flat.extend(i_list)
+            is_multi.append((True, len(i_list)))
         except TypeError:
-            flat.append(i)
+            flat.append(cast(T2, i))
             is_multi.append((False, 1))
 
     processed = callable(flat)
 
-    out = {}
+    out: dict[T, T3 | list[T3]] = {}
     for idx_i, (m, k) in enumerate(zip(is_multi, d.keys())):
 
         start_idx = sum(i[1] for i in is_multi[:idx_i])
         end_idx = start_idx + m[1]
-        proc_idx_k = processed[slice(start_idx, end_idx)]
+        proc_idx_k = processed[start_idx:end_idx]
         if not m[0]:
-            proc_idx_k = proc_idx_k[0]
-        out[k] = proc_idx_k
+            out[k] = proc_idx_k[0]
+        else:
+            out[k] = proc_idx_k
 
     return out
 

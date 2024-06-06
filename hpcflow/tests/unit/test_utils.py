@@ -497,10 +497,11 @@ def test_substitute_string_vars_repeated_var():
     )
 
 
-def test_substitute_string_vars_no_vars():
+def test_substitute_string_vars_empty_vars():
     assert (
         substitute_string_vars(
             "hello bob!",
+            variables={}
         )
         == "hello bob!"
     )
@@ -508,7 +509,7 @@ def test_substitute_string_vars_no_vars():
 
 def test_substitute_string_vars_raise_no_vars():
     with pytest.raises(MissingVariableSubstitutionError):
-        substitute_string_vars("hello <<var:my_name>>")
+        substitute_string_vars("hello <<var:my_name>>", variables={})
 
 
 def test_substitute_string_vars_raise_missing():
@@ -521,7 +522,7 @@ def test_substitute_string_vars_non_str():
 
 
 def test_substitute_string_vars_default_value():
-    assert substitute_string_vars("hello <<var:my_name[default=bill]>>!") == "hello bill!"
+    assert substitute_string_vars("hello <<var:my_name[default=bill]>>!", variables={}) == "hello bill!"
 
 
 def test_substitute_string_vars_default_value_with_specified():
