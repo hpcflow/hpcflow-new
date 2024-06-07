@@ -73,11 +73,11 @@ if TYPE_CHECKING:
         CommandFilesList, EnvironmentsList, ExecutablesList, GroupList, ParametersList,
         ResourceList, TaskList, TaskSchemasList, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
-    from .core.parameters import SchemaParameter, InputValue, Parameter
+    from .core.parameters import SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
         WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
-        ElementPropagation)
+        ElementPropagation, ElementSet)
     from .core.task_schema import TaskSchema
     from .core.workflow import Workflow, WorkflowTemplate
     from .submission.jobscript import Jobscript
@@ -300,6 +300,10 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("FileNameSpec")
 
     @property
+    def InputSource(self) -> type[InputSource]:
+        return self._get_app_core_class("InputSource")
+
+    @property
     def InputFileGenerator(self) -> type[InputFileGenerator]:
         return self._get_app_core_class("InputFileGenerator")
 
@@ -330,6 +334,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementIteration(self) -> type[ElementIteration]:
         return self._get_app_core_class("ElementIteration")
+
+    @property
+    def ElementSet(self) -> type[ElementSet]:
+        return self._get_app_core_class("ElementSet")
 
     @property
     def Element(self) -> type[Element]:
@@ -370,6 +378,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ResourceList(self) -> type[ResourceList]:
         return self._get_app_core_class("ResourceList")
+
+    @property
+    def ResourceSpec(self) -> type[ResourceSpec]:
+        return self._get_app_core_class("ResourceSpec")
 
     @property
     def TaskList(self) -> type[TaskList]:

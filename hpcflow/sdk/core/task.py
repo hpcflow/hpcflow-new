@@ -2,21 +2,19 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypedDict, cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
-from hpcflow.sdk.core.actions import Action
 from hpcflow.sdk.core.parameters import SchemaInput
 from hpcflow.sdk.core.task_schema import TaskSchema
-from hpcflow.sdk.core.workflow import Workflow
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
-from .json_like import ChildObjectSpec, JSONLike
-from .element import ElementGroup
-from .errors import (
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.element import ElementGroup
+from hpcflow.sdk.core.errors import (
     ContainerKeyError,
     ExtraInputs,
     InapplicableInputSourceElementIters,
@@ -36,8 +34,8 @@ from .errors import (
     UnrequiredInputSources,
     UnsetParameterDataError,
 )
-from .parameters import InputSourceType, ParameterValue, TaskSourceType
-from .utils import (
+from hpcflow.sdk.core.parameters import InputSourceType, ParameterValue, TaskSourceType
+from hpcflow.sdk.core.utils import (
     get_duplicate_items,
     get_in_container,
     get_item_repeat_index,
@@ -52,14 +50,41 @@ if TYPE_CHECKING:
     from ..app import BaseApp
     from .actions import Action
     from .command_files import InputFile
-    from .element import Element, ElementIteration, ElementFilter
-    from .parameters import InputValue, InputSource, ValueSequence, SchemaInput, SchemaOutput, ParameterPath
+    from .element import Element, ElementIteration, ElementFilter, ElementParameter
+    from .parameters import InputValue, InputSource, ValueSequence, SchemaOutput, ParameterPath
     from .task_schema import TaskObjective
     from .workflow import Workflow, WorkflowTemplate
     from ..persistence.base import StoreParameter
 
     RelevantPath: TypeAlias = 'ParentPath' | 'UpdatePath' | 'SiblingPath'
     StrSeq = TypeVar('StrSeq', bound=Sequence[str])
+
+    class RepeatsDescriptor(TypedDict):
+        name: str
+        number: int
+        nesting_order: int
+
+    class MultiplicityDescriptor(TypedDict):
+        multiplicity: int
+        nesting_order: int
+        path: str
+
+    class ParentPath(TypedDict):
+        type: Literal["parent"]
+        relative_path: Sequence[str]
+
+    class UpdatePath(TypedDict):
+        type: Literal["update"]
+        update_path: Sequence[str]
+
+    class SiblingPath(TypedDict):
+        type: Literal["sibling"]
+
+    class RelevantData(TypedDict):
+        data: list[Any] | Any
+        value_class_method: list[str | None] | str | None
+        is_set: bool | list[bool]
+        is_multi: bool
 
 
 INPUT_SOURCE_TYPES = ["local", "default", "task", "import"]
@@ -91,39 +116,6 @@ class InputStatus:
     def is_extra(self):
         """Return True if the input is provided but not required."""
         return self.is_provided and not self.is_required
-
-
-class RepeatsDescriptor(TypedDict):
-    name: str
-    number: int
-    nesting_order: int
-
-
-class MultiplicityDescriptor(TypedDict):
-    multiplicity: int
-    nesting_order: int
-    path: str
-
-
-class ParentPath(TypedDict):
-    type: Literal["parent"]
-    relative_path: Sequence[str]
-
-
-class UpdatePath(TypedDict):
-    type: Literal["update"]
-    update_path: Sequence[str]
-
-
-class SiblingPath(TypedDict):
-    type: Literal["sibling"]
-
-
-class RelevantData(TypedDict):
-    data: list[Any] | Any
-    value_class_method: list[str | None] | str | None
-    is_set: bool | list[bool]
-    is_multi: bool
 
 
 class ElementSet(JSONLike):
@@ -177,7 +169,7 @@ class ElementSet(JSONLike):
         inputs: list[InputValue] | dict[str, Any] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
-        resources: dict[str, dict] | None = None,
+        resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
@@ -784,7 +776,7 @@ class Task(JSONLike):
             for seq in es.sequences:
                 if seq.path == "env_preset":
                     # change to a resources path:
-                    seq.path = f"resources.any.environments"
+                    seq.path = "resources.any.environments"
                     _values = []
                     for i in seq.values or []:
                         try:
@@ -926,7 +918,7 @@ class Task(JSONLike):
 
     @TimeIt.decorator
     def _prepare_persistent_outputs(
-            self, workflow: Workflow, 
+            self, workflow: Workflow,
             local_element_idx_range: Sequence[int]) -> dict[str, list[int]]:
         # TODO: check that schema is present when adding task? (should this be here?)
 
@@ -1512,7 +1504,7 @@ class WorkflowTask:
     @TimeIt.decorator
     def elements(self) -> Elements:
         if self._elements is None:
-            self._elements = self.app.Elements(self)
+            self._elements = Elements(self)
         return self._elements
 
     def get_dir_name(self, loop_idx: dict[str, int] | None = None) -> str:
@@ -1539,7 +1531,6 @@ class WorkflowTask:
             ]
             return src_iters_list, set_indices
         return src_iters.values(), []
-
 
     def _make_new_elements_persistent(
         self, element_set: ElementSet, element_set_idx: int, padded_elem_iters
@@ -1721,7 +1712,8 @@ class WorkflowTask:
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
                         if key in sequence_idx:
                             sequence_idx.pop(key)
-                            seq = element_set.get_sequence_by_path(key)
+                            # TODO: Use the value retrieved below?
+                            _ = element_set.get_sequence_by_path(key)
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     assert def_val is not None
@@ -2092,7 +2084,7 @@ class WorkflowTask:
     @property
     def downstream_tasks(self) -> list[WorkflowTask]:
         """Get all workflow tasks that are downstream from this task."""
-        return [task for task in self.workflow.tasks[self.index + 1 :]]
+        return [task for task in self.workflow.tasks[self.index + 1:]]
 
     @staticmethod
     def resolve_element_data_indices(multiplicities):
@@ -2188,7 +2180,7 @@ class WorkflowTask:
                 except UnsetParameterDataError:
                     # raised by `Action.test_rules`; cannot yet initialise EARs
                     self.app.logger.debug(
-                        f"UnsetParameterDataError raised: cannot yet initialise runs."
+                        "UnsetParameterDataError raised: cannot yet initialise runs."
                     )
                     pass
                 else:
@@ -2450,7 +2442,7 @@ class WorkflowTask:
             ]
 
             # note we must pass `resources` as a list since it is already persistent:
-            elem_set_i = self.app.ElementSet(
+            elem_set_i = ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,
@@ -2600,7 +2592,7 @@ class WorkflowTask:
     def outputs(self) -> TaskOutputParameters:
         return self.app.TaskOutputParameters(self)
 
-    def get(self, path, raise_on_missing=False, default=None) -> Parameters:
+    def get(self, path: str, raise_on_missing=False, default: Any | None = None) -> Parameters:
         return self.app.Parameters(
             self,
             path=path,
@@ -2723,7 +2715,7 @@ class WorkflowTask:
             return param.data, meth, param.is_set
 
     def __get_relevant_data(self, relevant_data_idx: dict[str, list | Any],
-                            raise_on_unset: bool, path: str) -> dict[str, RelevantData]:
+                            raise_on_unset: bool, path: str | None) -> dict[str, RelevantData]:
         relevant_data: dict[str, RelevantData] = {}
         for path_i, data_idx_i in relevant_data_idx.items():
             data_i: list[Any] = []
@@ -2767,14 +2759,16 @@ class WorkflowTask:
     def __merge_relevant_data(
         relevant_data: dict[str, RelevantData],
         relevant_paths: Mapping[str, RelevantPath],
-        PV_classes: dict[str, type[ParameterValue]], path: str, raise_on_missing: bool
-    ):
+        PV_classes: dict[str, type[ParameterValue]],
+        path: str | None,
+        raise_on_missing: bool
+    ) -> tuple[list | ParameterValue | Any | list[Any] | None, int | None]:
         current_val = None
         assigned_from_parent = False
         val_cls_method: list[str | None] | str | None = None
         path_is_multi = False
         path_is_set: list[bool] | bool = False
-        all_multi_len = None
+        all_multi_len: int | None = None
         for path_i, data_info_i in relevant_data.items():
             data_i = data_info_i["data"]
             if path_i == path:
@@ -2783,10 +2777,10 @@ class WorkflowTask:
                 path_is_set = data_info_i["is_set"]
 
             if data_info_i["is_multi"]:
-                if all_multi_len:
+                if all_multi_len is not None:
                     if len(data_i) != all_multi_len:
                         raise RuntimeError(
-                            f"Cannot merge group values of different lengths."
+                            "Cannot merge group values of different lengths."
                         )
                 else:
                     # keep track of group lengths, only merge equal-length groups;
@@ -2818,48 +2812,15 @@ class WorkflowTask:
                         err_path = ".".join([path_i] + err.path[:-1])
                         raise MayNeedObjectError(path=err_path)
                     continue
-                except (IndexError, ValueError) as err:
+                except (IndexError, ValueError):
                     if raise_on_missing:
-                        raise err
+                        raise
                     continue
                 else:
                     assigned_from_parent = True
             elif path_info["type"] == "update":
                 current_val = current_val or []
-                if all_multi_len:
-                    if len(path_i.split(".")) == 2:
-                        # groups can only be "created" at the parameter level
-                        set_in_container(
-                            cont=current_val,
-                            path=path_info["update_path"],
-                            value=data_i,
-                            ensure_path=True,
-                            cast_indices=True,
-                        )
-                    else:
-                        # update group
-                        update_path = path_info["update_path"]
-                        if len(update_path) > 1:
-                            for idx, j in enumerate(data_i):
-                                path_ij = [*update_path[0:1], idx, *update_path[1:]]
-                                set_in_container(
-                                    cont=current_val,
-                                    path=path_ij,
-                                    value=j,
-                                    ensure_path=True,
-                                    cast_indices=True,
-                                )
-                        else:
-                            for idx, (i, j) in enumerate(zip(current_val, data_i)):
-                                set_in_container(
-                                    cont=i,
-                                    path=update_path,
-                                    value=j,
-                                    ensure_path=True,
-                                    cast_indices=True,
-                                )
-
-                else:
+                if not all_multi_len:
                     set_in_container(
                         current_val,
                         path_info["update_path"],
@@ -2867,6 +2828,37 @@ class WorkflowTask:
                         ensure_path=True,
                         cast_indices=True,
                     )
+                elif len(path_i.split(".")) == 2:
+                    # groups can only be "created" at the parameter level
+                    set_in_container(
+                        cont=current_val,
+                        path=path_info["update_path"],
+                        value=data_i,
+                        ensure_path=True,
+                        cast_indices=True,
+                    )
+                else:
+                    # update group
+                    update_path = path_info["update_path"]
+                    if len(update_path) > 1:
+                        for idx, j in enumerate(data_i):
+                            path_ij = [*update_path[0:1], idx, *update_path[1:]]
+                            set_in_container(
+                                cont=current_val,
+                                path=path_ij,
+                                value=j,
+                                ensure_path=True,
+                                cast_indices=True,
+                            )
+                    else:
+                        for idx, (i, j) in enumerate(zip(current_val, data_i)):
+                            set_in_container(
+                                cont=i,
+                                path=update_path,
+                                value=j,
+                                ensure_path=True,
+                                cast_indices=True,
+                            )
         if path in PV_classes:
             if path not in relevant_data:
                 # requested data must be a sub-path of relevant data, so we can assume
@@ -2915,7 +2907,7 @@ class WorkflowTask:
     def _get_merged_parameter_data(
         self,
         data_index: dict[str, list | Any],
-        path=None,
+        path: str | None = None,
         *,
         raise_on_missing=False,
         raise_on_unset=False,
@@ -2965,7 +2957,7 @@ class WorkflowTask:
                             cast_indices=True,
                             allow_getattr=True,
                         )
-                        for i in current_val
+                        for i in cast(list, current_val)
                     ]
                 else:
                     return get_in_container(
@@ -2999,7 +2991,7 @@ class Elements:
         )
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self._task
 
     @TimeIt.decorator
@@ -3020,20 +3012,19 @@ class Elements:
             )
         return lst
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.task.num_elements
 
-    def __iter__(self):
-        for i in self.task.workflow.get_task_elements(self.task):
-            yield i
+    def __iter__(self) -> Iterator[Element]:
+        yield from self.task.workflow.get_task_elements(self.task)
 
     @TimeIt.decorator
     def __getitem__(
         self,
         selection: int | slice | list[int],
     ) -> Element | list[Element]:
-        idx_lst = self._get_selection(selection)
-        elements = self.task.workflow.get_task_elements(self.task, idx_lst)
+        elements = self.task.workflow.get_task_elements(
+            self.task, self._get_selection(selection))
 
         if isinstance(selection, int):
             return elements[0]
@@ -3054,31 +3045,35 @@ class Parameters:
     default: Any | None = None
 
     @TimeIt.decorator
-    def _get_selection(self, selection: int | slice | list[int]) -> list[int]:
+    def _get_selection(self, selection: int | slice | list[int] | tuple[int, ...]) -> list[int]:
         """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
-            lst = [selection]
-
+            return [selection]
         elif isinstance(selection, slice):
-            lst = list(range(*selection.indices(self.task.num_elements)))
-
+            return list(range(*selection.indices(self.task.num_elements)))
         elif isinstance(selection, list):
-            lst = selection
+            return selection
+        elif isinstance(selection, tuple):
+            return list(selection)
         else:
             raise RuntimeError(
                 f"{self.__class__.__name__} selection must be an `int`, `slice` object, "
                 f"or list of `int`s, but received type {type(selection)}."
             )
-        return lst
 
-    def __iter__(self):
-        for i in self.__getitem__(slice(None)):
-            yield i
+    def __iter__(self) -> Iterator[Any | ElementParameter]:
+        yield from self.__getitem__(slice(None))
+
+    @overload
+    def __getitem__(self, selection: int) -> Any | ElementParameter: ...
+
+    @overload
+    def __getitem__(self, selection: slice | list[int]) -> list[Any | ElementParameter]: ...
 
     def __getitem__(
         self,
         selection: int | slice | list[int],
-    ) -> Any | list[Any]:
+    ) -> Any | ElementParameter | list[Any | ElementParameter]:
         idx_lst = self._get_selection(selection)
         elements = self.task.workflow.get_task_elements(self.task, idx_lst)
         if self.return_element_parameters:
@@ -3116,23 +3111,26 @@ class TaskInputParameters:
     _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
+    __input_names: list[str] | None = field(default=None, init=False, compare=False)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Parameters:
         if name not in self._get_input_names():
             raise ValueError(f"No input named {name!r}.")
         return self._app.Parameters(self.task, f"inputs.{name}", True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"{', '.join(f'{i!r}' for i in self._get_input_names())})"
         )
 
-    def __dir__(self):
-        return super().__dir__() + self._get_input_names()
+    def __dir__(self) -> Iterable[str]:
+        return [*super().__dir__(), *self._get_input_names()]
 
-    def _get_input_names(self):
-        return sorted(self.task.template.all_schema_input_types)
+    def _get_input_names(self) -> list[str]:
+        if self.__input_names is None:
+            self.__input_names = sorted(self.task.template.all_schema_input_types)
+        return self.__input_names
 
 
 @dataclass
@@ -3143,23 +3141,26 @@ class TaskOutputParameters:
     _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
+    __output_names: list[str] | None = field(default=None, init=False, compare=False)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Parameters:
         if name not in self._get_output_names():
             raise ValueError(f"No output named {name!r}.")
         return self._app.Parameters(self.task, f"outputs.{name}", True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"{', '.join(f'{i!r}' for i in self._get_output_names())})"
         )
 
-    def __dir__(self):
-        return super().__dir__() + self._get_output_names()
+    def __dir__(self) -> list[str]:
+        return [*super().__dir__(), *self._get_output_names()]
 
-    def _get_output_names(self):
-        return sorted(self.task.template.all_schema_output_types)
+    def _get_output_names(self) -> list[str]:
+        if self.__output_names is None:
+            self.__output_names = sorted(self.task.template.all_schema_output_types)
+        return self.__output_names
 
 
 @dataclass
@@ -3170,16 +3171,16 @@ class ElementPropagation:
     app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "app"
 
-    task: Task
+    task: WorkflowTask
     nesting_order: dict | None = None
     input_sources: dict | None = None
 
     @property
-    def element_set(self):
+    def element_set(self) -> ElementSet:
         # TEMP property; for now just use the first element set as the base:
         return self.task.template.element_sets[0]
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         return self.__class__(
             task=self.task,
             nesting_order=copy.deepcopy(self.nesting_order, memo),
@@ -3187,19 +3188,23 @@ class ElementPropagation:
         )
 
     @classmethod
-    def _prepare_propagate_to_dict(cls, propagate_to, workflow):
+    def _prepare_propagate_to_dict(
+        cls, propagate_to: list[ElementPropagation] | dict[str, dict | ElementPropagation],
+        workflow: Workflow
+    ) -> dict[str, ElementPropagation]:
         propagate_to = copy.deepcopy(propagate_to)
         if not propagate_to:
-            propagate_to = {}
+            return {}
         elif isinstance(propagate_to, list):
-            propagate_to = {i.task.unique_name: i for i in propagate_to}
+            return {i.task.unique_name: i for i in propagate_to}
 
-        for k, v in propagate_to.items():
-            if not isinstance(v, ElementPropagation):
-                propagate_to[k] = cls.app.ElementPropagation(
-                    task=workflow.tasks.get(unique_name=k),
-                    **v,
-                )
-        return propagate_to
+        return {
+            k: v if isinstance(v, ElementPropagation) else cls.app.ElementPropagation(
+                task=workflow.tasks.get(unique_name=k),
+                **v,
+            )
+            for k, v in propagate_to.items()
+        }
+
 
 TaskTemplate: TypeAlias = Task
