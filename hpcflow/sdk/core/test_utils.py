@@ -269,7 +269,7 @@ class P1_parameter_cls(ParameterValue):
 
     @staticmethod
     def CLI_format_group(*objs) -> str:
-        pass
+        return ""
 
     @staticmethod
     def sum(*objs, **kwargs) -> str:
@@ -278,9 +278,9 @@ class P1_parameter_cls(ParameterValue):
     def custom_CLI_format(
         self, add: str | None = None, sub: str | None = None
     ) -> str:
-        add = 4 if add is None else int(add)
-        sub = 0 if sub is None else int(sub)
-        return str(self.a + add - sub)
+        add_i = 4 if add is None else int(add)
+        sub_i = 0 if sub is None else int(sub)
+        return str(self.a + add_i - sub_i)
 
     def custom_CLI_format_prep(self, reps: str | None = None) -> list[int]:
         """Used for testing custom object CLI formatting.
@@ -290,8 +290,8 @@ class P1_parameter_cls(ParameterValue):
         `<<join[delim=","](parameter:p1c.custom_CLI_format_prep(reps=4))>>`.
 
         """
-        reps = 1 if reps is None else int(reps)
-        return [self.a] * reps
+        reps_int = 1 if reps is None else int(reps)
+        return [self.a] * reps_int
 
     @classmethod
     def CLI_parse(cls, a_str: str, double: str = "", e: str | None = None):
