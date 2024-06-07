@@ -14,7 +14,6 @@ from rich.text import Text
 
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from hpcflow.sdk.core.parameters import Parameter
-from hpcflow.sdk.core.task import Task
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
@@ -22,6 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from typing import ClassVar
     from .actions import Action
+    from .object_list import ParametersList, TaskSchemasList
     from .parameters import SchemaOutput, SchemaParameter
     from .task import TaskTemplate
     from .workflow import Workflow
@@ -146,8 +146,18 @@ class TaskSchema(JSONLike):
         #         else [],
         #     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.objective.name!r})"
+
+    @classmethod
+    def __parameters(cls) -> ParametersList:
+        # Workaround for a dumb mypy bug
+        return cls.app.parameters
+
+    @classmethod
+    def __task_schemas(cls) -> TaskSchemasList:
+        # Workaround for a dumb mypy bug
+        return cls.app.task_schemas
 
     def _get_info(self, include: Sequence[str] = ()):
         def _get_param_type_str(parameter) -> str:
@@ -168,7 +178,7 @@ class TaskSchema(JSONLike):
 
         def _format_parameter_type(param) -> str:
             param_typ_fmt = param.typ
-            if param.typ in self.app.parameters.list_attrs():
+            if param.typ in self.__parameters().list_attrs():
                 param_url = (
                     f"{self.app.docs_url}/reference/template_components/"
                     f"parameters.html#{param.url_slug}"
@@ -185,7 +195,7 @@ class TaskSchema(JSONLike):
 
         from rich.table import box
 
-        tab_ins_outs = None
+        tab_ins_outs: Table | None = None
         if "inputs" in include or "outputs" in include:
             tab_ins_outs = Table(
                 show_header=False,
@@ -200,6 +210,7 @@ class TaskSchema(JSONLike):
             tab_ins_outs.add_row()
 
         if "inputs" in include:
+            assert tab_ins_outs
             if self.inputs:
                 tab_ins_outs.add_row(
                     "",
@@ -223,6 +234,7 @@ class TaskSchema(JSONLike):
                 )
 
         if "outputs" in include:
+            assert tab_ins_outs
             if "inputs" in include:
                 tab_ins_outs.add_row()  # for spacing
             else:
@@ -282,7 +294,7 @@ class TaskSchema(JSONLike):
                     cmd_str = "cmd" if cmd.command else "exe"
                     tab_cmds_i.add_row(
                         f"[italic]{cmd_str}:[/italic]",
-                        rich_esc(cmd.command or cmd.executable),
+                        rich_esc(cmd.command or cmd.executable or ""),
                     )
                     if cmd.stdout:
                         tab_cmds_i.add_row(
@@ -358,7 +370,7 @@ class TaskSchema(JSONLike):
 
             return out
 
-        param_types = self.app.parameters.list_attrs()
+        param_types = self.__parameters().list_attrs()
 
         inputs_header_row = f"<tr><th>parameter</th><th>type</th><th>default</th></tr>"
         input_rows = ""
@@ -487,7 +499,7 @@ class TaskSchema(JSONLike):
                 out_fp_rows += (
                     f"<tr>"
                     f'<td class="action-header-cell">output:</td>'
-                    f"<td><code>{out_fp.output.typ}</code></td>"
+                    f"<td><code>{out_fp.output.typ if out_fp.output else ''}</code></td>"
                     f"</tr>"
                     f"<tr>"
                     f'<td class="action-header-cell">output files:</td>'
@@ -504,7 +516,7 @@ class TaskSchema(JSONLike):
                     f'<td rowspan="{bool(cmd.stdout) + bool(cmd.stderr) + 1}">'
                     f'<span class="cmd-idx-numeral">{cmd_idx}</span></td>'
                     f'<td class="command-header-cell">{"cmd" if cmd.command else "exe"}:'
-                    f"</td><td><code><pre>{escape(cmd.command or cmd.executable)}</pre>"
+                    f"</td><td><code><pre>{escape(cmd.command or cmd.executable or '')}</pre>"
                     f"</code></td></tr>"
                 )
                 if cmd.stdout:
@@ -562,13 +574,12 @@ class TaskSchema(JSONLike):
             )
             action_show_hide = ""
             act_heading_class = ""
-        out = (
+        return (
             f"<h5>Inputs</h5>{inputs_table}"
             f"<h5>Outputs</h5>{outputs_table}"
             # f"<h5>Examples</h5>examples here..." # TODO:
             f"<h5{act_heading_class}>Actions{action_show_hide}</h5>{action_table}"
         )
-        return out
 
     def __eq__(self, other):
         if type(other) is not self.__class__:
@@ -770,11 +781,15 @@ class TaskSchema(JSONLike):
     @classmethod
     def get_by_key(cls, key) -> TaskSchema:
         """Get a config-loaded task schema from a key."""
-        return cls.app.task_schemas.get(key)
+        return cls.__task_schemas().get(key)
 
-    def get_parameter_dependence(self, parameter: SchemaParameter):
+    def get_parameter_dependence(
+        self, parameter: SchemaParameter
+    ) -> dict[str, list[tuple[int, Any]]]:
         """Find if/where a given parameter is used by the schema's actions."""
-        out = {"input_file_writers": [], "commands": []}
+        out: dict[str, list[tuple[int, Any]]] = {
+            "input_file_writers": [], "commands": []
+        }
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
             for key in out:
@@ -809,8 +824,8 @@ class TaskSchema(JSONLike):
     @property
     def multi_input_types(self) -> list[str]:
         """Get a list of input types that have multiple labels."""
-        out: list[str, str] = []
-        for inp in self.inputs:
-            if inp.multiple:
-                out.append(inp.parameter.typ)
-        return out
+        return [
+            inp.parameter.typ
+            for inp in self.inputs
+            if inp.multiple
+        ]
