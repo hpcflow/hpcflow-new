@@ -517,10 +517,12 @@ class ElementSet(JSONLike):
         return None
 
     @property
-    def task(self):
-        return self.task_template.workflow_template.workflow.tasks[
-            self.task_template.index
-        ]
+    def task(self) -> WorkflowTask:
+        t = self.task_template.workflow_template
+        assert t
+        w = t.workflow
+        assert w
+        return w.tasks[self.task_template.index]
 
     @property
     def elements(self):
@@ -534,16 +536,22 @@ class ElementSet(JSONLike):
     def elem_iter_IDs(self):
         return [i.id_ for i in self.element_iterations]
 
-    def get_task_dependencies(self, as_objects=False):
+    @overload
+    def get_task_dependencies(self, as_objects:Literal[False]=False) -> list[int]: ...
+
+    @overload
+    def get_task_dependencies(self, as_objects:Literal[True]) -> list[WorkflowTask]: ...
+
+    def get_task_dependencies(self, as_objects=False) -> list[WorkflowTask] | list[int]:
         """Get upstream tasks that this element set depends on."""
-        deps = []
+        deps: list[int] = []
         for element in self.elements:
             for dep_i in element.get_task_dependencies(as_objects=False):
                 if dep_i not in deps:
                     deps.append(dep_i)
         deps = sorted(deps)
         if as_objects:
-            deps = [self.task.workflow.tasks.get(insert_ID=i) for i in deps]
+            return [self.task.workflow.tasks.get(insert_ID=i) for i in deps]
 
         return deps
 
@@ -2464,13 +2472,25 @@ class WorkflowTask:
         if return_indices:
             return elem_idx
 
+    @overload
+    def get_element_dependencies(
+        self,
+        as_objects: Literal[False] = False,
+    ) -> list[int]: ...
+
+    @overload
+    def get_element_dependencies(
+        self,
+        as_objects: Literal[True],
+    ) -> list[Element]: ...
+
     def get_element_dependencies(
         self,
         as_objects: bool = False,
-    ) -> list[int | Element]:
+    ) -> list[int] | list[Element]:
         """Get elements from upstream tasks that this task depends on."""
 
-        deps = []
+        deps: list[int] = []
         for element in self.elements[:]:
             for iter_i in element.iterations:
                 for dep_elem_i in iter_i.get_element_dependencies(as_objects=True):
@@ -2482,7 +2502,7 @@ class WorkflowTask:
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_elements_from_IDs(deps)
+            return self.workflow.get_elements_from_IDs(deps)
 
         return deps
 

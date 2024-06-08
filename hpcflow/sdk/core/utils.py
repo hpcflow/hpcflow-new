@@ -868,11 +868,11 @@ def dict_values_process_flat(d: dict[T, T2 | list[T2]],
     flat: list[T2] = []  # values of `d`, flattened
     is_multi: list[tuple[bool, int]] = []  # whether a list, and the number of items to process
     for i in d.values():
-        try:
+        if isinstance(i, list):
             i_list = cast(list[T2], i)
             flat.extend(i_list)
             is_multi.append((True, len(i_list)))
-        except TypeError:
+        else:
             flat.append(cast(T2, i))
             is_multi.append((False, 1))
 

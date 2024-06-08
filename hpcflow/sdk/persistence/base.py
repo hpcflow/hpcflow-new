@@ -1633,7 +1633,7 @@ class PersistentStore(ABC):
     @TimeIt.decorator
     def get_parameters(
         self,
-        id_lst: Iterable[int],
+        id_lst: Iterable[int | str],
         **kwargs: Dict,
     ) -> list[AnySParameter]:
         """
@@ -1653,12 +1653,10 @@ class PersistentStore(ABC):
         params.update({i: self._pending.add_parameters[i] for i in id_pend})
 
         # order as requested:
-        params = [params[id_] for id_ in id_lst]
-
-        return params
+        return [params[id_] for id_ in id_lst]
 
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
+    def get_parameter_set_statuses(self, id_lst: Iterable[int | str]) -> list[bool]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1672,7 +1670,7 @@ class PersistentStore(ABC):
         return [set_status[id_] for id_ in id_lst]
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[Dict]:
+    def get_parameter_sources(self, id_lst: Iterable[int | str]) -> list[Dict]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1698,8 +1696,8 @@ class PersistentStore(ABC):
     @TimeIt.decorator
     def get_task_elements(
         self,
-        task_id,
-        idx_lst: Iterable[int] | None = None,
+        task_id: int,
+        idx_lst: Iterable[int | str] | None = None,
     ) -> list[Dict]:
         """Get element data by an indices within a given task.
 

@@ -1750,11 +1750,11 @@ class Workflow:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[Dict]:
+    def get_parameter_sources(self, id_lst: Iterable[int | str]) -> list[Dict]:
         return self._store.get_parameter_sources(id_lst)
 
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
+    def get_parameter_set_statuses(self, id_lst: Iterable[int | str]) -> list[bool]:
         return self._store.get_parameter_set_statuses(id_lst)
 
     @TimeIt.decorator
@@ -1770,11 +1770,11 @@ class Workflow:
             return param.file
 
     @TimeIt.decorator
-    def get_parameter_source(self, index: int) -> Dict:
+    def get_parameter_source(self, index: int | str) -> Dict:
         return self.get_parameter_sources([index])[0]
 
     @TimeIt.decorator
-    def is_parameter_set(self, index: int) -> bool:
+    def is_parameter_set(self, index: int | str) -> bool:
         return self.get_parameter_set_statuses([index])[0]
 
     @TimeIt.decorator

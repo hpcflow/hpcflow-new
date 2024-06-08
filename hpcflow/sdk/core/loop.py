@@ -44,7 +44,7 @@ class Loop(JSONLike):
 
     def __init__(
         self,
-        tasks: list[int | WorkflowTask],
+        tasks: Iterable[int | WorkflowTask],
         num_iterations: int,
         name: str | None = None,
         non_iterable_parameters: list[str] | None = None,
