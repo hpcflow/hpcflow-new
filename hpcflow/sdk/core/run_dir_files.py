@@ -42,7 +42,7 @@ class RunDirAppFiles:
         return cls.get_run_file_prefix(block_act_key) + "_outputs"
 
     @classmethod
-    def take_snapshot(cls):
+    def take_snapshot(cls, root_path=None):
         """Take a JSONLikeDirSnapShot, and process to ignore files created by the app.
 
         This includes command files that are invoked by jobscripts, the app log file, and
@@ -50,8 +50,8 @@ class RunDirAppFiles:
 
         """
         snapshot = JSONLikeDirSnapShot()
-        snapshot.take(".")
-        ss_js = snapshot.to_json_like()
+        snapshot.take(root_path or ".")
+        ss_js = snapshot.to_json_like(use_strings=True)
         ss_js.pop("root_path")  # always the current working directory of the run
         for k in list(ss_js["data"].keys()):
             if (

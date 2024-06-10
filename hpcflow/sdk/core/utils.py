@@ -679,7 +679,7 @@ def is_fsspec_url(url: str) -> bool:
 class JSONLikeDirSnapShot(DirectorySnapshot):
     """Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON."""
 
-    def __init__(self, root_path=None, data=None):
+    def __init__(self, root_path=None, data=None, use_strings: bool = False):
         """Create an empty snapshot or load from JSON-like data."""
 
         self.root_path = root_path
@@ -690,7 +690,8 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
             for k in list((data or {}).keys()):
                 # add root path
                 full_k = str(PurePath(root_path) / PurePath(k))
-                stat_dat, inode_key = data[k][:-2], data[k][-2:]
+                data_k = [int(i) for i in data[k]] if use_strings else data[k]
+                stat_dat, inode_key = data_k[:-2], data_k[-2:]
                 self._stat_info[full_k] = os.stat_result(stat_dat)
                 self._inode_to_path[tuple(inode_key)] = full_k
 
@@ -698,7 +699,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
         """Take the snapshot."""
         super().__init__(*args, **kwargs)
 
-    def to_json_like(self):
+    def to_json_like(self, use_strings: bool = False):
         """Export to a dict that is JSON-compatible and can be later reloaded.
 
         The last two integers in `data` for each path are the keys in
@@ -714,11 +715,15 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
         data = {}
         for k, v in self._stat_info.items():
             k_rel = str(PurePath(k).relative_to(root_path))
-            data[k_rel] = list(v) + list(inode_invert[k])
+            data_k = list(v) + list(inode_invert[k])
+            if use_strings:
+                data_k = [str(i) for i in data_k]
+            data[k_rel] = data_k
 
         return {
             "root_path": root_path,
             "data": data,
+            "use_strings": use_strings,
         }
 
 
