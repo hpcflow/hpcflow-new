@@ -561,7 +561,7 @@ class Workflow:
         self._ts_name_fmt: None = None
         self._creation_info: dict[str, Any] | None = None
         self._name: None = None
-        self._template: None = None
+        self._template: WorkflowTemplate | None = None
         self._template_components: dict[str, Any] | None = None
         self._tasks: WorkflowTaskList | None = None
         self._loops: WorkflowLoopList | None = None
@@ -582,7 +582,7 @@ class Workflow:
         """The workflow name may be different from the template name, as it includes the
         creation date-timestamp if generated."""
         if not self._name:
-            self._name = self._store.get_name()
+            self._name = self._store.get_name()  # FIXME: what's this?
         return self._name
 
     @property
@@ -1142,7 +1142,7 @@ class Workflow:
     @TimeIt.decorator
     def _add_empty_loop(
         self, loop: Loop, cache: LoopCache
-    ) -> tuple[WorkflowLoop, list[ElementIteration]]:
+    ) -> WorkflowLoop:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
         new_index = self.num_loops
@@ -1668,7 +1668,7 @@ class Workflow:
         for res_i in copy.deepcopy(template.resources):
             res_i.make_persistent(wk_dummy, param_src)
 
-        template_js_, template_sh = template.to_json_like(exclude=["tasks", "loops"])
+        template_js_, template_sh = template.to_json_like(exclude={"tasks", "loops"})
         template_js = {
             **template_js_,
             "tasks": [],
@@ -1685,7 +1685,7 @@ class Workflow:
         store_cls.write_empty_workflow(
             app=cls.app,
             template_js=template_js,
-            template_components_js=template_sh,
+            template_components_js=template_sh or {},
             wk_path=wk_path,
             fs=fs,
             name=name,
@@ -1700,7 +1700,7 @@ class Workflow:
         wk = cls(fs_path, store_fmt=store, fs_kwargs=fs_kwargs)
 
         # actually make template inputs/resources persistent, now the workflow exists:
-        wk_dummy.make_persistent(wk)
+        cast(_DummyPersistentWorkflow, wk_dummy).make_persistent(wk)
 
         if template.source_file:
             wk.artifacts_path.mkdir(exist_ok=False)

@@ -28,6 +28,7 @@ from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from fsspec import AbstractFileSystem
+    from ..app import BaseApp
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
 AnySElement = TypeVar("AnySElement", bound="StoreElement")
@@ -678,8 +679,18 @@ class PersistentStore(ABC):
         ...
 
     @abstractmethod
+    def get_name(self) -> str:
+        ...
+
+    @abstractmethod
     def get_creation_info(self) -> Dict:
         ...
+
+    @abstractmethod
+    def remove_replaced_dir(self) -> None: ...
+
+    @abstractmethod
+    def reinstate_replaced_dir(self) -> None: ...
 
     @abstractmethod
     def zip(self, path=".", log=None, overwrite=False) -> str:
@@ -687,6 +698,23 @@ class PersistentStore(ABC):
 
     @abstractmethod
     def unzip(self, path=".", log=None) -> str:
+        ...
+
+    @classmethod
+    @abstractmethod
+    def write_empty_workflow(
+        cls,
+        app: BaseApp,
+        template_js: Dict,
+        template_components_js: Dict,
+        wk_path: str,
+        fs: AbstractFileSystem,
+        name: str,
+        replaced_wk: str | None,
+        creation_info: Dict,
+        ts_fmt: str,
+        ts_name_fmt: str,
+    ) -> None:
         ...
 
     @property
@@ -962,7 +990,7 @@ class PersistentStore(ABC):
 
     def add_loop(
         self,
-        loop_template: Dict,
+        loop_template: Mapping[str, Any],
         iterable_parameters,
         parents: list[str],
         num_added_iterations: dict[tuple[int, ...], int],
@@ -974,7 +1002,7 @@ class PersistentStore(ABC):
         new_idx = self._get_num_total_loops()
         added_iters = [[list(k), v] for k, v in num_added_iterations.items()]
         self._pending.add_loops[new_idx] = {
-            "loop_template": loop_template,
+            "loop_template": dict(loop_template),
             "iterable_parameters": iterable_parameters,
             "parents": parents,
             "num_added_iterations": added_iters,
@@ -1241,10 +1269,10 @@ class PersistentStore(ABC):
         self,
         store_contents: bool,
         is_input: bool,
-        param_id: int = None,
+        param_id: int | None = None,
         path=None,
-        contents: str = None,
-        filename: str = None,
+        contents: str | None = None,
+        filename: str | None = None,
         clean_up: bool = False,
         save: bool = True,
     ):

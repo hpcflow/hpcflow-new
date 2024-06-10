@@ -66,3 +66,25 @@ class Shell(ABC):
 
     def prepare_element_run_dirs(self, run_dirs: list[list[Path]]) -> list[list[str]]:
         return [[str(j) for j in i] for i in run_dirs]
+
+    @abstractmethod
+    def format_save_parameter(
+        self,
+        workflow_app_alias: str,
+        param_name: str,
+        shell_var_name: str,
+        EAR_ID: int,
+        cmd_idx: int,
+        stderr: bool,
+    ): ...
+
+    @abstractmethod
+    def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
+        """
+        Format commands to run within a child scope.
+
+        This assumes `commands` ends in a newline.
+        """
+
+    @abstractmethod
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str: ...

@@ -542,6 +542,6 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("metadata", action="read") as md:
             return copy.deepcopy(md["creation_info"])
 
-    def get_name(self):
+    def get_name(self) -> str:
         with self.using_resource("metadata", action="read") as md:
             return md["name"]
