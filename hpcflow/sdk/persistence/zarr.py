@@ -1232,25 +1232,21 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
         """
 
         console = Console()
-        status = console.status(f"Unzipping workflow {self.workflow.name!r}...")
-        status.start()
+        with console.status(f"Unzipping workflow {self.workflow.name!r}..."):
+            # TODO: this won't work for remote file systems
+            dst_path = Path(path).resolve()
+            if dst_path.is_dir():
+                dst_path = dst_path.joinpath(self.workflow.name)
 
-        # TODO: this won't work for remote file systems
-        dst_path = Path(path).resolve()
-        if dst_path.is_dir():
-            dst_path = dst_path.joinpath(self.workflow.name)
+            if dst_path.exists():
+                raise FileExistsError(f"Directory at path already exists: {dst_path!r}.")
 
-        if dst_path.exists():
-            status.stop()
-            raise FileExistsError(f"Directory at path already exists: {dst_path!r}.")
+            dst_path = str(dst_path)
 
-        dst_path = str(dst_path)
-
-        src_zarr_store = self.zarr_store
-        dst_zarr_store = zarr.storage.FSStore(url=dst_path)
-        zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
-        status.stop()
-        return dst_path
+            src_zarr_store = self.zarr_store
+            dst_zarr_store = zarr.storage.FSStore(url=dst_path)
+            zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
+            return dst_path
 
     def copy(self, path=None) -> str:
         # not sure how to do this.

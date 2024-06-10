@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -10,7 +10,7 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, ClassVar, Dict, override, overload, TYPE_CHECKING
+from typing import Any, Dict, overload, cast, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
@@ -58,8 +58,10 @@ from hpcflow.sdk.core.errors import (
     WorkflowSubmissionFailure,
 )
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping
-    from typing import Literal, Protocol, Self
+    import rich.status
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from contextlib import AbstractContextManager
+    from typing import ClassVar, Literal, Protocol, Self
     from fsspec import AbstractFileSystem as AFS  # type: ignore
     from ..app import BaseApp
     from .actions import ElementActionRun
@@ -68,11 +70,13 @@ if TYPE_CHECKING:
     from .loop import Loop, WorkflowLoop
     from .object_list import (
         WorkflowTaskList, WorkflowLoopList, ParametersList, CommandFilesList,
-        EnvironmentsList, TaskSchemasList)
+        EnvironmentsList, TaskSchemasList, ResourceList)
     from .parameters import InputSource
     from ..submission.submission import Submission
     from ..submission.jobscript import Jobscript
-    from ..persistence.base import AnySElement, AnySElementIter, AnySParameter, AnySTask
+    from ..persistence.base import (
+        StoreElement, StoreElementIter, AnySParameter, StoreTask, StoreParameter,
+        StoreEAR)
 
     class AbstractFileSystem(Protocol, AFS):
         pass
@@ -154,7 +158,7 @@ class WorkflowTemplate(JSONLike):
     tasks: list[Task] = field(default_factory=list)
     loops: list[Loop] = field(default_factory=list)
     workflow: Workflow | None = None
-    resources: dict[str, Dict] | None = None
+    resources: dict[str, Dict] | ResourceList | None = None
     environments: dict[str, dict[str, Any]] | None = None
     env_presets: str | list[str] | None = None
     source_file: str | None = field(default=None, compare=False)
@@ -594,10 +598,6 @@ class Workflow:
     @property
     def store_format(self):
         return self._store._name
-
-    @property
-    def num_tasks(self) -> int:
-        return len(self.tasks)
 
     @classmethod
     @TimeIt.decorator
@@ -1325,21 +1325,21 @@ class Workflow:
         return self._store._get_num_total_added_tasks()
 
     @TimeIt.decorator
-    def get_store_EARs(self, id_lst: Iterable[int]) -> list[AnySEAR]:
+    def get_store_EARs(self, id_lst: Iterable[int]) -> Sequence[StoreEAR]:
         return self._store.get_EARs(id_lst)
 
     @TimeIt.decorator
     def get_store_element_iterations(
         self, id_lst: Iterable[int]
-    ) -> list[AnySElementIter]:
+    ) -> Sequence[StoreElementIter]:
         return self._store.get_element_iterations(id_lst)
 
     @TimeIt.decorator
-    def get_store_elements(self, id_lst: Iterable[int]) -> list[AnySElement]:
+    def get_store_elements(self, id_lst: Iterable[int]) -> Sequence[StoreElement]:
         return self._store.get_elements(id_lst)
 
     @TimeIt.decorator
-    def get_store_tasks(self, id_lst: Iterable[int]) -> list[AnySTask]:
+    def get_store_tasks(self, id_lst: Iterable[int]) -> Sequence[StoreTask]:
         return self._store.get_tasks_by_IDs(id_lst)
 
     def get_element_iteration_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> list[int]:
@@ -1352,7 +1352,7 @@ class Workflow:
     def get_task_IDs_from_element_IDs(self, id_lst: Iterable[int]) -> list[int]:
         return [i.task_ID for i in self.get_store_elements(id_lst)]
 
-    def get_EAR_IDs_of_tasks(self, id_lst: int) -> list[int]:
+    def get_EAR_IDs_of_tasks(self, id_lst: Iterable[int]) -> list[int]:
         """Get EAR IDs belonging to multiple tasks"""
         return [i.id_ for i in self.get_EARs_of_tasks(id_lst)]
 
@@ -1379,40 +1379,42 @@ class Workflow:
                     iters.append(iter_i)
         return iters
 
+    @dataclass
+    class _IndexPath1:
+        elem_idx: int
+        task_idx: int
+
     @TimeIt.decorator
     def get_elements_from_IDs(self, id_lst: Iterable[int]) -> list[Element]:
         """Return element objects from a list of IDs."""
 
         store_elems = self._store.get_elements(id_lst)
+        store_tasks = self._store.get_tasks_by_IDs(i.task_ID for i in store_elems)
 
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
-
-        element_idx_by_task = defaultdict(set)
-        index_paths = []
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
+        index_paths: list[Workflow._IndexPath1] = []
         for el, tk in zip(store_elems, store_tasks):
             elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(
-                {
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
-            )
+            index_paths.append(Workflow._IndexPath1(elem_idx, tk.index))
             element_idx_by_task[tk.index].add(elem_idx)
 
-        elements_by_task = {}
-        for task_idx, elem_idx in element_idx_by_task.items():
-            task = self.tasks[task_idx]
-            elements_by_task[task_idx] = dict(
-                zip(elem_idx, task.elements[list(elem_idx)])
-            )
+        elements_by_task = {
+            task_idx: {
+                idx: self.tasks[task_idx].elements[idx] for idx in elem_idxes
+            }
+            for task_idx, elem_idxes in element_idx_by_task.items()
+        }
 
-        objs = []
-        for idx_dat in index_paths:
-            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
-            objs.append(elem)
+        return [
+            elements_by_task[idx_dat.task_idx][idx_dat.elem_idx]
+            for idx_dat in index_paths
+        ]
 
-        return objs
+    @dataclass
+    class _IndexPath2:
+        iter_idx: int
+        elem_idx: int
+        task_idx: int
 
     @TimeIt.decorator
     def get_element_iterations_from_IDs(
@@ -1421,42 +1423,37 @@ class Workflow:
         """Return element iteration objects from a list of IDs."""
 
         store_iters = self._store.get_element_iterations(id_lst)
+        store_elems = self._store.get_elements(i.element_ID for i in store_iters)
+        store_tasks = self._store.get_tasks_by_IDs(i.task_ID for i in store_elems)
 
-        elem_IDs = [i.element_ID for i in store_iters]
-        store_elems = self._store.get_elements(elem_IDs)
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
 
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
-
-        element_idx_by_task = defaultdict(set)
-
-        index_paths = []
+        index_paths: list[Workflow._IndexPath2] = []
         for it, el, tk in zip(store_iters, store_elems, store_tasks):
             iter_idx = el.iteration_IDs.index(it.id_)
             elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(
-                {
-                    "iter_idx": iter_idx,
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
-            )
+            index_paths.append(Workflow._IndexPath2(iter_idx, elem_idx, tk.index))
             element_idx_by_task[tk.index].add(elem_idx)
 
-        elements_by_task = {}
-        for task_idx, elem_idx in element_idx_by_task.items():
-            task = self.tasks[task_idx]
-            elements_by_task[task_idx] = dict(
-                zip(elem_idx, task.elements[list(elem_idx)])
-            )
+        elements_by_task = {
+            task_idx: {
+                idx: self.tasks[task_idx].elements[idx] for idx in elem_idx
+            }
+            for task_idx, elem_idx in element_idx_by_task.items()
+        }
 
-        objs = []
-        for idx_dat in index_paths:
-            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
-            iter_ = elem.iterations[idx_dat["iter_idx"]]
-            objs.append(iter_)
+        return [
+            elements_by_task[idx_dat.task_idx][idx_dat.elem_idx].iterations[idx_dat.iter_idx]
+            for idx_dat in index_paths
+        ]
 
-        return objs
+    @dataclass
+    class _IndexPath3:
+        run_idx: int
+        action_idx: int
+        iter_idx: int
+        elem_idx: int
+        task_idx: int
 
     @TimeIt.decorator
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> list[ElementActionRun]:
@@ -1464,58 +1461,42 @@ class Workflow:
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
         store_EARs = self._store.get_EARs(id_lst)
-
-        elem_iter_IDs = [i.elem_iter_ID for i in store_EARs]
-        store_iters = self._store.get_element_iterations(elem_iter_IDs)
-
-        elem_IDs = [i.element_ID for i in store_iters]
-        store_elems = self._store.get_elements(elem_IDs)
-
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
+        store_iters = self._store.get_element_iterations(i.elem_iter_ID for i in store_EARs)
+        store_elems = self._store.get_elements([i.element_ID for i in store_iters])
+        store_tasks = self._store.get_tasks_by_IDs([i.task_ID for i in store_elems])
 
         # to allow for bulk retrieval of elements/iterations
-        element_idx_by_task = defaultdict(set)
-        iter_idx_by_task_elem = defaultdict(lambda: defaultdict(set))
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
+        iter_idx_by_task_elem: dict[int, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
 
-        index_paths = []
+        index_paths: list[Workflow._IndexPath3] = []
         for rn, it, el, tk in zip(store_EARs, store_iters, store_elems, store_tasks):
             act_idx = rn.action_idx
             run_idx = it.EAR_IDs[act_idx].index(rn.id_)
             iter_idx = el.iteration_IDs.index(it.id_)
             elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(
-                {
-                    "run_idx": run_idx,
-                    "action_idx": act_idx,
-                    "iter_idx": iter_idx,
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
-            )
+            index_paths.append(Workflow._IndexPath3(
+                run_idx, act_idx, iter_idx, elem_idx, tk.index))
             element_idx_by_task[tk.index].add(elem_idx)
             iter_idx_by_task_elem[tk.index][elem_idx].add(iter_idx)
 
         # retrieve elements/iterations:
-        iters_by_task_elem = defaultdict(lambda: defaultdict(dict))
-        for task_idx, elem_idx in element_idx_by_task.items():
-            elements = self.tasks[task_idx].elements[list(elem_idx)]
-            for elem_i in elements:
-                elem_i_iters_idx = iter_idx_by_task_elem[task_idx][elem_i.index]
-                elem_iters = [elem_i.iterations[j] for j in elem_i_iters_idx]
-                iters_by_task_elem[task_idx][elem_i.index].update(
-                    dict(zip(elem_i_iters_idx, elem_iters))
-                )
+        iters_by_task_elem = {
+            task_idx: {
+                elem_i.index: {
+                    iter_idx: elem_i.iterations[iter_idx]
+                    for iter_idx in iter_idx_by_task_elem[task_idx][elem_i.index]
+                }
+                for elem_i in self.tasks[task_idx].elements[list(elem_idxes)]
+            }
+            for task_idx, elem_idxes in element_idx_by_task.items()
+        }
 
-        objs: list[ElementActionRun] = []
-        for idx_dat in index_paths:
-            iter_ = iters_by_task_elem[idx_dat["task_idx"]][idx_dat["elem_idx"]][
-                idx_dat["iter_idx"]
-            ]
-            run = iter_.actions[idx_dat["action_idx"]].runs[idx_dat["run_idx"]]
-            objs.append(run)
-
-        return objs
+        return [
+            iters_by_task_elem[idx_dat.task_idx][idx_dat.elem_idx][idx_dat.iter_idx].actions[
+                idx_dat.action_idx].runs[idx_dat.run_idx]
+            for idx_dat in index_paths
+        ]
 
     @TimeIt.decorator
     def get_all_elements(self) -> list[Element]:
@@ -1593,7 +1574,7 @@ class Workflow:
                 self._in_batch_mode = False
 
     @classmethod
-    def temporary_rename(cls, path: str, fs: AbstractFileSystem) -> list[str]:
+    def temporary_rename(cls, path: str, fs: AbstractFileSystem) -> str:
         """Rename an existing same-path workflow (directory) so we can restore it if
         workflow creation fails.
 
@@ -1601,7 +1582,7 @@ class Workflow:
         paths may be created, where only the final path should be considered the
         successfully renamed workflow. Other paths will be deleted."""
 
-        all_replaced = []
+        all_replaced: list[str] = []
 
         @cls.app.perm_error_retry()
         def _temp_rename(path: str, fs: AbstractFileSystem) -> str:
@@ -1636,11 +1617,11 @@ class Workflow:
     @TimeIt.decorator
     def _write_empty_workflow(
         cls,
-        template: WorkflowTemplate,
+        template: WorkflowTemplate, *,
         path: PathLike | None = None,
         name: str | None = None,
         overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         fs_kwargs: Dict | None = None,
@@ -1681,15 +1662,18 @@ class Workflow:
                 )
 
         # make template-level inputs/resources think they are persistent:
-        wk_dummy = _DummyPersistentWorkflow()
+        wk_dummy = cast(Workflow, _DummyPersistentWorkflow())
         param_src = {"type": "workflow_resources"}
+        assert isinstance(template.resources, ResourceList)
         for res_i in copy.deepcopy(template.resources):
             res_i.make_persistent(wk_dummy, param_src)
 
-        template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
-        template_js["tasks"] = []
-        template_js["loops"] = []
-
+        template_js_, template_sh = template.to_json_like(exclude=["tasks", "loops"])
+        template_js = {
+            **template_js_,
+            "tasks": [],
+            "loops": []
+        }
         creation_info = {
             "app_info": cls.app.get_info(),
             "create_time": ts_utc.strftime(ts_fmt),
@@ -1759,7 +1743,7 @@ class Workflow:
 
     def get_parameters(
         self, id_lst: Iterable[int], **kwargs
-    ) -> list[AnySParameter]:
+    ) -> Sequence[StoreParameter]:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
@@ -1771,7 +1755,7 @@ class Workflow:
         return self._store.get_parameter_set_statuses(id_lst)
 
     @TimeIt.decorator
-    def get_parameter(self, index: int, **kwargs) -> AnySParameter:
+    def get_parameter(self, index: int, **kwargs) -> StoreParameter:
         return self.get_parameters([index], **kwargs)[0]
 
     @TimeIt.decorator
@@ -1810,10 +1794,10 @@ class Workflow:
         params = self.get_all_parameters(**kwargs)
         return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
-    @override
+    @overload
     def check_parameters_exist(self, id_lst: int) -> bool: ...
 
-    @override
+    @overload
     def check_parameters_exist(self, id_lst: list[int]) -> list[bool]: ...
 
     def check_parameters_exist(
@@ -1831,13 +1815,13 @@ class Workflow:
         return self._store.add_set_parameter(data, source)
 
     def _add_file(
-        self,
+        self, *,
         store_contents: bool,
         is_input: bool,
         source: Dict,
         path=None,
         contents=None,
-        filename: str | None = None,
+        filename: str,
     ) -> int:
         return self._store.add_file(
             store_contents=store_contents,
@@ -1857,7 +1841,7 @@ class Workflow:
         contents=None,
         filename: str | None = None,
         clean_up: bool = False,
-    ) -> int:
+    ) -> None:
         self._store.set_file(
             param_id=param_id,
             store_contents=store_contents,
@@ -1933,29 +1917,30 @@ class Workflow:
 
         for sub_idx in self._pending["submissions"][::-1]:
             # iterate in reverse so the index references are correct
+            assert self._submissions is not None
             self._submissions.pop(sub_idx)
 
         self._reset_pending()
 
     @property
-    def num_tasks(self):
+    def num_tasks(self) -> int:
         return self._store._get_num_total_tasks()
 
     @property
-    def num_submissions(self):
+    def num_submissions(self) -> int:
         return self._store._get_num_total_submissions()
 
     @property
-    def num_elements(self):
+    def num_elements(self) -> int:
         return self._store._get_num_total_elements()
 
     @property
-    def num_element_iterations(self):
+    def num_element_iterations(self) -> int:
         return self._store._get_num_total_elem_iters()
 
     @property
     @TimeIt.decorator
-    def num_EARs(self):
+    def num_EARs(self) -> int:
         return self._store._get_num_total_EARs()
 
     @property
@@ -1963,7 +1948,7 @@ class Workflow:
         return self._store._get_num_total_loops()
 
     @property
-    def artifacts_path(self):
+    def artifacts_path(self) -> Path:
         # TODO: allow customisation of artifacts path at submission and resources level
         return Path(self.path) / "artifacts"
 
@@ -1986,7 +1971,7 @@ class Workflow:
     @TimeIt.decorator
     def get_task_elements(
         self,
-        task: Task,
+        task: WorkflowTask,
         idx_lst: list[int] | None = None,
     ) -> list[Element]:
         return [
@@ -2130,7 +2115,7 @@ class Workflow:
             with self.batch_update():
                 self._store.set_EAR_skip(EAR_ID)
 
-    def get_EAR_skipped(self, EAR_ID: int) -> None:
+    def get_EAR_skipped(self, EAR_ID: int) -> bool:
         """Check if an EAR is to be skipped."""
         with self._store.cached_load():
             return self._store.get_EAR_skipped(EAR_ID)
@@ -2237,7 +2222,7 @@ class Workflow:
     @TimeIt.decorator
     def _submit(
         self,
-        status: Any | None = None,
+        status: rich.status.Status | None = None,
         ignore_errors: bool | None = False,
         JS_parallelism: bool | None = None,
         print_stdout: bool | None = False,
@@ -2253,8 +2238,6 @@ class Workflow:
                 status.update("Adding new submission...")
             new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
             if not new_sub:
-                if status:
-                    status.stop()
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
@@ -2269,8 +2252,8 @@ class Workflow:
         self._store._pending.commit_all()
 
         # submit all pending submissions:
-        exceptions = []
-        submitted_js = {}
+        exceptions: list[Exception] = []
+        submitted_js: dict[int, int] = {}
         for sub in pending:
             try:
                 if status:
@@ -2358,41 +2341,29 @@ class Workflow:
             If True, display a live status to track submission progress.
         """
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Submitting workflow...")
-            status.start()
-
-        with self._store.cached_load():
-            if not self._store.is_submittable:
-                if status:
-                    status.stop()
-                raise NotImplementedError("The workflow is not submittable.")
-            with self.batch_update():
-                # commit updates before raising exception:
-                try:
+        # Type hint for mypy
+        status_context: AbstractContextManager[rich.status.Status] | AbstractContextManager[None] = (
+            rich.console.Console().status("Submitting workflow...")
+            if status else nullcontext())
+        with status_context as status_:
+            with self._store.cached_load():
+                if not self._store.is_submittable:
+                    raise NotImplementedError("The workflow is not submittable.")
+                with self.batch_update():
+                    # commit updates before raising exception:
                     with self._store.cache_ctx():
                         exceptions, submitted_js = self._submit(
                             ignore_errors=ignore_errors,
                             JS_parallelism=JS_parallelism,
                             print_stdout=print_stdout,
-                            status=status,
+                            status=status_,
                             add_to_known=add_to_known,
                             tasks=tasks,
                         )
-                except Exception:
-                    if status:
-                        status.stop()
-                    raise
 
         if exceptions:
             msg = "\n" + "\n\n".join(i.message for i in exceptions)
-            if status:
-                status.stop()
             raise WorkflowSubmissionFailure(msg)
-
-        if status:
-            status.stop()
 
         if cancel:
             self.cancel()
@@ -2619,7 +2590,7 @@ class Workflow:
 
     def add_submission(
         self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
-    ) -> Submission:
+    ) -> Submission | None:
         with self._store.cached_load():
             with self.batch_update():
                 return self._add_submission(tasks, JS_parallelism)
@@ -2627,10 +2598,10 @@ class Workflow:
     @TimeIt.decorator
     def _add_submission(
         self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
-    ) -> Submission:
+    ) -> Submission | None:
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
-        sub_obj = self.app.Submission(
+        sub_obj: Submission = self.app.Submission(
             index=new_idx,
             workflow=self,
             jobscripts=self.resolve_jobscripts(tasks),
@@ -2643,7 +2614,7 @@ class Workflow:
                 f"There are no pending element action runs, so a new submission was not "
                 f"added."
             )
-            return
+            return None
 
         with self._store.cached_load():
             with self.batch_update():
@@ -2651,6 +2622,7 @@ class Workflow:
                     self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
 
         sub_obj_js, _ = sub_obj.to_json_like()
+        assert self._submissions is not None
         self._submissions.append(sub_obj)
         self._pending["submissions"].append(new_idx)
         with self._store.cached_load():
@@ -2679,7 +2651,7 @@ class Workflow:
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
         self, tasks: list[int] | None = None
-    ) -> tuple[dict[int, Dict], Dict]:
+    ) -> tuple[dict[int, dict[str, Any]], dict[int, dict[int, list[int]]]]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
         by EAR idx in the `EARs` dict.
@@ -2699,8 +2671,8 @@ class Workflow:
             # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
             self.get_all_parameter_sources()
 
-        submission_jobscripts = {}
-        all_element_deps = {}
+        submission_jobscripts: dict[int, dict[str, Any]] = {}
+        all_element_deps: dict[int, dict[int, list[int]]] = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
             task = self.tasks.get(insert_ID=task_iID)
@@ -2776,10 +2748,7 @@ class Workflow:
                         i for i in EAR_deps_flat if i not in js_i["EAR_ID"]
                     ]
                     if EAR_deps_EAR_idx:
-                        if new_js_idx not in all_element_deps:
-                            all_element_deps[new_js_idx] = {}
-
-                        all_element_deps[new_js_idx][js_elem_idx] = EAR_deps_EAR_idx
+                        all_element_deps.setdefault(new_js_idx, {})[js_elem_idx] = EAR_deps_EAR_idx
 
                 submission_jobscripts[new_js_idx] = js_i
 

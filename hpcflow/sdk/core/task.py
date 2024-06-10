@@ -3038,6 +3038,18 @@ class Elements:
     def __iter__(self) -> Iterator[Element]:
         yield from self.task.workflow.get_task_elements(self.task)
 
+    @overload
+    def __getitem__(
+        self,
+        selection: int,
+    ) -> Element: ...
+
+    @overload
+    def __getitem__(
+        self,
+        selection: slice | list[int],
+    ) -> list[Element]: ...
+
     @TimeIt.decorator
     def __getitem__(
         self,

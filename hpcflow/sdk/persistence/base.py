@@ -26,7 +26,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
     from fsspec import AbstractFileSystem
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
@@ -672,6 +672,22 @@ class PersistentStore(ABC):
         self._use_cache = False
         self._cache = None
         self._reset_cache()
+
+    @abstractmethod
+    def cached_load(self) -> contextlib.AbstractContextManager[Dict]:
+        ...
+
+    @abstractmethod
+    def get_creation_info(self) -> Dict:
+        ...
+
+    @abstractmethod
+    def zip(self, path=".", log=None, overwrite=False) -> str:
+        ...
+
+    @abstractmethod
+    def unzip(self, path=".", log=None) -> str:
+        ...
 
     @property
     def logger(self):
@@ -1367,9 +1383,9 @@ class PersistentStore(ABC):
     def get_task(self, task_idx: int) -> AnySTask:
         return self.get_tasks()[task_idx]
 
-    def _process_retrieved_tasks(self, tasks: list[AnySTask]) -> list[AnySTask]:
+    def _process_retrieved_tasks(self, tasks: Iterable[AnySTask]) -> list[AnySTask]:
         """Add pending data to retrieved tasks."""
-        tasks_new = []
+        tasks_new: list[AnySTask] = []
         for task_i in tasks:
             # consider pending element IDs:
             pend_elems = self._pending.add_elem_IDs.get(task_i.id_)
@@ -1396,20 +1412,18 @@ class PersistentStore(ABC):
             loops_new[id_] = loop_i
         return loops_new
 
-    def get_tasks_by_IDs(self, id_lst: Iterable[int]) -> list[AnySTask]:
+    def get_tasks_by_IDs(self, id_lst: Iterable[int]) -> Sequence[StoreTask]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_tasks)
         id_pers = id_set.difference(all_pending)
         id_pend = id_set.intersection(all_pending)
 
-        tasks = self._get_persistent_tasks(id_pers) if id_pers else {}
-        tasks.update({i: self._pending.add_tasks[i] for i in id_pend})
+        tasks: dict[int, StoreTask] = self._get_persistent_tasks(id_pers) if id_pers else {}
+        tasks.update((i, self._pending.add_tasks[i]) for i in id_pend)
 
         # order as requested:
-        tasks = [tasks[id_] for id_ in id_lst]
-
-        return self._process_retrieved_tasks(tasks)
+        return self._process_retrieved_tasks(tasks[id_] for id_ in id_lst)
 
     @TimeIt.decorator
     def get_tasks(self) -> list[AnySTask]:
@@ -1479,7 +1493,7 @@ class PersistentStore(ABC):
         return subs
 
     @TimeIt.decorator
-    def get_elements(self, id_lst: Iterable[int]) -> list[AnySElement]:
+    def get_elements(self, id_lst: Sequence[int]) -> Sequence[StoreElement]:
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1494,7 +1508,7 @@ class PersistentStore(ABC):
         # order as requested:
         elems = [elems[id_] for id_ in id_lst]
 
-        elems_new = []
+        elems_new: list[StoreElement] = []
         for elem_i in elems:
             # consider pending iteration IDs:
             # TODO: does this consider pending iterations from new loop iterations?
@@ -1506,7 +1520,7 @@ class PersistentStore(ABC):
         return elems_new
 
     @TimeIt.decorator
-    def get_element_iterations(self, id_lst: Iterable[int]) -> list[AnySElementIter]:
+    def get_element_iterations(self, id_lst: Iterable[int]) -> Sequence[StoreElementIter]:
         self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1515,14 +1529,12 @@ class PersistentStore(ABC):
         id_pers = id_set.difference(all_pending)
         id_pend = id_set.intersection(all_pending)
 
-        iters = self._get_persistent_element_iters(id_pers) if id_pers else {}
+        iters: dict[int, StoreElementIter] = self._get_persistent_element_iters(id_pers) if id_pers else {}
         iters.update({i: self._pending.add_elem_iters[i] for i in id_pend})
 
+        iters_new: list[StoreElementIter] = []
         # order as requested:
-        iters = [iters[id_] for id_ in id_lst]
-
-        iters_new = []
-        for iter_i in iters:
+        for iter_i in [iters[id_] for id_ in id_lst]:
             # consider pending EAR IDs:
             pend_EARs = self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_)
             if pend_EARs:
@@ -1542,7 +1554,7 @@ class PersistentStore(ABC):
         return iters_new
 
     @TimeIt.decorator
-    def get_EARs(self, id_lst: Iterable[int]) -> list[AnySEAR]:
+    def get_EARs(self, id_lst: Iterable[int]) -> Sequence[StoreEAR]:
         self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1557,7 +1569,7 @@ class PersistentStore(ABC):
         # order as requested:
         EARs = [EARs[id_] for id_ in id_lst]
 
-        EARs_new = []
+        EARs_new: list[StoreEAR] = []
         for EAR_i in EARs:
             # consider updates:
             pend_sub = self._pending.set_EAR_submission_indices.get(EAR_i.id_)

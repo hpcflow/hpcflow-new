@@ -45,36 +45,36 @@ class PendingChanges:
         self.store = store
         self.resource_map = resource_map
 
-        self.add_tasks: dict[int, AnySTask] = None
-        self.add_loops: dict[int, Dict] = None
-        self.add_submissions: dict[int, Dict] = None
-        self.add_elements: dict[int, AnySElement] = None
-        self.add_elem_iters: dict[int, AnySElementIter] = None
-        self.add_EARs: dict[int, AnySEAR] = None
-        self.add_parameters: dict[int, AnySParameter] = None
-        self.add_files: list[Dict] = None
-        self.add_template_components: dict[str, dict[str, Dict]] = None
-        self.add_element_sets: dict[int, Dict] = None
+        self.add_tasks: dict[int, AnySTask] | None = None
+        self.add_loops: dict[int, Dict] | None = None
+        self.add_submissions: dict[int, Dict] | None = None
+        self.add_elements: dict[int, AnySElement] | None = None
+        self.add_elem_iters: dict[int, AnySElementIter] | None = None
+        self.add_EARs: dict[int, AnySEAR] | None = None
+        self.add_parameters: dict[int, AnySParameter] | None = None
+        self.add_files: list[Dict] | None = None
+        self.add_template_components: dict[str, dict[str, Dict]] | None = None
+        self.add_element_sets: dict[int, Dict] | None = None
 
-        self.add_elem_IDs: dict[int, list[int]] = None
-        self.add_elem_iter_IDs: dict[int, List] = None
-        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] = None
-        self.add_submission_parts: dict[int, dict[str, list[int]]] = None
+        self.add_elem_IDs: dict[int, list[int]] | None = None
+        self.add_elem_iter_IDs: dict[int, List] | None = None
+        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] | None = None
+        self.add_submission_parts: dict[int, dict[str, list[int]]] | None = None
 
-        self.set_EARs_initialised: list[int] = None
-        self.set_EAR_submission_indices: dict[int, int] = None
-        self.set_EAR_skips: list[int] = None
-        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] = None
-        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] = None
+        self.set_EARs_initialised: list[int] | None = None
+        self.set_EAR_submission_indices: dict[int, int] | None = None
+        self.set_EAR_skips: list[int] | None = None
+        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] | None = None
+        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] | None = None
 
-        self.set_js_metadata: dict[int, dict[int, Any]] = None
+        self.set_js_metadata: dict[int, dict[int, Any]] | None = None
 
-        self.set_parameters: dict[int, AnySParameter] = None
+        self.set_parameters: dict[int, AnySParameter] | None = None
 
-        self.update_param_sources: dict[int, Dict] = None
-        self.update_loop_indices: dict[int, dict[str, int]] = None
-        self.update_loop_num_iters: dict[int, int] = None
-        self.update_loop_parents: dict[int, list[str]] = None
+        self.update_param_sources: dict[int, Dict] | None = None
+        self.update_loop_indices: dict[int, dict[str, int]] | None = None
+        self.update_loop_num_iters: dict[int, int] | None = None
+        self.update_loop_parents: dict[int, list[str]] | None = None
 
         self.reset(is_init=True)  # set up initial data structures
 

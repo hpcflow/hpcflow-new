@@ -64,7 +64,7 @@ class FileNameSpec(JSONLike):
     app: ClassVar[BaseApp]
     _app_attr = "app"
 
-    def __init__(self, name, args=None, is_regex=False):
+    def __init__(self, name: str, args=None, is_regex=False):
         self.name = name
         self.args = args
         self.is_regex = is_regex
