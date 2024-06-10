@@ -1088,6 +1088,7 @@ class Workflow:
 
         # update persistent store:
         task_js, temp_comps_js = task_c.to_json_like()
+        assert temp_comps_js is not None
         self._store.add_template_components(temp_comps_js)
         self._store.add_task(new_index, task_js)
 

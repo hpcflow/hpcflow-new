@@ -27,6 +27,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from typing import Self
     from fsspec import AbstractFileSystem
     from ..app import BaseApp
 
@@ -94,7 +95,7 @@ class StoreTask:
     index: int
     is_pending: bool
     element_IDs: list[int]
-    task_template: Dict | None = None
+    task_template: Mapping | None = None
 
     def encode(self) -> tuple[int, Dict, Dict]:
         """Prepare store task data for the persistent store."""
@@ -103,7 +104,7 @@ class StoreTask:
         return self.index, wk_task, task
 
     @classmethod
-    def decode(cls, task_dat: Dict) -> StoreTask:
+    def decode(cls, task_dat: Dict) -> Self:
         """Initialise a `StoreTask` from store task data
 
         Note: the `task_template` is only needed for encoding because it is retrieved as
@@ -113,7 +114,7 @@ class StoreTask:
         return cls(is_pending=False, **task_dat)
 
     @TimeIt.decorator
-    def append_element_IDs(self: AnySTask, pend_IDs: list[int]) -> AnySTask:
+    def append_element_IDs(self, pend_IDs: list[int]) -> Self:
         """Return a copy, with additional element IDs."""
         elem_IDs = self.element_IDs[:] + pend_IDs
         return self.__class__(
@@ -152,7 +153,7 @@ class StoreElement:
         return dct
 
     @classmethod
-    def decode(cls, elem_dat: dict[str, Any]) -> StoreElement:
+    def decode(cls, elem_dat: dict[str, Any]) -> Self:
         """Initialise a `StoreElement` from store element data"""
         return cls(is_pending=False, **elem_dat)
 
@@ -171,7 +172,7 @@ class StoreElement:
         }
 
     @TimeIt.decorator
-    def append_iteration_IDs(self: AnySElement, pend_IDs: list[int]) -> AnySElement:
+    def append_iteration_IDs(self: AnySElement, pend_IDs: list[int]) -> Self:
         """Return a copy, with additional iteration IDs."""
         iter_IDs = self.iteration_IDs[:] + pend_IDs
         return self.__class__(
@@ -216,7 +217,7 @@ class StoreElementIter:
         return dct
 
     @classmethod
-    def decode(cls, iter_dat: dict[str, Any]) -> StoreElementIter:
+    def decode(cls, iter_dat: dict[str, Any]) -> Self:
         """Initialise a `StoreElementIter` from persistent store element iteration data"""
 
         iter_dat = copy.deepcopy(iter_dat)  # to avoid mutating; can we avoid this?
@@ -243,8 +244,8 @@ class StoreElementIter:
 
     @TimeIt.decorator
     def append_EAR_IDs(
-        self: AnySElementIter, pend_IDs: dict[int, list[int]]
-    ) -> AnySElementIter:
+        self, pend_IDs: dict[int, list[int]]
+    ) -> Self:
         """Return a copy, with additional EAR IDs."""
 
         EAR_IDs = copy.deepcopy(self.EAR_IDs) or {}
@@ -266,8 +267,8 @@ class StoreElementIter:
 
     @TimeIt.decorator
     def update_loop_idx(
-        self: AnySElementIter, loop_idx: dict[str, int]
-    ) -> AnySElementIter:
+        self, loop_idx: dict[str, int]
+    ) -> Self:
         """Return a copy, with the loop index updated."""
         loop_idx_new = copy.deepcopy(self.loop_idx)
         loop_idx_new.update(loop_idx)
@@ -283,7 +284,7 @@ class StoreElementIter:
         )
 
     @TimeIt.decorator
-    def set_EARs_initialised(self: AnySElementIter) -> AnySElementIter:
+    def set_EARs_initialised(self) -> Self:
         """Return a copy with `EARs_initialised` set to `True`."""
         return self.__class__(
             id_=self.id_,
@@ -356,7 +357,7 @@ class StoreEAR:
         }
 
     @classmethod
-    def decode(cls, EAR_dat: Dict, ts_fmt: str) -> StoreEAR:
+    def decode(cls, EAR_dat: Dict, ts_fmt: str) -> Self:
         """Initialise a `StoreEAR` from persistent store EAR data"""
         # don't want to mutate EAR_dat:
         EAR_dat = copy.deepcopy(EAR_dat)
@@ -403,7 +404,7 @@ class StoreEAR:
         snapshot_end: Dict | None = None,
         exit_code: int | None = None,
         run_hostname: str | None = None,
-    ) -> AnySEAR:
+    ) -> Self:
         """Return a shallow copy, with specified data updated."""
 
         sub_idx = submission_idx if submission_idx is not None else self.submission_idx
@@ -548,7 +549,7 @@ class StoreParameter:
         source: Dict,
         path: list[str] | None = None,
         **kwargs,
-    ) -> Any:
+    ) -> Self:
         """Initialise from persistent store parameter data."""
         if data and "file" in data:
             return cls(
@@ -611,7 +612,7 @@ class StoreParameter:
             is_pending=False,
         )
 
-    def set_data(self, value: Any) -> None:
+    def set_data(self, value: Any) -> Self:
         """Return a copy, with data set."""
         if self.is_set:
             raise RuntimeError(f"Parameter ID {self.id_!r} is already set!")
@@ -624,7 +625,7 @@ class StoreParameter:
             source=self.source,
         )
 
-    def set_file(self, value: Any) -> None:
+    def set_file(self, value: Any) -> Self:
         """Return a copy, with file set."""
         if self.is_set:
             raise RuntimeError(f"Parameter ID {self.id_!r} is already set!")
@@ -637,7 +638,7 @@ class StoreParameter:
             source=self.source,
         )
 
-    def update_source(self, src: Dict) -> None:
+    def update_source(self, src: Dict) -> Self:
         """Return a copy, with updated source."""
         new_src = update_param_source_dict(self.source, src)
         return self.__class__(
@@ -809,15 +810,17 @@ class PersistentStore(ABC):
             self._reset_cache()
 
     @staticmethod
-    def prepare_test_store_from_spec(task_spec):
+    def prepare_test_store_from_spec(
+        task_spec: Sequence[Mapping[str, Sequence[Mapping[str, Sequence[Mapping[str, Sequence]]]]]]
+    ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         """Generate a valid store from a specification in terms of nested
         elements/iterations/EARs.
 
         """
-        tasks = []
-        elements = []
-        elem_iters = []
-        EARs = []
+        tasks: list[dict] = []
+        elements: list[dict] = []
+        elem_iters: list[dict] = []
+        EARs: list[dict] = []
 
         for task_idx, task_i in enumerate(task_spec):
             elems_i = task_i.get("elements", [])
@@ -833,48 +836,40 @@ class PersistentStore(ABC):
                     EAR_IDs_dct = {0: EAR_IDs} if EAR_IDs else {}
 
                     for _ in EARs_k:
-                        EARs.append(
-                            dict(
-                                id_=len(EARs),
-                                is_pending=False,
-                                elem_iter_ID=len(elem_iters),
-                                action_idx=0,
-                                data_idx={},
-                                metadata={},
-                            )
-                        )
+                        EARs.append({
+                            "id_": len(EARs),
+                            "is_pending": False,
+                            "elem_iter_ID": len(elem_iters),
+                            "action_idx": 0,
+                            "data_idx": {},
+                            "metadata": {},
+                        })
 
-                    elem_iters.append(
-                        dict(
-                            id_=len(elem_iters),
-                            is_pending=False,
-                            element_ID=len(elements),
-                            EAR_IDs=EAR_IDs_dct,
-                            data_idx={},
-                            schema_parameters=[],
-                        )
-                    )
-                elements.append(
-                    dict(
-                        id_=len(elements),
-                        is_pending=False,
-                        element_idx=elem_idx,
-                        seq_idx={},
-                        src_idx={},
-                        task_ID=task_idx,
-                        iteration_IDs=iter_IDs,
-                    )
-                )
-            tasks.append(
-                dict(
-                    id_=len(tasks),
-                    is_pending=False,
-                    element_IDs=elem_IDs,
-                )
-            )
+                    elem_iters.append({
+                        "id_": len(elem_iters),
+                        "is_pending": False,
+                        "element_ID": len(elements),
+                        "EAR_IDs": EAR_IDs_dct,
+                        "data_idx": {},
+                        "schema_parameters": [],
+                    })
+                elements.append({
+                    "id_": len(elements),
+                    "is_pending": False,
+                    "element_idx": elem_idx,
+                    "seq_idx": {},
+                    "src_idx": {},
+                    "task_ID": task_idx,
+                    "iteration_IDs": iter_IDs,
+                })
+            tasks.append({
+                "id_": len(tasks),
+                "is_pending": False,
+                "element_IDs": elem_IDs,
+            })
         return (tasks, elements, elem_iters, EARs)
 
-    def remove_path(self, path: str, fs) -> None:
+    def remove_path(self, path: str, fs: AbstractFileSystem) -> None:
         """Try very hard to delete a directory or file.
 
         Dropbox (on Windows, at least) seems to try to re-sync files if the parent directory
@@ -893,7 +888,7 @@ class PersistentStore(ABC):
 
         return _remove_path(path, fs)
 
-    def rename_path(self, replaced: str, original: str, fs) -> None:
+    def rename_path(self, replaced: str, original: str, fs: AbstractFileSystem) -> None:
         """Revert the replaced workflow path to its original name.
 
         This happens when new workflow creation fails and there is an existing workflow
@@ -910,57 +905,57 @@ class PersistentStore(ABC):
 
         return _rename_path(replaced, original, fs)
 
-    def _get_num_total_tasks(self):
+    def _get_num_total_tasks(self) -> int:
         """Get the total number of persistent and pending tasks."""
         return self._get_num_persistent_tasks() + len(self._pending.add_tasks)
 
-    def _get_num_total_loops(self):
+    def _get_num_total_loops(self) -> int:
         """Get the total number of persistent and pending loops."""
         return self._get_num_persistent_loops() + len(self._pending.add_loops)
 
-    def _get_num_total_submissions(self):
+    def _get_num_total_submissions(self) -> int:
         """Get the total number of persistent and pending submissions."""
         return self._get_num_persistent_submissions() + len(self._pending.add_submissions)
 
-    def _get_num_total_elements(self):
+    def _get_num_total_elements(self) -> int:
         """Get the total number of persistent and pending elements."""
         return self._get_num_persistent_elements() + len(self._pending.add_elements)
 
-    def _get_num_total_elem_iters(self):
+    def _get_num_total_elem_iters(self) -> int:
         """Get the total number of persistent and pending element iterations."""
         return self._get_num_persistent_elem_iters() + len(self._pending.add_elem_iters)
 
     @TimeIt.decorator
-    def _get_num_total_EARs(self):
+    def _get_num_total_EARs(self) -> int:
         """Get the total number of persistent and pending EARs."""
         return self._get_num_persistent_EARs() + len(self._pending.add_EARs)
 
-    def _get_task_total_num_elements(self, task_ID: int):
+    def _get_task_total_num_elements(self, task_ID: int) -> int:
         """Get the total number of persistent and pending elements of a given task."""
         return len(self.get_task(task_ID).element_IDs)
 
-    def _get_num_total_parameters(self):
+    def _get_num_total_parameters(self) -> int:
         """Get the total number of persistent and pending parameters."""
         return self._get_num_persistent_parameters() + len(self._pending.add_parameters)
 
-    def _get_num_total_input_files(self):
+    def _get_num_total_input_files(self) -> int:
         """Get the total number of persistent and pending user-supplied input files."""
         num_pend_inp_files = len([i for i in self._pending.add_files if i["is_input"]])
         return self._get_num_persistent_input_files() + num_pend_inp_files
 
-    def _get_num_total_added_tasks(self):
+    def _get_num_total_added_tasks(self) -> int:
         """Get the total number of tasks ever added to the workflow."""
         return self._get_num_persistent_added_tasks() + len(self._pending.add_tasks)
 
-    def _get_num_persistent_input_files(self):
+    def _get_num_persistent_input_files(self) -> int:
         return len(list(self.workflow.input_files_path.glob("*")))
 
-    def save(self):
+    def save(self) -> None:
         """Commit pending changes to disk, if not in batch-update mode."""
         if not self.workflow._in_batch_mode:
             self._pending.commit_all()
 
-    def add_template_components(self, temp_comps: Dict, save: bool = True) -> None:
+    def add_template_components(self, temp_comps: Mapping[str, Any], save: bool = True) -> None:
         all_tc = self.get_template_components()
         for name, dat in temp_comps.items():
             if name in all_tc:
@@ -973,7 +968,7 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def add_task(self, idx: int, task_template: Dict, save: bool = True):
+    def add_task(self, idx: int, task_template: Mapping, save: bool = True):
         """Add a new task to the workflow."""
         self.logger.debug(f"Adding store task.")
         new_ID = self._get_num_total_added_tasks()
@@ -1029,7 +1024,7 @@ class PersistentStore(ABC):
 
     def add_element(
         self, task_ID: int, es_idx: int, seq_idx: Dict, src_idx: Dict, save: bool = True
-    ):
+    ) -> int:
         """Add a new element to a task."""
         self.logger.debug(f"Adding store element.")
         new_ID = self._get_num_total_elements()
