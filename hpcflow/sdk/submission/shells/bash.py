@@ -250,19 +250,17 @@ class Bash(Shell):
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         return (
-            f"{workflow_app_alias} "
+            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
             f'internal workflow "$WK_PATH_ARG" save-parameter '
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
-            f'>> "$STD_STREAM_FILE" 2>&1'
             f"\n"
         )
 
     def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
         return (
-            f"{workflow_app_alias} "
+            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
             f'internal workflow "$WK_PATH_ARG" check-loop '
             f"{loop_name} {run_ID} "
-            f'>> "$STD_STREAM_FILE" 2>&1'
             f"\n"
         )
 

@@ -332,3 +332,39 @@ class P1_parameter_cls(ParameterValue):
             sub_param = None
         obj = cls(a=a, d=d, sub_param=sub_param)
         workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)
+
+
+def make_workflow_to_run_command(
+    command,
+    path,
+    outputs=None,
+    name="w1",
+    overwrite=False,
+    store="zarr",
+):
+    """Generate a single-task single-action workflow that runs the specified command,
+    optionally generating some outputs."""
+
+    outputs = outputs or []
+    commands = [hf.Command(command=command)]
+    commands += [
+        hf.Command(command=f'echo "output_{out}"', stdout=f"<<parameter:{out}>>")
+        for out in outputs
+    ]
+    schema = hf.TaskSchema(
+        objective="run_command",
+        outputs=[hf.SchemaOutput(i) for i in outputs],
+        actions=[hf.Action(commands=commands)],
+    )
+    template = {
+        "name": name,
+        "tasks": [hf.Task(schema=schema)],
+    }
+    wk = hf.Workflow.from_template(
+        hf.WorkflowTemplate(**template),
+        path=path,
+        name=name,
+        overwrite=overwrite,
+        store=store,
+    )
+    return wk

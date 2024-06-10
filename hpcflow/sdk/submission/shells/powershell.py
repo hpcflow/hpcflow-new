@@ -260,19 +260,17 @@ class WindowsPowerShell(Shell):
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         return (
-            f"{workflow_app_alias} "
+            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
             f"internal workflow $WK_PATH save-parameter "
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
-            f"2>&1 >> $STD_STREAM_FILE"
             f"\n"
         )
 
     def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
         return (
-            f"{workflow_app_alias} "
+            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
             f"internal workflow $WK_PATH check-loop "
             f"{loop_name} {run_ID} "
-            f"2>&1 >> $STD_STREAM_FILE"
             f"\n"
         )
 
