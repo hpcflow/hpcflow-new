@@ -1,4 +1,8 @@
+import os
+
+import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.test_utils import make_workflow_to_run_command
 
 
 def test_compose_commands_no_shell_var(null_config, tmp_path):
@@ -73,3 +77,19 @@ def test_compose_commands_multi_single_shell_var(null_config, tmp_path):
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
     _, shell_vars = run.compose_commands(jobscript=js, block_act_key=(0, 0, 0))
     assert shell_vars == {0: [], 1: [("outputs.p1", "parameter_p1", "stdout")]}
+
+
+@pytest.mark.integration
+def test_run_dir_diff_new_file(null_config, tmp_path):
+    if os.name == "nt":
+        command = "New-Item -Path 'new_file.txt' -ItemType File"
+    else:
+        command = "touch new_file.txt"
+    wk = make_workflow_to_run_command(
+        command=command,
+        path=tmp_path,
+        name="w2",
+        overwrite=True,
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+    assert wk.get_all_EARs()[0].dir_diff.files_created == ["new_file.txt"]
