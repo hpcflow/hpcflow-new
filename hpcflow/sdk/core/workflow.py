@@ -2845,20 +2845,17 @@ class Workflow:
                 exe = self.app.Executor(cmd, env)
                 port = exe.start_zmq_server()  # start the server so we know the port
 
-                self.set_EAR_start(EAR_ID=run_ID, port_number=port)
+                try:
+                    self.set_EAR_start(EAR_ID=run_ID, port_number=port)
+                except:
+                    self.app.submission_logger.error(f"Failed to set run start.")
+                    exe.stop_zmq_server()
+                    raise
 
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
         if not skip:
-            ret_code = exe.run()
-
-            # TODO:
-            #   - if abortable:
-            #       - use async subprocess
-            #       - poll abort EAR file, and terminate subprocess if abort set
-            #       - or try out ZeroMQ somehow instead of polling?
-            #           - save hostname in set-run-start, and then can look it up from
-            #             the show command on the login node?
+            ret_code = exe.run()  # this also shuts down the server
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
         with redirect_std_to_file(std_stream_path):
