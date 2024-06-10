@@ -34,6 +34,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
+from hpcflow.sdk.utils.deferred_file import DeferredFileWriter
 
 
 def load_config(func):
@@ -893,18 +894,34 @@ def nth_value(dct, n):
 
 
 @contextlib.contextmanager
-def redirect_std_to_file(file, mode="a"):
+def redirect_std_to_file(file, mode="a", ignore=None):
     """Temporarily redirect both stdout and stderr to a file, and if an exception is
-    raised, catch it, print the traceback to that file, and exit."""
-    # TODO: test
-    with Path(file).open(mode) as fp:
+    raised, catch it, print the traceback to that file, and exit.
+
+    File creation is deferred until an actual write is required.
+
+    Parameters
+    ----------
+    ignore
+        Callable to test if a given exception should be ignored. If an exception is
+        not ignored, its traceback will be printed to `file` and the program will
+        exit with exit code 1. The callable should accept one parameter, the
+        exception, and should return True if that exception should be ignored, or
+        an integer representing the exit code to exit the program with if that
+        exception should not be ignored.  By default, no exceptions are ignored.
+
+    """
+    ignore = ignore or (lambda _: 1)
+    with DeferredFileWriter(file, mode=mode) as fp:
         with contextlib.redirect_stdout(fp):
             with contextlib.redirect_stderr(fp):
                 try:
                     yield
-                except BaseException:
-                    traceback.print_exc()
-                    sys.exit(1)
+                except BaseException as exc:
+                    ignore_ret = ignore(exc)
+                    if ignore_ret is not True:
+                        traceback.print_exc()
+                        sys.exit(ignore_ret)
 
 
 async def to_thread(func, /, *args, **kwargs):
