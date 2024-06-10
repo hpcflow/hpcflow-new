@@ -196,6 +196,7 @@ def test_merge_jobscript_multi_dependence(null_config, tmp_path):
         template_name="test_merge_js",
         workflow_name="test_merge_js",
         overwrite=True,
+        path=tmp_path,
         tasks=[
             hf.Task(schema=s1, repeats=2),
             hf.Task(schema=s2),
@@ -224,6 +225,7 @@ def test_merge_jobscript_multi_dependence_non_array_source(null_config, tmp_path
     )
     wk = hf.Workflow.from_template_data(
         template_name="wk_test_merge",
+        path=tmp_path,
         tasks=[
             hf.Task(schema=s1),
             hf.Task(schema=s2, repeats=2),
