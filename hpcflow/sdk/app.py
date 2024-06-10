@@ -1143,14 +1143,14 @@ class BaseApp(metaclass=Singleton):
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def template_components_from_json_like(self, json_like) -> None:
-        cls_lookup = {
+    def template_components_from_json_like(self, json_like) -> dict[str, Any]:
+        cls_lookup: dict[str, ObjectList[Any]] = {
             "parameters": self.ParametersList,
             "command_files": self.CommandFilesList,
             "environments": self.EnvironmentsList,
             "task_schemas": self.TaskSchemasList
         }
-        tc = {}
+        tc: dict[str, Any] = {}
         for k, v in cls_lookup.items():
             tc[k] = v.from_json_like(
                 json_like.get(k, {}),

@@ -1,6 +1,5 @@
 from __future__ import annotations
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass, field
@@ -11,13 +10,13 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, ClassVar, Dict, override, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, override, overload, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
-from fsspec.implementations.local import LocalFileSystem
-from fsspec.implementations.zip import ZipFileSystem
+from fsspec.implementations.local import LocalFileSystem  # type: ignore
+from fsspec.implementations.zip import ZipFileSystem  # type: ignore
 import numpy as np
-from fsspec.core import url_to_fs
+from fsspec.core import url_to_fs  # type: ignore
 import rich.console
 
 from hpcflow.sdk import app
@@ -59,17 +58,24 @@ from hpcflow.sdk.core.errors import (
     WorkflowSubmissionFailure,
 )
 if TYPE_CHECKING:
-    from fsspec import AbstractFileSystem
+    from collections.abc import Iterable, Iterator, Mapping
+    from typing import Literal, Protocol, Self
+    from fsspec import AbstractFileSystem as AFS  # type: ignore
     from ..app import BaseApp
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .task import Task, WorkflowTask
     from .loop import Loop, WorkflowLoop
-    from .object_list import WorkflowTaskList, WorkflowLoopList
+    from .object_list import (
+        WorkflowTaskList, WorkflowLoopList, ParametersList, CommandFilesList,
+        EnvironmentsList, TaskSchemasList)
     from .parameters import InputSource
     from ..submission.submission import Submission
     from ..submission.jobscript import Jobscript
     from ..persistence.base import AnySElement, AnySElementIter, AnySParameter, AnySTask
+
+    class AbstractFileSystem(Protocol, AFS):
+        pass
 
 
 class _DummyPersistentWorkflow:
@@ -145,14 +151,14 @@ class WorkflowTemplate(JSONLike):
 
     name: str
     doc: list[str] | str | None = field(repr=False, default=None)
-    tasks: list[Task] | None = field(default_factory=list)
-    loops: list[Loop] | None = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
+    loops: list[Loop] = field(default_factory=list)
     workflow: Workflow | None = None
     resources: dict[str, Dict] | None = None
     environments: dict[str, dict[str, Any]] | None = None
     env_presets: str | list[str] | None = None
     source_file: str | None = field(default=None, compare=False)
-    store_kwargs: Dict | None = field(default_factory=dict)
+    store_kwargs: Dict = field(default_factory=dict)
     merge_resources: bool = True
     merge_envs: bool = True
 
@@ -176,7 +182,6 @@ class WorkflowTemplate(JSONLike):
             self.doc = [self.doc]
 
     def _merge_envs_into_task_resources(self):
-
         self.merge_envs = False
 
         # disallow both `env_presets` and `environments` specifications:
@@ -281,28 +286,32 @@ class WorkflowTemplate(JSONLike):
             parameters = cls.app.ParametersList.from_json_like(
                 params_dat, shared_data=cls.app.template_components
             )
-            cls.app.parameters.add_objects(parameters, skip_duplicates=True)
+            app_params: ParametersList = cls.app.parameters
+            app_params.add_objects(parameters, skip_duplicates=True)
 
         cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
             cmd_files = cls.app.CommandFilesList.from_json_like(
                 cmd_files_dat, shared_data=cls.app.template_components
             )
-            cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
+            app_files: CommandFilesList = cls.app.command_files
+            app_files.add_objects(cmd_files, skip_duplicates=True)
 
         envs_dat = tcs.pop("environments", [])
         if envs_dat:
             envs = cls.app.EnvironmentsList.from_json_like(
                 envs_dat, shared_data=cls.app.template_components
             )
-            cls.app.envs.add_objects(envs, skip_duplicates=True)
+            app_envs: EnvironmentsList = cls.app.envs
+            app_envs.add_objects(envs, skip_duplicates=True)
 
         ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
             task_schemas = cls.app.TaskSchemasList.from_json_like(
                 ts_dat, shared_data=cls.app.template_components
             )
-            cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
+            app_schemas: TaskSchemasList = cls.app.task_schemas
+            app_schemas.add_objects(task_schemas, skip_duplicates=True)
 
         return cls.from_json_like(data, shared_data=cls.app.template_components)
 
@@ -325,14 +334,14 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_YAML_str(string, variables=variables))
 
     @classmethod
-    def _check_name(cls, data: Dict, path: PathLike) -> str:
+    def _check_name(cls, data: Dict, path: PathLike) -> None:
         """Check the workflow template data has a "name" key. If not, add a "name" key,
         using the file path stem.
 
         Note: this method mutates `data`.
 
         """
-        if "name" not in data:
+        if "name" not in data and path is not None:
             name = Path(path).stem
             cls.app.logger.info(
                 f"using file name stem ({name!r}) as the workflow template name."
@@ -407,7 +416,7 @@ class WorkflowTemplate(JSONLike):
     def from_file(
         cls,
         path: PathLike,
-        template_format: str | None = None,
+        template_format: Literal["yaml", "json"] | None = None,
         variables: dict[str, str] | None = None,
     ) -> WorkflowTemplate:
         """Load from either a YAML or JSON file, depending on the file extension.
@@ -423,20 +432,21 @@ class WorkflowTemplate(JSONLike):
             String variables to substitute in the file given by `path`.
 
         """
-        path = Path(path)
+        path_ = Path(path or ".")
         fmt = template_format.lower() if template_format else None
-        if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
-            return cls.from_YAML_file(path, variables=variables)
-        elif fmt == "json" or path.suffix in (".json", ".jsonc"):
-            return cls.from_JSON_file(path, variables=variables)
+        if fmt == "yaml" or path_.suffix in (".yaml", ".yml"):
+            return cls.from_YAML_file(path_, variables=variables)
+        elif fmt == "json" or path_.suffix in (".json", ".jsonc"):
+            return cls.from_JSON_file(path_, variables=variables)
         else:
             raise ValueError(
-                f"Unknown workflow template file extension {path.suffix!r}. Supported "
+                f"Unknown workflow template file extension {path_.suffix!r}. Supported "
                 f"template formats are {ALL_TEMPLATE_FORMATS!r}."
             )
 
     def _add_empty_task(self, task: Task, new_index: int, insert_ID: int) -> None:
         """Called by `Workflow._add_empty_task`."""
+        assert self.workflow
         new_task_name = self.workflow._get_new_task_unique_name(task, new_index)
 
         task._insert_ID = insert_ID
@@ -449,6 +459,7 @@ class WorkflowTemplate(JSONLike):
     def _add_empty_loop(self, loop: Loop) -> None:
         """Called by `Workflow._add_empty_loop`."""
 
+        assert self.workflow
         if not loop.name:
             existing = [i.name for i in self.loops]
             new_idx = len(self.loops)
@@ -476,28 +487,28 @@ def resolve_fsspec(path: PathLike, **kwargs) -> tuple[AbstractFileSystem, str, s
 
     """
 
-    path = str(path)
+    path_s = str(path)
     fs: AbstractFileSystem
-    if path.endswith(".zip"):
+    if path_s.endswith(".zip"):
         # `url_to_fs` does not seem to work for zip combos e.g. `zip::ssh://`, so we
         # construct a `ZipFileSystem` ourselves and assume it is signified only by the
         # file extension:
         fs, pw = ask_pw_on_auth_exc(
             ZipFileSystem,
-            fo=path,
+            fo=path_s,
             mode="r",
             target_options=kwargs or {},
             add_pw_to="target_options",
         )
-        path = ""
+        path_s = ""
 
     else:
-        (fs, path), pw = ask_pw_on_auth_exc(url_to_fs, str(path), **kwargs)
-        path = str(Path(path).as_posix())
+        (fs, path_s), pw = ask_pw_on_auth_exc(url_to_fs, path_s, **kwargs)
+        path_s = str(Path(path_s).as_posix())
         if isinstance(fs, LocalFileSystem):
-            path = str(Path(path).resolve())
+            path_s = str(Path(path_s).resolve())
 
-    return fs, path, pw
+    return fs, path_s, pw
 
 
 class Workflow:
@@ -512,7 +523,7 @@ class Workflow:
         self,
         workflow_ref: str | Path | int,
         store_fmt: str | None = None,
-        fs_kwargs: Dict | None = None,
+        fs_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -528,27 +539,29 @@ class Workflow:
 
         if isinstance(workflow_ref, int):
             path = self.app._get_workflow_path_from_local_ID(workflow_ref)
+        elif isinstance(workflow_ref, str):
+            path = Path(workflow_ref)
         else:
             path = workflow_ref
 
         self.app.logger.info(f"loading workflow from path: {path}")
         fs_path = str(path)
-        fs, path, _ = resolve_fsspec(fs_path or "", **(fs_kwargs or {}))
+        fs, path_s, _ = resolve_fsspec(path, **(fs_kwargs or {}))
         store_fmt = store_fmt or infer_store(fs_path, fs)
         store_cls = store_cls_from_str(store_fmt)
 
-        self.path = path
+        self.path = path_s
 
         # assigned on first access:
-        self._ts_fmt = None
-        self._ts_name_fmt = None
-        self._creation_info = None
-        self._name = None
-        self._template = None
-        self._template_components = None
-        self._tasks = None
-        self._loops = None
-        self._submissions = None
+        self._ts_fmt: None = None
+        self._ts_name_fmt: None = None
+        self._creation_info: dict[str, Any] | None = None
+        self._name: None = None
+        self._template: None = None
+        self._template_components: dict[str, Any] | None = None
+        self._tasks: WorkflowTaskList | None = None
+        self._loops: WorkflowLoopList | None = None
+        self._submissions: list[Submission] | None = None
 
         self._store = store_cls(self.app, self, self.path, fs)
         self._in_batch_mode = False  # flag to track when processing batch updates
@@ -556,7 +569,7 @@ class Workflow:
         # store indices of updates during batch update, so we can revert on failure:
         self._pending = self._get_empty_pending()
 
-    def reload(self):
+    def reload(self) -> Self:
         """Reload the workflow from disk."""
         return self.__class__(self.url)
 
@@ -1201,7 +1214,7 @@ class Workflow:
                 self._add_loop(loop)
 
     @property
-    def creation_info(self):
+    def creation_info(self) -> dict[str, Any]:
         if not self._creation_info:
             info = self._store.get_creation_info()
             info["create_time"] = (
@@ -1298,7 +1311,7 @@ class Workflow:
         if self._submissions is None:
             self.app.persistence_logger.debug("loading workflow submissions")
             with self._store.cached_load():
-                subs = []
+                subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
                     sub_js = {"index": idx, **sub_dat}
                     sub = self.app.Submission.from_json_like(sub_js)
@@ -2274,8 +2287,36 @@ class Workflow:
 
         return exceptions, submitted_js
 
+    @overload
     def submit(
-        self,
+        self, *,
+        ignore_errors: bool | None = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool | None = False,
+        wait: bool | None = False,
+        add_to_known: bool | None = True,
+        return_idx: Literal[True],
+        tasks: list[int] | None = None,
+        cancel: bool | None = False,
+        status: bool | None = True,
+    ) -> dict[int, int]: ...
+
+    @overload
+    def submit(
+        self, *,
+        ignore_errors: bool | None = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool | None = False,
+        wait: bool | None = False,
+        add_to_known: bool | None = True,
+        return_idx: Literal[False] | None = False,
+        tasks: list[int] | None = None,
+        cancel: bool | None = False,
+        status: bool | None = True,
+    ) -> None: ...
+
+    def submit(
+        self, *,
         ignore_errors: bool | None = False,
         JS_parallelism: bool | None = None,
         print_stdout: bool | None = False,
@@ -2285,7 +2326,7 @@ class Workflow:
         tasks: list[int] | None = None,
         cancel: bool | None = False,
         status: bool | None = True,
-    ) -> dict[int, int]:
+    ) -> dict[int, int] | None:
         """Submit the workflow for execution.
 
         Parameters
@@ -2345,7 +2386,7 @@ class Workflow:
                     raise
 
         if exceptions:
-            msg = "\n" + "\n\n".join([i.message for i in exceptions])
+            msg = "\n" + "\n\n".join(i.message for i in exceptions)
             if status:
                 status.stop()
             raise WorkflowSubmissionFailure(msg)
@@ -2361,6 +2402,7 @@ class Workflow:
 
         if return_idx:
             return submitted_js
+        return None
 
     def wait(self, sub_js: Dict | None = None):
         """Wait for the completion of specified/all submitted jobscripts."""
@@ -2903,7 +2945,7 @@ class Workflow:
             id_lst.extend(list(sub.all_EAR_IDs))
         return id_lst
 
-    def check_loop_termination(self, loop_name: str, run_ID: int) -> bool:
+    def check_loop_termination(self, loop_name: str, run_ID: int) -> None:
         """Check if a loop should terminate, given the specified completed run, and if so,
         set downstream iteration runs to be skipped."""
         loop = self.loops.get(loop_name)
@@ -2921,12 +2963,15 @@ class Workflow:
             for run_ID in to_skip:
                 self.set_EAR_skip(run_ID)
 
-    def get_loop_map(self, id_lst: list[int] | None = None):
+    def get_loop_map(
+        self, id_lst: list[int] | None = None
+    ) -> Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]]:
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
             id_lst = self.get_all_submission_run_IDs()
-        loop_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        loop_map: Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]] = \
+            defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         runs = self.get_EARs_from_IDs(id_lst)
         for i in runs:
             for loop_name, iter_idx in i.element_iteration.loop_idx.items():
@@ -2936,7 +2981,7 @@ class Workflow:
 
     def get_iteration_final_run_IDs(
         self,
-        loop_map: Dict | None = None,
+        loop_map: Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]] | None = None,
         id_lst: list[int] | None = None,
     ) -> dict[str, list[int]]:
         """Retrieve the run IDs of those runs that correspond to the final action within
@@ -2951,7 +2996,7 @@ class Workflow:
         loop_map = loop_map or self.get_loop_map(id_lst)
 
         # find final EARs for each loop:
-        final_runs = defaultdict(list)
+        final_runs: dict[str, list[int]] = defaultdict(list)
         for loop_name, dat in loop_map.items():
             for _, elem_dat in dat.items():
                 for _, iter_dat in elem_dat.items():

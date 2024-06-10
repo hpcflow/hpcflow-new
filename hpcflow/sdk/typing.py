@@ -1,7 +1,7 @@
-from typing import TypeVar
+from typing import Union
 from pathlib import Path
 
-PathLike = TypeVar("PathLike", str, Path, None)  # TODO: maybe don't need TypeVar?
+PathLike = Union[str, Path, None]
 
 # EAR: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
 E_idx_type = tuple[int, int]
