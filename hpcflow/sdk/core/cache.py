@@ -1,29 +1,56 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Set, Dict
+from typing import Optional, Set, Dict
 
 from hpcflow.sdk.log import TimeIt
 
 
 @dataclass
-class DependencyCache:
-    """Class to bulk-retrieve dependencies between elements, iterations, and runs."""
+class ObjectCache:
+    """Class to bulk-retrieve and store elements, iterations, runs and their various
+    dependencies."""
 
-    run_dependencies: Dict[int, Set]
-    run_dependents: Dict[int, Set]
-    iter_run_dependencies: Dict[int, Set]
-    iter_iter_dependencies: Dict[int, Set]
-    elem_iter_dependencies: Dict[int, Set]
-    elem_elem_dependencies: Dict[int, Set]
-    elem_elem_dependents: Dict[int, Set]
-    elem_elem_dependents_rec: Dict[int, Set]
+    elements: Optional[Dict] = None
+    iterations: Optional[Dict] = None
+    runs: Optional[Dict] = None
 
-    elements: Dict
-    iterations: Dict
+    run_dependencies: Optional[Dict[int, Set]] = None
+    run_dependents: Optional[Dict[int, Set]] = None
+    iter_run_dependencies: Optional[Dict[int, Set]] = None
+    iter_iter_dependencies: Optional[Dict[int, Set]] = None
+    elem_iter_dependencies: Optional[Dict[int, Set]] = None
+    elem_elem_dependencies: Optional[Dict[int, Set]] = None
+    elem_elem_dependents: Optional[Dict[int, Set]] = None
+    elem_elem_dependents_rec: Optional[Dict[int, Set]] = None
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow):
+    def build(
+        cls,
+        workflow,
+        dependencies=False,
+        elements=False,
+        iterations=False,
+        runs=False,
+    ):
+        kwargs = {}
+        if dependencies:
+            kwargs.update(cls._get_dependencies(workflow))
+
+        if elements:
+            kwargs["elements"] = workflow.get_all_elements()
+
+        if iterations:
+            kwargs["iterations"] = workflow.get_all_element_iterations()
+
+        if runs:
+            kwargs["runs"] = workflow.get_all_EARs()
+
+        return cls(**kwargs)
+
+    @classmethod
+    @TimeIt.decorator
+    def _get_dependencies(cls, workflow):
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs
@@ -125,10 +152,7 @@ class DependencyCache:
         elem_elem_dependents = dict(elem_elem_dependents)
         elem_elem_dependents_rec = dict(elem_elem_dependents_rec)
 
-        elements = workflow.get_all_elements()
-        iterations = workflow.get_all_element_iterations()
-
-        return cls(
+        return dict(
             run_dependencies=run_dependencies,
             run_dependents=run_dependents,
             iter_run_dependencies=iter_run_dependencies,
@@ -137,6 +161,4 @@ class DependencyCache:
             elem_elem_dependencies=elem_elem_dependencies,
             elem_elem_dependents=elem_elem_dependents,
             elem_elem_dependents_rec=elem_elem_dependents_rec,
-            elements=elements,
-            iterations=iterations,
         )

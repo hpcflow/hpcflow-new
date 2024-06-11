@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
@@ -435,7 +435,12 @@ class WorkflowLoop:
         return children
 
     @TimeIt.decorator
-    def add_iteration(self, parent_loop_indices=None, cache: Optional[LoopCache] = None):
+    def add_iteration(
+        self,
+        parent_loop_indices=None,
+        cache: Optional[LoopCache] = None,
+        status: Optional[Any] = None,
+    ):
         if not cache:
             cache = LoopCache.build(self.workflow)
         parent_loops = self.get_parent_loops()
@@ -744,7 +749,14 @@ class WorkflowLoop:
         # add iterations to fixed-number-iteration children only:
         for child in child_loops[::-1]:
             if child.num_iterations is not None:
-                for _ in range(child.num_iterations - 1):
+                if status:
+                    status_prev = status.status.rstrip(".")
+                for iter_idx in range(child.num_iterations - 1):
+                    if status:
+                        status.update(
+                            f"{status_prev} --> ({child.name!r}): iteration "
+                            f"{iter_idx + 2}/{child.num_iterations}."
+                        )
                     par_idx = {k: 0 for k in child.parents}
                     child.add_iteration(
                         parent_loop_indices={

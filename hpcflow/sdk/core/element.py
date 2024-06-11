@@ -232,6 +232,7 @@ class ElementResources(JSONLike):
         else:
             return self.__dict__ == other.__dict__
 
+    @TimeIt.decorator
     def get_jobscript_hash(self):
         """Get hash from all arguments that distinguish jobscripts."""
 
@@ -290,20 +291,24 @@ class ElementResources(JSONLike):
         return ("num_cores",)  # TODO: filter on `parallel_mode` later
 
     @staticmethod
+    @TimeIt.decorator
     def get_default_os_name():
         return os.name
 
     @classmethod
+    @TimeIt.decorator
     def get_default_shell(cls):
         return cls.app.config.default_shell
 
     @classmethod
+    @TimeIt.decorator
     def get_default_scheduler(cls, os_name, shell_name):
         if os_name == "nt" and "wsl" in shell_name:
             # provide a "*_posix" default scheduler on windows if shell is WSL:
             return "direct_posix"
         return cls.app.config.default_scheduler
 
+    @TimeIt.decorator
     def set_defaults(self):
         if self.os_name is None:
             self.os_name = self.get_default_os_name()
@@ -329,6 +334,7 @@ class ElementResources(JSONLike):
         self.scheduler_args["options"] = opts
         self.scheduler_args = {**cfg_defs, **self.scheduler_args}
 
+    @TimeIt.decorator
     def validate_against_machine(self):
         """Validate the values for `os_name`, `shell` and `scheduler` against those
         supported on this machine (as specified by the app configuration)."""
@@ -1189,6 +1195,7 @@ class Element:
             raise_on_unset=raise_on_unset,
         )
 
+    @TimeIt.decorator
     def get_EAR_dependencies(
         self, as_objects: bool = False
     ) -> List[Union[int, app.ElementActionRun]]:

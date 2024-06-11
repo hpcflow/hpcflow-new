@@ -190,3 +190,7 @@ class MissingEnvironmentFileError(ConfigError):
             f"The environment file {file_name!r} cannot be found. \n{err!s}"
         )
         super().__init__(self.message)
+
+
+class ConfigReadOnlyError(ConfigError):
+    pass

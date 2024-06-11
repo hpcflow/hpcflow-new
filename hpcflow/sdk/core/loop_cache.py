@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from hpcflow.sdk import app
 from hpcflow.sdk.core.utils import nth_key
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.core.cache import DependencyCache
+from hpcflow.sdk.core.cache import ObjectCache
 
 
 @dataclass
@@ -83,7 +83,7 @@ class LoopCache:
     def build(cls, workflow: "app.Workflow", loops: Optional[List["app.Loop"]] = None):
         """Build a cache of data for use in adding loops and iterations."""
 
-        deps_cache = DependencyCache.build(workflow)
+        deps_cache = ObjectCache.build(workflow, dependencies=True, elements=True)
 
         loops = list(workflow.template.loops) + (loops or [])
         task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
