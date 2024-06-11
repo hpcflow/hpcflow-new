@@ -602,7 +602,7 @@ class ResourceList(ObjectList[ResourceSpec]):
         return as_dict, shared_data
 
     @classmethod
-    def normalise(cls, resources) -> Self:
+    def normalise(cls, resources: ResourceSpec | None | dict | list) -> Self:
         """Generate from resource-specs specified in potentially several ways."""
 
         def _ensure_non_persistent(resource_spec):
@@ -615,24 +615,22 @@ class ResourceList(ObjectList[ResourceSpec]):
             return resource_spec
 
         app = cls._app
-        if isinstance(resources, app.ResourceSpec):
-            return resources
         if not resources:
-            resources = cls([app.ResourceSpec()])
+            return cls([app.ResourceSpec()])
         elif isinstance(resources, dict):
-            resources = cls.from_json_like(resources)
+            return cls.from_json_like(resources)
         elif isinstance(resources, list):
             for idx, res_i in enumerate(resources):
                 if isinstance(res_i, dict):
                     resources[idx] = app.ResourceSpec.from_json_like(res_i)
                 else:
                     resources[idx] = _ensure_non_persistent(resources[idx])
-            resources = cls(resources)
-
-        return resources
+            return cls(resources)
+        else:
+            return cls([resources])
 
     def get_scopes(self) -> tuple[ActionScope, ...]:
-        return tuple(i.scope for i in self._objects)
+        return tuple(i.scope for i in self._objects if i.scope is not None)
 
     def merge_other(self, other: ResourceList):
         """Merge lower-precedence other resource list into this resource list."""

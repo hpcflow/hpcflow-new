@@ -527,9 +527,10 @@ class _FileContentsSpecifier(JSONLike):
         if self._workflow:
             return self._workflow
         elif self._element_set:
-            return self._element_set.task_template.workflow_template.workflow
-        else:
-            raise NotImplementedError
+            w_tmpl = self._element_set.task_template.workflow_template
+            if w_tmpl and w_tmpl.workflow:
+                return w_tmpl.workflow
+        raise NotImplementedError
 
 
 class InputFile(_FileContentsSpecifier):

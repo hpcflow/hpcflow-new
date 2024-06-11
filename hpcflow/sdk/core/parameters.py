@@ -20,6 +20,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ParametersList
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
+from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_enum_by_name_or_val,
@@ -248,7 +249,7 @@ class SchemaInput(SchemaParameter):
     """
 
     app: ClassVar[BaseApp]
-    _task_schema = None  # assigned by parent TaskSchema
+    _task_schema: TaskSchema | None = None  # assigned by parent TaskSchema
 
     _child_objects = (
         ChildObjectSpec(
@@ -415,7 +416,8 @@ class SchemaInput(SchemaParameter):
                 return NullDefault.NULL
 
     @property
-    def task_schema(self):
+    def task_schema(self) -> TaskSchema:
+        assert self._task_schema is not None
         return self._task_schema
 
     @property
@@ -826,7 +828,9 @@ class ValueSequence(JSONLike):
         if self._workflow:
             return self._workflow
         elif self._element_set:
-            return self._element_set.task_template.workflow_template.workflow
+            tmpl = self._element_set.task_template.workflow_template
+            if tmpl:
+                return tmpl.workflow
         return None
 
     @property
@@ -1148,9 +1152,15 @@ class AbstractInputValue(JSONLike):
         if self._workflow:
             return self._workflow
         elif self._element_set:
-            return self._element_set.task_template.workflow_template.workflow
-        elif self._schema_input:
-            return self._schema_input.task_schema.task_template.workflow_template.workflow
+            w_tmpl = self._element_set.task_template.workflow_template
+            if w_tmpl:
+                return w_tmpl.workflow
+        if self._schema_input:
+            t_tmpl = self._schema_input.task_schema.task_template
+            if t_tmpl:
+                w_tmpl = t_tmpl.workflow_template
+                if w_tmpl:
+                    return w_tmpl.workflow
         return None
 
     @property

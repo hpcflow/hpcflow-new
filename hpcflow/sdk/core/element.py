@@ -565,8 +565,8 @@ class ElementIteration:
     @overload
     def get_parameter_sources(
         self,
-        *,
         path: str | None,
+        *,
         action_idx: int | None,
         run_idx: int = -1,
         typ: str | None = None,
@@ -577,8 +577,8 @@ class ElementIteration:
     @overload
     def get_parameter_sources(
         self,
-        *,
         path: str | None = None,
+        *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,
@@ -589,8 +589,8 @@ class ElementIteration:
     @TimeIt.decorator
     def get_parameter_sources(
         self,
-        *,
         path: str | None = None,
+        *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,

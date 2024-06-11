@@ -1,6 +1,6 @@
 from typing import Any
 
-import zarr
+import zarr  # type: ignore
 import numpy as np
 
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container

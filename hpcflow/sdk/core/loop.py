@@ -730,6 +730,7 @@ class WorkflowLoop:
 
         # same task/element, but update iteration to the just-added
         # iteration:
+        assert orig_inp_src.task_source_type is not None
         key_prefix = orig_inp_src.task_source_type.name.lower()
         prev_dat_idx_key = f"{key_prefix}s.{inp.typ}"
         new_sources: list[tuple[int, int]] = []

@@ -362,20 +362,47 @@ class ElementActionRun:
             run_idx=self.index,
         )
 
+    @overload
+    def get_parameter_sources(
+        self, *,
+        path: str | None = None,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> dict[str, dict[str, Any]]: ...
+
+    @overload
+    def get_parameter_sources(
+        self, *,
+        path: str | None = None,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]: ...
+
     @TimeIt.decorator
     def get_parameter_sources(
-        self,
+        self, *,
         path: str | None = None,
         typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        if as_strings:
+            return self.element_iteration.get_parameter_sources(
+                path,
+                action_idx=self.element_action.action_idx,
+                run_idx=self.index,
+                typ=typ,
+                as_strings=True,
+                use_task_index=use_task_index,
+            )
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
             typ=typ,
-            as_strings=as_strings,
+            as_strings=False,
             use_task_index=use_task_index,
         )
 
@@ -409,9 +436,7 @@ class ElementActionRun:
 
         out: list[int] = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            if not isinstance(src, list):
-                src = [src]
-            for src_i in src:
+            for src_i in (src if isinstance(src, list) else [src]):
                 EAR_ID_i: int = src_i["EAR_ID"]
                 if EAR_ID_i != self.id_:
                     # don't record a self dependency!
@@ -433,9 +458,7 @@ class ElementActionRun:
         out: dict[str, dict[str, Any]] = {}
         wanted_types = ("local_input", "default_input")
         for k, v in self.get_parameter_sources().items():
-            if not isinstance(v, list):
-                v = [v]
-            for v_i in v:
+            for v_i in (v if isinstance(v, list) else [v]):
                 if (
                     v_i["type"] in wanted_types
                     and v_i["task_insert_ID"] != self.task.insert_ID
@@ -872,6 +895,28 @@ class ElementAction:
             run_idx=run_idx,
         )
 
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> dict[str, dict[str, Any]]: ...
+
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]: ...
+
     def get_parameter_sources(
         self,
         path: str | None = None,
@@ -880,12 +925,21 @@ class ElementAction:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        if as_strings:
+            return self.element_iteration.get_parameter_sources(
+                path,
+                action_idx=self.action_idx,
+                run_idx=run_idx,
+                typ=typ,
+                as_strings=True,
+                use_task_index=use_task_index,
+            )
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
             typ=typ,
-            as_strings=as_strings,
+            as_strings=False,
             use_task_index=use_task_index,
         )
 
@@ -1171,8 +1225,8 @@ class Action(JSONLike):
         environments: list[ActionEnvironment] | None = None,
         commands: list[Command] | None = None,
         script: str | None = None,
-        script_data_in: str | None = None,
-        script_data_out: str | None = None,
+        script_data_in: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
+        script_data_out: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
         script_data_files_use_opt: bool | None = False,
         script_exe: str | None = None,
         script_pass_env_spec: bool | None = False,
@@ -1198,8 +1252,8 @@ class Action(JSONLike):
         """
         self.commands = commands or []
         self.script = script
-        self.script_data_in = script_data_in
-        self.script_data_out = script_data_out
+        self._script_data_in = script_data_in
+        self._script_data_out = script_data_out
         self.script_data_files_use_opt = (
             script_data_files_use_opt if not self.script_is_python else True
         )
@@ -1223,21 +1277,28 @@ class Action(JSONLike):
         self._set_parent_refs()
 
     def process_script_data_formats(self):
-        self.script_data_in = self._process_script_data_in(self.script_data_in)
-        self.script_data_out = self._process_script_data_out(self.script_data_out)
+        self.script_data_in = self.__process_script_data(self._script_data_in, "inputs")
+        self.script_data_out = self.__process_script_data(self._script_data_out, "outputs")
 
-    def __process_script_data_format(self, data_fmt: dict[str, str] | dict[str, dict[str, str]],
-                                     prefix: str, param_names: list[str]) -> dict[str, dict[str, str]]:
+    def __process_script_data_str(
+            self, data_fmt: str, param_names: list[str]) -> dict[str, dict[str, str]]:
+        # include all input parameters, using specified data format
+        data_fmt = data_fmt.lower()
+        return {k: {"format": data_fmt} for k in param_names}
+
+    def __process_script_data_dict(
+        self, data_fmt: dict[str, str] | dict[str, dict[str, str]], prefix: str,
+        param_names: list[str]
+    ) -> dict[str, dict[str, str]]:
         _all_other_sym = "*"
         all_params: dict[str, dict[str, str]] = {}
         for k, v in data_fmt.items():
             # values might be strings, or dicts with "format" and potentially other
             # kwargs:
             if isinstance(v, dict):
-                v = dict(v)
-                fmt = v.pop("format").lower()
                 # Make sure format is first key
-                all_params[k] = {"format": fmt, **v}
+                v = dict(v)
+                all_params[k] = {"format": v.pop("format").lower(), **v}
             else:
                 all_params[k] = {"format": v.lower()}
 
@@ -1251,10 +1312,11 @@ class Action(JSONLike):
                     for i in param_names:
                         if i.startswith(k):
                             multis[i] = copy.deepcopy(k_fmt)
-            all_params = {
-                **multis,
-                **all_params,
-            }
+            if multis:
+                all_params = {
+                    **multis,
+                    **all_params,
+                }
 
         if _all_other_sym in all_params:
             # replace catch-all with all other input/output names:
@@ -1265,19 +1327,17 @@ class Action(JSONLike):
                 all_params[i] = copy.deepcopy(other_fmt)
         return all_params
 
-    def _process_script_data_format(
-        self, data_fmt: str | dict[str, str] | dict[str, dict[str, str]], prefix: str
+    def __process_script_data(
+        self, data_fmt: str | dict[str, str] | dict[str, dict[str, str]] | None, prefix: str
     ) -> dict[str, dict[str, str]]:
         if not data_fmt:
             return {}
 
         param_names = self.get_parameter_names(prefix)
         if isinstance(data_fmt, str):
-            # include all input parameters, using specified data format
-            data_fmt = data_fmt.lower()
-            all_params = {k: {"format": data_fmt} for k in param_names}
+            all_params = self.__process_script_data_str(data_fmt, param_names)
         else:
-            all_params = self.__process_script_data_format(data_fmt, prefix, param_names)
+            all_params = self.__process_script_data_dict(data_fmt, prefix, param_names)
 
         # validation:
         allowed_keys = ("format", "all_iterations")
@@ -1304,16 +1364,6 @@ class Action(JSONLike):
                     )
 
         return all_params
-
-    def _process_script_data_in(
-        self, data_fmt: str | dict[str, str]
-    ) -> dict[str, dict[str, str]]:
-        return self._process_script_data_format(data_fmt, "inputs")
-
-    def _process_script_data_out(
-        self, data_fmt: str | dict[str, str]
-    ) -> dict[str, dict[str, str]]:
-        return self._process_script_data_format(data_fmt, "outputs")
 
     @property
     def script_data_in_grouped(self) -> dict[str, list[str]]:

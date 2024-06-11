@@ -1,6 +1,7 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict
+from typing import ClassVar, Dict
 
 
 class Shell(ABC):
@@ -11,6 +12,8 @@ class Shell(ABC):
     that combination.
 
     """
+
+    JS_EXT: ClassVar[str]
 
     def __init__(self, executable=None, os_args=None):
         self._executable = executable or self.DEFAULT_EXE

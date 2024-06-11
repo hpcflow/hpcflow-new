@@ -158,7 +158,7 @@ class WorkflowTemplate(JSONLike):
     tasks: list[Task] = field(default_factory=list)
     loops: list[Loop] = field(default_factory=list)
     workflow: Workflow | None = None
-    resources: dict[str, Dict] | ResourceList | None = None
+    resources: ResourceList | None = None
     environments: dict[str, dict[str, Any]] | None = None
     env_presets: str | list[str] | None = None
     source_file: str | None = field(default=None, compare=False)
@@ -1050,7 +1050,8 @@ class Workflow:
             template_name,
             tasks=tasks or [],
             loops=loops or [],
-            resources=resources,
+            resources=(None if resources is None else
+                       cls.app.ResourceList.normalise(resources)),
         )
         return cls.from_template(
             template,
