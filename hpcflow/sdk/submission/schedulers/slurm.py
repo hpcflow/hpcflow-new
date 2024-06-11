@@ -390,11 +390,11 @@ class SlurmPosix(Scheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: list[tuple[Any, ...]],
+        deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
         cmd = [self.submit_cmd, "--parsable"]
 
-        dep_cmd = []
+        dep_cmd: list[str] = []
         for job_ID, is_array_dep in deps.values():
             dep_i_str = ""
             if is_array_dep:  # array dependency
@@ -421,30 +421,31 @@ class SlurmPosix(Scheduler):
         return job_ID
 
     @staticmethod
-    def _parse_job_IDs(job_ID_str: str):
+    def _parse_job_IDs(job_ID_str: str) -> tuple[str, None | list[int]]:
         """Parse the job ID column from the `squeue` command (the `%i` format option)."""
         parts = job_ID_str.split("_")
         base_job_ID, arr_idx = parts if len(parts) == 2 else (parts[0], None)
-        if arr_idx is not None:
-            try:
-                arr_idx = [int(arr_idx) - 1]  # zero-index
-            except ValueError:
-                # split on commas (e.g. "[5,8-40]")
-                _arr_idx = []
-                for i_range_str in arr_idx.strip("[]").split(","):
-                    if "-" in i_range_str:
-                        range_parts = i_range_str.split("-")
-                        if "%" in range_parts[1]:
-                            # indicates max concurrent array items; not needed
-                            range_parts[1] = range_parts[1].split("%")[0]
-                        i_args = [int(j) - 1 for j in range_parts]
-                        _arr_idx.extend(range(i_args[0], i_args[1] + 1))
-                    else:
-                        _arr_idx.append(int(i_range_str) - 1)
-                arr_idx = _arr_idx
-        return base_job_ID, arr_idx
+        assert base_job_ID is not None
+        if arr_idx is None:
+            return base_job_ID, None
+        try:
+            return base_job_ID, [int(arr_idx) - 1]  # zero-index
+        except ValueError:
+            # split on commas (e.g. "[5,8-40]")
+            _arr_idx: list[int] = []
+            for i_range_str in arr_idx.strip("[]").split(","):
+                if "-" in i_range_str:
+                    range_parts = i_range_str.split("-")
+                    if "%" in range_parts[1]:
+                        # indicates max concurrent array items; not needed
+                        range_parts[1] = range_parts[1].split("%")[0]
+                    i_args = [int(j) - 1 for j in range_parts]
+                    _arr_idx.extend(range(i_args[0], i_args[1] + 1))
+                else:
+                    _arr_idx.append(int(i_range_str) - 1)
+            return base_job_ID, _arr_idx
 
-    def _parse_job_states(self, stdout) -> dict[str, dict[int, JobscriptElementState]]:
+    def _parse_job_states(self, stdout: str) -> dict[str, dict[int, JobscriptElementState]]:
         """Parse output from Slurm `squeue` command with a simple format."""
         info: dict[str, dict[int, JobscriptElementState]] = {}
         for ln in stdout.split("\n"):
@@ -452,7 +453,7 @@ class SlurmPosix(Scheduler):
                 continue
             ln_s = [i.strip() for i in ln.split()]
             base_job_ID, arr_idx = self._parse_job_IDs(ln_s[0])
-            state = self.state_lookup.get(ln_s[1], None)
+            state = self.state_lookup.get(ln_s[1], JobscriptElementState.errored)
 
             entry = info.setdefault(base_job_ID, {})
             for arr_idx_i in arr_idx or ():
@@ -460,7 +461,7 @@ class SlurmPosix(Scheduler):
 
         return info
 
-    def _query_job_states(self, job_IDs):
+    def _query_job_states(self, job_IDs) -> tuple[str, str]:
         """Query the state of the specified jobs."""
         cmd = [
             "squeue",
@@ -473,7 +474,7 @@ class SlurmPosix(Scheduler):
         ]
         return run_cmd(cmd, logger=self.app.submission_logger)
 
-    def _get_job_valid_IDs(self, job_IDs=None):
+    def _get_job_valid_IDs(self, job_IDs: list[str] | None = None) -> list[str]:
         """Get a list of job IDs that are known by the scheduler, optionally filtered by
         specified job IDs."""
 
@@ -486,12 +487,12 @@ class SlurmPosix(Scheduler):
             )
         else:
             known_jobs = set(i.strip() for i in stdout.split("\n") if i.strip())
-        job_IDs = known_jobs.intersection(job_IDs or [])
-
-        return job_IDs
+        if job_IDs is None:
+            return list(known_jobs)
+        return list(known_jobs.intersection(job_IDs))
 
     def get_job_state_info(
-        self, js_refs: list[str] = None
+        self, js_refs: list[str] | None = None
     ) -> dict[str, dict[int, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.

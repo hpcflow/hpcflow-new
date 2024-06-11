@@ -1,8 +1,9 @@
 from __future__ import annotations
 import subprocess
 from textwrap import dedent, indent
+from typing import ClassVar
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.submission.shells import Shell
+from hpcflow.sdk.submission.shells.base import Shell, VersionInfo
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
 
 
@@ -11,13 +12,13 @@ class WindowsPowerShell(Shell):
 
     # TODO: add snippets that can be used in demo task schemas?
 
-    DEFAULT_EXE = "powershell.exe"
+    DEFAULT_EXE: ClassVar[str] = "powershell.exe"
 
-    JS_EXT = ".ps1"
-    JS_INDENT = "    "
-    JS_ENV_SETUP_INDENT = 2 * JS_INDENT
-    JS_SHEBANG = ""
-    JS_HEADER = dedent(
+    JS_EXT: ClassVar[str] = ".ps1"
+    JS_INDENT: ClassVar[str] = "    "
+    JS_ENV_SETUP_INDENT: ClassVar[str] = 2 * JS_INDENT
+    JS_SHEBANG: ClassVar[str] = ""
+    JS_HEADER: ClassVar[str] = dedent(
         """\
         function {workflow_app_alias} {{
             & {{
@@ -60,7 +61,7 @@ class WindowsPowerShell(Shell):
         $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
     """
     )
-    JS_DIRECT_HEADER = dedent(
+    JS_DIRECT_HEADER: ClassVar[str] = dedent(
         """\
         {shebang}
 
@@ -68,7 +69,7 @@ class WindowsPowerShell(Shell):
         {wait_command}
     """
     )
-    JS_MAIN = dedent(
+    JS_MAIN: ClassVar[str] = dedent(
         """\
         $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
         $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
@@ -117,7 +118,7 @@ class WindowsPowerShell(Shell):
         }}
     """
     )
-    JS_ELEMENT_LOOP = dedent(
+    JS_ELEMENT_LOOP: ClassVar[str] = dedent(
         """\
         for ($JS_elem_idx = 0; $JS_elem_idx -lt {num_elements}; $JS_elem_idx += 1) {{
         {main}
@@ -126,14 +127,11 @@ class WindowsPowerShell(Shell):
     """
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def get_direct_submit_command(self, js_path) -> list[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + ["-File", js_path]
 
-    def get_version_info(self, exclude_os: bool = False) -> dict[str, str]:
+    def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get powershell version information.
 
         Parameters
@@ -153,25 +151,22 @@ class WindowsPowerShell(Shell):
         else:
             raise RuntimeError("Failed to parse PowerShell version information.")
 
-        out = {
+        osinfo = {} if exclude_os else get_OS_info_windows()
+        return {
             "shell_name": "powershell",
             "shell_executable": self.executable,
             "shell_version": PS_version,
+            **osinfo
         }
 
-        if not exclude_os:
-            out.update(**get_OS_info_windows())
-
-        return out
-
     @staticmethod
-    def process_app_invoc_executable(app_invoc_exe):
+    def process_app_invoc_executable(app_invoc_exe: str) -> str:
         if " " in app_invoc_exe:
             # use call operator and single-quote the executable path:
             app_invoc_exe = f"& '{app_invoc_exe}'"
         return app_invoc_exe
 
-    def format_stream_assignment(self, shell_var_name, command):
+    def format_stream_assignment(self, shell_var_name, command) -> str:
         return f"${shell_var_name} = {command}"
 
     def format_save_parameter(
@@ -182,7 +177,7 @@ class WindowsPowerShell(Shell):
         EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
-    ):
+    ) -> str:
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
@@ -194,7 +189,7 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str:
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH check-loop "

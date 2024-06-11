@@ -39,7 +39,7 @@ def get_OS_info_POSIX(
 
     """
 
-    def try_subprocess_call(command):
+    def try_subprocess_call(command: list[str]) -> str:
         exc = None
         try:
             proc = subprocess.run(

@@ -1,9 +1,11 @@
+from __future__ import annotations
+from collections.abc import Mapping
 from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
-from typing import Dict
+from typing import ClassVar, cast
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.submission.shells import Shell
+from hpcflow.sdk.submission.shells.base import Shell, VersionInfo
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
@@ -13,13 +15,13 @@ from hpcflow.sdk.submission.shells.os_version import (
 class Bash(Shell):
     """Class to represent using bash on a POSIX OS to generate and submit a jobscript."""
 
-    DEFAULT_EXE = "/bin/bash"
+    DEFAULT_EXE: ClassVar[str] = "/bin/bash"
 
-    JS_EXT = ".sh"
-    JS_INDENT = "  "
-    JS_ENV_SETUP_INDENT = 2 * JS_INDENT
-    JS_SHEBANG = """#!{shebang_executable} {shebang_args}"""
-    JS_HEADER = dedent(
+    JS_EXT: ClassVar[str] = ".sh"
+    JS_INDENT: ClassVar[str] = "  "
+    JS_ENV_SETUP_INDENT: ClassVar[str] = 2 * JS_INDENT
+    JS_SHEBANG: ClassVar[str] = """#!{shebang_executable} {shebang_args}"""
+    JS_HEADER: ClassVar[str] = dedent(
         """\
         {workflow_app_alias} () {{
         (
@@ -39,7 +41,7 @@ class Bash(Shell):
         ELEM_RUN_DIR_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{element_run_dirs_file_path}"
     """
     )
-    JS_SCHEDULER_HEADER = dedent(
+    JS_SCHEDULER_HEADER: ClassVar[str] = dedent(
         """\
         {shebang}
 
@@ -47,7 +49,7 @@ class Bash(Shell):
         {header}
     """
     )
-    JS_DIRECT_HEADER = dedent(
+    JS_DIRECT_HEADER: ClassVar[str] = dedent(
         """\
         {shebang}
 
@@ -55,7 +57,7 @@ class Bash(Shell):
         {wait_command}
     """
     )
-    JS_MAIN = dedent(
+    JS_MAIN: ClassVar[str] = dedent(
         """\
         elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
         elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
@@ -103,7 +105,7 @@ class Bash(Shell):
         done
     """
     )
-    JS_ELEMENT_LOOP = dedent(
+    JS_ELEMENT_LOOP: ClassVar[str] = dedent(
         """\
         for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
         do
@@ -112,7 +114,7 @@ class Bash(Shell):
         cd "$WK_PATH"
     """
     )
-    JS_ELEMENT_ARRAY = dedent(
+    JS_ELEMENT_ARRAY: ClassVar[str] = dedent(
         """\
         JS_elem_idx=$(({scheduler_array_item_var} - 1))
         {main}
@@ -120,17 +122,14 @@ class Bash(Shell):
     """
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @property
-    def linux_release_file(self):
+    def linux_release_file(self) -> str:
         return self.os_args["linux_release_file"]
 
-    def _get_OS_info_POSIX(self):
+    def _get_OS_info_POSIX(self) -> Mapping[str, str]:
         return get_OS_info_POSIX(linux_release_file=self.linux_release_file)
 
-    def get_version_info(self, exclude_os: bool = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get bash version information.
 
         Parameters
@@ -151,24 +150,20 @@ class Bash(Shell):
         else:
             raise RuntimeError("Failed to parse bash version information.")
 
-        out = {
+        return {
             "shell_name": "bash",
             "shell_executable": self.executable,
             "shell_version": bash_version,
+            **({} if exclude_os else self._get_OS_info_POSIX())
         }
 
-        if not exclude_os:
-            out.update(**self._get_OS_info_POSIX())
-
-        return out
+    @staticmethod
+    def process_app_invoc_executable(app_invoc_exe: str) -> str:
+        # escape spaces with a back slash:
+        return app_invoc_exe.replace(" ", r"\ ")
 
     @staticmethod
-    def process_app_invoc_executable(app_invoc_exe):
-        # escape spaces with a back slash:
-        app_invoc_exe = app_invoc_exe.replace(" ", r"\ ")
-        return app_invoc_exe
-
-    def format_stream_assignment(self, shell_var_name, command):
+    def format_stream_assignment(shell_var_name: str, command: str) -> str:
         return f"{shell_var_name}=`{command}`"
 
     def format_save_parameter(
@@ -191,7 +186,7 @@ class Bash(Shell):
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str:
         return (
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" check-loop '
@@ -248,9 +243,9 @@ class Bash(Shell):
 
 
 class WSLBash(Bash):
-    DEFAULT_WSL_EXE = "wsl"
+    DEFAULT_WSL_EXE: ClassVar[str] = "wsl"
 
-    JS_HEADER = Bash.JS_HEADER.replace(
+    JS_HEADER: ClassVar[str] = Bash.JS_HEADER.replace(
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',
     ).replace(
@@ -278,7 +273,7 @@ class WSLBash(Bash):
             and self.WSL_user == other.WSL_user
         )
 
-    def _get_WSL_command(self):
+    def _get_WSL_command(self) -> list[str]:
         out = [self.WSL_executable]
         if self.WSL_distribution:
             out += ["--distribution", self.WSL_distribution]
@@ -294,7 +289,7 @@ class WSLBash(Bash):
     def shebang_executable(self) -> list[str]:
         return super().executable
 
-    def _get_OS_info_POSIX(self):
+    def _get_OS_info_POSIX(self) -> Mapping[str, str]:
         return get_OS_info_POSIX(
             WSL_executable=self._get_WSL_command(),
             use_py=False,
@@ -322,7 +317,7 @@ class WSLBash(Bash):
     def prepare_element_run_dirs(self, run_dirs: list[list[Path]]) -> list[list[str]]:
         return [["/".join(str(j).split("\\")) for j in i] for i in run_dirs]
 
-    def get_version_info(self, exclude_os: bool = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get WSL and bash version information.
 
         Parameters
@@ -333,10 +328,12 @@ class WSLBash(Bash):
         """
         vers_info = super().get_version_info(exclude_os=exclude_os)
 
-        vers_info["shell_name"] = ("wsl+" + vers_info["shell_name"]).lower()
+        vers_info["shell_name"] = ("wsl+" + cast(str, vers_info["shell_name"])).lower()
         vers_info["WSL_executable"] = self.WSL_executable
-        vers_info["WSL_distribution"] = self.WSL_distribution
-        vers_info["WSL_user"] = self.WSL_user
+        if self.WSL_distribution:
+            vers_info["WSL_distribution"] = self.WSL_distribution
+        if self.WSL_user:
+            vers_info["WSL_user"] = self.WSL_user
 
         for key in list(vers_info.keys()):
             if key.startswith("OS_"):

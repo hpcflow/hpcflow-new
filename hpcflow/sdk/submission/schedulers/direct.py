@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 import signal
-from typing import Any, ClassVar, Dict, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, cast, TYPE_CHECKING
 
 import psutil
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
@@ -16,8 +16,7 @@ if TYPE_CHECKING:
 
 
 class DirectScheduler(NullScheduler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    app: ClassVar[BaseApp]
 
     @classmethod
     def process_resources(cls, resources, scheduler_config: Dict) -> None:
@@ -32,7 +31,7 @@ class DirectScheduler(NullScheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: list[tuple[Any, ...]],
+        deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
         return shell.get_direct_submit_command(js_path)
 
@@ -76,7 +75,7 @@ class DirectScheduler(NullScheduler):
         cls,
         js_refs: list[tuple[int, list[str]]],
         callback: Callable | None = None,
-    ) -> None:
+    ) -> list[psutil.Process]:
         """Wait until the specified jobscripts have completed."""
         procs = cls._get_jobscript_processes(js_refs)
         (gone, alive) = psutil.wait_procs(procs, callback=callback)
@@ -110,7 +109,7 @@ class DirectScheduler(NullScheduler):
         jobscripts: list[Jobscript] | None = None,
     ):
         js_proc_id: dict[int, Jobscript]
-        def callback(proc):
+        def callback(proc: psutil.Process):
             try:
                 js = js_proc_id[proc.pid]
             except KeyError:
@@ -119,6 +118,7 @@ class DirectScheduler(NullScheduler):
                     f"jobscript child process ({proc.pid}) killed"
                 )
                 return
+            assert hasattr(proc, "returncode")
             print(
                 f"Jobscript {js.index} from submission {js.submission.index} "
                 f"terminated (user-initiated cancel) with exit code {proc.returncode}."
@@ -128,7 +128,7 @@ class DirectScheduler(NullScheduler):
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscript processes: {procs}."
         )
-        js_proc_id = {i.pid: jobscripts[idx] for idx, i in enumerate(procs)}
+        js_proc_id = {i.pid: jobscripts[idx] for idx, i in enumerate(procs) if jobscripts}
         self._kill_processes(procs, timeout=3, on_terminate=callback)
         self.app.submission_logger.info(f"jobscripts cancel command executed.")
 
@@ -168,11 +168,11 @@ class DirectWindows(DirectScheduler):
         super().__init__(*args, **kwargs)
 
     def get_submit_command(
-        self, shell: Shell, js_path: str, deps: list[tuple[Any, ...]]
+        self, shell: Shell, js_path: str, deps: dict[Any, tuple[Any, ...]]
     ) -> list[str]:
         cmd = super().get_submit_command(shell, js_path, deps)
         # `Start-Process` (see `Jobscript._launch_direct_js_win`) seems to resolve the
         # executable, which means the process's `cmdline` might look different to what we
         # record; so let's resolve it ourselves:
-        cmd[0] = shutil.which(cmd[0])
+        cmd[0] = cast(str, shutil.which(cmd[0]))
         return cmd

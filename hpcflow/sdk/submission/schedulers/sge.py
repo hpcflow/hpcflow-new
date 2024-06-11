@@ -13,6 +13,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from ...app import BaseApp
     from ..jobscript import Jobscript
 
@@ -34,15 +35,15 @@ class SGEPosix(Scheduler):
     app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "app"
 
-    DEFAULT_SHEBANG_ARGS = ""
-    DEFAULT_SUBMIT_CMD = "qsub"
-    DEFAULT_SHOW_CMD = ["qstat"]
-    DEFAULT_DEL_CMD = "qdel"
-    DEFAULT_JS_CMD = "#$"
-    DEFAULT_ARRAY_SWITCH = "-t"
-    DEFAULT_ARRAY_ITEM_VAR = "SGE_TASK_ID"
-    DEFAULT_CWD_SWITCH = "-cwd"
-    DEFAULT_LOGIN_NODES_CMD = ["qconf", "-sh"]
+    DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
+    DEFAULT_SUBMIT_CMD: ClassVar[str] = "qsub"
+    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = ["qstat"]
+    DEFAULT_DEL_CMD: ClassVar[str] = "qdel"
+    DEFAULT_JS_CMD: ClassVar[str] = "#$"
+    DEFAULT_ARRAY_SWITCH: ClassVar[str] = "-t"
+    DEFAULT_ARRAY_ITEM_VAR: ClassVar[str] = "SGE_TASK_ID"
+    DEFAULT_CWD_SWITCH: ClassVar[str] = "-cwd"
+    DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str]] = ["qconf", "-sh"]
 
     # maps scheduler states:
     state_lookup = {
@@ -73,7 +74,7 @@ class SGEPosix(Scheduler):
         "dT": JobscriptElementState.cancelled,
     }
 
-    def __init__(self, cwd_switch=None, *args, **kwargs):
+    def __init__(self, cwd_switch: str | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
@@ -200,12 +201,12 @@ class SGEPosix(Scheduler):
         self,
         shell: Shell,
         js_path: str,
-        deps: list[tuple[Any, ...]],
+        deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
         cmd = [self.submit_cmd, "-terse"]
 
-        dep_job_IDs = []
-        dep_job_IDs_arr = []
+        dep_job_IDs: list[str] = []
+        dep_job_IDs_arr: list[str] = []
         for job_ID, is_array_dep in deps.values():
             if is_array_dep:  # array dependency
                 dep_job_IDs_arr.append(str(job_ID))
@@ -275,7 +276,7 @@ class SGEPosix(Scheduler):
         return info
 
     def get_job_state_info(
-        self, js_refs: list[str] = None
+        self, js_refs: list[str] | None = None
     ) -> dict[str, dict[int, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.

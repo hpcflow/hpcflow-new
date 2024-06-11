@@ -19,7 +19,7 @@ from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachine
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import Scheduler
+from hpcflow.sdk.submission.schedulers import Scheduler, NullScheduler
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
@@ -375,7 +375,7 @@ class Jobscript(JSONLike):
 
         self._submission = None  # assigned by parent Submission
         self._index: int | None = None  # assigned by parent Submission
-        self._scheduler_obj = None  # assigned on first access to `scheduler` property
+        self._scheduler_obj: NullScheduler | None = None  # assigned on first access to `scheduler` property
         self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
         self._submit_time_obj = None  # assigned on first access to `submit_time` property
         self._running = None
@@ -599,7 +599,7 @@ class Jobscript(JSONLike):
         return self._shell_obj
 
     @property
-    def scheduler(self):
+    def scheduler(self) -> NullScheduler:
         """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
             self._scheduler_obj = self.app.get_scheduler(
@@ -791,8 +791,8 @@ class Jobscript(JSONLike):
     def compose_jobscript(
         self,
         deps: Dict | None = None,
-        os_name: str = None,
-        shell_name: str = None,
+        os_name: str | None = None,
+        shell_name: str | None = None,
         os_args: Dict | None = None,
         shell_args: Dict | None = None,
         scheduler_name: str | None = None,
@@ -918,8 +918,8 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def write_jobscript(
         self,
-        os_name: str = None,
-        shell_name: str = None,
+        os_name: str | None = None,
+        shell_name: str | None = None,
         deps: Dict | None = None,
         os_args: Dict | None = None,
         shell_args: Dict | None = None,

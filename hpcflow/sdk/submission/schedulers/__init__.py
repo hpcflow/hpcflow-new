@@ -1,11 +1,12 @@
-from pathlib import Path
+from collections.abc import Sequence
 import sys
 import time
 from typing import Any, ClassVar
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from ..shells import Shell
 
 
-class NullScheduler:
+class NullScheduler(ABC):
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 
@@ -20,7 +21,7 @@ class NullScheduler:
         self.options = options or {}
 
     @property
-    def unique_properties(self):
+    def unique_properties(self) -> tuple[str, ...]:
         return (self.__class__.__name__,)
 
     def __eq__(self, other) -> bool:
@@ -32,24 +33,38 @@ class NullScheduler:
     def get_version_info(self):
         return {}
 
-    def parse_submission_output(self, stdout: str) -> None:
+    def parse_submission_output(self, stdout: str) -> str | None:
         return None
 
     @staticmethod
-    def is_num_cores_supported(num_cores, core_range: list[int]):
+    def is_num_cores_supported(num_cores: int, core_range: list[int]) -> bool:
         step = core_range[1] if core_range[1] is not None else 1
         upper = core_range[2] + 1 if core_range[2] is not None else sys.maxsize
         return num_cores in range(core_range[0], upper, step)
 
+    @abstractmethod
+    def get_submit_command(
+        self,
+        shell: Shell,
+        js_path: str,
+        deps: dict[Any, tuple[Any, ...]],
+    ) -> list[str]: ...
+
 
 class Scheduler(NullScheduler):
-    DEFAULT_LOGIN_NODES_CMD: ClassVar[str | None] = None
+    DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str] | None] = None
     DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
+    DEFAULT_SUBMIT_CMD: ClassVar[str]
+    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]]
+    DEFAULT_DEL_CMD: ClassVar[str]
+    DEFAULT_JS_CMD: ClassVar[str]
+    DEFAULT_ARRAY_SWITCH: ClassVar[str]
+    DEFAULT_ARRAY_ITEM_VAR: ClassVar[str]
 
     def __init__(
         self,
-        submit_cmd=None,
-        show_cmd=None,
+        submit_cmd: str | None = None,
+        show_cmd: Sequence[str] | None = None,
         del_cmd=None,
         js_cmd=None,
         login_nodes_cmd=None,
@@ -57,7 +72,7 @@ class Scheduler(NullScheduler):
         array_item_var=None,
         *args,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self.submit_cmd: str = submit_cmd or self.DEFAULT_SUBMIT_CMD
@@ -80,12 +95,12 @@ class Scheduler(NullScheduler):
         return bool(self.get_job_state_info([job_ID]))
 
     @abstractmethod
-    def get_job_state_info(js_refs: list[Any]) -> dict[Any, Any]:
+    def get_job_state_info(self, js_refs: list[str] | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
-    def wait_for_jobscripts(self, js_refs: list[Any]) -> None:
+    def wait_for_jobscripts(self, js_refs: list[str]) -> None:
         while js_refs:
-            info = self.get_job_state_info(js_refs)
+            info: dict[str, Any] = self.get_job_state_info(js_refs)
             print(info)
             if not info:
                 break

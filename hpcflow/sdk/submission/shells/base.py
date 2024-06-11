@@ -1,7 +1,14 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import ClassVar, Dict
+from typing import ClassVar, TypedDict, TypeAlias, cast, TYPE_CHECKING
+if TYPE_CHECKING:
+    _StrMap: TypeAlias = dict[str, str]
+    # This needs PEP 728 for a better type, alas
+    VersionInfo: TypeAlias = dict[str, str | list[str]]
+else:
+    _StrMap: TypeAlias = dict
+    VersionInfo: TypeAlias = dict
 
 
 class Shell(ABC):
@@ -14,17 +21,18 @@ class Shell(ABC):
     """
 
     JS_EXT: ClassVar[str]
+    DEFAULT_EXE: ClassVar[str]
+    __slots__ = ("_executable", "os_args")
 
-    def __init__(self, executable=None, os_args=None):
+    def __init__(self, executable: str | None = None,
+                 os_args: dict[str, str] | None = None):
         self._executable = executable or self.DEFAULT_EXE
-        self.os_args = os_args
+        self.os_args = os_args or {}
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self._executable == other._executable and self.os_args == other.os_args:
-            return True
-        return False
+        return self._executable == other._executable and self.os_args == other.os_args
 
     @property
     def executable(self) -> list[str]:
@@ -39,10 +47,10 @@ class Shell(ABC):
         return self.executable + [js_path]
 
     @abstractmethod
-    def get_version_info(self, exclude_os: bool = False) -> Dict:
+    def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get shell and operating system information."""
 
-    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Dict):
+    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: dict):
         if deps:
             return (
                 f'{workflow_app_alias} workflow $WK_PATH_ARG wait --jobscripts "{sub_idx}:'
@@ -53,16 +61,20 @@ class Shell(ABC):
             return ""
 
     @staticmethod
-    def process_app_invoc_executable(app_invoc_exe):
+    def process_app_invoc_executable(app_invoc_exe: str) -> str:
         return app_invoc_exe
 
-    def process_JS_header_args(self, header_args: Dict) -> Dict:
-        app_invoc = self.process_app_invoc_executable(header_args["app_invoc"][0])
-        if len(header_args["app_invoc"]) > 1:
-            app_invoc += ' "' + header_args["app_invoc"][1] + '"'
+    def process_JS_header_args(self, header_args: dict[str, str | list[str]]) -> dict[str, str]:
+        app_invoc_ = header_args["app_invoc"]
+        if isinstance(app_invoc_, str):
+            app_invoc = app_invoc_
+        else:
+            app_invoc = self.process_app_invoc_executable(app_invoc_[0])
+            for item in app_invoc_[1:]:
+                app_invoc += f' "{item}"'
 
         header_args["app_invoc"] = app_invoc
-        return header_args
+        return cast(_StrMap, header_args)
 
     def prepare_JS_path(self, js_path: Path) -> str:
         return str(js_path)
