@@ -1573,6 +1573,7 @@ class Action(JSONLike):
 
             wk_path_env_var = '"$WK_PATH"'  # (could have spaces in it)
             run_ID_env_var = "$RUN_ID"
+            std_stream_env_var = "$STD_STREAM_FILE"
 
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
@@ -1646,7 +1647,14 @@ class Action(JSONLike):
                     variables = {}
                 if self.script_data_in_has_direct or self.script_data_out_has_direct:
                     args.extend(
-                        ["--wk-path", wk_path_env_var, "--run-id", run_ID_env_var]
+                        [
+                            "--wk-path",
+                            wk_path_env_var,
+                            "--run-id",
+                            run_ID_env_var,
+                            "--std-stream",
+                            std_stream_env_var,
+                        ]
                     )
 
                 fn_args = (r"${JS_IDX}", r"${BLOCK_IDX}", r"${BLOCK_ACT_IDX}")
@@ -2007,26 +2015,29 @@ class Action(JSONLike):
 
         py_imports = dedent(
             """\
-            import argparse, sys
+            import argparse
             from pathlib import Path
 
-            parser = argparse.ArgumentParser()
+            import {app_module} as app
+
+            parser = argparse.ArgumentParser()            
             parser.add_argument("--wk-path")
             parser.add_argument("--run-id", type=int)
+            parser.add_argument("--std-stream")
             parser.add_argument("--inputs-json")
             parser.add_argument("--inputs-hdf5")
             parser.add_argument("--outputs-json")
             parser.add_argument("--outputs-hdf5")
             args = parser.parse_args()
-            
+
+            with app.redirect_std_to_file(args.std_stream):
             """
-        )
+        ).format(app_module=self.app.module)
 
         # if any direct inputs/outputs, we must load the workflow (must be python):
         if self.script_data_in_has_direct or self.script_data_out_has_direct:
             py_main_block_workflow_load = dedent(
                 """\
-                    import {app_module} as app
                     app.load_config(
                         log_file_path=Path("{run_log_file}").resolve(),
                         config_dir=r"{cfg_dir}",
@@ -2038,7 +2049,6 @@ class Action(JSONLike):
                 """
             ).format(
                 run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
-                app_module=self.app.module,
                 cfg_dir=self.app.config.config_directory,
                 cfg_invoc_key=self.app.config.config_key,
             )
@@ -2102,6 +2112,7 @@ class Action(JSONLike):
             py_main_block_outputs = ""
 
         tab_indent = "    "
+        tab_indent_2 = 2 * tab_indent
         py_main_block = dedent(
             """\
             if __name__ == "__main__":
@@ -2115,12 +2126,12 @@ class Action(JSONLike):
             """
         ).format(
             py_imports=indent(py_imports, tab_indent),
-            wk_load=indent(py_main_block_workflow_load, tab_indent),
-            direct_ins=indent(direct_ins_str, tab_indent),
-            in_files=indent(input_files_str, tab_indent),
-            out_files=indent(output_files_str, tab_indent),
-            invoke=indent(py_main_block_invoke, tab_indent),
-            outputs=indent(py_main_block_outputs, tab_indent),
+            wk_load=indent(py_main_block_workflow_load, tab_indent_2),
+            direct_ins=indent(direct_ins_str, tab_indent_2),
+            in_files=indent(input_files_str, tab_indent_2),
+            out_files=indent(output_files_str, tab_indent_2),
+            invoke=indent(py_main_block_invoke, tab_indent_2),
+            outputs=indent(py_main_block_outputs, tab_indent_2),
         )
 
         out = dedent(

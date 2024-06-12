@@ -43,6 +43,7 @@ from hpcflow.sdk.core.utils import (
     read_JSON_file,
     write_YAML_file,
     write_JSON_file,
+    redirect_std_to_file as redirect_std_to_file_hpcflow,
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
@@ -2253,6 +2254,10 @@ class BaseApp(metaclass=Singleton):
         """
         path = self._resolve_workflow_reference(workflow_ref, ref_is_path)
         self.Workflow(path).cancel()
+
+    @staticmethod
+    def redirect_std_to_file(*args, **kwargs):
+        return redirect_std_to_file_hpcflow(*args, **kwargs)
 
     def configure_env(
         self,

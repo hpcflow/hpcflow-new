@@ -1,3 +1,4 @@
+import os
 import time
 import pytest
 
@@ -507,3 +508,65 @@ def test_script_direct_in_pass_env_spec(new_null_config, tmp_path):
         "name": "python_env_with_specifiers",
         **vers_spec,
     }
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
+    """Test exceptions raised by the app during execution of a script are printed to the
+    std-stream redirect file (and not the jobscript's standard error file)."""
+
+    # define a custom python environment which redefines the `WK_PATH` shell variable to
+    # a nonsense value so the app cannot load the workflow and thus raises an exception
+
+    if os.name == "nt":
+        env_cmd = '$WK_PATH = "nonsense_path"'
+    else:
+        env_cmd = 'WK_PATH="nonsense_path"'
+
+    env_cmd += "; python <<script_name>> <<args>>"
+    bad_env = hf.Environment(
+        name="bad_python_env",
+        executables=[
+            hf.Executable(
+                label="python_script",
+                instances=[
+                    hf.ExecutableInstance(
+                        command=env_cmd,
+                        num_cores=1,
+                        parallel_mode=None,
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(bad_env, skip_duplicates=True)
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput(parameter=hf.Parameter("p2"))],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_direct_in_direct_out.py>>",
+                script_data_in="direct",
+                script_data_out="direct",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="bad_python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1], template_name="main_script_test", path=tmp_path
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+
+    # jobscript stderr should be empty
+    assert not wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
+
+    # std stream file has workflow not found traceback
+    std_stream_path = wk.execution_path / "task_0_t1/e_0/r_0/hpcflow_std.txt"
+    assert std_stream_path.is_file()
+    assert "WorkflowNotFoundError" in std_stream_path.read_text()
