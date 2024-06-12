@@ -10,12 +10,12 @@ from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import NullScheduler
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from ...app import BaseApp
     from ..jobscript import Jobscript
 
 
-class DirectScheduler(NullScheduler):
+class DirectScheduler(NullScheduler[tuple[int, list[str]]]):
     app: ClassVar[BaseApp]
 
     @classmethod
@@ -74,7 +74,7 @@ class DirectScheduler(NullScheduler):
     def wait_for_jobscripts(
         cls,
         js_refs: list[tuple[int, list[str]]],
-        callback: Callable | None = None,
+        callback: Callable[[psutil.Process], None] | None = None,
     ) -> list[psutil.Process]:
         """Wait until the specified jobscripts have completed."""
         procs = cls._get_jobscript_processes(js_refs)
@@ -86,7 +86,7 @@ class DirectScheduler(NullScheduler):
         self,
         js_refs: list[tuple[int, list[str]]],
         num_js_elements: int,
-    ) -> dict[int, dict[int, JobscriptElementState]]:
+    ) -> Mapping[int, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -94,8 +94,7 @@ class DirectScheduler(NullScheduler):
         of this method."""
         info = {}
         for p_id, p_cmdline in js_refs:
-            is_active = self.is_jobscript_active(p_id, p_cmdline)
-            if is_active:
+            if self.is_jobscript_active(p_id, p_cmdline):
                 # as far as the "scheduler" is concerned, all elements are running:
                 info[p_id] = {
                     i: JobscriptElementState.running for i in range(num_js_elements)

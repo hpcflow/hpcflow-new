@@ -1,5 +1,4 @@
 from __future__ import annotations
-from pathlib import Path
 import re
 from typing import Any, ClassVar, Dict, TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
@@ -13,7 +12,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from ...app import BaseApp
     from ..jobscript import Jobscript
 
@@ -277,7 +276,7 @@ class SGEPosix(Scheduler):
 
     def get_job_state_info(
         self, js_refs: list[str] | None = None
-    ) -> dict[str, dict[int, JobscriptElementState]]:
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 

@@ -1,12 +1,17 @@
-from collections.abc import Sequence
+from __future__ import annotations
+from collections.abc import Mapping, Sequence
 import sys
 import time
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Generic, TypeVar, override, TYPE_CHECKING
 from abc import ABC, abstractmethod
-from ..shells import Shell
+if TYPE_CHECKING:
+    from ..shells import Shell
+    from ..jobscript_info import JobscriptElementState
+
+T = TypeVar('T')
 
 
-class NullScheduler(ABC):
+class NullScheduler(ABC, Generic[T]):
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 
@@ -30,7 +35,7 @@ class NullScheduler(ABC):
         else:
             return self.__dict__ == other.__dict__
 
-    def get_version_info(self):
+    def get_version_info(self) -> dict[str, str]:
         return {}
 
     def parse_submission_output(self, stdout: str) -> str | None:
@@ -50,8 +55,17 @@ class NullScheduler(ABC):
         deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]: ...
 
+    @abstractmethod
+    def get_job_state_info(
+        self, js_refs: list[T] | None = None
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
+        ...
 
-class Scheduler(NullScheduler):
+    @abstractmethod
+    def wait_for_jobscripts(self, js_refs: list[T]) -> None: ...
+
+
+class Scheduler(NullScheduler[str]):
     DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str] | None] = None
     DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
     DEFAULT_SUBMIT_CMD: ClassVar[str]
@@ -94,10 +108,7 @@ class Scheduler(NullScheduler):
         """Query if a jobscript is running/pending."""
         return bool(self.get_job_state_info([job_ID]))
 
-    @abstractmethod
-    def get_job_state_info(self, js_refs: list[str] | None = None) -> dict[str, Any]:
-        raise NotImplementedError
-
+    @override
     def wait_for_jobscripts(self, js_refs: list[str]) -> None:
         while js_refs:
             info: dict[str, Any] = self.get_job_state_info(js_refs)

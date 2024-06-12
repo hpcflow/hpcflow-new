@@ -67,7 +67,7 @@ class PendingChanges:
         self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] | None = None
         self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] | None = None
 
-        self.set_js_metadata: dict[int, dict[int, Any]] | None = None
+        self.set_js_metadata: dict[int, dict[int, dict[str, Any]]] | None = None
 
         self.set_parameters: dict[int, AnySParameter] | None = None
 

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from pathlib import Path
 import subprocess
 import time
 from typing import Any, ClassVar, Dict, TYPE_CHECKING
@@ -16,6 +15,7 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from ...app import BaseApp
     from ..jobscript import Jobscript
 
@@ -445,9 +445,9 @@ class SlurmPosix(Scheduler):
                     _arr_idx.append(int(i_range_str) - 1)
             return base_job_ID, _arr_idx
 
-    def _parse_job_states(self, stdout: str) -> dict[str, dict[int, JobscriptElementState]]:
+    def _parse_job_states(self, stdout: str) -> dict[str, dict[int | None, JobscriptElementState]]:
         """Parse output from Slurm `squeue` command with a simple format."""
-        info: dict[str, dict[int, JobscriptElementState]] = {}
+        info: dict[str, dict[int | None, JobscriptElementState]] = {}
         for ln in stdout.split("\n"):
             if not ln:
                 continue
@@ -493,7 +493,7 @@ class SlurmPosix(Scheduler):
 
     def get_job_state_info(
         self, js_refs: list[str] | None = None
-    ) -> dict[str, dict[int, JobscriptElementState]]:
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -528,8 +528,7 @@ class SlurmPosix(Scheduler):
             else:
                 raise ValueError(f"Could not get Slurm job states. Stderr was: {stderr}")
 
-        info = self._parse_job_states(stdout)
-        return info
+        return self._parse_job_states(stdout)
 
     def cancel_jobs(self, js_refs: list[str], jobscripts: list[Jobscript] | None = None):
         cmd = [self.del_cmd] + js_refs

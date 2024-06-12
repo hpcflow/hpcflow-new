@@ -8,11 +8,10 @@ import shutil
 import socket
 import subprocess
 from textwrap import indent
-from typing import Any, ClassVar, Dict, List, TypedDict, TYPE_CHECKING
+from typing import overload, TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
-from hpcflow.sdk import app
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
 
@@ -23,13 +22,19 @@ from hpcflow.sdk.submission.schedulers import Scheduler, NullScheduler
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from typing import Any, ClassVar, Dict, List, Literal, NotRequired, TypedDict
     from ..app import BaseApp
+    from ..core.actions import ElementActionRun
     from ..core.element import ElementResources
-    from ..core.workflow import WorkflowTask
+    from ..core.workflow import WorkflowTask, Workflow
+    from .submission import Submission
 
     class JobScriptDescriptor(TypedDict):
         resources: Any
         elements: dict[Any, list[int]]  # FIXME: key!
+        dependencies: NotRequired[dict[int, dict[str, None]]]
+        resource_hash: NotRequired[str]
 
 
 @TimeIt.decorator
@@ -230,8 +235,21 @@ def resolve_jobscript_dependencies(jobscripts, element_deps):
     return jobscript_deps
 
 
+def _reindex_dependencies(
+    jobscripts: dict[int, JobScriptDescriptor], from_idx: int, to_idx: int
+):
+    for ds_js_idx, ds_js in jobscripts.items():
+        if ds_js_idx <= from_idx:
+            continue
+        deps = ds_js["dependencies"]
+        if from_idx in deps:
+            deps[to_idx] = deps.pop(from_idx)
+
+
 @TimeIt.decorator
-def merge_jobscripts_across_tasks(jobscripts: dict[Any, JobScriptDescriptor]) -> Dict:
+def merge_jobscripts_across_tasks(
+    jobscripts: dict[int, JobScriptDescriptor]
+) -> dict[int, JobScriptDescriptor]:
     """Try to merge jobscripts between tasks.
 
     This is possible if two jobscripts share the same resources and have an array
@@ -241,70 +259,58 @@ def merge_jobscripts_across_tasks(jobscripts: dict[Any, JobScriptDescriptor]) ->
 
     for js_idx, js in jobscripts.items():
         # for now only attempt to merge a jobscript with a single dependency:
-        if len(js["dependencies"]) == 1:
-            js_j_idx = next(iter(js["dependencies"]))
-            dep_info = js["dependencies"][js_j_idx]
-            js_j = jobscripts[js_j_idx]  # the jobscript we are merging `js` into
+        if len(js["dependencies"]) != 1:
+            continue
+        deps = js["dependencies"]
+        js_j_idx, dep_info = next(iter(deps.items()))
+        js_j = jobscripts[js_j_idx]  # the jobscript we are merging `js` into
 
-            # can only merge if resources are the same and is array dependency:
-            if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
-                num_loop_idx = len(
-                    js_j["task_loop_idx"]
-                )  # TODO: should this be: `js_j["task_loop_idx"][0]`?
+        # can only merge if resources are the same and is array dependency:
+        if js["resource_hash"] == js_j["resource_hash"] and dep_info["is_array"]:
+            num_loop_idx = len(
+                js_j["task_loop_idx"]
+            )  # TODO: should this be: `js_j["task_loop_idx"][0]`?
 
-                # append task_insert_IDs
-                js_j["task_insert_IDs"].append(js["task_insert_IDs"][0])
-                js_j["task_loop_idx"].append(js["task_loop_idx"][0])
+            # append task_insert_IDs
+            js_j["task_insert_IDs"].append(js["task_insert_IDs"][0])
+            js_j["task_loop_idx"].append(js["task_loop_idx"][0])
 
-                add_acts = []
-                for t_act in js["task_actions"]:
-                    t_act = copy.copy(t_act)
-                    t_act[2] += num_loop_idx
-                    add_acts.append(t_act)
+            add_acts = []
+            for t_act in js["task_actions"]:
+                t_act = copy.copy(t_act)
+                t_act[2] += num_loop_idx
+                add_acts.append(t_act)
 
-                js_j["task_actions"].extend(add_acts)
-                for k, v in js["task_elements"].items():
-                    js_j["task_elements"][k].extend(v)
+            js_j["task_actions"].extend(add_acts)
+            for k, v in js["task_elements"].items():
+                js_j["task_elements"][k].extend(v)
 
-                # append to elements and elements_idx list
-                js_j["EAR_ID"] = np.vstack((js_j["EAR_ID"], js["EAR_ID"]))
+            # append to elements and elements_idx list
+            js_j["EAR_ID"] = np.vstack((js_j["EAR_ID"], js["EAR_ID"]))
 
-                # mark this js as defunct
-                js["is_merged"] = True
+            # mark this js as defunct
+            js["is_merged"] = True
 
-                # update dependencies of any downstream jobscripts that refer to this js
-                for ds_js_idx, ds_js in jobscripts.items():
-                    if ds_js_idx <= js_idx:
-                        continue
-                    for dep_k_js_idx in list(ds_js["dependencies"].keys()):
-                        if dep_k_js_idx == js_idx:
-                            jobscripts[ds_js_idx]["dependencies"][js_j_idx] = ds_js[
-                                "dependencies"
-                            ].pop(dep_k_js_idx)
+            # update dependencies of any downstream jobscripts that refer to this js
+            _reindex_dependencies(jobscripts, js_idx, js_j_idx)
 
     # remove is_merged jobscripts:
-    jobscripts = {k: v for k, v in jobscripts.items() if "is_merged" not in v}
-
-    return jobscripts
+    return {k: v for k, v in jobscripts.items() if "is_merged" not in v}
 
 
 @TimeIt.decorator
-def jobscripts_to_list(jobscripts: dict[int, Dict]) -> list[Dict]:
+def jobscripts_to_list(
+    jobscripts: dict[int, JobScriptDescriptor]
+) -> list[JobScriptDescriptor]:
     """Convert the jobscripts dict to a list, normalising jobscript indices so they refer
     to list indices; also remove `resource_hash`."""
-    lst = []
+    lst: list[JobScriptDescriptor] = []
     for js_idx, js in jobscripts.items():
         new_idx = len(lst)
         if js_idx != new_idx:
             # need to reindex jobscripts that depend on this one
-            for js_j_idx, js_j in jobscripts.items():
-                if js_j_idx <= js_idx:
-                    continue
-                if js_idx in js_j["dependencies"]:
-                    jobscripts[js_j_idx]["dependencies"][new_idx] = jobscripts[js_j_idx][
-                        "dependencies"
-                    ].pop(js_idx)
-        del jobscripts[js_idx]["resource_hash"]
+            _reindex_dependencies(jobscripts, js_idx, new_idx)
+        del js["resource_hash"]
         lst.append(js)
 
     return lst
@@ -335,10 +341,10 @@ class Jobscript(JSONLike):
         submit_time: datetime | None = None,
         submit_hostname: str | None = None,
         submit_machine: str | None = None,
-        submit_cmdline: str | None = None,
+        submit_cmdline: list[str] | None = None,
         scheduler_job_ID: str | None = None,
         process_ID: int | None = None,
-        version_info: tuple[str, ...] | None = None,
+        version_info: dict[str, str] | None = None,
         os_name: str | None = None,
         shell_name: str | None = None,
         scheduler_name: str | None = None,
@@ -373,13 +379,13 @@ class Jobscript(JSONLike):
         self._shell_name = shell_name
         self._scheduler_name = scheduler_name
 
-        self._submission = None  # assigned by parent Submission
+        self._submission: Submission | None = None  # assigned by parent Submission
         self._index: int | None = None  # assigned by parent Submission
         self._scheduler_obj: NullScheduler | None = None  # assigned on first access to `scheduler` property
         self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
         self._submit_time_obj = None  # assigned on first access to `submit_time` property
         self._running = None
-        self._all_EARs = None  # assigned on first access to `all_EARs` property
+        self._all_EARs: list[ElementActionRun] | None = None  # assigned on first access to `all_EARs` property
 
     def __repr__(self):
         return (
@@ -408,7 +414,7 @@ class Jobscript(JSONLike):
         return super().from_json_like(json_like, shared_data)
 
     @property
-    def workflow_app_alias(self):
+    def workflow_app_alias(self) -> str:
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None):
@@ -435,18 +441,19 @@ class Jobscript(JSONLike):
         return self._EAR_ID
 
     @property
-    def all_EAR_IDs(self) -> list[int]:
+    def all_EAR_IDs(self) -> Iterable[int]:
         return self.EAR_ID.flatten()
 
     @property
     @TimeIt.decorator
-    def all_EARs(self) -> List:
+    def all_EARs(self) -> list[ElementActionRun]:
         if not self._all_EARs:
             self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
+        assert self._all_EARs is not None
         return self._all_EARs
 
     @property
-    def resources(self):
+    def resources(self) -> ElementResources:
         return self._resources
 
     @property
@@ -504,11 +511,11 @@ class Jobscript(JSONLike):
         return self._submit_cmdline
 
     @property
-    def scheduler_job_ID(self):
+    def scheduler_job_ID(self) -> str | None:
         return self._scheduler_job_ID
 
     @property
-    def process_ID(self):
+    def process_ID(self) -> int | None:
         return self._process_ID
 
     @property
@@ -516,7 +523,8 @@ class Jobscript(JSONLike):
         return self._version_info
 
     @property
-    def index(self):
+    def index(self) -> int:
+        assert self._index is not None
         return self._index
 
     @property
@@ -524,19 +532,19 @@ class Jobscript(JSONLike):
         return self._submission
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow:
         return self.submission.workflow
 
     @property
-    def num_actions(self):
+    def num_actions(self) -> int:
         return self.EAR_ID.shape[0]
 
     @property
-    def num_elements(self):
+    def num_elements(self) -> int:
         return self.EAR_ID.shape[1]
 
     @property
-    def is_array(self):
+    def is_array(self) -> bool:
         if self.scheduler_name == "direct":
             return False
 
@@ -660,12 +668,11 @@ class Jobscript(JSONLike):
         return self.submission.path / self.direct_win_pid_file_name
 
     def _set_submit_time(self, submit_time: datetime) -> None:
-        submit_time = submit_time.strftime(self.workflow.ts_fmt)
         self._submit_time = submit_time
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
             js_idx=self.index,
-            submit_time=submit_time,
+            submit_time=submit_time.strftime(self.workflow.ts_fmt),
         )
 
     def _set_submit_hostname(self, submit_hostname: str) -> None:
@@ -701,7 +708,7 @@ class Jobscript(JSONLike):
             scheduler_job_ID=job_ID,
         )
 
-    def _set_process_ID(self, process_ID: str) -> None:
+    def _set_process_ID(self, process_ID: int) -> None:
         """For direct submission only."""
         self._process_ID = process_ID
         self.workflow._store.set_jobscript_metadata(
@@ -710,7 +717,7 @@ class Jobscript(JSONLike):
             process_ID=process_ID,
         )
 
-    def _set_version_info(self, version_info: Dict) -> None:
+    def _set_version_info(self, version_info: dict[str, str]) -> None:
         self._version_info = version_info
         self.workflow._store.set_jobscript_metadata(
             sub_idx=self.submission.index,
@@ -777,12 +784,12 @@ class Jobscript(JSONLike):
         the directory for each jobscript-element/jobscript-action combination.
 
         """
-        run_dirs = self.shell.prepare_element_run_dirs(run_dirs)
+        run_dirs_paths = self.shell.prepare_element_run_dirs(run_dirs)
         with self.element_run_dir_file_path.open(mode="wt", newline="\n") as fp:
             # can't specify "open" newline if we pass the file name only, so pass handle:
             np.savetxt(
                 fname=fp,
-                X=np.array(run_dirs),
+                X=np.array(run_dirs_paths),
                 fmt="%s",
                 delimiter=self._EAR_files_delimiter,
             )
@@ -1043,7 +1050,7 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def submit(
         self,
-        scheduler_refs: dict[int, (str, bool)],
+        scheduler_refs: dict[int, tuple[str, bool]],
         print_stdout: bool = False,
     ) -> str:
         # map each dependency jobscript index to the JS ref (job/process ID) and if the
@@ -1083,8 +1090,8 @@ class Jobscript(JSONLike):
             "job_ID_parse_exc": None,
         }
         is_scheduler = isinstance(self.scheduler, Scheduler)
-        job_ID = None
-        process_ID = None
+        job_ID: str | None = None
+        process_ID: int | None = None
         try:
             if is_scheduler:
                 # scheduled submission, wait for submission so we can parse the job ID:
@@ -1125,6 +1132,7 @@ class Jobscript(JSONLike):
 
             try:
                 job_ID = self.scheduler.parse_submission_output(stdout)
+                assert job_ID is not None
 
             except Exception as job_ID_parse_exc:
                 # TODO: maybe handle this differently. If there is no stderr, then the job
@@ -1141,11 +1149,12 @@ class Jobscript(JSONLike):
 
         else:
             # direct submission
+            assert process_ID is not None
             self._set_process_ID(process_ID)
             # a downstream direct jobscript might need to wait for this jobscript, which
             # means this jobscript's process ID must be committed:
             self.workflow._store._pending.commit_all()
-            ref = process_ID
+            ref = f"{process_ID}"
 
         self._set_submit_time(datetime.utcnow())
 
@@ -1170,15 +1179,25 @@ class Jobscript(JSONLike):
             out["num_js_elements"] = self.num_elements
         return out
 
+    @overload
+    def get_active_states(
+        self, as_json: Literal[False] = False
+    ) -> dict[int, JobscriptElementState]: ...
+
+    @overload
+    def get_active_states(
+        self, as_json: Literal[True]
+    ) -> dict[int, str]: ...
+
     @TimeIt.decorator
     def get_active_states(
         self, as_json: bool = False
-    ) -> dict[int, JobscriptElementState]:
+    ) -> dict[int, JobscriptElementState] | dict[int, str]:
         """If this jobscript is active on this machine, return the state information from
         the scheduler."""
 
         if not self.is_submitted:
-            out = {}
+            out: dict[int, JobscriptElementState] = {}
 
         else:
             self.app.submission_logger.debug(
@@ -1200,15 +1219,15 @@ class Jobscript(JSONLike):
                     "Checking if jobscript is running according to the scheduler/process "
                     "ID."
                 )
-                out = self.scheduler.get_job_state_info(**self.scheduler_ref)
-                if out:
-                    out = out[next(iter(out))]  # first item only
+                out_d = self.scheduler.get_job_state_info(**self.scheduler_ref)
+                if out_d:
+                    out_i = out_d[next(iter(out_d))]  # first item only
                     # if value is single-length dict with `None` key, then transform
                     # to one key for each jobscript element:
-                    if list(out.keys()) == [None]:
-                        out = {i: out[None] for i in range(self.num_elements)}
-                    if as_json:
-                        out = {k: v.name for k, v in out.items()}
+                    if list(out_i.keys()) == [None]:
+                        out = {i: out_i[None] for i in range(self.num_elements)}
+                else:
+                    out = {}
 
             else:
                 raise NotSubmitMachineError(
@@ -1217,6 +1236,8 @@ class Jobscript(JSONLike):
                 )
 
         self.app.submission_logger.info(f"Jobscript is {'in' if not out else ''}active.")
+        if as_json:
+            return {k: v.name for k, v in out.items()}
         return out
 
     def cancel(self):

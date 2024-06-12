@@ -81,6 +81,7 @@ if TYPE_CHECKING:
     from .core.task_schema import TaskSchema
     from .core.workflow import Workflow, WorkflowTemplate
     from .submission.jobscript import Jobscript
+    from .submission.submission import Submission
     from .submission.schedulers.direct import DirectPosix, DirectWindows
     from .submission.schedulers.sge import SGEPosix
     from .submission.schedulers.slurm import SlurmPosix
@@ -454,6 +455,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def Jobscript(self) -> type[Jobscript]:
         return self._get_app_core_class("Jobscript")
+
+    @property
+    def Submission(self) -> type[Submission]:
+        return self._get_app_core_class("Submission")
 
     @property
     def DirectPosix(self) -> type[DirectPosix]:

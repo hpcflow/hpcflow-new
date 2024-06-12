@@ -530,11 +530,11 @@ class JSONPersistentStore(PersistentStore):
         with self.using_resource("parameters", "read") as params:
             return list(int(i) for i in params["data"].keys())
 
-    def get_ts_fmt(self):
+    def get_ts_fmt(self) -> str:
         with self.using_resource("metadata", action="read") as md:
             return md["ts_fmt"]
 
-    def get_ts_name_fmt(self):
+    def get_ts_name_fmt(self) -> str:
         with self.using_resource("metadata", action="read") as md:
             return md["ts_name_fmt"]
 

@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from typing import ClassVar, Literal, Protocol, Self
     from fsspec import AbstractFileSystem as AFS  # type: ignore
+    import psutil
     from ..app import BaseApp
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
@@ -557,10 +558,10 @@ class Workflow:
         self.path = path_s
 
         # assigned on first access:
-        self._ts_fmt: None = None
-        self._ts_name_fmt: None = None
+        self._ts_fmt: str | None = None
+        self._ts_name_fmt: str | None = None
         self._creation_info: dict[str, Any] | None = None
-        self._name: None = None
+        self._name: str | None = None
         self._template: WorkflowTemplate | None = None
         self._template_components: dict[str, Any] | None = None
         self._tasks: WorkflowTaskList | None = None
@@ -1232,13 +1233,13 @@ class Workflow:
         return self.creation_info["id"]
 
     @property
-    def ts_fmt(self):
+    def ts_fmt(self) -> str:
         if not self._ts_fmt:
             self._ts_fmt = self._store.get_ts_fmt()
         return self._ts_fmt
 
     @property
-    def ts_name_fmt(self):
+    def ts_name_fmt(self) -> str:
         if not self._ts_name_fmt:
             self._ts_name_fmt = self._store.get_ts_name_fmt()
         return self._ts_name_fmt
@@ -2377,44 +2378,49 @@ class Workflow:
             return submitted_js
         return None
 
-    def wait(self, sub_js: Dict | None = None):
+    @staticmethod
+    def __wait_for_direct_jobscripts(jobscripts: list[Jobscript]):
+        """Wait for the passed direct (i.e. non-scheduled) jobscripts to finish."""
+
+        def callback(proc: psutil.Process) -> None:
+            js = js_pids[proc.pid]
+            assert hasattr(proc, "returncode")
+            # TODO sometimes proc.returncode is None; maybe because multiple wait
+            # calls?
+            print(
+                f"Jobscript {js.index} from submission {js.submission.index} "
+                f"finished with exit code {proc.returncode}."
+            )
+
+        js_pids = {i.process_ID: i for i in jobscripts}
+        process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
+        DirectScheduler.wait_for_jobscripts(js_refs=process_refs, callback=callback)
+
+    def __wait_for_scheduled_jobscripts(self, jobscripts: list[Jobscript]):
+        """Wait for the passed scheduled jobscripts to finish."""
+        schedulers = self.app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
+        threads = []
+        for js_indices, sched in schedulers.items():
+            jobscripts_gen = (
+                self.submissions[sub_idx].jobscripts[js_idx]
+                for sub_idx, js_idx in js_indices
+            )
+            job_IDs = [
+                i.scheduler_job_ID
+                for i in jobscripts_gen
+                if i.scheduler_job_ID is not None]
+            threads.append(Thread(target=sched.wait_for_jobscripts, args=(job_IDs,)))
+
+        for i in threads:
+            i.start()
+
+        for i in threads:
+            i.join()
+
+    def wait(self, sub_js: dict[int, list[int]] | None = None):
         """Wait for the completion of specified/all submitted jobscripts."""
 
         # TODO: think about how this might work with remote workflow submission (via SSH)
-
-        def wait_for_direct_jobscripts(jobscripts: list[Jobscript]):
-            """Wait for the passed direct (i.e. non-scheduled) jobscripts to finish."""
-
-            def callback(proc):
-                js = js_pids[proc.pid]
-                # TODO sometimes proc.returncode is None; maybe because multiple wait
-                # calls?
-                print(
-                    f"Jobscript {js.index} from submission {js.submission.index} "
-                    f"finished with exit code {proc.returncode}."
-                )
-
-            js_pids = {i.process_ID: i for i in jobscripts}
-            process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
-            DirectScheduler.wait_for_jobscripts(js_refs=process_refs, callback=callback)
-
-        def wait_for_scheduled_jobscripts(jobscripts: list[Jobscript]):
-            """Wait for the passed scheduled jobscripts to finish."""
-            schedulers = app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
-            threads = []
-            for js_indices, sched in schedulers.items():
-                jobscripts = [
-                    self.submissions[sub_idx].jobscripts[js_idx]
-                    for sub_idx, js_idx in js_indices
-                ]
-                job_IDs = [i.scheduler_job_ID for i in jobscripts]
-                threads.append(Thread(target=sched.wait_for_jobscripts, args=(job_IDs,)))
-
-            for i in threads:
-                i.start()
-
-            for i in threads:
-                i.join()
 
         # TODO: add a log file to the submission dir where we can log stuff (e.g starting
         # a thread...)
@@ -2423,8 +2429,7 @@ class Workflow:
             # find any active jobscripts first:
             sub_js = defaultdict(list)
             for sub in self.submissions:
-                for js_idx in sub.get_active_jobscripts():
-                    sub_js[sub.index].append(js_idx)
+                sub_js[sub.index].extend(sub.get_active_jobscripts())
 
         js_direct = []
         js_sched = []
@@ -2454,8 +2459,8 @@ class Workflow:
             return
 
         try:
-            t_direct = Thread(target=wait_for_direct_jobscripts, args=(js_direct,))
-            t_sched = Thread(target=wait_for_scheduled_jobscripts, args=(js_sched,))
+            t_direct = Thread(target=self.__wait_for_direct_jobscripts, args=(js_direct,))
+            t_sched = Thread(target=self.__wait_for_scheduled_jobscripts, args=(js_sched,))
             t_direct.start()
             t_sched.start()
 
@@ -2495,7 +2500,7 @@ class Workflow:
                         active_elems[task_iID].add(elem_idx)
 
         # retrieve Element objects:
-        out = []
+        out: list[Element] = []
         for task_iID, elem_idx in active_elems.items():
             if task_insert_ID is not None and task_iID != task_insert_ID:
                 continue
@@ -2645,8 +2650,7 @@ class Workflow:
                 js[js_idx]["dependencies"] = js_deps[js_idx]
 
         js = merge_jobscripts_across_tasks(js)
-        js = jobscripts_to_list(js)
-        js_objs = [self.app.Jobscript(**i) for i in js]
+        js_objs = [self.app.Jobscript(**i) for i in jobscripts_to_list(js)]
 
         return js_objs
 
@@ -2935,7 +2939,7 @@ class Workflow:
                 self.set_EAR_skip(run_ID)
 
     def get_loop_map(
-        self, id_lst: list[int] | None = None
+        self, id_lst: Iterable[int] | None = None
     ) -> Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]]:
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
@@ -2953,7 +2957,7 @@ class Workflow:
     def get_iteration_final_run_IDs(
         self,
         loop_map: Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]] | None = None,
-        id_lst: list[int] | None = None,
+        id_lst: Iterable[int] | None = None,
     ) -> dict[str, list[int]]:
         """Retrieve the run IDs of those runs that correspond to the final action within
         a named loop iteration.

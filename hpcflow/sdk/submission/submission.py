@@ -4,11 +4,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import enum
 import os
-from pathlib import Path
 from textwrap import indent
-from typing import Dict, List, TYPE_CHECKING
+from typing import overload, override, TYPE_CHECKING
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     JobscriptSubmissionFailure,
@@ -23,9 +21,12 @@ from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript import Jobscript
 if TYPE_CHECKING:
+    from typing import Any, ClassVar, Literal
+    from ..app import BaseApp
     from .jobscript import Jobscript, JobscriptElementState
-    from .schedulers import Scheduler
+    from .schedulers import Scheduler, NullScheduler
     from .shells import Shell
+    from ..core.environment import Environment
     from ..core.object_list import EnvironmentsList
     from ..core.workflow import Workflow
 
@@ -41,9 +42,9 @@ def timedelta_format(td: timedelta) -> str:
 
 def timedelta_parse(td_str: str) -> timedelta:
     days, other = td_str.split("-")
-    days = int(days)
+    days_i = int(days)
     hours, mins, secs = [int(i) for i in other.split(":")]
-    return timedelta(days=days, hours=hours, minutes=mins, seconds=secs)
+    return timedelta(days=days_i, hours=hours, minutes=mins, seconds=secs)
 
 
 class SubmissionStatus(enum.Enum):
@@ -53,6 +54,7 @@ class SubmissionStatus(enum.Enum):
 
 
 class Submission(JSONLike):
+    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",
@@ -71,7 +73,7 @@ class Submission(JSONLike):
         index: int,
         jobscripts: list[Jobscript],
         workflow: Workflow | None = None,
-        submission_parts: Dict | None = None,
+        submission_parts: dict[str, list[int]] | None = None,
         JS_parallelism: bool | None = None,
         environments: EnvironmentsList | None = None,
     ):
@@ -81,7 +83,7 @@ class Submission(JSONLike):
         self._JS_parallelism = JS_parallelism
         self._environments = environments
 
-        self._submission_parts_lst = None  # assigned on first access; datetime objects
+        self._submission_parts_lst: list[dict[str, Any]] | None = None  # assigned on first access; datetime objects
 
         if workflow:
             self.workflow = workflow
@@ -92,28 +94,29 @@ class Submission(JSONLike):
             js._index = js_idx
 
     @TimeIt.decorator
-    def _set_environments(self):
+    def _set_environments(self) -> None:
         filterable = ElementResources.get_env_instance_filterable_attributes()
 
         # map required environments and executable labels to job script indices:
-        req_envs = defaultdict(lambda: defaultdict(set))
+        req_envs: dict[tuple, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
         for js_idx, js_i in enumerate(self.jobscripts):
             for run in js_i.all_EARs:
                 env_spec_h = tuple(zip(*run.env_spec.items()))  # hashable
                 for exec_label_j in run.action.get_required_executables():
                     req_envs[env_spec_h][exec_label_j].add(js_idx)
-                if env_spec_h not in req_envs:
-                    req_envs[env_spec_h] = {}
+                # Ensure overall element is present
+                req_envs[env_spec_h]
 
         # check these envs/execs exist in app data:
-        envs = []
+        envs: list[Environment] = []
+        app_envs: EnvironmentsList = self.app.envs
         for env_spec_h, exec_js in req_envs.items():
             env_spec = dict(zip(*env_spec_h))
             non_name_spec = {k: v for k, v in env_spec.items() if k != "name"}
             spec_str = f" with specifiers {non_name_spec!r}" if non_name_spec else ""
             env_ref = f"{env_spec['name']!r}{spec_str}"
             try:
-                env_i = self.app.envs.get(**env_spec)
+                env_i = app_envs.get(**env_spec)
             except ObjectListMultipleMatchError:
                 raise MultipleEnvironmentsError(
                     f"Multiple environments {env_ref} are defined on this machine."
@@ -153,24 +156,26 @@ class Submission(JSONLike):
         # save env definitions to the environments attribute:
         self._environments = self.app.EnvironmentsList(envs)
 
+    @override
     def to_dict(self):
         dct = super().to_dict()
         del dct["_workflow"]
         del dct["_index"]
         del dct["_submission_parts_lst"]
-        dct = {k.lstrip("_"): v for k, v in dct.items()}
-        return dct
+        return {k.lstrip("_"): v for k, v in dct.items()}
 
     @property
     def index(self) -> int:
         return self._index
 
     @property
-    def environments(self) -> app.EnvironmentsList:
+    def environments(self) -> EnvironmentsList:
+        assert self._environments
         return self._environments
 
     @property
-    def submission_parts(self) -> list[Dict]:
+    def submission_parts(self) -> list[dict[str, Any]]:
+        # FIXME: use a TypedDict
         if not self._submission_parts:
             return []
 
@@ -190,57 +195,41 @@ class Submission(JSONLike):
     def get_start_time(self, submit_time: str) -> datetime | None:
         """Get the start time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
-        all_part_starts = []
-        for i in js_idx:
-            start_time = self.jobscripts[i].start_time
-            if start_time:
-                all_part_starts.append(start_time)
-        if all_part_starts:
-            return min(all_part_starts)
-        else:
-            return None
+        return min((
+            self.jobscripts[i].start_time
+            for i in js_idx
+            if self.jobscripts[i].start_time is not None
+        ), default=None)
 
     @TimeIt.decorator
     def get_end_time(self, submit_time: str) -> datetime | None:
         """Get the end time of a given submission part."""
         js_idx = self._submission_parts[submit_time]
-        all_part_ends = []
-        for i in js_idx:
-            end_time = self.jobscripts[i].end_time
-            if end_time:
-                all_part_ends.append(end_time)
-        if all_part_ends:
-            return max(all_part_ends)
-        else:
-            return None
+        return max((
+            self.jobscripts[i].end_time
+            for i in js_idx
+            if self.jobscripts[i].end_time is not None
+        ), default=None)
 
     @property
     @TimeIt.decorator
-    def start_time(self):
+    def start_time(self) -> datetime | None:
         """Get the first non-None start time over all submission parts."""
-        all_start_times = []
-        for submit_time in self._submission_parts:
-            start_i = self.get_start_time(submit_time)
-            if start_i:
-                all_start_times.append(start_i)
-        if all_start_times:
-            return max(all_start_times)
-        else:
-            return None
+        return min((
+            self.get_start_time(submit_time)
+            for submit_time in self._submission_parts
+            if self.get_start_time(submit_time) is not None
+        ), default=None)
 
     @property
     @TimeIt.decorator
-    def end_time(self):
+    def end_time(self) -> datetime | None:
         """Get the final non-None end time over all submission parts."""
-        all_end_times = []
-        for submit_time in self._submission_parts:
-            end_i = self.get_end_time(submit_time)
-            if end_i:
-                all_end_times.append(end_i)
-        if all_end_times:
-            return max(all_end_times)
-        else:
-            return None
+        return max((
+            self.get_end_time(submit_time)
+            for submit_time in self._submission_parts
+            if self.get_end_time(submit_time) is not None
+        ), default=None)
 
     @property
     def jobscripts(self) -> list[Jobscript]:
@@ -295,7 +284,7 @@ class Submission(JSONLike):
         return self.workflow.submissions_path / str(self.index)
 
     @property
-    def all_EAR_IDs(self):
+    def all_EAR_IDs(self) -> list[int]:
         return [i for js in self.jobscripts for i in js.all_EAR_IDs]
 
     @property
@@ -318,26 +307,42 @@ class Submission(JSONLike):
     def abort_EARs_file_path(self):
         return self.path / self.abort_EARs_file_name
 
+    @overload
+    def get_active_jobscripts(
+        self, as_json: Literal[False] = False
+    ) -> dict[int, dict[int, JobscriptElementState]]: ...
+
+    @overload
+    def get_active_jobscripts(
+        self, as_json: Literal[True]
+    ) -> dict[int, str]: ...
+
     @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
-    ) -> list[tuple[int, dict[int, JobscriptElementState]]]:
+    ) -> dict[int, dict[int, JobscriptElementState]] | dict[int, dict[int, str]]:
         """Get jobscripts that are active on this machine, and their active states."""
         # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
-        out = {}
-        for js in self.jobscripts:
-            active_states = js.get_active_states(as_json=as_json)
-            if active_states:
-                out[js.index] = active_states
-        return out
+        if as_json:
+            details = ((js.index, js.get_active_states(as_json=True))
+                       for js in self.jobscripts)
+            return {
+                idx: state for idx, state in details if state
+            }
+        else:
+            dets2 = ((js.index, js.get_active_states(as_json=False))
+                     for js in self.jobscripts)
+            return {
+                idx: state for idx, state in dets2 if state
+            }
 
-    def _write_abort_EARs_file(self):
+    def _write_abort_EARs_file(self) -> None:
         with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
             # write a single line for each EAR currently in the workflow:
             fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
 
-    def _set_run_abort(self, run_ID: int):
+    def _set_run_abort(self, run_ID: int) -> None:
         """Modify the abort runs file to indicate a specified run should be aborted."""
         with self.abort_EARs_file_path.open(mode="rt", newline="\n") as fp:
             lines = fp.read().splitlines()
@@ -359,14 +364,14 @@ class Submission(JSONLike):
     @staticmethod
     def get_unique_schedulers_of_jobscripts(
         jobscripts: list[Jobscript],
-    ) -> dict[tuple[tuple[int, int]], Scheduler]:
+    ) -> dict[tuple[tuple[int, int], ...], NullScheduler]:
         """Get unique schedulers and which of the passed jobscripts they correspond to.
 
         Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
 
         """
-        js_idx = []
-        schedulers = []
+        js_idx: list[list[tuple[int, int]]] = []
+        schedulers: list[NullScheduler] = []
 
         # list of tuples of scheduler properties we consider to determine "uniqueness",
         # with the first string being the scheduler type (class name):
@@ -385,7 +390,7 @@ class Submission(JSONLike):
         return sched_js_idx
 
     @TimeIt.decorator
-    def get_unique_schedulers(self) -> dict[tuple[int, ...], Scheduler]:
+    def get_unique_schedulers(self) -> dict[tuple[tuple[int, int], ...], NullScheduler]:
         """Get unique schedulers and which of this submission's jobscripts they
         correspond to."""
         return self.get_unique_schedulers_of_jobscripts(self.jobscripts)
@@ -393,8 +398,8 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def get_unique_shells(self) -> dict[tuple[int, ...], Shell]:
         """Get unique shells and which jobscripts they correspond to."""
-        js_idx = []
-        shells = []
+        js_idx: list[list[int]] = []
+        shells: list[Shell] = []
 
         for js in self.jobscripts:
             if js.shell not in shells:
@@ -475,34 +480,30 @@ class Submission(JSONLike):
 
         # get scheduler, shell and OS version information (also an opportunity to fail
         # before trying to submit jobscripts):
-        js_vers_info = {}
+        js_vers_info: dict[int, dict[str, str]] = {}
         for js_indices, sched in self.get_unique_schedulers().items():
             try:
                 vers_info = sched.get_version_info()
-            except Exception as err:
+            except Exception:
                 if ignore_errors:
                     vers_info = {}
                 else:
-                    raise err
+                    raise
             for _, js_idx in js_indices:
                 if js_idx in outstanding:
-                    if js_idx not in js_vers_info:
-                        js_vers_info[js_idx] = {}
-                    js_vers_info[js_idx].update(vers_info)
+                    js_vers_info.setdefault(js_idx, {}).update(vers_info)
 
         for js_indices, shell in self.get_unique_shells().items():
             try:
                 vers_info = shell.get_version_info()
-            except Exception as err:
+            except Exception:
                 if ignore_errors:
                     vers_info = {}
                 else:
-                    raise err
+                    raise
             for js_idx in js_indices:
                 if js_idx in outstanding:
-                    if js_idx not in js_vers_info:
-                        js_vers_info[js_idx] = {}
-                    js_vers_info[js_idx].update(vers_info)
+                    js_vers_info.setdefault(js_idx, {}).update(vers_info)
 
         for js_idx, vers_info_i in js_vers_info.items():
             self.jobscripts[js_idx]._set_version_info(vers_info_i)
@@ -520,9 +521,9 @@ class Submission(JSONLike):
             self._write_abort_EARs_file()
 
         # map jobscript `index` to (scheduler job ID or process ID, is_array):
-        scheduler_refs = {}
-        submitted_js_idx = []
-        errs = []
+        scheduler_refs: dict[int, tuple[str, bool]] = {}
+        submitted_js_idx: list[int] = []
+        errs: list[Exception] = []
         for js in self.jobscripts:
             # check not previously submitted:
             if js.index not in outstanding:

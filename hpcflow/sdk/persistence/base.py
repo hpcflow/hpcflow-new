@@ -27,7 +27,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
-    from typing import Self
+    from typing import ClassVar, Self
     from fsspec import AbstractFileSystem
     from ..app import BaseApp
 
@@ -659,6 +659,7 @@ class PersistentStore(ABC):
     _store_param_cls = StoreParameter
 
     _resources = {}
+    _features: ClassVar[PersistentStoreFeatures]
 
     def __init__(self, app, workflow, path, fs: AbstractFileSystem | None = None) -> None:
         self.app = app
@@ -685,6 +686,14 @@ class PersistentStore(ABC):
 
     @abstractmethod
     def get_creation_info(self) -> Dict:
+        ...
+
+    @abstractmethod
+    def get_ts_fmt(self) -> str:
+        ...
+
+    @abstractmethod
+    def get_ts_name_fmt(self) -> str:
         ...
 
     @abstractmethod
@@ -1146,7 +1155,7 @@ class PersistentStore(ABC):
         self,
         sub_idx: int,
         js_idx: int,
-        version_info: Dict | None = None,
+        version_info: dict[str, str] | None = None,
         submit_time: str | None = None,
         submit_hostname: str | None = None,
         submit_machine: str | None = None,
@@ -1158,36 +1167,27 @@ class PersistentStore(ABC):
         process_ID: int | None = None,
         save: bool = True,
     ):
+        entry = self._pending.set_js_metadata[sub_idx][js_idx]
         if version_info:
-            self._pending.set_js_metadata[sub_idx][js_idx]["version_info"] = version_info
+            entry["version_info"] = version_info
         if submit_time:
-            self._pending.set_js_metadata[sub_idx][js_idx]["submit_time"] = submit_time
+            entry["submit_time"] = submit_time
         if submit_hostname:
-            self._pending.set_js_metadata[sub_idx][js_idx][
-                "submit_hostname"
-            ] = submit_hostname
+            entry["submit_hostname"] = submit_hostname
         if submit_machine:
-            self._pending.set_js_metadata[sub_idx][js_idx][
-                "submit_machine"
-            ] = submit_machine
+            entry["submit_machine"] = submit_machine
         if submit_cmdline:
-            self._pending.set_js_metadata[sub_idx][js_idx][
-                "submit_cmdline"
-            ] = submit_cmdline
+            entry["submit_cmdline"] = submit_cmdline
         if os_name:
-            self._pending.set_js_metadata[sub_idx][js_idx]["os_name"] = os_name
+            entry["os_name"] = os_name
         if shell_name:
-            self._pending.set_js_metadata[sub_idx][js_idx]["shell_name"] = shell_name
+            entry["shell_name"] = shell_name
         if scheduler_name:
-            self._pending.set_js_metadata[sub_idx][js_idx][
-                "scheduler_name"
-            ] = scheduler_name
+            entry["scheduler_name"] = scheduler_name
         if scheduler_job_ID:
-            self._pending.set_js_metadata[sub_idx][js_idx][
-                "scheduler_job_ID"
-            ] = scheduler_job_ID
+            entry["scheduler_job_ID"] = scheduler_job_ID
         if process_ID:
-            self._pending.set_js_metadata[sub_idx][js_idx]["process_ID"] = process_ID
+            entry["process_ID"] = process_ID
         if save:
             self.save()
 
