@@ -9,11 +9,10 @@ from datetime import datetime, timezone
 import enum
 import os
 from pathlib import Path
-import re
 import shutil
 import socket
 import time
-from typing import Any, Dict, TypeVar, TYPE_CHECKING
+from typing import TypeVar, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import (
     flatten,
@@ -21,15 +20,18 @@ from hpcflow.sdk.core.utils import (
     get_relative_path,
     reshape,
     set_in_container,
-    JSONLikeDirSnapShot,
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
-    from typing import ClassVar, Self
-    from fsspec import AbstractFileSystem
+    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from typing import Any, Dict, ClassVar, Literal, Self
+    from fsspec import AbstractFileSystem  # type: ignore
+    from .pending import CommitResourceMap
+    from .store_resource import StoreResource
     from ..app import BaseApp
+    from ..typing import PathLike
+    from ..core.workflow import Workflow
 
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
 AnySElement = TypeVar("AnySElement", bound="StoreElement")
@@ -99,6 +101,7 @@ class StoreTask:
 
     def encode(self) -> tuple[int, Dict, Dict]:
         """Prepare store task data for the persistent store."""
+        assert self.task_template is not None
         wk_task = {"id_": self.id_, "element_IDs": self.element_IDs}
         task = {"id_": self.id_, **self.task_template}
         return self.index, wk_task, task
@@ -116,12 +119,11 @@ class StoreTask:
     @TimeIt.decorator
     def append_element_IDs(self, pend_IDs: list[int]) -> Self:
         """Return a copy, with additional element IDs."""
-        elem_IDs = self.element_IDs[:] + pend_IDs
         return self.__class__(
             id_=self.id_,
             index=self.index,
             is_pending=self.is_pending,
-            element_IDs=elem_IDs,
+            element_IDs=[*self.element_IDs, *pend_IDs],
             task_template=self.task_template,
         )
 
@@ -172,7 +174,7 @@ class StoreElement:
         }
 
     @TimeIt.decorator
-    def append_iteration_IDs(self: AnySElement, pend_IDs: list[int]) -> Self:
+    def append_iteration_IDs(self, pend_IDs: list[int]) -> Self:
         """Return a copy, with additional iteration IDs."""
         iter_IDs = self.iteration_IDs[:] + pend_IDs
         return self.__class__(
@@ -205,7 +207,7 @@ class StoreElementIter:
     is_pending: bool
     element_ID: int
     EARs_initialised: bool
-    EAR_IDs: dict[int, list[int]]
+    EAR_IDs: dict[int, list[int]] | None
     data_idx: dict[str, int]
     schema_parameters: list[str]
     loop_idx: dict[str, int] = field(default_factory=dict)
@@ -325,15 +327,15 @@ class StoreEAR:
     snapshot_start: Dict | None = None
     snapshot_end: Dict | None = None
     exit_code: int | None = None
-    metadata: dict[str, Any] = None
+    metadata: dict[str, Any] | None = None
     run_hostname: str | None = None
 
     @staticmethod
-    def _encode_datetime(dt: datetime | None, ts_fmt: str) -> str:
+    def _encode_datetime(dt: datetime | None, ts_fmt: str) -> str | None:
         return dt.strftime(ts_fmt) if dt else None
 
     @staticmethod
-    def _decode_datetime(dt_str: str | None, ts_fmt: str) -> datetime:
+    def _decode_datetime(dt_str: str | None, ts_fmt: str) -> datetime | None:
         return datetime.strptime(dt_str, ts_fmt) if dt_str else None
 
     def encode(self, ts_fmt: str) -> dict[str, Any]:
@@ -368,7 +370,7 @@ class StoreEAR:
     def to_dict(self) -> dict[str, Any]:
         """Prepare data for the user-facing `ElementActionRun` object."""
 
-        def _process_datetime(dt: datetime) -> datetime:
+        def _process_datetime(dt: datetime | None) -> datetime | None:
             """We store datetime objects implicitly in UTC, so we need to first make
             that explicit, and then convert to the local time zone."""
             return dt.replace(tzinfo=timezone.utc).astimezone() if dt else None
@@ -443,13 +445,13 @@ class StoreParameter:
     is_pending: bool
     is_set: bool
     data: Any
-    file: Dict
+    file: Dict | None
     source: Dict
 
-    _encoders = {}
-    _decoders = {}
+    _encoders: dict[type, Callable] = {}
+    _decoders: dict[type, Callable] = {}
 
-    def encode(self, **kwargs) -> Dict:
+    def encode(self, **kwargs) -> dict[str, Any] | int:
         """Prepare store parameter data for the persistent store."""
         if self.is_set:
             if self.file:
@@ -465,7 +467,7 @@ class StoreParameter:
         path: list[int] | None = None,
         type_lookup: Dict | None = None,
         **kwargs,
-    ) -> Dict:
+    ) -> dict[str, Any]:
         """Recursive encoder."""
 
         path = path or []
@@ -480,6 +482,7 @@ class StoreParameter:
             raise RuntimeError("I'm in too deep!")
 
         if any("ParameterValue" in i.__name__ for i in obj.__class__.__mro__):
+            assert type_lookup is not None
             # TODO: not nice; did this to avoid circular import of `ParameterValue`
             encoded = self._encode(
                 obj=obj.to_dict(),
@@ -490,6 +493,7 @@ class StoreParameter:
             data, type_lookup = encoded["data"], encoded["type_lookup"]
 
         elif isinstance(obj, (list, tuple, set)):
+            assert type_lookup is not None
             data = []
             for idx, item in enumerate(obj):
                 encoded = self._encode(
@@ -499,6 +503,7 @@ class StoreParameter:
                     **kwargs,
                 )
                 item, type_lookup = encoded["data"], encoded["type_lookup"]
+                assert type_lookup is not None
                 data.append(item)
 
             if isinstance(obj, tuple):
@@ -508,6 +513,7 @@ class StoreParameter:
                 type_lookup["sets"].append(path)
 
         elif isinstance(obj, dict):
+            assert type_lookup is not None
             data = {}
             for dct_key, dct_val in obj.items():
                 encoded = self._encode(
@@ -517,12 +523,14 @@ class StoreParameter:
                     **kwargs,
                 )
                 dct_val, type_lookup = encoded["data"], encoded["type_lookup"]
+                assert type_lookup is not None
                 data[dct_key] = dct_val
 
         elif isinstance(obj, PRIMITIVES):
             data = obj
 
         elif type(obj) in self._encoders:
+            assert type_lookup is not None
             data = self._encoders[type(obj)](
                 obj=obj,
                 path=path,
@@ -545,7 +553,7 @@ class StoreParameter:
     def decode(
         cls,
         id_: int,
-        data: Dict | None,
+        data: dict[str, Any] | Literal[0] | None,
         source: Dict,
         path: list[str] | None = None,
         **kwargs,
@@ -560,7 +568,7 @@ class StoreParameter:
                 source=source,
                 is_pending=False,
             )
-        elif data == PARAM_DATA_NOT_SET:
+        elif not isinstance(data, dict):
             # parameter is not set
             return cls(
                 id_=id_,
@@ -658,10 +666,11 @@ class PersistentStore(ABC):
     _store_EAR_cls = StoreEAR
     _store_param_cls = StoreParameter
 
-    _resources = {}
+    _resources: ClassVar[dict[str, StoreResource]] = {}
     _features: ClassVar[PersistentStoreFeatures]
+    _res_map: ClassVar[CommitResourceMap]
 
-    def __init__(self, app, workflow, path, fs: AbstractFileSystem | None = None) -> None:
+    def __init__(self, app: BaseApp, workflow: Workflow, path: str, fs: AbstractFileSystem | None = None):
         self.app = app
         self.workflow = workflow
         self.path = path
@@ -669,7 +678,7 @@ class PersistentStore(ABC):
 
         self._pending = PendingChanges(app=app, store=self, resource_map=self._res_map)
 
-        self._resources_in_use = set()
+        self._resources_in_use: set[tuple[str, str]] = set()
         self._in_batch_mode = False
 
         self._use_cache = False
@@ -773,10 +782,18 @@ class PersistentStore(ABC):
         """Cache for number of persistent tasks."""
         return self._cache["num_tasks"]
 
+    @num_tasks_cache.setter
+    def num_tasks_cache(self, value):
+        self._cache["num_tasks"] = value
+
     @property
     def num_EARs_cache(self):
         """Cache for total number of persistent EARs."""
         return self._cache["num_EARs"]
+
+    @num_EARs_cache.setter
+    def num_EARs_cache(self, value):
+        self._cache["num_EARs"] = value
 
     @property
     def param_sources_cache(self):
@@ -787,14 +804,6 @@ class PersistentStore(ABC):
     def parameter_cache(self):
         """Cache for persistent parameters."""
         return self._cache["parameters"]
-
-    @num_tasks_cache.setter
-    def num_tasks_cache(self, value):
-        self._cache["num_tasks"] = value
-
-    @num_EARs_cache.setter
-    def num_EARs_cache(self, value):
-        self._cache["num_EARs"] = value
 
     def _reset_cache(self):
         self._cache = {
@@ -914,25 +923,43 @@ class PersistentStore(ABC):
 
         return _rename_path(replaced, original, fs)
 
+    @abstractmethod
+    def _get_num_persistent_tasks(self) -> int: ...
+
     def _get_num_total_tasks(self) -> int:
         """Get the total number of persistent and pending tasks."""
         return self._get_num_persistent_tasks() + len(self._pending.add_tasks)
+
+    @abstractmethod
+    def _get_num_persistent_loops(self) -> int: ...
 
     def _get_num_total_loops(self) -> int:
         """Get the total number of persistent and pending loops."""
         return self._get_num_persistent_loops() + len(self._pending.add_loops)
 
+    @abstractmethod
+    def _get_num_persistent_submissions(self) -> int: ...
+
     def _get_num_total_submissions(self) -> int:
         """Get the total number of persistent and pending submissions."""
         return self._get_num_persistent_submissions() + len(self._pending.add_submissions)
+
+    @abstractmethod
+    def _get_num_persistent_elements(self) -> int: ...
 
     def _get_num_total_elements(self) -> int:
         """Get the total number of persistent and pending elements."""
         return self._get_num_persistent_elements() + len(self._pending.add_elements)
 
+    @abstractmethod
+    def _get_num_persistent_elem_iters(self) -> int: ...
+
     def _get_num_total_elem_iters(self) -> int:
         """Get the total number of persistent and pending element iterations."""
         return self._get_num_persistent_elem_iters() + len(self._pending.add_elem_iters)
+
+    @abstractmethod
+    def _get_num_persistent_EARs(self) -> int: ...
 
     @TimeIt.decorator
     def _get_num_total_EARs(self) -> int:
@@ -943,6 +970,9 @@ class PersistentStore(ABC):
         """Get the total number of persistent and pending elements of a given task."""
         return len(self.get_task(task_ID).element_IDs)
 
+    @abstractmethod
+    def _get_num_persistent_parameters(self) -> int: ...
+
     def _get_num_total_parameters(self) -> int:
         """Get the total number of persistent and pending parameters."""
         return self._get_num_persistent_parameters() + len(self._pending.add_parameters)
@@ -951,6 +981,9 @@ class PersistentStore(ABC):
         """Get the total number of persistent and pending user-supplied input files."""
         num_pend_inp_files = len([i for i in self._pending.add_files if i["is_input"]])
         return self._get_num_persistent_input_files() + num_pend_inp_files
+
+    @abstractmethod
+    def _get_num_persistent_added_tasks(self) -> int: ...
 
     def _get_num_total_added_tasks(self) -> int:
         """Get the total number of tasks ever added to the workflow."""
@@ -1195,8 +1228,8 @@ class PersistentStore(ABC):
         self,
         is_set: bool,
         source: Dict,
-        data: Any = None,
-        file: Dict = None,
+        data: Any | None = None,
+        file: Dict | None = None,
         save: bool = True,
     ) -> int:
         self.logger.debug(f"Adding store parameter{f' (unset)' if not is_set else ''}.")
@@ -1218,8 +1251,8 @@ class PersistentStore(ABC):
         store_contents: bool,
         is_input: bool,
         path=None,
-        contents: str = None,
-        filename: str = None,
+        contents: str | None = None,
+        filename: str | None = None,
         clean_up: bool = False,
     ):
         if filename is None:
@@ -1293,8 +1326,8 @@ class PersistentStore(ABC):
         is_input: bool,
         source: Dict,
         path=None,
-        contents: str = None,
-        filename: str = None,
+        contents: str | None = None,
+        filename: str | None = None,
         save: bool = True,
     ):
         self.logger.debug(f"Adding new file")
@@ -1315,7 +1348,7 @@ class PersistentStore(ABC):
             self.save()
         return p_id
 
-    def _append_files(self, files: dict[int, Dict]):
+    def _append_files(self, files: list[dict[str, Any]]):
         """Add new files to the files or artifacts directories."""
         for dat in files:
             if dat["store_contents"]:
@@ -1358,20 +1391,21 @@ class PersistentStore(ABC):
             self.save()
 
     def update_loop_num_iters(
-        self, index: int, num_added_iters: int, save: bool = True
+        self, index: int, num_added_iters: dict[tuple[int, ...], int],
+        save: bool = True
     ) -> None:
         self.logger.debug(
             f"Updating loop {index!r} num added iterations to {num_added_iters!r}."
         )
-        num_added_iters = [[list(k), v] for k, v in num_added_iters.items()]
-        self._pending.update_loop_num_iters[index] = num_added_iters
+        self._pending.update_loop_num_iters[index] = [
+            [list(k), v] for k, v in num_added_iters.items()]
         if save:
             self.save()
 
     def update_loop_parents(
         self,
         index: int,
-        num_added_iters: int,
+        num_added_iters: dict[tuple[int, ...], int],
         parents: list[str],
         save: bool = True,
     ) -> None:
@@ -1379,8 +1413,8 @@ class PersistentStore(ABC):
             f"Updating loop {index!r} parents to {parents!r}, and num added iterations "
             f"to {num_added_iters}."
         )
-        num_added_iters = [[list(k), v] for k, v in num_added_iters.items()]
-        self._pending.update_loop_num_iters[index] = num_added_iters
+        self._pending.update_loop_num_iters[index] = [
+            [list(k), v] for k, v in num_added_iters.items()]
         self._pending.update_loop_parents[index] = parents
         if save:
             self.save()
@@ -1403,7 +1437,7 @@ class PersistentStore(ABC):
         return {i.id_: i.index for i in self.get_tasks()}
 
     @TimeIt.decorator
-    def get_task(self, task_idx: int) -> AnySTask:
+    def get_task(self, task_idx: int) -> StoreTask:
         return self.get_tasks()[task_idx]
 
     def _process_retrieved_tasks(self, tasks: Iterable[AnySTask]) -> list[AnySTask]:
@@ -1668,9 +1702,9 @@ class PersistentStore(ABC):
     @TimeIt.decorator
     def get_parameters(
         self,
-        id_lst: Iterable[int | str],
-        **kwargs: Dict,
-    ) -> list[AnySParameter]:
+        id_lst: Iterable[int],
+        **kwargs
+    ) -> list[StoreParameter]:
         """
         Parameters
         ----------
@@ -1684,14 +1718,22 @@ class PersistentStore(ABC):
         id_pers = id_set.difference(all_pending)
         id_pend = id_set.intersection(all_pending)
 
-        params = self._get_persistent_parameters(id_pers, **kwargs) if id_pers else {}
+        params = dict(
+            self._get_persistent_parameters(id_pers, **kwargs)) if id_pers else {}
         params.update({i: self._pending.add_parameters[i] for i in id_pend})
 
         # order as requested:
         return [params[id_] for id_ in id_lst]
 
+    @abstractmethod
+    def _get_persistent_parameters(
+        self,
+        id_lst: Iterable[int],
+        **kwargs
+    ) -> Mapping[int, StoreParameter]: ...
+
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int | str]) -> list[bool]:
+    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1704,8 +1746,13 @@ class PersistentStore(ABC):
         # order as requested:
         return [set_status[id_] for id_ in id_lst]
 
+    @abstractmethod
+    def _get_persistent_parameter_set_status(
+        self, id_lst: Iterable[int]
+    ) -> dict[int, bool]: ...
+
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int | str]) -> list[Dict]:
+    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[Dict]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1727,6 +1774,9 @@ class PersistentStore(ABC):
             src_new.append(src_i)
 
         return src_new
+
+    @abstractmethod
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, Dict]: ...
 
     @TimeIt.decorator
     def get_task_elements(
@@ -1818,12 +1868,13 @@ class PersistentStore(ABC):
                 res.close(action)
                 self._resources_in_use.remove(key)
 
-    def copy(self, path=None) -> str:
+    def copy(self, path: PathLike = None) -> str:
         """Copy the workflow store.
 
         This does not work on remote filesystems.
 
         """
+        assert self.fs is not None
         if path is None:
             _path = Path(self.path)
             path = _path.parent / Path(_path.stem + "_copy" + _path.suffix)
@@ -1835,9 +1886,7 @@ class PersistentStore(ABC):
 
         self.fs.copy(self.path, path)
 
-        new_fs_path = self.workflow.fs_path.replace(self.path, path)
-
-        return new_fs_path
+        return self.workflow._store.path.replace(self.path, path)
 
     def delete(self) -> None:
         """Delete the persistent workflow."""
@@ -1850,10 +1899,13 @@ class PersistentStore(ABC):
     def delete_no_confirm(self) -> None:
         """Permanently delete the workflow data with no confirmation."""
 
+        fs = self.fs
+        assert fs is not None
+
         @self.app.perm_error_retry()
         def _delete_no_confirm() -> None:
             self.logger.debug(f"_delete_no_confirm: {self.path!r}.")
-            self.fs.rm(self.path, recursive=True)
+            fs.rm(self.path, recursive=True)
 
         return _delete_no_confirm()
 

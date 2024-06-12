@@ -1,12 +1,3 @@
-import copy
-from pathlib import Path
-import random
-import string
-import time
-from typing import Type, Union
-
-from reretry import retry
-
 from hpcflow.sdk.persistence.base import PersistentStore
 from hpcflow.sdk.persistence.json import JSONPersistentStore
 from hpcflow.sdk.persistence.zarr import ZarrPersistentStore, ZarrZipPersistentStore
@@ -24,7 +15,7 @@ ALL_CREATE_STORE_FORMATS = tuple(
 )
 
 
-def store_cls_from_str(store_format: str) -> Type[PersistentStore]:
+def store_cls_from_str(store_format: str) -> type[PersistentStore]:
     try:
         return ALL_STORE_CLS[store_format]
     except KeyError:

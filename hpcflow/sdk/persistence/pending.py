@@ -9,7 +9,10 @@ from typing import Any, Dict, List, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
-    from .base import AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask, PersistentStore
+    from .base import (
+        AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask,
+        PersistentStore, StoreParameter)
+    from ..app import BaseApp
     pass  # TODO: Get the type variables
 
 
@@ -40,41 +43,41 @@ class PendingChanges:
         code, and success boolean.
     """
 
-    def __init__(self, app, store: PersistentStore, resource_map):
+    def __init__(self, app: BaseApp, store: PersistentStore, resource_map: CommitResourceMap):
         self.app = app
         self.store = store
         self.resource_map = resource_map
 
-        self.add_tasks: dict[int, AnySTask] | None = None
-        self.add_loops: dict[int, Dict] | None = None
-        self.add_submissions: dict[int, Dict] | None = None
-        self.add_elements: dict[int, AnySElement] | None = None
-        self.add_elem_iters: dict[int, AnySElementIter] | None = None
-        self.add_EARs: dict[int, AnySEAR] | None = None
-        self.add_parameters: dict[int, AnySParameter] | None = None
-        self.add_files: list[Dict] | None = None
-        self.add_template_components: dict[str, dict[str, Dict]] | None = None
-        self.add_element_sets: dict[int, Dict] | None = None
+        self.add_tasks: dict[int, AnySTask] = {}
+        self.add_loops: dict[int, Dict] = {}
+        self.add_submissions: dict[int, Dict] = {}
+        self.add_elements: dict[int, AnySElement] = {}
+        self.add_elem_iters: dict[int, AnySElementIter] = {}
+        self.add_EARs: dict[int, AnySEAR] = {}
+        self.add_parameters: dict[int, StoreParameter] = {}
+        self.add_files: list[Dict] = []
+        self.add_template_components: dict[str, dict[str, Dict]] = {}
+        self.add_element_sets: dict[int, List] = {}
 
-        self.add_elem_IDs: dict[int, list[int]] | None = None
-        self.add_elem_iter_IDs: dict[int, List] | None = None
-        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] | None = None
-        self.add_submission_parts: dict[int, dict[str, list[int]]] | None = None
+        self.add_elem_IDs: dict[int, list[int]] = {}
+        self.add_elem_iter_IDs: dict[int, List] = {}
+        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] = {}
+        self.add_submission_parts: dict[int, dict[str, list[int]]] = {}
 
-        self.set_EARs_initialised: list[int] | None = None
-        self.set_EAR_submission_indices: dict[int, int] | None = None
-        self.set_EAR_skips: list[int] | None = None
-        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] | None = None
-        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] | None = None
+        self.set_EARs_initialised: list[int] = []
+        self.set_EAR_submission_indices: dict[int, int] = {}
+        self.set_EAR_skips: list[int] = []
+        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] = {}
+        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] = {}
 
-        self.set_js_metadata: dict[int, dict[int, dict[str, Any]]] | None = None
+        self.set_js_metadata: dict[int, dict[int, dict[str, Any]]] = {}
 
-        self.set_parameters: dict[int, AnySParameter] | None = None
+        self.set_parameters: dict[int, AnySParameter] = {}
 
-        self.update_param_sources: dict[int, Dict] | None = None
-        self.update_loop_indices: dict[int, dict[str, int]] | None = None
-        self.update_loop_num_iters: dict[int, int] | None = None
-        self.update_loop_parents: dict[int, list[str]] | None = None
+        self.update_param_sources: dict[int, Dict] = {}
+        self.update_loop_indices: dict[int, dict[str, int]] = {}
+        self.update_loop_num_iters: dict[int, list[list[list[int] | int]]] = {}
+        self.update_loop_parents: dict[int, list[str]] = {}
 
         self.reset(is_init=True)  # set up initial data structures
 

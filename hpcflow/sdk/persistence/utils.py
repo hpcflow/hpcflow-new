@@ -2,16 +2,16 @@ from __future__ import annotations
 from getpass import getpass
 from typing import TypeVar, TYPE_CHECKING
 
-from fsspec.implementations.zip import ZipFileSystem
-
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 if TYPE_CHECKING:
-    from typing import Callable
+    from typing import Callable, TypeVar
     from fsspec import AbstractFileSystem
 
+    T = TypeVar("T")
 
-def ask_pw_on_auth_exc[T](f: Callable[..., T], *args, add_pw_to: str | None = None,
-                          **kwargs) -> tuple[T, str | None]:
+
+def ask_pw_on_auth_exc(f: Callable[..., T], *args, add_pw_to: str | None = None,
+                       **kwargs) -> tuple[T, str | None]:
     from paramiko.ssh_exception import SSHException
 
     try:

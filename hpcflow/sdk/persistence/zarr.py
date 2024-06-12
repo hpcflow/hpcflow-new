@@ -606,7 +606,7 @@ class ZarrPersistentStore(PersistentStore):
             arr.attrs.put(attrs)
 
     @TimeIt.decorator
-    def _update_EAR_submission_indices(self, sub_indices: dict[int:int]):
+    def _update_EAR_submission_indices(self, sub_indices: dict[int, int]):
         EAR_IDs = list(sub_indices.keys())
         EARs = self._get_persistent_EARs(EAR_IDs)
 

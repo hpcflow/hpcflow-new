@@ -237,7 +237,7 @@ class WorkflowLoop:
         )
 
     @property
-    def num_added_iterations(self):
+    def num_added_iterations(self) -> dict[tuple[int, ...], int]:
 
         if self._pending_num_added_iterations:
             return self._pending_num_added_iterations
