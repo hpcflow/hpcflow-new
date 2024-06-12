@@ -596,7 +596,6 @@ def test_script_direct_in_direct_out_std_out_std_err_not_redirected(
             )
         ],
     )
-    p1_val = 101
     stdout_msg = "hello stdout!"
     stderr_msg = "hello stderr!"
     t1 = hf.Task(schema=s1, inputs={"stdout_msg": stdout_msg, "stderr_msg": stderr_msg})
