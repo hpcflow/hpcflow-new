@@ -2102,9 +2102,10 @@ class Action(JSONLike):
             py_main_block_invoke = f"outputs = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\
-                outputs = {"outputs." + k: v for k, v in outputs.items()}
-                for name_i, out_i in outputs.items():
-                    wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
+                with app.redirect_std_to_file(args.std_stream):
+                    outputs = {"outputs." + k: v for k, v in outputs.items()}
+                    for name_i, out_i in outputs.items():
+                        wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
                 """
             )
         else:
@@ -2130,8 +2131,8 @@ class Action(JSONLike):
             direct_ins=indent(direct_ins_str, tab_indent_2),
             in_files=indent(input_files_str, tab_indent_2),
             out_files=indent(output_files_str, tab_indent_2),
-            invoke=indent(py_main_block_invoke, tab_indent_2),
-            outputs=indent(py_main_block_outputs, tab_indent_2),
+            invoke=indent(py_main_block_invoke, tab_indent),
+            outputs=indent(py_main_block_outputs, tab_indent),
         )
 
         out = dedent(

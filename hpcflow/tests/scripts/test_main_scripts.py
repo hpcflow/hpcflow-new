@@ -562,6 +562,9 @@ def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
         tasks=[t1], template_name="main_script_test", path=tmp_path
     )
     wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
 
     # jobscript stderr should be empty
     assert not wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
@@ -570,3 +573,43 @@ def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
     std_stream_path = wk.execution_path / "task_0_t1/e_0/r_0/hpcflow_std.txt"
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
+
+
+def test_script_direct_in_direct_out_std_out_std_err_not_redirected(
+    null_config, tmp_path
+):
+    """Test that standard error and output streams from a script are written to the jobscript
+    standard error and output files."""
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[
+            hf.SchemaInput(parameter=hf.Parameter("stdout_msg")),
+            hf.SchemaInput(parameter=hf.Parameter("stderr_msg")),
+        ],
+        actions=[
+            hf.Action(
+                script="<<script:main_script_test_std_out_std_err.py>>",
+                script_data_in="direct",
+                script_data_out="direct",
+                script_exe="python_script",
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    stdout_msg = "hello stdout!"
+    stderr_msg = "hello stderr!"
+    t1 = hf.Task(schema=s1, inputs={"stdout_msg": stdout_msg, "stderr_msg": stderr_msg})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1], template_name="main_script_test", path=tmp_path
+    )
+    wk.submit(wait=True, add_to_known=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text()
+    std_err = wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
+
+    assert std_out.strip() == stdout_msg
+    assert std_err.strip() == stderr_msg
