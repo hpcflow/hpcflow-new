@@ -646,7 +646,7 @@ def _make_internal_CLI(app):
     def check_loop(ctx, loop_name: str, ear_id: int):
         """Check if an iteration has met its loop's termination condition."""
         app.CLI_logger.info(f"check_loop for loop {loop_name!r} and EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].check_loop_termination(loop_name, ear_id))
+        ctx.obj["workflow"].check_loop_termination(loop_name, ear_id)
 
     # TODO: in general, maybe the workflow command group can expose the simple Workflow
     # properties; maybe use a decorator on the Workflow property object to signify
