@@ -11,7 +11,7 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.parameters import ParallelMode
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import Scheduler
+from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ..jobscript import Jobscript
 
 
-class SlurmPosix(Scheduler):
+class SlurmPosix(QueuedScheduler):
     """
 
     Notes
@@ -492,7 +492,7 @@ class SlurmPosix(Scheduler):
         return list(known_jobs.intersection(job_IDs))
 
     def get_job_state_info(
-        self, js_refs: list[str] | None = None
+        self, *, js_refs: list[str] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
@@ -530,7 +530,11 @@ class SlurmPosix(Scheduler):
 
         return self._parse_job_states(stdout)
 
-    def cancel_jobs(self, js_refs: list[str], jobscripts: list[Jobscript] | None = None):
+    def cancel_jobs(
+        self, js_refs: list[str],
+        jobscripts: list[Jobscript] | None = None,
+        num_js_elements: int = 0  # Ignored!
+    ):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

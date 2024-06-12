@@ -18,7 +18,8 @@ from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachine
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import Scheduler, NullScheduler
+from hpcflow.sdk.submission.schedulers import QueuedScheduler, Scheduler
+from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
@@ -381,7 +382,7 @@ class Jobscript(JSONLike):
 
         self._submission: Submission | None = None  # assigned by parent Submission
         self._index: int | None = None  # assigned by parent Submission
-        self._scheduler_obj: NullScheduler | None = None  # assigned on first access to `scheduler` property
+        self._scheduler_obj: Scheduler | None = None  # assigned on first access to `scheduler` property
         self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
         self._submit_time_obj = None  # assigned on first access to `submit_time` property
         self._running = None
@@ -583,7 +584,7 @@ class Jobscript(JSONLike):
     def _get_submission_scheduler_args(self):
         return self.resources.scheduler_args
 
-    def _get_shell(self, os_name, shell_name, os_args=None, shell_args=None):
+    def _get_shell(self, os_name, shell_name, os_args=None, shell_args=None) -> Shell:
         """Get an arbitrary shell, not necessarily associated with submission."""
         os_args = os_args or {}
         shell_args = shell_args or {}
@@ -607,7 +608,7 @@ class Jobscript(JSONLike):
         return self._shell_obj
 
     @property
-    def scheduler(self) -> NullScheduler:
+    def scheduler(self) -> Scheduler:
         """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
             self._scheduler_obj = self.app.get_scheduler(
@@ -843,16 +844,11 @@ class Jobscript(JSONLike):
         else:
             env_setup = shell.JS_ENV_SETUP_INDENT
 
-        is_scheduled = True
-        if not isinstance(scheduler, Scheduler):
-            is_scheduled = False
-
-        app_invoc = list(self.app.run_time_info.invocation_command)
         header_args = shell.process_JS_header_args(
             {
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
-                "app_invoc": app_invoc,
+                "app_invoc": list(self.app.run_time_info.invocation_command),
                 "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
                 "config_dir": str(self.app.config.config_directory),
                 "config_invoc_key": self.app.config.config_key,
@@ -870,7 +866,7 @@ class Jobscript(JSONLike):
         )
         header = shell.JS_HEADER.format(**header_args)
 
-        if is_scheduled:
+        if isinstance(scheduler, QueuedScheduler):
             header = shell.JS_SCHEDULER_HEADER.format(
                 shebang=shebang,
                 scheduler_options=scheduler.format_options(
@@ -882,11 +878,12 @@ class Jobscript(JSONLike):
                 header=header,
             )
         else:
-            # the NullScheduler (direct submission)
+            # the Scheduler (direct submission)
+            assert isinstance(scheduler, DirectScheduler)
             wait_cmd = shell.get_wait_command(
                 workflow_app_alias=self.workflow_app_alias,
                 sub_idx=self.submission.index,
-                deps=deps,
+                deps=deps or {},
             )
             header = shell.JS_DIRECT_HEADER.format(
                 shebang=shebang,
@@ -906,6 +903,8 @@ class Jobscript(JSONLike):
         out = header
 
         if self.is_array:
+            if not isinstance(scheduler, QueuedScheduler):
+                raise Exception("can only schedule arrays of jobs to a queue")
             out += shell.JS_ELEMENT_ARRAY.format(
                 scheduler_command=scheduler.js_cmd,
                 scheduler_array_switch=scheduler.array_switch,
@@ -1089,7 +1088,7 @@ class Jobscript(JSONLike):
             "subprocess_exc": None,
             "job_ID_parse_exc": None,
         }
-        is_scheduler = isinstance(self.scheduler, Scheduler)
+        is_scheduler = isinstance(self.scheduler, QueuedScheduler)
         job_ID: str | None = None
         process_ID: int | None = None
         try:
@@ -1167,17 +1166,17 @@ class Jobscript(JSONLike):
 
     @property
     def scheduler_js_ref(self):
-        if isinstance(self.scheduler, Scheduler):
+        if isinstance(self.scheduler, QueuedScheduler):
             return self.scheduler_job_ID
         else:
             return (self.process_ID, self.submit_cmdline)
 
     @property
     def scheduler_ref(self):
-        out = {"js_refs": [self.scheduler_js_ref]}
-        if not isinstance(self.scheduler, Scheduler):
-            out["num_js_elements"] = self.num_elements
-        return out
+        return {
+            "js_refs": [self.scheduler_js_ref],
+            "num_js_elements": self.num_elements
+        }
 
     @overload
     def get_active_states(
@@ -1240,10 +1239,10 @@ class Jobscript(JSONLike):
             return {k: v.name for k, v in out.items()}
         return out
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.app.submission_logger.info(
             f"Cancelling jobscript {self.index} of submission {self.submission.index}"
         )
-        self.scheduler.cancel_job(
-            js_idx=self.index, sub_idx=self.submission.index, **self.scheduler_ref
+        self.scheduler.cancel_jobs(
+            **self.scheduler_ref, jobscripts=[self]
         )

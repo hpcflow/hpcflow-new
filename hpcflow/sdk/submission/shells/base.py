@@ -22,6 +22,15 @@ class Shell(ABC):
 
     JS_EXT: ClassVar[str]
     DEFAULT_EXE: ClassVar[str]
+    JS_ENV_SETUP_INDENT: ClassVar[str]
+    JS_SHEBANG: ClassVar[str]
+    JS_HEADER: ClassVar[str]
+    JS_SCHEDULER_HEADER: ClassVar[str]
+    JS_DIRECT_HEADER: ClassVar[str]
+    JS_MAIN: ClassVar[str]
+    JS_ELEMENT_ARRAY: ClassVar[str]
+    JS_ELEMENT_LOOP: ClassVar[str]
+    JS_INDENT: ClassVar[str]
     __slots__ = ("_executable", "os_args")
 
     def __init__(self, executable: str | None = None,
@@ -64,9 +73,9 @@ class Shell(ABC):
     def process_app_invoc_executable(app_invoc_exe: str) -> str:
         return app_invoc_exe
 
-    def process_JS_header_args(self, header_args: dict[str, str | list[str]]) -> dict[str, str]:
+    def process_JS_header_args(self, header_args: dict[str, str | list[str] | int]) -> dict[str, str]:
         app_invoc_ = header_args["app_invoc"]
-        if isinstance(app_invoc_, str):
+        if not isinstance(app_invoc_, list):
             app_invoc = app_invoc_
         else:
             app_invoc = self.process_app_invoc_executable(app_invoc_[0])

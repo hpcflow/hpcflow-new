@@ -2,12 +2,12 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 import signal
-from typing import Any, ClassVar, Dict, cast, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, overload, cast, TYPE_CHECKING
 
 import psutil
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 
-from hpcflow.sdk.submission.schedulers import NullScheduler
+from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..jobscript import Jobscript
 
 
-class DirectScheduler(NullScheduler[tuple[int, list[str]]]):
+class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     app: ClassVar[BaseApp]
 
     @classmethod
@@ -70,33 +70,48 @@ class DirectScheduler(NullScheduler[tuple[int, list[str]]]):
                 procs.append(proc_i)
         return procs
 
+    @overload
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: list[tuple[int, list[str]]],
+        js_refs: list[tuple[int, list[str]]]
+    ) -> None: ...
+
+    @overload
+    @classmethod
+    def wait_for_jobscripts(
+        cls,
+        js_refs: list[tuple[int, list[str]]], *,
+        callback: Callable[[psutil.Process], None],
+    ) -> list[psutil.Process]: ...
+
+    @classmethod
+    def wait_for_jobscripts(
+        cls,
+        js_refs: list[tuple[int, list[str]]], *,
         callback: Callable[[psutil.Process], None] | None = None,
-    ) -> list[psutil.Process]:
+    ) -> list[psutil.Process] | None:
         """Wait until the specified jobscripts have completed."""
         procs = cls._get_jobscript_processes(js_refs)
         (gone, alive) = psutil.wait_procs(procs, callback=callback)
         assert not alive
-        return gone
+        return gone if callback else None
 
     def get_job_state_info(
-        self,
-        js_refs: list[tuple[int, list[str]]],
-        num_js_elements: int,
-    ) -> Mapping[int, Mapping[int | None, JobscriptElementState]]:
+        self, *,
+        js_refs: list[tuple[int, list[str]]] | None = None,
+        num_js_elements: int = 0,
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
         Jobs that are not in the scheduler's status output will not appear in the output
         of this method."""
-        info = {}
-        for p_id, p_cmdline in js_refs:
+        info: dict[str, Mapping[int | None, JobscriptElementState]] = {}
+        for p_id, p_cmdline in js_refs or {}:
             if self.is_jobscript_active(p_id, p_cmdline):
                 # as far as the "scheduler" is concerned, all elements are running:
-                info[p_id] = {
+                info[str(p_id)] = {
                     i: JobscriptElementState.running for i in range(num_js_elements)
                 }
 
@@ -106,6 +121,7 @@ class DirectScheduler(NullScheduler[tuple[int, list[str]]]):
         self,
         js_refs: list[tuple[int, list[str]]],
         jobscripts: list[Jobscript] | None = None,
+        num_js_elements: int = 0  # Ignored!
     ):
         js_proc_id: dict[int, Jobscript]
         def callback(proc: psutil.Process):

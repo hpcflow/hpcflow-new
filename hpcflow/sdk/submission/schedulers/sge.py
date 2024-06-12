@@ -8,7 +8,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import Scheduler
+from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from ..jobscript import Jobscript
 
 
-class SGEPosix(Scheduler):
+class SGEPosix(QueuedScheduler):
     """
 
     Notes
@@ -162,7 +162,7 @@ class SGEPosix(Scheduler):
             f"{self.js_cmd} -e {base}",
         ]
 
-    def format_options(self, resources, num_elements, is_array, sub_idx):
+    def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self.format_core_request_lines(resources))
@@ -275,7 +275,7 @@ class SGEPosix(Scheduler):
         return info
 
     def get_job_state_info(
-        self, js_refs: list[str] | None = None
+        self, *, js_refs: list[str] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
@@ -286,10 +286,14 @@ class SGEPosix(Scheduler):
         """
         info = self.get_job_statuses()
         if js_refs:
-            info = {k: v for k, v in info.items() if k in js_refs}
+            return {k: v for k, v in info.items() if k in js_refs}
         return info
 
-    def cancel_jobs(self, js_refs: list[str], jobscripts: list[Jobscript] | None = None):
+    def cancel_jobs(
+        self, js_refs: list[str],
+        jobscripts: list[Jobscript] | None = None,
+        num_js_elements: int = 0  # Ignored!
+    ):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

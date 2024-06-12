@@ -2393,8 +2393,10 @@ class Workflow:
             )
 
         js_pids = {i.process_ID: i for i in jobscripts}
-        process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
-        DirectScheduler.wait_for_jobscripts(js_refs=process_refs, callback=callback)
+        process_refs = [
+            (i.process_ID, i.submit_cmdline) for i in jobscripts if i.process_ID
+        ]
+        DirectScheduler.wait_for_jobscripts(process_refs, callback=callback)
 
     def __wait_for_scheduled_jobscripts(self, jobscripts: list[Jobscript]):
         """Wait for the passed scheduled jobscripts to finish."""
@@ -2488,7 +2490,7 @@ class Workflow:
             raise ValueError("Specify at most one of `task_insert_ID` and `task_idx`.")
 
         # keys are task_insert_IDs, values are element indices:
-        active_elems = defaultdict(set)
+        active_elems: dict[int, set[int]] = defaultdict(set)
         sub = self.submissions[submission_idx]
         for js_idx, states in sub.get_active_jobscripts().items():
             js = sub.jobscripts[js_idx]
@@ -2501,13 +2503,13 @@ class Workflow:
 
         # retrieve Element objects:
         out: list[Element] = []
-        for task_iID, elem_idx in active_elems.items():
+        for task_iID, elem_idxes in active_elems.items():
             if task_insert_ID is not None and task_iID != task_insert_ID:
                 continue
             task = self.tasks.get(insert_ID=task_iID)
             if task_idx is not None and task_idx != task.index:
                 continue
-            for idx_i in elem_idx:
+            for idx_i in elem_idxes:
                 out.append(task.elements[idx_i])
 
         return out

@@ -110,7 +110,7 @@ def callback_scheduler_set_up(config, schedulers):
             scheduler_args=v.get("defaults", {}),
         )
         if hasattr(sched, "get_login_nodes"):
-            # some `Scheduler` classes have a `get_login_nodes` method which can be used
+            # some `QueuedScheduler` classes have a `get_login_nodes` method which can be used
             # to populate the names of login nodes explicitly, if not already set:
             if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
                 login_nodes = sched.get_login_nodes()

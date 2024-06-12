@@ -6,12 +6,13 @@ from typing import Any, ClassVar, Generic, TypeVar, override, TYPE_CHECKING
 from abc import ABC, abstractmethod
 if TYPE_CHECKING:
     from ..shells import Shell
+    from ..jobscript import Jobscript
     from ..jobscript_info import JobscriptElementState
 
 T = TypeVar('T')
 
 
-class NullScheduler(ABC, Generic[T]):
+class Scheduler(ABC, Generic[T]):
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 
@@ -57,15 +58,23 @@ class NullScheduler(ABC, Generic[T]):
 
     @abstractmethod
     def get_job_state_info(
-        self, js_refs: list[T] | None = None
+        self, *, js_refs: list[T] | None = None,
+        num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         ...
 
     @abstractmethod
     def wait_for_jobscripts(self, js_refs: list[T]) -> None: ...
 
+    @abstractmethod
+    def cancel_jobs(
+        self, js_refs: list[T],
+        jobscripts: list[Jobscript] | None = None,
+        num_js_elements: int = 0  # Ignored!
+    ) -> None: ...
 
-class Scheduler(NullScheduler[str]):
+
+class QueuedScheduler(Scheduler[str]):
     DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str] | None] = None
     DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
     DEFAULT_SUBMIT_CMD: ClassVar[str]
@@ -106,14 +115,18 @@ class Scheduler(NullScheduler[str]):
 
     def is_jobscript_active(self, job_ID: str) -> bool:
         """Query if a jobscript is running/pending."""
-        return bool(self.get_job_state_info([job_ID]))
+        return bool(self.get_job_state_info(js_refs=[job_ID]))
 
     @override
     def wait_for_jobscripts(self, js_refs: list[str]) -> None:
         while js_refs:
-            info: dict[str, Any] = self.get_job_state_info(js_refs)
+            info: Mapping[str, Any] = self.get_job_state_info(js_refs=js_refs)
             print(info)
             if not info:
                 break
             js_refs = list(info.keys())
             time.sleep(2)
+
+    @abstractmethod
+    def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
+        ...

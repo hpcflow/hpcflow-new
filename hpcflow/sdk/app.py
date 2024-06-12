@@ -82,6 +82,7 @@ if TYPE_CHECKING:
     from .core.workflow import Workflow, WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
+    from .submission.schedulers import Scheduler
     from .submission.schedulers.direct import DirectPosix, DirectWindows
     from .submission.schedulers.sge import SGEPosix
     from .submission.schedulers.slurm import SlurmPosix
@@ -732,7 +733,7 @@ class BaseApp(metaclass=Singleton):
         return self._config
 
     @property
-    def scheduler_lookup(self):
+    def scheduler_lookup(self) -> dict[tuple[str, str], type[Scheduler]]:
         return {
             ("direct", "posix"): self.DirectPosix,
             ("direct", "nt"): self.DirectWindows,
@@ -740,7 +741,7 @@ class BaseApp(metaclass=Singleton):
             ("slurm", "posix"): self.SlurmPosix,
         }
 
-    def get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
+    def get_scheduler(self, scheduler_name, os_name, scheduler_args=None) -> Scheduler:
         """Get an arbitrary scheduler object."""
         scheduler_args = scheduler_args or {}
 

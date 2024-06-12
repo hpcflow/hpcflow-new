@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar, Literal
     from ..app import BaseApp
     from .jobscript import Jobscript, JobscriptElementState
-    from .schedulers import Scheduler, NullScheduler
+    from .schedulers import Scheduler
     from .shells import Shell
     from ..core.environment import Environment
     from ..core.object_list import EnvironmentsList
@@ -364,14 +364,14 @@ class Submission(JSONLike):
     @staticmethod
     def get_unique_schedulers_of_jobscripts(
         jobscripts: list[Jobscript],
-    ) -> dict[tuple[tuple[int, int], ...], NullScheduler]:
+    ) -> dict[tuple[tuple[int, int], ...], Scheduler]:
         """Get unique schedulers and which of the passed jobscripts they correspond to.
 
-        Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
+        Uniqueness is determines only by the `QueuedScheduler.unique_properties` tuple.
 
         """
         js_idx: list[list[tuple[int, int]]] = []
-        schedulers: list[NullScheduler] = []
+        schedulers: list[Scheduler] = []
 
         # list of tuples of scheduler properties we consider to determine "uniqueness",
         # with the first string being the scheduler type (class name):
@@ -390,7 +390,7 @@ class Submission(JSONLike):
         return sched_js_idx
 
     @TimeIt.decorator
-    def get_unique_schedulers(self) -> dict[tuple[tuple[int, int], ...], NullScheduler]:
+    def get_unique_schedulers(self) -> dict[tuple[tuple[int, int], ...], Scheduler]:
         """Get unique schedulers and which of this submission's jobscripts they
         correspond to."""
         return self.get_unique_schedulers_of_jobscripts(self.jobscripts)
