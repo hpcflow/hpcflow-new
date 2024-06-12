@@ -95,7 +95,7 @@ class Submission(JSONLike):
                     req_envs[env_spec_h][exec_label_j].add(js_idx)
                 # add any environment for which an executable was not required:
                 if env_spec_h not in req_envs:
-                    req_envs[env_spec_h] = {}
+                    req_envs[env_spec_h] = defaultdict(set)
 
         # check these envs/execs exist in app data:
         envs = []
