@@ -45,6 +45,7 @@ from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.utils.patches import resolve_path
 from .utils import (
     nth_key,
     read_JSON_file,
@@ -2027,7 +2028,7 @@ class Workflow:
                             param_id=param_id,
                             store_contents=True,  # TODO: make optional according to IFG
                             is_input=False,
-                            path=Path(path_i).resolve(),
+                            path=resolve_path(path_i),
                         )
 
                 if EAR.action.script_data_out_has_files:
