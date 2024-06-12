@@ -174,9 +174,11 @@ class Command(JSONLike):
                 string=cmd_str,
             )
 
-        # substitute input files in command:
-        for cmd_file in EAR.action.get_command_input_file_labels():
-            file_path = EAR.get(f"input_files.{cmd_file}")  # TODO: what if out file?
+        # substitute input/output files in command:
+        for cmd_file in EAR.action.get_command_file_labels():
+            file_path = EAR.get(f"input_files.{cmd_file}") or EAR.get(
+                f"output_files.{cmd_file}"
+            )
             # assuming we have copied this file to the EAR directory, then we just
             # need the file name:
             file_name = Path(file_path).name

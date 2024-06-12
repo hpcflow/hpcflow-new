@@ -158,16 +158,23 @@ class InputFileGenerator(JSONLike):
                 import sys
                 from pathlib import Path
                 import {app_module} as app
-                app.load_config(
-                    log_file_path=Path("{run_log_file}").resolve(),
-                    config_dir=r"{cfg_dir}",
-                    config_key=r"{cfg_invoc_key}",
-                )
-                wk_path, EAR_ID = sys.argv[1:]
-                EAR_ID = int(EAR_ID)
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
-                {script_main_func}(path=Path({file_path!r}), **EAR.get_IFG_input_values())
+                
+                wk_path, EAR_ID, std_stream = sys.argv[1:]
+                with app.redirect_std_to_file(std_stream):
+                    app.load_config(
+                        log_file_path=Path("{run_log_file}").resolve(),
+                        config_dir=r"{cfg_dir}",
+                        config_key=r"{cfg_invoc_key}",
+                    )
+                    EAR_ID = int(EAR_ID)
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                    func_kwargs = {{
+                        "path": Path({file_path!r}),
+                        **EAR.get_IFG_input_values(),
+                    }}
+                
+                {script_main_func}(**func_kwargs)                
         """
         )
         main_block = main_block.format(
@@ -307,21 +314,27 @@ class OutputFileParser(JSONLike):
                 import sys
                 from pathlib import Path
                 import {app_module} as app
-                app.load_config(
-                    log_file_path=Path("{run_log_file}").resolve(),
-                    config_dir=r"{cfg_dir}",
-                    config_key=r"{cfg_invoc_key}",
-                )
-                wk_path, EAR_ID = sys.argv[1:]
-                EAR_ID = int(EAR_ID)
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
-                value = {script_main_func}(
-                    **EAR.get_OFP_output_files(),
-                    **EAR.get_OFP_inputs(),
-                    **EAR.get_OFP_outputs(),
-                )
-                wk.save_parameter(name="{param_name}", value=value, EAR_ID=EAR_ID)
+                
+                wk_path, EAR_ID, std_stream = sys.argv[1:]
+                with app.redirect_std_to_file(std_stream):
+                    app.load_config(
+                        log_file_path=Path("{run_log_file}").resolve(),
+                        config_dir=r"{cfg_dir}",
+                        config_key=r"{cfg_invoc_key}",
+                    )
+                    EAR_ID = int(EAR_ID)
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                    func_kwargs = {{
+                        **EAR.get_OFP_output_files(),
+                        **EAR.get_OFP_inputs(),
+                        **EAR.get_OFP_outputs(),                    
+                    }}
+
+                value = {script_main_func}(**func_kwargs)
+
+                with app.redirect_std_to_file(std_stream):
+                    wk.save_parameter(name="{param_name}", value=value, EAR_ID=EAR_ID)
 
         """
         )

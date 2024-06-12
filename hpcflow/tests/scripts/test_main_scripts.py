@@ -575,9 +575,9 @@ def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 
 
-def test_script_direct_in_direct_out_std_out_std_err_not_redirected(
-    null_config, tmp_path
-):
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_script_std_out_std_err_not_redirected(null_config, tmp_path):
     """Test that standard error and output streams from a script are written to the jobscript
     standard error and output files."""
     s1 = hf.TaskSchema(

@@ -1577,7 +1577,7 @@ class Action(JSONLike):
 
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_env_var, run_ID_env_var]
+                args = [wk_path_env_var, run_ID_env_var, std_stream_env_var]
                 if ifg.script:
                     script_name = self.get_script_name(ifg.script)
                     variables = {
@@ -1607,7 +1607,7 @@ class Action(JSONLike):
             out_acts = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_env_var, run_ID_env_var]
+                args = [wk_path_env_var, run_ID_env_var, std_stream_env_var]
                 if ofp.script:
                     script_name = self.get_script_name(ofp.script)
                     variables = {
@@ -1733,7 +1733,7 @@ class Action(JSONLike):
             # TODO: consider stdin?
         return tuple(set(params))
 
-    def get_command_input_file_labels(self) -> Tuple[str]:
+    def get_command_file_labels(self) -> Tuple[str]:
         """Get input files types from commands."""
         files = []
         vars_regex = r"\<\<file:(.*?)\>\>"

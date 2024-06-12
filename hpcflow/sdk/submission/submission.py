@@ -93,8 +93,6 @@ class Submission(JSONLike):
                 env_spec_h = tuple(zip(*run.env_spec.items()))  # hashable
                 for exec_label_j in run.action.get_required_executables():
                     req_envs[env_spec_h][exec_label_j].add(js_idx)
-                if env_spec_h not in req_envs:
-                    req_envs[env_spec_h] = {}
 
         # check these envs/execs exist in app data:
         envs = []
