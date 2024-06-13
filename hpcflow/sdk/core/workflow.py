@@ -2826,16 +2826,12 @@ class Workflow:
             # check if we should skip:
             if not run.skip:
                 # write the command file that will be executed:
-                self.write_commands(
-                    submission_idx, block_act_key, run
-                )  # TODO: return file path?
+                cmd_file_path = self.write_commands(submission_idx, block_act_key, run)
+                if not cmd_file_path.is_file():
+                    raise RuntimeError(f"Command file {cmd_file_path!r} does not exist.")
 
                 # prepare subprocess command:
                 jobscript = self.submissions[submission_idx].jobscripts[js_idx]
-                cmd_file_name = jobscript.get_commands_file_name(block_act_key)
-                cmd_file_path = Path(".").joinpath(cmd_file_name).resolve()
-                if not cmd_file_path.is_file():
-                    raise RuntimeError(f"Command file {cmd_file_path!r} does not exist.")
                 cmd = jobscript.shell.get_command_file_launch_command(str(cmd_file_path))
                 add_env = {f"{self.app.package_name.upper()}_RUN_ID": str(run_ID)}
                 env = {**dict(os.environ), **add_env}
@@ -2876,7 +2872,7 @@ class Workflow:
         submission_idx: int,
         block_act_key: Tuple[int, int, int],
         run: app.ElementActionRun,
-    ) -> None:
+    ) -> Path:
         """Write run-time commands for a given EAR."""
         js_idx = block_act_key[0]
         with self._store.cached_load():
@@ -2940,6 +2936,8 @@ class Workflow:
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
                 fp.write(commands)
+
+        return resolve_path(cmd_file_name)
 
     def process_shell_parameter_output(
         self, name: str, value: str, EAR_ID: int, cmd_idx: int, stderr: bool = False
