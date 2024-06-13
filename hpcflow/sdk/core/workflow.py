@@ -1991,7 +1991,7 @@ class Workflow:
     def set_EAR_end(
         self,
         block_act_key: Tuple[int, int, int],
-        EAR_ID: int,
+        run: app.ElementActionRun,
         exit_code: int,
     ) -> None:
         """Set the end time and exit code on an EAR.
@@ -2001,23 +2001,22 @@ class Workflow:
 
         """
         self.app.logger.debug(
-            f"Setting end for EAR ID {EAR_ID!r} with exit code {exit_code!r}."
+            f"Setting end for run ID {run.id_!r} with exit code {exit_code!r}."
         )
         with self._store.cached_load():
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
             with self.batch_update():
                 success = exit_code == 0  # TODO  more sophisticated success heuristics
-                if EAR.action.abortable and exit_code == ABORT_EXIT_CODE:
+                if run.action.abortable and exit_code == ABORT_EXIT_CODE:
                     # the point of aborting an EAR is to continue with the workflow:
                     success = True
 
-                for IFG_i in EAR.action.input_file_generators:
+                for IFG_i in run.action.input_file_generators:
                     inp_file = IFG_i.input_file
                     self.app.logger.debug(
                         f"Saving EAR input file: {inp_file.label!r} for EAR ID "
-                        f"{EAR_ID!r}."
+                        f"{run.id_!r}."
                     )
-                    param_id = EAR.data_idx[f"input_files.{inp_file.label}"]
+                    param_id = run.data_idx[f"input_files.{inp_file.label}"]
 
                     file_paths = inp_file.value()
                     if not isinstance(file_paths, list):
@@ -2031,16 +2030,16 @@ class Workflow:
                             path=resolve_path(path_i),
                         )
 
-                if EAR.action.script_data_out_has_files:
-                    EAR._param_save(block_act_key)
+                if run.action.script_data_out_has_files:
+                    run._param_save(block_act_key)
 
                 # Save action-level files: (TODO: refactor with below for OFPs)
-                for save_file_j in EAR.action.save_files:
+                for save_file_j in run.action.save_files:
                     self.app.logger.debug(
-                        f"Saving file: {save_file_j.label!r} for EAR ID " f"{EAR_ID!r}."
+                        f"Saving file: {save_file_j.label!r} for EAR ID " f"{run.id_!r}."
                     )
                     try:
-                        param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
+                        param_id = run.data_idx[f"output_files.{save_file_j.label}"]
                     except KeyError:
                         # We might be saving a file that is not a defined
                         # "output file"; this will avoid saving a reference in the
@@ -2058,17 +2057,17 @@ class Workflow:
                             store_contents=True,
                             is_input=False,
                             path=Path(path_i).resolve(),
-                            clean_up=(save_file_j in EAR.action.clean_up),
+                            clean_up=(save_file_j in run.action.clean_up),
                         )
 
-                for OFP_i in EAR.action.output_file_parsers:
+                for OFP_i in run.action.output_file_parsers:
                     for save_file_j in OFP_i.save_files:
                         self.app.logger.debug(
                             f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
-                            f"{EAR_ID!r}."
+                            f"{run.id_!r}."
                         )
                         try:
-                            param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
+                            param_id = run.data_idx[f"output_files.{save_file_j.label}"]
                         except KeyError:
                             # We might be saving a file that is not a defined
                             # "output file"; this will avoid saving a reference in the
@@ -2092,16 +2091,16 @@ class Workflow:
                             )
 
                 if not success:
-                    for EAR_dep_ID in EAR.get_dependent_EARs(as_objects=False):
+                    for EAR_dep_ID in run.get_dependent_EARs(as_objects=False):
                         # TODO: this needs to be recursive?
                         self.app.logger.debug(
                             f"Setting EAR ID {EAR_dep_ID!r} to skip because it depends on"
-                            f" EAR ID {EAR_ID!r}, which exited with a non-zero exit code:"
+                            f" EAR ID {run.id_!r}, which exited with a non-zero exit code:"
                             f" {exit_code!r}."
                         )
                         self._store.set_EAR_skip(EAR_dep_ID)
 
-                self._store.set_EAR_end(EAR_ID, exit_code, success)
+                self._store.set_EAR_end(run.id_, exit_code, success)
 
     def set_EAR_skip(self, EAR_ID: int) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
@@ -2822,12 +2821,14 @@ class Workflow:
         with redirect_std_to_file(std_stream_path):
 
             js_idx = block_act_key[0]
+            run = self.get_EARs_from_IDs([run_ID])[0]
 
             # check if we should skip:
-            skip = self.get_EAR_skipped(EAR_ID=run_ID)
-            if not skip:
+            if run.skip:
                 # write the command file that will be executed:
-                self.write_commands(submission_idx, block_act_key, run_ID)
+                self.write_commands(
+                    submission_idx, block_act_key, run
+                )  # TODO: return file path?
 
                 # prepare subprocess command:
                 jobscript = self.submissions[submission_idx].jobscripts[js_idx]
@@ -2855,18 +2856,18 @@ class Workflow:
 
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
-        if not skip:
+        if not run.skip:
             ret_code = exe.run()  # this also shuts down the server
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
         with redirect_std_to_file(std_stream_path):
-            if skip:
+            if run.skip:
                 ret_code = SKIPPED_EXIT_CODE
 
             # set run end:
             self.set_EAR_end(
                 block_act_key=block_act_key,
-                EAR_ID=run_ID,
+                run=run,
                 exit_code=ret_code,
             )
 
@@ -2874,7 +2875,7 @@ class Workflow:
         self,
         submission_idx: int,
         block_act_key: Tuple[int, int, int],
-        EAR_ID: int,
+        run: app.ElementActionRun,
     ) -> None:
         """Write run-time commands for a given EAR."""
         js_idx = block_act_key[0]
@@ -2885,12 +2886,9 @@ class Workflow:
                 f"index: {js_idx})"
             )
             jobscript = self.submissions[submission_idx].jobscripts[js_idx]
-            self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-            self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
-                commands, shell_vars = EAR.compose_commands(jobscript, block_act_key)
+                commands, shell_vars = run.compose_commands(jobscript, block_act_key)
             except OutputFileParserNoOutputError:
                 # no commands to write
                 write_commands = False
@@ -2908,7 +2906,7 @@ class Workflow:
                             workflow_app_alias=jobscript.workflow_app_alias,
                             param_name=param_name,
                             shell_var_name=shell_var_name,
-                            EAR_ID=EAR_ID,
+                            EAR_ID=run.id_,
                             cmd_idx=cmd_idx,
                             stderr=(st_typ == "stderr"),
                         )
@@ -2926,11 +2924,11 @@ class Workflow:
                     )
                     self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
                     for loop_name, run_IDs in final_runs.items():
-                        if EAR.id_ in run_IDs:
+                        if run.id_ in run_IDs:
                             loop_cmd = jobscript.shell.format_loop_check(
                                 workflow_app_alias=jobscript.workflow_app_alias,
                                 loop_name=loop_name,
-                                run_ID=EAR.id_,
+                                run_ID=run.id_,
                             )
                             commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
             else:
