@@ -60,7 +60,7 @@ class PendingChanges:
 
         self.set_EARs_initialised: List[int] = None
         self.set_EAR_submission_indices: Dict[int, int] = None
-        self.set_EAR_skips: List[int] = None
+        self.set_EAR_skips: Dict[int, int] = None
         self.set_EAR_starts: Dict[int, Tuple[datetime, Dict], str] = None
         self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
 
@@ -283,7 +283,9 @@ class PendingChanges:
                 for k, v in self.set_EAR_submission_indices.items()
                 if k not in EAR_ids
             }
-            self.set_EAR_skips = [i for i in self.set_EAR_skips if i not in EAR_ids]
+            self.set_EAR_skips = {
+                k: v for k, v in self.set_EAR_skips.items() if k not in EAR_ids
+            }
             self.set_EAR_starts = {
                 k: v for k, v in self.set_EAR_starts.items() if k not in EAR_ids
             }
@@ -346,10 +348,12 @@ class PendingChanges:
     @TimeIt.decorator
     def commit_EAR_skips(self) -> None:
         # TODO: could be batched up?
-        for EAR_id in self.set_EAR_skips:
-            self.logger.debug(f"commit: setting EAR ID {EAR_id!r} as skipped.")
-            self.store._update_EAR_skip(EAR_id)
-            self.store.EAR_cache.pop(EAR_id, None)  # invalidate cache
+        for run_ID, reason in self.set_EAR_skips.items():
+            self.logger.debug(
+                f"commit: setting run ID {run_ID!r} as skipped (reason: {reason})"
+            )
+            self.store._update_EAR_skip(run_ID, reason)
+            self.store.EAR_cache.pop(run_ID, None)  # invalidate cache
         self.clear_set_EAR_skips()
 
     @TimeIt.decorator
@@ -483,7 +487,7 @@ class PendingChanges:
         self.set_EAR_ends = {}
 
     def clear_set_EAR_skips(self):
-        self.set_EAR_skips = []
+        self.set_EAR_skips = {}
 
     def clear_set_js_metadata(self):
         self.set_js_metadata = defaultdict(lambda: defaultdict(dict))

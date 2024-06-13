@@ -313,7 +313,7 @@ class StoreEAR:
     commands_idx: List[int]
     data_idx: Dict[str, int]
     submission_idx: Optional[int] = None
-    skip: Optional[bool] = False
+    skip: Optional[int] = 0
     success: Optional[bool] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -394,7 +394,7 @@ class StoreEAR:
     def update(
         self,
         submission_idx: Optional[int] = None,
-        skip: Optional[bool] = None,
+        skip: Optional[int] = None,
         success: Optional[bool] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
@@ -1096,8 +1096,8 @@ class PersistentStore(ABC):
             self.save()
         return dt
 
-    def set_EAR_skip(self, EAR_ID: int, save: bool = True) -> None:
-        self._pending.set_EAR_skips.append(EAR_ID)
+    def set_EAR_skip(self, EAR_ID: int, skip_reason: int, save: bool = True) -> None:
+        self._pending.set_EAR_skips[EAR_ID] = skip_reason
         if save:
             self.save()
 
@@ -1566,7 +1566,7 @@ class PersistentStore(ABC):
             pend_sub = self._pending.set_EAR_submission_indices.get(EAR_i.id_)
             pend_start = self._pending.set_EAR_starts.get(EAR_i.id_)
             pend_end = self._pending.set_EAR_ends.get(EAR_i.id_)
-            pend_skip = True if EAR_i.id_ in self._pending.set_EAR_skips else None
+            pend_skip = self._pending.set_EAR_skips.get(EAR_i.id_)
 
             p_st, p_ss, p_hn, p_pn = (
                 pend_start if pend_start else (None, None, None, None)

@@ -2,6 +2,7 @@ import os
 
 import pytest
 from hpcflow.app import app as hf
+from hpcflow.sdk.core.actions import SkipReason
 from hpcflow.sdk.core.test_utils import make_workflow_to_run_command
 
 
@@ -93,3 +94,85 @@ def test_run_dir_diff_new_file(null_config, tmp_path):
     )
     wk.submit(wait=True, add_to_known=False, status=False)
     assert wk.get_all_EARs()[0].dir_diff.files_created == ["new_file.txt"]
+
+
+@pytest.mark.integration
+def test_run_skip_reason_upstream_failure(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $(( <<parameter:p1>> + 100 ))",
+                        stdout="<<parameter:p2>>",
+                    ),
+                    hf.Command(command="exit 1"),
+                ]
+            ),
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $(( <<parameter:p2>> + 100 ))",
+                        stdout="<<parameter:p2>>",
+                    ),
+                ]
+            ),  # should be skipped due to failure of action 0
+        ],
+    )
+    wk = hf.Workflow.from_template_data(
+        template_name="test_skip_reason",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts, inputs={"p1": 100})],
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+    runs = wk.get_all_EARs()
+    assert not runs[0].success
+    assert not runs[1].success
+    assert runs[0].skip_reason is SkipReason.NOT_SKIPPED
+    assert runs[1].skip_reason is SkipReason.UPSTREAM_FAILURE
+
+
+@pytest.mark.integration
+def test_run_skip_reason_loop_termination(null_config, tmp_path):
+    ts = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaInput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $(( <<parameter:p1>> + 100 ))",
+                        stdout="<<int(parameter:p1)>>",
+                    ),
+                ]
+            ),
+        ],
+    )
+    loop_term = hf.Rule(path="outputs.p1", condition={"value.equal_to": 300})
+    wk = hf.Workflow.from_template_data(
+        template_name="test_skip_reason",
+        path=tmp_path,
+        tasks=[hf.Task(schema=ts, inputs={"p1": 100})],
+        loops=[
+            hf.Loop(name="my_loop", tasks=[0], termination=loop_term, num_iterations=3)
+        ],
+    )
+    # loop should terminate after the second iteration
+    wk.submit(wait=True, add_to_known=False, status=False)
+    runs = wk.get_all_EARs()
+
+    assert runs[0].get("outputs.p1") == 200
+    assert runs[1].get("outputs.p1") == 300
+    assert not runs[2].get("outputs.p1")
+
+    assert runs[0].success
+    assert runs[1].success
+    assert not runs[2].success
+
+    assert runs[0].skip_reason is SkipReason.NOT_SKIPPED
+    assert runs[1].skip_reason is SkipReason.NOT_SKIPPED
+    assert runs[2].skip_reason is SkipReason.LOOP_TERMINATION

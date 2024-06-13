@@ -26,7 +26,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
     SKIPPED_EXIT_CODE,
 )
-from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.actions import EARStatus, SkipReason
 from hpcflow.sdk.core.cache import ObjectCache
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
@@ -2098,16 +2098,18 @@ class Workflow:
                             f" EAR ID {run.id_!r}, which exited with a non-zero exit code:"
                             f" {exit_code!r}."
                         )
-                        self._store.set_EAR_skip(EAR_dep_ID)
+                        self._store.set_EAR_skip(
+                            EAR_dep_ID, SkipReason.UPSTREAM_FAILURE.value
+                        )
 
                 self._store.set_EAR_end(run.id_, exit_code, success)
 
-    def set_EAR_skip(self, EAR_ID: int) -> None:
+    def set_EAR_skip(self, EAR_ID: int, skip_reason: SkipReason) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
         termination condition being met."""
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_skip(EAR_ID)
+                self._store.set_EAR_skip(EAR_ID, skip_reason.value)
 
     def get_EAR_skipped(self, EAR_ID: int) -> None:
         """Check if an EAR is to be skipped."""

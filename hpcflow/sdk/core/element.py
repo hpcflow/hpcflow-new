@@ -9,6 +9,7 @@ from valida.conditions import ConditionLike
 from valida.rules import Rule
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.actions import SkipReason
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
@@ -460,6 +461,17 @@ class ElementIteration:
     @property
     def EAR_IDs(self) -> Dict[int, int]:
         return self._EAR_IDs
+
+    @property
+    def loop_skipped(self) -> bool:
+        """True if the the iteration was skipped entirely due to a loop termination."""
+        if not self.action_runs:
+            # this includes when runs are not initialised
+            return False
+        else:
+            return all(
+                i.skip_reason is SkipReason.LOOP_TERMINATION for i in self.action_runs
+            )
 
     @property
     def EAR_IDs_flat(self):
@@ -1076,40 +1088,45 @@ class Element:
 
     @property
     def latest_iteration(self):
+        """Get the latest iteration."""
         return self.iterations[-1]
 
     @property
+    def latest_iteration_non_skipped(self):
+        """Get the latest iteration that is not loop-skipped."""
+        for iter_i in self.iterations[::-1]:
+            if not iter_i.loop_skipped:
+                return iter_i
+
+    @property
     def inputs(self) -> app.ElementInputs:
-        return self.latest_iteration.inputs
+        return self.latest_iteration_non_skipped.inputs
 
     @property
     def outputs(self) -> app.ElementOutputs:
-        return self.latest_iteration.outputs
+        return self.latest_iteration_non_skipped.outputs
 
     @property
     def input_files(self) -> app.ElementInputFiles:
-        return self.latest_iteration.input_files
+        return self.latest_iteration_non_skipped.input_files
 
     @property
     def output_files(self) -> app.ElementOutputFiles:
-        return self.latest_iteration.output_files
+        return self.latest_iteration_non_skipped.output_files
 
     @property
     def schema_parameters(self) -> List[str]:
-        return self.latest_iteration.schema_parameters
+        return self.latest_iteration_non_skipped.schema_parameters
 
     @property
     def actions(self) -> Dict[app.ElementAction]:
-        return self.latest_iteration.actions
+        return self.latest_iteration_non_skipped.actions
 
     @property
     def action_runs(self) -> List[app.ElementActionRun]:
-        """Get a list of element action runs from the latest iteration, where only the
-        final run is taken for each element action."""
-        return self.latest_iteration.action_runs
-
-    def init_loop_index(self, loop_name: str):
-        pass
+        """Get a list of element action runs from the latest non-skipped iteration,
+        where only the final run is taken for each element action."""
+        return self.latest_iteration_non_skipped.action_runs
 
     def to_element_set_data(self):
         """Generate lists of workflow-bound InputValues and ResourceList."""
@@ -1152,14 +1169,15 @@ class Element:
         action_idx: int = None,
         run_idx: int = -1,
     ) -> Dict[str, int]:
-        """Get the data index of the most recent element iteration.
+        """Get the data index of the most recent element iteration that
+        is not loop-skipped.
 
         Parameters
         ----------
         action_idx
             The index of the action within the schema.
         """
-        return self.latest_iteration.get_data_idx(
+        return self.latest_iteration_non_skipped.get_data_idx(
             path=path,
             action_idx=action_idx,
             run_idx=run_idx,
@@ -1200,8 +1218,9 @@ class Element:
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ) -> Any:
-        """Get element data of the most recent iteration from the persistent store."""
-        return self.latest_iteration.get(
+        """Get element data of the most recent iteration that is not
+        loop-skipped."""
+        return self.latest_iteration_non_skipped.get(
             path=path,
             action_idx=action_idx,
             run_idx=run_idx,

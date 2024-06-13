@@ -53,6 +53,12 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
+class SkipReason(enum.Enum):
+    NOT_SKIPPED = 0
+    UPSTREAM_FAILURE = 1
+    LOOP_TERMINATION = 2
+
+
 class EARStatus(enum.Enum):
     """Enumeration of all possible EAR statuses, and their associated status colour."""
 
@@ -148,7 +154,7 @@ class ElementActionRun:
         snapshot_end: Union[Dict, None],
         submission_idx: Union[int, None],
         success: Union[bool, None],
-        skip: bool,
+        skip: int,
         exit_code: Union[int, None],
         metadata: Dict,
         run_hostname: Union[str, None],
@@ -261,6 +267,10 @@ class ElementActionRun:
     @property
     def skip(self):
         return self._skip
+
+    @property
+    def skip_reason(self):
+        return SkipReason(self.skip)
 
     @property
     def snapshot_start(self):

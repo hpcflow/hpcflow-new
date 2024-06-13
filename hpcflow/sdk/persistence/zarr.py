@@ -662,13 +662,13 @@ class ZarrPersistentStore(PersistentStore):
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _update_EAR_skip(self, EAR_id: int):
+    def _update_EAR_skip(self, EAR_id: int, reason: int):
         arr = self._get_EARs_arr(mode="r+")
         attrs_orig = arr.attrs.asdict()
         attrs = copy.deepcopy(attrs_orig)
 
         EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(skip=True)
+        EAR_i = EAR_i.update(skip=reason)
         arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
 
         if attrs != attrs_orig:
