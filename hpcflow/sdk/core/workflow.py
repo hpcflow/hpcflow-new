@@ -2824,7 +2824,7 @@ class Workflow:
             run = self.get_EARs_from_IDs([run_ID])[0]
 
             # check if we should skip:
-            if run.skip:
+            if not run.skip:
                 # write the command file that will be executed:
                 self.write_commands(
                     submission_idx, block_act_key, run
