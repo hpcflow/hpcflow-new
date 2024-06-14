@@ -2090,7 +2090,8 @@ class Workflow:
                                 clean_up=(save_file_j in OFP_i.clean_up),
                             )
 
-                if not success:
+                if not success and run.skip_reason is not SkipReason.LOOP_TERMINATION:
+                    # loop termination skips are already propagated
                     for EAR_dep_ID in run.get_dependent_EARs(as_objects=False):
                         # TODO: this needs to be recursive?
                         self.app.logger.debug(
@@ -2509,12 +2510,14 @@ class Workflow:
         for elem in elems:
             if element_idx is not None and elem.index != element_idx:
                 continue
-            # for a given element, only one iteration will be running (assume for now the
-            # this is the latest iteration, as provided by `action_runs`):
-            for act_run in elem.action_runs:
-                if act_run.status is EARStatus.running:
-                    out.append(act_run)
-                    break  # only one element action may be running at a time
+            for iter_i in elem.iterations:
+                for elem_acts in iter_i.actions:
+                    for run in elem_acts.runs:
+                        if run.status is EARStatus.running:
+                            out.append(run)
+                            # for a given element and submission, only one run
+                            # may be running at a time:
+                            break
         return out
 
     def _abort_run_ID(self, submission_idx, run_ID: int):
@@ -2908,27 +2911,34 @@ class Workflow:
                             cmd_idx=cmd_idx,
                             stderr=(st_typ == "stderr"),
                         )
-                # commands = jobscript.shell.wrap_in_subshell( # not needed anymore?
-                #     commands, EAR.action.abortable
-                # )
 
                 # add loop-check command if this is the last action of this loop iteration
                 # for this element:
-                if self.loops:
-                    final_runs = (
-                        self.get_iteration_final_run_IDs(  # TODO: excessive reads here
-                            id_lst=jobscript.all_EAR_IDs
-                        )
+                iter_i = run.element_action.element_iteration
+                task = iter_i.task
+                check_loops = []
+                for loop_name in iter_i.loop_idx:
+                    loop = self.loops.get(loop_name)
+                    if (
+                        loop.template.termination
+                        and task.insert_ID == loop.task_insert_IDs[-1]
+                        and run.element_action.action_idx == max(iter_i.actions)
+                    ):
+                        check_loops.append(loop_name)
+                        # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
+                        # TODO: test with condition actions
+
+                if check_loops:
+                    # write loop termination check commands
+                    self.app.logger.debug(
+                        f"adding loop termination check command for loops: {check_loops!r}"
                     )
-                    self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
-                    for loop_name, run_IDs in final_runs.items():
-                        if run.id_ in run_IDs:
-                            loop_cmd = jobscript.shell.format_loop_check(
-                                workflow_app_alias=jobscript.workflow_app_alias,
-                                loop_name=loop_name,
-                                run_ID=run.id_,
-                            )
-                            commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
+                    loop_cmd = jobscript.shell.format_loop_check(
+                        workflow_app_alias=jobscript.workflow_app_alias,
+                        run_ID=run.id_,
+                        loop_names=check_loops,
+                    )
+                    commands += loop_cmd
             else:
                 # still need to write the file, the jobscript is expecting it.
                 commands = ""
@@ -3034,63 +3044,27 @@ class Workflow:
             id_lst.extend(list(sub.all_EAR_IDs))
         return id_lst
 
-    def check_loop_termination(self, loop_name: str, run_ID: int) -> bool:
+    def check_loop_termination(self, run_ID: int, loop_names: List[str]) -> bool:
         """Check if a loop should terminate, given the specified completed run, and if so,
         set downstream iteration runs to be skipped."""
-        loop = self.loops.get(loop_name)
-        elem_iter = self.get_EARs_from_IDs([run_ID])[0].element_iteration
-        if loop.test_termination(elem_iter):
-            to_skip = []  # run IDs of downstream iterations that can be skipped
-            elem_id = elem_iter.element.id_
-            loop_map = self.get_loop_map()  # over all jobscripts
-            for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():
-                if iter_idx > elem_iter.index:
-                    to_skip.extend([i[0] for i in iter_dat])
-            self.app.logger.info(
-                f"Loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
-            )
-            for run_ID in to_skip:
-                self.set_EAR_skip(run_ID)
-
-    @TimeIt.decorator
-    def get_loop_map(self, id_lst: Optional[List[int]] = None):
-        # TODO: test this works across multiple jobscripts
-        self.app.persistence_logger.debug("Workflow.get_loop_map")
-        if id_lst is None:
-            id_lst = self.get_all_submission_run_IDs()
-        loop_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        runs = self.get_EARs_from_IDs(id_lst)
-        for i in runs:
-            for loop_name, iter_idx in i.element_iteration.loop_idx.items():
-                act_idx = i.element_action.action_idx
-                loop_map[loop_name][i.element.id_][iter_idx].append((i.id_, act_idx))
-        return loop_map
-
-    def get_iteration_final_run_IDs(
-        self,
-        loop_map: Optional[Dict] = None,
-        id_lst: Optional[List[int]] = None,
-    ) -> Dict[str, List[int]]:
-        """Retrieve the run IDs of those runs that correspond to the final action within
-        a named loop iteration.
-
-        These runs represent the final action of a given element-iteration; this is used to
-        identify which commands file to append a loop-termination check to.
-
-        """
-        self.app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
-
-        loop_map = loop_map or self.get_loop_map(id_lst)
-
-        # find final EARs for each loop:
-        final_runs = defaultdict(list)
-        for loop_name, dat in loop_map.items():
-            for _, elem_dat in dat.items():
-                for _, iter_dat in elem_dat.items():
-                    # sort by largest action index first, so we get save only the final EAR
-                    final = sorted(iter_dat, key=lambda x: x[1], reverse=True)[0]
-                    final_runs[loop_name].append(final[0])
-        return dict(final_runs)
+        self.app.logger.info(
+            f"checking loop termination of loops {loop_names!r}; run_ID={run_ID}."
+        )
+        run = self.get_EARs_from_IDs([run_ID])[0]
+        elem_iter = run.element_iteration
+        element = elem_iter.element
+        print(f"Workflow.check_loop_termination: {run_ID=} {element=!r}")
+        dep_elements = None
+        for loop_name in loop_names:
+            loop = self.loops.get(loop_name)
+            if loop.test_termination(elem_iter):
+                self.app.logger.info(
+                    f"loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
+                )
+                if not dep_elements:
+                    dep_elements = element.get_dependent_elements_recursively()
+                    print(f"Workflow.check_loop_termination: {dep_elements=}")
+                loop.skip_downstream_iterations(elem_iter, dep_elements)
 
 
 @dataclass

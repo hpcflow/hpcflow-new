@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 from typing import Dict, List, Optional, Tuple, Union, Any
+from warnings import warn
 
 from hpcflow.sdk import app
+from hpcflow.sdk.core.actions import SkipReason
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache
@@ -773,3 +775,47 @@ class WorkflowLoop:
         if self.template.termination:
             return self.template.termination.test(element_iter)
         return False
+
+    @TimeIt.decorator
+    def get_element_IDs(self):
+        elem_IDs = [
+            j
+            for i in self.task_insert_IDs
+            for j in self.workflow.tasks.get(insert_ID=i).element_IDs
+        ]
+        return elem_IDs
+
+    @TimeIt.decorator
+    def get_elements(self):
+        return self.workflow.get_elements_from_IDs(self.get_element_IDs())
+
+    @TimeIt.decorator
+    def skip_downstream_iterations(self, elem_iter):
+        """
+        Parameters
+        ----------
+        elem_iter
+            The element iteration whose subsequent iterations should be skipped.
+        dep_element_IDs
+            List of elements that are dependent (recursively) on the element
+            of `elem_iter`.
+        """
+        current_iter_idx = elem_iter.loop_idx[self.name]
+        self.app.logger.info(
+            f"setting loop {self.name!r} iterations downstream of current iteration "
+            f"index {current_iter_idx} to skip"
+        )
+        elements = self.get_elements()
+
+        warn(
+            "skip downstream iterations does not work correctly for multipl loop cycles!"
+        )
+
+        to_skip = []
+        for elem in elements:
+            for iter_i in elem.iterations:
+                if iter_i.loop_idx[self.name] > current_iter_idx:
+                    to_skip.extend(iter_i.EAR_IDs_flat)
+        self.app.logger.info(f"runs {to_skip!r} will be set to skip")
+        for run_ID in to_skip:
+            self.workflow.set_EAR_skip(run_ID, SkipReason.LOOP_TERMINATION)

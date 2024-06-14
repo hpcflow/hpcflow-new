@@ -839,7 +839,7 @@ class ElementIteration:
         # TODO: test this includes downstream iterations of this iteration's element?
         deps = []
         for task in self.workflow.tasks[self.task.index :]:
-            for elem in task.elements[:]:
+            for elem in task.elements:
                 for iter_i in elem.iterations:
                     if iter_i.id_ == self.id_:
                         continue

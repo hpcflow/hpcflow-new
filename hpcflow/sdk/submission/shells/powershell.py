@@ -266,11 +266,13 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+    def format_loop_check(
+        self, workflow_app_alias: str, run_ID: int, loop_names: List[str]
+    ):
         return (
             f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
             f"internal workflow $WK_PATH check-loop "
-            f"{loop_name} {run_ID} "
+            f"{run_ID} {' '.join(loop_names)}  "
             f"\n"
         )
 
