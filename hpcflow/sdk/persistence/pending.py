@@ -5,18 +5,19 @@ import contextlib
 from dataclasses import dataclass, fields
 from datetime import datetime
 
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from .base import (
-        AnySEAR, AnySElement, AnySElementIter, AnySParameter, AnySTask,
-        PersistentStore, StoreParameter)
+        StoreEAR, StoreElement, StoreElementIter, StoreTask,
+        PersistentStore, StoreParameter,
+        AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
     from ..app import BaseApp
     pass  # TODO: Get the type variables
 
 
-class PendingChanges:
+class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
     """Class to store pending changes and merge them into a persistent store.
 
     Parameters
@@ -54,7 +55,7 @@ class PendingChanges:
         self.add_elements: dict[int, AnySElement] = {}
         self.add_elem_iters: dict[int, AnySElementIter] = {}
         self.add_EARs: dict[int, AnySEAR] = {}
-        self.add_parameters: dict[int, StoreParameter] = {}
+        self.add_parameters: dict[int, AnySParameter] = {}
         self.add_files: list[Dict] = []
         self.add_template_components: dict[str, dict[str, Dict]] = {}
         self.add_element_sets: dict[int, List] = {}
@@ -67,12 +68,12 @@ class PendingChanges:
         self.set_EARs_initialised: list[int] = []
         self.set_EAR_submission_indices: dict[int, int] = {}
         self.set_EAR_skips: list[int] = []
-        self.set_EAR_starts: dict[int, tuple[datetime, Dict], str] = {}
+        self.set_EAR_starts: dict[int, tuple[datetime, Dict, str]] = {}
         self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] = {}
 
         self.set_js_metadata: dict[int, dict[int, dict[str, Any]]] = {}
 
-        self.set_parameters: dict[int, AnySParameter] = {}
+        self.set_parameters: dict[int, tuple[Any, bool]] = {}
 
         self.update_param_sources: dict[int, Dict] = {}
         self.update_loop_indices: dict[int, dict[str, int]] = {}
@@ -443,79 +444,79 @@ class PendingChanges:
             self.store._update_loop_parents(index, parents)
         self.clear_update_loop_parents()
 
-    def clear_add_tasks(self):
+    def clear_add_tasks(self) -> None:
         self.add_tasks = {}
 
-    def clear_add_loops(self):
+    def clear_add_loops(self) -> None:
         self.add_loops = {}
 
-    def clear_add_submissions(self):
+    def clear_add_submissions(self) -> None:
         self.add_submissions = {}
 
-    def clear_add_submission_parts(self):
+    def clear_add_submission_parts(self) -> None:
         self.add_submission_parts = defaultdict(dict)
 
-    def clear_add_elements(self):
+    def clear_add_elements(self) -> None:
         self.add_elements = {}
 
-    def clear_add_element_sets(self):
+    def clear_add_element_sets(self) -> None:
         self.add_element_sets = defaultdict(list)
 
-    def clear_add_elem_iters(self):
+    def clear_add_elem_iters(self) -> None:
         self.add_elem_iters = {}
 
-    def clear_add_EARs(self):
+    def clear_add_EARs(self) -> None:
         self.add_EARs = {}
 
-    def clear_add_elem_IDs(self):
+    def clear_add_elem_IDs(self) -> None:
         self.add_elem_IDs = defaultdict(list)
 
-    def clear_add_elem_iter_IDs(self):
+    def clear_add_elem_iter_IDs(self) -> None:
         self.add_elem_iter_IDs = defaultdict(list)
 
-    def clear_add_elem_iter_EAR_IDs(self):
+    def clear_add_elem_iter_EAR_IDs(self) -> None:
         self.add_elem_iter_EAR_IDs = defaultdict(lambda: defaultdict(list))
 
-    def clear_set_EARs_initialised(self):
+    def clear_set_EARs_initialised(self) -> None:
         self.set_EARs_initialised = []
 
-    def clear_set_EAR_submission_indices(self):
+    def clear_set_EAR_submission_indices(self) -> None:
         self.set_EAR_submission_indices = {}
 
-    def clear_set_EAR_starts(self):
+    def clear_set_EAR_starts(self) -> None:
         self.set_EAR_starts = {}
 
-    def clear_set_EAR_ends(self):
+    def clear_set_EAR_ends(self) -> None:
         self.set_EAR_ends = {}
 
-    def clear_set_EAR_skips(self):
+    def clear_set_EAR_skips(self) -> None:
         self.set_EAR_skips = []
 
-    def clear_set_js_metadata(self):
+    def clear_set_js_metadata(self) -> None:
         self.set_js_metadata = defaultdict(lambda: defaultdict(dict))
 
-    def clear_add_parameters(self):
+    def clear_add_parameters(self) -> None:
         self.add_parameters = {}
 
-    def clear_add_files(self):
+    def clear_add_files(self) -> None:
         self.add_files = []
 
-    def clear_add_template_components(self):
+    def clear_add_template_components(self) -> None:
         self.add_template_components = defaultdict(dict)
 
-    def clear_set_parameters(self):
+    def clear_set_parameters(self) -> None:
         self.set_parameters = {}
 
-    def clear_update_param_sources(self):
+    def clear_update_param_sources(self) -> None:
         self.update_param_sources = {}
 
-    def clear_update_loop_indices(self):
+    def clear_update_loop_indices(self) -> None:
         self.update_loop_indices = defaultdict(dict)
 
-    def clear_update_loop_num_iters(self):
+    def clear_update_loop_num_iters(self) -> None:
         self.update_loop_num_iters = {}
 
-    def clear_update_loop_parents(self):
+    def clear_update_loop_parents(self) -> None:
         self.update_loop_parents = {}
 
     def reset(self, is_init=False) -> None:

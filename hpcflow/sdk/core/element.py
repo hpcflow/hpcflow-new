@@ -722,6 +722,7 @@ class ElementIteration:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
+        out: list[int]
         if self.action_runs:
             out = sorted(
                 set(
@@ -738,7 +739,7 @@ class ElementIteration:
             out = []
             for src in self.get_parameter_sources(typ="EAR_output").values():
                 for src_i in (src if isinstance(src, list) else [src]):
-                    EAR_ID_i = src_i["EAR_ID"]
+                    EAR_ID_i: int = src_i["EAR_ID"]
                     out.append(EAR_ID_i)
             out = sorted(set(out))
 

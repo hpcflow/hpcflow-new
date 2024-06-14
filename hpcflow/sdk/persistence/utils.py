@@ -5,7 +5,7 @@ from typing import TypeVar, TYPE_CHECKING
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 if TYPE_CHECKING:
     from typing import Callable, TypeVar
-    from fsspec import AbstractFileSystem
+    from fsspec import AbstractFileSystem  # type: ignore
 
     T = TypeVar("T")
 

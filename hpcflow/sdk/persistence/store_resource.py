@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import copy
 import json
 from pathlib import Path
-from typing import Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import get_md5_hash
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ class StoreResource(ABC):
     def __init__(self, app: BaseApp, name: str) -> None:
         self.app = app
         self.name = name
-        self.data = {"read": None, "update": None}
+        self.data: dict[str, Any] = {"read": None, "update": None}
         self.hash = None
 
     def __repr__(self) -> str:
@@ -32,7 +32,7 @@ class StoreResource(ABC):
         return self.app.persistence_logger
 
     @abstractmethod
-    def _load(self):
+    def _load(self) -> Any:
         pass
 
     @abstractmethod
