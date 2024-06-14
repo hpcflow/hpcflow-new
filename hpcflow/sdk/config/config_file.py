@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import random
 import string
-from typing import Dict
+from typing import TYPE_CHECKING
 
 from ruamel.yaml import YAML
 
@@ -23,12 +23,16 @@ from .errors import (
     ConfigInvocationKeyNotFoundError,
     ConfigValidationError,
 )
+if TYPE_CHECKING:
+    from typing import Any, Dict, TypeAlias
+    from .config import Config, ConfigOptions
 
+    ConfigDict: TypeAlias = dict[str, dict[str, dict[str, dict[str, Any]]]]
 
 class ConfigFile:
     """Configuration file."""
 
-    def __init__(self, directory, logger, config_options):
+    def __init__(self, directory, logger: logging.Logger, config_options: ConfigOptions):
         self.logger = logger
         self.directory = self._resolve_config_dir(
             config_opt=config_options,
@@ -36,20 +40,44 @@ class ConfigFile:
             directory=directory,
         )
 
-        self._configs = []
+        self._configs: list[Config] = []
 
         # set by _load_file_data:
-        self.path = None
-        self.contents = None
-        self.data = None
-        self.data_rt = None
+        self.__path: Path | None = None
+        self.__contents: str | None = None
+        self.__data: ConfigDict | None = None
+        self.__data_rt: ConfigDict | None = None
 
         self._load_file_data(config_options)
-        self.file_schema = self._validate(self.data)
+        self.file_schema = self._validate(self.__data)
+
+    @property
+    def data(self) -> ConfigDict:
+        d = self.__data
+        assert d is not None
+        return d
+
+    @property
+    def data_rt(self) -> ConfigDict:
+        drt = self.__data_rt
+        assert drt is not None
+        return drt
+
+    @property
+    def path(self) -> Path:
+        p = self.__path
+        assert p is not None
+        return p
+
+    @property
+    def contents(self) -> str:
+        c = self.__contents
+        assert c is not None
+        return c
 
     @staticmethod
     def select_invocation(
-        configs: Dict,
+        configs: dict[str, Any],
         run_time_info: Dict,
         path: Path,
         config_key: str | None = None,
@@ -97,43 +125,45 @@ class ConfigFile:
 
         return config_key
 
-    def _validate(self, data):
+    def _validate(self, data: dict[str, Any] | None):
         file_schema = get_schema("config_file_schema.yaml")
         file_validated = file_schema.validate(data)
         if not file_validated.is_valid:
             raise ConfigFileValidationError(file_validated.get_failures_string())
         return file_schema
 
-    def get_invoc_data(self, config_key):
+    def get_invoc_data(self, config_key: str) -> dict[str, dict[str, Any]]:
         return self.data["configs"][config_key]
 
-    def get_invocation(self, config_key):
+    def get_invocation(self, config_key: str) -> dict[str, Any]:
         return self.get_invoc_data(config_key)["invocation"]
 
-    def save(self):
+    def save(self) -> None:
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
         new_contents = ""
 
-        modified_names = []
+        modified_names: list[str] = []
         for config in self._configs:
             modified_names += list(config._modified_keys.keys()) + config._unset_keys
+            new_data_config = new_data["configs"][config._config_key]["config"]
+            new_data_rt_config = new_data_rt["configs"][config._config_key]["config"]
             for k, v in config._modified_keys.items():
-                new_data["configs"][config._config_key]["config"][k] = v
-                new_data_rt["configs"][config._config_key]["config"][k] = v
+                new_data_config[k] = v
+                new_data_rt_config[k] = v
 
             for k in config._unset_keys:
-                del new_data["configs"][config._config_key]["config"][k]
-                del new_data_rt["configs"][config._config_key]["config"][k]
+                del new_data_config[k]
+                del new_data_rt_config[k]
 
         try:
             new_contents = self._dump(new_data_rt)
         except Exception as err:
             raise ConfigChangeFileUpdateError(names=modified_names, err=err) from None
 
-        self.data = new_data
-        self.data_rt = new_data_rt
-        self.contents = new_contents
+        self.__data = new_data
+        self.__data_rt = new_data_rt
+        self.__contents = new_contents
 
         for config in self._configs:
             config._unset_keys = []
@@ -141,7 +171,7 @@ class ConfigFile:
 
     @staticmethod
     def _resolve_config_dir(
-        config_opt, logger, directory: str | Path | None = None
+        config_opt: ConfigOptions, logger: logging.Logger, directory: str | Path | None = None
     ) -> Path:
         """Find the directory in which to locate the configuration file.
 
@@ -164,21 +194,21 @@ class ConfigFile:
         """
 
         if not directory:
-            directory = Path(
+            path = Path(
                 os.getenv(config_opt.directory_env_var, config_opt.default_directory)
             ).expanduser()
         else:
-            directory = Path(directory)
+            path = Path(directory)
 
-        if not directory.is_dir():
+        if not path.is_dir():
             logger.debug(
-                f"Configuration directory does not exist. Generating here: {str(directory)!r}."
+                f"Configuration directory does not exist. Generating here: {str(path)!r}."
             )
-            directory.mkdir()
+            path.mkdir()
         else:
-            logger.debug(f"Using configuration directory: {str(directory)!r}.")
+            logger.debug(f"Using configuration directory: {str(path)!r}.")
 
-        return directory.resolve()
+        return path.resolve()
 
     def _dump(self, config_data: Dict, path: Path | None = None) -> str:
         """Dump the specified config data to the specified config file path.
@@ -225,18 +255,18 @@ class ConfigFile:
 
         return new_contents
 
-    def add_default_config(self, config_options, name=None) -> str:
+    def add_default_config(self, config_options: ConfigOptions, name: str | None = None) -> str:
         """Add a new default config to the config file, and create the file if it doesn't
         exist."""
 
-        is_new_file = False
-        if not self.path.exists():
+        if self.path.exists():
+            is_new_file = False
+            new_data: ConfigDict = copy.deepcopy(self.data)
+            new_data_rt: ConfigDict = copy.deepcopy(self.data_rt)
+        else:
             is_new_file = True
             new_data = {"configs": {}}
             new_data_rt = {"configs": {}}
-        else:
-            new_data = copy.deepcopy(self.data)
-            new_data_rt = copy.deepcopy(self.data_rt)
 
         if not name:
             chars = string.ascii_letters
@@ -263,14 +293,14 @@ class ConfigFile:
         except (ConfigFileValidationError, ConfigValidationError) as err:
             raise ConfigDefaultValidationError(err) from None
 
-        self.data_rt = new_data_rt
-        self.data = new_data
-        self.contents = self._dump(new_data_rt)
+        self.__data_rt = new_data_rt
+        self.__data = new_data
+        self.__contents = self._dump(new_data_rt)
 
         return name
 
     @staticmethod
-    def get_config_file_path(directory):
+    def get_config_file_path(directory: Path) -> Path:
         # Try both ".yml" and ".yaml" extensions:
         path_yaml = directory.joinpath("config.yaml")
         if path_yaml.is_file():
@@ -280,10 +310,10 @@ class ConfigFile:
             return path_yml
         return path_yaml
 
-    def _load_file_data(self, config_options):
+    def _load_file_data(self, config_options: ConfigOptions):
         """Load data from the configuration file (config.yaml or config.yml)."""
 
-        self.path = self.get_config_file_path(self.directory)
+        self.__path = self.get_config_file_path(self.directory)
         if not self.path.is_file():
             self.logger.info(
                 "No config.yaml found in the configuration directory. Generating "
@@ -300,23 +330,23 @@ class ConfigFile:
             handle.seek(0)
             data_rt = yaml_rt.load(handle)
 
-        self.contents = contents
-        self.data = data
-        self.data_rt = data_rt
+        self.__contents = contents
+        self.__data = data
+        self.__data_rt = data_rt
 
     def get_config_item(
-        self, config_key, name, raise_on_missing=False, default_value=None
+        self, config_key: str, name: str, raise_on_missing=False, default_value=None
     ):
         if raise_on_missing and name not in self.get_invoc_data(config_key)["config"]:
             raise ValueError(f"missing from file: {name!r}")
         return self.get_invoc_data(config_key)["config"].get(name, default_value)
 
-    def is_item_set(self, config_key, name):
+    def is_item_set(self, config_key: str, name: str):
         try:
             self.get_config_item(config_key, name, raise_on_missing=True)
+            return True
         except ValueError:
             return False
-        return True
 
     def rename_config_key(self, config_key: str, new_config_key: str):
         """Change the config key of the loaded config."""
@@ -332,9 +362,9 @@ class ConfigFile:
                 config._meta_data["config_key"] = new_config_key
                 config._config_key = new_config_key
 
-        self.data_rt = new_data_rt
-        self.data = new_data
-        self.contents = self._dump(new_data_rt)
+        self.__data_rt = new_data_rt
+        self.__data = new_data
+        self.__contents = self._dump(new_data_rt)
 
     def update_invocation(
         self,
@@ -354,6 +384,6 @@ class ConfigFile:
             if match:
                 invoc["match"].update(match)
 
-        self.data_rt = new_data_rt
-        self.data = new_data
-        self.contents = self._dump(new_data_rt)
+        self.__data_rt = new_data_rt
+        self.__data = new_data
+        self.__contents = self._dump(new_data_rt)

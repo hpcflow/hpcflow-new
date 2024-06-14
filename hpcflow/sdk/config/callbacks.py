@@ -1,15 +1,23 @@
 """Module that defines built-in callback functions for configuration item values."""
 
-
+from __future__ import annotations
 import os
 import re
-import fsspec
+import fsspec  # type: ignore
+from typing import overload, TYPE_CHECKING
 from hpcflow.sdk.core.errors import UnsupportedSchedulerError, UnsupportedShellError
 
 from hpcflow.sdk.submission.shells import get_supported_shells
+if TYPE_CHECKING:
+    from typing import Any, TypeVar
+    from .config import Config
+    from ..typing import PathLike
+    from ..submission.schedulers import QueuedScheduler
+
+    T = TypeVar('T')
 
 
-def callback_vars(config, value):
+def callback_vars(config: Config, value) -> str:
     """Substitute configuration variables."""
 
     def vars_repl(match_obj):
@@ -26,14 +34,20 @@ def callback_vars(config, value):
     return value
 
 
-def callback_file_paths(config, file_path):
+@overload
+def callback_file_paths(config: Config, file_path: PathLike) -> PathLike: ...
+
+@overload
+def callback_file_paths(config: Config, file_path: list[PathLike]) -> list[PathLike]: ...
+
+def callback_file_paths(config: Config, file_path: PathLike | list[PathLike]):
     if isinstance(file_path, list):
         return [config._resolve_path(i) for i in file_path]
     else:
         return config._resolve_path(file_path)
 
 
-def callback_bool(config, value):
+def callback_bool(config: Config, value: str | bool) -> bool:
     if not isinstance(value, bool):
         if value.lower() == "true":
             return True
@@ -44,7 +58,18 @@ def callback_bool(config, value):
     return value
 
 
-def callback_lowercase(config, value):
+@overload
+def callback_lowercase(config: Config, value: list[str]) -> list[str]: ...
+
+@overload
+def callback_lowercase(config: Config, value: dict[str, T]) -> dict[str, T]: ...
+
+@overload
+def callback_lowercase(config: Config, value: str) -> str: ...
+
+def callback_lowercase(
+    config: Config, value: list[str] | dict[str, T] | str
+) -> list[str] | dict[str, T] | str:
     if isinstance(value, list):
         return [i.lower() for i in value]
     elif isinstance(value, dict):
@@ -53,7 +78,7 @@ def callback_lowercase(config, value):
         return value.lower()
 
 
-def exists_in_schedulers(config, value):
+def exists_in_schedulers(config: Config, value: T) -> T:
     if value not in config.schedulers:
         raise ValueError(
             f"Cannot set default scheduler; {value!r} is not a supported scheduler "
@@ -63,7 +88,7 @@ def exists_in_schedulers(config, value):
     return value
 
 
-def callback_supported_schedulers(config, schedulers):
+def callback_supported_schedulers(config: Config, schedulers: dict[str, Any]) -> dict[str, Any]:
     # validate against supported schedulers according to the OS - this won't validate that
     # a particular scheduler actually exists on this system:
     available = config._app.get_OS_supported_schedulers()
@@ -74,7 +99,7 @@ def callback_supported_schedulers(config, schedulers):
     return schedulers
 
 
-def set_scheduler_invocation_match(config, scheduler: str):
+def set_scheduler_invocation_match(config: Config, scheduler: str):
     """Invoked on set of `default_scheduler`.
 
     For clusters with "proper" schedulers (SGE, SLURM, etc.), login nodes are typically
@@ -89,7 +114,7 @@ def set_scheduler_invocation_match(config, scheduler: str):
         os_name=os.name,
         scheduler_args=default_args,
     )
-    if hasattr(sched, "DEFAULT_LOGIN_NODE_MATCH"):
+    if isinstance(sched, config._app.QueuedScheduler):
         if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
             config._file.update_invocation(
                 config_key=config._config_key,
@@ -97,7 +122,7 @@ def set_scheduler_invocation_match(config, scheduler: str):
             )
 
 
-def callback_scheduler_set_up(config, schedulers):
+def callback_scheduler_set_up(config: Config, schedulers: dict[str, Any]) -> dict[str, Any]:
     """Invoked on set of `schedulers`.
 
     Runs scheduler-specific config initialisation.
@@ -109,7 +134,8 @@ def callback_scheduler_set_up(config, schedulers):
             os_name=os.name,
             scheduler_args=v.get("defaults", {}),
         )
-        if hasattr(sched, "get_login_nodes"):
+
+        if isinstance(sched, config._app.SGEPosix):
             # some `QueuedScheduler` classes have a `get_login_nodes` method which can be used
             # to populate the names of login nodes explicitly, if not already set:
             if "hostname" not in config._file.get_invocation(config._config_key)["match"]:
@@ -121,36 +147,36 @@ def callback_scheduler_set_up(config, schedulers):
     return schedulers
 
 
-def callback_supported_shells(config, shell_name):
+def callback_supported_shells(config: Config, shell_name: str) -> str:
     supported = get_supported_shells(os.name)
     if shell_name not in supported:
         raise UnsupportedShellError(shell=shell_name, supported=supported)
     return shell_name
 
 
-def set_callback_file_paths(config, value):
+def set_callback_file_paths(config: Config, value: PathLike | list[PathLike]):
     """Check the file(s) is/are accessible. This is only done on `config.set` (and not on
     `config.get` or `config._validate`) because it could be expensive in the case of remote
     files."""
     value = callback_file_paths(config, value)
 
-    to_check = value
-    if not isinstance(value, list):
-        to_check = [value]
+    to_check = value if isinstance(value, list) else [value]
 
     for file_path in to_check:
+        if file_path is None:
+            continue
         with fsspec.open(file_path, mode="rt") as fh:
             pass
             # TODO: also check something in it?
         print(f"Checked access to: {file_path}")
 
 
-def check_load_data_files(config, value):
+def check_load_data_files(config: Config, value: Any):
     """Check data files (e.g. task schema files) can be loaded successfully. This is only
     done on `config.set` (and not on `config.get` or `config._validate`) because it could
     be expensive in the case of remote files."""
     config._app.reload_template_components(warn=False)
 
 
-def callback_update_log_console_level(config, value):
+def callback_update_log_console_level(config: Config, value: str):
     config._app.log.update_console_level(value)

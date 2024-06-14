@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import click
 from colorama import init as colorama_init
-from termcolor import colored
+from termcolor import colored  # type: ignore
 
 from hpcflow.sdk.core import utils
 

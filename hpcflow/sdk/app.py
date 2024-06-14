@@ -82,7 +82,7 @@ if TYPE_CHECKING:
     from .core.workflow import Workflow, WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
-    from .submission.schedulers import Scheduler
+    from .submission.schedulers import Scheduler, QueuedScheduler
     from .submission.schedulers.direct import DirectPosix, DirectWindows
     from .submission.schedulers.sge import SGEPosix
     from .submission.schedulers.slurm import SlurmPosix
@@ -476,6 +476,11 @@ class BaseApp(metaclass=Singleton):
     @property
     def SlurmPosix(self) -> type[SlurmPosix]:
         return self._get_app_core_class("SlurmPosix")
+
+    @property
+    def QueuedScheduler(self) -> type[QueuedScheduler]:
+        from .submission.schedulers import QueuedScheduler as QS
+        return QS
 
     def __getattr__(self, name):
         if name in sdk_classes:
