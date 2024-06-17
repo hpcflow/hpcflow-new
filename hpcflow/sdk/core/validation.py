@@ -1,8 +1,11 @@
+from __future__ import annotations
+from collections.abc import Sequence
 from importlib import resources
 from typing import Any, Generic, Protocol, TypeVar
-from valida import Schema as VSchema  # type: ignore
-from valida.rules import Rule as VRule  # type: ignore
-from valida.conditions import (
+from valida import (  # type: ignore
+    Schema as VSchema,
+    Rule as VRule)
+from valida.conditions import (  # type: ignore
     ConditionLike as _Condition,
     PreparedConditionCallable as Callable)
 
@@ -13,8 +16,7 @@ class ValidatedData(Protocol, Generic[T]):
     @property
     def is_valid(self) -> bool: ...
     def get_failures_string(self) -> str: ...
-    @property
-    def cast_data(self) -> T: ...
+    cast_data: T
 
 
 class PreparedConditionCallable(Protocol, Callable):
@@ -37,7 +39,7 @@ class Rule(Protocol, VRule):
 class Schema(Protocol, VSchema):
     def validate(self, data: T) -> ValidatedData[T]: ...
     @property
-    def rules(self) -> list[Rule]: ...
+    def rules(self) -> Sequence[Rule]: ...
 
 
 def get_schema(filename) -> Schema:

@@ -1,11 +1,18 @@
 from __future__ import annotations
 from functools import wraps
 import logging
+import logging.handlers
 from pathlib import Path
 import time
 from collections import defaultdict
+from collections.abc import Callable, Sequence
 import statistics
 from dataclasses import dataclass
+from typing import ParamSpec, TypeVar
+
+
+P = ParamSpec('P')
+T = TypeVar('T')
 
 
 @dataclass
@@ -33,9 +40,9 @@ class TimeIt:
     trace_idx_prev: list[int] = []
 
     @classmethod
-    def decorator(cls, func):
+    def decorator(cls, func: Callable[P, T]) -> Callable[P, T]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> T:
 
             if not cls.active:
                 return func(*args, **kwargs)
@@ -96,8 +103,7 @@ class TimeIt:
     @classmethod
     def summarise_string(cls) -> None:
         def _format_nodes(node: dict[tuple[str, ...], _Summary], depth: int=0,
-                          depth_final: tuple[bool, ...] = ()) -> list[str]:
-            out: list[str] = []
+                          depth_final: Sequence[bool] = ()):
             for idx, (k, v) in enumerate(node.items()):
                 is_final_child = idx == len(node) - 1
                 angle = "└ " if is_final_child else "├ "
@@ -113,15 +119,10 @@ class TimeIt:
                     f"{v.mean:10.6f} {stddev_str} {v.number:8d} "
                     f"{min_str} {max_str} "
                 )
-                depth_final_next = tuple(*depth_final, *(
-                    [is_final_child] if depth > 0 else []
-                ))
-                out.extend(
-                    _format_nodes(
-                        v.children, depth=depth + 1, depth_final=depth_final_next
-                    )
-                )
-            return out
+                depth_final_next = list(depth_final)
+                if depth > 0:
+                    depth_final_next.append(is_final_child)
+                _format_nodes(v.children, depth + 1, depth_final_next)
 
         summary = cls._summarise()
 
@@ -129,7 +130,7 @@ class TimeIt:
             f"{'function':^80s} {'sum /s':^12s} {'mean (stddev) /s':^20s} {'N':^8s} "
             f"{'min /s':^12s} {'max /s':^12s}"
         ]
-        out += _format_nodes(summary)
+        _format_nodes(summary)
         out_str = "\n".join(out)
         if cls.file_path:
             Path(cls.file_path).write_text(out_str, encoding="utf-8")
@@ -161,7 +162,7 @@ class AppLog:
         if new_level:
             self.console_handler.setLevel(new_level.upper())
 
-    def add_file_logger(self, path: str, level: str | None = None,
+    def add_file_logger(self, path: Path, level: str | None = None,
                         fmt: str | None = None, max_bytes: int | None = None) -> logging.Handler:
         fmt = fmt or f"%(asctime)s %(levelname)s %(name)s: %(message)s"
         level = level or AppLog.DEFAULT_LOG_FILE_LEVEL

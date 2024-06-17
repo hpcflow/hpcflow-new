@@ -3,7 +3,7 @@ import json
 import os
 import click
 from colorama import init as colorama_init
-from termcolor import colored
+from termcolor import colored  # type: ignore
 from rich.pretty import pprint
 
 from hpcflow import __version__, _app_name
