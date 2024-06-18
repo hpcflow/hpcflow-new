@@ -15,12 +15,12 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, TypeVar, Generic, NotRequired, TypedDict, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
 import requests
-from reretry import retry
+from reretry import retry  # type: ignore
 import rich
 from rich.console import Console, Group
 from rich.syntax import Syntax
@@ -29,8 +29,8 @@ from rich.text import Text
 from rich.padding import Padding
 from rich.panel import Panel
 from rich import print as rich_print
-from fsspec.core import url_to_fs
-from fsspec.implementations.local import LocalFileSystem
+from fsspec.core import url_to_fs  # type: ignore
+from fsspec.implementations.local import LocalFileSystem  # type: ignore
 
 
 from hpcflow import __version__
@@ -61,8 +61,9 @@ from hpcflow.sdk.submission.shells.os_version import (
 )
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
+    import hpcflow.sdk.core.object_list
     from .core.actions import ElementActionRun, ElementAction, ActionEnvironment, Action, ActionScope
     from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
     from .core.commands import Command
@@ -71,8 +72,9 @@ if TYPE_CHECKING:
         ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
-        CommandFilesList, EnvironmentsList, ExecutablesList, GroupList, ParametersList,
-        ResourceList, TaskList, TaskSchemasList, TaskTemplateList, WorkflowLoopList,
+        CommandFilesList as CommandFilesList_, EnvironmentsList as EnvironmentsList_, ExecutablesList,
+        GroupList, ParametersList as ParametersList_,
+        ResourceList, TaskList, TaskSchemasList as TaskSchemasList_, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
     from .core.parameters import SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec
     from .core.run_dir_files import RunDirAppFiles
@@ -80,7 +82,7 @@ if TYPE_CHECKING:
         WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
         ElementPropagation, ElementSet)
     from .core.task_schema import TaskSchema
-    from .core.workflow import Workflow, WorkflowTemplate
+    from .core.workflow import Workflow, WorkflowTemplate as _WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
     from .submission.schedulers import Scheduler, QueuedScheduler
@@ -90,6 +92,8 @@ if TYPE_CHECKING:
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
+
+T = TypeVar('T')
 
 
 def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
@@ -159,10 +163,10 @@ def get_app_module_dir():
     return lambda: sorted(get_app_module_all())
 
 
-class Singleton(type):
-    _instances = {}
+class Singleton(type, Generic[T]):
+    _instances: dict[Singleton[T], Any] = {}
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls: Singleton[T], *args, **kwargs) -> T:
         SDK_logger.info(
             f"App metaclass __call__: "
             f"name={kwargs['name']!r}, version={kwargs['version']!r}."
@@ -172,12 +176,20 @@ class Singleton(type):
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
-    def get_instance(cls):
+    def get_instance(cls: Singleton[T]) -> T:
         """Retrieve the instance of the singleton class if initialised."""
         try:
             return cls._instances[cls]
         except KeyError:
             raise RuntimeError(f"{cls.__name__!r} object has not be instantiated!")
+
+
+class TemplateComponents(TypedDict):
+    parameters: NotRequired[ParametersList_]
+    command_files: NotRequired[CommandFilesList_]
+    environments: NotRequired[EnvironmentsList_]
+    task_schemas: NotRequired[TaskSchemasList_]
+    scripts: NotRequired[dict[str, Path]]
 
 
 class BaseApp(metaclass=Singleton):
@@ -213,7 +225,7 @@ class BaseApp(metaclass=Singleton):
         workflows_dir: str | None = None,
         demo_data_dir: str | None = None,
         demo_data_manifest_dir: str | None = None,
-        template_components: Dict = None,
+        template_components: Dict | None = None,
         pytest_args=None,
         package_name=None,
         docs_import_conv=None,
@@ -249,26 +261,26 @@ class BaseApp(metaclass=Singleton):
 
         self._builtin_template_components = template_components or {}
 
-        self._config = None  # assigned on first access to `config` property
-        self._config_files = {}  # assigned on config load, keys are string absolute paths
+        self._config: Config | None = None  # assigned on first access to `config` property
+        self._config_files: dict[str, ConfigFile] = {}  # assigned on config load, keys are string absolute paths
 
         # Set by `_load_template_components`:
-        self._template_components = {}
-        self._parameters = None
-        self._command_files = None
-        self._environments: EnvironmentsList | None = None
-        self._task_schemas = None
-        self._scripts = None
+        self._template_components: TemplateComponents = {}
+        self._parameters: ParametersList_ | None = None
+        self._command_files: CommandFilesList_ | None = None
+        self._environments: EnvironmentsList_ | None = None
+        self._task_schemas: TaskSchemasList_ | None = None
+        self._scripts: dict[str, Path] | None = None
 
-        self._app_attr_cache = {}
+        self._app_attr_cache: dict[str, type] = {}
 
         # assigned on first access to respective properties
-        self._user_data_dir = None
-        self._user_cache_dir = None
-        self._user_runtime_dir = None
-        self._user_data_hostname_dir = None
-        self._user_cache_hostname_dir = None
-        self._demo_data_cache_dir = None
+        self._user_data_dir: Path | None = None
+        self._user_cache_dir: Path | None = None
+        self._user_runtime_dir: Path | None = None
+        self._user_data_hostname_dir: Path | None = None
+        self._user_cache_hostname_dir: Path | None = None
+        self._demo_data_cache_dir: Path | None = None
 
     @property
     def ElementActionRun(self) -> type[ElementActionRun]:
@@ -359,11 +371,11 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("WorkflowLoop")
 
     @property
-    def CommandFilesList(self) -> type[CommandFilesList]:
+    def CommandFilesList(self) -> type[CommandFilesList_]:
         return self._get_app_core_class("CommandFilesList")
 
     @property
-    def EnvironmentsList(self) -> type[EnvironmentsList]:
+    def EnvironmentsList(self) -> type[EnvironmentsList_]:
         return self._get_app_core_class("EnvironmentsList")
 
     @property
@@ -375,7 +387,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("GroupList")
 
     @property
-    def ParametersList(self) -> type[ParametersList]:
+    def ParametersList(self) -> type[ParametersList_]:
         return self._get_app_core_class("ParametersList")
 
     @property
@@ -391,7 +403,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("TaskList")
 
     @property
-    def TaskSchemasList(self) -> type[TaskSchemasList]:
+    def TaskSchemasList(self) -> type[TaskSchemasList_]:
         return self._get_app_core_class("TaskSchemasList")
 
     @property
@@ -447,7 +459,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("ElementPropagation")
 
     @property
-    def WorkflowTemplate(self) -> type[WorkflowTemplate]:
+    def WorkflowTemplate(self) -> type[_WorkflowTemplate]:
         return self._get_app_core_class("WorkflowTemplate")
 
     @property
@@ -501,7 +513,7 @@ class BaseApp(metaclass=Singleton):
             if issubclass(cls, enum.Enum):
                 sub_cls = cls
             else:
-                dct = {}
+                dct: dict[str, Any] = {}
                 if hasattr(cls, "_app_attr"):
                     dct = {getattr(cls, "_app_attr"): self}
                 sub_cls = type(cls.__name__, (cls,), dct)
@@ -548,7 +560,7 @@ class BaseApp(metaclass=Singleton):
         TimeIt.active = bool(value)
 
     @property
-    def template_components(self) -> dict[str, ObjectList[Any]]:
+    def template_components(self) -> TemplateComponents:
         if not self.is_template_components_loaded:
             self._load_template_components()
         return self._template_components
@@ -574,23 +586,23 @@ class BaseApp(metaclass=Singleton):
         self._load_template_components()
 
     @TimeIt.decorator
-    def _load_template_components(self, *include) -> None:
+    def _load_template_components(self, *include: str) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
 
         if not include or "task_schemas" in include:
             # task schemas require all other template components to be loaded first
-            include = [
+            include = (
                 "parameters",
                 "command_files",
                 "environments",
                 "task_schemas",
                 "scripts",
-            ]
+            )
 
         self.logger.debug(f"Loading template components: {include!r}.")
 
-        self_tc = self._template_components
+        self_tc: Any = self._template_components
 
         if "parameters" in include:
             params = self._builtin_template_components.get("parameters", [])
@@ -599,7 +611,8 @@ class BaseApp(metaclass=Singleton):
             param_list = self.ParametersList.from_json_like(
                 params, shared_data=self_tc
             )
-            self_tc["parameters"] = param_list
+            assert isinstance(param_list, self.ParametersList)
+            self._template_components["parameters"] = param_list
             self._parameters = param_list
 
         if "command_files" in include:
@@ -609,7 +622,8 @@ class BaseApp(metaclass=Singleton):
             cf_list = self.CommandFilesList.from_json_like(
                 cmd_files, shared_data=self_tc
             )
-            self_tc["command_files"] = cf_list
+            assert isinstance(cf_list, self.CommandFilesList)
+            self._template_components["command_files"] = cf_list
             self._command_files = cf_list
 
         if "environments" in include:
@@ -627,7 +641,8 @@ class BaseApp(metaclass=Singleton):
             env_list = self.EnvironmentsList.from_json_like(
                 envs, shared_data=self_tc
             )
-            self_tc["environments"] = env_list
+            assert isinstance(env_list, self.EnvironmentsList)
+            self._template_components["environments"] = env_list
             self._environments = env_list
 
         if "task_schemas" in include:
@@ -637,19 +652,20 @@ class BaseApp(metaclass=Singleton):
             ts_list = self.TaskSchemasList.from_json_like(
                 schemas, shared_data=self_tc
             )
-            self_tc["task_schemas"] = ts_list
+            assert isinstance(ts_list, self.TaskSchemasList)
+            self._template_components["task_schemas"] = ts_list
             self._task_schemas = ts_list
 
         if "scripts" in include:
             scripts = self._load_scripts()
-            self_tc["scripts"] = scripts
+            self._template_components["scripts"] = scripts
             self._scripts = scripts
 
         self.logger.info(f"Template components loaded ({include!r}).")
 
     @classmethod
     def load_builtin_template_component_data(
-        cls, package: ModuleType | str
+        cls, package: ModuleType
     ) -> dict[str, List | Dict]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
@@ -658,7 +674,7 @@ class BaseApp(metaclass=Singleton):
         for comp_type in TEMPLATE_COMP_TYPES:
             resource = f"{comp_type}.yaml"
             try:
-                fh = resources.files(package).joinpath(resource).open("rt")
+                fh = resources.files(package).joinpath(resource).open("r")
             except AttributeError:
                 # < python 3.9; `resource.open_text` deprecated since 3.11
                 fh = resources.open_text(package, resource)
@@ -670,29 +686,33 @@ class BaseApp(metaclass=Singleton):
         return components
 
     @property
-    def parameters(self) -> ParametersList:
+    def parameters(self) -> ParametersList_:
         self._ensure_template_component("parameters")
+        assert self._parameters is not None
         return self._parameters
 
     @property
-    def command_files(self) -> CommandFilesList:
+    def command_files(self) -> CommandFilesList_:
         self._ensure_template_component("command_files")
         assert self._command_files is not None
         return self._command_files
 
     @property
-    def envs(self) -> EnvironmentsList:
+    def envs(self) -> EnvironmentsList_:
         self._ensure_template_component("environments")
+        assert self._environments is not None
         return self._environments
 
     @property
-    def scripts(self):
+    def scripts(self) -> Dict[str, Path]:
         self._ensure_template_component("scripts")
+        assert self._scripts is not None
         return self._scripts
 
     @property
-    def task_schemas(self) -> TaskSchemasList:
+    def task_schemas(self) -> TaskSchemasList_:
         self._ensure_template_component("task_schemas")
+        assert self._task_schemas is not None
         return self._task_schemas
 
     @property
@@ -736,6 +756,7 @@ class BaseApp(metaclass=Singleton):
     def config(self) -> Config:
         if not self.is_config_loaded:
             self.load_config()
+        assert self._config
         return self._config
 
     @property
@@ -1029,13 +1050,13 @@ class BaseApp(metaclass=Singleton):
         scripts: dict[str, Path] = {}
         with ctx as path:
             for dirpath, _, filenames in os.walk(path):
-                dirpath = Path(dirpath)
-                if dirpath.name == "__pycache__":
+                dirpath_ = Path(dirpath)
+                if dirpath_.name == "__pycache__":
                     continue
                 for filename in filenames:
                     if filename == "__init__.py":
                         continue
-                    val = dirpath.joinpath(filename)
+                    val = dirpath_.joinpath(filename)
                     key = str(val.relative_to(path).as_posix())
                     scripts[key] = Path(val)
 
@@ -1045,14 +1066,10 @@ class BaseApp(metaclass=Singleton):
         """Get all builtin demo workflow template file paths."""
         templates = {}
         pkg = f"{self.package_name}.{self.workflows_dir}"
-        try:
-            files = resources.files(pkg).iterdir()
-        except AttributeError:
-            # python 3.8; `resources.contents` deprecated since 3.11
-            files = resources.contents(pkg)
-        for i in files:
-            if i.suffix in (".yaml", ".yml", ".json", ".jsonc"):
-                templates[i.stem] = i
+        for i in resources.files(pkg).iterdir():
+            p = Path(i.name)
+            if p.suffix in (".yaml", ".yml", ".json", ".jsonc"):
+                templates[p.stem] = p
         return templates
 
     def list_demo_workflows(self) -> tuple[str, ...]:
@@ -1088,12 +1105,12 @@ class BaseApp(metaclass=Singleton):
             # load the file, modify, then dump to temp location:
             if builtin_path.suffix in (".yaml", ".yml"):
                 # use round-trip loader to preserve comments:
-                data = read_YAML_file(builtin_path, typ="rt", variables=False)
+                data = read_YAML_file(builtin_path, typ="rt", variables={})
                 data.pop("doc", None)
                 write_YAML_file(data, path, typ="rt")
 
             elif builtin_path.suffix in (".json", ".jsonc"):
-                data = read_JSON_file(builtin_path, variables=False)
+                data = read_JSON_file(builtin_path, variables={})
                 data.pop("doc", None)
                 write_JSON_file(data, path)
 
@@ -1144,31 +1161,25 @@ class BaseApp(metaclass=Singleton):
 
             if syntax:
                 fmt = DEMO_WK_FORMATS[path.suffix]
-                contents = Syntax(contents, fmt)
-                console = Console()
-                console.print(contents)
+                Console().print(Syntax(contents, fmt))
             else:
                 print(contents)
 
-    def load_demo_workflow(self, name: str) -> WorkflowTemplate:
+    def load_demo_workflow(self, name: str) -> _WorkflowTemplate:
         """Load a WorkflowTemplate object from a builtin demo template file."""
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def template_components_from_json_like(self, json_like) -> dict[str, Any]:
-        cls_lookup: dict[str, ObjectList[Any]] = {
-            "parameters": self.ParametersList,
-            "command_files": self.CommandFilesList,
-            "environments": self.EnvironmentsList,
-            "task_schemas": self.TaskSchemasList
-        }
-        tc: dict[str, Any] = {}
-        for k, v in cls_lookup.items():
-            tc[k] = v.from_json_like(
-                json_like.get(k, {}),
-                shared_data=tc,
-                is_hashed=True
-            )
+    def template_components_from_json_like(self, json_like: dict[str, dict]) -> dict[str, Any]:
+        tc: TemplateComponents = {}
+        tc["parameters"] = self.ParametersList.from_json_like(
+            json_like.get("parameters", {}), shared_data=tc, is_hashed=True)
+        tc["command_files"] = self.CommandFilesList.from_json_like(
+            json_like.get("command_files", {}), shared_data=tc, is_hashed=True)
+        tc["environments"] = self.EnvironmentsList.from_json_like(
+            json_like.get("environments", {}), shared_data=tc, is_hashed=True)
+        tc["task_schemas"] = self.TaskSchemasList.from_json_like(
+            json_like.get("task_schemas", {}), shared_data=tc, is_hashed=True)
         return tc
 
     def get_parameter_task_schema_map(self) -> dict[str, list[List]]:

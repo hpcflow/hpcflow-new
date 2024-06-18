@@ -304,8 +304,8 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         return {"_objects": super().to_dict()["_objects"]}
 
     @classmethod
-    def _get_default_shared_data(cls) -> dict[str, Any]:
-        return cls._app.template_components
+    def _get_default_shared_data(cls) -> Mapping[str, ObjectList[JSONable]]:
+        return cast(Mapping[str, ObjectList[JSONable]], cls._app.template_components)
 
     @overload
     @classmethod

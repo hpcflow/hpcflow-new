@@ -68,12 +68,13 @@ if TYPE_CHECKING:
     from ..typing import ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
-    from .task import Task, WorkflowTask
+    from .json_like import JSONable
     from .loop import Loop, WorkflowLoop
     from .object_list import (
         WorkflowTaskList, WorkflowLoopList, ParametersList, CommandFilesList,
-        EnvironmentsList, TaskSchemasList, ResourceList)
+        EnvironmentsList, TaskSchemasList, ResourceList, ObjectList)
     from .parameters import InputSource
+    from .task import Task, WorkflowTask
     from ..submission.submission import Submission
     from ..submission.jobscript import Jobscript, JobScriptCreationArguments
     from ..persistence.base import (
@@ -288,9 +289,10 @@ class WorkflowTemplate(JSONLike):
         # extract out any template components:
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
+        base_components = cast(Mapping[str, ObjectList[JSONable]], cls.app.template_components)
         if params_dat:
             parameters = cls.app.ParametersList.from_json_like(
-                params_dat, shared_data=cls.app.template_components
+                params_dat, shared_data=base_components
             )
             app_params: ParametersList = cls.app.parameters
             app_params.add_objects(parameters, skip_duplicates=True)
@@ -298,7 +300,7 @@ class WorkflowTemplate(JSONLike):
         cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
             cmd_files = cls.app.CommandFilesList.from_json_like(
-                cmd_files_dat, shared_data=cls.app.template_components
+                cmd_files_dat, shared_data=base_components
             )
             app_files: CommandFilesList = cls.app.command_files
             app_files.add_objects(cmd_files, skip_duplicates=True)
@@ -306,7 +308,7 @@ class WorkflowTemplate(JSONLike):
         envs_dat = tcs.pop("environments", [])
         if envs_dat:
             envs = cls.app.EnvironmentsList.from_json_like(
-                envs_dat, shared_data=cls.app.template_components
+                envs_dat, shared_data=base_components
             )
             app_envs: EnvironmentsList = cls.app.envs
             app_envs.add_objects(envs, skip_duplicates=True)
@@ -314,12 +316,12 @@ class WorkflowTemplate(JSONLike):
         ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
             task_schemas = cls.app.TaskSchemasList.from_json_like(
-                ts_dat, shared_data=cls.app.template_components
+                ts_dat, shared_data=base_components
             )
             app_schemas: TaskSchemasList = cls.app.task_schemas
             app_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=cls.app.template_components)
+        return cls.from_json_like(data, shared_data=base_components)
 
     @classmethod
     @TimeIt.decorator

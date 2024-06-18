@@ -332,22 +332,6 @@ class PrettyPrinter(object):
         return "\n    ".join(lines)
 
 
-class Singleton(type):
-    _instances: dict[type, object] = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        elif args or kwargs:
-            # if existing instance, make the point that new arguments don't do anything!
-            raise ValueError(
-                f"{cls.__name__!r} is a singleton class and cannot be instantiated with new "
-                f"arguments. The positional arguments {args!r} and keyword-arguments "
-                f"{kwargs!r} have been ignored."
-            )
-        return cls._instances[cls]
-
-
 def capitalise_first_letter(chars: str) -> str:
     return chars[0].upper() + chars[1:]
 
