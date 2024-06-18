@@ -21,8 +21,7 @@ from hpcflow.sdk.persistence.base import (
     StoreElement,
     StoreElementIter,
     StoreParameter,
-    StoreTask,
-    StoreParameterSource
+    StoreTask
 )
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from typing import Any, Dict, Self
     from ..app import BaseApp
+    from ..typing import ParamSource
 
 
 class JsonStoreElement(StoreElement[dict[str, Any], None]):
@@ -585,7 +585,7 @@ class JSONPersistentStore(PersistentStore[
             params.update(new_params)
         return params
 
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, StoreParameterSource]:
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]:
         sources, id_lst_ = self._get_cached_persistent_param_sources(id_lst)
         if id_lst_:
             with self.using_resource("parameters", "read") as params:

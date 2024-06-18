@@ -10,11 +10,10 @@ from typing import Any, Dict, List, Generic, TYPE_CHECKING
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from .base import (
-        StoreEAR, StoreElement, StoreElementIter, StoreTask,
-        PersistentStore, StoreParameter,
-        AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
+        PersistentStore, AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
     from ..app import BaseApp
-    pass  # TODO: Get the type variables
+    from ..typing import ParamSource
+    # TODO: Get the type variables
 
 
 class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
@@ -75,7 +74,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
 
         self.set_parameters: dict[int, tuple[Any, bool]] = {}
 
-        self.update_param_sources: dict[int, Dict] = {}
+        self.update_param_sources: dict[int, ParamSource] = {}
         self.update_loop_indices: dict[int, dict[str, int]] = {}
         self.update_loop_num_iters: dict[int, list[list[list[int] | int]]] = {}
         self.update_loop_parents: dict[int, list[str]] = {}

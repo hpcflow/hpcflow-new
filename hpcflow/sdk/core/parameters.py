@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from typing import Any, ClassVar, Dict, TypeAlias, Self, NotRequired
     from ..app import BaseApp
+    from ..typing import ParamSource
     from .actions import ActionScope
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .workflow import Workflow
@@ -790,7 +791,7 @@ class ValueSequence(JSONLike):
                 return self.labelled_type
 
     def make_persistent(
-        self, workflow: Workflow, source: Dict
+        self, workflow: Workflow, source: ParamSource
     ) -> tuple[str, list[int], bool]:
         """Save value to a persistent workflow."""
 
@@ -805,7 +806,8 @@ class ValueSequence(JSONLike):
 
         data_ref: list[int] = []
         source = copy.deepcopy(source)
-        source["value_class_method"] = self.value_class_method
+        if self.value_class_method:
+            source["value_class_method"] = self.value_class_method
         are_objs: list[bool] = []
         assert self._values is not None
         for idx, i in enumerate(cast(list, self._values)):
@@ -858,6 +860,7 @@ class ValueSequence(JSONLike):
                 ):
                     method_name = param_i.source.get("value_class_method")
                     if method_name:
+                        assert isinstance(method_name, str)
                         method = getattr(self.parameter._value_class, method_name)
                     else:
                         method = self.parameter._value_class
@@ -1114,7 +1117,7 @@ class AbstractInputValue(JSONLike):
         return out
 
     def make_persistent(
-        self, workflow: Workflow, source: Dict
+        self, workflow: Workflow, source: ParamSource
     ) -> tuple[str, list[int], bool]:
         """Save value to a persistent workflow.
 
@@ -1581,7 +1584,7 @@ class ResourceSpec(JSONLike):
         return out
 
     def make_persistent(
-        self, workflow: Workflow, source: Dict
+        self, workflow: Workflow, source: ParamSource
     ) -> tuple[str, list[int], bool]:
         """Save to a persistent workflow.
 

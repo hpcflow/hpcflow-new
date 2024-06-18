@@ -380,11 +380,10 @@ class SlurmPosix(QueuedScheduler):
         if stderr:
             print(stderr)
         name, version = stdout.split()
-        out = {
+        return {
             "scheduler_name": name,
             "scheduler_version": version,
         }
-        return out
 
     def get_submit_command(
         self,

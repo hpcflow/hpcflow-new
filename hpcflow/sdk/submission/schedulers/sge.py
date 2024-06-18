@@ -190,11 +190,10 @@ class SGEPosix(QueuedScheduler):
             print(stderr)
         version_str = stdout.split("\n")[0].strip()
         name, version = version_str.split()
-        out = {
+        return {
             "scheduler_name": name,
             "scheduler_version": version,
         }
-        return out
 
     def get_submit_command(
         self,

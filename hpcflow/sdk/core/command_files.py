@@ -12,6 +12,7 @@ from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
     from ..app import BaseApp
+    from ..typing import ParamSource
     from .actions import ActionRule
     from .object_list import CommandFilesList
     from .parameters import Parameter
@@ -269,17 +270,20 @@ class OutputFileParser(JSONLike):
     options: Dict | None = None
     script_pass_env_spec: bool = False
     abortable: bool = False
-    save_files: list[str] | bool = True
+    save_files: list[FileSpec] | bool = True
     clean_up: list[str] = field(default_factory=list)
     rules: list[ActionRule] = field(default_factory=list)
+    _save_files: list[FileSpec] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.save_files:
             # save no files
-            self.save_files = []
+            self._save_files = []
         elif self.save_files is True:
             # save all output files
-            self.save_files = [i for i in self.output_files]
+            self._save_files = [i for i in self.output_files]
+        else:
+            self._save_files = self.save_files
 
     @classmethod
     def from_json_like(cls, json_like, shared_data=None):
@@ -439,7 +443,7 @@ class _FileContentsSpecifier(JSONLike):
     def make_persistent(
         self,
         workflow: Workflow,
-        source: Dict,
+        source: ParamSource,
     ) -> tuple[str, list[int], bool]:
         """Save to a persistent workflow.
 

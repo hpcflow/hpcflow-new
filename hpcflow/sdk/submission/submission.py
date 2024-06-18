@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import enum
 import os
 from textwrap import indent
@@ -18,6 +18,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
+from hpcflow.sdk.core.utils import parse_timestamp
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript import Jobscript
 if TYPE_CHECKING:
@@ -182,9 +183,7 @@ class Submission(JSONLike):
         if self._submission_parts_lst is None:
             self._submission_parts_lst = [
                 {
-                    "submit_time": datetime.strptime(dt, self.workflow.ts_fmt)
-                    .replace(tzinfo=timezone.utc)
-                    .astimezone(),
+                    "submit_time": parse_timestamp(dt, self.workflow.ts_fmt),
                     "jobscripts": js_idx,
                 }
                 for dt, js_idx in self._submission_parts.items()
@@ -194,42 +193,36 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def get_start_time(self, submit_time: str) -> datetime | None:
         """Get the start time of a given submission part."""
-        js_idx = self._submission_parts[submit_time]
-        return min((
+        times = (
             self.jobscripts[i].start_time
-            for i in js_idx
-            if self.jobscripts[i].start_time is not None
-        ), default=None)
+            for i in self._submission_parts[submit_time])
+        return min((t for t in times if t is not None), default=None)
 
     @TimeIt.decorator
     def get_end_time(self, submit_time: str) -> datetime | None:
         """Get the end time of a given submission part."""
-        js_idx = self._submission_parts[submit_time]
-        return max((
+        times = (
             self.jobscripts[i].end_time
-            for i in js_idx
-            if self.jobscripts[i].end_time is not None
-        ), default=None)
+            for i in self._submission_parts[submit_time])
+        return max((t for t in times if t is not None), default=None)
 
     @property
     @TimeIt.decorator
     def start_time(self) -> datetime | None:
         """Get the first non-None start time over all submission parts."""
-        return min((
+        times = (
             self.get_start_time(submit_time)
-            for submit_time in self._submission_parts
-            if self.get_start_time(submit_time) is not None
-        ), default=None)
+            for submit_time in self._submission_parts)
+        return min((t for t in times if t is not None), default=None)
 
     @property
     @TimeIt.decorator
     def end_time(self) -> datetime | None:
         """Get the final non-None end time over all submission parts."""
-        return max((
+        times = (
             self.get_end_time(submit_time)
-            for submit_time in self._submission_parts
-            if self.get_end_time(submit_time) is not None
-        ), default=None)
+            for submit_time in self._submission_parts)
+        return max((t for t in times if t is not None), default=None)
 
     @property
     def jobscripts(self) -> list[Jobscript]:
@@ -315,7 +308,7 @@ class Submission(JSONLike):
     @overload
     def get_active_jobscripts(
         self, as_json: Literal[True]
-    ) -> dict[int, str]: ...
+    ) -> dict[int, dict[int, str]]: ...
 
     @TimeIt.decorator
     def get_active_jobscripts(
@@ -480,7 +473,7 @@ class Submission(JSONLike):
 
         # get scheduler, shell and OS version information (also an opportunity to fail
         # before trying to submit jobscripts):
-        js_vers_info: dict[int, dict[str, str]] = {}
+        js_vers_info: dict[int, dict[str, str | list[str]]] = {}
         for js_indices, sched in self.get_unique_schedulers().items():
             try:
                 vers_info = sched.get_version_info()
@@ -493,7 +486,7 @@ class Submission(JSONLike):
                 if js_idx in outstanding:
                     js_vers_info.setdefault(js_idx, {}).update(vers_info)
 
-        for js_indices, shell in self.get_unique_shells().items():
+        for js_indices_2, shell in self.get_unique_shells().items():
             try:
                 vers_info = shell.get_version_info()
             except Exception:
@@ -501,7 +494,7 @@ class Submission(JSONLike):
                     vers_info = {}
                 else:
                     raise
-            for js_idx in js_indices:
+            for js_idx in js_indices_2:
                 if js_idx in outstanding:
                     js_vers_info.setdefault(js_idx, {}).update(vers_info)
 

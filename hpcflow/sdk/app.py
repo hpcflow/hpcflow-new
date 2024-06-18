@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 import enum
 import json
 import shutil
@@ -43,6 +43,7 @@ from hpcflow.sdk.core.utils import (
     read_JSON_file,
     write_YAML_file,
     write_JSON_file,
+    parse_timestamp
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
@@ -1971,26 +1972,22 @@ class BaseApp(metaclass=Singleton):
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
             submit_time_str = file_dat_i["submit_time"]
-            submit_time_obj = datetime.strptime(submit_time_str, ts_fmt)
-            submit_time_obj = submit_time_obj.replace(tzinfo=timezone.utc).astimezone()
+            submit_time_obj = parse_timestamp(submit_time_str, ts_fmt)
 
             start_time_str = file_dat_i["start_time"]
             start_time_obj = None
             if start_time_str:
-                start_time_obj = datetime.strptime(start_time_str, ts_fmt)
-                start_time_obj = start_time_obj.replace(tzinfo=timezone.utc).astimezone()
+                start_time_obj = parse_timestamp(start_time_str, ts_fmt)
 
             end_time_str = file_dat_i["end_time"]
             end_time_obj = None
             if end_time_str:
-                end_time_obj = datetime.strptime(end_time_str, ts_fmt)
-                end_time_obj = end_time_obj.replace(tzinfo=timezone.utc).astimezone()
+                end_time_obj = parse_timestamp(end_time_str, ts_fmt)
 
             out_item = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
-                "workflow_path": file_dat_i["path"],
-                "submit_time": submit_time_str,
+                "workflow_path": file_dat_i["path"],"submit_time": submit_time_str,
                 "submit_time_obj": submit_time_obj,
                 "start_time": start_time_str,
                 "start_time_obj": start_time_obj,
@@ -2346,11 +2343,7 @@ class BaseApp(metaclass=Singleton):
                     all_cells["actions_compact"] = ""
 
             if "submit_time" in columns or "times" in columns:
-                submit_time = (
-                    datetime.strptime(dat_i["submit_time"], self._submission_ts_fmt)
-                    .replace(tzinfo=timezone.utc)
-                    .astimezone()
-                )
+                submit_time = parse_timestamp(dat_i["submit_time"], self._submission_ts_fmt)
                 submit_time_full = submit_time.strftime(ts_fmt)
 
             if "start_time" in columns or "times" in columns:

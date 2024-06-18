@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeVar
     from ..app import BaseApp
+    from ..typing import ParamSource
     from .actions import Action
     from .command_files import InputFile
     from .element import Element, ElementIteration, ElementFilter, ElementParameter
@@ -942,7 +943,7 @@ class Task(JSONLike):
                 for idx in range(*local_element_idx_range):
                     # iteration_idx, action_idx, and EAR_idx are not known until
                     # `initialise_EARs`:
-                    param_src = {
+                    param_src: ParamSource = {
                         "type": "EAR_output",
                         # "task_insert_ID": self.insert_ID,
                         # "element_idx": idx,
@@ -1540,6 +1541,84 @@ class WorkflowTask:
             return src_iters_list, set_indices
         return src_iters.values(), []
 
+    def __get_task_group_index(
+        self, labelled_path_i: str, inp_src: InputSource,
+        padded_elem_iters: dict[str, list], inp_group_name: str | None
+    ) -> None | list[list[int]] | list[int]:
+        src_task = inp_src.get_task(self.workflow)
+        assert src_task
+        src_elem_iters, src_elem_set_idx = self.__get_src_elem_iters(src_task, inp_src)
+
+        if not src_elem_iters:
+            return None
+
+        task_source_type = inp_src.task_source_type
+        assert task_source_type is not None
+        if task_source_type == TaskSourceType.OUTPUT and "[" in labelled_path_i:
+            src_key = f"{task_source_type.name.lower()}s.{labelled_path_i.split('[')[0]}"
+        else:
+            src_key = f"{task_source_type.name.lower()}s.{labelled_path_i}"
+
+        padded_iters = padded_elem_iters.get(labelled_path_i, [])
+        grp_idx = [
+            (
+                iter_i.get_data_idx()[src_key]
+                if iter_i_idx not in padded_iters
+                else -1
+            )
+            for iter_i_idx, iter_i in enumerate(src_elem_iters)
+        ]
+
+        if not inp_group_name:
+            return grp_idx
+
+        group_dat_idx: list[int] = []
+        for dat_idx_i, src_set_idx_i, src_iter in zip(
+            grp_idx, src_elem_set_idx, src_elem_iters
+        ):
+            src_es = src_task.template.element_sets[src_set_idx_i]
+            if inp_group_name in [i.name for i in src_es.groups or []]:
+                group_dat_idx.append(dat_idx_i)
+            else:
+                # if for any recursive iteration dependency, this group is
+                # defined, assign:
+                src_iter_i = src_iter
+                src_iter_deps = (
+                    self.workflow.get_element_iterations_from_IDs(
+                        src_iter_i.get_element_iteration_dependencies(),
+                    )
+                )
+
+                src_iter_deps_groups = [
+                    j
+                    for i in src_iter_deps
+                    for j in i.element.element_set.groups
+                ]
+
+                if inp_group_name in [i.name for i in src_iter_deps_groups or []]:
+                    group_dat_idx.append(dat_idx_i)
+
+                # also check input dependencies
+                for v in src_iter.element.get_input_dependencies().values():
+                    k_es_idx = v["element_set_idx"]
+                    k_task_iID = v["task_insert_ID"]
+                    k_es: ElementSet = self.workflow.tasks.get(
+                        insert_ID=k_task_iID
+                    ).template.element_sets[k_es_idx]
+                    if inp_group_name in [i.name for i in k_es.groups or []]:
+                        group_dat_idx.append(dat_idx_i)
+
+                # TODO: this only goes to one level of dependency
+
+        if not group_dat_idx:
+            raise MissingElementGroup(
+                f"Adding elements to task {self.unique_name!r}: no "
+                f"element group named {inp_group_name!r} found for input "
+                f"{labelled_path_i!r}."
+            )
+
+        return [group_dat_idx]  # TODO: generalise to multiple groups
+
     def _make_new_elements_persistent(
         self, element_set: ElementSet, element_set_idx: int, padded_elem_iters
     ) -> tuple[dict[str, list[int]], dict[str, list[int]], dict[str, list[int]]]:
@@ -1555,7 +1634,7 @@ class WorkflowTask:
         source_idx: dict[str, list[int]] = {}
 
         # Assign first assuming all locally defined values are to be used:
-        param_src = {
+        param_src: ParamSource = {
             "type": "local_input",
             "task_insert_ID": self.insert_ID,
             "element_set_idx": element_set_idx,
@@ -1630,84 +1709,13 @@ class WorkflowTask:
 
             for inp_src_idx, inp_src in enumerate(sources_i):
                 if inp_src.source_type is InputSourceType.TASK:
-                    src_task = inp_src.get_task(self.workflow)
-                    assert src_task
-                    src_elem_iters, src_elem_set_idx = self.__get_src_elem_iters(src_task, inp_src)
-
-                    if not src_elem_iters:
+                    grp_idx_ = self.__get_task_group_index(
+                        labelled_path_i, inp_src, padded_elem_iters, inp_group_name)
+                    if grp_idx_ is None:
                         continue
-
-                    task_source_type = inp_src.task_source_type
-                    assert task_source_type is not None
-                    if task_source_type == TaskSourceType.OUTPUT and "[" in labelled_path_i:
-                        src_key = f"{task_source_type.name.lower()}s.{labelled_path_i.split('[')[0]}"
-                    else:
-                        src_key = f"{task_source_type.name.lower()}s.{labelled_path_i}"
-
-                    padded_iters = padded_elem_iters.get(labelled_path_i, [])
-                    grp_idx = [
-                        (
-                            iter_i.get_data_idx()[src_key]
-                            if iter_i_idx not in padded_iters
-                            else -1
-                        )
-                        for iter_i_idx, iter_i in enumerate(src_elem_iters)
-                    ]
-
-                    if inp_group_name:
-                        group_dat_idx = []
-                        for dat_idx_i, src_set_idx_i, src_iter in zip(
-                            grp_idx, src_elem_set_idx, src_elem_iters
-                        ):
-                            src_es = src_task.template.element_sets[src_set_idx_i]
-                            if inp_group_name in [i.name for i in src_es.groups or []]:
-                                group_dat_idx.append(dat_idx_i)
-                            else:
-                                # if for any recursive iteration dependency, this group is
-                                # defined, assign:
-                                src_iter_i = src_iter
-                                src_iter_deps = (
-                                    self.workflow.get_element_iterations_from_IDs(
-                                        src_iter_i.get_element_iteration_dependencies(),
-                                    )
-                                )
-
-                                src_iter_deps_groups = [
-                                    j
-                                    for i in src_iter_deps
-                                    for j in i.element.element_set.groups
-                                ]
-
-                                if inp_group_name in [
-                                    i.name for i in src_iter_deps_groups or []
-                                ]:
-                                    group_dat_idx.append(dat_idx_i)
-
-                                # also check input dependencies
-                                for (
-                                    k,
-                                    v,
-                                ) in src_iter.element.get_input_dependencies().items():
-                                    k_es_idx = v["element_set_idx"]
-                                    k_task_iID = v["task_insert_ID"]
-                                    k_es = self.workflow.tasks.get(
-                                        insert_ID=k_task_iID
-                                    ).template.element_sets[k_es_idx]
-                                    if inp_group_name in [
-                                        i.name for i in k_es.groups or []
-                                    ]:
-                                        group_dat_idx.append(dat_idx_i)
-
-                                # TODO: this only goes to one level of dependency
-
-                        if not group_dat_idx:
-                            raise MissingElementGroup(
-                                f"Adding elements to task {self.unique_name!r}: no "
-                                f"element group named {inp_group_name!r} found for input "
-                                f"{labelled_path_i!r}."
-                            )
-
-                        grp_idx = [group_dat_idx]  # TODO: generalise to multiple groups
+                    if isinstance(grp_idx_[0], list):
+                        raise NotImplementedError("grouped input handling incomplete")
+                    grp_idx = cast(list[int], grp_idx_)
 
                     if self.app.InputSource.local() in sources_i:
                         # add task source to existing local source:
@@ -1725,6 +1733,7 @@ class WorkflowTask:
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     assert def_val is not None
+                    assert def_val._value_group_idx is not None
                     grp_idx = [def_val._value_group_idx]
                     if self.app.InputSource.local() in sources_i:
                         input_data_idx[key] += grp_idx
@@ -1826,7 +1835,7 @@ class WorkflowTask:
                 if specified_source.where:
                     # filter iter IDs by user-specified rules, maintaining order:
                     elem_iters = self.workflow.get_element_iterations_from_IDs(
-                        elem_iters_IDs
+                        elem_iters_IDs or ()
                     )
                     filtered = specified_source.where.filter(elem_iters)
                     elem_iters_IDs = [i.id_ for i in filtered]
@@ -2199,8 +2208,8 @@ class WorkflowTask:
     @TimeIt.decorator
     def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
         # keys are (act_idx, EAR_idx):
-        all_data_idx: dict[tuple[int, Any], None] = {}  # FIXME: value type
-        action_runs: dict[tuple[int, Any], dict[str, Any]] = {}
+        all_data_idx: dict[tuple[int, int], dict[str, int]] = {}
+        action_runs: dict[tuple[int, int], dict[str, Any]] = {}
 
         # keys are parameter indices, values are EAR_IDs to update those sources to
         param_src_updates: dict[int, dict[str, Any]] = {}
@@ -2219,7 +2228,7 @@ class WorkflowTask:
             if act_valid:
                 self.app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
-                param_source = {
+                param_source: ParamSource = {
                     "type": "EAR_output",
                     "EAR_ID": EAR_ID,
                 }
@@ -2719,14 +2728,16 @@ class WorkflowTask:
                 path_val = Path(param.file["path"])
             return path_val.as_posix(), None, param.is_set
 
-        meth: str | None = param.source.get("value_class_method")
+        meth = param.source.get("value_class_method")
+        assert meth is None or isinstance(meth, str)
         if param.is_pending:
+            p_data = param.data
             # if pending, we need to convert `ParameterValue` objects to their dict
             # representation, so they can be merged with other data:
             try:
-                data = param.data.to_dict()
+                data = cast(ParameterValue, p_data).to_dict()
             except AttributeError:
-                data = param.data
+                data = p_data
             return data, meth, param.is_set
         else:
             # if not pending, data will be the result of an encode-decode cycle, and
@@ -2926,7 +2937,7 @@ class WorkflowTask:
     @TimeIt.decorator
     def _get_merged_parameter_data(
         self,
-        data_index: dict[str, list | Any],
+        data_index: Mapping[str, list | Any],
         path: str | None = None,
         *,
         raise_on_missing=False,

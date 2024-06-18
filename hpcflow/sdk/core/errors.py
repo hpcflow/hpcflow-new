@@ -208,7 +208,7 @@ class JobscriptSubmissionFailure(RuntimeError):
 
 
 class SubmissionFailure(RuntimeError):
-    def __init__(self, message) -> None:
+    def __init__(self, message: str):
         self.message = message
         super().__init__(message)
 
@@ -224,7 +224,7 @@ class ResourceValidationError(ValueError):
 class UnsupportedOSError(ResourceValidationError):
     """This machine is not of the requested OS."""
 
-    def __init__(self, os_name) -> None:
+    def __init__(self, os_name: str):
         message = (
             f"OS {os_name!r} is not compatible with this machine/instance with OS: "
             f"{os.name!r}."
@@ -236,7 +236,7 @@ class UnsupportedOSError(ResourceValidationError):
 class UnsupportedShellError(ResourceValidationError):
     """We don't support this shell on this OS."""
 
-    def __init__(self, shell, supported) -> None:
+    def __init__(self, shell: str, supported):
         message = (
             f"Shell {shell!r} is not supported on this machine/instance. Supported "
             f"shells are: {supported!r}."

@@ -599,7 +599,7 @@ class ZarrPersistentStore(PersistentStore[
             arr.attrs.put(attrs)
 
     @TimeIt.decorator
-    def _update_EAR_submission_indices(self, sub_indices: dict[int, int]):
+    def _update_EAR_submission_indices(self, sub_indices: Mapping[int, int]):
         EAR_IDs = list(sub_indices.keys())
         EARs = self._get_persistent_EARs(EAR_IDs)
 
@@ -611,7 +611,7 @@ class ZarrPersistentStore(PersistentStore[
             new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
             # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
             # object array, so set one-by-one:
-            arr[EAR_ID_i] = new_EAR_i.encode(attrs, self.ts_fmt)
+            arr[EAR_ID_i] = new_EAR_i.encode(self.ts_fmt, attrs)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
@@ -627,7 +627,7 @@ class ZarrPersistentStore(PersistentStore[
             snapshot_start=s_snap,
             run_hostname=s_hn,
         )
-        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
@@ -646,7 +646,7 @@ class ZarrPersistentStore(PersistentStore[
             exit_code=ext_code,
             success=success,
         )
-        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
@@ -658,7 +658,7 @@ class ZarrPersistentStore(PersistentStore[
 
         EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
         EAR_i = EAR_i.update(skip=True)
-        arr[EAR_id] = EAR_i.encode(attrs, self.ts_fmt)
+        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
@@ -1068,8 +1068,9 @@ class ZarrPersistentStore(PersistentStore[
     @TimeIt.decorator
     def _get_persistent_parameters(
         self,
-        id_lst: Iterable[int],
+        id_lst: Iterable[int], *,
         dataset_copy: bool = False,
+        **kwargs
     ) -> dict[int, ZarrStoreParameter]:
 
         params, id_lst = self._get_cached_persistent_parameters(id_lst)

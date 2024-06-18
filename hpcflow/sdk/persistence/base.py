@@ -12,7 +12,7 @@ from pathlib import Path
 import shutil
 import socket
 import time
-from typing import Generic, TypeVar, overload, cast, TYPE_CHECKING
+from typing import Generic, TypeVar, overload, TypeGuard, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import (
     flatten,
@@ -20,6 +20,7 @@ from hpcflow.sdk.core.utils import (
     get_relative_path,
     reshape,
     set_in_container,
+    parse_timestamp
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
@@ -31,10 +32,12 @@ if TYPE_CHECKING:
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
     from ..app import BaseApp
-    from ..typing import PathLike
+    from ..typing import PathLike, ParamSource
+    from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
 
 T = TypeVar('T')
+T2 = TypeVar('T2')
 CTX = TypeVar('CTX')
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
 AnySElement = TypeVar("AnySElement", bound="StoreElement")
@@ -59,7 +62,7 @@ TEMPLATE_COMP_TYPES = (
 PARAM_DATA_NOT_SET = 0
 
 
-def update_param_source_dict(source, update):
+def update_param_source_dict(source: dict[T, T2], update: dict[T, T2]) -> dict[T, T2]:
     return dict(sorted({**source, **update}.items()))
 
 
@@ -92,9 +95,6 @@ class PersistentStoreFeatures:
     EAR_parallelism: bool = False
     schedulers: bool = False
     submission: bool = False
-
-
-StoreParameterSource: TypeAlias = dict[str, Any]
 
 
 @dataclass
@@ -350,7 +350,7 @@ class StoreEAR(Generic[T, CTX]):
 
     @staticmethod
     def _decode_datetime(dt_str: str | None, ts_fmt: str) -> datetime | None:
-        return datetime.strptime(dt_str, ts_fmt) if dt_str else None
+        return parse_timestamp(dt_str, ts_fmt) if dt_str else None
 
     @abstractmethod
     def encode(self, ts_fmt: str, context: CTX) -> T:
@@ -438,9 +438,9 @@ class StoreParameter:
     id_: int
     is_pending: bool
     is_set: bool
-    data: Any
+    data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any
     file: Dict | None
-    source: Dict
+    source: ParamSource
 
     _encoders: dict[type, Callable] = {}
     _decoders: dict[str, Callable] = {}
@@ -455,9 +455,15 @@ class StoreParameter:
         else:
             return PARAM_DATA_NOT_SET
 
+    @staticmethod
+    def __is_parameter_value(value) -> TypeGuard[ParameterValue]:
+        # avoid circular import of `ParameterValue` until needed...
+        from ..core.parameters import ParameterValue as PV
+        return isinstance(value, PV)
+
     def _encode(
         self,
-        obj: Any,
+        obj: ParameterValue | list | tuple | set | dict | int | float | str | None | Any,
         path: list[int] | None = None,
         type_lookup: Dict | None = None,
         **kwargs,
@@ -475,9 +481,8 @@ class StoreParameter:
         if len(path) > 50:
             raise RuntimeError("I'm in too deep!")
 
-        if any("ParameterValue" in i.__name__ for i in obj.__class__.__mro__):
+        if self.__is_parameter_value(obj):
             assert type_lookup is not None
-            # TODO: not nice; did this to avoid circular import of `ParameterValue`
             encoded = self._encode(
                 obj=obj.to_dict(),
                 path=path,
@@ -548,7 +553,7 @@ class StoreParameter:
         cls,
         id_: int,
         data: dict[str, Any] | Literal[0] | None,
-        source: Dict, *,
+        source: ParamSource, *,
         path: list[str] | None = None,
         **kwargs,
     ) -> Self:
@@ -640,7 +645,7 @@ class StoreParameter:
             source=self.source,
         )
 
-    def update_source(self, src: Dict) -> Self:
+    def update_source(self, src: ParamSource) -> Self:
         """Return a copy, with updated source."""
         new_src = update_param_source_dict(self.source, src)
         return self.__class__(
@@ -771,17 +776,17 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self._cache["tasks"]
 
     @property
-    def element_cache(self) -> dict[int, StoreElement]:
+    def element_cache(self) -> dict[int, AnySElement]:
         """Cache for persistent elements."""
         return self._cache["elements"]
 
     @property
-    def element_iter_cache(self) -> dict[int, StoreElementIter]:
+    def element_iter_cache(self) -> dict[int, AnySElementIter]:
         """Cache for persistent element iterations."""
         return self._cache["element_iters"]
 
     @property
-    def EAR_cache(self) -> dict[int, StoreEAR]:
+    def EAR_cache(self) -> dict[int, AnySEAR]:
         """Cache for persistent EARs."""
         return self._cache["EARs"]
 
@@ -804,12 +809,12 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self._cache["num_EARs"] = value
 
     @property
-    def param_sources_cache(self) -> dict[int, StoreParameterSource]:
+    def param_sources_cache(self) -> dict[int, ParamSource]:
         """Cache for persistent parameter sources."""
         return self._cache["param_sources"]
 
     @property
-    def parameter_cache(self) -> dict[int, StoreParameter]:
+    def parameter_cache(self) -> dict[int, AnySParameter]:
         """Cache for persistent parameters."""
         return self._cache["parameters"]
 
@@ -1196,7 +1201,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self,
         sub_idx: int,
         js_idx: int,
-        version_info: dict[str, str] | None = None,
+        version_info: dict[str, str | list[str]] | None = None,
         submit_time: str | None = None,
         submit_hostname: str | None = None,
         submit_machine: str | None = None,
@@ -1235,8 +1240,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _add_parameter(
         self,
         is_set: bool,
-        source: Dict,
-        data: Any | None = None,
+        source: ParamSource,
+        data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any = None,
         file: Dict | None = None,
         save: bool = True,
     ) -> int:
@@ -1332,7 +1337,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self,
         store_contents: bool,
         is_input: bool,
-        source: Dict,
+        source: ParamSource,
         path=None,
         contents: str | None = None,
         filename: str | None = None,
@@ -1373,10 +1378,13 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
                     with dst_path.open("wt") as fp:
                         fp.write(dat["contents"])
 
-    def add_set_parameter(self, data: Any, source: Dict, save: bool = True) -> int:
+    def add_set_parameter(
+        self, data: ParameterValue | list | tuple | set | dict | int | float | str | Any,
+        source: ParamSource, save: bool = True
+    ) -> int:
         return self._add_parameter(data=data, is_set=True, source=source, save=save)
 
-    def add_unset_parameter(self, source: Dict, save: bool = True) -> int:
+    def add_unset_parameter(self, source: ParamSource, save: bool = True) -> int:
         return self._add_parameter(data=None, is_set=False, source=source, save=save)
 
     @abstractmethod
@@ -1394,7 +1402,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
     @TimeIt.decorator
     def update_param_source(
-        self, param_sources: dict[int, Dict], save: bool = True
+        self, param_sources: Mapping[int, ParamSource], save: bool = True
     ) -> None:
         self.logger.debug(f"Updating parameter sources with {param_sources!r}.")
         self._pending.update_param_sources.update(param_sources)
@@ -1402,7 +1410,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             self.save()
 
     def update_loop_num_iters(
-        self, index: int, num_added_iters: dict[tuple[int, ...], int],
+        self, index: int, num_added_iters: Mapping[tuple[int, ...], int],
         save: bool = True
     ) -> None:
         self.logger.debug(
@@ -1416,7 +1424,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def update_loop_parents(
         self,
         index: int,
-        num_added_iters: dict[tuple[int, ...], int],
+        num_added_iters: Mapping[tuple[int, ...], int],
         parents: list[str],
         save: bool = True,
     ) -> None:
@@ -1430,7 +1438,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         if save:
             self.save()
 
-    def get_template_components(self):
+    def get_template_components(self) -> dict[str, Any]:
         """Get all template components, including pending."""
         tc = copy.deepcopy(self._get_persistent_template_components())
         for typ in TEMPLATE_COMP_TYPES:
@@ -1571,7 +1579,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _get_persistent_elements(self, id_lst: Iterable[int]) -> dict[int, AnySElement]: ...
 
     @TimeIt.decorator
-    def get_elements(self, id_lst: Sequence[int]) -> Sequence[AnySElement]:
+    def get_elements(self, id_lst: Iterable[int]) -> Sequence[AnySElement]:
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1654,25 +1662,15 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         # order as requested:
         for EAR_i in (EARs[id_] for id_ in id_lst):
             # consider updates:
-            pend_sub = self._pending.set_EAR_submission_indices.get(EAR_i.id_)
-            pend_start = self._pending.set_EAR_starts.get(EAR_i.id_)
-            pend_end = self._pending.set_EAR_ends.get(EAR_i.id_)
-            pend_skip = True if EAR_i.id_ in self._pending.set_EAR_skips else None
-
-            p_st, p_ss, p_hn = pend_start if pend_start else (None, None, None)
-            p_et, p_se, p_ex, p_sx = pend_end if pend_end else (None, None, None, None)
-
-            updates = {
-                "submission_idx": pend_sub,
-                "skip": pend_skip,
-                "success": p_sx,
-                "start_time": p_st,
-                "end_time": p_et,
-                "snapshot_start": p_ss,
-                "snapshot_end": p_se,
-                "exit_code": p_ex,
-                "run_hostname": p_hn,
+            updates: dict[str, Any] = {
+                "submission_idx": self._pending.set_EAR_submission_indices.get(EAR_i.id_)
             }
+            if EAR_i.id_ in self._pending.set_EAR_skips:
+                updates["skip"] = True
+            updates["start_time"], updates["snapshot_start"], updates["run_hostname"] = \
+                self._pending.set_EAR_starts.get(EAR_i.id_, (None, None, None))
+            updates["end_time"], updates["snapshot_end"], updates["exit_code"], updates["success"] = \
+                self._pending.set_EAR_ends.get(EAR_i.id_, (None, None, None, None))
             if any(i is not None for i in updates.values()):
                 EAR_i = EAR_i.update(**updates)
 
@@ -1714,7 +1712,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _get_cached_persistent_tasks(self, id_lst: Iterable[int]) -> tuple[dict[int, AnySTask], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.task_cache)
 
-    def _get_cached_persistent_param_sources(self, id_lst: Iterable[int]) -> tuple[dict[int, StoreParameterSource], list[int]]:
+    def _get_cached_persistent_param_sources(self, id_lst: Iterable[int]) -> tuple[dict[int, ParamSource], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.param_sources_cache)
 
     def _get_cached_persistent_parameters(self, id_lst: Iterable[int]) -> tuple[dict[int, AnySParameter], list[int]]:
@@ -1777,7 +1775,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     ) -> dict[int, bool]: ...
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[StoreParameterSource]:
+    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[ParamSource]:
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1787,19 +1785,20 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         src = self._get_persistent_param_sources(id_pers) if id_pers else {}
         src.update({i: self._pending.add_parameters[i].source for i in id_pend})
 
-        src_new: list[Dict] = []
+        src_new: list[ParamSource] = []
         # order as requested:
         for id_i, src_i in ((id_, src[id_]) for id_ in id_lst):
             # consider pending source updates:
             pend_src = self._pending.update_param_sources.get(id_i)
             if pend_src:
-                src_i = {**src_i, **pend_src}
-            src_new.append(src_i)
+                src_new.append({**src_i, **pend_src})
+            else:
+                src_new.append(src_i)
 
         return src_new
 
     @abstractmethod
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, StoreParameterSource]: ...
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]: ...
 
     @TimeIt.decorator
     def get_task_elements(
@@ -1819,8 +1818,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         else:
             req_IDs = [all_elem_IDs[i] for i in idx_lst]
         store_elements = self.get_elements(req_IDs)
-        iter_IDs = [i.iteration_IDs for i in store_elements]
-        iter_IDs_flat, iter_IDs_lens = flatten(iter_IDs)
+        iter_IDs_flat, iter_IDs_lens = flatten(
+            [i.iteration_IDs for i in store_elements])
         store_iters = self.get_element_iterations(iter_IDs_flat)
 
         # retrieve EARs:
@@ -1922,7 +1921,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _update_template_components(self, tc: Dict) -> None: ...
 
     @abstractmethod
-    def _update_parameter_sources(self, sources: Mapping[int, Dict]) -> None: ...
+    def _update_parameter_sources(self, sources: Mapping[int, ParamSource]) -> None: ...
 
     @abstractmethod
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict) -> None: ...

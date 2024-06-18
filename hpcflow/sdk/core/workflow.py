@@ -28,7 +28,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
-from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
+from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
 from hpcflow.sdk.submission.jobscript import (
     generate_EAR_resource_map,
@@ -42,12 +42,12 @@ from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
-    nth_key,
     read_JSON_file,
     read_JSON_string,
     read_YAML_str,
     read_YAML_file,
     replace_items,
+    parse_timestamp
 )
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
@@ -58,13 +58,14 @@ from hpcflow.sdk.core.errors import (
     WorkflowSubmissionFailure,
 )
 if TYPE_CHECKING:
-    import rich.status
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
     from typing import ClassVar, Literal, Protocol, Self
     from fsspec import AbstractFileSystem as AFS  # type: ignore
     import psutil
+    from rich.status import Status
     from ..app import BaseApp
+    from ..typing import ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .task import Task, WorkflowTask
@@ -74,7 +75,7 @@ if TYPE_CHECKING:
         EnvironmentsList, TaskSchemasList, ResourceList)
     from .parameters import InputSource
     from ..submission.submission import Submission
-    from ..submission.jobscript import Jobscript
+    from ..submission.jobscript import Jobscript, JobScriptCreationArguments
     from ..persistence.base import (
         StoreElement, StoreElementIter, AnySParameter, StoreTask, StoreParameter,
         StoreEAR)
@@ -88,18 +89,18 @@ class _DummyPersistentWorkflow:
     Workflow object, so we can pretend to make template-level inputs/resources
     persistent before the workflow exists."""
 
-    def __init__(self):
-        self._parameters = []
-        self._sources = []
-        self._data_ref = []
+    def __init__(self) -> None:
+        self._parameters: list[Any] = []
+        self._sources: list[ParamSource] = []
+        self._data_ref: list[int] = []
 
-    def _add_parameter_data(self, data, source: Dict) -> int:
+    def _add_parameter_data(self, data: Any, source: ParamSource) -> int:
         self._parameters.append(data)
         self._sources.append(source)
         self._data_ref.append(len(self._data_ref))
         return self._data_ref[-1]
 
-    def get_parameter_data(self, data_idx):
+    def get_parameter_data(self, data_idx: int):
         return self._parameters[self._data_ref.index(data_idx)]
 
     def make_persistent(self, workflow: Workflow):
@@ -612,7 +613,7 @@ class Workflow:
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
-        status: Any | None = None,
+        status: Status | None = None,
     ) -> Workflow:
         """Generate from a `WorkflowTemplate` object.
 
@@ -692,8 +693,8 @@ class Workflow:
         YAML_path: PathLike,
         path: str | None = None,
         name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
@@ -747,11 +748,11 @@ class Workflow:
     @classmethod
     def from_YAML_string(
         cls,
-        YAML_str: PathLike,
+        YAML_str: str,
         path: str | None = None,
         name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
@@ -808,13 +809,13 @@ class Workflow:
         JSON_path: PathLike,
         path: str | None = None,
         name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
         variables: dict[str, str] | None = None,
-        status: Any | None = None,
+        status: Status | None = None,
     ) -> Workflow:
         """Generate from a JSON file.
 
@@ -865,16 +866,16 @@ class Workflow:
     @classmethod
     def from_JSON_string(
         cls,
-        JSON_str: PathLike,
+        JSON_str: str,
         path: str | None = None,
         name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
         variables: dict[str, str] | None = None,
-        status: Any | None = None,
+        status: Status | None = None,
     ) -> Workflow:
         """Generate from a JSON string.
 
@@ -930,13 +931,13 @@ class Workflow:
         template_format: str | None = None,
         path: str | None = None,
         name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
         variables: dict[str, str] | None = None,
-        status: Any | None = None,
+        status: Status | None = None,
     ) -> Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
@@ -975,7 +976,7 @@ class Workflow:
         try:
             template = cls.app.WorkflowTemplate.from_file(
                 template_path,
-                template_format,
+                cast(Any, template_format),
                 variables=variables,
             )
         except Exception:
@@ -1004,8 +1005,8 @@ class Workflow:
         resources: dict[str, Dict] | None = None,
         path: PathLike | None = None,
         workflow_name: str | None = None,
-        overwrite: bool | None = False,
-        store: str | None = DEFAULT_STORE_FORMAT,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
         store_kwargs: Dict | None = None,
@@ -1194,11 +1195,10 @@ class Workflow:
 
     @TimeIt.decorator
     def _add_loop(
-        self, loop: Loop, cache: LoopCache | None = None, status: Any = None
+        self, loop: Loop, cache: LoopCache | None = None, status: Status | None = None
     ) -> None:
-        if not cache:
-            cache = LoopCache.build(workflow=self, loops=[loop])
-        new_wk_loop = self._add_empty_loop(loop, cache)
+        cache_ = cache or LoopCache.build(workflow=self, loops=[loop])
+        new_wk_loop = self._add_empty_loop(loop, cache_)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
             if status:
@@ -1208,7 +1208,7 @@ class Workflow:
                     status.update(
                         f"{status_prev}: iteration {iter_idx + 2}/{loop.num_iterations}."
                     )
-                new_wk_loop.add_iteration(cache=cache)
+                new_wk_loop.add_iteration(cache=cache_)
 
     def add_loop(self, loop: Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
@@ -1220,11 +1220,7 @@ class Workflow:
     def creation_info(self) -> dict[str, Any]:
         if not self._creation_info:
             info = self._store.get_creation_info()
-            info["create_time"] = (
-                datetime.strptime(info["create_time"], self.ts_fmt)
-                .replace(tzinfo=timezone.utc)
-                .astimezone()
-            )
+            info["create_time"] = parse_timestamp(info["create_time"], self.ts_fmt)
             self._creation_info = info
         return self._creation_info
 
@@ -1666,7 +1662,7 @@ class Workflow:
 
         # make template-level inputs/resources think they are persistent:
         wk_dummy = cast(Workflow, _DummyPersistentWorkflow())
-        param_src = {"type": "workflow_resources"}
+        param_src: ParamSource = {"type": "workflow_resources"}
         assert isinstance(template.resources, ResourceList)
         for res_i in copy.deepcopy(template.resources):
             res_i.make_persistent(wk_dummy, param_src)
@@ -1750,11 +1746,11 @@ class Workflow:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int | str]) -> list[Dict]:
+    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[ParamSource]:
         return self._store.get_parameter_sources(id_lst)
 
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int | str]) -> list[bool]:
+    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
         return self._store.get_parameter_set_statuses(id_lst)
 
     @TimeIt.decorator
@@ -1770,11 +1766,11 @@ class Workflow:
             return param.file
 
     @TimeIt.decorator
-    def get_parameter_source(self, index: int | str) -> Dict:
+    def get_parameter_source(self, index: int) -> ParamSource:
         return self.get_parameter_sources([index])[0]
 
     @TimeIt.decorator
-    def is_parameter_set(self, index: int | str) -> bool:
+    def is_parameter_set(self, index: int) -> bool:
         return self.get_parameter_set_statuses([index])[0]
 
     @TimeIt.decorator
@@ -1794,7 +1790,7 @@ class Workflow:
     @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs) -> dict[int, Any]:
         """Retrieve all workflow parameter data."""
-        params = self.get_all_parameters(**kwargs)
+        params: Sequence[StoreParameter] = self.get_all_parameters(**kwargs)
         return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
     @overload
@@ -1810,11 +1806,11 @@ class Workflow:
             return self._store.check_parameters_exist([id_lst])[0]
         return self._store.check_parameters_exist(id_lst)
 
-    def _add_unset_parameter_data(self, source: dict[str, str]) -> int:
+    def _add_unset_parameter_data(self, source: ParamSource) -> int:
         # TODO: use this for unset files as well
         return self._store.add_unset_parameter(source)
 
-    def _add_parameter_data(self, data, source: Dict) -> int:
+    def _add_parameter_data(self, data, source: ParamSource) -> int:
         return self._store.add_set_parameter(data, source)
 
     def _add_file(
@@ -1837,7 +1833,7 @@ class Workflow:
 
     def _set_file(
         self,
-        param_id: int,
+        param_id: int | None,
         store_contents: bool,
         is_input: bool,
         path=None,
@@ -2028,10 +2024,7 @@ class Workflow:
                     param_id = EAR.data_idx[f"input_files.{inp_file.label}"]
 
                     file_paths = inp_file.value()
-                    if not isinstance(file_paths, list):
-                        file_paths = [file_paths]
-
-                    for path_i in file_paths:
+                    for path_i in (file_paths if isinstance(file_paths, list) else [file_paths]):
                         self._set_file(
                             param_id=param_id,
                             store_contents=True,  # TODO: make optional according to IFG
@@ -2047,22 +2040,16 @@ class Workflow:
                     self.app.logger.debug(
                         f"Saving file: {save_file_j.label!r} for EAR ID " f"{EAR_ID!r}."
                     )
-                    try:
-                        param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
-                    except KeyError:
-                        # We might be saving a file that is not a defined
-                        # "output file"; this will avoid saving a reference in the
-                        # parameter data:
-                        param_id = None
+                    # We might be saving a file that is not a defined
+                    # "output file"; this will avoid saving a reference in the
+                    # parameter data in that case
+                    param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                     file_paths = save_file_j.value()
                     self.app.logger.debug(f"Saving output file paths: {file_paths!r}")
-                    if not isinstance(file_paths, list):
-                        file_paths = [file_paths]
-
-                    for path_i in file_paths:
+                    for path_i in (file_paths if isinstance(file_paths, list) else [file_paths]):
                         self._set_file(
-                            param_id=param_id,
+                            param_id=param_id_j,
                             store_contents=True,
                             is_input=False,
                             path=Path(path_i).resolve(),
@@ -2070,29 +2057,23 @@ class Workflow:
                         )
 
                 for OFP_i in EAR.action.output_file_parsers:
-                    for save_file_j in OFP_i.save_files:
+                    for save_file_j in OFP_i._save_files:
                         self.app.logger.debug(
                             f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
                             f"{EAR_ID!r}."
                         )
-                        try:
-                            param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
-                        except KeyError:
-                            # We might be saving a file that is not a defined
-                            # "output file"; this will avoid saving a reference in the
-                            # parameter data:
-                            param_id = None
+                        # We might be saving a file that is not a defined
+                        # "output file"; this will avoid saving a reference in the
+                        # parameter data in that case
+                        param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                         file_paths = save_file_j.value()
                         self.app.logger.debug(
                             f"Saving EAR output file paths: {file_paths!r}"
                         )
-                        if not isinstance(file_paths, list):
-                            file_paths = [file_paths]
-
-                        for path_i in file_paths:
+                        for path_i in (file_paths if isinstance(file_paths, list) else [file_paths]):
                             self._set_file(
-                                param_id=param_id,
+                                param_id=param_id_j,
                                 store_contents=True,  # TODO: make optional according to OFP
                                 is_input=False,
                                 path=Path(path_i).resolve(),
@@ -2225,13 +2206,13 @@ class Workflow:
     @TimeIt.decorator
     def _submit(
         self,
-        status: rich.status.Status | None = None,
-        ignore_errors: bool | None = False,
+        status: Status | None = None,
+        ignore_errors: bool = False,
         JS_parallelism: bool | None = None,
-        print_stdout: bool | None = False,
-        add_to_known: bool | None = True,
+        print_stdout: bool = False,
+        add_to_known: bool = True,
         tasks: list[int] | None = None,
-    ) -> tuple[list[Exception], dict[int, int]]:
+    ) -> tuple[list[SubmissionFailure], dict[int, list[int]]]:
         """Submit outstanding EARs for execution."""
 
         # generate a new submission if there are no pending submissions:
@@ -2255,8 +2236,8 @@ class Workflow:
         self._store._pending.commit_all()
 
         # submit all pending submissions:
-        exceptions: list[Exception] = []
-        submitted_js: dict[int, int] = {}
+        exceptions: list[SubmissionFailure] = []
+        submitted_js: dict[int, list[int]] = {}
         for sub in pending:
             try:
                 if status:
@@ -2276,43 +2257,43 @@ class Workflow:
     @overload
     def submit(
         self, *,
-        ignore_errors: bool | None = False,
+        ignore_errors: bool = False,
         JS_parallelism: bool | None = None,
-        print_stdout: bool | None = False,
-        wait: bool | None = False,
-        add_to_known: bool | None = True,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
         return_idx: Literal[True],
         tasks: list[int] | None = None,
-        cancel: bool | None = False,
-        status: bool | None = True,
-    ) -> dict[int, int]: ...
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, list[int]]: ...
 
     @overload
     def submit(
         self, *,
-        ignore_errors: bool | None = False,
+        ignore_errors: bool = False,
         JS_parallelism: bool | None = None,
-        print_stdout: bool | None = False,
-        wait: bool | None = False,
-        add_to_known: bool | None = True,
-        return_idx: Literal[False] | None = False,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: Literal[False] = False,
         tasks: list[int] | None = None,
-        cancel: bool | None = False,
-        status: bool | None = True,
+        cancel: bool = False,
+        status: bool = True,
     ) -> None: ...
 
     def submit(
         self, *,
-        ignore_errors: bool | None = False,
+        ignore_errors: bool = False,
         JS_parallelism: bool | None = None,
-        print_stdout: bool | None = False,
-        wait: bool | None = False,
-        add_to_known: bool | None = True,
-        return_idx: bool | None = False,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
         tasks: list[int] | None = None,
-        cancel: bool | None = False,
-        status: bool | None = True,
-    ) -> dict[int, int] | None:
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, list[int]] | None:
         """Submit the workflow for execution.
 
         Parameters
@@ -2345,7 +2326,7 @@ class Workflow:
         """
 
         # Type hint for mypy
-        status_context: AbstractContextManager[rich.status.Status] | AbstractContextManager[None] = (
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
             rich.console.Console().status("Submitting workflow...")
             if status else nullcontext())
         with status_context as status_:
@@ -2392,9 +2373,11 @@ class Workflow:
                 f"finished with exit code {proc.returncode}."
             )
 
-        js_pids = {i.process_ID: i for i in jobscripts}
+        js_pids = {js.process_ID: js for js in jobscripts}
         process_refs = [
-            (i.process_ID, i.submit_cmdline) for i in jobscripts if i.process_ID
+            (js.process_ID, js.submit_cmdline)
+            for js in jobscripts
+            if js.process_ID and js.submit_cmdline
         ]
         DirectScheduler.wait_for_jobscripts(process_refs, callback=callback)
 
@@ -2600,6 +2583,7 @@ class Workflow:
     def add_submission(
         self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
     ) -> Submission | None:
+        # JS_parallelism=None means guess
         with self._store.cached_load():
             with self.batch_update():
                 return self._add_submission(tasks, JS_parallelism)
@@ -2636,7 +2620,7 @@ class Workflow:
         self._pending["submissions"].append(new_idx)
         with self._store.cached_load():
             with self.batch_update():
-                self._store.add_submission(new_idx, sub_obj_js)
+                self._store.add_submission(new_idx, dict(sub_obj_js))
 
         return self.submissions[new_idx]
 
@@ -2659,7 +2643,7 @@ class Workflow:
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
         self, tasks: list[int] | None = None
-    ) -> tuple[dict[int, dict[str, Any]], dict[int, dict[int, list[int]]]]:
+    ) -> tuple[dict[int, JobScriptCreationArguments], dict[int, dict[int, list[int]]]]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
         by EAR idx in the `EARs` dict.
@@ -2679,7 +2663,7 @@ class Workflow:
             # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
             self.get_all_parameter_sources()
 
-        submission_jobscripts: dict[int, dict[str, Any]] = {}
+        submission_jobscripts: dict[int, JobScriptCreationArguments] = {}
         all_element_deps: dict[int, dict[int, list[int]]] = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
@@ -2692,7 +2676,7 @@ class Workflow:
             for js_dat in jobscripts:
                 # (insert ID, action_idx, index into task_loop_idx):
                 task_actions = [
-                    [task.insert_ID, i, 0]
+                    (task.insert_ID, i, 0)
                     for i in sorted(
                         set(
                             act_idx_i
@@ -2715,7 +2699,7 @@ class Workflow:
 
                 new_js_idx = len(submission_jobscripts)
 
-                js_i = {
+                js_i: JobScriptCreationArguments = {
                     "task_insert_IDs": [task.insert_ID],
                     "task_loop_idx": [loop_idx_i],
                     "task_actions": task_actions,  # map jobscript actions to task actions
@@ -2733,7 +2717,7 @@ class Workflow:
                     for act_idx in act_indices:
                         EAR_ID_i = EAR_map[act_idx, elem_idx].item()
                         all_EAR_IDs.append(EAR_ID_i)
-                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
+                        js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                 all_EAR_objs = dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
@@ -2745,7 +2729,7 @@ class Workflow:
                     for act_idx in act_indices:
                         EAR_ID_i = EAR_map[act_idx, elem_idx].item()
                         all_EAR_IDs.append(EAR_ID_i)
-                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
+                        js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:

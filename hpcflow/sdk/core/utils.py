@@ -2,7 +2,6 @@ from __future__ import annotations
 import copy
 import enum
 from functools import wraps
-import contextlib
 import hashlib
 from itertools import accumulate, islice
 import json
@@ -32,7 +31,7 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
-    from collections.abc import Callable, Container, Iterable, Sequence
+    from collections.abc import Callable, Container, Iterable, Mapping, Sequence
     from typing import Any, TypeVar, TypeAlias
     from numpy.typing import NDArray
 
@@ -615,7 +614,7 @@ def replace_items(lst: list[T], start: int, end: int, repl: list[T]) -> list[T]:
     return lst
 
 
-def flatten(lst: list[TList[T]]) -> tuple[list[T], tuple[list[int], ...]]:
+def flatten(lst: list[int] | list[list[int]] | list[list[list[int]]]) -> tuple[list[int], tuple[list[int], ...]]:
     """Flatten an arbitrarily (but of uniform depth) nested list and return shape
     information to enable un-flattening.
 
@@ -630,8 +629,8 @@ def flatten(lst: list[TList[T]]) -> tuple[list[T], tuple[list[int], ...]]:
 
     """
 
-    def _flatten(lst: list[TList[T]], depth=0) -> list[T]:
-        out: list[T] = []
+    def _flatten(lst: list[int] | list[list[int]] | list[list[list[int]]], depth=0) -> list[int]:
+        out: list[int] = []
         for i in lst:
             if isinstance(i, list):
                 out += _flatten(i, depth + 1)
@@ -640,13 +639,13 @@ def flatten(lst: list[TList[T]]) -> tuple[list[T], tuple[list[int], ...]]:
                 out.append(i)
         return out
 
-    def _get_max_depth(lst: list[TList]) -> int:
-        lst = lst[:]
+    def _get_max_depth(lst: list[int] | list[list[int]] | list[list[list[int]]]) -> int:
+        val: Any = lst
         max_depth = 0
-        while isinstance(lst, list):
+        while isinstance(val, list):
             max_depth += 1
             try:
-                lst = lst[0]
+                val = val[0]
             except IndexError:
                 # empty list, assume this is max depth
                 break
@@ -658,12 +657,15 @@ def flatten(lst: list[TList[T]]) -> tuple[list[T], tuple[list[int], ...]]:
     return _flatten(lst), all_lens
 
 
-def reshape(lst: list[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
+def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
+    """
+    Apply the reverse of `flatten`.
+    """
     def _reshape(lst: list[T2], lens: Sequence[int]) -> list[list[T2]]:
         lens_acc = [0, *accumulate(lens)]
         return [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
 
-    result: list[TList[T]] = cast(list[TList[T]], lst)
+    result: list[TList[T]] = list(lst)
     for lens_i in lens[::-1]:
         result = cast(list[TList[T]], _reshape(result, lens_i))
 
@@ -852,8 +854,8 @@ def linspace_rect(
     return rect
 
 
-def dict_values_process_flat(d: dict[T, T2 | list[T2]],
-                             callable: Callable[[list[T2]], list[T3]]) -> dict[T, T3 | list[T3]]:
+def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
+                             callable: Callable[[list[T2]], list[T3]]) -> Mapping[T, T3 | list[T3]]:
     """
     Return a copy of a dict, where the values are processed by a callable that is to
     be called only once, and where the values may be single items or lists of items.
@@ -900,3 +902,13 @@ def nth_key(dct: Iterable[T], n: int) -> T:
 
 def nth_value(dct: dict[Any, T], n: int) -> T:
     return dct[nth_key(dct, n)]
+
+def parse_timestamp(timestamp: str | datetime, ts_fmt: str) -> datetime:
+    """
+    Standard timestamp parsing.
+    Ensures that timestamps are internally all UTC.
+    """
+    return (
+        timestamp if isinstance(timestamp, datetime)
+        else datetime.strptime(timestamp, ts_fmt)
+    ).replace(tzinfo=timezone.utc).astimezone()

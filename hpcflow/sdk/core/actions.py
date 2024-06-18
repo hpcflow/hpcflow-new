@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from valida.conditions import ConditionLike  # type: ignore
 
     from ..app import BaseApp
+    from ..typing import ParamSource
     from ..submission.jobscript import Jobscript
     from .commands import Command
     from .command_files import InputFileGenerator, OutputFileParser, FileSpec
@@ -529,10 +530,13 @@ class ElementActionRun:
 
     @property
     def env_spec(self) -> dict[str, Any]:
-        return self.resources.environments[self.action.get_environment_name()]
+        envs = self.resources.environments
+        if envs is None:
+            return {}
+        return envs[self.action.get_environment_name()]
 
     @TimeIt.decorator
-    def get_resources(self) -> dict[str, ElementResources]:
+    def get_resources(self) -> Mapping[str, Any]:
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
@@ -1227,16 +1231,16 @@ class Action(JSONLike):
         script: str | None = None,
         script_data_in: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
         script_data_out: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
-        script_data_files_use_opt: bool | None = False,
+        script_data_files_use_opt: bool = False,
         script_exe: str | None = None,
-        script_pass_env_spec: bool | None = False,
-        abortable: bool | None = False,
+        script_pass_env_spec: bool = False,
+        abortable: bool = False,
         input_file_generators: list[InputFileGenerator] | None = None,
         output_file_parsers: list[OutputFileParser] | None = None,
         input_files: list[FileSpec] | None = None,
         output_files: list[FileSpec] | None = None,
         rules: list[ActionRule] | None = None,
-        save_files: list[str] | None = None,
+        save_files: list[FileSpec] | None = None,
         clean_up: list[str] | None = None,
     ):
         """
@@ -1905,11 +1909,11 @@ class Action(JSONLike):
     def generate_data_index(
         self,
         act_idx: int,
-        EAR_ID: str,
+        EAR_ID: int,
         schema_data_idx: dict[str, int],
-        all_data_idx: dict[tuple[int, str], dict[str, int]],
+        all_data_idx: dict[tuple[int, int], dict[str, int]],
         workflow: Workflow,
-        param_source: dict[str, str],
+        param_source: ParamSource,
     ) -> list[int]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.

@@ -40,7 +40,7 @@ class Rule(JSONLike):
         self.cast = cast
         self.doc = doc
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         out = f"{self.__class__.__name__}("
         if self.check_exists:
             out += f"check_exists={self.check_exists!r}"
@@ -56,20 +56,17 @@ class Rule(JSONLike):
         out += ")"
         return out
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if not isinstance(other, Rule):
             return False
-        elif (
+        return (
             self.check_exists == other.check_exists
             and self.check_missing == other.check_missing
             and self.path == other.path
             and self.condition == other.condition
             and self.cast == other.cast
             and self.doc == other.doc
-        ):
-            return True
-        else:
-            return False
+        )
 
     @TimeIt.decorator
     def test(
@@ -100,15 +97,14 @@ class Rule(JSONLike):
                     return self.check_exists in schema_data_idx
                 elif self.check_missing:
                     return self.check_missing not in schema_data_idx
-
         else:
             if self.path and self.path.startswith("resources."):
-                try:
-                    # assume an `ElementIteration`
+                if isinstance(element_like, ElementIteration):
+                    assert action is not None
                     elem_res = element_like.get_resources(
                         action=action, set_defaults=True
                     )
-                except TypeError:
+                else:
                     # must be an `ElementActionRun`
                     elem_res = element_like.get_resources()
 

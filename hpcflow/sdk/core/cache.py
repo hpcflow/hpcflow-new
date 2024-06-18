@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Set, Dict, TYPE_CHECKING
+from typing import Self, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
@@ -22,12 +22,12 @@ class DependencyCache:
     elem_elem_dependents: dict[int, set[int]]
     elem_elem_dependents_rec: dict[int, set[int]]
 
-    elements: dict[int, Element]
+    elements: list[Element]
     iterations: list[ElementIteration]
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow: Workflow):
+    def build(cls, workflow: Workflow) -> Self:
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs

@@ -562,6 +562,45 @@ class ElementIteration:
 
         return copy.deepcopy(data_idx)
 
+    def __get_parameter_sources(
+        self,
+        data_idx: dict[str, int],
+        typ: str | None,
+        use_task_index: bool
+    ):
+        # the value associated with `repeats.*` is the repeats index, not a parameter ID:
+        for k in list(data_idx.keys()):
+            if k.startswith("repeats."):
+                data_idx.pop(k)
+
+        out = dict_values_process_flat(
+            data_idx,
+            callable=self.workflow.get_parameter_sources,
+        )
+
+        if use_task_index:
+            for k, v in out.items():
+                assert isinstance(v, dict)
+                insert_ID = v.pop("task_insert_ID", None)
+                if insert_ID is not None:
+                    # Modify the contents of out
+                    v["task_idx"] = self.workflow.tasks.get(insert_ID=insert_ID).index
+
+        if not typ:
+            return out
+
+        # Filter to just the elements that have the right type property
+        out_ = {}
+        for k, v in out.items():
+            if isinstance(v, list):
+                sources_k = [src_i for src_i in v if src_i["type"] == typ]
+                if sources_k:
+                    out_[k] = sources_k
+            else:
+                if v["type"] == typ:
+                    out_[k] = v
+        return out_
+
     @overload
     def get_parameter_sources(
         self,
@@ -605,44 +644,11 @@ class ElementIteration:
             ID.
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
-
-        # the value associated with `repeats.*` is the repeats index, not a parameter ID:
-        for k in list(data_idx.keys()):
-            if k.startswith("repeats."):
-                data_idx.pop(k)
-
-        out = cast(dict[str, dict], dict_values_process_flat(
-            data_idx,
-            callable=self.workflow.get_parameter_sources,
-        ))
-        task_key = "task_insert_ID"
-
-        if use_task_index:
-            for k, v in out.items():
-                assert isinstance(v, dict)
-                insert_ID = v.pop("task_insert_ID", None)
-                if insert_ID is not None:
-                    # Modify the contents of out
-                    v["task_idx"] = self.workflow.tasks.get(insert_ID=insert_ID).index
-
-        if typ:
-            out_ = {}
-            for k, v in out.items():
-                if isinstance(v, list):
-                    sources_k = []
-                    for src_i in v:
-                        if src_i["type"] == typ:
-                            sources_k.append(src_i)
-                    if sources_k:
-                        out_[k] = sources_k
-                else:
-                    if v["type"] == typ:
-                        out_[k] = v
-
-            out = out_
+        out = self.__get_parameter_sources(data_idx, typ or "", use_task_index)
 
         if as_strings:
             # format as a dict with compact string values
+            task_key = "task_insert_ID"  # TODO: is this right?
             self_task_val = (
                 self.task.index if task_key == "task_idx" else self.task.insert_ID
             )
@@ -983,7 +989,9 @@ class ElementIteration:
         return out
 
     @TimeIt.decorator
-    def get_resources(self, action: Action, set_defaults: bool = False) -> dict[str, Any]:
+    def get_resources(
+        self, action: Action, set_defaults: bool = False
+    ) -> Mapping[str, Any]:
         """Resolve specific resources for the specified action of this iteration,
         considering all applicable scopes.
 

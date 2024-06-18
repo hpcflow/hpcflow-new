@@ -36,7 +36,7 @@ class Scheduler(ABC, Generic[T]):
         else:
             return self.__dict__ == other.__dict__
 
-    def get_version_info(self) -> dict[str, str]:
+    def get_version_info(self) -> dict[str, str | list[str]]:
         return {}
 
     def parse_submission_output(self, stdout: str) -> str | None:
