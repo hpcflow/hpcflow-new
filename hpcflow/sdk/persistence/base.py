@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from .store_resource import StoreResource
     from ..app import BaseApp
     from ..typing import PathLike, ParamSource
+    from ..core.json_like import JSONed
     from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
 
@@ -1450,11 +1451,11 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     @abstractmethod
     def _get_persistent_template_components(self) -> dict[str, Any]: ...
 
-    def get_template(self) -> Dict:
+    def get_template(self) -> dict[str, JSONed]:
         return self._get_persistent_template()
 
     @abstractmethod
-    def _get_persistent_template(self) -> Dict: ...
+    def _get_persistent_template(self) -> dict[str, JSONed]: ...
 
     def _get_task_id_to_idx_map(self) -> dict[int, int]:
         return {i.id_: i.index for i in self.get_tasks()}

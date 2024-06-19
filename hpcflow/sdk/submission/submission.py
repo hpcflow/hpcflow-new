@@ -4,9 +4,11 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import enum
 import os
+from pathlib import Path
 from textwrap import indent
 from typing import overload, override, TYPE_CHECKING
 
+from hpcflow.sdk.core.actions import ElementActionRun
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     JobscriptSubmissionFailure,
@@ -22,11 +24,13 @@ from hpcflow.sdk.core.utils import parse_timestamp
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript import Jobscript
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
     from typing import Any, ClassVar, Literal
     from ..app import BaseApp
     from .jobscript import Jobscript, JobscriptElementState
     from .schedulers import Scheduler
     from .shells import Shell
+    from ..core.element import ElementActionRun
     from ..core.environment import Environment
     from ..core.object_list import EnvironmentsList
     from ..core.workflow import Workflow
@@ -229,7 +233,7 @@ class Submission(JSONLike):
         return self._jobscripts
 
     @property
-    def JS_parallelism(self):
+    def JS_parallelism(self) -> bool | None:
         return self._JS_parallelism
 
     @property
@@ -256,48 +260,48 @@ class Submission(JSONLike):
         return tuple(set(self.jobscript_indices) - set(self.submitted_jobscripts))
 
     @property
-    def status(self):
+    def status(self) -> SubmissionStatus:
         if not self.submission_parts:
             return SubmissionStatus.PENDING
+        elif set(self.submitted_jobscripts) == set(self.jobscript_indices):
+            return SubmissionStatus.SUBMITTED
         else:
-            if set(self.submitted_jobscripts) == set(self.jobscript_indices):
-                return SubmissionStatus.SUBMITTED
-            else:
-                return SubmissionStatus.PARTIALLY_SUBMITTED
+            return SubmissionStatus.PARTIALLY_SUBMITTED
 
     @property
-    def needs_submit(self):
+    def needs_submit(self) -> bool:
         return self.status in (
             SubmissionStatus.PENDING,
             SubmissionStatus.PARTIALLY_SUBMITTED,
         )
 
     @property
-    def path(self):
+    def path(self) -> Path:
         return self.workflow.submissions_path / str(self.index)
 
     @property
-    def all_EAR_IDs(self) -> list[int]:
-        return [i for js in self.jobscripts for i in js.all_EAR_IDs]
+    def all_EAR_IDs(self) -> Iterable[int]:
+        return (i for js in self.jobscripts for i in js.all_EAR_IDs)
 
     @property
-    def all_EARs(self):
-        return [i for js in self.jobscripts for i in js.all_EARs]
+    def all_EARs(self) -> Iterable[ElementActionRun]:
+        return (i for js in self.jobscripts for i in js.all_EARs)
 
     @property
     @TimeIt.decorator
-    def EARs_by_elements(self):
-        task_elem_EARs = defaultdict(lambda: defaultdict(list))
+    def EARs_by_elements(self) -> Mapping[int, Mapping[int, Sequence[ElementActionRun]]]:
+        task_elem_EARs: dict[int, dict[int, list[ElementActionRun]]] = \
+            defaultdict(lambda: defaultdict(list))
         for i in self.all_EARs:
             task_elem_EARs[i.task.index][i.element.index].append(i)
         return task_elem_EARs
 
     @property
-    def abort_EARs_file_name(self):
+    def abort_EARs_file_name(self) -> str:
         return f"abort_EARs.txt"
 
     @property
-    def abort_EARs_file_path(self):
+    def abort_EARs_file_path(self) -> Path:
         return self.path / self.abort_EARs_file_name
 
     @overload
@@ -405,7 +409,7 @@ class Submission(JSONLike):
 
         return shell_js_idx
 
-    def _raise_failure(self, submitted_js_idx, exceptions):
+    def __raise_failure(self, submitted_js_idx, exceptions):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
         if submitted_js_idx:
             msg += f" (but jobscripts {submitted_js_idx} were submitted successfully):"
@@ -478,10 +482,9 @@ class Submission(JSONLike):
             try:
                 vers_info = sched.get_version_info()
             except Exception:
-                if ignore_errors:
-                    vers_info = {}
-                else:
+                if not ignore_errors:
                     raise
+                vers_info = {}
             for _, js_idx in js_indices:
                 if js_idx in outstanding:
                     js_vers_info.setdefault(js_idx, {}).update(vers_info)
@@ -490,10 +493,9 @@ class Submission(JSONLike):
             try:
                 vers_info = shell.get_version_info()
             except Exception:
-                if ignore_errors:
-                    vers_info = {}
-                else:
+                if not ignore_errors:
                     raise
+                vers_info = {}
             for js_idx in js_indices_2:
                 if js_idx in outstanding:
                     js_vers_info.setdefault(js_idx, {}).update(vers_info)
@@ -558,7 +560,7 @@ class Submission(JSONLike):
         if errs and not ignore_errors:
             if status:
                 status.stop()
-            self._raise_failure(submitted_js_idx, errs)
+            self.__raise_failure(submitted_js_idx, errs)
 
         len_js = len(submitted_js_idx)
         print(f"Submitted {len_js} jobscript{'s' if len_js > 1 else ''}.")

@@ -40,8 +40,9 @@ from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import Any, Dict, List, Self
+    from typing import Any, Dict, Self
     from ..app import BaseApp
+    from ..core.json_like import JSONed
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -935,7 +936,7 @@ class ZarrPersistentStore(PersistentStore[
         with self.using_resource("attrs", "read") as attrs:
             return attrs["template_components"]
 
-    def _get_persistent_template(self):
+    def _get_persistent_template(self) -> dict[str, JSONed]:
         with self.using_resource("attrs", "read") as attrs:
             return attrs["template"]
 

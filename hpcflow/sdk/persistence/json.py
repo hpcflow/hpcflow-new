@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from typing import Any, Dict, Self
     from ..app import BaseApp
+    from ..core.json_like import JSONed
     from ..typing import ParamSource
 
 
@@ -474,7 +475,7 @@ class JSONPersistentStore(PersistentStore[
         with self.using_resource("metadata", "read") as md:
             return md["template_components"]
 
-    def _get_persistent_template(self) -> Dict:
+    def _get_persistent_template(self) -> dict[str, JSONed]:
         with self.using_resource("metadata", "read") as md:
             return md["template"]
 

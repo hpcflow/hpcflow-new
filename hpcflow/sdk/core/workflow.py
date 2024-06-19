@@ -60,11 +60,12 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import ClassVar, Literal, Protocol, Self
+    from typing import ClassVar, Literal, Protocol, Self, TypeAlias
     from fsspec import AbstractFileSystem as AFS  # type: ignore
+    from numpy.typing import NDArray
     import psutil
     from rich.status import Status
-    from ..app import BaseApp
+    from ..app import BaseApp, TemplateComponents
     from ..typing import ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
@@ -80,6 +81,8 @@ if TYPE_CHECKING:
     from ..persistence.base import (
         StoreElement, StoreElementIter, AnySParameter, StoreTask, StoreParameter,
         StoreEAR)
+    
+    _TemplateComponents: TypeAlias = dict[str, ObjectList[JSONLike]]
 
     class AbstractFileSystem(Protocol, AFS):
         pass
@@ -269,19 +272,20 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     @TimeIt.decorator
-    def _from_data(cls, data: Dict) -> WorkflowTemplate:
+    def _from_data(cls, data: dict[str, Any]) -> WorkflowTemplate:
+        # TODO: TypedDict for data
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
             schema = task_dat.pop("schema")
-            schema = schema if isinstance(schema, list) else [schema]
+            schema_list: list = schema if isinstance(schema, list) else [schema]
             if "element_sets" in task_dat:
                 # just update the schema to a list:
-                data["tasks"][task_idx]["schema"] = schema
+                data["tasks"][task_idx]["schema"] = schema_list
             else:
                 # add a single element set, and update the schema to a list:
                 out_labels = task_dat.pop("output_labels", [])
                 data["tasks"][task_idx] = {
-                    "schema": schema,
+                    "schema": schema_list,
                     "element_sets": [task_dat],
                     "output_labels": out_labels,
                 }
@@ -289,7 +293,8 @@ class WorkflowTemplate(JSONLike):
         # extract out any template components:
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
-        base_components = cast(Mapping[str, ObjectList[JSONable]], cls.app.template_components)
+        base_components = cast(Mapping[str, ObjectList[JSONable]],
+                               cls.app.template_components)
         if params_dat:
             parameters = cls.app.ParametersList.from_json_like(
                 params_dat, shared_data=base_components
@@ -566,7 +571,7 @@ class Workflow:
         self._creation_info: dict[str, Any] | None = None
         self._name: str | None = None
         self._template: WorkflowTemplate | None = None
-        self._template_components: dict[str, Any] | None = None
+        self._template_components: TemplateComponents | None = None
         self._tasks: WorkflowTaskList | None = None
         self._loops: WorkflowLoopList | None = None
         self._submissions: list[Submission] | None = None
@@ -1098,13 +1103,16 @@ class Workflow:
         self._store.add_task(new_index, task_js)
 
         # update in-memory workflow template components:
-        temp_comps = self.app.template_components_from_json_like(temp_comps_js)
+        temp_comps = cast(
+            _TemplateComponents,
+            self.app.template_components_from_json_like(temp_comps_js))
         for comp_type, comps in temp_comps.items():
+            ol = self.__template_components[comp_type]
             for comp in comps:
                 comp._set_hash()
-                if comp not in self.template_components[comp_type]:
-                    idx = self.template_components[comp_type].add_object(comp)
-                    self._pending["template_components"][comp_type].append(idx)
+                if comp not in ol:
+                    self._pending["template_components"][comp_type].append(
+                        ol.add_object(comp, skip_duplicates=False))
 
         self._pending["tasks"].append(new_index)
         return self.tasks[new_index]
@@ -1243,12 +1251,16 @@ class Workflow:
         return self._ts_name_fmt
 
     @property
-    def template_components(self) -> Dict:
+    def template_components(self) -> TemplateComponents:
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
             self._template_components = self.app.template_components_from_json_like(tc_js)
         return self._template_components
+
+    @property
+    def __template_components(self) -> _TemplateComponents:
+        return cast(_TemplateComponents, self.template_components)
 
     @property
     def template(self) -> WorkflowTemplate:
@@ -1257,11 +1269,11 @@ class Workflow:
                 temp_js = self._store.get_template()
 
                 # TODO: insert_ID and id_ are the same thing:
-                for task in temp_js["tasks"]:
+                for task in cast(list[dict], temp_js["tasks"]):
                     task.pop("id_", None)
 
                 template = self.app.WorkflowTemplate.from_json_like(
-                    temp_js, self.template_components
+                    temp_js, cast(dict, self.template_components)
                 )
                 template.workflow = self
             self._template = template
@@ -1909,7 +1921,9 @@ class Workflow:
         for comp_type, comp_indices in self._pending["template_components"].items():
             for comp_idx in comp_indices[::-1]:
                 # iterate in reverse so the index references are correct
-                self.template_components[comp_type]._remove_object(comp_idx)
+                tc = self.__template_components[comp_type]
+                assert hasattr(tc, "_remove_object")
+                tc._remove_object(comp_idx)
 
         for loop_idx in self._pending["loops"][::-1]:
             # iterate in reverse so the index references are correct
@@ -2642,6 +2656,21 @@ class Workflow:
 
         return js_objs
 
+    def __EAR_obj_map(
+        self, jsca: JobScriptCreationArguments, task: WorkflowTask,
+        task_actions: Sequence[tuple[int, int, int]], EAR_map: NDArray
+    ) -> dict[int, ElementActionRun]:
+        all_EAR_IDs: list[int] = []
+        for js_elem_idx, (elem_idx, act_indices) in enumerate(
+            jsca["elements"].items()
+        ):
+            for act_idx in act_indices:
+                EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
+                all_EAR_IDs.append(EAR_ID_i)
+                js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
+                jsca["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
+        return dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
         self, tasks: list[int] | None = None
@@ -2712,32 +2741,22 @@ class Workflow:
                     "dependencies": {},
                 }
 
-                all_EAR_IDs = []
-                for js_elem_idx, (elem_idx, act_indices) in enumerate(
-                    js_dat["elements"].items()
-                ):
-                    for act_idx in act_indices:
-                        EAR_ID_i = EAR_map[act_idx, elem_idx].item()
-                        all_EAR_IDs.append(EAR_ID_i)
-                        js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
-                        js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
-
-                all_EAR_objs = dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+                all_EAR_objs = self.__EAR_obj_map(js_i, task, task_actions, EAR_map)
 
                 for js_elem_idx, (elem_idx, act_indices) in enumerate(
                     js_dat["elements"].items()
                 ):
-                    all_EAR_IDs = []
+                    all_EAR_IDs: list[int] = []
                     for act_idx in act_indices:
-                        EAR_ID_i = EAR_map[act_idx, elem_idx].item()
+                        EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
                         all_EAR_IDs.append(EAR_ID_i)
                         js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:
-                    EAR_objs = [all_EAR_objs[k] for k in all_EAR_IDs]
-                    EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
-                    EAR_deps_flat = [j for i in EAR_deps for j in i]
+                    EAR_deps = (
+                        all_EAR_objs[k].get_EAR_dependencies() for k in all_EAR_IDs)
+                    EAR_deps_flat = (j for i in EAR_deps for j in i)
                     EAR_deps_EAR_idx = [
                         i for i in EAR_deps_flat if i not in js_i["EAR_ID"]
                     ]
@@ -2901,12 +2920,10 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
-    def get_all_submission_run_IDs(self) -> list[int]:
+    def get_all_submission_run_IDs(self) -> Iterable[int]:
         self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
-        id_lst = []
         for sub in self.submissions:
-            id_lst.extend(list(sub.all_EAR_IDs))
-        return id_lst
+            yield from sub.all_EAR_IDs
 
     def check_loop_termination(self, loop_name: str, run_ID: int) -> None:
         """Check if a loop should terminate, given the specified completed run, and if so,

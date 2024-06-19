@@ -8,7 +8,7 @@ from hpcflow.sdk.core.task import ElementSet
 from hpcflow.sdk.core.workflow import WorkflowTemplate
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import ClassVar, Any, Self
+    from typing import ClassVar, Self, Literal
     from zarr import Group  # type: ignore
     from ..app import BaseApp
     from .actions import ActionScope
@@ -96,7 +96,7 @@ class ObjectList(JSONLike, Generic[T]):
                 return self._objects.__contains__(item)
         return False
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self._objects == other
 
     def list_attrs(self):
@@ -168,7 +168,22 @@ class ObjectList(JSONLike, Generic[T]):
         attribute, and optionally additional keyword-argument attribute values."""
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
-    def add_object(self, obj: T, index: int = -1, skip_duplicates: bool = False):
+    @overload
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: Literal[False] = False
+    ) -> int: ...
+
+    @overload
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: Literal[True]
+    ) -> int | None: ...
+
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: bool = False
+    ) -> None | int:
         if skip_duplicates and obj in self:
             return None
 
@@ -283,16 +298,39 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
 
         return self._get_all_from_objs(all_objs, **kwargs)
 
-    def add_object(self, obj: T, index: int = -1, skip_duplicates: bool = False):
-        index = super().add_object(obj, index, skip_duplicates)
-        self._update_index()
-        return index
+    @overload
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: Literal[False] = False
+    ) -> int: ...
 
-    def add_objects(self, objs: Iterable[T], index: int = -1, skip_duplicates: bool = False):
-        for obj in objs:
-            index_ = self.add_object(obj, index, skip_duplicates)
-            if index_ is not None:
-                index = index_ + 1
+    @overload
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: Literal[True]
+    ) -> int | None: ...
+
+    def add_object(
+        self, obj: T, index: int = -1, *,
+        skip_duplicates: bool = False
+    ) -> int | None:
+        if skip_duplicates:
+            new_index = super().add_object(obj, index, skip_duplicates=True)
+        else:
+            new_index = super().add_object(obj, index)
+        self._update_index()
+        return new_index
+
+    def add_objects(self, objs: Iterable[T], index: int = -1, *,
+                    skip_duplicates: bool = False):
+        if skip_duplicates:
+            for obj in objs:
+                index_ = self.add_object(obj, index, skip_duplicates=True)
+                if index_ is not None:
+                    index = index_ + 1
+        else:
+            for obj in objs:
+                index = self.add_object(obj, index) + 1
         return index
 
 

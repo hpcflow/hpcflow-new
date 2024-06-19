@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime
 import enum
 import json
@@ -15,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, TypeVar, Generic, NotRequired, TypedDict, TYPE_CHECKING
+from typing import Any, Dict, List, TypeVar, Generic, NotRequired, TypedDict, cast, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -35,8 +36,6 @@ from fsspec.implementations.local import LocalFileSystem  # type: ignore
 
 from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
-from hpcflow.sdk.core.errors import WorkflowNotFoundError
-from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import (
     read_YAML_str,
     read_YAML_file,
@@ -63,7 +62,7 @@ from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
-    import hpcflow.sdk.core.object_list
+    from rich.status import Status
     from .core.actions import ElementActionRun, ElementAction, ActionEnvironment, Action, ActionScope
     from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
     from .core.commands import Command
@@ -72,9 +71,9 @@ if TYPE_CHECKING:
         ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
-        CommandFilesList as CommandFilesList_, EnvironmentsList as EnvironmentsList_, ExecutablesList,
-        GroupList, ParametersList as ParametersList_,
-        ResourceList, TaskList, TaskSchemasList as TaskSchemasList_, TaskTemplateList, WorkflowLoopList,
+        CommandFilesList as CommandFilesList_, EnvironmentsList as _EnvironmentsList, ExecutablesList,
+        GroupList, ParametersList as _ParametersList,
+        ResourceList, TaskList, TaskSchemasList as _TaskSchemasList, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
     from .core.parameters import SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec
     from .core.run_dir_files import RunDirAppFiles
@@ -82,7 +81,7 @@ if TYPE_CHECKING:
         WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
         ElementPropagation, ElementSet)
     from .core.task_schema import TaskSchema
-    from .core.workflow import Workflow, WorkflowTemplate as _WorkflowTemplate
+    from .core.workflow import Workflow as _Workflow, WorkflowTemplate as _WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
     from .submission.schedulers import Scheduler, QueuedScheduler
@@ -94,6 +93,17 @@ SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 T = TypeVar('T')
+
+
+class KnownSubmission(TypedDict):
+    local_id: int
+    workflow_id: str
+    is_active: bool
+    sub_idx: int
+    submit_time: str
+    path: str
+    start_time: str
+    end_time: str
 
 
 def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
@@ -185,10 +195,10 @@ class Singleton(type, Generic[T]):
 
 
 class TemplateComponents(TypedDict):
-    parameters: NotRequired[ParametersList_]
+    parameters: NotRequired[_ParametersList]
     command_files: NotRequired[CommandFilesList_]
-    environments: NotRequired[EnvironmentsList_]
-    task_schemas: NotRequired[TaskSchemasList_]
+    environments: NotRequired[_EnvironmentsList]
+    task_schemas: NotRequired[_TaskSchemasList]
     scripts: NotRequired[dict[str, Path]]
 
 
@@ -266,10 +276,10 @@ class BaseApp(metaclass=Singleton):
 
         # Set by `_load_template_components`:
         self._template_components: TemplateComponents = {}
-        self._parameters: ParametersList_ | None = None
+        self._parameters: _ParametersList | None = None
         self._command_files: CommandFilesList_ | None = None
-        self._environments: EnvironmentsList_ | None = None
-        self._task_schemas: TaskSchemasList_ | None = None
+        self._environments: _EnvironmentsList | None = None
+        self._task_schemas: _TaskSchemasList | None = None
         self._scripts: dict[str, Path] | None = None
 
         self._app_attr_cache: dict[str, type] = {}
@@ -375,7 +385,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("CommandFilesList")
 
     @property
-    def EnvironmentsList(self) -> type[EnvironmentsList_]:
+    def EnvironmentsList(self) -> type[_EnvironmentsList]:
         return self._get_app_core_class("EnvironmentsList")
 
     @property
@@ -387,7 +397,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("GroupList")
 
     @property
-    def ParametersList(self) -> type[ParametersList_]:
+    def ParametersList(self) -> type[_ParametersList]:
         return self._get_app_core_class("ParametersList")
 
     @property
@@ -403,7 +413,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("TaskList")
 
     @property
-    def TaskSchemasList(self) -> type[TaskSchemasList_]:
+    def TaskSchemasList(self) -> type[_TaskSchemasList]:
         return self._get_app_core_class("TaskSchemasList")
 
     @property
@@ -463,7 +473,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("WorkflowTemplate")
 
     @property
-    def Workflow(self) -> type[Workflow]:
+    def Workflow(self) -> type[_Workflow]:
         return self._get_app_core_class("Workflow")
 
     @property
@@ -663,6 +673,31 @@ class BaseApp(metaclass=Singleton):
 
         self.logger.info(f"Template components loaded ({include!r}).")
 
+    @staticmethod
+    def __open_text_resource(
+        package: ModuleType | str, resource: str
+    ):
+        try:
+            return resources.files(package).joinpath(resource).open("r")
+        except AttributeError:
+            # < python 3.9; `resource.open_text` deprecated since 3.11
+            return resources.open_text(package, resource)
+
+    @staticmethod
+    def __get_file_context(
+        package: ModuleType | str,
+        src: str
+    ) -> AbstractContextManager[Path] | None:
+        try:
+            try:
+                return resources.as_file(resources.files(package).joinpath(src))
+                # raises ModuleNotFoundError
+            except AttributeError:
+                # < python 3.9
+                return resources.path(package, src)
+        except ModuleNotFoundError:
+            return None
+
     @classmethod
     def load_builtin_template_component_data(
         cls, package: ModuleType
@@ -672,21 +707,14 @@ class BaseApp(metaclass=Singleton):
         )
         components: dict[str, List | Dict] = {}
         for comp_type in TEMPLATE_COMP_TYPES:
-            resource = f"{comp_type}.yaml"
-            try:
-                fh = resources.files(package).joinpath(resource).open("r")
-            except AttributeError:
-                # < python 3.9; `resource.open_text` deprecated since 3.11
-                fh = resources.open_text(package, resource)
-            SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
-            comp_dat = fh.read()
-            components[comp_type] = read_YAML_str(comp_dat)
-            fh.close()
+            with cls.__open_text_resource(package, f"{comp_type}.yaml") as fh:
+                SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
+                components[comp_type] = read_YAML_str(fh.read())
 
         return components
 
     @property
-    def parameters(self) -> ParametersList_:
+    def parameters(self) -> _ParametersList:
         self._ensure_template_component("parameters")
         assert self._parameters is not None
         return self._parameters
@@ -698,7 +726,7 @@ class BaseApp(metaclass=Singleton):
         return self._command_files
 
     @property
-    def envs(self) -> EnvironmentsList_:
+    def envs(self) -> _EnvironmentsList:
         self._ensure_template_component("environments")
         assert self._environments is not None
         return self._environments
@@ -710,7 +738,7 @@ class BaseApp(metaclass=Singleton):
         return self._scripts
 
     @property
-    def task_schemas(self) -> TaskSchemasList_:
+    def task_schemas(self) -> _TaskSchemasList:
         self._ensure_template_component("task_schemas")
         assert self._task_schemas is not None
         return self._task_schemas
@@ -1170,23 +1198,24 @@ class BaseApp(metaclass=Singleton):
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def template_components_from_json_like(self, json_like: dict[str, dict]) -> dict[str, Any]:
+    def template_components_from_json_like(self, json_like: dict[str, dict]) -> TemplateComponents:
         tc: TemplateComponents = {}
+        sd: Mapping[str, Any] = tc
         tc["parameters"] = self.ParametersList.from_json_like(
-            json_like.get("parameters", {}), shared_data=tc, is_hashed=True)
+            json_like.get("parameters", {}), shared_data=sd, is_hashed=True)
         tc["command_files"] = self.CommandFilesList.from_json_like(
-            json_like.get("command_files", {}), shared_data=tc, is_hashed=True)
+            json_like.get("command_files", {}), shared_data=sd, is_hashed=True)
         tc["environments"] = self.EnvironmentsList.from_json_like(
-            json_like.get("environments", {}), shared_data=tc, is_hashed=True)
+            json_like.get("environments", {}), shared_data=sd, is_hashed=True)
         tc["task_schemas"] = self.TaskSchemasList.from_json_like(
-            json_like.get("task_schemas", {}), shared_data=tc, is_hashed=True)
+            json_like.get("task_schemas", {}), shared_data=sd, is_hashed=True)
         return tc
 
-    def get_parameter_task_schema_map(self) -> dict[str, list[List]]:
+    def get_parameter_task_schema_map(self) -> dict[str, list[list[str]]]:
         """Get a dict mapping parameter types to task schemas that input/output each
         parameter."""
 
-        param_map = {}
+        param_map: dict[str, list[list[str]]] = {}
         for ts in self.task_schemas:
             for inp in ts.inputs:
                 if inp.parameter.typ not in param_map:
@@ -1238,7 +1267,7 @@ class BaseApp(metaclass=Singleton):
         ]
         return self._known_subs_file_sep.join(line) + "\n"
 
-    def _parse_known_submissions_line(self, line: str) -> Dict:
+    def _parse_known_submissions_line(self, line: str) -> KnownSubmission:
         (
             local_id,
             workflow_id,
@@ -1249,7 +1278,7 @@ class BaseApp(metaclass=Singleton):
             start_time,
             end_time,
         ) = line.split(self._known_subs_file_sep, maxsplit=7)
-        item = {
+        return {
             "local_id": int(local_id),
             "workflow_id": workflow_id,
             "is_active": bool(int(is_active)),
@@ -1259,16 +1288,15 @@ class BaseApp(metaclass=Singleton):
             "start_time": start_time,
             "end_time": end_time.strip(),
         }
-        return item
 
     @TimeIt.decorator
-    def read_known_submissions_file(self) -> list[Dict]:
+    def read_known_submissions_file(self) -> list[KnownSubmission]:
         """Retrieve existing workflows that *might* be running."""
-        known = []
         with self.known_subs_file_path.open("rt", newline="\n") as fh:
-            for ln in fh.readlines():
-                known.append(self._parse_known_submissions_line(ln))
-        return known
+            return [
+                self._parse_known_submissions_line(ln)
+                for ln in fh.readlines()
+            ]
 
     def _add_to_known_submissions(
         self,
@@ -1362,7 +1390,7 @@ class BaseApp(metaclass=Singleton):
         removed_IDs = []  # which submissions we completely remove from the file
 
         new_lines = []
-        line_IDs = []
+        line_IDs: list[int] = []
         for ln_idx, line in enumerate(self.known_subs_file_path.read_text().split("\n")):
             if not line.strip():
                 continue
@@ -1449,7 +1477,7 @@ class BaseApp(metaclass=Singleton):
         template_file_or_str: PathLike | str,
         is_string: bool = False,
         template_format: str | None = None,
-        path: PathLike | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -1458,7 +1486,7 @@ class BaseApp(metaclass=Singleton):
         store_kwargs: Dict | None = None,
         variables: dict[str, str] | None = None,
         status: bool = True,
-    ) -> Workflow:
+    ) -> _Workflow:
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
 
@@ -1500,66 +1528,60 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("make_workflow called")
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Making persistent workflow...")
-            status.start()
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
+            Console().status("Making persistent workflow...")
+            if status else nullcontext())
 
-        common = {
-            "path": path,
-            "name": name,
-            "overwrite": overwrite,
-            "store": store,
-            "ts_fmt": ts_fmt,
-            "ts_name_fmt": ts_name_fmt,
-            "store_kwargs": store_kwargs,
-            "variables": variables,
-            "status": status,
-        }
-
-        if not is_string:
-            wk = self.Workflow.from_file(
-                template_path=template_file_or_str,
-                template_format=template_format,
-                **common,
-            )
-
-        elif template_format == "json":
-            try:
-                wk = self.Workflow.from_JSON_string(
-                    JSON_str=template_file_or_str, **common
+        with status_context as status_:
+            if not is_string:
+                return self.Workflow.from_file(
+                    template_path=template_file_or_str,
+                    template_format=template_format,
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                    status=status_,
                 )
-            except Exception:
-                if status:
-                    status.stop()
-                raise
-
-        elif template_format == "yaml":
-            try:
-                wk = self.Workflow.from_YAML_string(
-                    YAML_str=template_file_or_str, **common
+            elif template_format == "json":
+                return self.Workflow.from_JSON_string(
+                    JSON_str=str(template_file_or_str),
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                    status=status_,
                 )
-            except Exception:
-                if status:
-                    status.stop()
-                raise
-
-        elif not template_format:
-            raise ValueError(
-                f"Must specify `template_format` if parsing a workflow template from a "
-                f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
-            )
-
-        else:
-            raise ValueError(
-                f"Template format {template_format!r} not understood. Available template "
-                f"formats are {ALL_TEMPLATE_FORMATS!r}."
-            )
-
-        if status:
-            status.stop()
-
-        return wk
+            elif template_format == "yaml":
+                return self.Workflow.from_YAML_string(
+                    YAML_str=str(template_file_or_str),
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                )
+            elif not template_format:
+                raise ValueError(
+                    f"Must specify `template_format` if parsing a workflow template from a "
+                    f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
+                )
+            else:
+                raise ValueError(
+                    f"Template format {template_format!r} not understood. Available template "
+                    f"formats are {ALL_TEMPLATE_FORMATS!r}."
+                )
 
     def _make_and_submit_workflow(
         self,
@@ -1581,7 +1603,7 @@ class BaseApp(metaclass=Singleton):
         tasks: list[int] | None = None,
         cancel: bool = False,
         status: bool = True,
-    ) -> dict[int, int]:
+    ):
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1683,7 +1705,7 @@ class BaseApp(metaclass=Singleton):
         store_kwargs: Dict | None = None,
         variables: dict[str, str] | None = None,
         status: bool = True,
-    ) -> Workflow:
+    ) -> _Workflow:
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
         Parameters
@@ -1722,28 +1744,25 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("make_demo_workflow called")
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Making persistent workflow...")
-            status.start()
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
+            Console().status("Making persistent workflow...")
+            if status else nullcontext())
 
-        with self.get_demo_workflow_template_file(workflow_name) as template_path:
-            wk = self.Workflow.from_file(
-                template_path=template_path,
-                template_format=template_format,
-                path=path,
-                name=name,
-                overwrite=overwrite,
-                store=store,
-                ts_fmt=ts_fmt,
-                ts_name_fmt=ts_name_fmt,
-                store_kwargs=store_kwargs,
-                variables=variables,
-                status=status,
-            )
-        if status:
-            status.stop()
-        return wk
+        with status_context as status_:
+            with self.get_demo_workflow_template_file(workflow_name) as template_path:
+                return self.Workflow.from_file(
+                    template_path=template_path,
+                    template_format=template_format,
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                    status=status_,
+                )
 
     def _make_and_submit_demo_workflow(
         self,
@@ -1764,7 +1783,7 @@ class BaseApp(metaclass=Singleton):
         tasks: list[int] | None = None,
         cancel: bool = False,
         status: bool = True,
-    ) -> dict[int, int]:
+    ):
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1854,7 +1873,7 @@ class BaseApp(metaclass=Singleton):
         wait: bool = False,
         return_idx: bool = False,
         tasks: list[int] | None = None,
-    ) -> dict[int, int]:
+    ):
         """Submit an existing {app_name} workflow.
 
         Parameters
@@ -1871,13 +1890,17 @@ class BaseApp(metaclass=Singleton):
         """
 
         self.API_logger.info("submit_workflow called")
+        assert workflow_path is not None
         wk = self.Workflow(workflow_path)
-        return wk.submit(
-            JS_parallelism=JS_parallelism,
-            wait=wait,
-            return_idx=return_idx,
-            tasks=tasks,
-        )
+        if return_idx:
+            return wk.submit(
+                JS_parallelism=JS_parallelism,
+                wait=wait,
+                return_idx=True,
+                tasks=tasks,
+            )
+        wk.submit(JS_parallelism=JS_parallelism, wait=wait, tasks=tasks)
+        return None
 
     def _run_hpcflow_tests(self, *args):
         """Run hpcflow test suite. This function is only available from derived apps."""
@@ -1896,17 +1919,12 @@ class BaseApp(metaclass=Singleton):
                 f"{self.name} has not been built with testing dependencies."
             )
         test_args = (self.pytest_args or []) + list(args)
-        pkg = self.package_name
-        tests_dir = "tests"
-        try:
-            ctx_man = resources.as_file(resources.files(pkg).joinpath(tests_dir))
-        except AttributeError:
-            # < Python 3.9
-            ctx_man = resources.path(pkg, tests_dir)
+        ctx_man = self.__get_file_context(self.package_name, "tests")
+        assert ctx_man is not None
         with ctx_man as test_dir:
             return pytest.main([str(test_dir)] + test_args)
 
-    def _get_OS_info(self) -> Dict:
+    def _get_OS_info(self) -> dict[str, str]:
         """Get information about the operating system."""
         os_name = os.name
         if os_name == "posix":
@@ -1915,6 +1933,8 @@ class BaseApp(metaclass=Singleton):
             )
         elif os_name == "nt":
             return get_OS_info_windows()
+        else:
+            raise Exception(f"unsupported OS '{os_name}'")
 
     def _get_shell_info(
         self,
@@ -1943,7 +1963,7 @@ class BaseApp(metaclass=Singleton):
         no_update: bool = False,
         as_json: bool = False,
         status: Any | None = None,
-    ):
+    ) -> list[Dict]:
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
 
@@ -1963,10 +1983,10 @@ class BaseApp(metaclass=Singleton):
 
         """
 
-        out = []
-        inactive_IDs = []
-        start_times = {}
-        end_times = {}
+        out: list[Dict] = []
+        inactive_IDs: list[int] = []
+        start_times: dict[int, str] = {}
+        end_times: dict[int, str] = {}
 
         ts_fmt = self._submission_ts_fmt
 
@@ -1977,8 +1997,9 @@ class BaseApp(metaclass=Singleton):
         except FileNotFoundError:
             known_subs = []
 
-        active_jobscripts = {}  # keys are (workflow path, submission index)
-        loaded_workflows = {}  # keys are workflow path
+        # keys are (workflow path, submission index)
+        active_jobscripts: dict[tuple[str, int], Mapping[int, Any]] = {}
+        loaded_workflows: dict[str, _Workflow] = {}  # keys are workflow path
 
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
@@ -2085,7 +2106,10 @@ class BaseApp(metaclass=Singleton):
                             act_i_js = active_jobscripts[run_key]
                         else:
                             try:
-                                act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                                if as_json:
+                                    act_i_js = sub.get_active_jobscripts(as_json=True)
+                                else:
+                                    act_i_js = sub.get_active_jobscripts()
                             except KeyboardInterrupt:
                                 raise
                             except Exception:
@@ -2251,163 +2275,155 @@ class BaseApp(metaclass=Singleton):
         ts_fmt_part = r"%H:%M:%S"
 
         console = Console()
-        status = console.status("Retrieving data...")
-        status.start()
-
-        try:
+        with console.status("Retrieving data...") as status:
             run_dat = self._get_known_submissions(
                 max_recent=max_recent,
                 no_update=no_update,
                 status=status,
             )
-        except (Exception, KeyboardInterrupt):
-            status.stop()
-            raise
-        else:
             if not run_dat:
-                status.stop()
                 return
 
-        status.update("Formatting...")
-        table = Table(box=box.SQUARE, expand=False)
-        for col_name in columns:
-            table.add_column(allowed_cols[col_name])
+            status.update("Formatting...")
+            table = Table(box=box.SQUARE, expand=False)
+            for col_name in columns:
+                table.add_column(allowed_cols[col_name])
 
-        row_pad = 1 if full else 0
+            row_pad = 1 if full else 0
 
-        for dat_i in run_dat:
-            deleted = dat_i["deleted"]
-            unloadable = dat_i["unloadable"]
-            no_access = deleted or unloadable
-            act_js = dat_i["active_jobscripts"]
-            style = "grey42" if (no_access or not act_js) else ""
-            style_wk_name = "grey42 strike" if deleted else style
-            style_it = "italic grey42" if (no_access or not act_js) else "italic"
+            for dat_i in run_dat:
+                deleted = dat_i["deleted"]
+                unloadable = dat_i["unloadable"]
+                no_access = deleted or unloadable
+                act_js = dat_i["active_jobscripts"]
+                style = "grey42" if (no_access or not act_js) else ""
+                style_wk_name = "grey42 strike" if deleted else style
+                style_it = "italic grey42" if (no_access or not act_js) else "italic"
 
-            all_cells = {}
-            if "status" in columns:
-                if act_js:
-                    act_js_states = set([j for i in act_js.values() for j in i.values()])
-                    status_text = "/".join(
-                        f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
-                    )
-                else:
-                    if deleted:
-                        txt = "deleted"
-                    elif unloadable:
-                        txt = "unloadable"
+                all_cells: dict[str, str | Text | Padding] = {}
+                if "status" in columns:
+                    if act_js:
+                        act_js_states = set([j for i in act_js.values() for j in i.values()])
+                        all_cells["status"] = "/".join(
+                            f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
+                        )
                     else:
-                        txt = "inactive"
-                    status_text = Text(txt, style=style_it)
-                all_cells["status"] = status_text
+                        if deleted:
+                            txt = "deleted"
+                        elif unloadable:
+                            txt = "unloadable"
+                        else:
+                            txt = "inactive"
+                        all_cells["status"] = Text(txt, style=style_it)
 
-            if "id" in columns:
-                all_cells["id"] = Text(str(dat_i["local_id"]), style=style)
+                if "id" in columns:
+                    all_cells["id"] = Text(str(dat_i["local_id"]), style=style)
 
-            if "name" in columns:
-                all_cells["name"] = Text(
-                    Path(dat_i["workflow_path"]).name, style=style_wk_name
-                )
+                if "name" in columns:
+                    all_cells["name"] = Text(
+                        Path(dat_i["workflow_path"]).name, style=style_wk_name
+                    )
 
-            start_time, end_time = None, None
-            if not no_access:
-                start_time = dat_i["start_time_obj"]
-                end_time = dat_i["end_time_obj"]
-
-            if "actions" in columns:
+                start_time, end_time = None, None
                 if not no_access:
-                    task_tab = Table(box=None, show_header=False)
-                    task_tab.add_column()
-                    task_tab.add_column()
+                    start_time = cast(datetime, dat_i["start_time_obj"])
+                    end_time = cast(datetime, dat_i["end_time_obj"])
 
-                    for task_idx, elements in dat_i[
-                        "submission"
-                    ].EARs_by_elements.items():
-                        task = dat_i["submission"].workflow.tasks[task_idx]
+                if "actions" in columns:
+                    task_tab: str | Table
+                    if not no_access:
+                        task_tab = Table(box=None, show_header=False)
+                        task_tab.add_column()
+                        task_tab.add_column()
 
-                        # inner table for elements/actions:
-                        elem_tab_i = Table(box=None, show_header=False)
-                        elem_tab_i.add_column()
-                        for elem_idx, EARs in elements.items():
-                            elem_status = Text(f"{elem_idx} | ", style=style)
-                            for i in EARs:
-                                elem_status.append(i.status.symbol, style=i.status.colour)
-                            elem_tab_i.add_row(elem_status)
-                        task_tab.add_row(task.unique_name, elem_tab_i, style=style)
-                else:
-                    task_tab = ""
+                        for task_idx, elements in dat_i[
+                            "submission"
+                        ].EARs_by_elements.items():
+                            task = dat_i["submission"].workflow.tasks[task_idx]
 
-                all_cells["actions"] = Padding(task_tab, (0, 0, row_pad, 0))
+                            # inner table for elements/actions:
+                            elem_tab_i = Table(box=None, show_header=False)
+                            elem_tab_i.add_column()
+                            for elem_idx, EARs in elements.items():
+                                elem_status = Text(f"{elem_idx} | ", style=style)
+                                for i in EARs:
+                                    elem_status.append(i.status.symbol, style=i.status.colour)
+                                elem_tab_i.add_row(elem_status)
+                            task_tab.add_row(task.unique_name, elem_tab_i, style=style)
+                    else:
+                        task_tab = ""
 
-            if "actions_compact" in columns:
-                if not no_access:
-                    EAR_stat_count = defaultdict(int)
-                    for _, elements in dat_i["submission"].EARs_by_elements.items():
-                        for elem_idx, EARs in elements.items():
-                            for i in EARs:
-                                EAR_stat_count[i.status] += 1
-                    all_cells["actions_compact"] = " | ".join(
-                        f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"
-                        for k, v in EAR_stat_count.items()
+                    all_cells["actions"] = Padding(task_tab, (0, 0, row_pad, 0))
+
+                if "actions_compact" in columns:
+                    if not no_access:
+                        EAR_stat_count: dict[EARStatus, int] = defaultdict(int)
+                        sub = cast(Submission, dat_i["submission"])
+                        for elements in sub.EARs_by_elements.values():
+                            for EARs in elements.values():
+                                for i in EARs:
+                                    EAR_stat_count[i.status] += 1
+                        all_cells["actions_compact"] = " | ".join(
+                            f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"  # type: ignore
+                            for k, v in EAR_stat_count.items()
+                        )
+                    else:
+                        all_cells["actions_compact"] = ""
+
+                if "submit_time" in columns or "times" in columns:
+                    submit_time = parse_timestamp(dat_i["submit_time"], self._submission_ts_fmt)
+                    submit_time_full = submit_time.strftime(ts_fmt)
+
+                if "start_time" in columns or "times" in columns:
+                    start_time_full = start_time.strftime(ts_fmt) if start_time else "-"
+                    start_time_part = start_time_full
+                    if start_time and start_time.date() == submit_time.date():
+                        start_time_part = start_time.strftime(ts_fmt_part)
+
+                if "end_time" in columns or "times" in columns:
+                    end_time_full = end_time.strftime(ts_fmt) if end_time else "-"
+                    end_time_part = end_time_full
+                    if end_time and start_time and end_time.date() == start_time.date():
+                        end_time_part = end_time.strftime(ts_fmt_part)
+
+                if "submit_time" in columns:
+                    all_cells["submit_time"] = Padding(
+                        Text(submit_time_full, style=style), (0, 0, row_pad, 0)
                     )
-                else:
-                    all_cells["actions_compact"] = ""
 
-            if "submit_time" in columns or "times" in columns:
-                submit_time = parse_timestamp(dat_i["submit_time"], self._submission_ts_fmt)
-                submit_time_full = submit_time.strftime(ts_fmt)
+                if "start_time" in columns:
+                    all_cells["start_time"] = Padding(
+                        Text(start_time_part, style=style), (0, 0, row_pad, 0)
+                    )
 
-            if "start_time" in columns or "times" in columns:
-                start_time_full = start_time.strftime(ts_fmt) if start_time else "-"
-                start_time_part = start_time_full
-                if start_time and start_time.date() == submit_time.date():
-                    start_time_part = start_time.strftime(ts_fmt_part)
+                if "end_time" in columns:
+                    all_cells["end_time"] = Padding(
+                        Text(end_time_part, style=style), (0, 0, row_pad, 0)
+                    )
 
-            if "end_time" in columns or "times" in columns:
-                end_time_full = end_time.strftime(ts_fmt) if end_time else "-"
-                end_time_part = end_time_full
-                if end_time and end_time.date() == start_time.date():
-                    end_time_part = end_time.strftime(ts_fmt_part)
+                if "times" in columns:
+                    # submit/start/end on separate lines:
+                    times_tab = Table(box=None, show_header=False)
+                    times_tab.add_column()
+                    times_tab.add_column(justify="right")
 
-            if "submit_time" in columns:
-                all_cells["submit_time"] = Padding(
-                    Text(submit_time_full, style=style), (0, 0, row_pad, 0)
-                )
-
-            if "start_time" in columns:
-                all_cells["start_time"] = Padding(
-                    Text(start_time_part, style=style), (0, 0, row_pad, 0)
-                )
-
-            if "end_time" in columns:
-                all_cells["end_time"] = Padding(
-                    Text(end_time_part, style=style), (0, 0, row_pad, 0)
-                )
-
-            if "times" in columns:
-                # submit/start/end on separate lines:
-                times_tab = Table(box=None, show_header=False)
-                times_tab.add_column()
-                times_tab.add_column(justify="right")
-
-                times_tab.add_row(
-                    Text("sb.", style=style_it), Text(submit_time_full, style=style)
-                )
-
-                if start_time:
                     times_tab.add_row(
-                        Text("st.", style=style_it), Text(start_time_part, style=style)
-                    )
-                if end_time:
-                    times_tab.add_row(
-                        Text("en.", style=style_it), Text(end_time_part, style=style)
+                        Text("sb.", style=style_it), Text(submit_time_full, style=style)
                     )
 
-                all_cells["times"] = Padding(times_tab, (0, 0, row_pad, 0))
+                    if start_time:
+                        times_tab.add_row(
+                            Text("st.", style=style_it), Text(start_time_part, style=style)
+                        )
+                    if end_time:
+                        times_tab.add_row(
+                            Text("en.", style=style_it), Text(end_time_part, style=style)
+                        )
 
-            table.add_row(*[all_cells[i] for i in columns])
+                    all_cells["times"] = Padding(times_tab, (0, 0, row_pad, 0))
 
-        status.stop()
+                table.add_row(*[all_cells[i] for i in columns])
+
         if table.row_count:
             console.print(table)
 
@@ -2551,7 +2567,7 @@ class BaseApp(metaclass=Singleton):
             self.config.append("environment_sources", str(env_source_file))
             self.config.save()
 
-    def get_demo_data_files_manifest(self) -> dict[str, str | None]:
+    def get_demo_data_files_manifest(self) -> dict[str, Any]:
         """Get a dict whose keys are example data file names and whose values are the
         source files if the source file required unzipping or `None` otherwise.
 
@@ -2581,21 +2597,18 @@ class BaseApp(metaclass=Singleton):
                 f"{self.demo_data_manifest_dir!r}."
             )
             package = self.demo_data_manifest_dir
-            resource = "demo_data_manifest.json"
-            try:
-                fh = resources.files(package).joinpath(resource).open("rt")
-            except AttributeError:
-                # < python 3.9; `resource.open_text` deprecated since 3.11
-                fh = resources.open_text(package, resource)
-            manifest = json.load(fh)
-            fh.close()
+            if package is None:
+                self.logger.warning("no demo data dir defined")
+                return {}
+            with self.__open_text_resource(package, "demo_data_manifest.json") as fh:
+                manifest = json.load(fh)
         return manifest
 
     def list_demo_data_files(self) -> tuple[str, ...]:
         """List available example data files."""
         return tuple(self.get_demo_data_files_manifest().keys())
 
-    def _get_demo_data_file_source_path(self, file_name) -> tuple[Path, bool, bool]:
+    def _get_demo_data_file_source_path(self, file_name: str) -> tuple[Path, bool, bool]:
         """Get the full path to an example data file on the local file system, whether
         the file must be unpacked, and whether the file should be deleted.
 
@@ -2646,7 +2659,7 @@ class BaseApp(metaclass=Singleton):
         if file_name not in manifest:
             raise ValueError(f"No such example data file {file_name!r}.")
 
-        spec = manifest[file_name]
+        spec: dict[str, str] = manifest[file_name]
         requires_unpack = bool(spec)
         src_fn = spec["in_zip"] if requires_unpack else file_name
 
@@ -2665,36 +2678,31 @@ class BaseApp(metaclass=Singleton):
             )
             # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
             package = self.demo_data_dir
-            resource_exists = True
-            delete = False
-            try:
-                ctx_man = resources.as_file(resources.files(package).joinpath(src_fn))
-                # raises ModuleNotFoundError
-            except AttributeError:
-                # < python 3.9
-                try:
-                    ctx_man = resources.path(package, src_fn)
-                except ModuleNotFoundError:
-                    resource_exists = False
-            except ModuleNotFoundError:
+            if not package:
                 resource_exists = False
+            else:
+                delete = False
+                ctx_man = self.__get_file_context(package, src_fn)
 
-            if resource_exists:
                 try:
-                    with ctx_man as path:
-                        out = path
+                    if ctx_man:
+                        with ctx_man as path:
+                            out = path
+                        resource_exists = True
+                    else:
+                        resource_exists = False
                 except (ModuleNotFoundError, FileNotFoundError):
                     # frozen app
                     resource_exists = False
 
-            if not resource_exists:
+            if not resource_exists and package is not None:
                 # example data not included (e.g. frozen, or installed via PyPI/conda), so
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
-                path = "/".join(package.split("."))
-                url = self._get_github_url(sha=f"v{self.version}", path=path)
+                path_ = "/".join(package.split("."))
+                url = self._get_github_url(sha=f"v{self.version}", path=path_)
                 self.logger.info(
-                    f"path {path!r} does not exist as a package resource (example data "
+                    f"path {path_!r} does not exist as a package resource (example data "
                     f"was probably not included in the app), so non-persistently setting "
                     f"the config item `demo_data_dir` to the app's GitHub repo path: "
                     f"{url!r}."

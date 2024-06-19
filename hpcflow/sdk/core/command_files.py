@@ -13,7 +13,7 @@ from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
     from ..app import BaseApp
     from ..typing import ParamSource
-    from .actions import ActionRule
+    from .actions import ActionRule, Action
     from .object_list import CommandFilesList
     from .parameters import Parameter
     from .task import ElementSet
@@ -200,8 +200,7 @@ class InputFileGenerator(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action, env_spec: dict[str, Any]):
-
+    def write_source(self, action: Action, env_spec: dict[str, Any]):
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
         snip_path = action.get_snippet_script_path(self.script, env_spec)
@@ -356,7 +355,7 @@ class OutputFileParser(JSONLike):
         out = out.format(script_str=script_str, main_block=main_block)
         return out
 
-    def write_source(self, action, env_spec: dict[str, Any]):
+    def write_source(self, action: Action, env_spec: dict[str, Any]):
         if self.output is None:
             # might be used just for saving files:
             return

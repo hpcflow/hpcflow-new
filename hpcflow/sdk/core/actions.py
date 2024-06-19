@@ -1579,9 +1579,11 @@ class Action(JSONLike):
         return envs.get(**self.get_environment_spec())
 
     @staticmethod
-    def is_snippet_script(script: str) -> bool:
+    def is_snippet_script(script: str | None) -> bool:
         """Returns True if the provided script string represents a script snippets that is
         to be modified before execution (e.g. to receive and provide parameter data)."""
+        if script is None:
+            return False
         return script.startswith("<<script:")
 
     @classmethod
@@ -1621,16 +1623,13 @@ class Action(JSONLike):
 
     @classmethod
     def get_snippet_script_path(
-        cls, script_path, env_spec: dict[str, Any] | None = None
-    ) -> Path | Literal[False]:
+        cls, script_path: str | None, env_spec: dict[str, Any] | None = None
+    ) -> Path | None:
         if not cls.is_snippet_script(script_path):
-            return False
+            return None
 
         path = cls.get_snippet_script_str(script_path, env_spec)
-        if path in cls.app.scripts:
-            path = cls.app.scripts.get(path)
-
-        return Path(path)
+        return Path(cls.app.scripts.get(path, path))
 
     @staticmethod
     def get_param_dump_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
