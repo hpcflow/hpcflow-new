@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 class JobScriptDescriptor(TypedDict):
     resources: Any
-    elements: dict[Any, list[int]]  # FIXME: key!
+    elements: dict[int, list[int]]
     dependencies: NotRequired[dict[int, dict[str, None]]]
     resource_hash: NotRequired[str]
 

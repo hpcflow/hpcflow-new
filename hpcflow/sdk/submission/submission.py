@@ -6,7 +6,7 @@ import enum
 import os
 from pathlib import Path
 from textwrap import indent
-from typing import overload, override, TYPE_CHECKING
+from typing import overload, override, TypedDict, TYPE_CHECKING
 
 from hpcflow.sdk.core.actions import ElementActionRun
 from hpcflow.sdk.core.element import ElementResources
@@ -34,6 +34,11 @@ if TYPE_CHECKING:
     from ..core.environment import Environment
     from ..core.object_list import EnvironmentsList
     from ..core.workflow import Workflow
+
+
+class SubmissionPart(TypedDict):
+    submit_time: datetime
+    jobscripts: list[int]
 
 
 def timedelta_format(td: timedelta) -> str:
@@ -88,7 +93,7 @@ class Submission(JSONLike):
         self._JS_parallelism = JS_parallelism
         self._environments = environments
 
-        self._submission_parts_lst: list[dict[str, Any]] | None = None  # assigned on first access; datetime objects
+        self._submission_parts_lst: list[SubmissionPart] | None = None  # assigned on first access
 
         if workflow:
             self.workflow = workflow
@@ -179,7 +184,7 @@ class Submission(JSONLike):
         return self._environments
 
     @property
-    def submission_parts(self) -> list[dict[str, Any]]:
+    def submission_parts(self) -> list[SubmissionPart]:
         # FIXME: use a TypedDict
         if not self._submission_parts:
             return []

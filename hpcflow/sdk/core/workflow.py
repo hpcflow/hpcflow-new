@@ -591,7 +591,7 @@ class Workflow:
         """The workflow name may be different from the template name, as it includes the
         creation date-timestamp if generated."""
         if not self._name:
-            self._name = self._store.get_name()  # FIXME: what's this?
+            self._name = self._store.get_name()
         return self._name
 
     @property
