@@ -1,14 +1,26 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import ClassVar, TypedDict, TypeAlias, cast, TYPE_CHECKING
+from typing import Any, ClassVar, TypedDict, TypeAlias, cast, TYPE_CHECKING
 if TYPE_CHECKING:
-    _StrMap: TypeAlias = dict[str, str]
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]
 else:
-    _StrMap: TypeAlias = dict
     VersionInfo: TypeAlias = dict
+
+
+class JobscriptHeaderArgs(TypedDict):
+    workflow_app_alias: str
+    env_setup: str
+    app_invoc: str | list[str]
+    run_log_file: str
+    config_dir: str
+    config_invoc_key: Any
+    workflow_path: str
+    sub_idx: int
+    js_idx: int
+    EAR_file_name: str
+    element_run_dirs_file_path: str
 
 
 class Shell(ABC):
@@ -73,7 +85,7 @@ class Shell(ABC):
     def process_app_invoc_executable(app_invoc_exe: str) -> str:
         return app_invoc_exe
 
-    def process_JS_header_args(self, header_args: dict[str, str | list[str] | int]) -> dict[str, str]:
+    def process_JS_header_args(self, header_args: JobscriptHeaderArgs) -> JobscriptHeaderArgs:
         app_invoc_ = header_args["app_invoc"]
         if not isinstance(app_invoc_, list):
             app_invoc = app_invoc_
@@ -83,7 +95,7 @@ class Shell(ABC):
                 app_invoc += f' "{item}"'
 
         header_args["app_invoc"] = app_invoc
-        return cast(_StrMap, header_args)
+        return header_args
 
     def prepare_JS_path(self, js_path: Path) -> str:
         return str(js_path)

@@ -185,7 +185,6 @@ class Submission(JSONLike):
 
     @property
     def submission_parts(self) -> list[SubmissionPart]:
-        # FIXME: use a TypedDict
         if not self._submission_parts:
             return []
 

@@ -5,7 +5,7 @@ import subprocess
 from textwrap import dedent, indent
 from typing import ClassVar, cast
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.submission.shells.base import Shell, VersionInfo
+from hpcflow.sdk.submission.shells.base import Shell, VersionInfo, JobscriptHeaderArgs
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
@@ -304,11 +304,13 @@ class WSLBash(Bash):
         wsl_path = "/".join(parts)
         return wsl_path
 
-    def process_JS_header_args(self, header_args):
+    def process_JS_header_args(
+        self, header_args: JobscriptHeaderArgs
+    ) -> JobscriptHeaderArgs:
         # convert executable windows paths to posix style as expected by WSL:
-        header_args["app_invoc"][0] = self._convert_to_wsl_path(
-            header_args["app_invoc"][0]
-        )
+        ai = header_args["app_invoc"]
+        if isinstance(ai, list):
+            ai[0] = self._convert_to_wsl_path(ai[0])
         return super().process_JS_header_args(header_args)
 
     def prepare_JS_path(self, js_path: Path) -> str:

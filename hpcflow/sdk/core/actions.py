@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import cast, overload, TYPE_CHECKING
+from typing import cast, overload, TypedDict, TYPE_CHECKING
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
@@ -54,6 +54,11 @@ if TYPE_CHECKING:
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
+
+
+class ParameterDependence(TypedDict):
+    input_file_writers: list[FileSpec]
+    commands: list[int]
 
 
 class ActionScopeType(enum.Enum):
@@ -1494,17 +1499,15 @@ class Action(JSONLike):
         obj._from_expand = _from_expand
         return obj
 
-    def get_parameter_dependence(self, parameter: SchemaParameter):
+    def get_parameter_dependence(self, parameter: SchemaParameter) -> ParameterDependence:
         """Find if/where a given parameter is used by the action."""
-        # TODO: return a TypedDict
         writer_files = [
             i.input_file
             for i in self.input_file_generators
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
-        commands: list[Any] = []  # TODO: indices of commands in which this parameter appears
-        out = {"input_file_writers": writer_files, "commands": commands}
-        return out
+        commands: list[int] = []  # TODO: indices of commands in which this parameter appears
+        return {"input_file_writers": writer_files, "commands": commands}
 
     def get_resolved_action_env(
         self,

@@ -989,13 +989,13 @@ class Jobscript(JSONLike):
         return EARs_arr
 
     @TimeIt.decorator
-    def make_artifact_dirs(self):
+    def make_artifact_dirs(self) -> list[list[Path]]:
         EARs_arr = self._get_EARs_arr()
         task_loop_idx_arr = self.get_task_loop_idx_array()
 
-        run_dirs = []
+        run_dirs: list[list[Path]] = []
         for js_elem_idx in range(self.num_elements):
-            run_dirs_i = []
+            run_dirs_i: list[Path] = []
             for js_act_idx in range(self.num_actions):
                 EAR_i = EARs_arr[js_act_idx, js_elem_idx]
                 t_iID = EAR_i.task.insert_ID

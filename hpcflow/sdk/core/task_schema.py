@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Dict, TYPE_CHECKING
+from typing import TypedDict, TYPE_CHECKING
 from html import escape
 
 from rich import print as rich_print
@@ -19,13 +19,19 @@ from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from typing import ClassVar
+    from typing import Any, ClassVar, Dict
     from .actions import Action
+    from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList
     from .parameters import SchemaOutput, SchemaParameter
     from .task import TaskTemplate
     from .workflow import Workflow
     from ..app import BaseApp
+
+
+class ActParameterDependence(TypedDict):
+    input_file_writers: list[tuple[int, FileSpec]]
+    commands: list[tuple[int, int]]
 
 
 @dataclass
@@ -785,15 +791,17 @@ class TaskSchema(JSONLike):
 
     def get_parameter_dependence(
         self, parameter: SchemaParameter
-    ) -> dict[str, list[tuple[int, Any]]]:
+    ) -> ActParameterDependence:
         """Find if/where a given parameter is used by the schema's actions."""
-        out: dict[str, list[tuple[int, Any]]] = {
+        out: ActParameterDependence = {
             "input_file_writers": [], "commands": []
         }
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
-            for key in out:
-                out[key].extend((act_idx, i) for i in deps[key])
+            out["input_file_writers"].extend(
+                (act_idx, i) for i in deps["input_file_writers"])
+            out["commands"].extend(
+                (act_idx, i) for i in deps["commands"])
         return out
 
     def get_key(self):
