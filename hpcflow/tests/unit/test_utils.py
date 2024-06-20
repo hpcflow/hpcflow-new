@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-import zarr
+import zarr  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
 from hpcflow.sdk.core.errors import InvalidIdentifier, MissingVariableSubstitutionError
@@ -185,7 +185,7 @@ def zarr_column_array(tmp_path: Path):
         dtype=int,
         fill_value=fill_value,
     )
-    arr[:] = np.arange(np.product(arr.shape)).reshape(arr.shape)
+    arr[:] = np.arange(np.prod(arr.shape)).reshape(arr.shape)
     return arr, headers, fill_value
 
 

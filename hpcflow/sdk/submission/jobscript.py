@@ -69,6 +69,7 @@ class JobScriptCreationArguments(TypedDict):
     scheduler_name: NotRequired[str]
     running: NotRequired[bool]
     resource_hash: NotRequired[str]
+    elements: NotRequired[dict[int, list[int]]]
 
 
 @TimeIt.decorator
@@ -388,10 +389,13 @@ class Jobscript(JSONLike):
         shell_name: str | None = None,
         scheduler_name: str | None = None,
         running: bool | None = None,
-        resource_hash: str | None = None
+        resource_hash: str | None = None,
+        elements: dict[int, list[int]] | None = None
     ):
         if resource_hash is not None:
             raise AttributeError("resource_hash must not be supplied")
+        if elements is not None:
+            raise AttributeError("elements must not be supplied")
         self._task_insert_IDs = task_insert_IDs
         self._task_loop_idx = task_loop_idx
 
@@ -426,7 +430,7 @@ class Jobscript(JSONLike):
         self._scheduler_obj: Scheduler | None = None  # assigned on first access to `scheduler` property
         self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
         self._submit_time_obj: datetime | None = None  # assigned on first access to `submit_time` property
-        self._running = None
+        self._running = running
         self._all_EARs: list[ElementActionRun] | None = None  # assigned on first access to `all_EARs` property
 
     def __repr__(self):

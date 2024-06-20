@@ -1,6 +1,6 @@
 import pytest
 
-from valida.conditions import Value
+from valida.conditions import Value  # type: ignore
 
 
 from hpcflow.app import app as hf

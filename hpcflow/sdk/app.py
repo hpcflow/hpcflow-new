@@ -700,7 +700,7 @@ class BaseApp(metaclass=Singleton):
 
     @classmethod
     def load_builtin_template_component_data(
-        cls, package: ModuleType
+        cls, package: ModuleType | str
     ) -> dict[str, List | Dict]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."

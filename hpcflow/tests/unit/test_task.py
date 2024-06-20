@@ -2,7 +2,7 @@ import copy
 import os
 import pytest
 
-from valida.conditions import Value
+from valida.conditions import Value  # type: ignore
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import (
@@ -139,11 +139,6 @@ def workflow_w4(null_config, tmp_path, schema_s3, param_p1):
     t1 = hf.Task(schema=schema_s3, inputs=[hf.InputValue(param_p1, 101)])
     wkt = hf.WorkflowTemplate(name="w1", tasks=[t1])
     return hf.Workflow.from_template(wkt, path=tmp_path)
-
-
-@pytest.fixture
-def act_env_1():
-    return hf.ActionEnvironment("env_1")
 
 
 @pytest.fixture
@@ -1718,11 +1713,6 @@ def test_add_task_before_no_ref(workflow_w0):
     new_task = hf.Task(schema=hf.TaskSchema(objective="at_start", actions=[]))
     workflow_w0.add_task_before(new_task)
     assert [i.name for i in workflow_w0.tasks] == ["at_start", "t1", "t2"]
-
-
-@pytest.fixture
-def act_env_1():
-    return hf.ActionEnvironment("env_1")
 
 
 def test_parameter_two_modifying_actions_expected_data_indices(
