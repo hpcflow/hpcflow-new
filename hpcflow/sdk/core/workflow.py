@@ -10,7 +10,7 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, Dict, overload, cast, TYPE_CHECKING
+from typing import TypedDict, overload, cast, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
@@ -60,7 +60,7 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import ClassVar, Literal, Protocol, Self, TypeAlias
+    from typing import Any, ClassVar, Dict, Literal, NotRequired, Protocol, Self, TypeAlias
     from fsspec import AbstractFileSystem as AFS  # type: ignore
     from numpy.typing import NDArray
     import psutil
@@ -110,6 +110,12 @@ class _DummyPersistentWorkflow:
     def make_persistent(self, workflow: Workflow):
         for dat_i, source_i in zip(self._parameters, self._sources):
             workflow._add_parameter_data(dat_i, source_i)
+
+
+class WorkflowTemplateTaskData(TypedDict):
+    schema: NotRequired[Any | list[Any]]
+    element_sets: NotRequired[list['WorkflowTemplateTaskData']]
+    output_labels: NotRequired[list[str]]
 
 
 @dataclass
@@ -273,7 +279,7 @@ class WorkflowTemplate(JSONLike):
     @classmethod
     @TimeIt.decorator
     def _from_data(cls, data: dict[str, Any]) -> WorkflowTemplate:
-        # TODO: TypedDict for data
+        task_dat: WorkflowTemplateTaskData
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
             schema = task_dat.pop("schema")
@@ -291,6 +297,7 @@ class WorkflowTemplate(JSONLike):
                 }
 
         # extract out any template components:
+        # TODO: TypedDict for data
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
         base_components = cast(Mapping[str, ObjectList[JSONable]],

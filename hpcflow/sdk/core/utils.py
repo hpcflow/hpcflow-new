@@ -15,7 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import cast, overload, TYPE_CHECKING
+from typing import cast, overload, TypeVar, TYPE_CHECKING
 import fsspec  # type: ignore
 import numpy as np
 
@@ -32,7 +32,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Container, Iterable, Mapping, Sequence
-    from typing import Any, TypeVar, TypeAlias
+    from typing import Any, TypeAlias
     from numpy.typing import NDArray
 
     T = TypeVar('T')
