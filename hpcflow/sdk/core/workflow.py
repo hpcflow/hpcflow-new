@@ -84,8 +84,10 @@ if TYPE_CHECKING:
     
     _TemplateComponents: TypeAlias = dict[str, ObjectList[JSONLike]]
 
-    class AbstractFileSystem(Protocol, AFS):
-        pass
+    class AbstractFileSystem(Protocol):
+        def exists(self, path: str) -> bool: ...
+        def rename(self, from_: str, to: str, *, recursive: bool = False) -> None: ...
+        def rm(self, path: str, *, recursive: bool = False) -> None: ...
 
 
 class _DummyPersistentWorkflow:

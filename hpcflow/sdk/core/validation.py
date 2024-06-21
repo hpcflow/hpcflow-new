@@ -1,13 +1,9 @@
 from __future__ import annotations
 from collections.abc import Sequence
 from importlib import resources
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Generic, Protocol, TypeVar
 from valida import (  # type: ignore
-    Schema as VSchema,
-    Rule as VRule)
-from valida.conditions import (  # type: ignore
-    ConditionLike as _Condition,
-    PreparedConditionCallable as Callable)
+    Schema as VSchema)
 
 T = TypeVar('T')
 
@@ -19,24 +15,26 @@ class ValidatedData(Protocol, Generic[T]):
     cast_data: T
 
 
-class PreparedConditionCallable(Protocol, Callable):
+class PreparedConditionCallable(Protocol):
     @property
     def name(self) -> str: ...
     @property
     def args(self) -> tuple[str, ...]: ...
 
 
-class Condition(Protocol, _Condition):
+class Condition(Protocol):
     @property
     def callable(self) -> PreparedConditionCallable: ...
 
 
-class Rule(Protocol, VRule):
+class Rule(Protocol):
     @property
     def condition(self) -> Condition: ...
+    @property
+    def path(self) -> object: ...
 
 
-class Schema(Protocol, VSchema):
+class Schema(Protocol):
     def validate(self, data: T) -> ValidatedData[T]: ...
     @property
     def rules(self) -> Sequence[Rule]: ...
