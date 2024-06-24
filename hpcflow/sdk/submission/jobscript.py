@@ -220,13 +220,8 @@ def resolve_jobscript_dependencies(
                         if js_k_idx not in jobscript_deps[js_idx]:
                             jobscript_deps[js_idx][js_k_idx] = {"js_element_mapping": {}}
 
-                        if (
-                            js_elem_idx_i
-                            not in jobscript_deps[js_idx][js_k_idx]["js_element_mapping"]
-                        ):
-                            jobscript_deps[js_idx][js_k_idx]["js_element_mapping"][
-                                js_elem_idx_i
-                            ] = []
+                        jobscript_deps[js_idx][js_k_idx]["js_element_mapping"].setdefault(
+                            js_elem_idx_i, [])
 
                         # retrieve column index, which is the JS-element index:
                         js_elem_idx_k: int = np.where(

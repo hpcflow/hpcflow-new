@@ -607,36 +607,32 @@ class CommitResourceMap:
 
         """
         groups: dict[tuple[str, ...], list[str]] = {}
-        cur_res_group: list[list[str]] | None = None
+        # The dicts are pretending to be insertion-ordered sets
+        cur_res_group: tuple[dict[str, None], list[str]] | None = None
         for fld in fields(self):
             res_labels = getattr(self, fld.name)
 
             if not cur_res_group:
                 # start a new resource group: a mapping between resource labels and the
                 # commit methods that require those resources:
-                cur_res_group = [list(res_labels), [fld.name]]
+                
+                cur_res_group = (dict.fromkeys(res_labels), [fld.name])
 
             elif not res_labels or set(res_labels).intersection(cur_res_group[0]):
                 # there is some overlap between resource labels required in the current
                 # group and this commit method, so we merge resource labels and add the
                 # new commit method:
-                cur_res_group[0] = list(set(cur_res_group[0] + list(res_labels)))
-                # FIXME: Assumes that sets preserve order! NOT TRUE!
+                cur_res_group[0].update(dict.fromkeys(res_labels))
                 cur_res_group[1].append(fld.name)
 
             else:
                 # no overlap between resource labels required in the current group and
                 # those required by this commit method, so append the current group, and
                 # start a new group for this commit method:
-                if tuple(cur_res_group[0]) not in groups:
-                    groups[tuple(cur_res_group[0])] = []
-                groups[tuple(cur_res_group[0])].extend(cur_res_group[1])
-                cur_res_group = [list(res_labels), [fld.name]]
+                groups.setdefault(tuple(cur_res_group[0]), []).extend(cur_res_group[1])
+                cur_res_group = (dict.fromkeys(res_labels), [fld.name])
 
         if cur_res_group:
-            if tuple(cur_res_group[0]) not in groups:
-                groups[tuple(cur_res_group[0])] = []
-
-            groups[tuple(cur_res_group[0])].extend(cur_res_group[1])
+            groups.setdefault(tuple(cur_res_group[0]), []).extend(cur_res_group[1])
 
         return groups

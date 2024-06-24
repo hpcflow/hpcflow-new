@@ -2076,19 +2076,15 @@ class WorkflowTask:
                 # track which sequence value indices (if any) are used for each new
                 # element:
                 if k in sequence_indices:
-                    if k not in element_sequence_indices:
-                        element_sequence_indices[k] = []
-                    element_sequence_indices[k].append(sequence_indices[k][v3])
+                    element_sequence_indices.setdefault(k, []).append(sequence_indices[k][v3])
 
                 # track original InputSource associated with each new element:
                 if k in source_indices:
-                    if k not in element_src_indices:
-                        element_src_indices[k] = []
                     if input_data_indices[k][v3] != -1:
                         src_idx_k = source_indices[k][v3]
                     else:
                         src_idx_k = -1
-                    element_src_indices[k].append(src_idx_k)
+                    element_src_indices.setdefault(k, []).append(src_idx_k)
 
         return new_elements, element_sequence_indices, element_src_indices
 
