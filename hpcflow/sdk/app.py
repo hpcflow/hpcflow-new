@@ -63,24 +63,27 @@ if TYPE_CHECKING:
     from rich.status import Status
     from .core.actions import (
         ElementActionRun, ElementAction, ActionEnvironment,
-        Action, ActionScope, ActionScopeType)
-    from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
+        Action, ActionScope, ActionScopeType, ActionRule)
+    from .core.command_files import (
+        FileSpec, FileNameSpec, InputFileGenerator, FileNameStem, FileNameExt)
     from .core.commands import Command
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
         ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
+    from .core.environment import NumCores
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
         CommandFilesList as CommandFilesList_, EnvironmentsList as _EnvironmentsList, ExecutablesList,
         GroupList, ParametersList as _ParametersList,
         ResourceList, TaskList, TaskSchemasList as _TaskSchemasList, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
-    from .core.parameters import SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec
+    from .core.parameters import (
+        SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec, SchemaOutput, InputSourceType)
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
         Task, WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
-        ElementPropagation, ElementSet)
-    from .core.task_schema import TaskSchema
+        ElementPropagation, ElementSet, TaskSourceType)
+    from .core.task_schema import TaskSchema, TaskObjective
     from .core.workflow import Workflow as _Workflow, WorkflowTemplate as _WorkflowTemplate
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
@@ -323,6 +326,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementFilter(self) -> type[ElementFilter]:
         return self._get_app_core_class("ElementFilter")
+    
+    @property
+    def NumCores(self) -> type[NumCores]:
+        return self._get_app_core_class("NumCores")
 
     @property
     def ActionEnvironment(self) -> type[ActionEnvironment]:
@@ -331,6 +338,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def Action(self) -> type[Action]:
         return self._get_app_core_class("Action")
+
+    @property
+    def ActionRule(self) -> type[ActionRule]:
+        return self._get_app_core_class("ActionRule")
 
     @property
     def ActionScope(self) -> type[ActionScope]:
@@ -349,8 +360,20 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("FileNameSpec")
 
     @property
+    def FileNameStem(self) -> type[FileNameStem]:
+        return self._get_app_core_class("FileNameStem")
+
+    @property
+    def FileNameExt(self) -> type[FileNameExt]:
+        return self._get_app_core_class("FileNameExt")
+
+    @property
     def InputSource(self) -> type[InputSource]:
         return self._get_app_core_class("InputSource")
+
+    @property
+    def InputSourceType(self) -> type[InputSourceType]:
+        return self._get_app_core_class("InputSourceType")
 
     @property
     def InputFileGenerator(self) -> type[InputFileGenerator]:
@@ -457,6 +480,10 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("SchemaParameter")
 
     @property
+    def SchemaOutput(self) -> type[SchemaOutput]:
+        return self._get_app_core_class("SchemaOutput")
+
+    @property
     def RunDirAppFiles(self) -> type[RunDirAppFiles]:
         return self._get_app_core_class("RunDirAppFiles")
 
@@ -483,6 +510,14 @@ class BaseApp(metaclass=Singleton):
     @property
     def TaskSchema(self) -> type[TaskSchema]:
         return self._get_app_core_class("TaskSchema")
+
+    @property
+    def TaskSourceType(self) -> type[TaskSourceType]:
+        return self._get_app_core_class("TaskSourceType")
+
+    @property
+    def TaskObjective(self) -> type[TaskObjective]:
+        return self._get_app_core_class("TaskObjective")
 
     @property
     def TaskInputParameters(self) -> type[TaskInputParameters]:

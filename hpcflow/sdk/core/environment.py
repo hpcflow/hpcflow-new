@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 
 from textwrap import dedent
 
@@ -35,15 +35,19 @@ class NumCores(JSONLike):
 
 @dataclass
 class ExecutableInstance(JSONLike):
+    app: ClassVar[BaseApp]
     parallel_mode: str
     num_cores: NumCores
     command: str
 
-    def __post_init__(self):
-        if not isinstance(self.num_cores, dict):
-            self.num_cores = {"start": self.num_cores, "stop": self.num_cores}
+    def __post_init__(self) -> None:
         if not isinstance(self.num_cores, NumCores):
-            self.num_cores = self.app.NumCores(**self.num_cores)
+            nc = self.num_cores
+            if isinstance(nc, dict):
+                self.num_cores = self.app.NumCores(**nc)
+            else:
+                n = cast(int, nc)
+                self.num_cores = self.app.NumCores(n, n)
 
     def __eq__(self, other):
         return (

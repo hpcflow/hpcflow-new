@@ -117,14 +117,13 @@ class Submission(JSONLike):
 
         # check these envs/execs exist in app data:
         envs: list[Environment] = []
-        app_envs: EnvironmentsList = self.app.envs
         for env_spec_h, exec_js in req_envs.items():
             env_spec = dict(zip(*env_spec_h))
             non_name_spec = {k: v for k, v in env_spec.items() if k != "name"}
             spec_str = f" with specifiers {non_name_spec!r}" if non_name_spec else ""
             env_ref = f"{env_spec['name']!r}{spec_str}"
             try:
-                env_i = app_envs.get(**env_spec)
+                env_i = self.app.envs.get(**env_spec)
             except ObjectListMultipleMatchError:
                 raise MultipleEnvironmentsError(
                     f"Multiple environments {env_ref} are defined on this machine."
