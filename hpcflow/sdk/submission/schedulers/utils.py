@@ -2,10 +2,11 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     import logging
 
 
-def run_cmd(cmd: str | list[str],
+def run_cmd(cmd: str | Sequence[str],
             logger: logging.Logger | None = None) -> tuple[str, str]:
     """Execute a command and return stdout, stderr as strings."""
     if logger:

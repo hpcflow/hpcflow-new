@@ -1,17 +1,21 @@
-import enum
+from dataclasses import dataclass
+from enum import Enum
 
 
-class JobscriptElementState(enum.Enum):
+@dataclass(frozen=True)
+class _JES:
+    """
+    Model of the state of a JobscriptElementState
+    """
+    _value: int
+    symbol: str
+    colour: str
+    __doc__: str = ""
+
+
+class JobscriptElementState(_JES, Enum):
     """Enumeration to convey a particular jobscript element state as reported by the
     scheduler."""
-
-    def __new__(cls, value, symbol, colour, doc=None):
-        member = object.__new__(cls)
-        member._value_ = value
-        member.symbol = symbol
-        member.colour = colour
-        member.__doc__ = doc
-        return member
 
     pending = (
         0,
@@ -51,5 +55,9 @@ class JobscriptElementState(enum.Enum):
     )
 
     @property
-    def rich_repr(self):
+    def value(self) -> int:
+        return self._value
+
+    @property
+    def rich_repr(self) -> str:
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"

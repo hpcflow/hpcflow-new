@@ -1,10 +1,9 @@
 from __future__ import annotations
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict, cast, overload, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
@@ -45,8 +44,8 @@ from hpcflow.sdk.core.utils import (
     split_param_label,
 )
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-    from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeVar
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeVar, TypedDict
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import Action
@@ -57,7 +56,7 @@ if TYPE_CHECKING:
     from .workflow import Workflow, WorkflowTemplate
     from ..persistence.base import StoreParameter
 
-    RelevantPath: TypeAlias = 'ParentPath' | 'UpdatePath' | 'SiblingPath'
+    RelevantPath: TypeAlias = 'ParentPath | UpdatePath | SiblingPath'
     StrSeq = TypeVar('StrSeq', bound=Sequence[str])
 
     class RepeatsDescriptor(TypedDict):
@@ -882,7 +881,7 @@ class Task(JSONLike):
     def _validate(self) -> None:
         # TODO: check a nesting order specified for each sequence?
 
-        names = set(cast(TaskObjective, i.objective).name for i in self.schemas)
+        names = set(i.objective.name for i in self.schemas)
         if len(names) > 1:
             raise TaskTemplateMultipleSchemaObjectives(
                 f"All task schemas used within a task must have the same "
@@ -1101,7 +1100,7 @@ class Task(JSONLike):
                             if unlabelled is None:
                                 continue
                             try:
-                                get_relative_path(cast(list[str], unlabelled.split(".")), lab_s)
+                                get_relative_path(unlabelled.split("."), lab_s)
                                 avail_src_path = inputs_path
                             except ValueError:
                                 continue
@@ -1493,7 +1492,7 @@ class WorkflowTask:
 
     @property
     def unique_name(self) -> str:
-        return cast(list[str], self.workflow.get_task_unique_names())[self.index]
+        return self.workflow.get_task_unique_names()[self.index]
 
     @property
     def insert_ID(self) -> int:
@@ -2342,8 +2341,42 @@ class WorkflowTask:
 
         return iter_IDs
 
+    @overload
     def add_elements(
-        self,
+        self, *,
+        base_element=None,
+        inputs=None,
+        input_files=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        nesting_order=None,
+        element_sets=None,
+        sourceable_elem_iters=None,
+        propagate_to=None,
+        return_indices: Literal[True],
+    ) -> list[int]: ...
+
+    @overload
+    def add_elements(
+        self, *,
+        base_element=None,
+        inputs=None,
+        input_files=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        nesting_order=None,
+        element_sets=None,
+        sourceable_elem_iters=None,
+        propagate_to=None,
+        return_indices: Literal[False] = False,
+    ) -> None: ...
+
+    def add_elements(
+        self, *,
         base_element=None,
         inputs=None,
         input_files=None,
@@ -2356,12 +2389,27 @@ class WorkflowTask:
         sourceable_elem_iters=None,
         propagate_to=None,
         return_indices=False,
-    ):
+    ) -> list[int] | None:
         propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
-            return self._add_elements(
+            if return_indices:
+                return self._add_elements(
+                    base_element=base_element,
+                    inputs=inputs,
+                    input_files=input_files,
+                    sequences=sequences,
+                    resources=resources,
+                    repeats=repeats,
+                    input_sources=input_sources,
+                    nesting_order=nesting_order,
+                    element_sets=element_sets,
+                    sourceable_elem_iters=sourceable_elem_iters,
+                    propagate_to=propagate_to,
+                    return_indices=True,
+                )
+            self._add_elements(
                 base_element=base_element,
                 inputs=inputs,
                 input_files=input_files,
@@ -2373,12 +2421,47 @@ class WorkflowTask:
                 element_sets=element_sets,
                 sourceable_elem_iters=sourceable_elem_iters,
                 propagate_to=propagate_to,
-                return_indices=return_indices,
+                return_indices=False,
             )
+        return None
+
+    @overload
+    def _add_elements(
+        self, *,
+        base_element=None,
+        inputs=None,
+        input_files=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        nesting_order=None,
+        element_sets=None,
+        sourceable_elem_iters=None,
+        propagate_to: dict[str, ElementPropagation] | None = None,
+        return_indices: Literal[False] = False,
+    ) -> None: ...
+
+    @overload
+    def _add_elements(
+        self, *,
+        base_element=None,
+        inputs=None,
+        input_files=None,
+        sequences=None,
+        resources=None,
+        repeats=None,
+        input_sources=None,
+        nesting_order=None,
+        element_sets=None,
+        sourceable_elem_iters=None,
+        propagate_to: dict[str, ElementPropagation] | None = None,
+        return_indices: Literal[True],
+    ) -> list[int]: ...
 
     @TimeIt.decorator
     def _add_elements(
-        self,
+        self, *,
         base_element=None,
         inputs=None,
         input_files=None,
@@ -2391,7 +2474,7 @@ class WorkflowTask:
         sourceable_elem_iters=None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: bool = False,
-    ):
+    ) -> list[int] | None:
         """Add more elements to this task.
 
         Parameters
@@ -2427,7 +2510,7 @@ class WorkflowTask:
             sourceable_elem_iters=sourceable_elem_iters,
         )
 
-        elem_idx = []
+        elem_idx: list[int] = []
         for elem_set_i in element_sets:
             # copy:
             elem_set_i = elem_set_i.prepare_persistent_copy()
@@ -2480,6 +2563,8 @@ class WorkflowTask:
 
         if return_indices:
             return elem_idx
+        else:
+            return None
 
     @overload
     def get_element_dependencies(
@@ -2734,19 +2819,20 @@ class WorkflowTask:
             p_data = param.data
             # if pending, we need to convert `ParameterValue` objects to their dict
             # representation, so they can be merged with other data:
-            try:
-                data = cast(ParameterValue, p_data).to_dict()
-            except AttributeError:
-                data = p_data
-            return data, meth, param.is_set
-        else:
-            # if not pending, data will be the result of an encode-decode cycle, and
-            # it will not be initialised as an object if the parameter is associated
-            # with a `ParameterValue` class.
-            return param.data, meth, param.is_set
+            if isinstance(p_data, ParameterValue):
+                try:
+                    return p_data.to_dict(), meth, param.is_set
+                except AttributeError:
+                    pass
+        # if not pending, data will be the result of an encode-decode cycle, and
+        # it will not be initialised as an object if the parameter is associated
+        # with a `ParameterValue` class. Or maybe the data is just in the right form anyway
+        return param.data, meth, param.is_set
 
-    def __get_relevant_data(self, relevant_data_idx: dict[str, list | Any],
-                            raise_on_unset: bool, path: str | None) -> dict[str, RelevantData]:
+    def __get_relevant_data(
+        self, relevant_data_idx: dict[str, list | Any],
+        raise_on_unset: bool, path: str | None
+    ) -> dict[str, RelevantData]:
         relevant_data: dict[str, RelevantData] = {}
         for path_i, data_idx_i in relevant_data_idx.items():
             data_i: list[Any] = []
@@ -2786,15 +2872,16 @@ class WorkflowTask:
 
         return relevant_data
 
-    @staticmethod
+    @classmethod
     def __merge_relevant_data(
+        cls,
         relevant_data: dict[str, RelevantData],
         relevant_paths: Mapping[str, RelevantPath],
         PV_classes: dict[str, type[ParameterValue]],
         path: str | None,
         raise_on_missing: bool
     ) -> tuple[list | ParameterValue | Any | list[Any] | None, int | None]:
-        current_val = None
+        current_val: list[ParameterValue | Any] | None = None
         assigned_from_parent = False
         val_cls_method: list[str | None] | str | None = None
         path_is_multi = False
@@ -2916,23 +3003,30 @@ class WorkflowTask:
             # initialise objects
             PV_cls = PV_classes[path]
             if path_is_multi:
-                new_current_val: list = []
+                new_current_val: list[ParameterValue | Any] = []
                 for set_i, meth_i, val_i in zip(
                     cast(list[bool], path_is_set), cast(list[str | None], val_cls_method),
-                    cast(list, current_val)
+                    cast(list[ParameterValue | Any], current_val)
                 ):
                     if set_i and isinstance(val_i, dict):
-                        method_i = getattr(PV_cls, meth_i) if meth_i else PV_cls
-                        _cur_val_i = method_i(**val_i)
+                        new_current_val.append(cls.__map_parameter_value(PV_cls, meth_i, val_i))
                     else:
-                        _cur_val_i = None
-                    new_current_val.append(_cur_val_i)
-                current_val = new_current_val
+                        new_current_val.append(None)
+                return new_current_val, all_multi_len
             elif path_is_set and isinstance(current_val, dict):
-                method = getattr(PV_cls, val_cls_method) if val_cls_method else PV_cls
-                current_val = method(**current_val)
+                return cls.__map_parameter_value(PV_cls, val_cls_method, current_val), None
 
-        return current_val, all_multi_len
+        return current_val, None
+
+    @staticmethod
+    def __map_parameter_value(
+        PV_cls: type[ParameterValue], meth: str | None, val: dict
+    ) -> Any | ParameterValue:
+        if meth:
+            method: Callable = getattr(PV_cls, meth)
+            return method(**val)
+        else:
+            return PV_cls(**val)
 
     @TimeIt.decorator
     def _get_merged_parameter_data(

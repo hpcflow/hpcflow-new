@@ -9,6 +9,7 @@ from valida.rules import Rule  # type: ignore
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
+from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
@@ -18,9 +19,10 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Iterator, Mapping
     from typing import Any, ClassVar, Dict, Literal
     from ..app import BaseApp
+    from ..typing import ParamSource
     from .actions import Action
     from .task import WorkflowTask
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
@@ -47,7 +49,7 @@ class _ElementPrefixedParameter:
 
         self._prefixed_names_unlabelled: dict[str, list[str]] | None = None  # assigned on first access
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> ElementParameter | dict[str, ElementParameter]:
         if name not in self.prefixed_names_unlabelled:
             raise ValueError(
                 f"No {self._prefix} named {name!r}. Available {self._prefix} are: "
@@ -57,29 +59,26 @@ class _ElementPrefixedParameter:
         labels = self.prefixed_names_unlabelled.get(name)
         if labels:
             # is multiple; return a dict of `ElementParameter`s
-            out = {}
-            for label_i in labels:
-                path_i = f"{self._prefix}.{name}[{label_i}]"
-                out[label_i] = self._app.ElementParameter(
-                    path=path_i,
+            return {
+                label_i: self._app.ElementParameter(
+                    path=f"{self._prefix}.{name}[{label_i}]",
                     task=self._task,
                     parent=self._parent,
                     element=self._element_iteration_obj,
                 )
-
+                for label_i in labels
+            }
         else:
             # could be labelled still, but with `multiple=False`
-            path_i = f"{self._prefix}.{name}"
-            out = self._app.ElementParameter(
-                path=path_i,
+            return self._app.ElementParameter(
+                path=f"{self._prefix}.{name}",
                 task=self._task,
                 parent=self._parent,
                 element=self._element_iteration_obj,
             )
-        return out
 
     def __dir__(self):
-        return super().__dir__() + self.prefixed_names_unlabelled
+        return [*super().__dir__(), *self.prefixed_names_unlabelled]
 
     @property
     def _parent(self):
@@ -93,7 +92,7 @@ class _ElementPrefixedParameter:
             return self._parent.element_iteration
 
     @property
-    def _task(self):
+    def _task(self) -> WorkflowTask:
         return self._parent.task
 
     @property
@@ -109,13 +108,13 @@ class _ElementPrefixedParameter:
         return self._prefixed_names_unlabelled
 
     @property
-    def prefixed_names_unlabelled_str(self):
+    def prefixed_names_unlabelled_str(self) -> str:
         return ", ".join(i for i in self.prefixed_names_unlabelled)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # If there are one or more labels present, then replace with a single name
         # indicating there could be multiple (using a `*` prefix):
-        names = []
+        names: list[str] = []
         for unlabelled, labels in self.prefixed_names_unlabelled.items():
             name_i = unlabelled
             if labels:
@@ -124,7 +123,7 @@ class _ElementPrefixedParameter:
         names_str = ", ".join(i for i in names)
         return f"{self.__class__.__name__}({names_str})"
 
-    def _get_prefixed_names(self):
+    def _get_prefixed_names(self) -> list[str]:
         return sorted(self._parent.get_parameter_names(self._prefix))
 
     def _get_prefixed_names_unlabelled(self) -> dict[str, list[str]]:
@@ -139,7 +138,7 @@ class _ElementPrefixedParameter:
                 all_names[i] = []
         return all_names
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[ElementParameter | dict[str, ElementParameter]]:
         for name in self.prefixed_names_unlabelled:
             yield getattr(self, name)
 
@@ -192,6 +191,8 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 
+    app: ClassVar[BaseApp]
+
     scratch: str | None = None
     parallel_mode: ParallelMode | None = None
     num_cores: int | None = None
@@ -214,10 +215,10 @@ class ElementResources(JSONLike):
 
     # SLURM scheduler specific:
     SLURM_partition: str | None = None
-    SLURM_num_tasks: str | None = None
-    SLURM_num_tasks_per_node: str | None = None
-    SLURM_num_nodes: str | None = None
-    SLURM_num_cpus_per_task: str | None = None
+    SLURM_num_tasks: int | None = None
+    SLURM_num_tasks_per_node: int | None = None
+    SLURM_num_nodes: int | None = None
+    SLURM_num_cpus_per_task: int | None = None
 
     def __post_init__(self):
         if (
@@ -565,15 +566,15 @@ class ElementIteration:
     def __get_parameter_sources(
         self,
         data_idx: dict[str, int],
-        typ: str | None,
+        filter_type: str | None,
         use_task_index: bool
-    ):
+    ) -> Mapping[str, ParamSource | list[ParamSource]]:
         # the value associated with `repeats.*` is the repeats index, not a parameter ID:
         for k in list(data_idx.keys()):
             if k.startswith("repeats."):
                 data_idx.pop(k)
 
-        out = dict_values_process_flat(
+        out: Mapping[str, ParamSource | list[ParamSource]] = dict_values_process_flat(
             data_idx,
             callable=self.workflow.get_parameter_sources,
         )
@@ -586,20 +587,32 @@ class ElementIteration:
                     # Modify the contents of out
                     v["task_idx"] = self.workflow.tasks.get(insert_ID=insert_ID).index
 
-        if not typ:
+        if not filter_type:
             return out
 
         # Filter to just the elements that have the right type property
-        out_ = {}
-        for k, v in out.items():
-            if isinstance(v, list):
-                sources_k = [src_i for src_i in v if src_i["type"] == typ]
-                if sources_k:
-                    out_[k] = sources_k
-            else:
-                if v["type"] == typ:
-                    out_[k] = v
-        return out_
+        filtered = (
+            (k, self.__filter_param_source_by_type(v, filter_type))
+            for k, v in out.items() 
+        )
+        return {
+            k: v
+            for k, v in filtered
+            if v is not None
+        }
+
+    @staticmethod
+    def __filter_param_source_by_type(
+        value: ParamSource | list[ParamSource], filter_type: str
+    ) -> ParamSource | list[ParamSource] | None:
+        if isinstance(value, list):
+            sources = [src for src in value if src["type"] == filter_type]
+            if sources:
+                return sources
+        else:
+            if value["type"] == filter_type:
+                return value
+        return None
 
     @overload
     def get_parameter_sources(
@@ -623,7 +636,7 @@ class ElementIteration:
         typ: str | None = None,
         as_strings: Literal[False] = False,
         use_task_index: bool = False,
-    ) -> dict[str, dict[str, Any]]: ...
+    ) -> Mapping[str, ParamSource | list[ParamSource]]: ...
 
     @TimeIt.decorator
     def get_parameter_sources(
@@ -635,7 +648,7 @@ class ElementIteration:
         typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
-    ) -> dict[str, str] | dict[str, dict[str, Any]]:
+    ) -> dict[str, str] | Mapping[str, ParamSource | list[ParamSource]]:
         """
         Parameters
         ----------
@@ -645,31 +658,30 @@ class ElementIteration:
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
         out = self.__get_parameter_sources(data_idx, typ or "", use_task_index)
+        if not as_strings:
+            return out
 
-        if as_strings:
-            # format as a dict with compact string values
-            task_key = "task_insert_ID"  # TODO: is this right?
-            self_task_val = (
-                self.task.index if task_key == "task_idx" else self.task.insert_ID
-            )
-            out_strs: dict[str, str] = {}
-            for k, v in out.items():
-                assert isinstance(v, dict)
-                if v["type"] == "local_input":
-                    if v[task_key] == self_task_val:
-                        out_strs[k] = "local"
-                    else:
-                        out_strs[k] = f"task.{v[task_key]}.input"
-                elif v["type"] == "default_input":
-                    out_strs == "default"
+        # format as a dict with compact string values
+        task_key = "task_insert_ID"  # TODO: is this right?
+        self_task_val = (
+            self.task.index if task_key == "task_idx" else self.task.insert_ID
+        )
+        out_strs: dict[str, str] = {}
+        for k, v in out.items():
+            assert isinstance(v, dict)
+            if v["type"] == "local_input":
+                if v[task_key] == self_task_val:
+                    out_strs[k] = "local"
                 else:
-                    out_strs[k] = (
-                        f"task.{v[task_key]}.element.{v['element_idx']}."
-                        f"action.{v['action_idx']}.run.{v['run_idx']}"
-                    )
-            return out_strs
-
-        return out
+                    out_strs[k] = f"task.{v[task_key]}.input"
+            elif v["type"] == "default_input":
+                out_strs == "default"
+            else:
+                out_strs[k] = (
+                    f"task.{v[task_key]}.element.{v['element_idx']}."
+                    f"action.{v['action_idx']}.run.{v['run_idx']}"
+                )
+        return out_strs
 
     @TimeIt.decorator
     def get(
@@ -745,7 +757,8 @@ class ElementIteration:
             out = []
             for src in self.get_parameter_sources(typ="EAR_output").values():
                 for src_i in (src if isinstance(src, list) else [src]):
-                    EAR_ID_i: int = src_i["EAR_ID"]
+                    EAR_ID_i = src_i["EAR_ID"]
+                    assert isinstance(EAR_ID_i, int)
                     out.append(EAR_ID_i)
             out = sorted(set(out))
 
@@ -1265,15 +1278,34 @@ class Element:
             run_idx=run_idx,
         )
 
+    @overload
     def get_parameter_sources(
-        self,
-        path: str | None = None,
+        self, path: str | None = None, *,
+        action_idx: int | None = None,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> Mapping[str, ParamSource | list[ParamSource]]: ...
+
+    @overload
+    def get_parameter_sources(
+        self, path: str | None = None, *,
+        action_idx: int | None = None,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]: ...
+
+    def get_parameter_sources(
+        self, path: str | None = None, *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
-    ) -> dict[str, str] | dict[str, dict[str, Any]]:
+    ) -> dict[str, str] | Mapping[str, ParamSource | list[ParamSource]]:
         """ "Get the parameter sources of the most recent element iteration.
 
         Parameters
@@ -1478,7 +1510,9 @@ class Element:
         return self.latest_iteration.get_dependent_tasks()
 
     @TimeIt.decorator
-    def get_dependent_elements_recursively(self, task_insert_ID=None):
+    def get_dependent_elements_recursively(
+        self, task_insert_ID: int | None = None
+    ) -> list[Element]:
         """Get downstream elements that depend on this element, including recursive
         dependencies.
 
@@ -1493,14 +1527,14 @@ class Element:
 
         """
 
-        def get_deps(element):
+        def get_deps(element: Element) -> set[int]:
             deps = element.iterations[0].get_dependent_elements(as_objects=False)
             deps_objs = self.workflow.get_elements_from_IDs(deps)
             return set(deps).union(
-                [dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)]
+                dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)
             )
 
-        all_deps = get_deps(self)
+        all_deps: Iterable[int] = get_deps(self)
 
         if task_insert_ID is not None:
             elem_ID_subset = self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs
@@ -1517,7 +1551,7 @@ class ElementParameter:
     task: WorkflowTask
     path: str
     parent: Element | ElementAction | ElementActionRun | Parameters
-    element: Element
+    element: Element | ElementIteration
 
     @property
     def data_idx(self):

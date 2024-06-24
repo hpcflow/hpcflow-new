@@ -187,14 +187,14 @@ class SchedulerVersionsFailure(RuntimeError):
 class JobscriptSubmissionFailure(RuntimeError):
     def __init__(
         self,
-        message,
-        submit_cmd,
-        js_idx,
-        js_path,
-        stdout,
-        stderr,
-        subprocess_exc,
-        job_ID_parse_exc,
+        message: str,
+        submit_cmd: list[str],
+        js_idx: int,
+        js_path: str,
+        stdout: str | None = None,
+        stderr: str | None = None,
+        subprocess_exc: Exception | None = None,
+        job_ID_parse_exc: Exception | None = None,
     ) -> None:
         self.message = message
         self.submit_cmd = submit_cmd

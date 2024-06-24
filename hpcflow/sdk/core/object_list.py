@@ -343,7 +343,7 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
 
     @classmethod
     def _get_default_shared_data(cls) -> Mapping[str, ObjectList[JSONable]]:
-        return cast(Mapping[str, ObjectList[JSONable]], cls._app.template_components)
+        return cls._app._shared_data
 
     @overload
     @classmethod

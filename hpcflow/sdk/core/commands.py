@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -6,7 +7,6 @@ from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike

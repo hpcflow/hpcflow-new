@@ -19,7 +19,6 @@ import numpy as np
 from fsspec.core import url_to_fs  # type: ignore
 import rich.console
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
@@ -61,7 +60,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
     from typing import Any, ClassVar, Dict, Literal, NotRequired, Protocol, Self, TypeAlias
-    from fsspec import AbstractFileSystem as AFS  # type: ignore
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
@@ -69,11 +67,9 @@ if TYPE_CHECKING:
     from ..typing import ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
-    from .json_like import JSONable
     from .loop import Loop, WorkflowLoop
     from .object_list import (
-        WorkflowTaskList, WorkflowLoopList, ParametersList, CommandFilesList,
-        EnvironmentsList, TaskSchemasList, ResourceList, ObjectList)
+        WorkflowTaskList, WorkflowLoopList, ResourceList, ObjectList)
     from .parameters import InputSource
     from .task import Task, WorkflowTask
     from ..submission.submission import Submission
@@ -302,40 +298,34 @@ class WorkflowTemplate(JSONLike):
         # TODO: TypedDict for data
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
-        base_components = cast(Mapping[str, ObjectList[JSONable]],
-                               cls.app.template_components)
         if params_dat:
             parameters = cls.app.ParametersList.from_json_like(
-                params_dat, shared_data=base_components
+                params_dat, shared_data=cls.app._shared_data
             )
-            app_params: ParametersList = cls.app.parameters
-            app_params.add_objects(parameters, skip_duplicates=True)
+            cls.app.parameters.add_objects(parameters, skip_duplicates=True)
 
         cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
             cmd_files = cls.app.CommandFilesList.from_json_like(
-                cmd_files_dat, shared_data=base_components
+                cmd_files_dat, shared_data=cls.app._shared_data
             )
-            app_files: CommandFilesList = cls.app.command_files
-            app_files.add_objects(cmd_files, skip_duplicates=True)
+            cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
         envs_dat = tcs.pop("environments", [])
         if envs_dat:
             envs = cls.app.EnvironmentsList.from_json_like(
-                envs_dat, shared_data=base_components
+                envs_dat, shared_data=cls.app._shared_data
             )
-            app_envs: EnvironmentsList = cls.app.envs
-            app_envs.add_objects(envs, skip_duplicates=True)
+            cls.app.envs.add_objects(envs, skip_duplicates=True)
 
         ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
             task_schemas = cls.app.TaskSchemasList.from_json_like(
-                ts_dat, shared_data=base_components
+                ts_dat, shared_data=cls.app._shared_data
             )
-            app_schemas: TaskSchemasList = cls.app.task_schemas
-            app_schemas.add_objects(task_schemas, skip_duplicates=True)
+            cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=base_components)
+        return cls.from_json_like(data, shared_data=cls.app._shared_data)
 
     @classmethod
     @TimeIt.decorator
@@ -1873,6 +1863,16 @@ class Workflow:
             filename=filename,
             clean_up=clean_up,
         )
+
+    @overload
+    def get_task_unique_names(
+        self, map_to_insert_ID: Literal[False] = False
+    ) -> list[str]: ...
+
+    @overload
+    def get_task_unique_names(
+        self, map_to_insert_ID: Literal[True]
+    ) -> dict[str, int]: ...
 
     def get_task_unique_names(
         self, map_to_insert_ID: bool = False

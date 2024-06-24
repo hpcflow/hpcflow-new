@@ -1,6 +1,5 @@
 from __future__ import annotations
 from collections import defaultdict
-
 from datetime import datetime, timedelta
 import enum
 import os
@@ -8,7 +7,6 @@ from pathlib import Path
 from textwrap import indent
 from typing import overload, override, TypedDict, TYPE_CHECKING
 
-from hpcflow.sdk.core.actions import ElementActionRun
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
     JobscriptSubmissionFailure,
@@ -22,10 +20,10 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.core.utils import parse_timestamp
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.jobscript import Jobscript
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
-    from typing import Any, ClassVar, Literal
+    from typing import ClassVar, Literal
+    from rich.status import Status
     from ..app import BaseApp
     from .jobscript import Jobscript, JobscriptElementState
     from .schedulers import Scheduler
@@ -386,9 +384,7 @@ class Submission(JSONLike):
             sched_idx = seen_schedulers.index(js.scheduler.unique_properties)
             js_idx[sched_idx].append((js.submission.index, js.index))
 
-        sched_js_idx = dict(zip((tuple(i) for i in js_idx), schedulers))
-
-        return sched_js_idx
+        return dict(zip((tuple(i) for i in js_idx), schedulers))
 
     @TimeIt.decorator
     def get_unique_schedulers(self) -> dict[tuple[tuple[int, int], ...], Scheduler]:
@@ -409,11 +405,12 @@ class Submission(JSONLike):
             shell_idx = shells.index(js.shell)
             js_idx[shell_idx].append(js.index)
 
-        shell_js_idx = dict(zip((tuple(i) for i in js_idx), shells))
+        return dict(zip((tuple(i) for i in js_idx), shells))
 
-        return shell_js_idx
-
-    def __raise_failure(self, submitted_js_idx, exceptions):
+    def __raise_failure(
+        self, submitted_js_idx: list[int],
+        exceptions: list[JobscriptSubmissionFailure]
+    ):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
         if submitted_js_idx:
             msg += f" (but jobscripts {submitted_js_idx} were submitted successfully):"
@@ -451,7 +448,7 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def submit(
         self,
-        status,
+        status: Status | None,
         ignore_errors: bool = False,
         print_stdout: bool = False,
         add_to_known: bool = True,
@@ -522,7 +519,7 @@ class Submission(JSONLike):
         # map jobscript `index` to (scheduler job ID or process ID, is_array):
         scheduler_refs: dict[int, tuple[str, bool]] = {}
         submitted_js_idx: list[int] = []
-        errs: list[Exception] = []
+        errs: list[JobscriptSubmissionFailure] = []
         for js in self.jobscripts:
             # check not previously submitted:
             if js.index not in outstanding:
@@ -572,7 +569,7 @@ class Submission(JSONLike):
         return submitted_js_idx
 
     @TimeIt.decorator
-    def cancel(self):
+    def cancel(self) -> None:
         act_js = list(self.get_active_jobscripts())
         if not act_js:
             print("No active jobscripts to cancel.")

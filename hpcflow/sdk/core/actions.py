@@ -3,12 +3,12 @@ from collections.abc import Mapping
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime
-import enum
+from enum import Enum
 import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import cast, overload, TypedDict, TYPE_CHECKING
+from typing import cast, final, overload, TypedDict, TYPE_CHECKING
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
@@ -61,7 +61,7 @@ class ParameterDependence(TypedDict):
     commands: list[int]
 
 
-class ActionScopeType(enum.Enum):
+class ActionScopeType(Enum):
     ANY = 0
     MAIN = 1
     PROCESSING = 2
@@ -78,16 +78,19 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
-class EARStatus(enum.Enum):
-    """Enumeration of all possible EAR statuses, and their associated status colour."""
+@dataclass(frozen=True)
+class _EARStatus:
+    """
+    Model of the state of an EARStatus.
+    """
+    _value: int
+    colour: str
+    symbol: str
+    __doc__: str = ""
 
-    def __new__(cls, value, symbol, colour, doc=None):
-        member = object.__new__(cls)
-        member._value_ = value
-        member.colour = colour
-        member.symbol = symbol
-        member.__doc__ = doc
-        return member
+
+class EARStatus(_EARStatus, Enum):
+    """Enumeration of all possible EAR statuses, and their associated status colour."""
 
     pending = (
         0,
@@ -141,18 +144,22 @@ class EARStatus(enum.Enum):
         "Probably failed.",
     )
 
+    @property
+    def value(self) -> int:
+        return self._value
+
     @classmethod
-    def get_non_running_submitted_states(cls):
+    def get_non_running_submitted_states(cls) -> frozenset[EARStatus]:
         """Return the set of all non-running states, excluding those before submission."""
-        return {
+        return frozenset({
             cls.skipped,
             cls.aborted,
             cls.success,
             cls.error,
-        }
+        })
 
     @property
-    def rich_repr(self):
+    def rich_repr(self) -> str:
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
@@ -176,7 +183,7 @@ class ElementActionRun:
         success: bool | None,
         skip: bool,
         exit_code: int | None,
-        metadata: dict,
+        metadata: dict[str, Any],
         run_hostname: str | None,
     ) -> None:
         self._id = id_
@@ -255,7 +262,7 @@ class ElementActionRun:
         return self._commands_idx
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict[str, Any]:
         return self._metadata
 
     @property
@@ -301,10 +308,10 @@ class ElementActionRun:
     def dir_diff(self) -> DirectorySnapshotDiff | None:
         """Get the changes to the EAR working directory due to the execution of this
         EAR."""
-        if self._ss_diff_obj is None and self.snapshot_end:
-            self._ss_diff_obj = DirectorySnapshotDiff(
-                self.snapshot_start, self.snapshot_end
-            )
+        ss = self.snapshot_start
+        se = self.snapshot_end
+        if self._ss_diff_obj is None and ss and se:
+            self._ss_diff_obj = DirectorySnapshotDiff(ss, se)
         return self._ss_diff_obj
 
     @property
@@ -642,6 +649,7 @@ class ElementActionRun:
         input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
         inputs: dict[str, Any] = {}
         for i in self.inputs:
+            assert not isinstance(i, dict)
             typ = i.path[len("inputs.") :]
             if typ in input_types:
                 inputs[typ] = i.value
@@ -907,8 +915,7 @@ class ElementAction:
     @overload
     def get_parameter_sources(
         self,
-        path: str | None = None,
-        *,
+        path: str | None = None, *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: Literal[False] = False,
@@ -918,8 +925,7 @@ class ElementAction:
     @overload
     def get_parameter_sources(
         self,
-        path: str | None = None,
-        *,
+        path: str | None = None, *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: Literal[True],
@@ -928,7 +934,7 @@ class ElementAction:
 
     def get_parameter_sources(
         self,
-        path: str | None = None,
+        path: str | None = None, *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: bool = False,
@@ -984,6 +990,7 @@ class ElementAction:
         return self.action.get_parameter_names(prefix)
 
 
+@final
 class ActionScope(JSONLike):
     """Class to represent the identification of a subset of task schema actions by a
     filtering process.
@@ -1002,7 +1009,7 @@ class ActionScope(JSONLike):
 
     def __init__(self, typ: ActionScopeType | str, **kwargs):
         if isinstance(typ, str):
-            self.typ = cast(ActionScopeType, getattr(self.app.ActionScopeType, typ.upper()))
+            self.typ = self.app.ActionScopeType[typ.upper()]
         else:
             self.typ = typ
 
@@ -1037,6 +1044,8 @@ class ActionScope(JSONLike):
         if not match:
             raise TypeError(f"unparseable ActionScope: '{string}'")
         typ_str, kwargs_str = match.groups()
+        # The types of the above two variables are idiotic, but bug reports to fix it
+        # get closed because "it would break existing code that makes dumb assumptions"
         kwargs: dict[str, str] = cls._customdict({"type": cast(str, typ_str)})
         if kwargs_str:
             for i in kwargs_str.split(","):
@@ -1533,7 +1542,7 @@ class Action(JSONLike):
             )
 
         # sort by scope type specificity:
-        possible_srt = sorted(possible, key=lambda i: cast(ActionScope, i.scope).typ.value, reverse=True)
+        possible_srt = sorted(possible, key=lambda i: i.scope.typ.value, reverse=True)
         return possible_srt[0]
 
     def get_input_file_generator_action_env(

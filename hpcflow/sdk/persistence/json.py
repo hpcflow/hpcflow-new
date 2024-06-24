@@ -1,10 +1,10 @@
 from __future__ import annotations
+
 from contextlib import contextmanager
 import copy
 from datetime import datetime
 import json
 from pathlib import Path
-
 from typing import TYPE_CHECKING
 
 from fsspec import filesystem, AbstractFileSystem  # type: ignore

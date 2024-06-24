@@ -2,11 +2,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import copy
 import json
+from logging import Logger
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import get_md5_hash
 if TYPE_CHECKING:
+    import zarr  # type: ignore
+    from fsspec import AbstractFileSystem  # type: ignore
     from ..app import BaseApp
 
 
@@ -28,7 +31,7 @@ class StoreResource(ABC):
         return f"{self.__class__.__name__}(name={self.name!r})"
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self.app.persistence_logger
 
     @abstractmethod
@@ -36,10 +39,10 @@ class StoreResource(ABC):
         pass
 
     @abstractmethod
-    def _dump(self, data):
+    def _dump(self, data: dict | list):
         pass
 
-    def open(self, action):
+    def open(self, action: str):
         if action == "read":
             # reuse "update" data if set, rather than re-loading from disk -- but copy,
             # so changes made in the "read" scope do not update!
@@ -62,11 +65,11 @@ class StoreResource(ABC):
         self.data[action] = data
 
         try:
-            self.hash = get_md5_hash(data)
+            self.hash = get_md5_hash(data)  # type: ignore
         except Exception:
             pass
 
-    def close(self, action):
+    def close(self, action: str):
         if action == "read":
             self.logger.debug(f"{self!r}: closing read.")
         elif action == "update":
@@ -93,24 +96,24 @@ class StoreResource(ABC):
 class JSONFileStoreResource(StoreResource):
     """For caching reads and writes to a JSON file."""
 
-    def __init__(self, app: BaseApp, name: str, filename: str, path: str | Path, fs):
+    def __init__(self, app: BaseApp, name: str, filename: str, path: str | Path, fs: AbstractFileSystem):
         self.filename = filename
         self.path = path
         self.fs = fs
         super().__init__(app, name)
 
     @property
-    def _full_path(self):
+    def _full_path(self) -> str:
         return f"{self.path}/{self.filename}"
 
-    def _load(self):
+    def _load(self) -> Any:
         self.logger.debug(f"{self!r}: loading JSON from file.")
         with self.fs.open(self._full_path, mode="rt") as fp:
             return json.load(fp)
 
-    def _dump(self, data):
+    def _dump(self, data: dict | list):
         self.logger.debug(f"{self!r}: dumping JSON to file")
-        if "runs" in data:
+        if isinstance(data, dict) and "runs" in data:
             self.logger.debug(f"...runs: {data['runs']}")
         with self.fs.open(self._full_path, mode="wt") as fp:
             json.dump(data, fp, indent=2)
@@ -119,16 +122,16 @@ class JSONFileStoreResource(StoreResource):
 class ZarrAttrsStoreResource(StoreResource):
     """For caching reads and writes to Zarr attributes on groups and arrays."""
 
-    def __init__(self, app: BaseApp, name: str, open_call: Callable):
+    def __init__(self, app: BaseApp, name: str, open_call: Callable[..., zarr.Group]):
         self.open_call = open_call
         super().__init__(app, name)
 
-    def _load(self):
+    def _load(self) -> Any:
         self.logger.debug(f"{self!r}: loading Zarr attributes.")
         item = self.open_call(mode="r")
         return copy.deepcopy(item.attrs.asdict())
 
-    def _dump(self, data):
+    def _dump(self, data: dict | list):
         self.logger.debug(f"{self!r}: dumping Zarr attributes.")
         item = self.open_call(mode="r+")
         item.attrs.put(data)

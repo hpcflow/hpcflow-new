@@ -3,13 +3,16 @@ from collections.abc import Mapping
 from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
-from typing import ClassVar, cast
+from typing import cast, TYPE_CHECKING
 from hpcflow.sdk.core import ABORT_EXIT_CODE
-from hpcflow.sdk.submission.shells.base import Shell, VersionInfo, JobscriptHeaderArgs
+from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
 )
+if TYPE_CHECKING:
+    from typing import ClassVar
+    from .base import VersionInfo, JobscriptHeaderArgs
 
 
 class Bash(Shell):
@@ -301,8 +304,7 @@ class WSLBash(Bash):
         win_path = Path(win_path)
         parts = list(win_path.parts)
         parts[0] = f"/mnt/{win_path.drive.lower().rstrip(':')}"
-        wsl_path = "/".join(parts)
-        return wsl_path
+        return "/".join(parts)
 
     def process_JS_header_args(
         self, header_args: JobscriptHeaderArgs

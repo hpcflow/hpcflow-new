@@ -106,7 +106,6 @@ class Executable(JSONLike):
 
 class Environment(JSONLike):
     app: ClassVar[BaseApp]
-    _hash_value = None
     _validation_schema: ClassVar[str] = "environments_spec_schema.yaml"
     _child_objects = (
         ChildObjectSpec(

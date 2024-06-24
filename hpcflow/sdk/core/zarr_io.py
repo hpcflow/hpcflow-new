@@ -84,8 +84,8 @@ def _zarr_encode_NEW(
     base_arr: zarr.Array,
     root_group: zarr.Group,
     arr_path: str,
-    path=None,
-    arr_lookup=None,
+    path: list | None = None,
+    arr_lookup: list | None = None,
 ):
     """
     Save arbitrarily-nested Python-primitive, `ZarrEncodable` and numpy array objects into

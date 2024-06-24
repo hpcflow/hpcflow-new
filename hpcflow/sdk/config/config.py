@@ -11,7 +11,7 @@ import socket
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeVar, cast, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
 import fsspec  # type: ignore
 
 from rich.console import Console, Group
@@ -57,12 +57,12 @@ from .errors import (
 )
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
-    from typing import Any, TypeAlias
+    from typing import Any, Literal, TypeAlias, TypeVar
     from ..app import BaseApp
+    T = TypeVar('T')
+    GetterCallback: TypeAlias = Callable[['Config', T], T]
+    SetterCallback: TypeAlias = Callable[['Config', T], Any]
 
-T = TypeVar('T')
-GetterCallback: TypeAlias = Callable[['Config', T], T]
-SetterCallback: TypeAlias = Callable[['Config', T], Any]
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
@@ -239,13 +239,13 @@ class Config:
     def __dir__(self):
         return super().__dir__() + self._all_keys
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         if not name.startswith("__"):
             return self._get(name)
         else:
             raise AttributeError(f"Attribute not known: {name!r}.")
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value):
         if (
             "_configurable_keys" in self.__dict__
             and name in self.__dict__["_configurable_keys"]
@@ -355,23 +355,35 @@ class Config:
     def _all_keys(self) -> list[str]:
         return [*self._configurable_keys, *self._meta_data.keys()]
 
-    def get_all(self, include_overrides=True, as_str=False) -> dict[str, Any]:
+    @overload
+    def get_all(self, *, include_overrides=True, as_str: Literal[True]) -> dict[str, str]: ...
+
+    @overload
+    def get_all(self, *, include_overrides=True, as_str: Literal[False]=False) -> dict[str, Any]: ...
+
+    def get_all(self, *, include_overrides=True, as_str=False) -> dict[str, Any]:
         """Get all configurable items."""
         items: dict[str, Any] = {}
         for key in self._configurable_keys:
             if key in self._unset_keys:
                 continue
-            else:
-                try:
-                    val = self._get(
+            try:
+                if as_str:
+                    items[key] = self._get(
                         name=key,
                         include_overrides=include_overrides,
                         raise_on_missing=True,
-                        as_str=as_str,
+                        as_str=True,
                     )
-                except ValueError:
-                    continue
-                items.update({key: val})
+                else:
+                    items[key] = self._get(
+                        name=key,
+                        include_overrides=include_overrides,
+                        raise_on_missing=True,
+                        as_str=False
+                    )
+            except ValueError:
+                continue
         return items
 
     def _show(self, config: bool = True, metadata: bool = False):
@@ -411,9 +423,34 @@ class Config:
                     raise ConfigItemCallbackError(name, cb, err) from None
         return value
 
+    @overload
     def _get(
         self,
-        name,
+        name: str,
+        *,
+        include_overrides=True,
+        raise_on_missing=False,
+        as_str: Literal[False] = False,
+        callback=True,
+        default_value=None,
+    ) -> Any: ...
+
+    @overload
+    def _get(
+        self,
+        name: str,
+        *,
+        include_overrides=True,
+        raise_on_missing=False,
+        as_str: Literal[True],
+        callback=True,
+        default_value=None,
+    ) -> list[str] | str: ...
+
+    def _get(
+        self,
+        name: str,
+        *,
         include_overrides=True,
         raise_on_missing=False,
         as_str=False,
@@ -454,78 +491,91 @@ class Config:
 
         if as_str:
             if isinstance(val, (list, tuple, set)):
-                val = [str(i) for i in val]
+                return [str(i) for i in val]
             else:
-                val = str(val)
+                return str(val)
 
         return val
 
-    def _parse_JSON(self, name: str, value: str):
+    def _parse_JSON(self, name: str, value: str) -> Any:
         try:
-            value = json.loads(value)
+            return json.loads(value)
         except json.decoder.JSONDecodeError as err:
             raise ConfigChangeInvalidJSONError(name=name, json_str=value, err=err)
-        return value
 
-    def _set(self, name, value, is_json=False, callback=True, quiet=False):
+    @overload
+    def _set(
+        self, name: str, value: str, *,
+        is_json: Literal[True], callback=True, quiet=False
+    ) -> None: ...
+
+    @overload
+    def _set(
+        self, name: str, value, *,
+        is_json: Literal[False]=False, callback=True, quiet=False
+    ) -> None: ...
+
+    def _set(
+        self, name: str, value, *,
+        is_json=False, callback=True, quiet=False
+    ) -> None:
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
-        else:
-            if is_json:
-                value = self._parse_JSON(name, cast(str, value))
-            current_val = self._get(name)
-            callback_val = self._get_callback_value(name, value)
-            file_val_raw = self._file.get_config_item(self._config_key, name)
-            file_val = self._get_callback_value(name, file_val_raw)
+        if is_json:
+            value = self._parse_JSON(name, cast(str, value))
+        current_val = self._get(name)
+        callback_val = self._get_callback_value(name, value)
+        file_val_raw = self._file.get_config_item(self._config_key, name)
+        file_val = self._get_callback_value(name, file_val_raw)
 
-            if callback_val != current_val:
-                was_in_modified = False
-                was_in_unset = False
-                prev_modified_val = None
-                modified_updated = False
+        if callback_val != current_val:
+            was_in_modified = False
+            was_in_unset = False
+            prev_modified_val = None
+            modified_updated = False
 
-                if name in self._modified_keys:
-                    was_in_modified = True
-                    prev_modified_val = self._modified_keys[name]
+            if name in self._modified_keys:
+                was_in_modified = True
+                prev_modified_val = self._modified_keys[name]
 
-                if name in self._unset_keys:
-                    was_in_unset = True
-                    idx = self._unset_keys.index(name)
-                    self._unset_keys.pop(idx)
+            if name in self._unset_keys:
+                was_in_unset = True
+                idx = self._unset_keys.index(name)
+                self._unset_keys.pop(idx)
 
-                if callback_val != file_val:
-                    self._modified_keys[name] = value
-                    modified_updated = True
+            if callback_val != file_val:
+                self._modified_keys[name] = value
+                modified_updated = True
 
-                try:
-                    self._validate()
+            try:
+                self._validate()
 
-                    if callback:
-                        for cb in self._set_callbacks.get(name, []):
-                            self._logger.debug(
-                                f"Invoking `config.set` callback for item {name!r}: {cb.__name__!r}"
-                            )
-                            cb(self, callback_val)
+                if callback:
+                    for cb in self._set_callbacks.get(name, []):
+                        self._logger.debug(
+                            f"Invoking `config.set` callback for item {name!r}: {cb.__name__!r}"
+                        )
+                        cb(self, callback_val)
 
-                except ConfigValidationError as err:
-                    # revert:
-                    if modified_updated:
-                        if was_in_modified:
-                            self._modified_keys[name] = prev_modified_val
-                        else:
-                            del self._modified_keys[name]
-                    if was_in_unset:
-                        self._unset_keys.append(name)
+            except ConfigValidationError as err:
+                # revert:
+                if modified_updated:
+                    if was_in_modified:
+                        self._modified_keys[name] = prev_modified_val
+                    else:
+                        del self._modified_keys[name]
+                if was_in_unset:
+                    self._unset_keys.append(name)
 
-                    raise ConfigChangeValidationError(name, validation_err=err) from None
+                raise ConfigChangeValidationError(name, validation_err=err) from None
 
-                self._logger.debug(
-                    f"Successfully set config item {name!r} to {callback_val!r}."
-                )
-            elif not quiet:
-                print(f"value is already: {callback_val!r}")
+            self._logger.debug(
+                f"Successfully set config item {name!r} to {callback_val!r}."
+            )
+        elif not quiet:
+            print(f"value is already: {callback_val!r}")
 
-    def set(self, path: str, value, is_json=False, quiet=False):
+    def set(self, path: str, value, is_json=False, quiet=False) -> None:
         """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
@@ -550,7 +600,7 @@ class Config:
             root = value
         self._set(name, root, quiet=quiet)
 
-    def unset(self, name: str):
+    def unset(self, name: str) -> None:
         """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
@@ -567,12 +617,13 @@ class Config:
     def get(
         self,
         path: str,
+        *,
         callback=True,
         copy=False,
         ret_root=False,
         ret_parts=False,
         default=None,
-    ):
+    ) -> Any:
         parts = path.split(".")
         root = deepcopy(self._get(parts[0], callback=callback))
         try:
@@ -590,7 +641,7 @@ class Config:
             ret += [parts]
         return tuple(ret)
 
-    def append(self, path: str, value, is_json=False):
+    def append(self, path: str, value, *, is_json=False) -> None:
         """Append a value to a list-like configuration item."""
         if is_json:
             value = self._parse_JSON(path, value)
@@ -620,7 +671,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def prepend(self, path: str, value, is_json=False):
+    def prepend(self, path: str, value, *, is_json=False) -> None:
         """Prepend a value to a list-like configuration item."""
         if is_json:
             value = self._parse_JSON(path, value)
@@ -646,7 +697,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def pop(self, path: str, index):
+    def pop(self, path: str, index) -> None:
         """Remove a value from a specified index of a list-like configuration item."""
 
         existing, root, parts = self.get(
@@ -678,7 +729,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def update(self, path: str, value, is_json=False):
+    def update(self, path: str, value, *, is_json=False) -> None:
         """Update a map-like configuration item.
 
         Parameters
@@ -747,13 +798,13 @@ class Config:
         self._logger.info(f"Resetting config file to defaults.")
         self._app.reset_config()
 
-    def add_scheduler(self, scheduler: str, **defaults):
+    def add_scheduler(self, scheduler: str, **defaults) -> None:
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
             return
         self.update(f"schedulers.{scheduler}.defaults", defaults)
 
-    def add_shell(self, shell: str, **defaults):
+    def add_shell(self, shell: str, **defaults) -> None:
         if shell in self.get("shells"):
             return
         if shell.lower() == "wsl":
@@ -761,12 +812,12 @@ class Config:
             self.add_scheduler("direct_posix")
         self.update(f"shells.{shell}.defaults", defaults)
 
-    def add_shell_WSL(self, **defaults):
+    def add_shell_WSL(self, **defaults) -> None:
         if "WSL_executable" not in defaults:
             defaults["WSL_executable"] = "wsl.exe"
         self.add_shell("wsl", **defaults)
 
-    def import_from_file(self, file_path: Path | str, rename=True, make_new=False):
+    def import_from_file(self, file_path: Path | str, *, rename=True, make_new=False) -> None:
         """Import config items from a (remote or local) YAML file. Existing config items
         of the same names will be overwritten.
 
@@ -788,10 +839,7 @@ class Config:
         self._logger.debug(f"import from file: {file_path!r}")
 
         console = Console()
-        status = console.status(f"Importing config from file {file_path!r}...")
-        status.start()
-
-        try:
+        with console.status(f"Importing config from file {file_path!r}...") as status:
             file_dat = read_YAML_file(file_path)
             if rename or make_new:
                 file_stem = Path(file_path).stem
@@ -847,14 +895,9 @@ class Config:
 
             obj.save()
 
-        except Exception:
-            status.stop()
-            raise
-
-        status.stop()
         print(f"Config {name!r} updated.")
 
-    def init(self, known_name: str, path: str | None = None):
+    def init(self, known_name: str, path: str | None = None) -> None:
         """Configure from a known importable config."""
         if not path:
             path = self._options.default_known_configs_dir
@@ -885,7 +928,7 @@ class Config:
             self.set("machine", "DEFAULT_MACHINE")
             self.save()
 
-    def set_github_demo_data_dir(self, sha):
+    def set_github_demo_data_dir(self, sha) -> None:
         """Set the `demo_data_dir` item, to an fsspec Github URL.
 
         We use this (via the CLI) when testing the frozen app on Github, because, by
@@ -893,6 +936,7 @@ class Config:
         changes to the demo data.
 
         """
+        assert self._app.demo_data_dir is not None
         path = "/".join(self._app.demo_data_dir.split("."))
         url = self._app._get_github_url(sha=sha, path=path)
         self.set("demo_data_dir", url)

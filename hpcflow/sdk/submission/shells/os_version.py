@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import platform
 import re
 import subprocess
@@ -39,8 +38,9 @@ def get_OS_info_POSIX(
 
     """
 
-    def try_subprocess_call(command: list[str]) -> str:
+    def try_subprocess_call(*args: str) -> str:
         exc = None
+        command = [*WSL_exe, *args]
         try:
             proc = subprocess.run(
                 args=command,
@@ -51,7 +51,7 @@ def get_OS_info_POSIX(
         except Exception as err:
             exc = err
 
-        if proc.returncode != 0 or exc:
+        if proc.returncode or exc:
             raise RuntimeError(
                 f"Failed to get POSIX OS info. Command was: {command!r}. Subprocess "
                 f"exception was: {exc!r}. Stderr was: {proc.stderr!r}."
@@ -59,15 +59,15 @@ def get_OS_info_POSIX(
         else:
             return proc.stdout
 
-    WSL_executable = WSL_executable or []
+    WSL_exe = WSL_executable or []
     out: dict[str, str] = {}
     if use_py:
         out.update(**get_OS_info())
 
     else:
-        OS_name = try_subprocess_call(WSL_executable + ["uname", "-s"]).strip()
-        OS_release = try_subprocess_call(WSL_executable + ["uname", "-r"]).strip()
-        OS_version = try_subprocess_call(WSL_executable + ["uname", "-v"]).strip()
+        OS_name = try_subprocess_call("uname", "-s").strip()
+        OS_release = try_subprocess_call("uname", "-r").strip()
+        OS_version = try_subprocess_call("uname", "-v").strip()
 
         out["OS_name"] = OS_name
         out["OS_release"] = OS_release
@@ -76,7 +76,7 @@ def get_OS_info_POSIX(
     if out["OS_name"] == "Linux":
         # get linux distribution name and version:
         linux_release_file = linux_release_file or DEFAULT_LINUX_RELEASE_FILE
-        release_out = try_subprocess_call(WSL_executable + ["cat", linux_release_file])
+        release_out = try_subprocess_call("cat", linux_release_file)
 
         name_match = re.search(r"^NAME=\"(.*)\"", release_out, flags=re.MULTILINE)
         if name_match:

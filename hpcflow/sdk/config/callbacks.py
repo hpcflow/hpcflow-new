@@ -20,11 +20,11 @@ if TYPE_CHECKING:
 def callback_vars(config: Config, value) -> str:
     """Substitute configuration variables."""
 
-    def vars_repl(match_obj):
+    def vars_repl(match_obj: re.Match[str]) -> str:
         var_name = match_obj.groups()[0]
         return config._variables[var_name]
 
-    vars_join = "|".join(list(config._variables.keys()))
+    vars_join = "|".join(config._variables.keys())
     vars_regex = r"\<\<(" + vars_join + r")\>\>"
     value = re.sub(
         pattern=vars_regex,
@@ -99,7 +99,7 @@ def callback_supported_schedulers(config: Config, schedulers: dict[str, Any]) ->
     return schedulers
 
 
-def set_scheduler_invocation_match(config: Config, scheduler: str):
+def set_scheduler_invocation_match(config: Config, scheduler: str) -> None:
     """Invoked on set of `default_scheduler`.
 
     For clusters with "proper" schedulers (SGE, SLURM, etc.), login nodes are typically
@@ -154,7 +154,7 @@ def callback_supported_shells(config: Config, shell_name: str) -> str:
     return shell_name
 
 
-def set_callback_file_paths(config: Config, value: PathLike | list[PathLike]):
+def set_callback_file_paths(config: Config, value: PathLike | list[PathLike]) -> None:
     """Check the file(s) is/are accessible. This is only done on `config.set` (and not on
     `config.get` or `config._validate`) because it could be expensive in the case of remote
     files."""
@@ -171,12 +171,12 @@ def set_callback_file_paths(config: Config, value: PathLike | list[PathLike]):
         print(f"Checked access to: {file_path}")
 
 
-def check_load_data_files(config: Config, value: Any):
+def check_load_data_files(config: Config, value: Any) -> None:
     """Check data files (e.g. task schema files) can be loaded successfully. This is only
     done on `config.set` (and not on `config.get` or `config._validate`) because it could
     be expensive in the case of remote files."""
     config._app.reload_template_components(warn=False)
 
 
-def callback_update_log_console_level(config: Config, value: str):
+def callback_update_log_console_level(config: Config, value: str) -> None:
     config._app.log.update_console_level(value)

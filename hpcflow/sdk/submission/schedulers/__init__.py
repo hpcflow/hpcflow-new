@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from ..shells import Shell
     from ..jobscript import Jobscript
     from ..jobscript_info import JobscriptElementState
+    from ...core.element import ElementResources
 
 T = TypeVar('T')
 
@@ -36,6 +37,10 @@ class Scheduler(ABC, Generic[T]):
         else:
             return self.__dict__ == other.__dict__
 
+    @abstractmethod
+    def process_resources(self, resources: ElementResources, scheduler_config: dict) -> None:
+        ...
+
     def get_version_info(self) -> dict[str, str | list[str]]:
         return {}
 
@@ -43,7 +48,7 @@ class Scheduler(ABC, Generic[T]):
         return None
 
     @staticmethod
-    def is_num_cores_supported(num_cores: int, core_range: list[int]) -> bool:
+    def is_num_cores_supported(num_cores: int | None, core_range: list[int]) -> bool:
         step = core_range[1] if core_range[1] is not None else 1
         upper = core_range[2] + 1 if core_range[2] is not None else sys.maxsize
         return num_cores in range(core_range[0], upper, step)

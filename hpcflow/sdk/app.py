@@ -22,7 +22,6 @@ import zipfile
 from platformdirs import user_cache_path, user_data_dir
 import requests
 from reretry import retry  # type: ignore
-import rich
 from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.table import Table, box
@@ -32,7 +31,6 @@ from rich.panel import Panel
 from rich import print as rich_print
 from fsspec.core import url_to_fs  # type: ignore
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
-
 
 from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
@@ -63,7 +61,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
     from rich.status import Status
-    from .core.actions import ElementActionRun, ElementAction, ActionEnvironment, Action, ActionScope
+    from .core.actions import (
+        ElementActionRun, ElementAction, ActionEnvironment,
+        Action, ActionScope, ActionScopeType)
     from .core.command_files import FileSpec, FileNameSpec, InputFileGenerator
     from .core.commands import Command
     from .core.element import (
@@ -78,7 +78,7 @@ if TYPE_CHECKING:
     from .core.parameters import SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
-        WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
+        Task, WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
         ElementPropagation, ElementSet)
     from .core.task_schema import TaskSchema
     from .core.workflow import Workflow as _Workflow, WorkflowTemplate as _WorkflowTemplate
@@ -88,6 +88,7 @@ if TYPE_CHECKING:
     from .submission.schedulers.direct import DirectPosix, DirectWindows
     from .submission.schedulers.sge import SGEPosix
     from .submission.schedulers.slurm import SlurmPosix
+    from .submission.shells.base import VersionInfo
 
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
@@ -104,6 +105,24 @@ class KnownSubmission(TypedDict):
     path: str
     start_time: str
     end_time: str
+
+
+class KnownSubmissionItem(TypedDict):
+    local_id: int
+    workflow_id: str
+    workflow_path: str
+    submit_time: str
+    submit_time_obj: NotRequired[datetime | None]
+    start_time: str
+    start_time_obj: datetime | None
+    end_time: str
+    end_time_obj: datetime | None
+    sub_idx: int
+    jobscripts: list[int]
+    active_jobscripts: dict[int, dict[int, JobscriptElementState]]
+    deleted: bool
+    unloadable: bool
+    submission: NotRequired[Submission]
 
 
 def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
@@ -262,7 +281,7 @@ class BaseApp(metaclass=Singleton):
         self.cli = make_cli(self)
 
         self._log = AppLog(self)
-        self._run_time_info: RunTimeInfo = RunTimeInfo(
+        self._run_time_info = RunTimeInfo(
             self.name,
             self.package_name,
             self.version,
@@ -282,7 +301,8 @@ class BaseApp(metaclass=Singleton):
         self._task_schemas: _TaskSchemasList | None = None
         self._scripts: dict[str, Path] | None = None
 
-        self._app_attr_cache: dict[str, type] = {}
+        self.__app_type_cache: dict[str, type] = {}
+        self.__app_func_cache: dict[str, Callable[..., Any]] = {}
 
         # assigned on first access to respective properties
         self._user_data_dir: Path | None = None
@@ -315,6 +335,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ActionScope(self) -> type[ActionScope]:
         return self._get_app_core_class("ActionScope")
+
+    @property
+    def ActionScopeType(self) -> type[ActionScopeType]:
+        return self._get_app_core_class("ActionScopeType")
 
     @property
     def FileSpec(self) -> type[FileSpec]:
@@ -453,6 +477,10 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("InputValue")
 
     @property
+    def Task(self) -> type[Task]:
+        return self._get_app_core_class("Task")
+
+    @property
     def TaskSchema(self) -> type[TaskSchema]:
         return self._get_app_core_class("TaskSchema")
 
@@ -509,7 +537,7 @@ class BaseApp(metaclass=Singleton):
         if name in sdk_classes:
             return self._get_app_core_class(name)
         elif name in sdk_funcs:
-            return self._get_app_func(name)
+            return self.__get_app_func(name)
         else:
             raise AttributeError(f"module {__name__!r} has no attribute {name!r}.")
 
@@ -517,41 +545,41 @@ class BaseApp(metaclass=Singleton):
         return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
     def _get_app_core_class(self, name: str) -> type:
-        if name not in self._app_attr_cache:
-            obj_mod = import_module(sdk_classes[name])
-            cls = getattr(obj_mod, name)
-            if issubclass(cls, enum.Enum):
-                sub_cls = cls
-            else:
-                dct: dict[str, Any] = {}
-                if hasattr(cls, "_app_attr"):
-                    dct = {getattr(cls, "_app_attr"): self}
-                sub_cls = type(cls.__name__, (cls,), dct)
-                if cls.__doc__:
-                    sub_cls.__doc__ = cls.__doc__.format(app_name=self.name)
-            sub_cls.__module__ = self.module
-            self._app_attr_cache[name] = sub_cls
+        if name in self.__app_type_cache:
+            return self.__app_type_cache[name]
+        obj_mod = import_module(sdk_classes[name])
+        cls = getattr(obj_mod, name)
+        if issubclass(cls, enum.Enum):
+            sub_cls = cls
+        else:
+            dct: dict[str, Any] = {}
+            if hasattr(cls, "_app_attr"):
+                dct = {getattr(cls, "_app_attr"): self}
+            sub_cls = type(cls.__name__, (cls,), dct)
+            if cls.__doc__:
+                sub_cls.__doc__ = cls.__doc__.format(app_name=self.name)
+        sub_cls.__module__ = self.module
+        self.__app_type_cache[name] = sub_cls
+        return sub_cls
 
-        return self._app_attr_cache[name]
+    def __get_app_func(self, name) -> Callable[..., Any]:
+        if name in self.__app_func_cache:
+            return self.__app_func_cache[name]
 
-    def _get_app_func(self, name) -> Callable:
-        if name not in self._app_attr_cache:
+        def wrap_func(func) -> Callable[..., Any]:
+            # this function avoids scope issues
+            return lambda *args, **kwargs: func(*args, **kwargs)
 
-            def wrap_func(func):
-                # this function avoids scope issues
-                return lambda *args, **kwargs: func(*args, **kwargs)
+        # retrieve the "private" function:
+        sdk_func = getattr(self, f"_{name}")
 
-            # retrieve the "private" function:
-            sdk_func = getattr(self, f"_{name}")
-
-            func = wrap_func(sdk_func)
-            func = wraps(sdk_func)(func)
-            if func.__doc__:
-                func.__doc__ = func.__doc__.format(app_name=self.name)
-            func.__module__ = self.module
-            self._app_attr_cache[name] = func
-
-        return self._app_attr_cache[name]
+        func = wrap_func(sdk_func)
+        func = wraps(sdk_func)(func)
+        if func.__doc__:
+            func.__doc__ = func.__doc__.format(app_name=self.name)
+        func.__module__ = self.module
+        self.__app_func_cache[name] = func
+        return func
 
     @property
     def run_time_info(self) -> RunTimeInfo:
@@ -574,6 +602,10 @@ class BaseApp(metaclass=Singleton):
         if not self.is_template_components_loaded:
             self._load_template_components()
         return self._template_components
+
+    @property
+    def _shared_data(self) -> Mapping[str, Any]:
+        return cast(Mapping[str, Any], self.template_components)
 
     def _ensure_template_component(self, name) -> None:
         """Invoked by access to individual template components (e.g. parameters)"""
@@ -815,7 +847,7 @@ class BaseApp(metaclass=Singleton):
             )
         return scheduler_cls(**scheduler_args)
 
-    def get_OS_supported_schedulers(self):
+    def get_OS_supported_schedulers(self) -> List[str]:
         """Retrieve a list of schedulers that are supported in principle by this operating
         system.
 
@@ -823,7 +855,7 @@ class BaseApp(metaclass=Singleton):
         system.
 
         """
-        out = []
+        out: list[str] = []
         for k in self.scheduler_lookup:
             if os.name == "nt" and k == ("direct", "posix"):
                 # this is valid for WSL on Windows
@@ -949,25 +981,25 @@ class BaseApp(metaclass=Singleton):
             )
         return self.user_cache_hostname_dir
 
-    def clear_user_runtime_dir(self):
+    def clear_user_runtime_dir(self) -> None:
         """Delete the contents of the user runtime directory."""
         if self.user_runtime_dir.exists():
             shutil.rmtree(self.user_runtime_dir)
             self._ensure_user_runtime_dir()
 
-    def clear_user_cache_dir(self):
+    def clear_user_cache_dir(self) -> None:
         """Delete the contents of the cache directory."""
         if self.user_cache_dir.exists():
             shutil.rmtree(self.user_cache_dir)
             self._ensure_user_cache_dir()
 
-    def clear_demo_data_cache_dir(self):
+    def clear_demo_data_cache_dir(self) -> None:
         """Delete the contents of the example data files cache directory."""
         if self.demo_data_cache_dir.exists():
             shutil.rmtree(self.demo_data_cache_dir)
             self._ensure_demo_data_cache_dir()
 
-    def clear_user_cache_hostname_dir(self):
+    def clear_user_cache_hostname_dir(self) -> None:
         """Delete the contents of the hostname-scoped cache directory."""
         if self.user_cache_hostname_dir.exists():
             shutil.rmtree(self.user_cache_hostname_dir)
@@ -1017,11 +1049,11 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_key, **overrides)
 
-    def unload_config(self):
+    def unload_config(self) -> None:
         self._config_files = {}
         self._config = None
 
-    def get_config_path(self, config_dir=None):
+    def get_config_path(self, config_dir=None) -> Path:
         """Return the full path to the config file, without loading the config."""
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
@@ -1030,7 +1062,7 @@ class BaseApp(metaclass=Singleton):
         )
         return ConfigFile.get_config_file_path(config_dir)
 
-    def _delete_config_file(self, config_dir=None):
+    def _delete_config_file(self, config_dir=None) -> None:
         """Delete the config file."""
         config_path = self.get_config_path(config_dir=config_dir)
         self.logger.info(f"deleting config file: {str(config_path)!r}.")
@@ -1237,11 +1269,11 @@ class BaseApp(metaclass=Singleton):
         }
 
     @property
-    def known_subs_file_name(self):
+    def known_subs_file_name(self) -> str:
         return self._known_subs_file_name
 
     @property
-    def known_subs_file_path(self):
+    def known_subs_file_path(self) -> Path:
         return self.user_data_hostname_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
@@ -1254,7 +1286,7 @@ class BaseApp(metaclass=Singleton):
         wk_path,
         start_time,
         end_time,
-    ):
+    ) -> str:
         line = [
             str(local_id),
             workflow_id,
@@ -1463,7 +1495,7 @@ class BaseApp(metaclass=Singleton):
 
         return removed_IDs
 
-    def clear_known_submissions_file(self):
+    def clear_known_submissions_file(self) -> None:
         """Clear the known-submissions file of all submissions. This shouldn't be needed
         normally."""
         self.submission_logger.warning(
@@ -1940,7 +1972,7 @@ class BaseApp(metaclass=Singleton):
         self,
         shell_name: str,
         exclude_os: bool = False,
-    ) -> Dict:
+    ) -> VersionInfo:
         """Get information about a given shell and the operating system.
 
         Parameters
@@ -1963,7 +1995,7 @@ class BaseApp(metaclass=Singleton):
         no_update: bool = False,
         as_json: bool = False,
         status: Any | None = None,
-    ) -> list[Dict]:
+    ) -> list[KnownSubmissionItem]:
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
 
@@ -1983,7 +2015,7 @@ class BaseApp(metaclass=Singleton):
 
         """
 
-        out: list[Dict] = []
+        out: list[KnownSubmissionItem] = []
         inactive_IDs: list[int] = []
         start_times: dict[int, str] = {}
         end_times: dict[int, str] = {}
@@ -1998,7 +2030,7 @@ class BaseApp(metaclass=Singleton):
             known_subs = []
 
         # keys are (workflow path, submission index)
-        active_jobscripts: dict[tuple[str, int], Mapping[int, Any]] = {}
+        active_jobscripts: dict[tuple[str, int], dict[int, dict[int, JobscriptElementState]]] = {}
         loaded_workflows: dict[str, _Workflow] = {}  # keys are workflow path
 
         # loop in reverse so we process more-recent submissions first:
@@ -2016,7 +2048,7 @@ class BaseApp(metaclass=Singleton):
             if end_time_str:
                 end_time_obj = parse_timestamp(end_time_str, ts_fmt)
 
-            out_item = {
+            out_item: KnownSubmissionItem = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
                 "workflow_path": file_dat_i["path"],"submit_time": submit_time_str,
@@ -2077,12 +2109,8 @@ class BaseApp(metaclass=Singleton):
                         sub = wk_i.submissions[file_dat_i["sub_idx"]]
 
                         all_jobscripts = sub._submission_parts[submit_time_str]
-                        out_item.update(
-                            {
-                                "jobscripts": all_jobscripts,
-                                "submission": sub,
-                            }
-                        )
+                        out_item["jobscripts"] = all_jobscripts
+                        out_item["submission"] = sub
                         if not out_item["start_time"]:
                             start_time_obj = sub.start_time
                             if start_time_obj:
@@ -2102,12 +2130,14 @@ class BaseApp(metaclass=Singleton):
                     if file_dat_i["is_active"]:
                         # check it really is active:
                         run_key = (file_dat_i["path"], file_dat_i["sub_idx"])
+                        act_i_js: dict[int, dict[int, JobscriptElementState]]
                         if run_key in active_jobscripts:
                             act_i_js = active_jobscripts[run_key]
                         else:
                             try:
                                 if as_json:
-                                    act_i_js = sub.get_active_jobscripts(as_json=True)
+                                    act_i_js = cast(  # not actually used?
+                                        Any, sub.get_active_jobscripts(as_json=True))
                                 else:
                                     act_i_js = sub.get_active_jobscripts()
                             except KeyboardInterrupt:
@@ -2148,10 +2178,11 @@ class BaseApp(metaclass=Singleton):
         out_access = [i for i in out_inactive if not (i["deleted"] or i["unloadable"])]
 
         # sort loadable inactive by end time or start time or submit time:
+        def_timestamp = datetime(0, 0, 0)
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["end_time_obj"] or i["start_time_obj"] or i["submit_time_obj"]
+                i["end_time_obj"] or i["start_time_obj"] or i.get("submit_time_obj") or def_timestamp
             ),
             reverse=True,
         )
@@ -2168,7 +2199,7 @@ class BaseApp(metaclass=Singleton):
                 out[idx].pop("submit_time_obj")
         return out
 
-    def _show_legend(self):
+    def _show_legend(self) -> None:
         """ "Output a legend for the jobscript-element and EAR states that are displayed
         by the `show` command."""
 
@@ -2184,8 +2215,8 @@ class BaseApp(metaclass=Singleton):
         js_tab.add_column("Symbol")
         js_tab.add_column("State")
         js_tab.add_column("Description")
-        for state in JobscriptElementState.__members__.values():
-            js_tab.add_row(state.rich_repr, state.name, state.__doc__)
+        for jse_state in JobscriptElementState.__members__.values():
+            js_tab.add_row(jse_state.rich_repr, jse_state.name, jse_state.__doc__)
 
         act_notes = Panel(
             "\nThe [i]Actions[/i] column of the `show` command output displays either the "
@@ -2200,8 +2231,8 @@ class BaseApp(metaclass=Singleton):
         act_tab.add_column("Symbol")
         act_tab.add_column("State")
         act_tab.add_column("Description")
-        for state in EARStatus.__members__.values():
-            act_tab.add_row(state.rich_repr, state.name, state.__doc__)
+        for ear_state in EARStatus.__members__.values():
+            act_tab.add_row(ear_state.rich_repr, ear_state.name, ear_state.__doc__)
 
         group = Group(
             js_notes,

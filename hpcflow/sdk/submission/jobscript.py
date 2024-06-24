@@ -1,5 +1,4 @@
 from __future__ import annotations
-import copy
 
 from datetime import datetime
 import os
@@ -11,33 +10,33 @@ from textwrap import indent
 from typing import TypedDict, overload, TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import parse_timestamp
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import QueuedScheduler, Scheduler
+from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.submission.shells import get_shell
-from hpcflow.sdk.submission.shells.base import Shell
-from hpcflow.sdk.submission.submission import Submission
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import Any, ClassVar, Dict, List, Literal, NotRequired, Self
+    from typing import Any, ClassVar, Dict, List, Literal, NotRequired
+    from numpy.typing import NDArray
     from ..app import BaseApp
     from ..core.actions import ElementActionRun
     from ..core.element import ElementResources
     from ..core.workflow import WorkflowTask, Workflow
     from .submission import Submission
+    from .shells.base import Shell
+    from .schedulers import Scheduler
+    from .jobscript_info import JobscriptElementState
 
 
 class JobScriptDescriptor(TypedDict):
     resources: Any
     elements: dict[int, list[int]]
-    dependencies: NotRequired[dict[int, dict[str, None]]]
+    dependencies: NotRequired[dict[int, ResolvedDependencies]]
     resource_hash: NotRequired[str]
 
 

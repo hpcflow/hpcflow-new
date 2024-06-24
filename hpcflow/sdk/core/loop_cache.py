@@ -1,14 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from collections import defaultdict
-from typing import Any, Dict, TypedDict, TYPE_CHECKING
+from typing import TypedDict, TYPE_CHECKING
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.utils import nth_key
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.cache import DependencyCache
 if TYPE_CHECKING:
-    from .element import Element
     from .loop import Loop
     from .parameters import InputSource
     from .task import WorkflowTask, InputStatus

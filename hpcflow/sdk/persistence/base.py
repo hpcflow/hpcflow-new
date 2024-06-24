@@ -12,7 +12,7 @@ from pathlib import Path
 import shutil
 import socket
 import time
-from typing import Generic, TypeVar, overload, TypeGuard, TYPE_CHECKING
+from typing import Generic, TypeVar, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import (
     flatten,
@@ -27,7 +27,7 @@ from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, Dict, ClassVar, Literal, Self, TypeAlias
+    from typing import Any, Dict, ClassVar, Literal, Self, TypeGuard
     from fsspec import AbstractFileSystem  # type: ignore
     from .pending import CommitResourceMap
     from .store_resource import StoreResource

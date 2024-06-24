@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ruamel.yaml import YAML
 
-from hpcflow.sdk.core.validation import get_schema
+from hpcflow.sdk.core.validation import Schema, get_schema
 
 from .errors import (
     ConfigChangeFileUpdateError,
@@ -125,7 +125,7 @@ class ConfigFile:
 
         return config_key
 
-    def _validate(self, data: dict[str, Any] | None):
+    def _validate(self, data: dict[str, Any] | None) -> Schema:
         file_schema = get_schema("config_file_schema.yaml")
         file_validated = file_schema.validate(data)
         if not file_validated.is_valid:
@@ -336,19 +336,19 @@ class ConfigFile:
 
     def get_config_item(
         self, config_key: str, name: str, raise_on_missing=False, default_value=None
-    ):
+    ) -> Any:
         if raise_on_missing and name not in self.get_invoc_data(config_key)["config"]:
             raise ValueError(f"missing from file: {name!r}")
         return self.get_invoc_data(config_key)["config"].get(name, default_value)
 
-    def is_item_set(self, config_key: str, name: str):
+    def is_item_set(self, config_key: str, name: str) -> bool:
         try:
             self.get_config_item(config_key, name, raise_on_missing=True)
             return True
         except ValueError:
             return False
 
-    def rename_config_key(self, config_key: str, new_config_key: str):
+    def rename_config_key(self, config_key: str, new_config_key: str) -> None:
         """Change the config key of the loaded config."""
 
         new_data = copy.deepcopy(self.data)
@@ -371,7 +371,7 @@ class ConfigFile:
         config_key: str,
         environment_setup: str | None = None,
         match: Dict | None = None,
-    ):
+    ) -> None:
         """Modify the invocation parameters of the loaded config."""
 
         new_data = copy.deepcopy(self.data)

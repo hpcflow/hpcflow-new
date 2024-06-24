@@ -1,16 +1,15 @@
 from __future__ import annotations
-from pathlib import Path
 import shutil
 import signal
-from typing import Any, ClassVar, Dict, overload, cast, TYPE_CHECKING
-
+from typing import overload, cast, TYPE_CHECKING
 import psutil
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 
+from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+    from typing import Any, ClassVar, Dict
     from ...app import BaseApp
     from ..jobscript import Jobscript
 

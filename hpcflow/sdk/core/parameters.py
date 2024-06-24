@@ -17,7 +17,6 @@ from hpcflow.sdk.core.errors import (
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.object_list import ParametersList
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.task_schema import TaskSchema
@@ -115,7 +114,7 @@ class Parameter(JSONLike):
     is_file: bool = False
     sub_parameters: list[SubParameter] = field(default_factory=lambda: [])
     name: str | None = None
-    _value_class: Any = None
+    _value_class: type | None = None
     _hash_value: str | None = field(default=None, repr=False)
     _validation: Schema | None = None
 
@@ -279,7 +278,7 @@ class SchemaInput(SchemaParameter):
         try:
             if isinstance(parameter, str):
                 # Workaround for mypy bug
-                self.parameter = cast(ParametersList, self.app.parameters).get(parameter)
+                self.parameter = self.app.parameters.get(parameter)
             else:
                 self.parameter = parameter
         except ValueError:
@@ -810,7 +809,7 @@ class ValueSequence(JSONLike):
             source["value_class_method"] = self.value_class_method
         are_objs: list[bool] = []
         assert self._values is not None
-        for idx, i in enumerate(cast(list, self._values)):
+        for idx, i in enumerate(self._values):
             # record if ParameterValue sub-classes are passed for values, which allows
             # us to re-init the objects on access to `.value`:
             are_objs.append(isinstance(i, ParameterValue))
@@ -1223,20 +1222,19 @@ class InputValue(AbstractInputValue):
         label: str | None = None,
         value_class_method: str | None = None,
         path: str | None = None,
-        __check_obj: bool = True,
+        _check_obj: bool = True,
     ):
         super().__init__()
         if isinstance(parameter, str):
             try:
-                _parameter = cast(ParametersList, self.app.parameters).get(parameter)
+                self.parameter = self.app.parameters.get(parameter)
             except ValueError:
-                _parameter = Parameter(parameter)
+                self.parameter = Parameter(parameter)
         elif isinstance(parameter, SchemaInput):
-            _parameter = parameter.parameter
+            self.parameter = parameter.parameter
         else:
-            _parameter = parameter
+            self.parameter = parameter
 
-        self.parameter = _parameter
         self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
@@ -1245,7 +1243,7 @@ class InputValue(AbstractInputValue):
         # record if a ParameterValue sub-class is passed for value, which allows us
         # to re-init the object on `.value`:
         self._value_is_obj = isinstance(value, ParameterValue)
-        if __check_obj:
+        if _check_obj:
             self._check_dict_value_if_object()
 
     def _check_dict_value_if_object(self):
@@ -1269,13 +1267,13 @@ class InputValue(AbstractInputValue):
                 f"dict."
             )
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         _value = kwargs.pop("_value")
         kwargs.pop("_schema_input", None)
         _value_group_idx = kwargs.pop("_value_group_idx")
         _value_is_obj = kwargs.pop("_value_is_obj")
-        obj = self.__class__(**copy.deepcopy(kwargs, memo), _InputValue__check_obj=False)
+        obj = self.__class__(**copy.deepcopy(kwargs, memo), _check_obj=False)
         obj._value = _value
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
@@ -1283,7 +1281,7 @@ class InputValue(AbstractInputValue):
         obj._schema_input = self._schema_input
         return obj
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         val_grp_idx = ""
         if self._value_group_idx is not None:
             val_grp_idx = f", value_group_idx={self._value_group_idx}"
@@ -1331,21 +1329,22 @@ class InputValue(AbstractInputValue):
         return obj
 
     @property
-    def labelled_type(self):
+    def labelled_type(self) -> str:
         label = f"[{self.label}]" if self.label else ""
         return f"{self.parameter.typ}{label}"
 
     @property
-    def normalised_inputs_path(self):
+    def normalised_inputs_path(self) -> str:
         return f"{self.labelled_type}{f'.{self.path}' if self.path else ''}"
 
     @property
-    def normalised_path(self):
+    def normalised_path(self) -> str:
         return f"inputs.{self.normalised_inputs_path}"
 
-    def make_persistent(self, workflow: Any, source: Dict) -> tuple[str, list[int], bool]:
+    def make_persistent(self, workflow: Workflow, source: ParamSource) -> tuple[str, list[int], bool]:
         source = copy.deepcopy(source)
-        source["value_class_method"] = self.value_class_method
+        if self.value_class_method is not None:
+            source["value_class_method"] = self.value_class_method
         return super().make_persistent(workflow, source)
 
     @classmethod
@@ -1366,9 +1365,7 @@ class InputValue(AbstractInputValue):
             json_like["parameter"] = param_spec[0]
             json_like["path"] = ".".join(param_spec[1:])
 
-        obj = super().from_json_like(json_like, shared_data)
-
-        return obj
+        return super().from_json_like(json_like, shared_data)
 
     @property
     def is_sub_value(self) -> bool:
@@ -1382,11 +1379,10 @@ class InputValue(AbstractInputValue):
         if self._value_group_idx is not None and self.workflow:
             val = self.workflow.get_parameter_data(self._value_group_idx)
             if self._value_is_obj and self.parameter._value_class:
-                val = self.parameter._value_class(**val)
+                return self.parameter._value_class(**val)
+            return val
         else:
-            val = self._value
-
-        return val
+            return self._value
 
 
 class ResourceSpec(JSONLike):

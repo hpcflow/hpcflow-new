@@ -91,7 +91,7 @@ class FileNameSpec(JSONLike):
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
-            value = search_dir_files_by_regex(value, group=0, directory=directory)
+            return search_dir_files_by_regex(value, group=0, directory=directory)
         return value
 
     def __repr__(self):

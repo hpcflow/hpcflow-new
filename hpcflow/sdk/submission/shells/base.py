@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, TypedDict, TypeAlias, cast, TYPE_CHECKING
+from typing import Any, ClassVar, TypedDict, TypeAlias, TYPE_CHECKING
 if TYPE_CHECKING:
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]

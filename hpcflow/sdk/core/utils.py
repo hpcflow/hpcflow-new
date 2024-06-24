@@ -758,7 +758,7 @@ def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:
             k: process_string_nodes(v, str_processor)
             for k, v in data.items()})
 
-    elif isinstance(data, (list, tuple, set)):
+    elif isinstance(data, (list, tuple, set, frozenset)):
         _data = (
             process_string_nodes(i, str_processor)
             for i in data)
@@ -766,6 +766,8 @@ def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:
             return cast(T, tuple(_data))
         elif isinstance(data, set):
             return cast(T, set(_data))
+        elif isinstance(data, frozenset):
+            return cast(T, frozenset(_data))
         else:
             return cast(T, list(_data))
 
@@ -855,9 +857,8 @@ def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
     is_multi: list[tuple[bool, int]] = []  # whether a list, and the number of items to process
     for i in d.values():
         if isinstance(i, list):
-            i_list = cast(list[T2], i)
-            flat.extend(i_list)
-            is_multi.append((True, len(i_list)))
+            flat.extend(cast(list[T2], i))
+            is_multi.append((True, len(i)))
         else:
             flat.append(cast(T2, i))
             is_multi.append((False, 1))
