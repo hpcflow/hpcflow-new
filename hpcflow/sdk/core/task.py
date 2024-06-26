@@ -1859,7 +1859,7 @@ class WorkflowTask:
             )
 
         # set source for any unsourced inputs:
-        missing = []
+        missing: list[str] = []
         # track which root params we have set according to default behaviour (not
         # specified by user):
         set_root_params = []
@@ -2183,7 +2183,7 @@ class WorkflowTask:
                 # objects.
                 iters.extend(element.iterations)
 
-        initialised = []
+        initialised: list[int] = []
         for iter_i in iters:
             if not iter_i.EARs_initialised:
                 try:
@@ -2227,15 +2227,13 @@ class WorkflowTask:
                     "type": "EAR_output",
                     "EAR_ID": EAR_ID,
                 }
-                psrc_update = (
-                    action.generate_data_index(  # adds an item to `all_data_idx`
-                        act_idx=act_idx,
-                        EAR_ID=EAR_ID,
-                        schema_data_idx=element_iter.data_idx,
-                        all_data_idx=all_data_idx,
-                        workflow=self.workflow,
-                        param_source=param_source,
-                    )
+                psrc_update = action.generate_data_index(  # adds an item to `all_data_idx`
+                    act_idx=act_idx,
+                    EAR_ID=EAR_ID,
+                    schema_data_idx=element_iter.data_idx,
+                    all_data_idx=all_data_idx,
+                    workflow=self.workflow,
+                    param_source=param_source,
                 )
                 # with EARs initialised, we can update the pre-allocated schema-level
                 # parameters with the correct EAR reference:
@@ -2247,7 +2245,7 @@ class WorkflowTask:
                     "commands_idx": cmds_idx,
                     "metadata": {},
                 }
-                action_runs[(act_idx, EAR_ID)] = run_0
+                action_runs[act_idx, EAR_ID] = run_0
                 count += 1
             else:
                 self.app.logger.info(f"Some action rules evaluated to false {log_common}")
@@ -2259,8 +2257,7 @@ class WorkflowTask:
                 elem_iter_ID=element_iter.id_,
                 action_idx=act_idx,
                 commands_idx=run["commands_idx"],
-                data_idx=all_data_idx[(act_idx, EAR_ID_i)],
-                metadata={},
+                data_idx=all_data_idx[act_idx, EAR_ID_i],
             )
 
         self.workflow._store.update_param_source(param_src_updates)
@@ -2315,7 +2312,7 @@ class WorkflowTask:
         )
 
         iter_IDs: list[int] = []
-        elem_IDs = []
+        elem_IDs: list[int] = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
             elem_ID_i = self.workflow._store.add_element(
@@ -3057,8 +3054,7 @@ class WorkflowTask:
             path_to_init = err.path
             path_to_init_split = path_to_init.split(".")
             relevant_paths = self.__get_relevant_paths(data_index, path_to_init_split)
-            PV_cls_paths = list(relevant_paths.keys()) + [path_to_init]
-            PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+            PV_classes = self._paths_to_PV_classes([*relevant_paths.keys(), path_to_init])
             relevant_data_idx = {
                 k: v for k, v in data_index.items() if k in relevant_paths
             }

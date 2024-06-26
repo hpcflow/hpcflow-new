@@ -8,6 +8,7 @@ from typing import Any, Callable, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import get_md5_hash
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     import zarr  # type: ignore
     from fsspec import AbstractFileSystem  # type: ignore
     from ..app import BaseApp
@@ -111,7 +112,7 @@ class JSONFileStoreResource(StoreResource):
         with self.fs.open(self._full_path, mode="rt") as fp:
             return json.load(fp)
 
-    def _dump(self, data: dict | list):
+    def _dump(self, data: Mapping | list):
         self.logger.debug(f"{self!r}: dumping JSON to file")
         if isinstance(data, dict) and "runs" in data:
             self.logger.debug(f"...runs: {data['runs']}")

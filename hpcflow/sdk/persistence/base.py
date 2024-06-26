@@ -7,27 +7,30 @@ import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import enum
+from logging import Logger
 import os
 from pathlib import Path
 import shutil
 import socket
 import time
-from typing import Generic, TypeVar, overload, TYPE_CHECKING
+from typing import Generic, TypeVar, TypedDict, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import (
     flatten,
     get_in_container,
     get_relative_path,
+    remap,
     reshape,
     set_in_container,
     parse_timestamp
 )
+from hpcflow.sdk.core.workflow import Workflow
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, Dict, ClassVar, Literal, Self, TypeGuard
+    from typing import Any, Dict, ClassVar, Final, Literal, NotRequired, Self, TypeGuard
     from fsspec import AbstractFileSystem  # type: ignore
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
@@ -60,11 +63,27 @@ TEMPLATE_COMP_TYPES = (
     "task_schemas",
 )
 
-PARAM_DATA_NOT_SET = 0
+PARAM_DATA_NOT_SET: Final[int] = 0
 
 
 def update_param_source_dict(source: dict[T, T2], update: dict[T, T2]) -> dict[T, T2]:
     return dict(sorted({**source, **update}.items()))
+
+
+class Metadata(TypedDict):
+    creation_info: NotRequired[dict]
+    elements: NotRequired[list[dict]]
+    iters: NotRequired[list[dict]]
+    loops: NotRequired[list]
+    name: NotRequired[str]
+    num_added_tasks: NotRequired[int]
+    replaced_workflow: NotRequired[str]
+    runs: NotRequired[list[dict]]
+    tasks: NotRequired[list]
+    template: NotRequired[dict]
+    template_components: NotRequired[dict]
+    ts_fmt: NotRequired[str]
+    ts_name_fmt: NotRequired[str]
 
 
 @dataclass
@@ -240,7 +259,7 @@ class StoreElementIter(Generic[T, CTX]):
     def decode(cls, iter_dat: T, context: CTX) -> Self:
         """Initialise a `StoreElementIter` from persistent store element iteration data"""
 
-    def to_dict(self, EARs) -> dict[str, Any]:
+    def to_dict(self, EARs: dict[int, dict[str, Any]] | None) -> dict[str, Any]:
         """Prepare data for the user-facing `ElementIteration` object."""
         return {
             "id_": self.id_,
@@ -342,7 +361,7 @@ class StoreEAR(Generic[T, CTX]):
     snapshot_start: Dict | None = None
     snapshot_end: Dict | None = None
     exit_code: int | None = None
-    metadata: dict[str, Any] | None = None
+    metadata: Metadata | None = None
     run_hostname: str | None = None
 
     @staticmethod
@@ -684,10 +703,13 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     _features: ClassVar[PersistentStoreFeatures]
     _res_map: ClassVar[CommitResourceMap]
 
-    def __init__(self, app: BaseApp, workflow: Workflow, path: str, fs: AbstractFileSystem | None = None):
+    def __init__(
+        self, app: BaseApp, workflow: Workflow | None, path: Path | str,
+        fs: AbstractFileSystem | None = None
+    ):
         self.app = app
-        self.workflow = workflow
-        self.path = path
+        self.__workflow = workflow
+        self.path = str(path)
         self.fs = fs
 
         self._pending: PendingChanges[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter] \
@@ -700,7 +722,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self._reset_cache()
 
     @abstractmethod
-    def cached_load(self) -> contextlib.AbstractContextManager[Dict]:
+    def cached_load(self) -> contextlib.AbstractContextManager[None]:
         ...
 
     @abstractmethod
@@ -751,7 +773,12 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         ...
 
     @property
-    def logger(self):
+    def workflow(self) -> Workflow:
+        assert self.__workflow is not None
+        return self.__workflow
+
+    @property
+    def logger(self) -> Logger:
         return self.app.persistence_logger
 
     @property
@@ -759,16 +786,16 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self.workflow.ts_fmt
 
     @property
-    def has_pending(self):
+    def has_pending(self) -> bool:
         return bool(self._pending)
 
     @property
-    def is_submittable(self):
+    def is_submittable(self) -> bool:
         """Does this store support workflow submission?"""
         return self.fs.__class__.__name__ == "LocalFileSystem"
 
     @property
-    def use_cache(self):
+    def use_cache(self) -> bool:
         return self._use_cache
 
     @property
@@ -901,7 +928,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             })
         return (tasks, elements, elem_iters, EARs)
 
-    def remove_path(self, path: str, fs: AbstractFileSystem) -> None:
+    def remove_path(self, path: str | Path) -> None:
         """Try very hard to delete a directory or file.
 
         Dropbox (on Windows, at least) seems to try to re-sync files if the parent directory
@@ -911,31 +938,37 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
         """
 
+        fs = self.fs
+        assert fs is not None
+
         @self.app.perm_error_retry()
-        def _remove_path(path: str, fs) -> None:
-            self.logger.debug(f"_remove_path: path={path}")
-            while fs.exists(path):
-                fs.rm(path, recursive=True)
+        def _remove_path(_path: str) -> None:
+            self.logger.debug(f"_remove_path: path={_path}")
+            while fs.exists(_path):
+                fs.rm(_path, recursive=True)
                 time.sleep(0.5)
 
-        return _remove_path(path, fs)
+        return _remove_path(str(path))
 
-    def rename_path(self, replaced: str, original: str, fs: AbstractFileSystem) -> None:
+    def rename_path(self, replaced: str, original: str | Path) -> None:
         """Revert the replaced workflow path to its original name.
 
         This happens when new workflow creation fails and there is an existing workflow
         with the same name; the original workflow which was renamed, must be reverted."""
 
+        fs = self.fs
+        assert fs is not None
+
         @self.app.perm_error_retry()
-        def _rename_path(replaced: str, original: str, fs) -> None:
-            self.logger.debug(f"_rename_path: {replaced!r} --> {original!r}.")
+        def _rename_path(_replaced: str, _original: str) -> None:
+            self.logger.debug(f"_rename_path: {_replaced!r} --> {_original!r}.")
             try:
-                fs.rename(replaced, original, recursive=True)  # TODO: why need recursive?
+                fs.rename(_replaced, _original, recursive=True)  # TODO: why need recursive?
             except TypeError:
                 # `SFTPFileSystem.rename` has no  `recursive` argument:
-                fs.rename(replaced, original)
+                fs.rename(_replaced, _original)
 
-        return _rename_path(replaced, original, fs)
+        return _rename_path(str(replaced), str(original))
 
     @abstractmethod
     def _get_num_persistent_tasks(self) -> int: ...
@@ -1060,7 +1093,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         }
 
         for i in iter_IDs:
-            self._pending.update_loop_indices[i].update({loop_template["name"]: 0})
+            self._pending.update_loop_indices[i][loop_template["name"]] = 0
 
         if save:
             self.save()
@@ -1079,7 +1112,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             self.save()
 
     def add_element(
-        self, task_ID: int, es_idx: int, seq_idx: Dict, src_idx: Dict, save: bool = True
+        self, task_ID: int, es_idx: int, seq_idx: dict[str, int], src_idx: dict[str, int],
+        save: bool = True
     ) -> int:
         """Add a new element to a task."""
         self.logger.debug(f"Adding store element.")
@@ -1133,7 +1167,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         action_idx: int,
         commands_idx: list[int],
         data_idx: dict[str, int],
-        metadata: Dict,
+        metadata: Metadata | None = None,
         save: bool = True,
     ) -> int:
         """Add a new EAR to an element iteration."""
@@ -1146,7 +1180,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             action_idx=action_idx,
             commands_idx=commands_idx,
             data_idx=data_idx,
-            metadata=metadata,
+            metadata=metadata or {},
         )
         self._pending.add_elem_iter_EAR_IDs[elem_iter_ID][action_idx].append(new_ID)
         if save:
@@ -1264,7 +1298,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self,
         store_contents: bool,
         is_input: bool,
-        path=None,
+        path: Path | str,
         contents: str | None = None,
         filename: str | None = None,
         clean_up: bool = False,
@@ -1280,7 +1314,6 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             else:
                 # assume path is inside the EAR execution directory; transform that to the
                 # equivalent artifacts directory:
-                assert path is not None
                 exec_sub_path = Path(path).relative_to(self.path)
                 dst_path = Path(
                     self.workflow.task_artifacts_path, *exec_sub_path.parts[1:]
@@ -1288,7 +1321,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             if dst_path.is_file():
                 dst_path = dst_path.with_suffix(dst_path.suffix + "_2")  # TODO: better!
         else:
-            dst_path = path
+            dst_path = Path(path)
 
         file_param_dat = {
             "store_contents": store_contents,
@@ -1311,8 +1344,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self,
         store_contents: bool,
         is_input: bool,
-        param_id: int | None = None,
-        path=None,
+        param_id: int | None,
+        path: Path | str,
         contents: str | None = None,
         filename: str | None = None,
         clean_up: bool = False,
@@ -1339,7 +1372,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         store_contents: bool,
         is_input: bool,
         source: ParamSource,
-        path=None,
+        path: Path | str,
         contents: str | None = None,
         filename: str | None = None,
         save: bool = True,
@@ -1533,7 +1566,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         loops = self._get_persistent_loops(id_pers) if id_pers else {}
-        loops.update({i: self._pending.add_loops[i] for i in id_pend})
+        loops.update((i, self._pending.add_loops[i]) for i in id_pend)
 
         # order as requested:
         return self.__process_retrieved_loops({id_: loops[id_] for id_ in id_lst})
@@ -1571,7 +1604,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         subs = self._get_persistent_submissions(id_pers) if id_pers else {}
-        subs.update({i: self._pending.add_submissions[i] for i in id_pend})
+        subs.update((i, self._pending.add_submissions[i]) for i in id_pend)
 
         # order by index/ID
         return dict(sorted(subs.items()))
@@ -1590,7 +1623,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         elems = self._get_persistent_elements(id_pers) if id_pers else {}
-        elems.update({i: self._pending.add_elements[i] for i in id_pend})
+        elems.update((i, self._pending.add_elements[i]) for i in id_pend)
 
         elems_new: list[AnySElement] = []
         # order as requested:
@@ -1620,7 +1653,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         iters = self._get_persistent_element_iters(id_pers) if id_pers else {}
-        iters.update({i: self._pending.add_elem_iters[i] for i in id_pend})
+        iters.update((i, self._pending.add_elem_iters[i]) for i in id_pend)
 
         iters_new: list[AnySElementIter] = []
         # order as requested:
@@ -1657,7 +1690,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         EARs = self._get_persistent_EARs(id_pers) if id_pers else {}
-        EARs.update({i: self._pending.add_EARs[i] for i in id_pend})
+        EARs.update((i, self._pending.add_EARs[i]) for i in id_pend)
 
         EARs_new: list[AnySEAR] = []
         # order as requested:
@@ -1744,7 +1777,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
         params = dict(
             self._get_persistent_parameters(id_pers, **kwargs)) if id_pers else {}
-        params.update({i: self._pending.add_parameters[i] for i in id_pend})
+        params.update((i, self._pending.add_parameters[i]) for i in id_pend)
 
         # order as requested:
         return [params[id_] for id_ in id_lst]
@@ -1765,7 +1798,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         set_status = self._get_persistent_parameter_set_status(id_pers) if id_pers else {}
-        set_status.update({i: self._pending.add_parameters[i].is_set for i in id_pend})
+        set_status.update((i, self._pending.add_parameters[i].is_set) for i in id_pend)
 
         # order as requested:
         return [set_status[id_] for id_ in id_lst]
@@ -1784,19 +1817,21 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pend = id_set.intersection(all_pending)
 
         src = self._get_persistent_param_sources(id_pers) if id_pers else {}
-        src.update({i: self._pending.add_parameters[i].source for i in id_pend})
+        src.update((i, self._pending.add_parameters[i].source) for i in id_pend)
 
-        src_new: list[ParamSource] = []
-        # order as requested:
-        for id_i, src_i in ((id_, src[id_]) for id_ in id_lst):
-            # consider pending source updates:
-            pend_src = self._pending.update_param_sources.get(id_i)
-            if pend_src:
-                src_new.append({**src_i, **pend_src})
-            else:
-                src_new.append(src_i)
+        # order as requested, and consider pending source updates:
+        return [
+            self.__merge_param_source(
+                src[id_i], self._pending.update_param_sources.get(id_i))
+            for id_i in id_lst
+        ]
 
-        return src_new
+    @staticmethod
+    def __merge_param_source(src_i: ParamSource, pend_src: ParamSource | None) -> ParamSource:
+        """
+        Helper to merge a second dict in if it is provided.
+        """
+        return {**src_i, **pend_src} if pend_src else src_i
 
     @abstractmethod
     def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]: ...
@@ -1814,31 +1849,26 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         """
 
         all_elem_IDs = self.get_task(task_id).element_IDs
-        if idx_lst is None:
-            req_IDs = all_elem_IDs
-        else:
-            req_IDs = [all_elem_IDs[i] for i in idx_lst]
-        store_elements = self.get_elements(req_IDs)
+        store_elements = self.get_elements(
+            all_elem_IDs if idx_lst is None else (all_elem_IDs[i] for i in idx_lst))
         iter_IDs_flat, iter_IDs_lens = flatten(
             [i.iteration_IDs for i in store_elements])
         store_iters = self.get_element_iterations(iter_IDs_flat)
 
         # retrieve EARs:
-        EAR_IDs_flat, EAR_IDs_lens = flatten([
+        EARs_dcts = remap([
             list((i.EAR_IDs or {}).values())
             for i in store_iters
-        ])
-        EARs_dcts = reshape([
+        ], lambda ears: [
             ear.to_dict()
-            for ear in self.get_EARs(EAR_IDs_flat)
-        ], EAR_IDs_lens)
+            for ear in self.get_EARs(ears)])
 
         # add EARs to iterations:
         iters: list[dict[str, Any]] = []
         for idx, i in enumerate(store_iters):
-            EARs = None
+            EARs: dict[int, dict[str, Any]] | None = None
             if i.EAR_IDs is not None:
-                EARs = dict(zip(i.EAR_IDs.keys(), EARs_dcts[idx]))
+                EARs = dict(zip(i.EAR_IDs.keys(), cast(Any, EARs_dcts[idx])))
             iters.append(i.to_dict(EARs))
 
         # reshape iterations:
@@ -1881,7 +1911,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _append_elements(self, elems: Sequence[AnySElement]) -> None: ...
 
     @abstractmethod
-    def _append_element_sets(self, task_id: int, es_js: Sequence[Dict]) -> None: ...
+    def _append_element_sets(self, task_id: int, es_js: Sequence[Mapping]) -> None: ...
 
     @abstractmethod
     def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: Iterable[int]) -> None: ...
@@ -1934,7 +1964,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _update_loop_parents(self, index: int, parents: list[str]) -> None: ...
 
     @overload
-    def using_resource(self, res_label: Literal["metadata"], action: str) -> AbstractContextManager[dict[str, Any]]: ...
+    def using_resource(self, res_label: Literal["metadata"], action: str) -> AbstractContextManager[Metadata]: ...
 
     @overload
     def using_resource(self, res_label: Literal["submissions"], action: str) -> AbstractContextManager[list[Dict]]: ...
@@ -1977,7 +2007,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
                 res.close(action)
                 self._resources_in_use.remove(key)
 
-    def copy(self, path: PathLike = None) -> str:
+    def copy(self, path: PathLike = None) -> Path:
         """Copy the workflow store.
 
         This does not work on remote filesystems.
@@ -1995,7 +2025,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
         self.fs.copy(self.path, path)
 
-        return self.workflow._store.path.replace(self.path, path)
+        return Path(self.workflow._store.path).replace(path)
 
     def delete(self) -> None:
         """Delete the persistent workflow."""

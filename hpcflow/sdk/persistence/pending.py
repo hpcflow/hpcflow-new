@@ -5,10 +5,12 @@ import contextlib
 from dataclasses import dataclass, fields
 from datetime import datetime
 
+from logging import Logger
 from typing import Any, Dict, List, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from .base import (
         PersistentStore, AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
     from ..app import BaseApp
@@ -43,7 +45,11 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         code, and success boolean.
     """
 
-    def __init__(self, app: BaseApp, store: PersistentStore, resource_map: CommitResourceMap):
+    def __init__(
+        self, app: BaseApp,
+        store: PersistentStore[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter],
+        resource_map: CommitResourceMap
+    ):
         self.app = app
         self.store = store
         self.resource_map = resource_map
@@ -57,7 +63,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         self.add_parameters: dict[int, AnySParameter] = {}
         self.add_files: list[Dict] = []
         self.add_template_components: dict[str, dict[str, Dict]] = {}
-        self.add_element_sets: dict[int, List] = {}
+        self.add_element_sets: dict[int, list[Mapping]] = {}
 
         self.add_elem_IDs: dict[int, list[int]] = {}
         self.add_elem_iter_IDs: dict[int, List] = {}
@@ -112,18 +118,19 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         )
 
     def where_pending(self) -> list[str]:
+        excluded = {"app", "store", "resource_map"}
         return [
             k
             for k, v in self.__dict__.items()
-            if k not in ("app", "store", "resource_map") and bool(v)
+            if k not in excluded and bool(v)
         ]
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         return self.app.persistence_logger
 
     @TimeIt.decorator
-    def commit_all(self):
+    def commit_all(self) -> None:
         """Commit all pending changes to disk."""
         self.logger.info(f"committing all pending changes: {self.where_pending()}")
 
@@ -147,7 +154,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         """Commit pending tasks to disk."""
         if self.add_tasks:
             tasks = self.store.get_tasks_by_IDs(self.add_tasks)
-            task_ids = list(self.add_tasks.keys())
+            task_ids = set(self.add_tasks.keys())
             self.logger.debug(f"commit: adding pending tasks with IDs: {task_ids!r}")
             self.store._append_tasks(tasks)
             self.store.num_tasks_cache = None  # invalidate cache
@@ -163,7 +170,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         if self.add_loops:
             # retrieve pending loops, including pending changes to num_added_iterations:
             loops = self.store.get_loops_by_IDs(self.add_loops)
-            loop_ids = list(self.add_loops.keys())
+            loop_ids = set(self.add_loops.keys())
             self.logger.debug(f"commit: adding pending loops with indices {loop_ids!r}")
             self.store._append_loops(loops)
 
@@ -184,7 +191,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         if self.add_submissions:
             # retrieve pending submissions:
             subs = self.store.get_submissions_by_ID(self.add_submissions)
-            sub_ids = list(self.add_submissions.keys())
+            sub_ids = set(self.add_submissions.keys())
             self.logger.debug(
                 f"commit: adding pending submissions with indices {sub_ids!r}"
             )
@@ -213,7 +220,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
     def commit_elements(self) -> None:
         if self.add_elements:
             elems = self.store.get_elements(self.add_elements)
-            elem_ids = list(self.add_elements.keys())
+            elem_ids = set(self.add_elements.keys())
             self.logger.debug(f"commit: adding pending elements with IDs: {elem_ids!r}")
             self.store._append_elements(elems)
             # pending iter IDs that belong to pending elements are now committed:
@@ -246,7 +253,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
     def commit_elem_iters(self) -> None:
         if self.add_elem_iters:
             iters = self.store.get_element_iterations(self.add_elem_iters.keys())
-            iter_ids = list(self.add_elem_iters.keys())
+            iter_ids = set(self.add_elem_iters.keys())
             self.logger.debug(
                 f"commit: adding pending element iterations with IDs: {iter_ids!r}"
             )

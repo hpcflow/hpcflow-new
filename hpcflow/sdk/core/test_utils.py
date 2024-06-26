@@ -7,7 +7,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 if TYPE_CHECKING:
     from .actions import Action
-
+# mypy: disable-error-code="no-untyped-def"
 
 def make_schemas(ins_outs, ret_list=False):
     out = []

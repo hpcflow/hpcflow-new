@@ -656,6 +656,23 @@ def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
     return result
 
 
+@overload
+def remap(a: list[int], b: Callable[[Sequence[int]], Sequence[T]]) -> list[T]: ...
+
+
+@overload
+def remap(a: list[list[int]], b: Callable[[Sequence[int]], Sequence[T]]) -> list[list[T]]: ...
+
+
+@overload
+def remap(a: list[list[list[int]]], b: Callable[[Sequence[int]], Sequence[T]]) -> list[list[list[T]]]: ...
+
+
+def remap(a, b):
+    x, y = flatten(a)
+    return reshape(b(x), y)
+
+
 def is_fsspec_url(url: str) -> bool:
     return bool(re.match(r"(?:[a-z0-9]+:{1,2})+\/\/", url))
 

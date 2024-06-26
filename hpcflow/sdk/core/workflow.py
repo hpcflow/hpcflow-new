@@ -1743,14 +1743,14 @@ class Workflow:
         """
         return self._store.unzip(path=path, log=log)
 
-    def copy(self, path=None) -> str:
+    def copy(self, path: str | Path = ".") -> Path:
         """Copy the workflow to a new path and return the copied workflow path."""
         return self._store.copy(path)
 
-    def delete(self):
+    def delete(self) -> None:
         self._store.delete()
 
-    def _delete_no_confirm(self):
+    def _delete_no_confirm(self) -> None:
         self._store.delete_no_confirm()
 
     def get_parameters(
@@ -1849,7 +1849,7 @@ class Workflow:
         param_id: int | None,
         store_contents: bool,
         is_input: bool,
-        path=None,
+        path: Path | str,
         contents=None,
         filename: str | None = None,
         clean_up: bool = False,

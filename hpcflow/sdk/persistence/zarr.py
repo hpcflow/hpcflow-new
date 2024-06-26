@@ -5,10 +5,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 
 import numpy as np
 import zarr  # type: ignore
+import zarr.attrs  # type: ignore
+import zarr.convenience  # type: ignore
+import zarr.storage  # type: ignore
 from fsspec import AbstractFileSystem  # type: ignore
 from fsspec.implementations.zip import ZipFileSystem  # type: ignore
 from rich.console import Console
@@ -325,7 +328,7 @@ class ZarrPersistentStore(PersistentStore[
 
     _res_map = CommitResourceMap(commit_template_components=("attrs",))
 
-    def __init__(self, app, workflow, path, fs) -> None:
+    def __init__(self, app, workflow, path: str | Path, fs) -> None:
         self._zarr_store = None  # assigned on first access to `zarr_store`
         self._resources = {
             "attrs": ZarrAttrsStoreResource(
@@ -335,16 +338,16 @@ class ZarrPersistentStore(PersistentStore[
         super().__init__(app, workflow, path, fs)
 
     @contextmanager
-    def cached_load(self) -> Iterator[Dict]:
+    def cached_load(self) -> Iterator[None]:
         """Context manager to cache the root attributes."""
         with self.using_resource("attrs", "read") as attrs:
-            yield attrs
+            yield
 
     def remove_replaced_dir(self) -> None:
         with self.using_resource("attrs", "update") as md:
             if "replaced_workflow" in md:
                 self.logger.debug("removing temporarily renamed pre-existing workflow.")
-                self.remove_path(md["replaced_workflow"], self.fs)
+                self.remove_path(md["replaced_workflow"])
                 md["replaced_workflow"] = None
 
     def reinstate_replaced_dir(self) -> None:
@@ -353,11 +356,11 @@ class ZarrPersistentStore(PersistentStore[
                 self.logger.debug(
                     "reinstating temporarily renamed pre-existing workflow."
                 )
-                self.rename_path(md["replaced_workflow"], self.path, self.fs)
+                self.rename_path(md["replaced_workflow"], self.path, )
 
     @staticmethod
-    def _get_zarr_store(path: str, fs) -> zarr.storage.Store:
-        return zarr.storage.FSStore(url=path, fs=fs)
+    def _get_zarr_store(path: str | Path, fs: AbstractFileSystem) -> zarr.storage.Store:
+        return zarr.storage.FSStore(url=str(path), fs=fs)
 
     @classmethod
     def write_empty_workflow(
@@ -511,60 +514,66 @@ class ZarrPersistentStore(PersistentStore[
         elem_IDs_new = np.concatenate((elem_IDs_cur, elem_IDs))
         arr[task_ID] = elem_IDs_new
 
-    def _append_elements(self, elems: Sequence[ZarrStoreElement]):
-        arr = self._get_elements_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
+    @staticmethod
+    def __as_dict(attrs: zarr.attrs.Attributes) -> dict[str, list[str]]:
+        """
+        Type thunk to work around incomplete typing in zarr.
+        """
+        return cast(dict, attrs.asdict())
+
+    @contextmanager
+    def __mutate_attrs(self, arr: zarr.Array) -> Iterator[dict[str, list[str]]]:
+        attrs_orig = self.__as_dict(arr.attrs)
         attrs = copy.deepcopy(attrs_orig)
-        arr_add = np.empty((len(elems)), dtype=object)
-        arr_add[:] = [i.encode(attrs) for i in elems]
-        arr.append(arr_add)
+        yield attrs
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
 
-    def _append_element_sets(self, task_id: int, es_js: Sequence[Dict]):
+    def _append_elements(self, elems: Sequence[ZarrStoreElement]):
+        arr = self._get_elements_arr(mode="r+")
+        with self.__mutate_attrs(arr) as attrs:
+            arr_add = np.empty((len(elems)), dtype=object)
+            arr_add[:] = [i.encode(attrs) for i in elems]
+            arr.append(arr_add)
+
+    def _append_element_sets(self, task_id: int, es_js: Sequence[Mapping]):
         task_idx = task_idx = self._get_task_id_to_idx_map()[task_id]
         with self.using_resource("attrs", "update") as attrs:
             attrs["template"]["tasks"][task_idx]["element_sets"].extend(es_js)
 
     def _append_elem_iter_IDs(self, elem_ID: int, iter_IDs: Iterable[int]):
         arr = self._get_elements_arr(mode="r+")
-        attrs = arr.attrs.asdict()
-        elem_dat = arr[elem_ID]
+        attrs = self.__as_dict(arr.attrs)
+        elem_dat: list = cast(list, arr[elem_ID])
         store_elem = ZarrStoreElement.decode(elem_dat, attrs)
         store_elem = store_elem.append_iteration_IDs(iter_IDs)
-        arr[elem_ID] = store_elem.encode(
-            attrs
-        )  # attrs shouldn't be mutated (TODO: test!)
+        arr[elem_ID] = store_elem.encode(attrs)
+        # attrs shouldn't be mutated (TODO: test!)
 
     def _append_elem_iters(self, iters: Sequence[ZarrStoreElementIter]):
         arr = self._get_iters_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-        arr_add = np.empty((len(iters)), dtype=object)
-        arr_add[:] = [i.encode(attrs) for i in iters]
-        arr.append(arr_add)
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            arr_add = np.empty((len(iters)), dtype=object)
+            arr_add[:] = [i.encode(attrs) for i in iters]
+            arr.append(arr_add)
 
     def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: Sequence[int]):
         arr = self._get_iters_arr(mode="r+")
-        attrs = arr.attrs.asdict()
-        iter_dat = arr[iter_ID]
+        attrs = self.__as_dict(arr.attrs)
+        iter_dat = cast(list, arr[iter_ID])
         store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
         store_iter = store_iter.append_EAR_IDs(pend_IDs={act_idx: EAR_IDs})
-        arr[iter_ID] = store_iter.encode(
-            attrs
-        )  # attrs shouldn't be mutated (TODO: test!)
+        arr[iter_ID] = store_iter.encode(attrs)
+        # attrs shouldn't be mutated (TODO: test!)
 
     def _update_elem_iter_EARs_initialised(self, iter_ID: int):
         arr = self._get_iters_arr(mode="r+")
-        attrs = arr.attrs.asdict()
-        iter_dat = arr[iter_ID]
+        attrs = self.__as_dict(arr.attrs)
+        iter_dat = cast(list, arr[iter_ID])
         store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
         store_iter = store_iter.set_EARs_initialised()
-        arr[iter_ID] = store_iter.encode(
-            attrs
-        )  # attrs shouldn't be mutated (TODO: test!)
+        arr[iter_ID] = store_iter.encode(attrs)
+        # attrs shouldn't be mutated (TODO: test!)
 
     def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]):
         with self.using_resource("attrs", action="update") as attrs:
@@ -574,8 +583,8 @@ class ZarrPersistentStore(PersistentStore[
 
     def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
         arr = self._get_iters_arr(mode="r+")
-        attrs = arr.attrs.asdict()
-        iter_dat = arr[iter_ID]
+        attrs = self.__as_dict(arr.attrs)
+        iter_dat = cast(list, arr[iter_ID])
         store_iter = ZarrStoreElementIter.decode(iter_dat, attrs)
         store_iter = store_iter.update_loop_idx(loop_idx)
         arr[iter_ID] = store_iter.encode(attrs)
@@ -590,14 +599,10 @@ class ZarrPersistentStore(PersistentStore[
 
     def _append_EARs(self, EARs: Sequence[ZarrStoreEAR]):
         arr = self._get_EARs_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-        arr_add = np.empty((len(EARs)), dtype=object)
-        arr_add[:] = [i.encode(self.ts_fmt, attrs) for i in EARs]
-        arr.append(arr_add)
-
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            arr_add = np.empty((len(EARs)), dtype=object)
+            arr_add[:] = [i.encode(self.ts_fmt, attrs) for i in EARs]
+            arr.append(arr_add)
 
     @TimeIt.decorator
     def _update_EAR_submission_indices(self, sub_indices: Mapping[int, int]):
@@ -605,64 +610,44 @@ class ZarrPersistentStore(PersistentStore[
         EARs = self._get_persistent_EARs(EAR_IDs)
 
         arr = self._get_EARs_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-
-        for EAR_ID_i, sub_idx_i in sub_indices.items():
-            new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
-            # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
-            # object array, so set one-by-one:
-            arr[EAR_ID_i] = new_EAR_i.encode(self.ts_fmt, attrs)
-
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            for EAR_ID_i, sub_idx_i in sub_indices.items():
+                new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
+                # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
+                # object array, so set one-by-one:
+                arr[EAR_ID_i] = new_EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
         arr = self._get_EARs_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-
-        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(
-            start_time=s_time,
-            snapshot_start=s_snap,
-            run_hostname=s_hn,
-        )
-        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
-
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+            EAR_i = EAR_i.update(
+                start_time=s_time,
+                snapshot_start=s_snap,
+                run_hostname=s_hn,
+            )
+            arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_EAR_end(
         self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool
     ):
         arr = self._get_EARs_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-
-        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(
-            end_time=e_time,
-            snapshot_end=e_snap,
-            exit_code=ext_code,
-            success=success,
-        )
-        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
-
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+            EAR_i = EAR_i.update(
+                end_time=e_time,
+                snapshot_end=e_snap,
+                exit_code=ext_code,
+                success=success,
+            )
+            arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_EAR_skip(self, EAR_id: int):
         arr = self._get_EARs_arr(mode="r+")
-        attrs_orig = arr.attrs.asdict()
-        attrs = copy.deepcopy(attrs_orig)
-
-        EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
-        EAR_i = EAR_i.update(skip=True)
-        arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
-
-        if attrs != attrs_orig:
-            arr.attrs.put(attrs)
+        with self.__mutate_attrs(arr) as attrs:
+            EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
+            EAR_i = EAR_i.update(skip=True)
+            arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_js_metadata(self, js_meta: Dict):
         with self.using_resource("attrs", action="update") as attrs:
@@ -681,8 +666,8 @@ class ZarrPersistentStore(PersistentStore[
         )
 
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
-        param_enc = []
-        src_enc = []
+        param_enc: list[dict[str, Any] | int] = []
+        src_enc: list[dict] = []
         for param_i in params:
             dat_i = param_i.encode(
                 root_group=param_encode_root_group,
@@ -703,7 +688,7 @@ class ZarrPersistentStore(PersistentStore[
         param_ids = list(set_parameters.keys())
         # the `decode` call in `_get_persistent_parameters` should be quick:
         params = self._get_persistent_parameters(param_ids)
-        new_data = []
+        new_data: list[dict[str, Any] | int] = []
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
         for param_id, (value, is_file) in set_parameters.items():
 
@@ -730,7 +715,7 @@ class ZarrPersistentStore(PersistentStore[
         param_ids = list(sources.keys())
         src_arr = self._get_parameter_sources_array(mode="r+")
         existing_sources = src_arr.get_coordinate_selection(param_ids)
-        new_sources = []
+        new_sources: list[dict] = []
         for idx, source_i in enumerate(sources.values()):
             new_src_i = update_param_source_dict(existing_sources[idx], source_i)
             new_sources.append(new_src_i)
@@ -790,6 +775,7 @@ class ZarrPersistentStore(PersistentStore[
     @property
     def zarr_store(self) -> zarr.storage.Store:
         if self._zarr_store is None:
+            assert self.fs is not None
             self._zarr_store = self._get_zarr_store(self.path, self.fs)
         return self._zarr_store
 
@@ -1243,7 +1229,7 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
             zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
             return dst_path
 
-    def copy(self, path=None) -> str:
+    def copy(self, path=None) -> Path:
         # not sure how to do this.
         raise NotImplementedError()
 

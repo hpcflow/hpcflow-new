@@ -425,7 +425,7 @@ class ElementActionRun:
         default: Any | None = None,
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
-    ):
+    ) -> Any:
         return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
@@ -668,16 +668,18 @@ class ElementActionRun:
             )
         out_files: dict[str, Path] = {}
         for file_spec in self.action.output_file_parsers[0].output_files:
-            out_files[file_spec.label] = Path(file_spec.name.value())
+            name = file_spec.name.value()
+            assert isinstance(name, str)
+            out_files[file_spec.label] = Path(name)
         return out_files
 
-    def get_OFP_inputs(self) -> dict[str, str | list[str]]:
+    def get_OFP_inputs(self) -> dict[str, str | list[str] | dict[str, Any]]:
         if not self.action._from_expand:
             raise RuntimeError(
                 f"Cannot get output file parser inputs from this from EAR because the "
                 f"associated action is not expanded, meaning multiple OFPs might exist."
             )
-        inputs = {}
+        inputs: dict[str, str | list[str] | dict[str, Any]] = {}
         for inp_typ in self.action.output_file_parsers[0].inputs or []:
             inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
 

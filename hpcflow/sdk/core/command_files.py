@@ -3,17 +3,19 @@ import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, ClassVar, Dict, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.environment import Environment
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any, ClassVar, Dict, Self
     from ..app import BaseApp
     from ..typing import ParamSource
-    from .actions import ActionRule, Action
+    from .actions import Action, ActionRule
+    from .environment import Environment
     from .object_list import CommandFilesList
     from .parameters import Parameter
     from .task import ElementSet
@@ -32,13 +34,13 @@ class FileSpec(JSONLike):
     _name: str | FileNameSpec
     _hash_value: str | None = field(default=None, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._name = (
             self.app.FileNameSpec(self._name) if isinstance(self._name, str) else self._name
         )
 
-    def value(self, directory="."):
-        return self.name.value(directory)
+    def value(self, directory: str = ".") -> str:
+        return cast(str, self.name.value(directory))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -53,11 +55,11 @@ class FileSpec(JSONLike):
         return self._name
 
     @property
-    def stem(self):
+    def stem(self) -> FileNameStem:
         return self.name.stem
 
     @property
-    def ext(self):
+    def ext(self) -> FileNameExt:
         return self.name.ext
 
 
@@ -65,7 +67,7 @@ class FileNameSpec(JSONLike):
     app: ClassVar[BaseApp]
     _app_attr = "app"
 
-    def __init__(self, name: str, args=None, is_regex=False):
+    def __init__(self, name: str, args: list | None = None, is_regex: bool = False) -> None:
         self.name = name
         self.args = args
         self.is_regex = is_regex
@@ -87,14 +89,14 @@ class FileNameSpec(JSONLike):
     def ext(self) -> FileNameExt:
         return self.app.FileNameExt(self)
 
-    def value(self, directory="."):
+    def value(self, directory: str = ".") -> list[str] | str:
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
             return search_dir_files_by_regex(value, group=0, directory=directory)
         return value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
 
@@ -102,16 +104,24 @@ class FileNameSpec(JSONLike):
 class FileNameStem(JSONLike):
     file_name: FileNameSpec
 
-    def value(self, directory=None):
-        return Path(self.file_name.value(directory)).stem
+    def value(self, directory: str = ".") -> str:
+        d = self.file_name.value(directory)
+        if self.file_name.is_regex:
+            raise ValueError("cannot get the stem of a regex match")
+        assert not isinstance(d, list)
+        return Path(d).stem
 
 
 @dataclass
 class FileNameExt(JSONLike):
     file_name: FileNameSpec
 
-    def value(self, directory=None):
-        return Path(self.file_name.value(directory)).suffix
+    def value(self, directory: str = ".") -> str:
+        d = self.file_name.value(directory)
+        if self.file_name.is_regex:
+            raise ValueError("cannot get the extension of a regex match")
+        assert not isinstance(d, list)
+        return Path(d).suffix
 
 
 @dataclass
@@ -149,14 +159,14 @@ class InputFileGenerator(JSONLike):
     abortable: bool = False
     rules: list[ActionRule] = field(default_factory=list)
 
-    def get_action_rules(self):
+    def get_action_rules(self) -> list[ActionRule]:
         """Get the rules that allow testing if this input file generator must be run or
         not for a given element."""
         return [
             self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
         ] + self.rules
 
-    def compose_source(self, snip_path) -> str:
+    def compose_source(self, snip_path: Path) -> str:
         """Generate the file contents of this input file generator source."""
 
         script_main_func = snip_path.stem
@@ -197,10 +207,9 @@ class InputFileGenerator(JSONLike):
         """
         )
 
-        out = out.format(script_str=script_str, main_block=main_block)
-        return out
+        return out.format(script_str=script_str, main_block=main_block)
 
-    def write_source(self, action: Action, env_spec: dict[str, Any]):
+    def write_source(self, action: Action, env_spec: dict[str, Any]) -> None:
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
         snip_path = action.get_snippet_script_path(self.script, env_spec)
@@ -274,7 +283,7 @@ class OutputFileParser(JSONLike):
     rules: list[ActionRule] = field(default_factory=list)
     _save_files: list[FileSpec] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.save_files:
             # save no files
             self._save_files = []
@@ -285,7 +294,9 @@ class OutputFileParser(JSONLike):
             self._save_files = self.save_files
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
+    def from_json_like(  # type: ignore[override]
+        cls, json_like: Dict[str, Any], shared_data: Mapping | None = None
+    ) -> Self:
         if "save_files" in json_like:
             if not json_like["save_files"]:
                 json_like["save_files"] = []
@@ -293,7 +304,7 @@ class OutputFileParser(JSONLike):
                 json_like["save_files"] = [i for i in json_like["output_files"]]
         return super().from_json_like(json_like, shared_data)
 
-    def get_action_rules(self):
+    def get_action_rules(self) -> list[ActionRule]:
         """Get the rules that allow testing if this output file parser must be run or not
         for a given element."""
         return [
@@ -301,7 +312,7 @@ class OutputFileParser(JSONLike):
             for i in self.output_files
         ] + self.rules
 
-    def compose_source(self, snip_path) -> str:
+    def compose_source(self, snip_path: Path) -> str:
         """Generate the file contents of this output file parser source."""
 
         if self.output is None:
@@ -352,10 +363,9 @@ class OutputFileParser(JSONLike):
         """
         )
 
-        out = out.format(script_str=script_str, main_block=main_block)
-        return out
+        return out.format(script_str=script_str, main_block=main_block)
 
-    def write_source(self, action: Action, env_spec: dict[str, Any]):
+    def write_source(self, action: Action, env_spec: dict[str, Any]) -> None:
         if self.output is None:
             # might be used just for saving files:
             return
@@ -375,14 +385,14 @@ class _FileContentsSpecifier(JSONLike):
 
     app: ClassVar[BaseApp]
     file: FileSpec
-    normalised_path: str
+
     def __init__(
         self,
         path: Path | str | None = None,
         contents: str | None = None,
         extension: str = "",
         store_contents: bool = True,
-    ):
+    ) -> None:
         if path is not None and contents is not None:
             raise ValueError("Specify exactly one of `path` and `contents`.")
 
@@ -403,7 +413,7 @@ class _FileContentsSpecifier(JSONLike):
         # assigned by parent `ElementSet`
         self._element_set: ElementSet | None = None
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict | None) -> Self:
         kwargs = self.to_dict()
         value_group_idx = kwargs.pop("value_group_idx")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
@@ -412,16 +422,19 @@ class _FileContentsSpecifier(JSONLike):
         obj._element_set = self._element_set
         return obj
 
-    def to_dict(self):
+    @property
+    def normalised_path(self) -> str:
+        return str(self._path) if self._path else "."
+
+    def to_dict(self) -> dict[str, Any]:
         out = super().to_dict()
         if "_workflow" in out:
             del out["_workflow"]
 
-        out = {k.lstrip("_"): v for k, v in out.items()}
-        return out
+        return {k.lstrip("_"): v for k, v in out.items()}
 
     @classmethod
-    def _json_like_constructor(cls, json_like):
+    def _json_like_constructor(cls, json_like: Dict[str, Any]) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("value_group_idx", None)
@@ -430,7 +443,7 @@ class _FileContentsSpecifier(JSONLike):
 
         return obj
 
-    def _get_members(self, ensure_contents=False):
+    def _get_members(self, ensure_contents: bool = False) -> dict[str, Any]:
         out = self.to_dict()
         del out["value_group_idx"]
 
@@ -487,42 +500,55 @@ class _FileContentsSpecifier(JSONLike):
 
         return (self.normalised_path, [data_ref], is_new)
 
-    def _get_value(self, value_name=None):
+    @overload
+    def _get_value(self, value_name: None = None) -> dict[str, Any]: ...
+
+    @overload
+    def _get_value(self, value_name: str) -> Any: ...
+
+    def _get_value(self, value_name: str | None = None) -> Any:
         # TODO: fix
+        assert self._value_group_idx is None
         if self._value_group_idx is not None:
+            # FIXME: No such method?
+            assert hasattr(self.workflow, "get_zarr_parameter_group")
             grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
             val = zarr_decode(grp)
         else:
             val = self._get_members(ensure_contents=(value_name == "contents"))
         if value_name:
-            val = val.get(value_name)
+            return val.get(value_name)
 
         return val
 
-    def read_contents(self):
-        with self.path.open("r") as fh:
+    def read_contents(self) -> str:
+        with self.__path.open("r") as fh:
             return fh.read()
 
     @property
-    def path(self):
+    def __path(self) -> Path:
+        path = self._get_value("path")
+        assert path is not None
+        return Path(path)
+
+    @property
+    def path(self) -> Path | None:
         path = self._get_value("path")
         return Path(path) if path else None
 
     @property
-    def store_contents(self):
+    def store_contents(self) -> Any:
         return self._get_value("store_contents")
 
     @property
-    def contents(self):
+    def contents(self) -> str:
         if self.store_contents:
-            contents = self._get_value("contents")
+            return self._get_value("contents")
         else:
-            contents = self.read_contents()
-
-        return contents
+            return self.read_contents()
 
     @property
-    def extension(self):
+    def extension(self) -> str:
         return self._get_value("extension")
 
     @property
@@ -553,7 +579,7 @@ class InputFile(_FileContentsSpecifier):
         contents: str | None = None,
         extension: str = "",
         store_contents: bool = True,
-    ):
+    ) -> None:
         if not isinstance(file, FileSpec):
             files: CommandFilesList = self.app.command_files
             self.file = files.get(file)
@@ -562,17 +588,13 @@ class InputFile(_FileContentsSpecifier):
 
         super().__init__(path, contents, extension, store_contents)
 
-    def to_dict(self):
-        dct = super().to_dict()
-        return dct
-
-    def _get_members(self, ensure_contents=False, use_file_label=False):
+    def _get_members(self, ensure_contents: bool = False, use_file_label: bool = False) -> dict[str, Any]:
         out = super()._get_members(ensure_contents)
         if use_file_label:
             out["file"] = self.file.label
         return out
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         val_grp_idx = ""
         if self._value_group_idx is not None:
             val_grp_idx = f", value_group_idx={self._value_group_idx}"
@@ -590,11 +612,11 @@ class InputFile(_FileContentsSpecifier):
         )
 
     @property
-    def normalised_files_path(self):
+    def normalised_files_path(self) -> str:
         return self.file.label
 
     @property
-    def normalised_path(self):
+    def normalised_path(self) -> str:
         return f"input_files.{self.normalised_files_path}"
 
 
