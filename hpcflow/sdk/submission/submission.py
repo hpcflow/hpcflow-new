@@ -295,6 +295,14 @@ class Submission(JSONLike):
     def get_tmp_path(cls, submissions_path: Path, sub_idx: int) -> Path:
         return cls.get_path(submissions_path, sub_idx) / cls.TMP_DIR_NAME
 
+    @classmethod
+    def get_log_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.LOG_DIR_NAME
+
+    @classmethod
+    def get_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.STD_DIR_NAME
+
     @property
     def path(self) -> Path:
         return self.get_path(self.workflow.submissions_path, self.index)
@@ -305,11 +313,11 @@ class Submission(JSONLike):
 
     @property
     def log_path(self) -> Path:
-        return self.path / self.LOG_DIR_NAME
+        return self.get_log_path(self.workflow.submissions_path, self.index)
 
     @property
     def std_path(self):
-        return self.path / self.STD_DIR_NAME
+        return self.get_std_path(self.workflow.submissions_path, self.index)
 
     @property
     def all_EAR_IDs(self):

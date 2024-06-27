@@ -985,7 +985,6 @@ class Jobscript(JSONLike):
             "sub_idx": self.submission.index,
             "js_idx": self.index,
             "EAR_file_name": self.EAR_ID_file_name,
-            "run_stream_file": self.app.RunDirAppFiles.get_std_file_name(),
             "tmp_dir_name": self.submission.TMP_DIR_NAME,
             "log_dir_name": self.submission.LOG_DIR_NAME,
             "std_dir_name": self.submission.STD_DIR_NAME,

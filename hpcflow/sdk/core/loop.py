@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 from warnings import warn
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.actions import SkipReason
+from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache

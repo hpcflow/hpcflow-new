@@ -15,6 +15,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
+from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
@@ -31,6 +32,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
+from hpcflow.sdk.submission.submission import Submission
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
@@ -51,12 +53,6 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
     ActionScopeType.INPUT_FILE_GENERATOR.name: {"file"},
     ActionScopeType.OUTPUT_FILE_PARSER.name: {"output"},
 }
-
-
-class SkipReason(enum.Enum):
-    NOT_SKIPPED = 0
-    UPSTREAM_FAILURE = 1
-    LOOP_TERMINATION = 2
 
 
 class EARStatus(enum.Enum):
@@ -493,6 +489,20 @@ class ElementActionRun:
             self.workflow.execution_path, task_dir_name, elem_dir_name, run_dir_name
         )
         return run_dir
+
+    def get_log_path(self) -> Path:
+        log_dir = Submission.get_log_path(
+            self.workflow.submissions_path,
+            self.submission_idx,
+        )
+        return log_dir / f"{self.id_}.log"  # TODO: refactor
+
+    def get_std_path(self) -> Path:
+        std_dir = Submission.get_std_path(
+            self.workflow.submissions_path,
+            self.submission_idx,
+        )
+        return std_dir / f"{self.id_}.txt"  # TODO: refactor
 
     @TimeIt.decorator
     def get_resources(self):
@@ -1590,13 +1600,17 @@ class Action(JSONLike):
             inp_files = []
             inp_acts = []
 
-            wk_path_env_var = '"$WK_PATH"'  # (could have spaces in it)
-            run_ID_env_var = "$RUN_ID"
-            std_stream_env_var = "$STD_STREAM_FILE"
+            app_caps = self.app.package_name.upper()
+            run_ID_var = "$RUN_ID"
+
+            # note: double quotes; workflow path may include spaces:
+            wk_path_var = '"$WK_PATH"'
+            app_std_path_var = f'"${app_caps}_RUN_STD_PATH"'
+            app_log_path_var = f'"${app_caps}_RUN_LOG_PATH"'
 
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_env_var, run_ID_env_var, std_stream_env_var]
+                args = [wk_path_var, run_ID_var, app_std_path_var, app_log_path_var]
                 if ifg.script:
                     script_name = self.get_script_name(ifg.script)
                     variables = {
@@ -1626,7 +1640,7 @@ class Action(JSONLike):
             out_acts = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_env_var, run_ID_env_var, std_stream_env_var]
+                args = [wk_path_var, run_ID_var, app_std_path_var, app_log_path_var]
                 if ofp.script:
                     script_name = self.get_script_name(ofp.script)
                     variables = {
@@ -1668,11 +1682,13 @@ class Action(JSONLike):
                     args.extend(
                         [
                             "--wk-path",
-                            wk_path_env_var,
+                            wk_path_var,
                             "--run-id",
-                            run_ID_env_var,
+                            run_ID_var,
                             "--std-stream",
-                            std_stream_env_var,
+                            app_std_path_var,
+                            "--log-path",
+                            app_log_path_var,
                         ]
                     )
 
@@ -2043,6 +2059,7 @@ class Action(JSONLike):
             parser.add_argument("--wk-path")
             parser.add_argument("--run-id", type=int)
             parser.add_argument("--std-stream")
+            parser.add_argument("--log-path")
             parser.add_argument("--inputs-json")
             parser.add_argument("--inputs-hdf5")
             parser.add_argument("--outputs-json")
@@ -2058,7 +2075,7 @@ class Action(JSONLike):
             py_main_block_workflow_load = dedent(
                 """\
                     app.load_config(
-                        log_file_path=Path("{run_log_file}").resolve(),
+                        log_file_path=Path(args.log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )

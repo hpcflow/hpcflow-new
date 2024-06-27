@@ -11,16 +11,6 @@ class RunDirAppFiles:
 
     CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
-    @classmethod
-    def get_log_file_name(cls) -> str:
-        """File name for the app log file."""
-        return f"{cls.app.package_name}.log"
-
-    @classmethod
-    def get_std_file_name(cls) -> str:
-        """File name for stdout and stderr streams from the app."""
-        return f"{cls.app.package_name}_std.txt"
-
     @staticmethod
     def get_run_file_prefix(block_act_key: Tuple[int, int, int]) -> str:
         return f"js_{block_act_key[0]}_block_{block_act_key[1]}_act_{block_act_key[2]}"
@@ -54,11 +44,7 @@ class RunDirAppFiles:
         ss_js = snapshot.to_json_like(use_strings=True)
         ss_js.pop("root_path")  # always the current working directory of the run
         for k in list(ss_js["data"].keys()):
-            if (
-                k == cls.get_log_file_name()
-                or k == cls.get_std_file_name()
-                or re.match(cls.CMD_FILES_RE_PATTERN, k)
-            ):
+            if re.match(cls.CMD_FILES_RE_PATTERN, k):
                 ss_js["data"].pop(k)
 
         return ss_js

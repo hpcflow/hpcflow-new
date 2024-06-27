@@ -132,7 +132,8 @@ def test_OFP_std_stream_redirect_on_exception(new_null_config, tmp_path):
     assert not wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
 
     # std stream file has workflow not found traceback
-    std_stream_path = wk.execution_path / "task_0_t1/e_0/r_0/hpcflow_std.txt"
+    run = wk.get_all_EARs()[1]
+    std_stream_path = run.get_std_path()
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 

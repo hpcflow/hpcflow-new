@@ -159,10 +159,10 @@ class InputFileGenerator(JSONLike):
                 from pathlib import Path
                 import {app_module} as app
                 
-                wk_path, EAR_ID, std_stream = sys.argv[1:]
+                wk_path, EAR_ID, std_stream, log_path = sys.argv[1:]
                 with app.redirect_std_to_file(std_stream):
                     app.load_config(
-                        log_file_path=Path("{run_log_file}").resolve(),
+                        log_file_path=Path(log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
@@ -178,7 +178,6 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_key,
@@ -315,10 +314,10 @@ class OutputFileParser(JSONLike):
                 from pathlib import Path
                 import {app_module} as app
                 
-                wk_path, EAR_ID, std_stream = sys.argv[1:]
+                wk_path, EAR_ID, std_stream, log_path = sys.argv[1:]
                 with app.redirect_std_to_file(std_stream):
                     app.load_config(
-                        log_file_path=Path("{run_log_file}").resolve(),
+                        log_file_path=Path(log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
@@ -339,7 +338,6 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
-            run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
             app_module=self.app.module,
             cfg_dir=self.app.config.config_directory,
             cfg_invoc_key=self.app.config.config_key,

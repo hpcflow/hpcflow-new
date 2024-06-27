@@ -26,7 +26,8 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
     SKIPPED_EXIT_CODE,
 )
-from hpcflow.sdk.core.actions import EARStatus, SkipReason
+from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.cache import ObjectCache
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
@@ -2825,11 +2826,11 @@ class Workflow:
         # to go:
         os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
 
-        std_stream_file = self.app.RunDirAppFiles.get_std_file_name()
-        std_stream_path = Path(".").joinpath(std_stream_file)
+        sub_str_path = Submission.get_std_path(self.submissions_path, submission_idx)
+        run_std_path = sub_str_path / f"{str(run_ID)}.txt"  # TODO: refactor
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(std_stream_path):
+        with redirect_std_to_file(run_std_path):
 
             js_idx = block_act_key[0]
             run = self.get_EARs_from_IDs([run_ID])[0]
@@ -2875,7 +2876,7 @@ class Workflow:
             ret_code = exe.run()  # this also shuts down the server
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(std_stream_path):
+        with redirect_std_to_file(run_std_path):
             if run.skip:
                 ret_code = SKIPPED_EXIT_CODE
 
@@ -2924,6 +2925,7 @@ class Workflow:
                             EAR_ID=run.id_,
                             cmd_idx=cmd_idx,
                             stderr=(st_typ == "stderr"),
+                            app_name=app_name,
                         )
 
                 # add loop-check command if this is the last action of this loop iteration
@@ -2951,6 +2953,7 @@ class Workflow:
                         workflow_app_alias=jobscript.workflow_app_alias,
                         run_ID=run.id_,
                         loop_names=check_loops,
+                        app_name=app_name,
                     )
                     commands += loop_cmd
             else:

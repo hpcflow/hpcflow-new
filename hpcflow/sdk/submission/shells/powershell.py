@@ -22,7 +22,7 @@ class WindowsPowerShell(Shell):
         function {workflow_app_alias} {{
             & {{
         {env_setup}{app_invoc} `
-                    --with-config log_file_path "$env:{app_caps}_LOG_PATH" `
+                    --with-config log_file_path "$env:{app_caps}_RUN_LOG_PATH" `
                     --config-dir "{config_dir}" `
                     --config-key "{config_invoc_key}" `
                     $args
@@ -70,7 +70,6 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_WK_PATH = $WK_PATH
         $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
         $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
-        $env:{app_caps}_STD_STREAM_FILE = "{run_stream_file}"
         $env:{app_caps}_SUB_IDX = {sub_idx}
         $env:{app_caps}_JS_IDX = {js_idx}
 
@@ -101,7 +100,8 @@ class WindowsPowerShell(Shell):
         }}
 
         $env:{app_caps}_RUN_ID = $EAR_ID
-        $env:{app_caps}_LOG_PATH = Join-Path $SUB_LOG_DIR "$env:{app_caps}_RUN_ID.log"
+        $env:{app_caps}_RUN_LOG_PATH = Join-Path $SUB_LOG_DIR "$env:{app_caps}_RUN_ID.log"
+        $env:{app_caps}_RUN_STD_PATH = Join-Path $SUB_STD_DIR "$env:{app_caps}_RUN_ID.txt"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
 
         Set-Location $SUB_TMP_DIR
@@ -240,7 +240,8 @@ class WindowsPowerShell(Shell):
             $JS_IDX = $env:{app_name}_JS_IDX
             $JS_ELEM_IDX = $env:{app_name}_JS_ELEM_IDX
             $JS_ACT_IDX = $env:{app_name}_JS_ACT_IDX
-            $STD_STREAM_FILE = $env:{app_name}_STD_STREAM_FILE
+            ${app_name}_RUN_STD_PATH = $env:{app_name}_RUN_STD_PATH
+            ${app_name}_RUN_LOG_PATH = $env:{app_name}_RUN_LOG_PATH
             $RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
             $BLOCK_ACT_IDX = $env:{app_name}_BLOCK_ACT_IDX
             $BLOCK_IDX = $env:{app_name}_BLOCK_IDX
@@ -256,22 +257,27 @@ class WindowsPowerShell(Shell):
         EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
+        app_name: str,
     ):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         return (
-            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
+            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
             f"internal workflow $WK_PATH save-parameter "
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
             f"\n"
         )
 
     def format_loop_check(
-        self, workflow_app_alias: str, run_ID: int, loop_names: List[str]
+        self,
+        workflow_app_alias: str,
+        run_ID: int,
+        loop_names: List[str],
+        app_name: str,
     ):
         return (
-            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
+            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
             f"internal workflow $WK_PATH check-loop "
             f"{run_ID} {' '.join(loop_names)}  "
             f"\n"

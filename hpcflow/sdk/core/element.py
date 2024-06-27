@@ -9,7 +9,7 @@ from valida.conditions import ConditionLike
 from valida.rules import Rule
 
 from hpcflow.sdk import app
-from hpcflow.sdk.core.actions import SkipReason
+from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
