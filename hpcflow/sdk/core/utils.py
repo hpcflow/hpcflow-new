@@ -15,7 +15,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import cast, overload, TypeVar, TYPE_CHECKING
+from typing import cast, overload, TypeVar, TypedDict, TYPE_CHECKING
 import fsspec  # type: ignore
 import numpy as np
 
@@ -119,14 +119,22 @@ def check_valid_py_identifier(name: str) -> str:
     return name
 
 
-def group_by_dict_key_values(lst: list[dict[T, T2]], *keys: T):
+TD = TypeVar('TD', bound=Mapping[str, Any])
+
+@overload
+def group_by_dict_key_values(lst: list[dict[T, T2]], key: T) -> list[list[dict[T, T2]]]: ...
+
+@overload
+def group_by_dict_key_values(lst: list[TD], key: str) -> list[list[TD]]: ...
+
+def group_by_dict_key_values(lst: list, key):
     """Group a list of dicts according to specified equivalent key-values.
 
     Parameters
     ----------
     lst : list of dict
         The list of dicts to group together.
-    keys : tuple
+    key : key value
         Dicts that have identical values for all of these keys will be grouped together
         into a sub-list.
 
@@ -145,10 +153,10 @@ def group_by_dict_key_values(lst: list[dict[T, T2]], *keys: T):
     for lst_item in lst[1:]:
         for group_idx, group in enumerate(grouped):
             try:
-                is_vals_equal = all(lst_item[k] == group[0][k] for k in keys)
+                is_vals_equal = lst_item[key] == group[0][key]
 
             except KeyError:
-                # dicts that do not have all `keys` will be in their own group:
+                # dicts that do not have the `key` will be in their own group:
                 is_vals_equal = False
 
             if is_vals_equal:

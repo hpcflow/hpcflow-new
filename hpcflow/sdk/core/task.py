@@ -12,7 +12,7 @@ from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.element import ElementGroup
+from hpcflow.sdk.core.element import Element, ElementGroup, ElementIteration
 from hpcflow.sdk.core.errors import (
     ContainerKeyError,
     ExtraInputs,
@@ -113,7 +113,7 @@ class InputStatus:
     is_provided: bool
 
     @property
-    def is_extra(self):
+    def is_extra(self) -> bool:
         """Return True if the input is provided but not required."""
         return self.is_provided and not self.is_required
 
@@ -287,13 +287,13 @@ class ElementSet(JSONLike):
         self._validate_against_template()
 
     @property
-    def input_types(self):
+    def input_types(self) -> list[str]:
         return [i.labelled_type for i in self.inputs]
 
     @property
-    def element_local_idx_range(self):
+    def element_local_idx_range(self) -> tuple[int, ...]:
         """Used to retrieve elements belonging to this element set."""
-        return tuple(self._element_local_idx_range)
+        return tuple(self._element_local_idx_range or [])
 
     @classmethod
     def __decode_inputs(cls, inputs: list[InputValue] | dict[str, Any]) -> list[InputValue]:
@@ -412,19 +412,19 @@ class ElementSet(JSONLike):
     @classmethod
     def ensure_element_sets(
         cls,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        groups=None,
-        input_sources=None,
-        nesting_order=None,
-        env_preset=None,
-        environments=None,
-        allow_non_coincident_task_sources=None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        groups: list[ElementGroup] | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        env_preset: str | None = None,
+        environments: dict[str, dict[str, Any]] | None = None,
+        allow_non_coincident_task_sources: bool = False,
         element_sets: list[Self] | None = None,
-        sourceable_elem_iters=None,
+        sourceable_elem_iters: list[int] | None = None,
     ) -> list[Self]:
         args = (
             inputs,
@@ -445,14 +445,13 @@ class ElementSet(JSONLike):
                 raise ValueError(
                     "If providing an `element_set`, no other arguments are allowed."
                 )
-            else:
-                element_sets = [
-                    cls(
-                        *args,
-                        sourceable_elem_iters=sourceable_elem_iters,
-                        allow_non_coincident_task_sources=allow_non_coincident_task_sources,
-                    )
-                ]
+            element_sets = [
+                cls(
+                    *args,
+                    sourceable_elem_iters=sourceable_elem_iters,
+                    allow_non_coincident_task_sources=allow_non_coincident_task_sources,
+                )
+            ]
         else:
             if element_sets is None:
                 element_sets = [
@@ -487,6 +486,7 @@ class ElementSet(JSONLike):
                 out.append(inp.normalised_inputs_path)
         for seq in self.sequences:
             if seq.parameter and not seq.is_sub_value:  # ignore resource sequences
+                assert seq.normalised_inputs_path is not None
                 out.append(seq.normalised_inputs_path)
         return out
 
@@ -497,6 +497,7 @@ class ElementSet(JSONLike):
                 out.append(inp.normalised_inputs_path)
         for seq in self.sequences:
             if seq.parameter and seq.is_sub_value:  # ignore resource sequences
+                assert seq.normalised_inputs_path is not None
                 out.append(seq.normalised_inputs_path)
         return out
 
@@ -522,27 +523,29 @@ class ElementSet(JSONLike):
         assert t
         w = t.workflow
         assert w
-        return w.tasks[self.task_template.index]
+        i = self.task_template.index
+        assert i is not None
+        return w.tasks[i]
 
     @property
-    def elements(self):
+    def elements(self) -> list[Element]:
         return self.task.elements[slice(*self.element_local_idx_range)]
 
     @property
-    def element_iterations(self):
+    def element_iterations(self) -> list[ElementIteration]:
         return [j for i in self.elements for j in i.iterations]
 
     @property
-    def elem_iter_IDs(self):
+    def elem_iter_IDs(self) -> list[int]:
         return [i.id_ for i in self.element_iterations]
 
     @overload
-    def get_task_dependencies(self, as_objects:Literal[False]=False) -> list[int]: ...
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     @overload
-    def get_task_dependencies(self, as_objects:Literal[True]) -> list[WorkflowTask]: ...
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
 
-    def get_task_dependencies(self, as_objects=False) -> list[WorkflowTask] | list[int]:
+    def get_task_dependencies(self, as_objects: bool = False) -> list[WorkflowTask] | list[int]:
         """Get upstream tasks that this element set depends on."""
         deps: list[int] = []
         for element in self.elements:
@@ -586,7 +589,7 @@ class OutputLabel(JSONLike):
         self,
         parameter: str,
         label: str,
-        where: list[ElementFilter] | None = None,
+        where: Rule | None = None,
     ) -> None:
         self.parameter = parameter
         self.label = label
@@ -632,14 +635,14 @@ class Task(JSONLike):
     def __init__(
         self,
         schema: TaskSchema | str | list[TaskSchema] | list[str],
-        repeats: list[dict] | None = None,
+        repeats: list[RepeatsDescriptor] | None = None,
         groups: list[ElementGroup] | None = None,
         resources: dict[str, dict] | None = None,
         inputs: list[InputValue] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
-        input_sources: dict[str, InputSource] | None = None,
-        nesting_order: list | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
         env_preset: str | None = None,
         environments: dict[str, dict[str, Any]] | None = None,
         allow_non_coincident_task_sources: bool = False,
@@ -803,7 +806,7 @@ class Task(JSONLike):
         self._element_sets += self._pending_element_sets
         self._reset_pending_element_sets()
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         if self.to_dict() == other.to_dict():
@@ -834,7 +837,7 @@ class Task(JSONLike):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r})"
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any] | None) -> Self:
         kwargs = self.to_dict()
         _insert_ID = kwargs.pop("insert_ID")
         _dir_name = kwargs.pop("dir_name")
@@ -990,22 +993,23 @@ class Task(JSONLike):
         return multiplicities
 
     @property
-    def index(self):
+    def index(self) -> int | None:
         if self.workflow_template:
             return self.workflow_template.tasks.index(self)
         else:
             return None
 
     @property
-    def output_labels(self):
+    def output_labels(self) -> list[OutputLabel]:
         return self._output_labels
 
     @property
     def _element_indices(self):
+        # FIXME: WorkflowTask has no such property
         return self.workflow_template.workflow.tasks[self.index].element_indices
 
     def _get_task_source_element_iters(
-        self, in_or_out: str, src_task, labelled_path, element_set
+        self, in_or_out: str, src_task: Task, labelled_path: str, element_set: ElementSet
     ) -> list[int]:
         """Get a sorted list of element iteration IDs that provide either inputs or
         outputs from the provided source task."""
@@ -1020,10 +1024,9 @@ class Task(JSONLike):
                 # add any element set that has task sources for this parameter
                 for inp_src_i in es_i.input_sources.get(labelled_path, []):
                     if inp_src_i.source_type is InputSourceType.TASK:
-                        if es_i.index not in es_idx:
+                        if es_i.index is not None and es_i.index not in es_idx:
                             es_idx.append(es_i.index)
                             break
-
         else:
             # outputs are always available, so consider all source task
             # element sets:
@@ -1031,11 +1034,11 @@ class Task(JSONLike):
 
         if not es_idx:
             raise NoAvailableElementSetsError()
-        else:
-            src_elem_iters = []
-            for es_idx_i in es_idx:
-                es_i = src_task.element_sets[es_idx_i]
-                src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
+
+        src_elem_iters: list[int] = []
+        for es_idx_i in es_idx:
+            es_i = src_task.element_sets[es_idx_i]
+            src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
 
         if element_set.sourceable_elem_iters is not None:
             # can only use a subset of element iterations (this is the
@@ -1048,6 +1051,23 @@ class Task(JSONLike):
             )
 
         return src_elem_iters
+
+    @staticmethod
+    def __get_common_path(labelled_path: str, inputs_path: str) -> str | None:
+        lab_s = labelled_path.split(".")
+        inp_s = inputs_path.split(".")
+        try:
+            get_relative_path(lab_s, inp_s)
+        except ValueError:
+            try:
+                get_relative_path(inp_s, lab_s)
+            except ValueError:
+                # no intersection between paths
+                return None
+            else:
+                return inputs_path
+        else:
+            return labelled_path
 
     def get_available_task_input_sources(
         self,
@@ -1085,74 +1105,63 @@ class Task(JSONLike):
                     reverse=True,
                 ):
                     src_elem_iters: list[int] = []
-                    lab_s = labelled_path.split(".")
-                    inp_s = inputs_path.split(".")
-                    try:
-                        get_relative_path(lab_s, inp_s)
-                    except ValueError:
-                        try:
-                            get_relative_path(inp_s, lab_s)
-                        except ValueError:
-                            # no intersection between paths
-                            inputs_path_label = None
-                            out_label = None
-                            unlabelled, inputs_path_label = split_param_label(inputs_path)
-                            if unlabelled is None:
-                                continue
-                            try:
-                                get_relative_path(unlabelled.split("."), lab_s)
-                                avail_src_path = inputs_path
-                            except ValueError:
-                                continue
-
-                            if inputs_path_label:
-                                for out_lab_i in src_task_i.output_labels:
-                                    if out_lab_i.label == inputs_path_label:
-                                        out_label = out_lab_i
-                            else:
-                                continue
-
-                            # consider output labels
-                            if out_label and in_or_out == "output":
-                                # find element iteration IDs that match the output label
-                                # filter:
-                                if out_label.where:
-                                    param_path_split = out_label.where.path.split(".")
-
-                                    for elem_i in src_wk_task_i.elements:
-                                        params = getattr(elem_i, param_path_split[0])
-                                        param_dat = getattr(
-                                            params, param_path_split[1]
-                                        ).value
-
-                                        # for remaining paths components try both getattr and
-                                        # getitem:
-                                        for path_k in param_path_split[2:]:
-                                            try:
-                                                param_dat = param_dat[path_k]
-                                            except TypeError:
-                                                param_dat = getattr(param_dat, path_k)
-
-                                        rule = Rule(
-                                            path=[0],
-                                            condition=out_label.where.condition,
-                                            cast=out_label.where.cast,
-                                        )
-                                        if rule.test([param_dat]).is_valid:
-                                            src_elem_iters.append(
-                                                elem_i.iterations[0].id_
-                                            )
-                                else:
-                                    src_elem_iters = [
-                                        elem_i.iterations[0].id_
-                                        for elem_i in src_wk_task_i.elements
-                                    ]
-
-                        else:
-                            avail_src_path = inputs_path
-
+                    common = self.__get_common_path(labelled_path, inputs_path)
+                    if common is not None:
+                        avail_src_path = common
                     else:
-                        avail_src_path = labelled_path
+                        # no intersection between paths
+                        inputs_path_label = None
+                        out_label = None
+                        unlabelled, inputs_path_label = split_param_label(inputs_path)
+                        if unlabelled is None:
+                            continue
+                        try:
+                            get_relative_path(unlabelled.split("."), labelled_path.split("."))
+                            avail_src_path = inputs_path
+                        except ValueError:
+                            continue
+                        if not inputs_path_label:
+                            continue
+                        for out_lab_i in src_task_i.output_labels:
+                            if out_lab_i.label == inputs_path_label:
+                                out_label = out_lab_i
+
+                        # consider output labels
+                        if out_label and in_or_out == "output":
+                            # find element iteration IDs that match the output label
+                            # filter:
+                            if out_label.where:
+                                # TODO: Is this correct? where.path is a DataPath, not str
+                                param_path_split: list[str] = out_label.where.path.split(".")
+
+                                for elem_i in src_wk_task_i.elements:
+                                    params = getattr(elem_i, param_path_split[0])
+                                    param_dat = getattr(
+                                        params, param_path_split[1]
+                                    ).value
+
+                                    # for remaining paths components try both getattr and
+                                    # getitem:
+                                    for path_k in param_path_split[2:]:
+                                        try:
+                                            param_dat = param_dat[path_k]
+                                        except TypeError:
+                                            param_dat = getattr(param_dat, path_k)
+
+                                    rule = Rule(
+                                        path=[0],
+                                        condition=out_label.where.condition,
+                                        cast=out_label.where.cast,
+                                    )
+                                    if rule.test([param_dat]).is_valid:
+                                        src_elem_iters.append(
+                                            elem_i.iterations[0].id_
+                                        )
+                            else:
+                                src_elem_iters = [
+                                    elem_i.iterations[0].id_
+                                    for elem_i in src_wk_task_i.elements
+                                ]
 
                     if not src_elem_iters:
                         try:
@@ -1164,17 +1173,14 @@ class Task(JSONLike):
                             )
                         except NoAvailableElementSetsError:
                             continue
+                        if not src_elem_iters:
+                            continue
 
-                    if not src_elem_iters:
-                        continue
-
-                    task_source = self.app.InputSource.task(
+                    available.setdefault(avail_src_path, []).append(self.app.InputSource.task(
                         task_ref=src_task_i.insert_ID,
                         task_source_type=in_or_out,
                         element_iters=src_elem_iters,
-                    )
-
-                    available.setdefault(avail_src_path, []).append(task_source)
+                    ))
 
             if inp_status.has_default:
                 available.setdefault(inputs_path, []).append(self.app.InputSource.default())
@@ -1232,7 +1238,7 @@ class Task(JSONLike):
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
 
     @property
-    def all_schema_input_types(self):
+    def all_schema_input_types(self) -> set[str]:
         """Get the set of all schema input types (over all specified schemas)."""
         return {inp_j for schema_i in self.schemas for inp_j in schema_i.input_types}
 
@@ -1387,7 +1393,7 @@ class Task(JSONLike):
                     if val_j not in out:
                         out.append(val_j)
             for seq_j in es_i.sequences:
-                if seq_j.is_sub_value:
+                if seq_j.is_sub_value and seq_j.normalised_inputs_path is not None:
                     val_j = ("input", seq_j.normalised_inputs_path)
                     if val_j not in out:
                         out.append(val_j)
@@ -1400,7 +1406,7 @@ class Task(JSONLike):
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.__groups.add_object(group)
 
-    def _get_single_label_lookup(self, prefix="") -> dict[str, str]:
+    def _get_single_label_lookup(self, prefix: str = "") -> dict[str, str]:
         """Get a mapping between schema input types that have a single label (i.e.
         labelled but with `multiple=False`) and the non-labelled type string.
 
@@ -1453,14 +1459,13 @@ class WorkflowTask:
         self._reset_pending_element_IDs()
 
     @classmethod
-    def new_empty_task(cls, workflow: Workflow, template: Task, index: int):
-        obj = cls(
+    def new_empty_task(cls, workflow: Workflow, template: Task, index: int) -> Self:
+        return cls(
             workflow=workflow,
             template=template,
             index=index,
             element_IDs=[],
         )
-        return obj
 
     @property
     def workflow(self) -> Workflow:
@@ -1619,7 +1624,8 @@ class WorkflowTask:
         return [group_dat_idx]  # TODO: generalise to multiple groups
 
     def _make_new_elements_persistent(
-        self, element_set: ElementSet, element_set_idx: int, padded_elem_iters
+        self, element_set: ElementSet, element_set_idx: int,
+        padded_elem_iters: dict[str, list]
     ) -> tuple[dict[str, list[int]], dict[str, list[int]], dict[str, list[int]]]:
         """Save parameter data to the persistent workflow."""
 
@@ -1997,8 +2003,10 @@ class WorkflowTask:
 
         return padded_elem_iters
 
-    def __enforce_some_sanity(self, sources_by_task: dict[int, dict[str, InputSource]],
-                              element_set: ElementSet) -> None:
+    def __enforce_some_sanity(
+        self, sources_by_task: dict[int, dict[str, InputSource]],
+        element_set: ElementSet
+    ) -> None:
         """
         if multiple parameters are sourced from the same upstream task, only use
         element iterations for which all parameters are available (the set
@@ -2099,7 +2107,7 @@ class WorkflowTask:
         return [task for task in self.workflow.tasks[self.index + 1:]]
 
     @staticmethod
-    def resolve_element_data_indices(multiplicities):
+    def resolve_element_data_indices(multiplicities: list[MultiplicityDescriptor]) -> list[dict[str, int]]:
         """Find the index of the Zarr parameter group index list corresponding to each
         input data for all elements.
 
@@ -2107,7 +2115,7 @@ class WorkflowTask:
 
         Parameters
         ----------
-        multiplicities : list of dict
+        multiplicities : list of MultiplicityDescriptor
             Each list item represents a sequence of values with keys:
                 multiplicity: int
                 nesting_order: int
@@ -2124,12 +2132,10 @@ class WorkflowTask:
 
         # order by nesting order (lower nesting orders will be slowest-varying):
         multi_srt = sorted(multiplicities, key=lambda x: x["nesting_order"])
-        multi_srt_grp = group_by_dict_key_values(
-            multi_srt, "nesting_order"
-        )  # TODO: is tested?
+        multi_srt_grp = group_by_dict_key_values(multi_srt, "nesting_order")
 
-        element_dat_idx = [{}]
-        last_nest_ord = None
+        element_dat_idx: list[dict[str, int]] = [{}]
+        last_nest_ord: int | None = None
         for para_sequences in multi_srt_grp:
             # check all equivalent nesting_orders have equivalent multiplicities
             all_multis = {i["multiplicity"] for i in para_sequences}
@@ -2143,9 +2149,9 @@ class WorkflowTask:
                 )
 
             cur_nest_ord = para_sequences[0]["nesting_order"]
-            new_elements = []
+            new_elements: list[dict[str, int]] = []
             for elem_idx, element in enumerate(element_dat_idx):
-                if last_nest_ord is not None and int(cur_nest_ord) == int(last_nest_ord):
+                if last_nest_ord is not None and cur_nest_ord == last_nest_ord:
                     # merge in parallel with existing elements:
                     new_elements.append(
                         {
@@ -2337,53 +2343,53 @@ class WorkflowTask:
     @overload
     def add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
-        propagate_to=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
+        propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
         return_indices: Literal[True],
     ) -> list[int]: ...
 
     @overload
     def add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
-        propagate_to=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
+        propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
         return_indices: Literal[False] = False,
     ) -> None: ...
 
     def add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
-        propagate_to=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
+        propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
         return_indices=False,
     ) -> list[int] | None:
-        propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
+        real_propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
@@ -2399,7 +2405,7 @@ class WorkflowTask:
                     nesting_order=nesting_order,
                     element_sets=element_sets,
                     sourceable_elem_iters=sourceable_elem_iters,
-                    propagate_to=propagate_to,
+                    propagate_to=real_propagate_to,
                     return_indices=True,
                 )
             self._add_elements(
@@ -2413,7 +2419,7 @@ class WorkflowTask:
                 nesting_order=nesting_order,
                 element_sets=element_sets,
                 sourceable_elem_iters=sourceable_elem_iters,
-                propagate_to=propagate_to,
+                propagate_to=real_propagate_to,
                 return_indices=False,
             )
         return None
@@ -2421,16 +2427,16 @@ class WorkflowTask:
     @overload
     def _add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: Literal[False] = False,
     ) -> None: ...
@@ -2438,16 +2444,16 @@ class WorkflowTask:
     @overload
     def _add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: Literal[True],
     ) -> list[int]: ...
@@ -2455,16 +2461,16 @@ class WorkflowTask:
     @TimeIt.decorator
     def _add_elements(
         self, *,
-        base_element=None,
-        inputs=None,
-        input_files=None,
-        sequences=None,
-        resources=None,
-        repeats=None,
-        input_sources=None,
-        nesting_order=None,
-        element_sets=None,
-        sourceable_elem_iters=None,
+        base_element: Element | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
+        input_files: list[InputFile] | None = None,
+        sequences: list[ValueSequence] | None = None,
+        resources: dict[str, dict] | list | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
+        input_sources: dict[str, list[InputSource]] | None = None,
+        nesting_order: dict[str, int] | None = None,
+        element_sets: list[ElementSet] | None = None,
+        sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: bool = False,
     ) -> list[int] | None:
@@ -2699,7 +2705,7 @@ class WorkflowTask:
     def outputs(self) -> TaskOutputParameters:
         return self.app.TaskOutputParameters(self)
 
-    def get(self, path: str, raise_on_missing=False, default: Any | None = None) -> Parameters:
+    def get(self, path: str, *, raise_on_missing=False, default: Any | None = None) -> Parameters:
         return self.app.Parameters(
             self,
             path=path,
@@ -3027,10 +3033,10 @@ class WorkflowTask:
         data_index: Mapping[str, list | Any],
         path: str | None = None,
         *,
-        raise_on_missing=False,
-        raise_on_unset=False,
-        default: Any = None,
-    ):
+        raise_on_missing: bool = False,
+        raise_on_unset: bool = False,
+        default: Any | None = None,
+    ) -> Any | list | ParameterValue | list[Any] | None:  # TODO: better type
         """Get element data from the persistent store."""
         path_split = [] if not path else path.split(".")
 
@@ -3242,7 +3248,7 @@ class TaskInputParameters:
     task: WorkflowTask
     __input_names: list[str] | None = field(default=None, init=False, compare=False)
 
-    def __getattr__(self, name) -> Parameters:
+    def __getattr__(self, name: str) -> Parameters:
         if name not in self._get_input_names():
             raise ValueError(f"No input named {name!r}.")
         return self._app.Parameters(self.task, f"inputs.{name}", True)
@@ -3272,7 +3278,7 @@ class TaskOutputParameters:
     task: WorkflowTask
     __output_names: list[str] | None = field(default=None, init=False, compare=False)
 
-    def __getattr__(self, name) -> Parameters:
+    def __getattr__(self, name: str) -> Parameters:
         if name not in self._get_output_names():
             raise ValueError(f"No output named {name!r}.")
         return self._app.Parameters(self.task, f"outputs.{name}", True)
@@ -3301,15 +3307,15 @@ class ElementPropagation:
     _app_attr: ClassVar[str] = "app"
 
     task: WorkflowTask
-    nesting_order: dict | None = None
-    input_sources: dict | None = None
+    nesting_order: dict[str, int] | None = None
+    input_sources: dict[str, list[InputSource]] | None = None
 
     @property
     def element_set(self) -> ElementSet:
         # TEMP property; for now just use the first element set as the base:
         return self.task.template.element_sets[0]
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any] | None) -> Self:
         return self.__class__(
             task=self.task,
             nesting_order=copy.deepcopy(self.nesting_order, memo),
@@ -3318,13 +3324,15 @@ class ElementPropagation:
 
     @classmethod
     def _prepare_propagate_to_dict(
-        cls, propagate_to: list[ElementPropagation] | dict[str, dict | ElementPropagation],
+        cls,
+        propagate_to: list[ElementPropagation] |
+        Mapping[str, ElementPropagation | Mapping[str, Any]] | None,
         workflow: Workflow
     ) -> dict[str, ElementPropagation]:
-        propagate_to = copy.deepcopy(propagate_to)
         if not propagate_to:
             return {}
-        elif isinstance(propagate_to, list):
+        propagate_to = copy.deepcopy(propagate_to)
+        if isinstance(propagate_to, list):
             return {i.task.unique_name: i for i in propagate_to}
 
         return {

@@ -8,9 +8,10 @@ from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.core.parameters import InputSourceType
+from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
-from hpcflow.sdk.core.workflow import Workflow
+from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -112,23 +113,23 @@ class Loop(JSONLike):
         return tuple(self._task_insert_IDs)
 
     @property
-    def name(self):
+    def name(self) -> str | None:
         return self._name
 
     @property
-    def num_iterations(self):
+    def num_iterations(self) -> int:
         return self._num_iterations
 
     @property
-    def non_iterable_parameters(self):
+    def non_iterable_parameters(self) -> list[str]:
         return self._non_iterable_parameters
 
     @property
-    def termination(self):
+    def termination(self) -> Rule | None:
         return self._termination
 
     @property
-    def workflow_template(self):
+    def workflow_template(self) -> WorkflowTemplate | None:
         return self._workflow_template
 
     @workflow_template.setter
@@ -623,7 +624,9 @@ class WorkflowLoop:
             if cache.elements[k]["task_insert_ID"] == iter_dat["output_tasks"][-1]
         }
         # consider groups
-        inp_group_name = inp.single_labelled_data.get("group")
+        single_data = inp.single_labelled_data
+        assert single_data is not None
+        inp_group_name = single_data.get("group")
         grouped_elems = [
             src_elem_j_ID
             for src_elem_j_ID, src_elem_j_dat in src_elem_IDs.items()
@@ -732,7 +735,7 @@ class WorkflowLoop:
             return src_data_idx[0][inp_key]
         
         is_group = (
-            not inp.multiple
+            inp.single_labelled_data is not None
             and "group" in inp.single_labelled_data
             # this input is a group, assume for now all elements
         )

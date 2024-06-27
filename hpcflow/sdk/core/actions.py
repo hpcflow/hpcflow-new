@@ -749,11 +749,9 @@ class ElementActionRun:
                     for param_name, param_dat in file_data.items():
                         param_id = self.data_idx[f"outputs.{param_name}"]
                         param_cls = parameters.get(param_name)._value_class
-                        try:
+                        if param_cls and issubclass(param_cls, self.app.ParameterValue):
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
                             continue
-                        except (AttributeError, NotImplementedError):
-                            pass
                         # try to save as a primitive:
                         self.workflow.set_parameter_value(
                             param_id=param_id, value=param_dat
@@ -765,7 +763,8 @@ class ElementActionRun:
                     for param_name, h5_grp in f.items():
                         param_id = self.data_idx[f"outputs.{param_name}"]
                         param_cls = parameters.get(param_name)._value_class
-                        param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
+                        if param_cls and issubclass(param_cls, self.app.ParameterValue):
+                            param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
 
     def compose_commands(
         self, jobscript: Jobscript, JS_action_idx: int

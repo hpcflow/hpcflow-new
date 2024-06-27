@@ -227,7 +227,7 @@ class TaskSchema(JSONLike):
             for inp_idx, inp in enumerate(self.inputs):
                 def_str = "-"
                 if not inp.multiple:
-                    if inp.default_value is not NullDefault.NULL:
+                    if isinstance(inp.default_value, self.app.InputValue):
                         if inp.default_value.value is None:
                             def_str = "None"
                         else:
@@ -325,15 +325,13 @@ class TaskSchema(JSONLike):
         panel = self._get_info(include=include)
         rich_print(panel)
 
-    @property
     def basic_info(self):
         """Show inputs and outputs, formatted in a table."""
-        return self._show_info(include=("inputs", "outputs"))
+        self._show_info(include=("inputs", "outputs"))
 
-    @property
     def info(self):
         """Show inputs, outputs, and actions, formatted in a table."""
-        return self._show_info()
+        self._show_info()
 
     def get_info_html(self) -> str:
         def _format_parameter_type(param):
@@ -383,7 +381,7 @@ class TaskSchema(JSONLike):
         for inp in self.inputs:
             def_str = "-"
             if not inp.multiple:
-                if inp.default_value is not NullDefault.NULL:
+                if isinstance(inp.default_value, self.app.InputValue):
                     if inp.default_value.value is None:
                         def_str = "None"
                     else:
@@ -749,7 +747,7 @@ class TaskSchema(JSONLike):
         return new_refs
 
     @property
-    def name(self):
+    def name(self) -> str:
         out = (
             f"{self.objective.name}"
             f"{f'_{self.method}' if self.method else ''}"
@@ -758,12 +756,12 @@ class TaskSchema(JSONLike):
         return out
 
     @property
-    def input_types(self):
-        return tuple(j for i in self.inputs for j in i.all_labelled_types)
+    def input_types(self) -> list[str]:
+        return list(j for i in self.inputs for j in i.all_labelled_types)
 
     @property
-    def output_types(self):
-        return tuple(i.typ for i in self.outputs)
+    def output_types(self) -> list[str]:
+        return list(i.typ for i in self.outputs)
 
     @property
     def provides_parameters(self) -> tuple[tuple[str, str], ...]:

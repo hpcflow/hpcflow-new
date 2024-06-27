@@ -78,7 +78,8 @@ if TYPE_CHECKING:
         ResourceList, TaskList, TaskSchemasList as _TaskSchemasList, TaskTemplateList, WorkflowLoopList,
         WorkflowTaskList)
     from .core.parameters import (
-        SchemaParameter, InputValue, Parameter, InputSource, ResourceSpec, SchemaOutput, InputSourceType)
+        SchemaParameter, InputValue, Parameter, ParameterValue, InputSource, ResourceSpec, SchemaOutput,
+        InputSourceType)
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
         Task, WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
@@ -498,6 +499,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def Parameter(self) -> type[Parameter]:
         return self._get_app_core_class("Parameter")
+
+    @property
+    def ParameterValue(self) -> type[ParameterValue]:
+        return self._get_app_core_class("ParameterValue")
 
     @property
     def InputValue(self) -> type[InputValue]:

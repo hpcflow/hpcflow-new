@@ -6,16 +6,18 @@ from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
+from hpcflow.sdk.core.actions import ElementAction, ElementActionRun
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.task import WorkflowTask
+from hpcflow.sdk.core.task import ElementSet, WorkflowTask
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
     get_enum_by_name_or_val,
     split_param_label,
 )
+from hpcflow.sdk.core.workflow import Workflow
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 if TYPE_CHECKING:
@@ -81,7 +83,7 @@ class _ElementPrefixedParameter:
         return [*super().__dir__(), *self.prefixed_names_unlabelled]
 
     @property
-    def _parent(self):
+    def _parent(self) -> ElementIteration | ElementActionRun | None | ElementAction:
         return self._element_iteration or self._element_action or self._element_action_run
 
     @property
@@ -373,7 +375,7 @@ class ElementIteration:
         element: Element,
         data_idx: dict[str, int],
         EARs_initialised: bool,
-        EAR_IDs: dict[int, int],
+        EAR_IDs: dict[int, int],  # FIXME: wrong type
         EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
         schema_parameters: list[str],
         loop_idx: Dict,
@@ -405,12 +407,12 @@ class ElementIteration:
         )
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> dict[str, int]:
         """The overall element iteration data index, before resolution of EARs."""
         return self._data_idx
 
     @property
-    def EARs_initialised(self):
+    def EARs_initialised(self) -> bool:
         """Whether or not the EARs have been initialised."""
         return self._EARs_initialised
 
@@ -419,7 +421,7 @@ class ElementIteration:
         return self._element
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self._index
 
     @property
@@ -431,11 +433,11 @@ class ElementIteration:
         return self._is_pending
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element.task
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow:
         return self.element.workflow
 
     @property
@@ -1142,7 +1144,7 @@ class Element:
         return self._es_idx
 
     @property
-    def element_set(self):
+    def element_set(self) -> ElementSet:
         return self.task.template.element_sets[self.element_set_idx]
 
     @property
@@ -1184,7 +1186,7 @@ class Element:
         return self._iteration_objs
 
     @property
-    def dir_name(self):
+    def dir_name(self) -> str:
         return f"e_{self.index}"
 
     @property
@@ -1577,7 +1579,7 @@ class ElementParameter:
         }
 
     @property
-    def is_set(self):
+    def is_set(self) -> bool:
         return all(self.data_idx_is_set.values())
 
     def get_size(self, **store_kwargs):

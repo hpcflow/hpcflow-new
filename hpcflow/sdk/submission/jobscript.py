@@ -74,7 +74,7 @@ class JobScriptCreationArguments(TypedDict):
 @TimeIt.decorator
 def generate_EAR_resource_map(
     task: WorkflowTask,
-    loop_idx: Dict,
+    loop_idx: dict[str, int],
 ) -> tuple[list[ElementResources], list[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
@@ -1195,7 +1195,7 @@ class Jobscript(JSONLike):
         return ref
 
     @property
-    def is_submitted(self):
+    def is_submitted(self) -> bool:
         """Return True if this jobscript has been submitted."""
         return self.index in self.submission.submitted_jobscripts
 

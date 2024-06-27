@@ -19,6 +19,7 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
+from hpcflow.sdk.core.task import ElementSet
 from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
@@ -27,13 +28,15 @@ from hpcflow.sdk.core.utils import (
     process_string_nodes,
     split_param_label,
 )
+from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from typing import Any, ClassVar, Dict, TypeAlias, Self, NotRequired
+    from typing import Any, ClassVar, Dict, Literal, NotRequired, Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
+    from .object_list import ResourceList
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .workflow import Workflow
 
@@ -210,6 +213,12 @@ class NullDefault(enum.Enum):
     NULL = 0
 
 
+class LabelInfo(TypedDict):
+    propagation_mode: NotRequired[ParameterPropagationMode]
+    group: NotRequired[str]
+    default_value: NotRequired[InputValue]
+
+
 class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
     applied.
@@ -264,7 +273,7 @@ class SchemaInput(SchemaParameter):
         self,
         parameter: Parameter | str,
         multiple: bool = False,
-        labels: dict[str, Any] | None = None,
+        labels: dict[str, LabelInfo] | None = None,
         default_value: InputValue | NullDefault | None = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
         group: str | None = None,
@@ -286,7 +295,7 @@ class SchemaInput(SchemaParameter):
 
         self.multiple = multiple
 
-        self.labels: dict[str, Any]
+        self.labels: dict[str, LabelInfo]
         if labels is None:
             if self.multiple:
                 self.labels = {"*": {}}
@@ -303,7 +312,7 @@ class SchemaInput(SchemaParameter):
                         f"`labels` is: {self.labels!r}."
                     )
 
-        labels_defaults: dict[str, Any] = {}
+        labels_defaults: LabelInfo = {}
         if propagation_mode is not None:
             labels_defaults["propagation_mode"] = propagation_mode
         if group is not None:
@@ -320,7 +329,7 @@ class SchemaInput(SchemaParameter):
                         label=k,
                     )
                 labels_defaults_i["default_value"] = default_value
-            label_i = {**labels_defaults_i, **v}
+            label_i: LabelInfo = {**labels_defaults_i, **v}
             if "propagation_mode" in label_i:
                 label_i["propagation_mode"] = get_enum_by_name_or_val(
                     ParameterPropagationMode, label_i["propagation_mode"]
@@ -408,12 +417,14 @@ class SchemaInput(SchemaParameter):
         return obj
 
     @property
-    def default_value(self):
-        if not self.multiple:
-            if "default_value" in self.single_labelled_data:
-                return self.single_labelled_data["default_value"]
+    def default_value(self) -> InputValue | Literal[NullDefault.NULL] | None:
+        single_data = self.single_labelled_data
+        if single_data:
+            if "default_value" in single_data:
+                return single_data["default_value"]
             else:
                 return NullDefault.NULL
+        return None
 
     @property
     def task_schema(self) -> TaskSchema:
@@ -421,23 +432,27 @@ class SchemaInput(SchemaParameter):
         return self._task_schema
 
     @property
-    def all_labelled_types(self):
+    def all_labelled_types(self) -> list[str]:
         return list(f"{self.typ}{f'[{i}]' if i else ''}" for i in self.labels)
 
     @property
-    def single_label(self):
+    def single_label(self) -> str | None:
         if not self.multiple:
             return next(iter(self.labels))
+        return None
 
     @property
-    def single_labelled_type(self):
+    def single_labelled_type(self) -> str | None:
         if not self.multiple:
             return next(iter(self.labelled_info()))["labelled_type"]
+        return None
 
     @property
-    def single_labelled_data(self):
-        if not self.multiple:
-            return self.labels[self.single_label]
+    def single_labelled_data(self) -> LabelInfo | None:
+        label = self.single_label
+        if label:
+            return self.labels[label]
+        return None
 
     def labelled_info(self) -> Iterable[LabellingDescriptor]: 
         for k, v in self.labels.items():
@@ -445,13 +460,13 @@ class SchemaInput(SchemaParameter):
             dct: LabellingDescriptor = {
                 "labelled_type": self.parameter.typ + label,
                 "propagation_mode": v["propagation_mode"],
-                "group": v.get("group"),
+                "group": cast(str, v.get("group")),
             }
             if "default_value" in v:
                 dct["default_value"] = v["default_value"]
             yield dct
 
-    def _validate(self):
+    def _validate(self) -> None:
         super()._validate()
         for k, v in self.labels.items():
             if "default_value" in v:
@@ -461,8 +476,9 @@ class SchemaInput(SchemaParameter):
                         value=v["default_value"],
                         label=k,
                     )
-                    self.labels[k]["default_value"] = def_val
-                def_val = self.labels[k]["default_value"]
+                    v["default_value"] = def_val
+                else:
+                    def_val = v["default_value"]
                 if def_val.parameter != self.parameter or def_val.label != k:
                     raise ValueError(
                         f"{self.__class__.__name__} `default_value` for label {k!r} must "
@@ -472,7 +488,7 @@ class SchemaInput(SchemaParameter):
                     )
 
     @property
-    def input_or_output(self):
+    def input_or_output(self) -> str:
         return "input"
 
 
@@ -491,7 +507,7 @@ class SchemaOutput(SchemaParameter):
     propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
 
     @property
-    def input_or_output(self):
+    def input_or_output(self) -> str:
         return "output"
 
     def __repr__(self) -> str:
@@ -628,47 +644,51 @@ class ValueSequence(JSONLike):
         return obj
 
     @property
-    def parameter(self):
+    def parameter(self) -> Parameter | None:
         return self._parameter
 
     @property
-    def path_split(self):
+    def path_split(self) -> list[str]:
         if self._path_split is None:
             self._path_split = self.path.split(".")
         return self._path_split
 
     @property
-    def path_type(self):
+    def path_type(self) -> str:
         return self.path_split[0]
 
     @property
-    def input_type(self):
+    def input_type(self) -> str | None:
         if self.path_type == "inputs":
             return self.path_split[1].replace(self._label_fmt, "")
+        return None
 
     @property
-    def input_path(self):
+    def input_path(self) -> str | None:
         if self.path_type == "inputs":
             return ".".join(self.path_split[2:])
+        return None
 
     @property
-    def resource_scope(self):
+    def resource_scope(self) -> str | None:
         if self.path_type == "resources":
             return self.path_split[1]
+        return None
 
     @property
-    def is_sub_value(self):
+    def is_sub_value(self) -> bool:
         """True if the values are for a sub part of the parameter."""
         return True if self.input_path else False
 
     @property
-    def _label_fmt(self):
+    def _label_fmt(self) -> str:
         return f"[{self.label}]" if self.label else ""
 
     @property
-    def labelled_type(self):
+    def labelled_type(self) -> str | None:
         if self.input_type:
             return f"{self.input_type}{self._label_fmt}"
+        return None
 
     @classmethod
     def _json_like_constructor(cls, json_like):
@@ -775,11 +795,11 @@ class ValueSequence(JSONLike):
         return out
 
     @property
-    def normalised_path(self):
+    def normalised_path(self) -> str:
         return self.path
 
     @property
-    def normalised_inputs_path(self):
+    def normalised_inputs_path(self) -> str | None:
         """Return the normalised path without the "inputs" prefix, if the sequence is an
         inputs sequence, else return None."""
 
@@ -788,6 +808,7 @@ class ValueSequence(JSONLike):
                 return f"{self.labelled_type}.{self.input_path}"
             else:
                 return self.labelled_type
+        return None
 
     def make_persistent(
         self, workflow: Workflow, source: ParamSource
@@ -1420,7 +1441,7 @@ class ResourceSpec(JSONLike):
         "SLURM_num_cpus_per_task",
     }
 
-    _resource_list = None
+    _resource_list: ResourceList | None = None
 
     _child_objects = (
         ChildObjectSpec(
@@ -1551,11 +1572,13 @@ class ResourceSpec(JSONLike):
         return obj
 
     @property
-    def normalised_resources_path(self):
-        return self.scope.to_string()
+    def normalised_resources_path(self) -> str:
+        scope = self.scope
+        assert scope is not None
+        return scope.to_string()
 
     @property
-    def normalised_path(self):
+    def normalised_path(self) -> str:
         return f"resources.{self.normalised_resources_path}"
 
     def to_dict(self):
@@ -1633,8 +1656,8 @@ class ResourceSpec(JSONLike):
             val = self.workflow.get_parameter_data(self._value_group_idx)
         else:
             val = self._get_members()
-        if value_name:
-            val = val.get(value_name)
+        if value_name is not None and val is not None:
+            return val.get(value_name)
 
         return val
 
@@ -1649,56 +1672,54 @@ class ResourceSpec(JSONLike):
             )
 
     @property
-    def scratch(self):
+    def scratch(self) -> str | None:
         # TODO: currently unused, except in tests
         return self._get_value("scratch")
 
     @property
-    def parallel_mode(self):
+    def parallel_mode(self) -> ParallelMode | None:
         return self._get_value("parallel_mode")
 
     @property
-    def num_cores(self):
+    def num_cores(self) -> int | None:
         return self._get_value("num_cores")
 
     @property
-    def num_cores_per_node(self):
+    def num_cores_per_node(self) -> int | None:
         return self._get_value("num_cores_per_node")
 
     @property
-    def num_nodes(self):
+    def num_nodes(self) -> int | None:
         return self._get_value("num_nodes")
 
     @property
-    def num_threads(self):
+    def num_threads(self) -> int | None:
         return self._get_value("num_threads")
 
     @property
-    def scheduler(self):
+    def scheduler(self) -> str | None:
         return self._get_value("scheduler")
 
     @scheduler.setter
-    def scheduler(self, value):
+    def scheduler(self, value: str | None):
         self._setter_persistent_check()
-        value = self._process_string(value)
-        self._scheduler = value
+        self._scheduler = self._process_string(value)
 
     @property
-    def shell(self):
+    def shell(self) -> str | None:
         return self._get_value("shell")
 
     @shell.setter
-    def shell(self, value):
+    def shell(self, value: str | None):
         self._setter_persistent_check()
-        value = self._process_string(value)
-        self._shell = value
+        self._shell = self._process_string(value)
 
     @property
-    def use_job_array(self):
+    def use_job_array(self) -> bool:
         return self._get_value("use_job_array")
 
     @property
-    def max_array_items(self):
+    def max_array_items(self) -> int | None:
         return self._get_value("max_array_items")
 
     @property
@@ -1723,41 +1744,42 @@ class ResourceSpec(JSONLike):
         self._os_name = self._process_string(value)
 
     @property
-    def environments(self):
+    def environments(self) -> dict | None:
         return self._get_value("environments")
 
     @property
-    def SGE_parallel_env(self):
+    def SGE_parallel_env(self) -> str | None:
         return self._get_value("SGE_parallel_env")
 
     @property
-    def SLURM_partition(self):
+    def SLURM_partition(self) -> str | None:
         return self._get_value("SLURM_partition")
 
     @property
-    def SLURM_num_tasks(self):
+    def SLURM_num_tasks(self) -> int | None:
         return self._get_value("SLURM_num_tasks")
 
     @property
-    def SLURM_num_tasks_per_node(self):
+    def SLURM_num_tasks_per_node(self) -> int | None:
         return self._get_value("SLURM_num_tasks_per_node")
 
     @property
-    def SLURM_num_nodes(self):
+    def SLURM_num_nodes(self) -> int | None:
         return self._get_value("SLURM_num_nodes")
 
     @property
-    def SLURM_num_cpus_per_task(self):
+    def SLURM_num_cpus_per_task(self) -> int | None:
         return self._get_value("SLURM_num_cpus_per_task")
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow | None:
         if self._workflow:
             return self._workflow
 
         elif self.element_set:
             # element-set-level resources
-            return self.element_set.task_template.workflow_template.workflow
+            wt = self.element_set.task_template.workflow_template
+            return wt.workflow if wt else None
 
         elif self.workflow_template:
             # template-level resources
@@ -1769,13 +1791,19 @@ class ResourceSpec(JSONLike):
                 f"attribute is not. This might be because we are in the process of "
                 f"creating the workflow object."
             )
+        
+        return None
 
     @property
-    def element_set(self):
+    def element_set(self) -> ElementSet | None:
+        if not self._resource_list:
+            return None
         return self._resource_list.element_set
 
     @property
-    def workflow_template(self):
+    def workflow_template(self) -> WorkflowTemplate | None:
+        if not self._resource_list:
+            return None
         return self._resource_list.workflow_template
 
 

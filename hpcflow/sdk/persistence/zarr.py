@@ -35,6 +35,7 @@ from hpcflow.sdk.persistence.base import (
     StoreElementIter,
     StoreParameter,
     StoreTask,
+    StoreCreationInfo
 )
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
@@ -374,7 +375,7 @@ class ZarrPersistentStore(PersistentStore[
         replaced_wk: str | None,
         ts_fmt: str,
         ts_name_fmt: str,
-        creation_info: Dict,
+        creation_info: StoreCreationInfo,
         compressor: str | None = "blosc",
         compressor_kwargs: dict[str, Any] | None = None,
     ) -> None:

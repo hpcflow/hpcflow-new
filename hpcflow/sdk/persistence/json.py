@@ -23,6 +23,7 @@ from hpcflow.sdk.persistence.base import (
     StoreParameter,
     StoreTask,
     Metadata,
+    StoreCreationInfo,
     update_param_source_dict
 )
 from hpcflow.sdk.persistence.pending import CommitResourceMap
@@ -220,7 +221,7 @@ class JSONPersistentStore(PersistentStore[
         fs: AbstractFileSystem,
         name: str,
         replaced_wk: str | None,
-        creation_info: Dict,
+        creation_info: StoreCreationInfo,
         ts_fmt: str,
         ts_name_fmt: str,
     ) -> None:
@@ -659,7 +660,7 @@ class JSONPersistentStore(PersistentStore[
             assert "ts_name_fmt" in md
             return md["ts_name_fmt"]
 
-    def get_creation_info(self) -> Dict:
+    def get_creation_info(self) -> StoreCreationInfo:
         with self.using_resource("metadata", action="read") as md:
             assert "creation_info" in md
             return copy.deepcopy(md["creation_info"])

@@ -4,11 +4,12 @@ from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
+from hpcflow.sdk.core.parameters import ResourceSpec
 from hpcflow.sdk.core.task import ElementSet
 from hpcflow.sdk.core.workflow import WorkflowTemplate
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import ClassVar, Self, Literal
+    from typing import Any, ClassVar, Self, Literal
     from zarr import Group  # type: ignore
     from ..app import BaseApp
     from .actions import ActionScope
@@ -266,12 +267,13 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         else:
             raise AttributeError
 
-    def __dir__(self):
-        return super().__dir__() + [
-            getattr(i, self._access_attribute) for i in self._objects
+    def __dir__(self) -> Iterable[str]:
+        return [
+            *super().__dir__(),
+            *(getattr(i, self._access_attribute) for i in self._objects)
         ]
 
-    def get(self, access_attribute_value: str | None = None, **kwargs):
+    def get(self, access_attribute_value: str | None = None, **kwargs) -> T:
         vld_get_kwargs = kwargs
         if access_attribute_value is not None:
             vld_get_kwargs = {self._access_attribute: access_attribute_value, **kwargs}
@@ -338,7 +340,7 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
     _app: ClassVar[BaseApp]
     _app_attr = "_app"
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {"_objects": super().to_dict()["_objects"]}
 
     @classmethod
@@ -561,7 +563,7 @@ class WorkflowTaskList(DotAccessObjectList[WorkflowTask]):
     def __init__(self, _objects: Iterable[WorkflowTask]):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
-    def _reindex(self):
+    def _reindex(self) -> None:
         """Re-assign the WorkflowTask index attributes so they match their order."""
         for idx, i in enumerate(self._objects):
             i._index = idx
@@ -578,7 +580,7 @@ class WorkflowTaskList(DotAccessObjectList[WorkflowTask]):
 
 
 class WorkflowLoopList(DotAccessObjectList[WorkflowLoop]):
-    def __init__(self, _objects):
+    def __init__(self, _objects: Iterable[WorkflowLoop]):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
     def _remove_object(self, index: int):
@@ -640,30 +642,36 @@ class ResourceList(ObjectList[ResourceSpec]):
         return as_dict, shared_data
 
     @classmethod
-    def normalise(cls, resources: ResourceSpec | None | dict | list) -> Self:
+    def normalise(
+        cls, resources: ResourceSpec | ResourceList | None | dict | list[ResourceSpec | dict]
+    ) -> Self:
         """Generate from resource-specs specified in potentially several ways."""
 
-        def _ensure_non_persistent(resource_spec):
-            # for any resources that are persistent, if they have a
-            # `_resource_list` attribute, this means they are sourced from some
-            # other persistent workflow, rather than, say, a workflow being
-            # loaded right now, so make a non-persistent copy:
-            if res_i._value_group_idx is not None and res_i._resource_list is not None:
-                return resource_spec.copy_non_persistent()
-            return resource_spec
-
-        app = cls._app
         if not resources:
-            return cls([app.ResourceSpec()])
+            return cls([cls._app.ResourceSpec()])
+        elif isinstance(resources, ResourceList):
+            # Already a ResourceList
+            return cast(Self, resources)
         elif isinstance(resources, dict):
             return cls.from_json_like(resources)
         elif isinstance(resources, list):
-            for idx, res_i in enumerate(resources):
+            def _ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
+                # for any resources that are persistent, if they have a
+                # `_resource_list` attribute, this means they are sourced from some
+                # other persistent workflow, rather than, say, a workflow being
+                # loaded right now, so make a non-persistent copy:
+                if resource_spec._value_group_idx is not None and (
+                        resource_spec._resource_list is not None):
+                    return resource_spec.copy_non_persistent()
+                return resource_spec
+
+            res_list: list[ResourceSpec] = []
+            for res_i in resources:
                 if isinstance(res_i, dict):
-                    resources[idx] = app.ResourceSpec.from_json_like(res_i)
+                    res_list.append(cls._app.ResourceSpec.from_json_like(res_i))
                 else:
-                    resources[idx] = _ensure_non_persistent(resources[idx])
-            return cls(resources)
+                    res_list.append(_ensure_non_persistent(res_i))
+            return cls(res_list)
         else:
             return cls([resources])
 

@@ -110,10 +110,45 @@ class _DummyPersistentWorkflow:
             workflow._add_parameter_data(dat_i, source_i)
 
 
+class CreationInfo(TypedDict):
+    app_info: dict[str, Any]
+    create_time: datetime
+    id: str
+
+
 class WorkflowTemplateTaskData(TypedDict):
     schema: NotRequired[Any | list[Any]]
     element_sets: NotRequired[list['WorkflowTemplateTaskData']]
     output_labels: NotRequired[list[str]]
+
+
+@dataclass
+class _Pathway:
+    id_: int
+    names: dict[str, int]
+    iter_ids: list[int] = field(default_factory=list)
+    data_idx: list[dict[str, int]] = field(default_factory=list)
+
+    @overload
+    def as_tuple(self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[False] = False) -> tuple[int, dict[str, int]]: ...
+    @overload
+    def as_tuple(self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False) -> tuple[int, dict[str, int], tuple[int, ...]]: ...
+    @overload
+    def as_tuple(self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]) -> tuple[int, dict[str, int], tuple[dict[str, int], ...]]: ...
+    @overload
+    def as_tuple(self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]) -> tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]: ...
+
+    def as_tuple(self, *, ret_iter_IDs=False, ret_data_idx=False):
+        if ret_iter_IDs:
+            if ret_data_idx:
+                return (self.id_, self.names, tuple(self.iter_ids), tuple(self.data_idx))
+            else:
+                return (self.id_, self.names, tuple(self.iter_ids))
+        else:
+            if ret_data_idx:
+                return (self.id_, self.names, tuple(self.data_idx))
+            else:
+                return (self.id_, self.names)
 
 
 @dataclass
@@ -176,7 +211,7 @@ class WorkflowTemplate(JSONLike):
     merge_resources: bool = True
     merge_envs: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
@@ -195,7 +230,7 @@ class WorkflowTemplate(JSONLike):
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
 
-    def _merge_envs_into_task_resources(self):
+    def _merge_envs_into_task_resources(self) -> None:
         self.merge_envs = False
 
         # disallow both `env_presets` and `environments` specifications:
@@ -238,6 +273,7 @@ class WorkflowTemplate(JSONLike):
                             es.environments = app_env_specs_i
 
                     elif self.env_presets:
+                        assert schema_presets is not None
                         # take only the first applicable preset:
                         app_presets_i = [
                             k for k in self.env_presets if k in schema_presets
@@ -567,7 +603,7 @@ class Workflow:
         # assigned on first access:
         self._ts_fmt: str | None = None
         self._ts_name_fmt: str | None = None
-        self._creation_info: dict[str, Any] | None = None
+        self._creation_info: CreationInfo | None = None
         self._name: str | None = None
         self._template: WorkflowTemplate | None = None
         self._template_components: TemplateComponents | None = None
@@ -586,7 +622,7 @@ class Workflow:
         return self.__class__(self.url)
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The workflow name may be different from the template name, as it includes the
         creation date-timestamp if generated."""
         if not self._name:
@@ -594,17 +630,17 @@ class Workflow:
         return self._name
 
     @property
-    def url(self):
+    def url(self) -> str:
         """Get an fsspec URL for this workflow."""
-        if self._store.fs.protocol == "zip":
-            return self._store.fs.of.path
-        elif self._store.fs.protocol == "file":
-            return self.path
-        else:
-            raise NotImplementedError("Only (local) zip and local URLs provided for now.")
+        if self._store.fs:
+            if self._store.fs.protocol == "zip":
+                return self._store.fs.of.path
+            elif self._store.fs.protocol == "file":
+                return self.path
+        raise NotImplementedError("Only (local) zip and local URLs provided for now.")
 
     @property
-    def store_format(self):
+    def store_format(self) -> str:
         return self._store._name
 
     @classmethod
@@ -1135,7 +1171,7 @@ class Workflow:
             If not given, the new task will be added at the end of the workflow.
 
         """
-        new_index = task_ref.index + 1 if task_ref else None
+        new_index = task_ref.index + 1 if task_ref and task_ref.index is not None else None
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
@@ -1198,7 +1234,7 @@ class Workflow:
         self._pending["loops"].append(new_index)
 
         # update cache loop indices:
-        cache.update_loop_indices(new_loop_name=loop_c.name, iter_IDs=iter_IDs)
+        cache.update_loop_indices(new_loop_name=loop_c.name or "", iter_IDs=iter_IDs)
 
         return wk_loop
 
@@ -1226,15 +1262,18 @@ class Workflow:
                 self._add_loop(loop)
 
     @property
-    def creation_info(self) -> dict[str, Any]:
+    def creation_info(self) -> CreationInfo:
         if not self._creation_info:
             info = self._store.get_creation_info()
-            info["create_time"] = parse_timestamp(info["create_time"], self.ts_fmt)
-            self._creation_info = info
+            self._creation_info = {
+                "app_info": info["app_info"],
+                "create_time": parse_timestamp(info["create_time"], self.ts_fmt),
+                "id": info["id"]
+            }
         return self._creation_info
 
     @property
-    def id_(self):
+    def id_(self) -> str:
         return self.creation_info["id"]
 
     @property
@@ -1686,11 +1725,6 @@ class Workflow:
             "tasks": [],
             "loops": []
         }
-        creation_info = {
-            "app_info": cls.app.get_info(),
-            "create_time": ts_utc.strftime(ts_fmt),
-            "id": str(uuid4()),
-        }
 
         store_kwargs = store_kwargs if store_kwargs else template.store_kwargs
         store_cls = store_cls_from_str(store)
@@ -1702,7 +1736,11 @@ class Workflow:
             fs=fs,
             name=name,
             replaced_wk=replaced_wk,
-            creation_info=creation_info,
+            creation_info={
+                "app_info": cls.app.get_info(),
+                "create_time": ts_utc.strftime(ts_fmt),
+                "id": str(uuid4()),
+            },
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             **store_kwargs,
@@ -1977,19 +2015,19 @@ class Workflow:
         return Path(self.path) / "artifacts"
 
     @property
-    def input_files_path(self):
+    def input_files_path(self) -> Path:
         return self.artifacts_path / self._input_files_dir_name
 
     @property
-    def submissions_path(self):
+    def submissions_path(self) -> Path:
         return self.artifacts_path / "submissions"
 
     @property
-    def task_artifacts_path(self):
+    def task_artifacts_path(self) -> Path:
         return self.artifacts_path / "tasks"
 
     @property
-    def execution_path(self):
+    def execution_path(self) -> Path:
         return Path(self.path) / self._exec_dir_name
 
     @TimeIt.decorator
@@ -2152,15 +2190,33 @@ class Workflow:
             for element in task.elements[:]:
                 yield element
 
-    @TimeIt.decorator
-    def get_iteration_task_pathway(self, ret_iter_IDs=False, ret_data_idx=False):
-        pathway = []
-        for task in self.tasks:
-            pathway.append((task.insert_ID, {}))
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[False] = False
+    ) -> list[tuple[int, dict[str, int]]]: ...
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]
+    ) -> list[tuple[int, dict[str, int], tuple[dict[str, int], ...]]]: ...
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...]]]: ...
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]]: ...
 
-        added_loop_names = set()
+    @TimeIt.decorator
+    def get_iteration_task_pathway(
+        self, ret_iter_IDs: bool = False, ret_data_idx: bool = False
+    ) -> list[tuple]:
+        pathway: list[_Pathway] = []
+        for task in self.tasks:
+            pathway.append(_Pathway(task.insert_ID, {}))
+
+        added_loop_names: set[str] = set()
         for _ in range(self.num_loops):
-            to_add = None
             for loop in self.loops:
                 if loop.name in added_loop_names:
                     continue
@@ -2168,42 +2224,32 @@ class Workflow:
                     # add a loop only once their parents have been added:
                     to_add = loop
                     break
-
-            if to_add is None:
+            else:
                 raise RuntimeError(
                     "Failed to find a loop whose parents have already been added to the "
                     "iteration task pathway."
                 )
 
             iIDs = to_add.task_insert_IDs
-            relevant_idx = [idx for idx, i in enumerate(pathway) if i[0] in iIDs]
+            relevant_idx = [idx for idx, path_i in enumerate(pathway) if path_i.id_ in iIDs]
 
             for num_add_k, num_add in to_add.num_added_iterations.items():
-                parent_loop_idx = {
-                    to_add.parents[idx]: i for idx, i in enumerate(num_add_k)
-                }
-
-                repl = []
-                repl_idx = []
+                parent_loop_idx = list(zip(to_add.parents, num_add_k))
+                replacement: list[_Pathway] = []
+                repl_idx: list[int] = []
                 for i in range(num_add):
-                    for p_idx, p in enumerate(pathway):
-                        skip = False
-                        if p[0] not in iIDs:
+                    for p_idx, path_j in enumerate(pathway):
+                        if path_j.id_ not in iIDs:
                             continue
-                        for k, v in parent_loop_idx.items():
-                            if p[1][k] != v:
-                                skip = True
-                                break
-                        if skip:
-                            continue
-                        p = copy.deepcopy(p)
-                        p[1].update({to_add.name: i})
-                        repl_idx.append(p_idx)
-                        repl.append(p)
+                        if all(path_j.names[k] == v for k, v in parent_loop_idx):
+                            path = copy.deepcopy(path_j)
+                            path.names[to_add.name] = i
+                            repl_idx.append(p_idx)
+                            replacement.append(path)
 
-                if repl:
+                if replacement:
                     repl_start, repl_stop = min(repl_idx), max(repl_idx)
-                    pathway = replace_items(pathway, repl_start, repl_stop + 1, repl)
+                    pathway = replace_items(pathway, repl_start, repl_stop + 1, replacement)
 
             added_loop_names.add(to_add.name)
 
@@ -2214,19 +2260,28 @@ class Workflow:
 
         if ret_iter_IDs or ret_data_idx:
             all_iters = self.get_all_element_iterations()
-            for idx, i in enumerate(pathway):
-                i_iters = []
+            for path_i in pathway:
+                i_iters: list[ElementIteration] = []
                 for iter_j in all_iters:
-                    if iter_j.task.insert_ID == i[0] and iter_j.loop_idx == i[1]:
+                    if iter_j.task.insert_ID == path_i.id_ and iter_j.loop_idx == path_i.names:
                         i_iters.append(iter_j)
-                new = list(i)
                 if ret_iter_IDs:
-                    new += [tuple([j.id_ for j in i_iters])]
+                    path_i.iter_ids.extend(
+                        j.id_ for j in i_iters)
                 if ret_data_idx:
-                    new += [tuple(j.get_data_idx() for j in i_iters)]
-                pathway[idx] = tuple(new)
+                    path_i.data_idx.extend(
+                        j.get_data_idx() for j in i_iters)
 
-        return pathway
+        if ret_iter_IDs:
+            if ret_data_idx:
+                return [path_i.as_tuple(ret_iter_IDs=True) for path_i in pathway]
+            else:
+                return [path_i.as_tuple(ret_iter_IDs=True, ret_data_idx=True) for path_i in pathway]
+        else:
+            if ret_data_idx:
+                return [path_i.as_tuple(ret_data_idx=True) for path_i in pathway]
+            else:
+                return [path_i.as_tuple() for path_i in pathway]
 
     @TimeIt.decorator
     def _submit(

@@ -70,8 +70,14 @@ def update_param_source_dict(source: dict[T, T2], update: dict[T, T2]) -> dict[T
     return dict(sorted({**source, **update}.items()))
 
 
+class StoreCreationInfo(TypedDict):
+    app_info: dict[str, Any]
+    create_time: str
+    id: str
+
+
 class Metadata(TypedDict):
-    creation_info: NotRequired[dict]
+    creation_info: NotRequired[StoreCreationInfo]
     elements: NotRequired[list[dict]]
     iters: NotRequired[list[dict]]
     loops: NotRequired[list]
@@ -679,6 +685,8 @@ class StoreParameter:
 
 
 class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
+    _name: ClassVar[str]
+
     @classmethod
     @abstractmethod
     def _store_task_cls(cls) -> type[AnySTask]: ...
@@ -730,7 +738,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         ...
 
     @abstractmethod
-    def get_creation_info(self) -> Dict:
+    def get_creation_info(self) -> StoreCreationInfo:
         ...
 
     @abstractmethod
@@ -766,7 +774,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         fs: AbstractFileSystem,
         name: str,
         replaced_wk: str | None,
-        creation_info: Dict,
+        creation_info: StoreCreationInfo,
         ts_fmt: str,
         ts_name_fmt: str,
     ) -> None:
@@ -819,21 +827,21 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self._cache["EARs"]
 
     @property
-    def num_tasks_cache(self):
+    def num_tasks_cache(self) -> int | None:
         """Cache for number of persistent tasks."""
         return self._cache["num_tasks"]
 
     @num_tasks_cache.setter
-    def num_tasks_cache(self, value):
+    def num_tasks_cache(self, value: int | None):
         self._cache["num_tasks"] = value
 
     @property
-    def num_EARs_cache(self):
+    def num_EARs_cache(self) -> int | None:
         """Cache for total number of persistent EARs."""
         return self._cache["num_EARs"]
 
     @num_EARs_cache.setter
-    def num_EARs_cache(self, value):
+    def num_EARs_cache(self, value: int | None):
         self._cache["num_EARs"] = value
 
     @property
