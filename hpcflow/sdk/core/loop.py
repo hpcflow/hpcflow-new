@@ -807,8 +807,9 @@ class WorkflowLoop:
         )
         elements = self.get_elements()
 
+        # TODO: fix for multiple loop cycles
         warn(
-            "skip downstream iterations does not work correctly for multipl loop cycles!"
+            "skip downstream iterations does not work correctly for multiple loop cycles!"
         )
 
         to_skip = []

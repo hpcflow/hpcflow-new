@@ -22,7 +22,7 @@ class WindowsPowerShell(Shell):
         function {workflow_app_alias} {{
             & {{
         {env_setup}{app_invoc} `
-                    --with-config log_file_path "$pwd/{run_log_file}" `
+                    --with-config log_file_path "$env:{app_caps}_LOG_PATH" `
                     --config-dir "{config_dir}" `
                     --config-key "{config_invoc_key}" `
                     $args
@@ -63,7 +63,8 @@ class WindowsPowerShell(Shell):
         $SUB_IDX = {sub_idx}
         $JS_IDX = {js_idx}
 
-        $JS_FUNCS_PATH = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {jobscript_functions_path}
+        $SUB_DIR = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX
+        $JS_FUNCS_PATH = Join-Path $SUB_DIR {jobscript_functions_path}
         . $JS_FUNCS_PATH
 
         $env:{app_caps}_WK_PATH = $WK_PATH
@@ -73,8 +74,10 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_SUB_IDX = {sub_idx}
         $env:{app_caps}_JS_IDX = {js_idx}
 
-        $EAR_ID_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {EAR_file_name}
-        $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
+        $EAR_ID_FILE = Join-Path $SUB_DIR {EAR_file_name}
+        $SUB_TMP_DIR = Join-Path $SUB_DIR {tmp_dir_name}
+        $SUB_LOG_DIR = Join-Path $SUB_DIR {log_dir_name}
+        $SUB_STD_DIR = Join-Path $SUB_DIR {std_dir_name}
     """
     )
     JS_DIRECT_HEADER = dedent(
@@ -98,11 +101,10 @@ class WindowsPowerShell(Shell):
         }}
 
         $env:{app_caps}_RUN_ID = $EAR_ID
+        $env:{app_caps}_LOG_PATH = Join-Path $SUB_LOG_DIR "$env:{app_caps}_RUN_ID.log"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
 
-        $run_dir = ($elem_run_dirs -split "{EAR_files_delimiter}")[$block_act_idx]
-        $run_dir_abs = Join-Path "$WK_PATH" "$run_dir"
-        Set-Location $run_dir_abs
+        Set-Location $SUB_TMP_DIR
         
         {run_cmd}
         """
@@ -124,7 +126,6 @@ class WindowsPowerShell(Shell):
         """\
         $block_elem_idx = ($JS_elem_idx - {block_start_elem_idx})
         $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
-        $elem_run_dirs = get_nth_line $ELEM_RUN_DIR_FILE $JS_elem_idx
         $env:{app_caps}_JS_ELEM_IDX = $JS_elem_idx
         $env:{app_caps}_BLOCK_ELEM_IDX = $block_elem_idx
 

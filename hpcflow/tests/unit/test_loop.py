@@ -1286,3 +1286,139 @@ def test_loop_non_input_task_input_from_element_group(null_config, tmp_path):
     for i in pathway:
         if i[0] == 2:  # task 3
             assert i[2][0]["inputs.p3"] == expected
+
+
+@pytest.mark.integration
+def test_multi_task_loop_termination(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 1))",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p2>> + 1))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    tasks = [
+        hf.Task(schema=s1, inputs={"p1": 0}),
+        hf.Task(schema=s2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        loops=[
+            hf.Loop(
+                tasks=[0, 1],
+                num_iterations=3,
+                termination=hf.Rule(
+                    path="outputs.p1",
+                    condition={"value.greater_than": 3},  # should stop after 2nd iter
+                ),
+            )
+        ],
+        path=tmp_path,
+        template_name="test_loops",
+    )
+    wk.submit(wait=True, add_to_known=False)
+    for task in wk.tasks:
+        for element in task.elements:
+            for iter_i in element.iterations:
+                skips = (i.skip for i in iter_i.action_runs)
+                if iter_i.loop_idx[wk.loops[0].name] > 1:
+                    assert all(skips)
+                    assert iter_i.loop_skipped
+                else:
+                    assert not any(skips)
+
+
+@pytest.mark.integration
+@pytest.mark.skip(reason="need to fix loop termination for multiple elements")
+def test_multi_task_loop_termination_multi_element(null_config, tmp_path):
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 1))",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p2>> + 1))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    tasks = [
+        hf.Task(schema=s1, sequences=[hf.ValueSequence(path="inputs.p1", values=[0, 1])]),
+        hf.Task(schema=s2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        loops=[
+            hf.Loop(
+                tasks=[0, 1],
+                num_iterations=3,
+                termination=hf.Rule(
+                    path="outputs.p1",
+                    condition={
+                        "value.greater_than": 3
+                    },  # should stop after 2nd iter (element 0), 1st iter (element 1)
+                ),
+            )
+        ],
+        path=tmp_path,
+        template_name="test_loops",
+    )
+    wk.submit(wait=True, add_to_known=False)
+    expected_num_iters = [2, 1]
+    for task in wk.tasks:
+        for element in task.elements:
+            for iter_i in element.iterations:
+                skips = (i.skip for i in iter_i.action_runs)
+                if (
+                    iter_i.loop_idx[wk.loops[0].name]
+                    > expected_num_iters[element.index] - 1
+                ):
+                    assert all(skips)
+                    assert iter_i.loop_skipped
+                else:
+                    assert not any(skips)
+
+
+# TODO: test loop termination across jobscripts

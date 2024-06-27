@@ -512,6 +512,7 @@ class JobscriptBlock(JSONLike):
 
     @TimeIt.decorator
     def make_artifact_dirs(self):
+        # TODO: consider using run.get_directory() instead for EAR_dir? whatever is faster
         EARs_arr = self._get_EARs_arr()
         task_loop_idx_arr = self.get_task_loop_idx_array()
 
@@ -554,25 +555,6 @@ class JobscriptBlock(JSONLike):
             fname=fp,
             X=(self.EAR_ID).T,
             fmt="%.0f",
-            delimiter=self.jobscript._EAR_files_delimiter,
-        )
-
-    @TimeIt.decorator
-    def write_element_run_dir_file(self, run_dirs: List[List[Path]], fp):
-        """Write a text file with `num_elements` lines and `num_actions` delimited tokens
-        per line, representing the working directory for each EAR.
-
-        We assume a given task element's actions all run in the same directory, but in
-        general a jobscript "element" may cross task boundaries, so we need to provide
-        the directory for each jobscript-element/jobscript-action combination.
-
-        """
-        run_dirs = self.jobscript.shell.prepare_element_run_dirs(run_dirs)
-        # can't specify "open" newline if we pass the file name only, so pass handle:
-        np.savetxt(
-            fname=fp,
-            X=np.array(run_dirs),
-            fmt="%s",
             delimiter=self.jobscript._EAR_files_delimiter,
         )
 
@@ -844,10 +826,6 @@ class Jobscript(JSONLike):
         return f"js_{self.index}_EAR_IDs.txt"
 
     @property
-    def element_run_dir_file_name(self):
-        return f"js_{self.index}_run_dirs.txt"
-
-    @property
     def direct_stdout_file_name(self):
         """For direct execution stdout."""
         return f"js_{self.index}_stdout.log"
@@ -872,10 +850,6 @@ class Jobscript(JSONLike):
     @property
     def EAR_ID_file_path(self):
         return self.submission.path / self.EAR_ID_file_name
-
-    @property
-    def element_run_dir_file_path(self):
-        return self.submission.path / self.element_run_dir_file_name
 
     @property
     def jobscript_path(self):
@@ -1008,12 +982,13 @@ class Jobscript(JSONLike):
         header_args = {
             "app_caps": app_caps,
             "jobscript_functions_path": self.jobscript_functions_name,
-            "workflow_path": self.workflow.path,  # TODO: where is this used?
             "sub_idx": self.submission.index,
             "js_idx": self.index,
             "EAR_file_name": self.EAR_ID_file_name,
-            "element_run_dirs_file_path": self.element_run_dir_file_name,
             "run_stream_file": self.app.RunDirAppFiles.get_std_file_name(),
+            "tmp_dir_name": self.submission.TMP_DIR_NAME,
+            "log_dir_name": self.submission.LOG_DIR_NAME,
+            "std_dir_name": self.submission.STD_DIR_NAME,
         }
 
         shebang = shell.JS_SHEBANG.format(
@@ -1053,6 +1028,7 @@ class Jobscript(JSONLike):
             EAR_files_delimiter=self._EAR_files_delimiter,
             app_caps=app_caps,
             run_cmd=run_cmd,
+            sub_tmp_dir=self.submission.tmp_path,
         )
         if len(self.blocks) == 1:
             # forgo element and action loops if not necessary:
@@ -1135,12 +1111,13 @@ class Jobscript(JSONLike):
             env_setup = shell.JS_ENV_SETUP_INDENT
         app_invoc = list(self.app.run_time_info.invocation_command)
 
+        app_caps = self.app.package_name.upper()
         func_file_args = shell.process_JS_header_args(  # TODO: rename?
             {
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
                 "app_invoc": app_invoc,
-                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
+                "app_caps": app_caps,
                 "config_dir": str(self.app.config.config_directory),
                 "config_invoc_key": self.app.config.config_key,
             }
@@ -1289,11 +1266,9 @@ class Jobscript(JSONLike):
                         deps[js_idx] = (js_ref, False)
 
         with self.EAR_ID_file_path.open(mode="wt", newline="\n") as ID_fp:
-            with self.element_run_dir_file_path.open(mode="wt", newline="\n") as dir_fp:
-                for block in self.blocks:
-                    run_dirs = block.make_artifact_dirs()
-                    block.write_EAR_ID_file(ID_fp)
-                    block.write_element_run_dir_file(run_dirs, dir_fp)
+            for block in self.blocks:
+                block.make_artifact_dirs()
+                block.write_EAR_ID_file(ID_fp)
 
         js_path = self.write_jobscript(deps=deps)
         js_path = self.shell.prepare_JS_path(js_path)

@@ -47,6 +47,11 @@ class SubmissionStatus(enum.Enum):
 
 
 class Submission(JSONLike):
+
+    TMP_DIR_NAME = "tmp"
+    LOG_DIR_NAME = "app_logs"
+    STD_DIR_NAME = "app_std"
+
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",
@@ -282,9 +287,29 @@ class Submission(JSONLike):
             SubmissionStatus.PARTIALLY_SUBMITTED,
         )
 
+    @classmethod
+    def get_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return submissions_path / str(sub_idx)
+
+    @classmethod
+    def get_tmp_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.TMP_DIR_NAME
+
     @property
-    def path(self):
-        return self.workflow.submissions_path / str(self.index)
+    def path(self) -> Path:
+        return self.get_path(self.workflow.submissions_path, self.index)
+
+    @property
+    def tmp_path(self) -> Path:
+        return self.get_tmp_path(self.workflow.submissions_path, self.index)
+
+    @property
+    def log_path(self) -> Path:
+        return self.path / self.LOG_DIR_NAME
+
+    @property
+    def std_path(self):
+        return self.path / self.STD_DIR_NAME
 
     @property
     def all_EAR_IDs(self):
@@ -516,6 +541,9 @@ class Submission(JSONLike):
         # no; there could be an IO error (e.g. internet connectivity), so might
         # need to be able to reattempt submission of outstanding jobscripts.
         self.path.mkdir(exist_ok=True)
+        self.tmp_path.mkdir(exist_ok=True)
+        self.log_path.mkdir(exist_ok=True)
+        self.std_path.mkdir(exist_ok=True)
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
 

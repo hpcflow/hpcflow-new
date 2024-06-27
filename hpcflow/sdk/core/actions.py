@@ -485,6 +485,15 @@ class ElementActionRun:
     def env_spec(self) -> Dict[str, Any]:
         return self.resources.environments[self.action.get_environment_name()]
 
+    def get_directory(self) -> Path:
+        task_dir_name = self.task.get_dir_name(loop_idx=self.element_iteration.loop_idx)
+        elem_dir_name = self.element.dir_name
+        run_dir_name = f"r_{self.index}"
+        run_dir = Path(
+            self.workflow.execution_path, task_dir_name, elem_dir_name, run_dir_name
+        )
+        return run_dir
+
     @TimeIt.decorator
     def get_resources(self):
         """Resolve specific resources for this EAR, considering all applicable scopes and

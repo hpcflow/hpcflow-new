@@ -43,6 +43,7 @@ from hpcflow.sdk.submission.jobscript import (
 )
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
+from hpcflow.sdk.submission.submission import Submission
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.utils.patches import resolve_path
@@ -2819,6 +2820,11 @@ class Workflow:
         run_ID: int,
     ) -> None:
         """Execute commands of a run via a subprocess."""
+
+        # CD to submission tmp dir to ensure std streams and exceptions have somewhere sensible
+        # to go:
+        os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
+
         std_stream_file = self.app.RunDirAppFiles.get_std_file_name()
         std_stream_path = Path(".").joinpath(std_stream_file)
 
@@ -2827,6 +2833,14 @@ class Workflow:
 
             js_idx = block_act_key[0]
             run = self.get_EARs_from_IDs([run_ID])[0]
+
+            self.app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
+
+            run_dir = run.get_directory()
+            self.app.submission_logger.debug(
+                f"changing directory to run execution directory: {run_dir}."
+            )
+            os.chdir(run_dir)
 
             # check if we should skip:
             if not run.skip:
@@ -3054,17 +3068,13 @@ class Workflow:
         elem_iter = run.element_iteration
         element = elem_iter.element
         print(f"Workflow.check_loop_termination: {run_ID=} {element=!r}")
-        dep_elements = None
         for loop_name in loop_names:
             loop = self.loops.get(loop_name)
             if loop.test_termination(elem_iter):
                 self.app.logger.info(
                     f"loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
                 )
-                if not dep_elements:
-                    dep_elements = element.get_dependent_elements_recursively()
-                    print(f"Workflow.check_loop_termination: {dep_elements=}")
-                loop.skip_downstream_iterations(elem_iter, dep_elements)
+                loop.skip_downstream_iterations(elem_iter)
 
 
 @dataclass
