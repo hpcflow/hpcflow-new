@@ -218,24 +218,13 @@ class Bash(Shell):
     def format_stream_assignment(self, shell_var_name, command):
         return f"{shell_var_name}=`{command}`"
 
-    def format_source_functions_file(self, app_name):
+    def format_source_functions_file(self, app_name, commands):
         return dedent(
             """\
-            . "${app_name}_JS_FUNCS_PATH"
-            WK_PATH=${app_name}_WK_PATH
-            WK_PATH_ARG=${app_name}_WK_PATH_ARG
-            RUN_ID=${app_name}_RUN_ID
-            SUB_IDX=${app_name}_SUB_IDX
-            JS_IDX=${app_name}_JS_IDX
-            JS_ELEM_IDX=${app_name}_JS_ELEM_IDX
-            JS_ACT_IDX=${app_name}_JS_ACT_IDX
-            STD_STREAM_FILE=${app_name}_STD_STREAM_FILE
-            RUN_PORT_NUMBER=${app_name}_RUN_PORT_NUMBER
-            BLOCK_ACT_IDX=${app_name}_BLOCK_ACT_IDX
-            BLOCK_IDX=${app_name}_BLOCK_IDX
+            . "${app_caps}_JS_FUNCS_PATH"
 
             """
-        ).format(app_name=app_name.upper())
+        ).format(app_caps=app_name.upper())
 
     def format_save_parameter(
         self,
@@ -245,22 +234,27 @@ class Bash(Shell):
         EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
+        app_name: str,
     ):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         return (
-            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
+            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
             f'internal workflow "$WK_PATH_ARG" save-parameter '
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
             f"\n"
         )
 
     def format_loop_check(
-        self, workflow_app_alias: str, run_ID: int, loop_names: List[str]
+        self,
+        workflow_app_alias: str,
+        run_ID: int,
+        loop_names: List[str],
+        app_name: str,
     ):
         return (
-            f'{workflow_app_alias} --std-stream "$STD_STREAM_FILE" '
+            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
             f'internal workflow "$WK_PATH_ARG" check-loop '
             f"{run_ID} {' '.join(loop_names)}  "
             f"\n"

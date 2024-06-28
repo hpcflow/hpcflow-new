@@ -229,25 +229,32 @@ class WindowsPowerShell(Shell):
     def format_stream_assignment(self, shell_var_name, command):
         return f"${shell_var_name} = {command}"
 
-    def format_source_functions_file(self, app_name):
-        return dedent(
+    def format_source_functions_file(self, app_name, commands):
+        app_caps = app_name.upper()
+        out = dedent(
             """\
             . $env:{app_name}_JS_FUNCS_PATH
-            $WK_PATH = $env:{app_name}_WK_PATH
-            $WK_PATH_ARG = $env:{app_name}_WK_PATH_ARG
-            $RUN_ID = $env:{app_name}_RUN_ID
-            $SUB_IDX = $env:{app_name}_SUB_IDX
-            $JS_IDX = $env:{app_name}_JS_IDX
-            $JS_ELEM_IDX = $env:{app_name}_JS_ELEM_IDX
-            $JS_ACT_IDX = $env:{app_name}_JS_ACT_IDX
-            ${app_name}_RUN_STD_PATH = $env:{app_name}_RUN_STD_PATH
-            ${app_name}_RUN_LOG_PATH = $env:{app_name}_RUN_LOG_PATH
-            $RUN_PORT_NUMBER = $env:{app_name}_RUN_PORT_NUMBER
-            $BLOCK_ACT_IDX = $env:{app_name}_BLOCK_ACT_IDX
-            $BLOCK_IDX = $env:{app_name}_BLOCK_IDX
 
             """
-        ).format(app_name=app_name.upper())
+        ).format(app_name=app_caps)
+
+        var_strings = (
+            f"{app_caps}_JS_IDX",
+            f"{app_caps}_BLOCK_IDX",
+            f"{app_caps}_BLOCK_ACT_IDX",
+            f"{app_caps}_RUN_STD_PATH",
+            f"{app_caps}_WK_PATH",
+        )
+        add = False
+        for i in var_strings:
+            if i in commands:
+                add = True
+                out += f"${i} = $env:{i}\n"
+
+        if add:
+            out += "\n"
+
+        return out
 
     def format_save_parameter(
         self,
@@ -262,9 +269,10 @@ class WindowsPowerShell(Shell):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
+        app_caps = app_name.upper()
         return (
-            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
-            f"internal workflow $WK_PATH save-parameter "
+            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f'internal workflow "${app_caps}_WK_PATH" save-parameter '
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
             f"\n"
         )
@@ -276,9 +284,10 @@ class WindowsPowerShell(Shell):
         loop_names: List[str],
         app_name: str,
     ):
+        app_caps = app_name.upper()
         return (
-            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
-            f"internal workflow $WK_PATH check-loop "
+            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f'internal workflow "${app_caps}_WK_PATH" check-loop '
             f"{run_ID} {' '.join(loop_names)}  "
             f"\n"
         )

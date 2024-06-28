@@ -518,11 +518,11 @@ def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
 
     # define a custom python environment which redefines the `WK_PATH` shell variable to
     # a nonsense value so the app cannot load the workflow and thus raises an exception
-
+    app_caps = hf.package_name.upper()
     if os.name == "nt":
-        env_cmd = '$WK_PATH = "nonsense_path"'
+        env_cmd = f'$env:{app_caps}_WK_PATH = "nonsense_path"'
     else:
-        env_cmd = 'WK_PATH="nonsense_path"'
+        env_cmd = f'export {app_caps}_WK_PATH="nonsense_path"'
 
     env_cmd += "; python <<script_name>> <<args>>"
     bad_env = hf.Environment(

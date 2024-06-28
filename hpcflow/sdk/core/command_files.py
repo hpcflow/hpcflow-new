@@ -152,29 +152,35 @@ class InputFileGenerator(JSONLike):
         with snip_path.open("rt") as fp:
             script_str = fp.read()
 
+        app_caps = self.app.package_name.upper()
         main_block = dedent(
             """\
             if __name__ == "__main__":
-                import sys
+                import os
                 from pathlib import Path
+
                 import {app_module} as app
                 
-                wk_path, EAR_ID, std_stream, log_path = sys.argv[1:]
-                with app.redirect_std_to_file(std_stream):
+                std_path = os.getenv("{app_caps}_RUN_STD_PATH")
+                log_path = os.getenv("{app_caps}_RUN_LOG_PATH")
+                run_id = int(os.getenv("{app_caps}_RUN_ID"))
+                wk_path = os.getenv("{app_caps}_WK_PATH")
+
+                with app.redirect_std_to_file(std_path):
+
                     app.load_config(
                         log_file_path=Path(log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
-                    EAR_ID = int(EAR_ID)
                     wk = app.Workflow(wk_path)
-                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                    EAR = wk.get_EARs_from_IDs([run_id])[0]
                     func_kwargs = {{
                         "path": Path({file_path!r}),
                         **EAR.get_IFG_input_values(),
                     }}
                 
-                {script_main_func}(**func_kwargs)                
+                {script_main_func}(**func_kwargs)
         """
         )
         main_block = main_block.format(
@@ -183,6 +189,7 @@ class InputFileGenerator(JSONLike):
             cfg_invoc_key=self.app.config.config_key,
             script_main_func=script_main_func,
             file_path=self.input_file.name.value(),
+            app_caps=app_caps,
         )
 
         out = dedent(
@@ -307,33 +314,39 @@ class OutputFileParser(JSONLike):
         with snip_path.open("rt") as fp:
             script_str = fp.read()
 
+        app_caps = self.app.package_name.upper()
         main_block = dedent(
             """\
             if __name__ == "__main__":
-                import sys
+                import os
                 from pathlib import Path
+
                 import {app_module} as app
                 
-                wk_path, EAR_ID, std_stream, log_path = sys.argv[1:]
-                with app.redirect_std_to_file(std_stream):
+                std_path = os.getenv("{app_caps}_RUN_STD_PATH")
+                log_path = os.getenv("{app_caps}_RUN_LOG_PATH")
+                run_id = int(os.getenv("{app_caps}_RUN_ID"))
+                wk_path = os.getenv("{app_caps}_WK_PATH")
+
+                with app.redirect_std_to_file(std_path):
+
                     app.load_config(
                         log_file_path=Path(log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
-                    EAR_ID = int(EAR_ID)
                     wk = app.Workflow(wk_path)
-                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                    EAR = wk.get_EARs_from_IDs([run_id])[0]
                     func_kwargs = {{
                         **EAR.get_OFP_output_files(),
                         **EAR.get_OFP_inputs(),
-                        **EAR.get_OFP_outputs(),                    
+                        **EAR.get_OFP_outputs(),
                     }}
 
                 value = {script_main_func}(**func_kwargs)
 
-                with app.redirect_std_to_file(std_stream):
-                    wk.save_parameter(name="{param_name}", value=value, EAR_ID=EAR_ID)
+                with app.redirect_std_to_file(std_path):
+                    wk.save_parameter(name="{param_name}", value=value, EAR_ID=run_id)
 
         """
         )
@@ -343,6 +356,7 @@ class OutputFileParser(JSONLike):
             cfg_invoc_key=self.app.config.config_key,
             script_main_func=script_main_func,
             param_name=f"outputs.{self.output.typ}",
+            app_caps=app_caps,
         )
 
         out = dedent(

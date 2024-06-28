@@ -2911,10 +2911,6 @@ class Workflow:
 
             if write_commands:
                 app_name = self.app.package_name
-                commands = (
-                    jobscript.shell.format_source_functions_file(app_name=app_name)
-                    + commands
-                )
                 self.app.persistence_logger.debug("need to write commands")
                 for cmd_idx, var_dat in shell_vars.items():
                     for param_name, shell_var_name, st_typ in var_dat:
@@ -2956,6 +2952,11 @@ class Workflow:
                         app_name=app_name,
                     )
                     commands += loop_cmd
+
+                commands = (
+                    jobscript.shell.format_source_functions_file(app_name, commands)
+                    + commands
+                )
             else:
                 # still need to write the file, the jobscript is expecting it.
                 commands = ""

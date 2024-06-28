@@ -1610,7 +1610,6 @@ class Action(JSONLike):
 
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_var, run_ID_var, app_std_path_var, app_log_path_var]
                 if ifg.script:
                     script_name = self.get_script_name(ifg.script)
                     variables = {
@@ -1620,9 +1619,7 @@ class Action(JSONLike):
                 else:
                     variables = {}
                 act_i = self.app.Action(
-                    commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
-                    ],
+                    commands=[app.Command(executable=exe, variables=variables)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + ifg.get_action_rules(),
@@ -1640,7 +1637,6 @@ class Action(JSONLike):
             out_acts = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
-                args = [wk_path_var, run_ID_var, app_std_path_var, app_log_path_var]
                 if ofp.script:
                     script_name = self.get_script_name(ofp.script)
                     variables = {
@@ -1650,9 +1646,7 @@ class Action(JSONLike):
                 else:
                     variables = {}
                 act_i = self.app.Action(
-                    commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
-                    ],
+                    commands=[app.Command(executable=exe, variables=variables)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules) + ofp.get_action_rules(),
@@ -1669,7 +1663,6 @@ class Action(JSONLike):
             commands = self.commands
             if self.script:
                 exe = f"<<executable:{self.script_exe}>>"
-                args = []
                 if self.script:
                     script_name = self.get_script_name(self.script)
                     variables = {
@@ -1678,22 +1671,13 @@ class Action(JSONLike):
                     }
                 else:
                     variables = {}
-                if self.script_data_in_has_direct or self.script_data_out_has_direct:
-                    args.extend(
-                        [
-                            "--wk-path",
-                            wk_path_var,
-                            "--run-id",
-                            run_ID_var,
-                            "--std-stream",
-                            app_std_path_var,
-                            "--log-path",
-                            app_log_path_var,
-                        ]
-                    )
 
-                fn_args = (r"${JS_IDX}", r"${BLOCK_IDX}", r"${BLOCK_ACT_IDX}")
-
+                args = []
+                fn_args = (
+                    r"${HPCFLOW_JS_IDX}",
+                    r"${HPCFLOW_BLOCK_IDX}",
+                    r"${HPCFLOW_BLOCK_ACT_IDX}",
+                )
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
                         if self.script_data_files_use_opt:
@@ -2048,45 +2032,47 @@ class Action(JSONLike):
         if not self.script_is_python:
             return script_str
 
+        app_caps = self.app.package_name.upper()
         py_imports = dedent(
             """\
             import argparse
+            import os
             from pathlib import Path
 
             import {app_module} as app
 
-            parser = argparse.ArgumentParser()            
-            parser.add_argument("--wk-path")
-            parser.add_argument("--run-id", type=int)
-            parser.add_argument("--std-stream")
-            parser.add_argument("--log-path")
-            parser.add_argument("--inputs-json")
-            parser.add_argument("--inputs-hdf5")
-            parser.add_argument("--outputs-json")
-            parser.add_argument("--outputs-hdf5")
-            args = parser.parse_args()
+            std_path = os.getenv("{app_caps}_RUN_STD_PATH")
+            log_path = os.getenv("{app_caps}_RUN_LOG_PATH")
+            run_id = int(os.getenv("{app_caps}_RUN_ID"))
+            wk_path = os.getenv("{app_caps}_WK_PATH")
 
-            with app.redirect_std_to_file(args.std_stream):
+            with app.redirect_std_to_file(std_path):
+
+                parser = argparse.ArgumentParser()
+                parser.add_argument("--inputs-json")
+                parser.add_argument("--inputs-hdf5")
+                parser.add_argument("--outputs-json")
+                parser.add_argument("--outputs-hdf5")
+                args = parser.parse_args()
             """
-        ).format(app_module=self.app.module)
+        ).format(app_module=self.app.module, app_caps=app_caps)
 
         # if any direct inputs/outputs, we must load the workflow (must be python):
         if self.script_data_in_has_direct or self.script_data_out_has_direct:
             py_main_block_workflow_load = dedent(
                 """\
                     app.load_config(
-                        log_file_path=Path(args.log_path),
+                        log_file_path=Path(log_path),
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
-                    wk_path, EAR_ID = args.wk_path, args.run_id
                     wk = app.Workflow(wk_path)
-                    EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
+                    EAR = wk.get_EARs_from_IDs([run_id])[0]
                 """
             ).format(
-                run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
                 cfg_dir=self.app.config.config_directory,
                 cfg_invoc_key=self.app.config.config_key,
+                app_caps=app_caps,
             )
         else:
             py_main_block_workflow_load = ""
@@ -2138,10 +2124,9 @@ class Action(JSONLike):
             py_main_block_invoke = f"outputs = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\
-                with app.redirect_std_to_file(args.std_stream):
-                    outputs = {"outputs." + k: v for k, v in outputs.items()}
+                with app.redirect_std_to_file(std_path):
                     for name_i, out_i in outputs.items():
-                        wk.set_parameter_value(param_id=EAR.data_idx[name_i], value=out_i)
+                        wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
             )
         else:
