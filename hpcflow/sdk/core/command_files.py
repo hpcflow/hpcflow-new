@@ -295,7 +295,7 @@ class OutputFileParser(JSONLike):
 
     @classmethod
     def from_json_like(  # type: ignore[override]
-        cls, json_like: Dict[str, Any], shared_data: Mapping | None = None
+        cls, json_like: dict[str, Any], shared_data: Mapping | None = None
     ) -> Self:
         if "save_files" in json_like:
             if not json_like["save_files"]:
@@ -434,7 +434,7 @@ class _FileContentsSpecifier(JSONLike):
         return {k.lstrip("_"): v for k, v in out.items()}
 
     @classmethod
-    def _json_like_constructor(cls, json_like: Dict[str, Any]) -> Self:
+    def _json_like_constructor(cls, json_like: dict[str, Any]) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("value_group_idx", None)

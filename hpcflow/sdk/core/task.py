@@ -3259,8 +3259,9 @@ class TaskInputParameters:
             f"{', '.join(f'{i!r}' for i in self._get_input_names())})"
         )
 
-    def __dir__(self) -> Iterable[str]:
-        return [*super().__dir__(), *self._get_input_names()]
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from self._get_input_names()
 
     def _get_input_names(self) -> list[str]:
         if self.__input_names is None:
@@ -3289,8 +3290,9 @@ class TaskOutputParameters:
             f"{', '.join(f'{i!r}' for i in self._get_output_names())})"
         )
 
-    def __dir__(self) -> list[str]:
-        return [*super().__dir__(), *self._get_output_names()]
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from self._get_output_names()
 
     def _get_output_names(self) -> list[str]:
         if self.__output_names is None:

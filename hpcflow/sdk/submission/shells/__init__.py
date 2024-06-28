@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 from hpcflow.sdk.core.errors import UnsupportedShellError
 

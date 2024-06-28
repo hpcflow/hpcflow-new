@@ -79,19 +79,22 @@ class _ElementPrefixedParameter:
                 element=self._element_iteration_obj,
             )
 
-    def __dir__(self):
-        return [*super().__dir__(), *self.prefixed_names_unlabelled]
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from self.prefixed_names_unlabelled
 
     @property
-    def _parent(self) -> ElementIteration | ElementActionRun | None | ElementAction:
-        return self._element_iteration or self._element_action or self._element_action_run
+    def _parent(self) -> ElementIteration | ElementActionRun | ElementAction:
+        p = self._element_iteration or self._element_action or self._element_action_run
+        assert p is not None
+        return p
 
     @property
     def _element_iteration_obj(self) -> ElementIteration:
-        if self._element_iteration:
-            return self._element_iteration
-        else:
-            return self._parent.element_iteration
+        p = self._parent
+        if isinstance(p, ElementIteration):
+            return p
+        return p.element_iteration
 
     @property
     def _task(self) -> WorkflowTask:
@@ -305,11 +308,11 @@ class ElementResources(JSONLike):
         return os.name
 
     @classmethod
-    def get_default_shell(cls):
+    def get_default_shell(cls) -> str:
         return cls.app.config.default_shell
 
     @classmethod
-    def get_default_scheduler(cls, os_name, shell_name):
+    def get_default_scheduler(cls, os_name, shell_name) -> str:
         if os_name == "nt" and "wsl" in shell_name:
             # provide a "*_posix" default scheduler on windows if shell is WSL:
             return "direct_posix"
@@ -998,9 +1001,9 @@ class ElementIteration:
 
     def get_template_resources(self) -> dict[str, Any]:
         """Get template-level resources."""
-        out = {}
-        for res_i in self.workflow.template.resources:
-            out[res_i.scope.to_string()] = res_i._get_value()
+        out: dict[str, Any] = {}
+        for res_i in self.workflow.template.resources or ():
+            out[res_i.normalised_resources_path] = res_i._get_value()
         return out
 
     @TimeIt.decorator
@@ -1258,6 +1261,10 @@ class Element:
             raise ValueError(
                 f"No sequence with path {sequence_path!r} in this element's originating "
                 f"element set."
+            )
+        if seq.values is None:
+            raise ValueError(
+                f"Sequence with path {sequence_path!r} has no defined values."
             )
         return seq.values[self.sequence_idx[sequence_path]]
 
@@ -1552,16 +1559,15 @@ class ElementParameter:
 
     task: WorkflowTask
     path: str
-    parent: Element | ElementAction | ElementActionRun | Parameters
+    parent: Element | ElementAction | ElementActionRun | ElementIteration
     element: Element | ElementIteration
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> dict[str, int]:
         return self.parent.get_data_idx(path=self.path)
 
     @property
     def value(self) -> Any:
-        assert hasattr(self.parent, "get")
         return self.parent.get(path=self.path)
 
     def __repr__(self) -> str:
@@ -1573,7 +1579,7 @@ class ElementParameter:
         return self.task == __o.task and self.path == __o.path
 
     @property
-    def data_idx_is_set(self):
+    def data_idx_is_set(self) -> dict[str, bool]:
         return {
             k: self.task.workflow.is_parameter_set(v) for k, v in self.data_idx.items()
         }

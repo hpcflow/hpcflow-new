@@ -267,11 +267,9 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         else:
             raise AttributeError
 
-    def __dir__(self) -> Iterable[str]:
-        return [
-            *super().__dir__(),
-            *(getattr(i, self._access_attribute) for i in self._objects)
-        ]
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from (getattr(i, self._access_attribute) for i in self._objects)
 
     def get(self, access_attribute_value: str | None = None, **kwargs) -> T:
         vld_get_kwargs = kwargs

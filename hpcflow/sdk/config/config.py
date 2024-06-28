@@ -11,7 +11,7 @@ import socket
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast, overload, TYPE_CHECKING
+from typing import TypedDict, cast, overload, TYPE_CHECKING
 import fsspec  # type: ignore
 
 from rich.console import Console, Group
@@ -56,17 +56,49 @@ from .errors import (
     ConfigValidationError,
 )
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
-    from typing import Any, Literal, TypeAlias, TypeVar
+    from collections.abc import Callable, Iterator, Mapping, Sequence
+    from typing import Any, Literal, NotRequired, TypeAlias, TypeVar
     from ..app import BaseApp
     T = TypeVar('T')
     GetterCallback: TypeAlias = Callable[['Config', T], T]
     SetterCallback: TypeAlias = Callable[['Config', T], Any]
 
+
+class SchedulerConfigDescriptor(TypedDict):
+    defaults: dict[str, Any]
+
+
+class ShellConfigDescriptor(TypedDict):
+    defaults: dict[str, Any]
+
+
+class ConfigDescriptor(TypedDict):
+    machine: NotRequired[str]
+    log_file_path: NotRequired[str]
+    environment_sources: NotRequired[list[str]]
+    task_schema_sources: NotRequired[list[str]]
+    command_file_sources: NotRequired[list[str]]
+    parameter_sources: NotRequired[list[str]]
+    default_scheduler: NotRequired[str]
+    default_shell: NotRequired[str]
+    schedulers: NotRequired[dict[str, SchedulerConfigDescriptor]]
+    shells: NotRequired[dict[str, ShellConfigDescriptor]]
+
+
+class InvocationDescriptor(TypedDict):
+    environment_setup: str | None
+    match: dict[str, str | list[str]]
+
+
+class DefaultConfiguration(TypedDict):
+    invocation: InvocationDescriptor
+    config: ConfigDescriptor
+
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
-DEFAULT_CONFIG: dict[str, dict[str, Any]] = {
+DEFAULT_CONFIG: DefaultConfiguration = {
     "invocation": {"environment_setup": None, "match": {}},
     "config": {
         "machine": socket.gethostname(),
@@ -89,7 +121,7 @@ class ConfigOptions:
 
     default_directory: Path | str
     directory_env_var: str
-    default_config: dict[str, dict[str, Any]] = field(
+    default_config: DefaultConfiguration = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
     extra_schemas: list[Schema] = field(default_factory=list)
@@ -156,9 +188,9 @@ class Config:
         options: ConfigOptions,
         logger: logging.Logger,
         config_key: str | None,
-        uid=None,
+        uid: str | None = None,
         callbacks: dict[str, Sequence[GetterCallback]] | None = None,
-        variables=None,
+        variables: dict[str, str] | None = None,
         **overrides,
     ):
         self._app = app
@@ -208,8 +240,8 @@ class Config:
         }
 
         self._configurable_keys = self._options._configurable_keys
-        self._modified_keys: dict[str, object] = {}
-        self._unset_keys: list[str] = []
+        self._modified_keys: ConfigDescriptor = {}
+        self._unset_keys: set[str] = set()
 
         for name in overrides:
             if name not in self._configurable_keys:
@@ -236,8 +268,133 @@ class Config:
             metadata=metadata,
         )
 
-    def __dir__(self):
-        return super().__dir__() + self._all_keys
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from self._all_keys
+
+    @property
+    def config_directory(self) -> Path:
+        return self._get("config_directory")
+
+    @property
+    def config_file_name(self) -> str:
+        return self._get("config_file_name")
+
+    @property
+    def config_file_path(self) -> Path:
+        return self._get("config_file_path")
+
+    @property
+    def config_file_contents(self) -> str:
+        return self._get("config_file_contents")
+
+    @property
+    def config_key(self) -> str:
+        return self._get("config_key")
+
+    @property
+    def config_schemas(self) -> Sequence[Schema]:
+        return self._get("config_schemas")
+
+    @property
+    def invoking_user_id(self) -> str:
+        return self._get("invoking_user_id")
+
+    @property
+    def host_user_id(self) -> str:
+        return self._get("host_user_id")
+
+    @property
+    def host_user_id_file_path(self) -> Path:
+        return self._get("host_user_id_file_path")
+
+    @property
+    def machine(self) -> str:
+        return self._get("machine")
+
+    @machine.setter
+    def machine(self, value: str):
+        self._set("machine", value)
+
+    @property
+    def log_file_path(self) -> str:
+        return self._get("log_file_path")
+
+    @log_file_path.setter
+    def log_file_path(self, value: str):
+        self._set("log_file_path", value)
+
+    @property
+    def environment_sources(self) -> Sequence[str]:
+        return self._get("environment_sources")
+
+    @environment_sources.setter
+    def environment_sources(self, value: Sequence[str]):
+        self._set("environment_sources", value)
+
+    @property
+    def task_schema_sources(self) -> Sequence[str]:
+        return self._get("task_schema_sources")
+
+    @task_schema_sources.setter
+    def task_schema_sources(self, value: Sequence[str]):
+        self._set("task_schema_sources", value)
+
+    @property
+    def command_file_sources(self) -> Sequence[str]:
+        return self._get("command_file_sources")
+
+    @command_file_sources.setter
+    def command_file_sources(self, value: Sequence[str]):
+        self._set("command_file_sources", value)
+
+    @property
+    def parameter_sources(self) -> Sequence[str]:
+        return self._get("parameter_sources")
+
+    @parameter_sources.setter
+    def parameter_sources(self, value: Sequence[str]):
+        self._set("parameter_sources", value)
+
+    @property
+    def default_scheduler(self) -> str:
+        return self._get("default_scheduler")
+
+    @default_scheduler.setter
+    def default_scheduler(self, value: str):
+        self._set("default_scheduler", value)
+
+    @property
+    def default_shell(self) -> str:
+        return self._get("default_shell")
+
+    @default_shell.setter
+    def default_shell(self, value: str):
+        self._set("default_shell", value)
+
+    @property
+    def schedulers(self) -> Mapping[str, SchedulerConfigDescriptor]:
+        return self._get("schedulers")
+
+    @schedulers.setter
+    def schedulers(self, value: Mapping[str, SchedulerConfigDescriptor]):
+        self._set("schedulers", value)
+
+    @property
+    def shells(self) -> Mapping[str, ShellConfigDescriptor]:
+        return self._get("shells")
+
+    @shells.setter
+    def shells(self, value: Mapping[str, ShellConfigDescriptor]):
+        self._set("shells", value)
+
+    @property
+    def demo_data_dir(self) -> str | None:
+        return self._get("demo_data_dir")
+
+    @demo_data_dir.setter
+    def demo_data_dir(self, value: str | None):
+        self._set("demo_data_dir", value)
 
     def __getattr__(self, name: str):
         if not name.startswith("__"):
@@ -379,8 +536,7 @@ class Config:
                     items[key] = self._get(
                         name=key,
                         include_overrides=include_overrides,
-                        raise_on_missing=True,
-                        as_str=False
+                        raise_on_missing=True
                     )
             except ValueError:
                 continue
@@ -476,7 +632,7 @@ class Config:
                 val = default_value
 
         elif name in self._modified_keys:
-            val = self._modified_keys[name]
+            val = cast(dict, self._modified_keys)[name]
 
         elif name in self._configurable_keys:
             val = self._file.get_config_item(
@@ -533,18 +689,18 @@ class Config:
             was_in_unset = False
             prev_modified_val = None
             modified_updated = False
+            mk = cast(dict, self._modified_keys)
 
             if name in self._modified_keys:
                 was_in_modified = True
-                prev_modified_val = self._modified_keys[name]
+                prev_modified_val = mk[name]
 
             if name in self._unset_keys:
                 was_in_unset = True
-                idx = self._unset_keys.index(name)
-                self._unset_keys.pop(idx)
+                self._unset_keys.remove(name)
 
             if callback_val != file_val:
-                self._modified_keys[name] = value
+                mk[name] = value
                 modified_updated = True
 
             try:
@@ -561,11 +717,11 @@ class Config:
                 # revert:
                 if modified_updated:
                     if was_in_modified:
-                        self._modified_keys[name] = prev_modified_val
+                        mk[name] = prev_modified_val
                     else:
-                        del self._modified_keys[name]
+                        del mk[name]
                 if was_in_unset:
-                    self._unset_keys.append(name)
+                    self._unset_keys.add(name)
 
                 raise ConfigChangeValidationError(name, validation_err=err) from None
 
@@ -575,7 +731,13 @@ class Config:
         elif not quiet:
             print(f"value is already: {callback_val!r}")
 
-    def set(self, path: str, value, is_json=False, quiet=False) -> None:
+    @overload
+    def set(self, path: str, value: Any, *, is_json: Literal[False] = False, quiet=False) -> None: ...
+
+    @overload
+    def set(self, path: str, value: str, *, is_json: Literal[True], quiet=False) -> None: ...
+
+    def set(self, path: str, value: Any, *, is_json: bool = False, quiet: bool = False) -> None:
         """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
@@ -607,11 +769,11 @@ class Config:
         if name in self._unset_keys or not self._file.is_item_set(self._config_key, name):
             raise ConfigItemAlreadyUnsetError(name=name)
 
-        self._unset_keys.append(name)
+        self._unset_keys.add(name)
         try:
             self._validate()
         except ConfigValidationError as err:
-            self._unset_keys.pop()
+            self._unset_keys.remove(name)
             raise ConfigChangeValidationError(name, validation_err=err) from None
 
     def get(
@@ -840,7 +1002,7 @@ class Config:
 
         console = Console()
         with console.status(f"Importing config from file {file_path!r}...") as status:
-            file_dat = read_YAML_file(file_path)
+            file_dat: DefaultConfiguration = read_YAML_file(file_path)
             if rename or make_new:
                 file_stem = Path(file_path).stem
                 name = file_stem
@@ -875,21 +1037,21 @@ class Config:
                     )
 
             new_invoc = file_dat.get("invocation")
-            new_config = file_dat.get("config")
+            new_config = file_dat.get("config", {})
 
-            if new_invoc:
+            if new_invoc is not None:
                 status.update("Updating invocation details...")
                 config_key = file_stem if (make_new or rename) else self._config_key
                 obj._file.update_invocation(
                     config_key=config_key,
                     environment_setup=new_invoc.get("environment_setup"),
-                    match=new_invoc.get("match"),
+                    match=new_invoc.get("match", {}),
                 )
 
             # sort in reverse so "schedulers" and "shells" are set before
             # "default_scheduler" and "default_shell" which might reference the former:
-            new_config = dict(sorted(new_config.items(), reverse=True))
-            for k, v in new_config.items():
+            sorted_config = dict(sorted(new_config.items(), reverse=True))
+            for k, v in sorted_config.items():
                 status.update(f"Updating configurable item {k!r}")
                 obj.set(k, value=v, quiet=True)
 

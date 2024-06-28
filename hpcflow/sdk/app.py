@@ -687,7 +687,7 @@ class BaseApp(metaclass=Singleton):
         self_tc: Any = self._template_components
 
         if "parameters" in include:
-            params = self._builtin_template_components.get("parameters", [])
+            params: list[Any] = self._builtin_template_components.get("parameters", [])
             for path in self.config.parameter_sources:
                 params.extend(read_YAML_file(path))
             param_list = self.ParametersList.from_json_like(
@@ -698,7 +698,7 @@ class BaseApp(metaclass=Singleton):
             self._parameters = param_list
 
         if "command_files" in include:
-            cmd_files = self._builtin_template_components.get("command_files", [])
+            cmd_files: list[Any] = self._builtin_template_components.get("command_files", [])
             for path in self.config.command_file_sources:
                 cmd_files.extend(read_YAML_file(path))
             cf_list = self.CommandFilesList.from_json_like(
@@ -710,7 +710,7 @@ class BaseApp(metaclass=Singleton):
 
         if "environments" in include:
             envs = []
-            builtin_envs = self._builtin_template_components.get("environments", [])
+            builtin_envs: list[Any] = self._builtin_template_components.get("environments", [])
             for path in self.config.environment_sources:
                 envs_i_lst = read_YAML_file(path)
                 for env_j in envs_i_lst:
@@ -728,7 +728,7 @@ class BaseApp(metaclass=Singleton):
             self._environments = env_list
 
         if "task_schemas" in include:
-            schemas = self._builtin_template_components.get("task_schemas", [])
+            schemas: list[Any] = self._builtin_template_components.get("task_schemas", [])
             for path in self.config.task_schema_sources:
                 schemas.extend(read_YAML_file(path))
             ts_list = self.TaskSchemasList.from_json_like(
@@ -804,7 +804,7 @@ class BaseApp(metaclass=Singleton):
         return self._environments
 
     @property
-    def scripts(self) -> Dict[str, Path]:
+    def scripts(self) -> dict[str, Path]:
         self._ensure_template_component("scripts")
         assert self._scripts is not None
         return self._scripts
@@ -868,14 +868,17 @@ class BaseApp(metaclass=Singleton):
             ("slurm", "posix"): self.SlurmPosix,
         }
 
-    def get_scheduler(self, scheduler_name, os_name, scheduler_args=None) -> Scheduler:
+    def get_scheduler(
+        self, scheduler_name: str, os_name: str, scheduler_args: dict[str, Any] | None = None
+    ) -> Scheduler:
         """Get an arbitrary scheduler object."""
-        scheduler_args = scheduler_args or {}
+        scheduler_kwargs = scheduler_args or {}
 
         os_name = os_name.lower()
         if os_name == "nt" and "_" in scheduler_name:
             # e.g. WSL on windows uses *_posix
             key = tuple(scheduler_name.split("_"))
+            assert len(key) == 2
         else:
             key = (scheduler_name.lower(), os_name)
 
@@ -885,7 +888,7 @@ class BaseApp(metaclass=Singleton):
             raise ValueError(
                 f"Unsupported combination of scheduler and operation system: {key!r}"
             )
-        return scheduler_cls(**scheduler_args)
+        return scheduler_cls(**scheduler_kwargs)
 
     def get_OS_supported_schedulers(self) -> List[str]:
         """Retrieve a list of schedulers that are supported in principle by this operating

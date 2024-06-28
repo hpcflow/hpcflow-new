@@ -1,12 +1,12 @@
 # Configuration file for the Sphinx documentation builder -- Common config content
-
+from __future__ import annotations
 import copy
 import importlib
 import json
 import re
 from pathlib import Path
 from textwrap import dedent
-from typing import Type
+from typing import TYPE_CHECKING
 
 from ruamel.yaml import YAML
 import tomlkit
@@ -14,9 +14,11 @@ from valida.datapath import DataPath, MapValue
 from valida.schema import write_tree_html
 
 from hpcflow.sdk.config.callbacks import callback_vars as config_callback_vars
+if TYPE_CHECKING:
+    from hpcflow.sdk.app import BaseApp
 
 
-def get_classmethods(cls: Type):
+def get_classmethods(cls: type):
     """Get a list of class methods of a given class."""
     return sorted(
         [
@@ -78,7 +80,7 @@ def generate_download_links_table():
     return links_table
 
 
-def expose_variables(app):
+def expose_variables(app: BaseApp):
     """Expose some variables' reprs as string variables to be used in the docs.
 
     See: https://stackoverflow.com/a/69211912/5042280
@@ -95,7 +97,7 @@ def expose_variables(app):
     return rst_epilog
 
 
-def generate_config_file_validation_schema(app):
+def generate_config_file_validation_schema(app: BaseApp):
     all_cfg_schema = app.config._file.file_schema
 
     # merge built-in schema with custom schemas:
@@ -126,7 +128,7 @@ def generate_config_file_validation_schema(app):
     )
 
 
-def generate_parameter_validation_schemas(app):
+def generate_parameter_validation_schemas(app: BaseApp):
     for param in app.parameters:
         schema = param._validation
         if schema:
@@ -140,7 +142,7 @@ def generate_parameter_validation_schemas(app):
             jinja_contexts["first_ctx"]["tree_files"][param.typ] = str(full_path)
 
 
-def copy_all_demo_workflows(app):
+def copy_all_demo_workflows(app: BaseApp):
     """Load WorkflowTemplate objects and copy template files from all builtin demo
     template files to the reference source directory (adjacent to the workflows.rst file
     within which they are included)."""
@@ -158,7 +160,7 @@ def copy_all_demo_workflows(app):
     return out
 
 
-def prepare_API_reference_stub(app):
+def prepare_API_reference_stub(app: BaseApp):
     contents = dedent(
         f"""\
         Python API
@@ -176,7 +178,7 @@ def prepare_API_reference_stub(app):
         fp.write(contents)
 
 
-def prepare_task_schema_action_info(app):
+def prepare_task_schema_action_info(app: BaseApp):
     """Write an HTML file for each task schema that lists the actions."""
     out = {}
     for ts_i in app.task_schemas:

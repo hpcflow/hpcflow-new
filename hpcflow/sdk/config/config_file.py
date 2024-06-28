@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import random
 import string
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 
 from ruamel.yaml import YAML
 
@@ -24,10 +24,11 @@ from .errors import (
     ConfigValidationError,
 )
 if TYPE_CHECKING:
-    from typing import Any, Dict, TypeAlias
-    from .config import Config, ConfigOptions
+    from typing import Any, Dict, Literal, TypeAlias, TypeVar
+    from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
 
-    ConfigDict: TypeAlias = dict[str, dict[str, dict[str, dict[str, Any]]]]
+    ConfigDict: TypeAlias = dict[str, dict[str, DefaultConfiguration]]
+    T = TypeVar('T')
 
 class ConfigFile:
     """Configuration file."""
@@ -132,10 +133,10 @@ class ConfigFile:
             raise ConfigFileValidationError(file_validated.get_failures_string())
         return file_schema
 
-    def get_invoc_data(self, config_key: str) -> dict[str, dict[str, Any]]:
+    def get_invoc_data(self, config_key: str) -> DefaultConfiguration:
         return self.data["configs"][config_key]
 
-    def get_invocation(self, config_key: str) -> dict[str, Any]:
+    def get_invocation(self, config_key: str) -> InvocationDescriptor:
         return self.get_invoc_data(config_key)["invocation"]
 
     def save(self) -> None:
@@ -145,16 +146,17 @@ class ConfigFile:
 
         modified_names: list[str] = []
         for config in self._configs:
-            modified_names += list(config._modified_keys.keys()) + config._unset_keys
+            modified_names.extend(config._modified_keys.keys())
+            modified_names.extend(config._unset_keys)
+
             new_data_config = new_data["configs"][config._config_key]["config"]
             new_data_rt_config = new_data_rt["configs"][config._config_key]["config"]
-            for k, v in config._modified_keys.items():
-                new_data_config[k] = v
-                new_data_rt_config[k] = v
+            new_data_config.update(config._modified_keys)
+            new_data_rt_config.update(config._modified_keys)
 
             for k in config._unset_keys:
-                del new_data_config[k]
-                del new_data_rt_config[k]
+                del cast(dict, new_data_config)[k]
+                del cast(dict, new_data_rt_config)[k]
 
         try:
             new_contents = self._dump(new_data_rt)
@@ -166,7 +168,7 @@ class ConfigFile:
         self.__contents = new_contents
 
         for config in self._configs:
-            config._unset_keys = []
+            config._unset_keys = set()
             config._modified_keys = {}
 
     @staticmethod
@@ -335,11 +337,12 @@ class ConfigFile:
         self.__data_rt = data_rt
 
     def get_config_item(
-        self, config_key: str, name: str, raise_on_missing=False, default_value=None
-    ) -> Any:
-        if raise_on_missing and name not in self.get_invoc_data(config_key)["config"]:
+        self, config_key: str, name: str, *, raise_on_missing=False, default_value=None
+    ) -> Any | None:
+        cfg = self.get_invoc_data(config_key)["config"]
+        if raise_on_missing and name not in cfg:
             raise ValueError(f"missing from file: {name!r}")
-        return self.get_invoc_data(config_key)["config"].get(name, default_value)
+        return cfg.get(name, default_value)
 
     def is_item_set(self, config_key: str, name: str) -> bool:
         try:
@@ -370,7 +373,7 @@ class ConfigFile:
         self,
         config_key: str,
         environment_setup: str | None = None,
-        match: Dict | None = None,
+        match: dict[str, str | list[str]] | None = None,
     ) -> None:
         """Modify the invocation parameters of the loaded config."""
 

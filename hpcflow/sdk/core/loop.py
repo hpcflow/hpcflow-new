@@ -137,14 +137,21 @@ class Loop(JSONLike):
         self._workflow_template = template
         self._validate_against_template()
 
+    def __workflow(self) -> None | Workflow:
+        wt = self.workflow_template
+        if wt is None:
+            return None
+        return wt.workflow
+
     @property
     def task_objects(self) -> tuple[WorkflowTask, ...]:
-        if not self.workflow_template:
+        wf = self.__workflow()
+        if not wf:
             raise RuntimeError(
                 "Workflow template must be assigned to retrieve task objects of the loop."
             )
         return tuple(
-            self.workflow_template.workflow.tasks.get(insert_ID=i)
+            wf.tasks.get(insert_ID=i)
             for i in self.task_insert_IDs
         )
 
@@ -152,9 +159,13 @@ class Loop(JSONLike):
         """Validate the loop parameters against the associated workflow."""
 
         # insert IDs must exist:
+        wf = self.__workflow()
+        if not wf:
+            raise RuntimeError(
+                "workflow cannot be validated against as it is not assigned")
         for insert_ID in self.task_insert_IDs:
             try:
-                self.workflow_template.workflow.tasks.get(insert_ID=insert_ID)
+                wf.tasks.get(insert_ID=insert_ID)
             except ValueError:
                 raise ValueError(
                     f"Loop {self.name!r} has an invalid task insert ID {insert_ID!r}. "

@@ -71,6 +71,11 @@ class JobScriptCreationArguments(TypedDict):
     elements: NotRequired[dict[int, list[int]]]
 
 
+class SchedulerRef(TypedDict):
+    js_refs: list  # Internal type is horrible and variable
+    num_js_elements: int
+
+
 @TimeIt.decorator
 def generate_EAR_resource_map(
     task: WorkflowTask,
@@ -597,8 +602,10 @@ class Jobscript(JSONLike):
             return self.resources.use_job_array
 
     @property
-    def os_name(self) -> str | None:
-        return self._os_name or self.resources.os_name
+    def os_name(self) -> str:
+        name = self._os_name or self.resources.os_name
+        assert name is not None
+        return name
 
     @property
     def shell_name(self) -> str | None:
@@ -608,7 +615,7 @@ class Jobscript(JSONLike):
     def scheduler_name(self) -> str | None:
         return self._scheduler_name or self.resources.scheduler
 
-    def _get_submission_os_args(self):
+    def _get_submission_os_args(self) -> dict[str, str]:
         return {"linux_release_file": self.app.config.linux_release_file}
 
     def _get_submission_shell_args(self):
@@ -617,7 +624,9 @@ class Jobscript(JSONLike):
     def _get_submission_scheduler_args(self):
         return self.resources.scheduler_args
 
-    def _get_shell(self, os_name, shell_name, os_args=None, shell_args=None) -> Shell:
+    def _get_shell(self, os_name: str | None, shell_name: str | None,
+                   os_args: dict[str, Any] | None = None,
+                   shell_args: dict[str, Any] | None = None) -> Shell:
         """Get an arbitrary shell, not necessarily associated with submission."""
         os_args = os_args or {}
         shell_args = shell_args or {}
@@ -644,6 +653,7 @@ class Jobscript(JSONLike):
     def scheduler(self) -> Scheduler:
         """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
+            assert self.scheduler_name
             self._scheduler_obj = self.app.get_scheduler(
                 scheduler_name=self.scheduler_name,
                 os_name=self.os_name,
@@ -834,10 +844,10 @@ class Jobscript(JSONLike):
         deps: Dict | None = None,
         os_name: str | None = None,
         shell_name: str | None = None,
-        os_args: Dict | None = None,
-        shell_args: Dict | None = None,
+        os_args: dict[str, Any] | None = None,
+        shell_args: dict[str, Any] | None = None,
         scheduler_name: str | None = None,
-        scheduler_args: Dict | None = None,
+        scheduler_args: dict[str, Any] | None = None,
     ) -> str:
         """Prepare the jobscript file string."""
 
@@ -856,6 +866,8 @@ class Jobscript(JSONLike):
                 f"`shell_name` as a method argument to compose the jobscript for a given "
                 f"`shell_name`."
             )
+        if not scheduler_name:
+            scheduler_name = self.app.config.default_scheduler
 
         shell = self._get_shell(
             os_name=os_name,
@@ -1207,7 +1219,7 @@ class Jobscript(JSONLike):
             return (self.process_ID, self.submit_cmdline)
 
     @property
-    def scheduler_ref(self):
+    def scheduler_ref(self) -> SchedulerRef:
         return {
             "js_refs": [self.scheduler_js_ref],
             "num_js_elements": self.num_elements
