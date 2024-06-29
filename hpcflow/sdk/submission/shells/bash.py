@@ -24,7 +24,7 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
-                --with-config log_file_path "`pwd`/{run_log_file}"\\
+                --with-config log_file_path "${app_caps}_RUN_LOG_PATH"\\
                 --config-dir "{config_dir}"\\
                 --config-key "{config_invoc_key}"\\
                 "$@"
@@ -40,8 +40,9 @@ class Bash(Shell):
         JS_IDX={js_idx}
         APP_CAPS={app_caps}
 
-        JS_FUNCS_PATH="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{jobscript_functions_path}"
-        . "$JS_FUNCS_PATH"
+        SUB_DIR="$WK_PATH/artifacts/submissions/${{SUB_IDX}}"
+        JS_FUNCS_PATH="$SUB_DIR/{jobscript_functions_path}"
+        . "$JS_FUNCS_PATH"        
 
         export {app_caps}_WK_PATH=$WK_PATH
         export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
@@ -51,7 +52,9 @@ class Bash(Shell):
         export {app_caps}_JS_IDX={js_idx}
         
         EAR_ID_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{EAR_file_name}"
-        ELEM_RUN_DIR_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{element_run_dirs_file_path}"
+        SUB_TMP_DIR="$SUB_DIR/{tmp_dir_name}"
+        SUB_LOG_DIR="$SUB_DIR/{log_dir_name}"
+        SUB_STD_DIR="$SUB_DIR/{std_dir_name}"
     """
     )
     JS_SCHEDULER_HEADER = dedent(
@@ -83,10 +86,11 @@ class Bash(Shell):
         fi
 
         export {app_caps}_RUN_ID=$EAR_ID
+        export {app_caps}_RUN_LOG_PATH="$SUB_LOG_DIR/${app_caps}_RUN_ID.log"
+        export {app_caps}_RUN_STD_PATH="$SUB_STD_DIR/${app_caps}_RUN_ID.txt"
         export {app_caps}_BLOCK_ACT_IDX=$block_act_idx
-        
-        run_dir="$(cut -d'{EAR_files_delimiter}' -f $(($block_act_idx + 1)) <<< $elem_run_dirs)"
-        cd "$WK_PATH/$run_dir"
+                
+        cd "$SUB_TMP_DIR"
         
         {run_cmd}
     """
@@ -109,7 +113,6 @@ class Bash(Shell):
         """\
         block_elem_idx=$(( $JS_elem_idx - {block_start_elem_idx} ))
         elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
-        elem_run_dirs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$ELEM_RUN_DIR_FILE"`
         export {app_caps}_JS_ELEM_IDX=$JS_elem_idx
         export {app_caps}_BLOCK_ELEM_IDX=$block_elem_idx
         
@@ -239,9 +242,10 @@ class Bash(Shell):
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
+        app_caps = app_name.upper()
         return (
-            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
-            f'internal workflow "$WK_PATH_ARG" save-parameter '
+            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f'internal workflow "${app_caps}_WK_PATH_ARG" save-parameter '
             f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
             f"\n"
         )
@@ -253,58 +257,13 @@ class Bash(Shell):
         loop_names: List[str],
         app_name: str,
     ):
+        app_caps = app_name.upper()
         return (
-            f'{workflow_app_alias} --std-stream "${app_name}_RUN_STD_PATH" '
-            f'internal workflow "$WK_PATH_ARG" check-loop '
-            f"{run_ID} {' '.join(loop_names)}  "
+            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f'internal workflow "${app_caps}_WK_PATH_ARG" check-loop '
+            f"{run_ID} {' '.join(loop_names)}"
             f"\n"
         )
-
-    def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
-        """Format commands to run within a subshell.
-
-        This assumes commands ends in a newline.
-
-        """
-        commands = indent(commands, self.JS_INDENT)
-        if abortable:
-            # run commands in the background, and poll a file to check for abort requests:
-            return dedent(
-                """\
-                (
-                {commands}) &
-
-                pid=$!
-                abort_file=$WK_PATH/artifacts/submissions/$SUB_IDX/abort_EARs.txt
-                while true
-                do
-                    is_abort=`sed "$(($EAR_ID + 1))q;d" $abort_file`
-                    ps -p $pid > /dev/null
-                    if [ $? == 1 ]; then
-                        wait $pid
-                        exitcode=$?
-                        break
-                    elif [ "$is_abort" = "1" ]; then
-                        echo "Abort instruction received; stopping commands..." >> "$app_stream_file"
-                        kill $pid
-                        wait $pid 2>/dev/null
-                        exitcode={abort_exit_code}
-                        break
-                    else
-                        sleep 1 # TODO: TEMP: increase for production
-                    fi
-                done
-                return $exitcode
-                """
-            ).format(commands=commands, abort_exit_code=ABORT_EXIT_CODE)
-        else:
-            # run commands in "foreground":
-            return dedent(
-                """\
-                (
-                {commands})
-            """
-            ).format(commands=commands)
 
 
 class WSLBash(Bash):
@@ -314,7 +273,7 @@ class WSLBash(Bash):
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',
     )
-    JS_FUNCS = Bash.JS_FUNCS.replace(
+    JS_FUNCS = Bash.JS_FUNCS.replace(  # TODO: fix
         '--with-config log_file_path "`pwd`',
         '--with-config log_file_path "$(wslpath -m `pwd`)',
     )
