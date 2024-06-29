@@ -47,7 +47,6 @@ class Bash(Shell):
         export {app_caps}_WK_PATH=$WK_PATH
         export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
         export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
-        export {app_caps}_STD_STREAM_FILE="{run_stream_file}"
         export {app_caps}_SUB_IDX={sub_idx}
         export {app_caps}_JS_IDX={js_idx}
         
