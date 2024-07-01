@@ -246,16 +246,16 @@ class ElementResources(JSONLike):
         else:
             return self.__dict__ == other.__dict__
 
-    def get_jobscript_hash(self):
+    def get_jobscript_hash(self) -> int:
         """Get hash from all arguments that distinguish jobscripts."""
 
-        def _hash_dict(d):
+        def _hash_dict(d: dict) -> int:
             if not d:
                 return -1
             keys, vals = zip(*d.items())
             return hash(tuple((keys, vals)))
 
-        exclude = ("time_limit",)
+        exclude = {"time_limit"}
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
 
         scheduler_args = dct["scheduler_args"]
@@ -378,7 +378,7 @@ class ElementIteration:
         element: Element,
         data_idx: dict[str, int],
         EARs_initialised: bool,
-        EAR_IDs: dict[int, int],  # FIXME: wrong type
+        EAR_IDs: dict[int, list[int]],
         EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
         schema_parameters: list[str],
         loop_idx: Dict,
@@ -452,11 +452,11 @@ class ElementIteration:
         return self._schema_parameters
 
     @property
-    def EAR_IDs(self) -> dict[int, int]:
+    def EAR_IDs(self) -> dict[int, list[int]]:
         return self._EAR_IDs
 
     @property
-    def EAR_IDs_flat(self):
+    def EAR_IDs_flat(self) -> list[int]:
         return [j for i in self.EAR_IDs.values() for j in i]
 
     @property

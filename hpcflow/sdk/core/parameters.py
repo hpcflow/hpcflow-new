@@ -1651,8 +1651,8 @@ class ResourceSpec(JSONLike):
             kwargs[name] = getattr(self, name)
         return self.__class__(**kwargs)
 
-    def _get_value(self, value_name=None):
-        if self._value_group_idx is not None:
+    def _get_value(self, value_name: str | None = None):
+        if self._value_group_idx is not None and self.workflow:
             val = self.workflow.get_parameter_data(self._value_group_idx)
         else:
             val = self._get_members()
@@ -1723,15 +1723,15 @@ class ResourceSpec(JSONLike):
         return self._get_value("max_array_items")
 
     @property
-    def time_limit(self):
+    def time_limit(self) -> str | None:
         return self._get_value("time_limit")
 
     @property
-    def scheduler_args(self):
+    def scheduler_args(self) -> dict:
         return self._get_value("scheduler_args")
 
     @property
-    def shell_args(self):
+    def shell_args(self) -> dict | None:
         return self._get_value("shell_args")
 
     @property

@@ -12,7 +12,6 @@ from typing import cast, final, overload, TypedDict, TYPE_CHECKING
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
@@ -23,7 +22,6 @@ from hpcflow.sdk.core.errors import (
     UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
     split_param_label,
@@ -634,10 +632,10 @@ class ElementActionRun:
 
         return out
 
-    def get_input_values_direct(self, label_dict: bool = True):
+    def get_input_values_direct(self, label_dict: bool = True) -> dict[str, Any]:
         """Get a dict of input values that are to be passed directly to a Python script
         function."""
-        inputs = self.action.script_data_in_grouped.get("direct", [])
+        inputs = self.action.script_data_in_grouped.get("direct", {})
         return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
     def get_IFG_input_values(self) -> dict[str, Any]:
@@ -1122,6 +1120,8 @@ class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
+    app: ClassVar[BaseApp]
+    _app_attr = "app"
     _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
 
     def __init__(
@@ -1135,7 +1135,7 @@ class ActionRule(JSONLike):
         doc: str | None = None,
     ):
         if rule is None:
-            rule = app.Rule(
+            rule = self.app.Rule(
                 check_exists=check_exists,
                 check_missing=check_missing,
                 path=path,
@@ -1169,11 +1169,11 @@ class ActionRule(JSONLike):
 
     @classmethod
     def check_exists(cls, check_exists) -> ActionRule:
-        return cls(rule=app.Rule(check_exists=check_exists))
+        return cls(rule=cls.app.Rule(check_exists=check_exists))
 
     @classmethod
     def check_missing(cls, check_missing) -> ActionRule:
-        return cls(rule=app.Rule(check_missing=check_missing))
+        return cls(rule=cls.app.Rule(check_missing=check_missing))
 
 
 class Action(JSONLike):
@@ -1385,12 +1385,12 @@ class Action(JSONLike):
         return all_params
 
     @property
-    def script_data_in_grouped(self) -> dict[str, list[str]]:
+    def script_data_in_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get input parameter types by script data-in format."""
         return swap_nested_dict_keys(dct=self.script_data_in, inner_key="format")
 
     @property
-    def script_data_out_grouped(self) -> dict[str, list[str]]:
+    def script_data_out_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get output parameter types by script data-out format."""
         return swap_nested_dict_keys(dct=self.script_data_out, inner_key="format")
 
@@ -1428,7 +1428,7 @@ class Action(JSONLike):
                 return snip_path.suffix == ".py"
         return False
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         _from_expand = kwargs.pop("_from_expand")
         _task_schema = kwargs.pop("_task_schema", None)
@@ -1486,10 +1486,10 @@ class Action(JSONLike):
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if type(other) is not self.__class__:
             return False
-        if (
+        return (
             self.commands == other.commands
             and self.script == other.script
             and self.environments == other.environments
@@ -1497,9 +1497,7 @@ class Action(JSONLike):
             and self.input_file_generators == other.input_file_generators
             and self.output_file_parsers == other.output_file_parsers
             and self.rules == other.rules
-        ):
-            return True
-        return False
+        )
 
     @classmethod
     def _json_like_constructor(cls, json_like) -> Self:
@@ -1703,7 +1701,7 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(executable=exe, arguments=args, variables=variables)
                     ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
@@ -1736,7 +1734,7 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(executable=exe, arguments=args, variables=variables)
                     ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],

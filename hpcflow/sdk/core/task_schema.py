@@ -19,7 +19,7 @@ from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
 from .utils import check_valid_py_identifier
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from typing import Any, ClassVar, Dict
+    from typing import Any, ClassVar, Dict, Self
     from .actions import Action
     from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList
@@ -166,15 +166,15 @@ class TaskSchema(JSONLike):
         return cls.app.task_schemas
 
     def _get_info(self, include: Sequence[str] = ()):
-        def _get_param_type_str(parameter) -> str:
+        def _get_param_type_str(param: Parameter) -> str:
             type_fmt = "-"
-            if parameter._validation:
+            if param._validation:
                 try:
-                    type_fmt = parameter._validation.to_tree()[0]["type_fmt"]
+                    type_fmt = param._validation.to_tree()[0]["type_fmt"]
                 except Exception:
                     pass
-            elif parameter._value_class:
-                param_cls = parameter._value_class
+            elif param._value_class:
+                param_cls = param._value_class
                 cls_url = (
                     f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
                     f"{param_cls.__name__}"
@@ -182,7 +182,7 @@ class TaskSchema(JSONLike):
                 type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
             return type_fmt
 
-        def _format_parameter_type(param) -> str:
+        def _format_parameter_type(param: Parameter) -> str:
             param_typ_fmt = param.typ
             if param.typ in self.__parameters().list_attrs():
                 param_url = (
@@ -321,20 +321,20 @@ class TaskSchema(JSONLike):
         panel = Panel(tab, title=f"Task schema: {rich_esc(self.objective.name)!r}")
         return panel
 
-    def _show_info(self, include=None):
+    def _show_info(self, include=None) -> None:
         panel = self._get_info(include=include)
         rich_print(panel)
 
-    def basic_info(self):
+    def basic_info(self) -> None:
         """Show inputs and outputs, formatted in a table."""
         self._show_info(include=("inputs", "outputs"))
 
-    def info(self):
+    def info(self) -> None:
         """Show inputs, outputs, and actions, formatted in a table."""
         self._show_info()
 
     def get_info_html(self) -> str:
-        def _format_parameter_type(param):
+        def _format_parameter_type(param: Parameter) -> str:
             param_typ_fmt = param.typ
             if param.typ in param_types:
                 param_url = (
@@ -344,7 +344,7 @@ class TaskSchema(JSONLike):
                 param_typ_fmt = f'<a href="{param_url}">{param_typ_fmt}</a>'
             return param_typ_fmt
 
-        def _get_param_type_str(param) -> str:
+        def _get_param_type_str(param: Parameter) -> str:
             type_fmt = "-"
             if param._validation:
                 try:
@@ -360,7 +360,9 @@ class TaskSchema(JSONLike):
                 type_fmt = f'<a href="{cls_url}">{param_cls.__name__}</a>'
             return type_fmt
 
-        def _prepare_script_data_format_table(script_data_grouped):
+        def _prepare_script_data_format_table(
+            script_data_grouped: dict[str, dict[str, dict[str, str]]]
+        ) -> str:
             out = ""
             rows = ""
             for fmt, params in script_data_grouped.items():
@@ -601,7 +603,7 @@ class TaskSchema(JSONLike):
             return True
         return False
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._task_template = self._task_template

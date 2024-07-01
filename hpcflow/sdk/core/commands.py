@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from ..app import BaseApp
     from .actions import ActionRule
+    from .element import ElementActionRun
+    from .environment import Environment
+    from ..submission.shells import Shell
 
 
 @dataclass
@@ -66,7 +69,9 @@ class Command(JSONLike):
         else:
             return self.executable or ""
 
-    def get_command_line(self, EAR, shell, env) -> tuple[str, list[tuple[str, ...]]]:
+    def get_command_line(
+        self, EAR: ElementActionRun, shell: Shell, env: Environment
+    ) -> tuple[str, list[tuple[str, ...]]]:
         """Return the resolved command line.
 
         This is ordinarily called at run-time by `Workflow.write_commands`.
@@ -87,7 +92,7 @@ class Command(JSONLike):
             "join": _join,
         }
 
-        def exec_script_repl(match_obj):
+        def exec_script_repl(match_obj: re.Match):
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
@@ -234,11 +239,14 @@ class Command(JSONLike):
         return out
 
     @staticmethod
-    def _prepare_kwargs_from_string(args_str: str | None, doubled_quoted_args=None):
-        kwargs: dict[str, str] = {}
+    def _prepare_kwargs_from_string(
+        args_str: str | None,
+        doubled_quoted_args: list[str] | None = None
+    ) -> dict[str, str]:
         if args_str is None:
-            return kwargs
+            return {}
 
+        kwargs: dict[str, str] = {}
         # deal with specified double-quoted arguments first if it exists:
         for quote_arg in doubled_quoted_args or []:
             quote_pat = r'.*({quote_arg}="(.*)").*'.format(quote_arg=quote_arg)

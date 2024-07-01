@@ -124,3 +124,6 @@ class Shell(ABC):
 
     @abstractmethod
     def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str: ...
+
+    @abstractmethod
+    def format_stream_assignment(self, shell_var_name, command) -> str: ...

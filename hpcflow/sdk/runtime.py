@@ -5,6 +5,7 @@ import platform
 import socket
 import sys
 from pathlib import Path
+from typing import Any
 import warnings
 
 from rich.table import Table
@@ -97,7 +98,7 @@ class RunTimeInfo:
         #     )
         #     warnings.warn(msg)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         out = {
             "name": self.name,
             "package_name": self.package_name,
@@ -139,7 +140,7 @@ class RunTimeInfo:
             )
         return out
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         out = f"{self.__class__.__name__}("
         out += ", ".join(f"{k}={v!r}" for k, v in self.to_dict().items())
         return out

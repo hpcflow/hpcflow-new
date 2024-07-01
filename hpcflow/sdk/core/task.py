@@ -929,8 +929,9 @@ class Task(JSONLike):
 
     @TimeIt.decorator
     def _prepare_persistent_outputs(
-            self, workflow: Workflow,
-            local_element_idx_range: Sequence[int]) -> dict[str, list[int]]:
+        self, workflow: Workflow,
+        local_element_idx_range: Sequence[int]
+    ) -> dict[str, list[int]]:
         # TODO: check that schema is present when adding task? (should this be here?)
 
         # allocate schema-level output parameter; precise EAR index will not be known
@@ -957,8 +958,8 @@ class Task(JSONLike):
         return output_data_indices
 
     def prepare_element_resolution(
-            self, element_set: ElementSet, input_data_indices: Mapping[str, Sequence]
-            ) -> list[MultiplicityDescriptor]:
+        self, element_set: ElementSet, input_data_indices: Mapping[str, Sequence]
+    ) -> list[MultiplicityDescriptor]:
         multiplicities: list[MultiplicityDescriptor] = []
         for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
@@ -973,18 +974,17 @@ class Task(JSONLike):
         # default nesting order of -1 or 0 (which will have probably been set by a
         # `ValueSequence` default), set the non-unit multiplicity inputs to a nesting
         # order of zero:
-        non_unit_multis = {}
-        unit_multis = []
+        non_unit_multis: dict[int, int] = {}
+        unit_multis: list[int] = []
         change = True
         for idx, i in enumerate(multiplicities):
             if i["multiplicity"] == 1:
                 unit_multis.append(idx)
+            elif i["nesting_order"] in (-1, 0):
+                non_unit_multis[idx] = i["multiplicity"]
             else:
-                if i["nesting_order"] in (-1, 0):
-                    non_unit_multis[idx] = i["multiplicity"]
-                else:
-                    change = False
-                    break
+                change = False
+                break
 
         if change and len(set(non_unit_multis.values())) == 1:
             for i_idx in non_unit_multis:
@@ -1004,9 +1004,11 @@ class Task(JSONLike):
         return self._output_labels
 
     @property
-    def _element_indices(self):
-        # FIXME: WorkflowTask has no such property
-        return self.workflow_template.workflow.tasks[self.index].element_indices
+    def _element_indices(self) -> list[int] | None:
+        if self.workflow_template and self.workflow_template.workflow and self.index is not None:
+            task = self.workflow_template.workflow.tasks[self.index]
+            return [element._index for element in task.elements]
+        return None
 
     def _get_task_source_element_iters(
         self, in_or_out: str, src_task: Task, labelled_path: str, element_set: ElementSet
@@ -1269,11 +1271,7 @@ class Task(JSONLike):
 
     @property
     def num_all_schema_actions(self) -> int:
-        num = 0
-        for schema in self.schemas:
-            for _ in schema.actions:
-                num += 1
-        return num
+        return sum(len(schema.actions) for schema in self.schemas)
 
     @property
     def all_sourced_normalised_paths(self) -> set[str]:
@@ -1307,11 +1305,11 @@ class Task(JSONLike):
     def get_param_provided_element_sets(self, labelled_path: str) -> list[int]:
         """Get the element set indices of this task for which a specified parameter type
         is locally provided."""
-        es_idx = []
-        for idx, src_es in enumerate(self.element_sets):
-            if src_es.is_input_type_provided(labelled_path):
-                es_idx.append(idx)
-        return es_idx
+        return [
+            idx
+            for idx, src_es in enumerate(self.element_sets)
+            if src_es.is_input_type_provided(labelled_path)
+        ]
 
     def get_input_statuses(self, elem_set: ElementSet) -> dict[str, InputStatus]:
         """Get a dict whose keys are normalised input paths (without the "inputs" prefix),
@@ -1324,7 +1322,7 @@ class Task(JSONLike):
 
         """
 
-        status = {}
+        status: dict[str, InputStatus] = {}
         for schema_input in self.all_schema_inputs:
             for lab_info in schema_input.labelled_info():
                 labelled_type = lab_info["labelled_type"]
@@ -1359,8 +1357,7 @@ class Task(JSONLike):
     @property
     def defined_input_types(self) -> set[str]:
         raise NotImplementedError()
-        # FIXME: What sets this?
-        return self._defined_input_types
+        return self._defined_input_types  # FIXME: What sets this?
 
     @property
     def undefined_input_types(self) -> set[str]:
@@ -1868,7 +1865,7 @@ class WorkflowTask:
         missing: list[str] = []
         # track which root params we have set according to default behaviour (not
         # specified by user):
-        set_root_params = []
+        set_root_params: set[str] = set()
         for input_type in unsourced_inputs:
             input_split = input_type.split(".")
             has_root_param = input_split[0] if len(input_split) > 1 else None
@@ -1902,7 +1899,7 @@ class WorkflowTask:
 
                 element_set.input_sources.update({input_type: [source]})
                 if not has_root_param:
-                    set_root_params.append(input_type)
+                    set_root_params.add(input_type)
 
         # for task sources that span multiple element sets, pad out sub-parameter
         # `element_iters` to include the element iterations from other element sets in
@@ -2829,7 +2826,7 @@ class WorkflowTask:
         return param.data, meth, param.is_set
 
     def __get_relevant_data(
-        self, relevant_data_idx: dict[str, list | Any],
+        self, relevant_data_idx: dict[str, list[int] | int],
         raise_on_unset: bool, path: str | None
     ) -> dict[str, RelevantData]:
         relevant_data: dict[str, RelevantData] = {}
@@ -3030,7 +3027,7 @@ class WorkflowTask:
     @TimeIt.decorator
     def _get_merged_parameter_data(
         self,
-        data_index: Mapping[str, list | Any],
+        data_index: Mapping[str, list[int] | int],
         path: str | None = None,
         *,
         raise_on_missing: bool = False,

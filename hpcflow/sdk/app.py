@@ -80,6 +80,7 @@ if TYPE_CHECKING:
     from .core.parameters import (
         SchemaParameter, InputValue, Parameter, ParameterValue, InputSource, ResourceSpec, SchemaOutput,
         InputSourceType)
+    from .core.rule import Rule
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
         Task, WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
@@ -483,6 +484,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def SchemaOutput(self) -> type[SchemaOutput]:
         return self._get_app_core_class("SchemaOutput")
+
+    @property
+    def Rule(self) -> type[Rule]:
+        return self._get_app_core_class("Rule")
 
     @property
     def RunDirAppFiles(self) -> type[RunDirAppFiles]:

@@ -1,13 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from collections import defaultdict
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core.utils import nth_key
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.cache import DependencyCache
 if TYPE_CHECKING:
+    from typing import Self, TypedDict
     from .loop import Loop
     from .parameters import InputSource
     from .task import WorkflowTask, InputStatus
@@ -64,7 +64,7 @@ class LoopCache:
     task_iterations: dict[int, list[int]]
 
     @TimeIt.decorator
-    def get_iter_IDs(self, loop: "app.Loop") -> list[int]:
+    def get_iter_IDs(self, loop: Loop) -> list[int]:
         """Retrieve a list of iteration IDs belonging to a given loop."""
         return [j for i in loop.task_insert_IDs for j in self.task_iterations[i]]
 
@@ -88,7 +88,9 @@ class LoopCache:
             self.data_idx[i] = new_item
 
     @TimeIt.decorator
-    def add_iteration(self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx, data_idx: dict[str, int]):
+    def add_iteration(
+        self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx, data_idx: dict[str, int]
+    ):
         """Update the cache to include a newly added iteration."""
         self.task_iterations[task_insert_ID].append(iter_ID)
         new_iter_idx = len(self.data_idx[element_ID])
@@ -97,7 +99,7 @@ class LoopCache:
 
     @classmethod
     @TimeIt.decorator
-    def build(cls, workflow: Workflow, loops: list[Loop] | None = None):
+    def build(cls, workflow: Workflow, loops: list[Loop] | None = None) -> Self:
         """Build a cache of data for use in adding loops and iterations."""
 
         deps_cache = DependencyCache.build(workflow)

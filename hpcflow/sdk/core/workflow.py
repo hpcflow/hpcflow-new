@@ -559,6 +559,12 @@ def resolve_fsspec(path: PathLike, **kwargs) -> tuple[AbstractFileSystem, str, s
     return fs, path_s, pw
 
 
+@dataclass(frozen=True)
+class _IterationData:
+    id_: int
+    idx: int
+
+
 class Workflow:
     app: ClassVar[BaseApp]
     _app_attr = "app"
@@ -1411,23 +1417,19 @@ class Workflow:
         """Get EARs belonging to multiple tasks"""
         EARs: list[ElementActionRun] = []
         for i in id_lst:
-            task = self.tasks.get(insert_ID=i)
-            for elem in task.elements[:]:
+            for elem in self.tasks.get(insert_ID=i).elements[:]:
                 for iter_ in elem.iterations:
-                    for run in iter_.action_runs:
-                        EARs.append(run)
+                    EARs.extend(iter_.action_runs)
         return EARs
 
     def get_element_iterations_of_tasks(
         self, id_lst: Iterable[int]
     ) -> list[ElementIteration]:
         """Get element iterations belonging to multiple tasks"""
-        iters = []
+        iters: list[ElementIteration] = []
         for i in id_lst:
-            task = self.tasks.get(insert_ID=i)
-            for elem in task.elements[:]:
-                for iter_i in elem.iterations:
-                    iters.append(iter_i)
+            for elem in self.tasks.get(insert_ID=i).elements[:]:
+                iters.extend(elem.iterations)
         return iters
 
     @dataclass
@@ -1439,8 +1441,8 @@ class Workflow:
     def get_elements_from_IDs(self, id_lst: Iterable[int]) -> list[Element]:
         """Return element objects from a list of IDs."""
 
-        store_elems = self._store.get_elements(id_lst)
-        store_tasks = self._store.get_tasks_by_IDs(i.task_ID for i in store_elems)
+        store_elems = self.get_store_elements(id_lst)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
         element_idx_by_task: dict[int, set[int]] = defaultdict(set)
         index_paths: list[Workflow._IndexPath1] = []
@@ -1473,9 +1475,9 @@ class Workflow:
     ) -> list[ElementIteration]:
         """Return element iteration objects from a list of IDs."""
 
-        store_iters = self._store.get_element_iterations(id_lst)
-        store_elems = self._store.get_elements(i.element_ID for i in store_iters)
-        store_tasks = self._store.get_tasks_by_IDs(i.task_ID for i in store_elems)
+        store_iters = self.get_store_element_iterations(id_lst)
+        store_elems = self.get_store_elements(i.element_ID for i in store_iters)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
         element_idx_by_task: dict[int, set[int]] = defaultdict(set)
 
@@ -1506,15 +1508,22 @@ class Workflow:
         elem_idx: int
         task_idx: int
 
+    @overload
+    def get_EARs_from_IDs(self, ids: Iterable[int]) -> list[ElementActionRun]: ...
+
+    @overload
+    def get_EARs_from_IDs(self, ids: int) -> ElementActionRun: ...
+
     @TimeIt.decorator
-    def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> list[ElementActionRun]:
+    def get_EARs_from_IDs(self, ids: Iterable[int] | int) -> list[ElementActionRun] | ElementActionRun:
         """Return element action run objects from a list of IDs."""
+        id_lst = [ids] if isinstance(ids, int) else list(ids)
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
-        store_EARs = self._store.get_EARs(id_lst)
-        store_iters = self._store.get_element_iterations(i.elem_iter_ID for i in store_EARs)
-        store_elems = self._store.get_elements([i.element_ID for i in store_iters])
-        store_tasks = self._store.get_tasks_by_IDs([i.task_ID for i in store_elems])
+        store_EARs = self.get_store_EARs(id_lst)
+        store_iters = self.get_store_element_iterations(i.elem_iter_ID for i in store_EARs)
+        store_elems = self.get_store_elements(i.element_ID for i in store_iters)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
         # to allow for bulk retrieval of elements/iterations
         element_idx_by_task: dict[int, set[int]] = defaultdict(set)
@@ -1523,7 +1532,7 @@ class Workflow:
         index_paths: list[Workflow._IndexPath3] = []
         for rn, it, el, tk in zip(store_EARs, store_iters, store_elems, store_tasks):
             act_idx = rn.action_idx
-            run_idx = it.EAR_IDs[act_idx].index(rn.id_)
+            run_idx = it.EAR_IDs[act_idx].index(rn.id_) if it.EAR_IDs is not None else -1
             iter_idx = el.iteration_IDs.index(it.id_)
             elem_idx = tk.element_IDs.index(el.id_)
             index_paths.append(Workflow._IndexPath3(
@@ -1543,11 +1552,14 @@ class Workflow:
             for task_idx, elem_idxes in element_idx_by_task.items()
         }
 
-        return [
-            iters_by_task_elem[idx_dat.task_idx][idx_dat.elem_idx][idx_dat.iter_idx].actions[
-                idx_dat.action_idx].runs[idx_dat.run_idx]
-            for idx_dat in index_paths
+        result = [
+            iters_by_task_elem[path.task_idx][path.elem_idx][path.iter_idx].actions[
+                path.action_idx].runs[path.run_idx]
+            for path in index_paths
         ]
+        if isinstance(ids, int):
+            return result[0]
+        return result
 
     @TimeIt.decorator
     def get_all_elements(self) -> list[Element]:
@@ -2071,7 +2083,7 @@ class Workflow:
             f"Setting end for EAR ID {EAR_ID!r} with exit code {exit_code!r}."
         )
         with self._store.cached_load():
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+            EAR = self.get_EARs_from_IDs(EAR_ID)
             with self.batch_update():
                 success = exit_code == 0  # TODO  more sophisticated success heuristics
                 if EAR.action.abortable and exit_code == ABORT_EXIT_CODE:
@@ -2847,7 +2859,7 @@ class Workflow:
             )
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+            EAR = self.get_EARs_from_IDs(EAR_ID)
             self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
@@ -2906,7 +2918,7 @@ class Workflow:
         object."""
         with self._store.cached_load():
             with self.batch_update():
-                EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+                EAR = self.get_EARs_from_IDs(EAR_ID)
                 command = EAR.action.commands[cmd_idx]
                 return command.process_std_stream(name, value, stderr)
 
@@ -2920,11 +2932,11 @@ class Workflow:
         self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
         with self._store.cached_load():
             with self.batch_update():
-                EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+                EAR = self.get_EARs_from_IDs(EAR_ID)
                 param_id = EAR.data_idx[name]
                 self.set_parameter_value(param_id, value)
 
-    def show_all_EAR_statuses(self):
+    def show_all_EAR_statuses(self) -> None:
         print(
             f"{'task':8s} {'element':8s} {'iteration':8s} {'action':8s} "
             f"{'run':8s} {'sub.':8s} {'exitcode':8s} {'success':8s} {'skip':8s}"
@@ -2993,14 +3005,14 @@ class Workflow:
         """Check if a loop should terminate, given the specified completed run, and if so,
         set downstream iteration runs to be skipped."""
         loop = self.loops.get(loop_name)
-        elem_iter = self.get_EARs_from_IDs([run_ID])[0].element_iteration
+        elem_iter = self.get_EARs_from_IDs(run_ID).element_iteration
         if loop.test_termination(elem_iter):
-            to_skip = []  # run IDs of downstream iterations that can be skipped
+            to_skip: list[int] = []  # run IDs of downstream iterations that can be skipped
             elem_id = elem_iter.element.id_
             loop_map = self.get_loop_map()  # over all jobscripts
             for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():
                 if iter_idx > elem_iter.index:
-                    to_skip.extend([i[0] for i in iter_dat])
+                    to_skip.extend(i.id_ for i in iter_dat)
             self.app.logger.info(
                 f"Loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
             )
@@ -3009,23 +3021,22 @@ class Workflow:
 
     def get_loop_map(
         self, id_lst: Iterable[int] | None = None
-    ) -> Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]]:
+    ) -> Mapping[str, Mapping[int, Mapping[int, list[_IterationData]]]]:
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
             id_lst = self.get_all_submission_run_IDs()
-        loop_map: Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]] = \
+        loop_map: dict[str, dict[int, dict[int, list[_IterationData]]]] = \
             defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        runs = self.get_EARs_from_IDs(id_lst)
-        for i in runs:
-            for loop_name, iter_idx in i.element_iteration.loop_idx.items():
-                act_idx = i.element_action.action_idx
-                loop_map[loop_name][i.element.id_][iter_idx].append((i.id_, act_idx))
+        for EAR in self.get_EARs_from_IDs(id_lst):
+            for loop_name, iter_idx in EAR.element_iteration.loop_idx.items():
+                act_idx = EAR.element_action.action_idx
+                loop_map[loop_name][EAR.element.id_][iter_idx].append(
+                    _IterationData(EAR.id_, act_idx))
         return loop_map
 
     def get_iteration_final_run_IDs(
         self,
-        loop_map: Mapping[str, Mapping[int, Mapping[int, list[tuple[int, int]]]]] | None = None,
         id_lst: Iterable[int] | None = None,
     ) -> dict[str, list[int]]:
         """Retrieve the run IDs of those runs that correspond to the final action within
@@ -3037,16 +3048,14 @@ class Workflow:
         """
         self.app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
 
-        loop_map = loop_map or self.get_loop_map(id_lst)
+        loop_map = self.get_loop_map(id_lst)
 
         # find final EARs for each loop:
         final_runs: dict[str, list[int]] = defaultdict(list)
         for loop_name, dat in loop_map.items():
-            for _, elem_dat in dat.items():
-                for _, iter_dat in elem_dat.items():
-                    # sort by largest action index first, so we get save only the final EAR
-                    final = sorted(iter_dat, key=lambda x: x[1], reverse=True)[0]
-                    final_runs[loop_name].append(final[0])
+            for elem_dat in dat.values():
+                for iter_dat in elem_dat.values():
+                    final_runs[loop_name].append(max(iter_dat, key=lambda x: x.idx).id_)
         return dict(final_runs)
 
 

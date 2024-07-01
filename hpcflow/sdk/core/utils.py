@@ -222,7 +222,7 @@ def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=Fal
     for idx, path_comp in enumerate(path):
         if isinstance(cur_data, (list, tuple)):
             cur_data = cur_data[_ensure_int(path_comp, cur_data, cast_indices)]
-        elif isinstance(cur_data, dict):
+        elif isinstance(cur_data, dict) or hasattr(cur_data, "__getitem__"):
             try:
                 cur_data = cur_data[path_comp]
             except KeyError:

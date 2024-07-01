@@ -6,9 +6,11 @@ from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.persistence import ALL_STORE_FORMATS, DEFAULT_STORE_FORMAT
 
 
-def sub_tasks_callback(ctx, param, value):
+def sub_tasks_callback(ctx, param, value: str | None) -> list[int] | None:
     if value:
         return [int(i) for i in value.split(",")]
+    else:
+        return None
 
 
 format_option = click.option(

@@ -5,8 +5,10 @@ from typing import Self, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from .element import Element, ElementIteration
     from .workflow import Workflow
+    from ..persistence.base import StoreEAR, StoreElement, StoreElementIter
 
 
 @dataclass
@@ -32,10 +34,10 @@ class DependencyCache:
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs
 
-        all_store_runs = workflow._store.get_EARs(list(range(num_runs)))
-        all_store_iters = workflow._store.get_element_iterations(list(range(num_iters)))
-        all_store_elements = workflow._store.get_elements(list(range(num_elems)))
-        all_param_sources = workflow.get_all_parameter_sources()
+        all_store_runs: Sequence[StoreEAR] = workflow._store.get_EARs(range(num_runs))
+        all_store_iters: Sequence[StoreElementIter] = workflow._store.get_element_iterations(range(num_iters))
+        all_store_elements: Sequence[StoreElement] = workflow._store.get_elements(range(num_elems))
+        all_param_sources: Sequence[dict] = workflow.get_all_parameter_sources()
         all_data_idx: list[dict[str, list[int]]] = [
             {
                 k: v if isinstance(v, list) else [v]
@@ -65,7 +67,7 @@ class DependencyCache:
 
         # iteration dependencies
         all_iter_run_IDs = {
-            iter_.id_: [k for j in iter_.EAR_IDs.values() for k in j]
+            iter_.id_: [k for j in (iter_.EAR_IDs or {}).values() for k in j]
             for iter_ in all_store_iters
         }
         # for each iteration, which runs does it depend on?

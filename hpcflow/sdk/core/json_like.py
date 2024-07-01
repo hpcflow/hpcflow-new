@@ -621,6 +621,7 @@ class JSONLike(BaseJSONLike):
             cls = getattr(app, cls_name)
             if hasattr(cls, "_child_objects"):
                 for chd in cls._child_objects or []:
+                    assert isinstance(chd, ChildObjectSpec)
                     if chd.parent_ref:
                         # _SDK_logger.debug(
                         #     f"removing parent reference {chd.parent_ref!r} from child "

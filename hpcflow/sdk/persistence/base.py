@@ -1537,8 +1537,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     @abstractmethod
     def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, AnySTask]: ...
 
-    def get_tasks_by_IDs(self, id_lst: Iterable[int]) -> Sequence[AnySTask]:
+    def get_tasks_by_IDs(self, ids: Iterable[int]) -> Sequence[AnySTask]:
         # separate pending and persistent IDs:
+        id_lst = list(ids)
         id_set = set(id_lst)
         all_pending = set(self._pending.add_tasks)
         id_pers = id_set.difference(all_pending)
@@ -1564,10 +1565,11 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     @abstractmethod
     def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, dict[str, Any]]: ...
 
-    def get_loops_by_IDs(self, id_lst: Iterable[int]) -> dict[int, dict[str, Any]]:
+    def get_loops_by_IDs(self, ids: Iterable[int]) -> dict[int, dict[str, Any]]:
         """Retrieve loops by index (ID), including pending."""
 
         # separate pending and persistent IDs:
+        id_lst = list(ids)
         id_set = set(id_lst)
         all_pending = set(self._pending.add_loops)
         id_pers = id_set.difference(all_pending)
@@ -1604,7 +1606,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return dict(sorted(subs.items()))
 
     @TimeIt.decorator
-    def get_submissions_by_ID(self, id_lst: Iterable[int]) -> dict[int, Dict]:
+    def get_submissions_by_ID(self, ids: Iterable[int]) -> dict[int, Dict]:
+        id_lst = list(ids)
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_submissions)
@@ -1621,7 +1624,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _get_persistent_elements(self, id_lst: Iterable[int]) -> dict[int, AnySElement]: ...
 
     @TimeIt.decorator
-    def get_elements(self, id_lst: Iterable[int]) -> Sequence[AnySElement]:
+    def get_elements(self, ids: Iterable[int]) -> Sequence[AnySElement]:
+        id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1651,7 +1655,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     ) -> dict[int, AnySElementIter]: ...
 
     @TimeIt.decorator
-    def get_element_iterations(self, id_lst: Iterable[int]) -> Sequence[AnySElementIter]:
+    def get_element_iterations(self, ids: Iterable[int]) -> Sequence[AnySElementIter]:
+        id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1688,7 +1693,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _get_persistent_EARs(self, id_lst: Iterable[int]) -> dict[int, AnySEAR]: ...
 
     @TimeIt.decorator
-    def get_EARs(self, id_lst: Iterable[int]) -> Sequence[AnySEAR]:
+    def get_EARs(self, ids: Iterable[int]) -> Sequence[AnySEAR]:
+        id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1724,7 +1730,6 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _get_cached_persistent_items(
         self, id_lst: Iterable[int], cache: dict[int, T]
     ) -> tuple[dict[int, T], list[int]]:
-        id_lst = list(id_lst)
         if self.use_cache:
             id_set = set(id_lst)
             all_cached = set(cache.keys())
@@ -1733,7 +1738,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             items = {k: cache[k] for k in id_cached}
         else:
             items = {}
-            id_non_cached = id_lst
+            id_non_cached = list(id_lst)
         return items, id_non_cached
 
     def _get_cached_persistent_EARs(
