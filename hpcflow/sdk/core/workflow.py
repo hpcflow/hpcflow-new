@@ -1759,7 +1759,7 @@ class Workflow:
 
         return wk
 
-    def zip(self, path=".", log=None, overwrite=False) -> str:
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str:
         """
         Parameters
         ----------
@@ -1770,7 +1770,7 @@ class Workflow:
         """
         return self._store.zip(path=path, log=log, overwrite=overwrite)
 
-    def unzip(self, path=".", log=None) -> str:
+    def unzip(self, path: str = ".", log: str | None = None) -> str:
         """
         Parameters
         ----------

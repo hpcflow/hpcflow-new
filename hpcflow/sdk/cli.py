@@ -39,7 +39,12 @@ from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 if TYPE_CHECKING:
+    from pathlib import Path
     from hpcflow.sdk.app import BaseApp
+    from hpcflow.sdk.core.workflow import Workflow
+    from hpcflow.sdk.submission.jobscript import Jobscript
+    from hpcflow.sdk.submission.submission import Submission
+    from hpcflow.sdk.submission.schedulers.sge import SGEPosix
 
 string_option = click.option(
     "--string",
@@ -79,17 +84,17 @@ def _make_API_CLI(app: BaseApp):
     @variables_option
     @make_status_opt
     def make_workflow(
-        template_file_or_str,
-        string,
-        format,
-        path,
-        name,
-        overwrite,
-        store,
-        ts_fmt=None,
-        ts_name_fmt=None,
-        variables=None,
-        status=True,
+        template_file_or_str: str,
+        string: bool,
+        format: str | None,
+        path: Path | None,
+        name: str | None,
+        overwrite: bool,
+        store: str,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        variables: list[tuple[str, str]] | None = None,
+        status: bool = True,
     ):
         """Generate a new {app_name} workflow.
 
@@ -107,7 +112,7 @@ def _make_API_CLI(app: BaseApp):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
-            variables=dict(variables),
+            variables=dict(variables) if variables is not None else None,
             status=status,
         )
         click.echo(wk.path)
@@ -131,23 +136,23 @@ def _make_API_CLI(app: BaseApp):
     @cancel_opt
     @submit_status_opt
     def make_and_submit_workflow(
-        template_file_or_str,
-        string,
-        format,
-        path,
-        name,
-        overwrite,
-        store,
-        ts_fmt=None,
-        ts_name_fmt=None,
-        variables=None,
-        js_parallelism=None,
-        wait=False,
-        add_to_known=True,
-        print_idx=False,
-        tasks=None,
-        cancel=False,
-        status=True,
+        template_file_or_str: str,
+        string: bool,
+        format: str | None,
+        path: Path | None,
+        name: str | None,
+        overwrite: bool,
+        store: str,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        variables: list[tuple[str, str]] | None = None,
+        js_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        print_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -166,7 +171,7 @@ def _make_API_CLI(app: BaseApp):
             store=store,
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
-            variables=dict(variables),
+            variables=dict(variables) if variables is not None else None,
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,
@@ -181,7 +186,7 @@ def _make_API_CLI(app: BaseApp):
     @click.command(context_settings={"ignore_unknown_options": True})
     @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
     @click.pass_context
-    def test(ctx: click.Context, py_test_args):
+    def test(ctx: click.Context, py_test_args: list):
         """Run {app_name} test suite.
 
         PY_TEST_ARGS are arguments passed on to Pytest.
@@ -192,7 +197,7 @@ def _make_API_CLI(app: BaseApp):
     @click.command(context_settings={"ignore_unknown_options": True})
     @click.argument("py_test_args", nargs=-1, type=click.UNPROCESSED)
     @click.pass_context
-    def test_hpcflow(ctx: click.Context, py_test_args):
+    def test_hpcflow(ctx: click.Context, py_test_args: list):
         """Run hpcFlow test suite.
 
         PY_TEST_ARGS are arguments passed on to Pytest.
@@ -223,37 +228,42 @@ def _make_workflow_submission_jobscript_CLI(app: BaseApp):
     @click.group(name="js")
     @click.pass_context
     @click.argument("js_idx", type=click.INT)
-    def jobscript(ctx: click.Context, js_idx):
+    def jobscript(ctx: click.Context, js_idx: int):
         """Interact with existing {app_name} workflow submission jobscripts.
 
         JS_IDX is the jobscript index within the submission object.
 
         """
-        ctx.obj["jobscript"] = ctx.obj["submission"].jobscripts[js_idx]
+        sb: Submission = ctx.obj["submission"]
+        ctx.obj["jobscript"] = sb.jobscripts[js_idx]
 
     @jobscript.command(name="res")
     @click.pass_context
     def resources(ctx: click.Context):
         """Get resources associated with this jobscript."""
-        click.echo(ctx.obj["jobscript"].resources.__dict__)
+        job: Jobscript = ctx.obj["jobscript"]
+        click.echo(job.resources.__dict__)
 
     @jobscript.command(name="deps")
     @click.pass_context
     def dependencies(ctx: click.Context):
         """Get jobscript dependencies."""
-        click.echo(ctx.obj["jobscript"].dependencies)
+        job: Jobscript = ctx.obj["jobscript"]
+        click.echo(job.dependencies)
 
     @jobscript.command()
     @click.pass_context
     def path(ctx: click.Context):
         """Get the file path to the jobscript."""
-        click.echo(ctx.obj["jobscript"].jobscript_path)
+        job: Jobscript = ctx.obj["jobscript"]
+        click.echo(job.jobscript_path)
 
     @jobscript.command()
     @click.pass_context
     def show(ctx: click.Context):
         """Show the jobscript file."""
-        with ctx.obj["jobscript"].jobscript_path.open("rt") as fp:
+        job: Jobscript = ctx.obj["jobscript"]
+        with job.jobscript_path.open("rt") as fp:
             click.echo(fp.read())
 
     if jobscript.help:
@@ -268,43 +278,49 @@ def _make_workflow_submission_CLI(app: BaseApp):
     @click.group(name="sub")
     @click.pass_context
     @click.argument("sub_idx", type=click.INT)
-    def submission(ctx: click.Context, sub_idx):
+    def submission(ctx: click.Context, sub_idx: int):
         """Interact with existing {app_name} workflow submissions.
 
         SUB_IDX is the submission index.
 
         """
-        ctx.obj["submission"] = ctx.obj["workflow"].submissions[sub_idx]
+        wf: Workflow = ctx.obj["workflow"]
+        ctx.obj["submission"] = wf.submissions[sub_idx]
 
     @submission.command("status")
     @click.pass_context
     def status(ctx: click.Context):
         """Get the submission status."""
-        click.echo(ctx.obj["submission"].status.name.lower())
+        sb: Submission = ctx.obj["submission"]
+        click.echo(sb.status.name.lower())
 
     @submission.command("submitted-js")
     @click.pass_context
     def submitted_JS(ctx: click.Context):
         """Get a list of jobscript indices that have been submitted."""
-        click.echo(ctx.obj["submission"].submitted_jobscripts)
+        sb: Submission = ctx.obj["submission"]
+        click.echo(sb.submitted_jobscripts)
 
     @submission.command("outstanding-js")
     @click.pass_context
     def outstanding_JS(ctx: click.Context):
         """Get a list of jobscript indices that have not yet been submitted."""
-        click.echo(ctx.obj["submission"].outstanding_jobscripts)
+        sb: Submission = ctx.obj["submission"]
+        click.echo(sb.outstanding_jobscripts)
 
     @submission.command("needs-submit")
     @click.pass_context
     def needs_submit(ctx: click.Context):
         """Check if this submission needs submitting."""
-        click.echo(ctx.obj["submission"].needs_submit)
+        sb: Submission = ctx.obj["submission"]
+        click.echo(sb.needs_submit)
 
     @submission.command("get-active-jobscripts")
     @click.pass_context
     def get_active_jobscripts(ctx: click.Context):
         """Show active jobscripts and their jobscript-element states."""
-        pprint(ctx.obj["submission"].get_active_jobscripts(as_json=True))
+        sb: Submission = ctx.obj["submission"]
+        pprint(sb.get_active_jobscripts(as_json=True))
 
     if submission.help:
         submission.help = submission.help.format(app_name=app.name)
@@ -320,7 +336,7 @@ def _make_workflow_CLI(app: BaseApp):
     @click.argument("workflow_ref")
     @workflow_ref_type_opt
     @click.pass_context
-    def workflow(ctx: click.Context, workflow_ref, ref_type):
+    def workflow(ctx: click.Context, workflow_ref: str, ref_type: str | None):
         """Interact with existing {app_name} workflows.
 
         WORKFLOW_REF is the path to, or local ID of, an existing workflow.
@@ -342,20 +358,21 @@ def _make_workflow_CLI(app: BaseApp):
     @click.pass_context
     def submit_workflow(
         ctx: click.Context,
-        js_parallelism=None,
-        wait=False,
-        add_to_known=True,
-        print_idx=False,
-        tasks=None,
-        cancel=False,
-        status=True,
+        js_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        print_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
     ):
         """Submit the workflow."""
-        out = ctx.obj["workflow"].submit(
+        wf: Workflow = ctx.obj["workflow"]
+        out = wf.submit(
             JS_parallelism=js_parallelism,
             wait=wait,
             add_to_known=add_to_known,
-            return_idx=print_idx,
+            return_idx=True,
             tasks=tasks,
             cancel=cancel,
             status=status,
@@ -376,18 +393,20 @@ def _make_workflow_CLI(app: BaseApp):
         ),
     )
     @click.pass_context
-    def wait(ctx: click.Context, jobscripts):
+    def wait(ctx: click.Context, jobscripts: str | None):
         js_spec = parse_jobscript_wait_spec(jobscripts) if jobscripts else None
-        ctx.obj["workflow"].wait(sub_js=js_spec)
+        wf: Workflow = ctx.obj["workflow"]
+        wf.wait(sub_js=js_spec)
 
     @workflow.command(name="abort-run")
     @click.option("--submission", type=click.INT, default=-1)
     @click.option("--task", type=click.INT)
     @click.option("--element", type=click.INT)
     @click.pass_context
-    def abort_run(ctx: click.Context, submission, task, element):
+    def abort_run(ctx: click.Context, submission: int, task: int, element: int):
         """Abort the specified run."""
-        ctx.obj["workflow"].abort_run(
+        wf: Workflow = ctx.obj["workflow"]
+        wf.abort_run(
             submission_idx=submission,
             task_idx=task,
             element_idx=element,
@@ -396,54 +415,61 @@ def _make_workflow_CLI(app: BaseApp):
     @workflow.command(name="get-param")
     @click.argument("index", type=click.INT)
     @click.pass_context
-    def get_parameter(ctx: click.Context, index):
+    def get_parameter(ctx: click.Context, index: int):
         """Get a parameter value by data index."""
-        click.echo(ctx.obj["workflow"].get_parameter_data(index))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.get_parameter_data(index))
 
     @workflow.command(name="get-param-source")
     @click.argument("index", type=click.INT)
     @click.pass_context
-    def get_parameter_source(ctx: click.Context, index):
+    def get_parameter_source(ctx: click.Context, index: int):
         """Get a parameter source by data index."""
-        click.echo(ctx.obj["workflow"].get_parameter_source(index))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.get_parameter_source(index))
 
     @workflow.command(name="get-all-params")
     @click.pass_context
     def get_all_parameters(ctx: click.Context):
         """Get all parameter values."""
-        click.echo(ctx.obj["workflow"].get_all_parameter_data())
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.get_all_parameter_data())
 
     @workflow.command(name="is-param-set")
     @click.argument("index", type=click.INT)
     @click.pass_context
-    def is_parameter_set(ctx: click.Context, index):
+    def is_parameter_set(ctx: click.Context, index: int):
         """Check if a parameter specified by data index is set."""
-        click.echo(ctx.obj["workflow"].is_parameter_set(index))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.is_parameter_set(index))
 
     @workflow.command(name="show-all-status")
     @click.pass_context
     def show_all_EAR_statuses(ctx: click.Context):
         """Show the submission status of all workflow EARs."""
-        ctx.obj["workflow"].show_all_EAR_statuses()
+        wf: Workflow = ctx.obj["workflow"]
+        wf.show_all_EAR_statuses()
 
     @workflow.command(name="zip")
     @zip_path_opt
     @zip_overwrite_opt
     @zip_log_opt
     @click.pass_context
-    def zip_workflow(ctx: click.Context, path, overwrite, log):
+    def zip_workflow(ctx: click.Context, path: str, overwrite: bool, log: str | None):
         """Generate a copy of the workflow in the zip file format in the current working
         directory."""
-        click.echo(ctx.obj["workflow"].zip(path=path, overwrite=overwrite, log=log))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.zip(path=path, overwrite=overwrite, log=log))
 
     @workflow.command(name="unzip")
     @unzip_path_opt
     @unzip_log_opt
     @click.pass_context
-    def unzip_workflow(ctx: click.Context, path, log):
+    def unzip_workflow(ctx: click.Context, path: str, log: str | None):
         """Generate a copy of the zipped workflow in the submittable Zarr format in the
         current working directory."""
-        click.echo(ctx.obj["workflow"].unzip(path=path, log=log))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(wf.unzip(path=path, log=log))
 
     if workflow.help:
         workflow.help = workflow.help.format(app_name=app.name)
@@ -478,7 +504,7 @@ def _make_submission_CLI(app: BaseApp):
     @click.argument("shell_name", type=click.Choice(list(ALL_SHELLS)))
     @click.option("--exclude-os", is_flag=True, default=False)
     @click.pass_context
-    def shell_info(ctx: click.Context, shell_name, exclude_os):
+    def shell_info(ctx: click.Context, shell_name: str, exclude_os: bool):
         """Show information about the specified shell, such as the version."""
         pprint(app.get_shell_info(shell_name, exclude_os))
         ctx.exit()
@@ -486,13 +512,13 @@ def _make_submission_CLI(app: BaseApp):
     @submission.group("scheduler")
     @click.argument("scheduler_name")
     @click.pass_context
-    def scheduler(ctx: click.Context, scheduler_name):
+    def scheduler(ctx: click.Context, scheduler_name: str):
         ctx.obj["scheduler_obj"] = app.get_scheduler(scheduler_name, os.name)
 
     @scheduler.command()
     @click.pass_context
     def get_login_nodes(ctx: click.Context):
-        scheduler = ctx.obj["scheduler_obj"]
+        scheduler: SGEPosix = ctx.obj["scheduler_obj"]
         pprint(scheduler.get_login_nodes())
 
     @submission.command()
@@ -504,7 +530,7 @@ def _make_submission_CLI(app: BaseApp):
         help="Do not format and only show JSON-compatible information.",
     )
     @click.pass_context
-    def get_known(ctx: click.Context, as_json=False):
+    def get_known(ctx: click.Context, as_json: bool = False):
         """Print known-submissions information as a formatted Python object."""
         out = app.get_known_submissions(as_json=as_json)
         if as_json:
@@ -531,7 +557,7 @@ def _make_internal_CLI(app: BaseApp):
     @internal.group()
     @click.argument("path", type=click.Path(exists=True))
     @click.pass_context
-    def workflow(ctx: click.Context, path):
+    def workflow(ctx: click.Context, path: Path):
         """"""
         wk = app.Workflow(path)
         ctx.ensure_object(dict)
@@ -551,14 +577,14 @@ def _make_internal_CLI(app: BaseApp):
         ear_id: int,
     ):
         app.CLI_logger.info(f"write commands for EAR ID {ear_id!r}.")
-        ctx.exit(
-            ctx.obj["workflow"].write_commands(
-                submission_idx,
-                jobscript_idx,
-                js_action_idx,
-                ear_id,
-            )
+        wf: Workflow = ctx.obj["workflow"]
+        wf.write_commands(
+            submission_idx,
+            jobscript_idx,
+            js_action_idx,
+            ear_id,
         )
+        ctx.exit()
 
     @workflow.command()
     @click.pass_context
@@ -580,9 +606,9 @@ def _make_internal_CLI(app: BaseApp):
             f"{cmd_idx!r} (stderr={stderr!r})"
         )
         app.CLI_logger.debug(f"save parameter value is: {value!r}")
-        wk = ctx.obj["workflow"]
-        with wk._store.cached_load():
-            value = wk.process_shell_parameter_output(
+        wf: Workflow = ctx.obj["workflow"]
+        with wf._store.cached_load():
+            value = wf.process_shell_parameter_output(
                 name=name,
                 value=value,
                 EAR_ID=ear_id,
@@ -590,14 +616,16 @@ def _make_internal_CLI(app: BaseApp):
                 stderr=stderr,
             )
             app.CLI_logger.debug(f"save parameter processed value is: {value!r}")
-            ctx.exit(wk.save_parameter(name=name, value=value, EAR_ID=ear_id))
+            ctx.exit(wf.save_parameter(name=name, value=value, EAR_ID=ear_id))
 
     @workflow.command()
     @click.pass_context
     @click.argument("ear_id", type=click.INT)
     def set_EAR_start(ctx: click.Context, ear_id: int):
         app.CLI_logger.info(f"set EAR start for EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].set_EAR_start(ear_id))
+        wf: Workflow = ctx.obj["workflow"]
+        wf.set_EAR_start(ear_id)
+        ctx.exit()
 
     @workflow.command()
     @click.pass_context
@@ -615,21 +643,23 @@ def _make_internal_CLI(app: BaseApp):
         app.CLI_logger.info(
             f"set EAR end for EAR ID {ear_id!r} with exit code {exit_code!r}."
         )
-        ctx.exit(
-            ctx.obj["workflow"].set_EAR_end(
-                js_idx=js_idx,
-                js_act_idx=js_act_idx,
-                EAR_ID=ear_id,
-                exit_code=exit_code,
-            )
+        wf: Workflow = ctx.obj["workflow"]
+        wf.set_EAR_end(
+            js_idx=js_idx,
+            js_act_idx=js_act_idx,
+            EAR_ID=ear_id,
+            exit_code=exit_code,
         )
+        ctx.exit()
 
     @workflow.command()
     @click.pass_context
     @click.argument("ear_id", type=click.INT)
     def set_EAR_skip(ctx: click.Context, ear_id: int):
         app.CLI_logger.info(f"set EAR skip for EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].set_EAR_skip(ear_id))
+        wf: Workflow = ctx.obj["workflow"]
+        wf.set_EAR_skip(ear_id)
+        ctx.exit()
 
     @workflow.command()
     @click.pass_context
@@ -637,7 +667,8 @@ def _make_internal_CLI(app: BaseApp):
     def get_EAR_skipped(ctx: click.Context, ear_id: int):
         """Return 1 if the given EAR is to be skipped, else return 0."""
         app.CLI_logger.info(f"get EAR skip for EAR ID {ear_id!r}.")
-        click.echo(int(ctx.obj["workflow"].get_EAR_skipped(ear_id)))
+        wf: Workflow = ctx.obj["workflow"]
+        click.echo(int(wf.get_EAR_skipped(ear_id)))
 
     @workflow.command()
     @click.pass_context
@@ -646,7 +677,9 @@ def _make_internal_CLI(app: BaseApp):
     def check_loop(ctx: click.Context, loop_name: str, ear_id: int):
         """Check if an iteration has met its loop's termination condition."""
         app.CLI_logger.info(f"check_loop for loop {loop_name!r} and EAR ID {ear_id!r}.")
-        ctx.exit(ctx.obj["workflow"].check_loop_termination(loop_name, ear_id))
+        wf: Workflow = ctx.obj["workflow"]
+        wf.check_loop_termination(loop_name, ear_id)
+        ctx.exit()
 
     # TODO: in general, maybe the workflow command group can expose the simple Workflow
     # properties; maybe use a decorator on the Workflow property object to signify

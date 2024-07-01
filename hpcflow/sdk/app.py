@@ -573,6 +573,58 @@ class BaseApp(metaclass=Singleton):
         from .submission.schedulers import QueuedScheduler as QS
         return QS
 
+    @property
+    def make_workflow(self) -> Callable[..., _Workflow]:
+        return self.__get_app_func("make_workflow")
+
+    @property
+    def make_demo_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("make_demo_workflow")
+
+    @property
+    def make_and_submit_workflow(self) -> Callable[..., tuple[int, ...]]:
+        return self.__get_app_func("make_and_submit_workflow")
+
+    @property
+    def make_and_submit_demo_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("make_and_submit_demo_workflow")
+
+    @property
+    def submit_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("submit_workflow")
+
+    @property
+    def run_hpcflow_tests(self) -> Callable[..., int]:
+        return self.__get_app_func("run_hpcflow_tests")
+
+    @property
+    def run_tests(self) -> Callable[..., int]:
+        return self.__get_app_func("run_tests")
+
+    @property
+    def get_OS_info(self) -> Callable[..., Mapping[str, str]]:
+        return self.__get_app_func("get_OS_info")
+
+    @property
+    def get_shell_info(self) -> Callable[[str, bool], VersionInfo]:
+        return self.__get_app_func("get_shell_info")
+
+    @property
+    def get_known_submissions(self) -> Callable[..., list[KnownSubmissionItem]]:
+        return self.__get_app_func("get_known_submissions")
+
+    @property
+    def show(self) -> Callable[..., None]:
+        return self.__get_app_func("show")
+
+    @property
+    def show_legend(self) -> Callable[[], None]:
+        return self.__get_app_func("show_legend")
+
+    @property
+    def cancel(self) -> Callable[..., None]:
+        return self.__get_app_func("cancel")
+
     def __getattr__(self, name):
         if name in sdk_classes:
             return self._get_app_core_class(name)

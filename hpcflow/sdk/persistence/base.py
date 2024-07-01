@@ -756,11 +756,11 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def reinstate_replaced_dir(self) -> None: ...
 
     @abstractmethod
-    def zip(self, path=".", log=None, overwrite=False) -> str:
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str:
         ...
 
     @abstractmethod
-    def unzip(self, path=".", log=None) -> str:
+    def unzip(self, path: str = ".", log: str | None = None) -> str:
         ...
 
     @classmethod
