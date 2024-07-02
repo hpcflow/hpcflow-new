@@ -13,8 +13,9 @@ from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
-    from typing import Any, ClassVar, Dict
+    from typing import Any, ClassVar
     from ...app import BaseApp
+    from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
     from ..shells.base import Shell
@@ -82,7 +83,7 @@ class SGEPosix(QueuedScheduler):
 
     @classmethod
     @TimeIt.decorator
-    def process_resources(cls, resources: ElementResources, scheduler_config: Dict) -> None:
+    def process_resources(cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -122,13 +123,10 @@ class SGEPosix(QueuedScheduler):
                 )
         else:
             # find the first compatible PE:
-            pe_match = -1  # pe_name might be `None`
             for pe_name, pe_info in para_envs.items():
                 if cls.is_num_cores_supported(resources.num_cores, pe_info["num_cores"]):
-                    pe_match = pe_name
+                    resources.SGE_parallel_env = pe_name
                     break
-            if pe_match != -1:
-                resources.SGE_parallel_env = pe_name
             else:
                 raise NoCompatibleSGEPEError(
                     f"No compatible SGE parallel environment could be found for the "

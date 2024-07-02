@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import Counter
 import copy
 import enum
 from functools import wraps
@@ -15,7 +16,7 @@ import string
 import subprocess
 from datetime import datetime, timezone
 import sys
-from typing import cast, overload, TypeVar, TypedDict, TYPE_CHECKING
+from typing import cast, overload, TypeVar, TYPE_CHECKING
 import fsspec  # type: ignore
 import numpy as np
 
@@ -24,33 +25,22 @@ from watchdog.utils.dirsnapshot import DirectorySnapshot
 
 from hpcflow.sdk.core.errors import (
     ContainerKeyError,
-    FromSpecMissingObjectError,
     InvalidIdentifier,
     MissingVariableSubstitutionError,
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
-    from collections.abc import Callable, Container, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from typing import Any, TypeAlias
     from numpy.typing import NDArray
 
-    T = TypeVar('T')
-    T2 = TypeVar('T2')
-    T3 = TypeVar('T3')
-    TList: TypeAlias = T | list['TList']
-
-
-def load_config(func):
-    """API function decorator to ensure the configuration has been loaded, and load if not."""
-
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if not self.is_config_loaded:
-            self.load_config()
-        return func(self, *args, **kwargs)
-
-    return wrapper
+T = TypeVar('T')
+T2 = TypeVar('T2')
+T3 = TypeVar('T3')
+TList: TypeAlias = 'T | list[TList]'
+TD = TypeVar('TD', bound=Mapping[str, Any])
+E = TypeVar("E", bound=enum.Enum)
 
 
 def make_workflow_id() -> str:
@@ -63,7 +53,7 @@ def get_time_stamp() -> str:
     return datetime.now(timezone.utc).astimezone().strftime("%Y.%m.%d_%H:%M:%S_%z")
 
 
-def get_duplicate_items(lst):
+def get_duplicate_items(lst: Sequence[T]) -> list[T]:
     """Get a list of all items in an iterable that appear more than once, assuming items
     are hashable.
 
@@ -76,11 +66,10 @@ def get_duplicate_items(lst):
     []
 
     >>> get_duplicate_items([1, 2, 3, 3, 3, 2])
-    [2, 3, 2]
+    [2, 3]
 
     """
-    seen = []
-    return list(set(x for x in lst if x in seen or seen.append(x)))
+    return [x for x, y in Counter(lst).items() if y > 1]
 
 
 def check_valid_py_identifier(name: str) -> str:
@@ -118,8 +107,6 @@ def check_valid_py_identifier(name: str) -> str:
 
     return name
 
-
-TD = TypeVar('TD', bound=Mapping[str, Any])
 
 @overload
 def group_by_dict_key_values(lst: list[dict[T, T2]], key: T) -> list[list[dict[T, T2]]]: ...
@@ -310,29 +297,18 @@ def get_relative_path(path1: Sequence[T], path2: Sequence[T]) -> Sequence[T]:
     return path1[len_path2:]
 
 
-def search_dir_files_by_regex(pattern: str | re.Pattern[str], group=0, directory=".") -> list[str]:
+def search_dir_files_by_regex(pattern: str | re.Pattern[str], directory: str = ".") -> list[str]:
     """Search recursively for files in a directory by a regex pattern and return matching
     file paths, relative to the given directory."""
-    vals = []
-    for i in Path(directory).rglob("*"):
-        match = re.search(pattern, i.name)
-        if match:
-            match_groups = match.groups()
-            if match_groups:
-                match = match_groups[group]
-                vals.append(str(i.relative_to(directory)))
-    return vals
+    dir_ = Path(directory)
+    return [
+        str(i.relative_to(dir_))
+        for i in dir_.rglob("*")
+        if re.search(pattern, i.name)
+    ]
 
 
-class classproperty(object):
-    def __init__(self, f):
-        self.f = f
-
-    def __get__(self, obj, owner):
-        return self.f(owner)
-
-
-class PrettyPrinter(object):
+class PrettyPrinter:
     def __str__(self):
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
@@ -342,28 +318,6 @@ class PrettyPrinter(object):
 
 def capitalise_first_letter(chars: str) -> str:
     return chars[0].upper() + chars[1:]
-
-
-def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
-    """Decorator factory for the various `from_spec` class methods that have attributes
-    that should be replaced by an object from an object list."""
-
-    def decorator(func):
-        @wraps(func)
-        def wrap(*args, **kwargs):
-            spec = args[spec_pos]
-            obj_list = args[obj_list_pos]
-            if spec[spec_name] not in obj_list:
-                cls_name = args[0].__name__
-                raise FromSpecMissingObjectError(
-                    f"A {spec_name!r} object required to instantiate the {cls_name!r} "
-                    f"object is missing."
-                )
-            return func(*args, **kwargs)
-
-        return wrap
-
-    return decorator
 
 
 @TimeIt.decorator
@@ -544,23 +498,21 @@ def ensure_in(item: T, lst: list[T]) -> int:
     list."""
     # TODO: add tests
     try:
-        idx = lst.index(item)
+        return lst.index(item)
     except ValueError:
         lst.append(item)
-        idx = len(lst) - 1
-    return idx
+        return len(lst) - 1
 
 
 def list_to_dict(lst: list[dict[T, T2]],
-                 exclude: Container[T] | None = None) -> dict[T, list[T2]]:
-    # TODD: test
-    exclude = exclude or ()
-    dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exclude}
-    for i in lst:
-        for k, v in i.items():
-            if k not in exclude:
+                 exclude: Iterable[T] | None = None) -> dict[T, list[T2]]:
+    # TODO: test
+    exc = frozenset(exclude or ())
+    dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exc}
+    for d in lst:
+        for k, v in d.items():
+            if k not in exc:
                 dct[k].append(v)
-
     return dct
 
 
@@ -579,11 +531,8 @@ def bisect_slice(selection: slice, len_A: int) -> tuple[slice, slice]:
         B_stop = B_start
     else:
         B_stop = selection.stop - len_A
-    B_idx = (B_start, B_stop, selection.step)
-    A_slice = slice(*A_idx)
-    B_slice = slice(*B_idx)
 
-    return A_slice, B_slice
+    return slice(*A_idx), slice(B_start, B_stop, selection.step)
 
 
 def replace_items(lst: list[T], start: int, end: int, repl: list[T]) -> list[T]:
@@ -732,7 +681,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
         }
 
 
-def open_file(filename):
+def open_file(filename: str):
     """Open a file or directory using the default system application."""
     if sys.platform == "win32":
         os.startfile(filename)
@@ -740,8 +689,6 @@ def open_file(filename):
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.call([opener, filename])
 
-
-E = TypeVar("E", bound=enum.Enum)
 
 @overload
 def get_enum_by_name_or_val(enum_cls: type[E], key: None) -> None: ...

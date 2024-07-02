@@ -64,8 +64,21 @@ if TYPE_CHECKING:
     SetterCallback: TypeAlias = Callable[['Config', T], Any]
 
 
+class SGEParallelEnvsDescriptor(TypedDict):
+    num_cores: list[int]
+
+
+class SLURMPartitionsDescriptor(TypedDict):
+    num_cores: NotRequired[list[int]]
+    num_cores_per_node: NotRequired[list[int]]
+    num_nodes: NotRequired[list[int]]
+    parallel_modes: NotRequired[list[str]]
+
+
 class SchedulerConfigDescriptor(TypedDict):
     defaults: dict[str, Any]
+    parallel_environments: NotRequired[dict[str, SGEParallelEnvsDescriptor]]
+    partitions: NotRequired[dict[str, SLURMPartitionsDescriptor]]
 
 
 class ShellConfigDescriptor(TypedDict):

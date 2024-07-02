@@ -1,11 +1,14 @@
 """Sub-package to define an extensible hpcflow application."""
 
+from __future__ import annotations
+from collections.abc import Mapping
 import logging
 import os
 import sys
+from typing import Final
 
 # classes used in the construction of a workflow:
-sdk_classes = {
+sdk_classes: Final[Mapping[str, str]] = {
     "Workflow": "hpcflow.sdk.core.workflow",
     "Task": "hpcflow.sdk.core.task",
     "ActionScopeType": "hpcflow.sdk.core.actions",
@@ -95,7 +98,7 @@ sdk_classes = {
 }
 
 # these are defined as `BaseApp` methods with an underscore prefix:
-sdk_funcs = (
+sdk_funcs: Final[tuple[str, ...]] = (
     "make_workflow",
     "make_demo_workflow",
     "make_and_submit_workflow",

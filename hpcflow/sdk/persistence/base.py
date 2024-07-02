@@ -76,18 +76,72 @@ class StoreCreationInfo(TypedDict):
     id: str
 
 
+class ElemMeta(TypedDict):
+    id_: int
+    index: int
+    es_idx: int
+    seq_idx: dict[str, int]
+    src_idx: dict[str, int]
+    task_ID: int
+    iteration_IDs: list[int]
+
+
+class IterMeta(TypedDict):  # FIXME:
+    EAR_IDs: dict[int, list[int]]
+    EARs_initialised: bool
+    loop_idx: dict[str, int]
+    element_ID: int
+    data_idx: dict[str, int]
+    schema_parameters: list[str]
+
+
+class LoopMeta(TypedDict):
+    num_added_iterations: list[list[list[int] | int]]
+    parents: list[str]
+    iterable_parameters: None
+
+
+class RunMeta(TypedDict):  # FIXME:
+    id_: int
+    elem_iter_ID: int
+    action_idx: int
+    commands_idx: list[int]
+    data_idx: dict[str, int]
+    metadata: Metadata | None
+    end_time: NotRequired[str | None]
+    exit_code: int | None
+    start_time: NotRequired[str | None]
+    snapshot_start: dict | None
+    snapshot_end: dict | None
+    submission_idx: int | None
+    run_hostname: str | None
+    success: bool | None
+    skip: bool
+
+
+class TaskMeta(TypedDict):
+    id_: int
+    index: int
+    element_IDs: list[int]
+
+
+class TemplateMeta(TypedDict):
+    loops: list[dict]  # FIXME:
+    tasks: list[dict]  # FIXME:
+
+
 class Metadata(TypedDict):
     creation_info: NotRequired[StoreCreationInfo]
-    elements: NotRequired[list[dict]]
-    iters: NotRequired[list[dict]]
-    loops: NotRequired[list]
+    elements: NotRequired[list[ElemMeta]]  # FIXME:
+    iters: NotRequired[list[IterMeta]]
+    loops: NotRequired[list[LoopMeta]]
     name: NotRequired[str]
     num_added_tasks: NotRequired[int]
     replaced_workflow: NotRequired[str]
-    runs: NotRequired[list[dict]]
-    tasks: NotRequired[list]
-    template: NotRequired[dict]
-    template_components: NotRequired[dict]
+    runs: NotRequired[list[RunMeta]]  # FIXME:
+    tasks: NotRequired[list[TaskMeta]]
+    template: NotRequired[TemplateMeta]  # FIXME:
+    template_components: NotRequired[dict[None, None]]  # FIXME:
     ts_fmt: NotRequired[str]
     ts_name_fmt: NotRequired[str]
 
@@ -124,29 +178,26 @@ class PersistentStoreFeatures:
 
 
 @dataclass
-class StoreTask:
+class StoreTask(Generic[T]):
     id_: int
     index: int
     is_pending: bool
     element_IDs: list[int]
-    task_template: Mapping | None = None
+    task_template: Mapping[str, Any] | None = None
 
-    def encode(self) -> tuple[int, Dict, Dict]:
+    @abstractmethod
+    def encode(self) -> tuple[int, T, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
-        assert self.task_template is not None
-        wk_task = {"id_": self.id_, "element_IDs": self.element_IDs}
-        task = {"id_": self.id_, **self.task_template}
-        return self.index, wk_task, task
 
+    @abstractmethod
     @classmethod
-    def decode(cls, task_dat: Dict) -> Self:
+    def decode(cls, task_dat: T) -> Self:
         """Initialise a `StoreTask` from store task data
 
         Note: the `task_template` is only needed for encoding because it is retrieved as
         part of the `WorkflowTemplate` so we don't need to load it when decoding.
 
         """
-        return cls(is_pending=False, **task_dat)
 
     @TimeIt.decorator
     def append_element_IDs(self, pend_IDs: list[int]) -> Self:
@@ -768,7 +819,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def write_empty_workflow(
         cls,
         app: BaseApp, *,
-        template_js: Dict,
+        template_js: TemplateMeta,
         template_components_js: Dict,
         wk_path: str,
         fs: AbstractFileSystem,
@@ -1968,7 +2019,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _update_parameter_sources(self, sources: Mapping[int, ParamSource]) -> None: ...
 
     @abstractmethod
-    def _update_loop_index(self, iter_ID: int, loop_idx: Dict) -> None: ...
+    def _update_loop_index(self, iter_ID: int, loop_idx: dict[str, int]) -> None: ...
 
     @abstractmethod
     def _update_loop_num_iters(self, index: int, num_iters: list[list[list[int] | int]]) -> None: ...

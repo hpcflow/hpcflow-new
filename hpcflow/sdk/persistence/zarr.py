@@ -35,7 +35,8 @@ from hpcflow.sdk.persistence.base import (
     StoreElementIter,
     StoreParameter,
     StoreTask,
-    StoreCreationInfo
+    StoreCreationInfo,
+    TemplateMeta
 )
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
@@ -139,7 +140,7 @@ def append_items_to_ragged_array(arr, items):
 
 
 @dataclass
-class ZarrStoreTask(StoreTask):
+class ZarrStoreTask(StoreTask[Dict]):
     def encode(self) -> tuple[int, Dict, Dict]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
@@ -367,7 +368,7 @@ class ZarrPersistentStore(PersistentStore[
     def write_empty_workflow(
         cls,
         app: BaseApp, *,
-        template_js: Dict,
+        template_js: TemplateMeta,
         template_components_js: Dict,
         wk_path: str,
         fs: AbstractFileSystem,
@@ -582,7 +583,7 @@ class ZarrPersistentStore(PersistentStore[
                 for dt_str, parts_j in sub_i_parts.items():
                     attrs["submissions"][sub_idx]["submission_parts"][dt_str] = parts_j
 
-    def _update_loop_index(self, iter_ID: int, loop_idx: Dict):
+    def _update_loop_index(self, iter_ID: int, loop_idx: dict[str, int]):
         arr = self._get_iters_arr(mode="r+")
         attrs = self.__as_dict(arr.attrs)
         iter_dat = cast(list, arr[iter_ID])

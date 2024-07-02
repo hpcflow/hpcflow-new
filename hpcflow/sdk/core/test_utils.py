@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 if TYPE_CHECKING:
@@ -216,7 +216,7 @@ class P1_sub_parameter_cls(ParameterValue):
     def twice_e(self):
         return self.e * 2
 
-    def prepare_JSON_dump(self) -> Dict:
+    def prepare_JSON_dump(self) -> dict[str, Any]:
         return {"e": self.e}
 
     def dump_to_HDF5_group(self, group):
@@ -304,7 +304,7 @@ class P1_parameter_cls(ParameterValue):
             sub_param = None
         return cls(a=a, sub_param=sub_param)
 
-    def prepare_JSON_dump(self) -> Dict:
+    def prepare_JSON_dump(self) -> dict[str, Any]:
         sub_param_js = self.sub_param.prepare_JSON_dump() if self.sub_param else None
         return {"a": self.a, "d": self.d, "sub_param": sub_param_js}
 

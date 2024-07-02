@@ -59,7 +59,7 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, ClassVar, Dict, Literal, NotRequired, Protocol, Self, TypeAlias
+    from typing import Any, ClassVar, Literal, NotRequired, Protocol, Self, TypeAlias
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
@@ -76,7 +76,7 @@ if TYPE_CHECKING:
     from ..submission.jobscript import Jobscript, JobScriptCreationArguments
     from ..persistence.base import (
         StoreElement, StoreElementIter, AnySParameter, StoreTask, StoreParameter,
-        StoreEAR)
+        StoreEAR, TemplateMeta)
     
     _TemplateComponents: TypeAlias = dict[str, ObjectList[JSONLike]]
 
@@ -207,7 +207,7 @@ class WorkflowTemplate(JSONLike):
     environments: dict[str, dict[str, Any]] | None = None
     env_presets: str | list[str] | None = None
     source_file: str | None = field(default=None, compare=False)
-    store_kwargs: Dict = field(default_factory=dict)
+    store_kwargs: dict[str, Any] = field(default_factory=dict)
     merge_resources: bool = True
     merge_envs: bool = True
 
@@ -382,7 +382,7 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_YAML_str(string, variables=variables))
 
     @classmethod
-    def _check_name(cls, data: Dict, path: PathLike) -> None:
+    def _check_name(cls, data: dict[str, Any], path: PathLike) -> None:
         """Check the workflow template data has a "name" key. If not, add a "name" key,
         using the file path stem.
 
@@ -565,6 +565,13 @@ class _IterationData:
     idx: int
 
 
+class _Pending(TypedDict):
+    template_components: dict[str, list[int]]
+    tasks: list[int]
+    loops: list[int]
+    submissions: list[int]
+
+
 class Workflow:
     app: ClassVar[BaseApp]
     _app_attr = "app"
@@ -660,7 +667,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         status: Status | None = None,
     ) -> Workflow:
         """Generate from a `WorkflowTemplate` object.
@@ -745,7 +752,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
     ) -> Workflow:
         """Generate from a YAML file.
@@ -803,7 +810,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
     ) -> Workflow:
         """Generate from a YAML string.
@@ -861,7 +868,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         status: Status | None = None,
     ) -> Workflow:
@@ -921,7 +928,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         status: Status | None = None,
     ) -> Workflow:
@@ -983,7 +990,7 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         status: Status | None = None,
     ) -> Workflow:
@@ -1050,14 +1057,14 @@ class Workflow:
         template_name: str,
         tasks: list[Task] | None = None,
         loops: list[Loop] | None = None,
-        resources: dict[str, Dict] | None = None,
+        resources: dict[str, dict[str, Any]] | None = None,
         path: PathLike | None = None,
         workflow_name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
     ) -> Workflow:
         """Generate from the data associated with a WorkflowTemplate object.
 
@@ -1687,8 +1694,8 @@ class Workflow:
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        fs_kwargs: Dict | None = None,
-        store_kwargs: Dict | None = None,
+        fs_kwargs: dict[str, Any] | None = None,
+        store_kwargs: dict[str, Any] | None = None,
     ) -> Workflow:
         """
         Parameters
@@ -1732,8 +1739,8 @@ class Workflow:
             res_i.make_persistent(wk_dummy, param_src)
 
         template_js_, template_sh = template.to_json_like(exclude={"tasks", "loops"})
-        template_js = {
-            **template_js_,
+        template_js: TemplateMeta = {
+            **cast('TemplateMeta', template_js_),  # Trust me, bro!
             "tasks": [],
             "loops": []
         }
@@ -1844,7 +1851,7 @@ class Workflow:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_all_parameter_sources(self, **kwargs) -> list[Dict]:
+    def get_all_parameter_sources(self, **kwargs) -> list[ParamSource]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
@@ -1880,7 +1887,7 @@ class Workflow:
         self, *,
         store_contents: bool,
         is_input: bool,
-        source: Dict,
+        source: ParamSource,
         path=None,
         contents=None,
         filename: str,
@@ -1950,7 +1957,7 @@ class Workflow:
 
         return uniq_names[new_index]
 
-    def _get_empty_pending(self) -> Dict:
+    def _get_empty_pending(self) -> _Pending:
         return {
             "template_components": {k: [] for k in TEMPLATE_COMP_TYPES},
             "tasks": [],  # list of int

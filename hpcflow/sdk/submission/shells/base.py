@@ -1,8 +1,10 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, TypedDict, TypeAlias, TYPE_CHECKING
+from typing import TypedDict, TypeAlias, TYPE_CHECKING
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any, ClassVar
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]
 else:
@@ -71,7 +73,7 @@ class Shell(ABC):
     def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get shell and operating system information."""
 
-    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: dict):
+    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Mapping[int, Any]):
         if deps:
             return (
                 f'{workflow_app_alias} workflow $WK_PATH_ARG wait --jobscripts "{sub_idx}:'

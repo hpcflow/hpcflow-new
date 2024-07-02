@@ -5,14 +5,15 @@ from collections.abc import Sequence, Mapping
 import copy
 from dataclasses import dataclass
 import enum
+from types import SimpleNamespace
 from typing import overload, Protocol, cast, runtime_checkable, TYPE_CHECKING
 
 from hpcflow.sdk import app, get_SDK_logger
-from .utils import classproperty, get_md5_hash
+from .utils import get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
 if TYPE_CHECKING:
-    from typing import Any, ClassVar, Self, TypeAlias, TypeGuard
+    from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeGuard
     from ..app import BaseApp
     from .object_list import ObjectList
 
@@ -224,20 +225,27 @@ class BaseJSONLike:
     _child_objects: ClassVar[Sequence[ChildObjectSpec] | None] = None
     _validation_schema: ClassVar[str | None] = None
 
-    __class_namespace: ClassVar[dict[str, Any] | None] = None
-    __class_namespace_is_dict: ClassVar[bool] = False
+    __class_namespace: ClassVar[dict[str, Any] | SimpleNamespace | BaseApp | None] = None
     _hash_value: str | None
 
+    @overload
     @classmethod
-    def _set_class_namespace(cls, value: dict[str, Any], is_dict=False) -> None:
-        cls.__class_namespace = value
-        cls.__class_namespace_is_dict = is_dict
+    def _set_class_namespace(cls, value: SimpleNamespace, is_dict: Literal[False] = False) -> None: ...
 
-    @classproperty
-    def _class_namespace(cls):
-        if not cls.__class_namespace:
+    @overload
+    @classmethod
+    def _set_class_namespace(cls, value: dict[str, Any], is_dict: Literal[True]) -> None: ...
+
+    @classmethod
+    def _set_class_namespace(cls, value: dict[str, Any] | SimpleNamespace, is_dict=False) -> None:
+        cls.__class_namespace = value
+
+    @classmethod
+    def _class_namespace(cls) -> dict[str, Any] | SimpleNamespace | BaseApp:
+        ns = cls.__class_namespace
+        if ns is None:
             raise ValueError(f"`{cls.__name__}` `class_namespace` must be set!")
-        return cls.__class_namespace
+        return ns
 
     @classmethod
     def _get_child_class(
@@ -246,10 +254,11 @@ class BaseJSONLike:
         if child_obj_spec.class_obj:
             return child_obj_spec.class_obj
         elif child_obj_spec.class_name:
-            if cls.__class_namespace_is_dict:
-                return cls._class_namespace[child_obj_spec.class_name]
+            ns = cls._class_namespace()
+            if isinstance(ns, dict):
+                return ns[child_obj_spec.class_name]
             else:
-                return getattr(cls._class_namespace, child_obj_spec.class_name)
+                return getattr(ns, child_obj_spec.class_name)
         else:
             return None
 
@@ -608,28 +617,38 @@ class JSONLike(BaseJSONLike):
     """BaseJSONLike, where the class namespace is the App instance."""
 
     _app_attr: ClassVar[str] = "app"  # for some classes we change this to "_app"
+    __sdk_classes: list[type[BaseJSONLike]] = []
 
-    @classproperty
+    @classmethod
     def _class_namespace(cls) -> BaseApp:
         return getattr(cls, cls._app_attr)
+
+    @classmethod
+    def __get_classes(cls) -> list[type[BaseJSONLike]]:
+        """
+        Get the collection of actual SDK classes that conform to BaseJSONLike.
+        """
+        if not cls.__sdk_classes:
+            for cls_name in app.sdk_classes:
+                cls2 = getattr(app, cls_name)
+                if isinstance(cls2, type) and issubclass(cls2, BaseJSONLike):
+                    cls.__sdk_classes.append(cls2)
+        return cls.__sdk_classes
 
     def to_dict(self):
         out = super().to_dict()
 
         # remove parent references:
-        for cls_name in app.sdk_classes:
-            cls = getattr(app, cls_name)
-            if hasattr(cls, "_child_objects"):
-                for chd in cls._child_objects or []:
-                    assert isinstance(chd, ChildObjectSpec)
-                    if chd.parent_ref:
-                        # _SDK_logger.debug(
-                        #     f"removing parent reference {chd.parent_ref!r} from child "
-                        #     f"object {chd!r}."
-                        # )
-                        if (
-                            self.__class__.__name__ == chd.class_name
-                            or self.__class__ is chd.class_obj
-                        ):
-                            out.pop(chd.parent_ref, None)
+        for cls in self.__get_classes():
+            for chd in cls._child_objects or ():
+                if chd.parent_ref:
+                    # _SDK_logger.debug(
+                    #     f"removing parent reference {chd.parent_ref!r} from child "
+                    #     f"object {chd!r}."
+                    # )
+                    if (
+                        self.__class__.__name__ == chd.class_name
+                        or self.__class__ is chd.class_obj
+                    ):
+                        out.pop(chd.parent_ref, None)
         return out

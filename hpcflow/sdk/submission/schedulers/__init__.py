@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from ..shells import Shell
     from ..jobscript import Jobscript
     from ..jobscript_info import JobscriptElementState
+    from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
 
 T = TypeVar('T')
@@ -38,7 +39,7 @@ class Scheduler(ABC, Generic[T]):
             return self.__dict__ == other.__dict__
 
     @abstractmethod
-    def process_resources(self, resources: ElementResources, scheduler_config: dict) -> None:
+    def process_resources(self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
         ...
 
     def get_version_info(self) -> dict[str, str | list[str]]:

@@ -11,7 +11,7 @@ from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import Any, ClassVar, Dict, Self
+    from typing import Any, ClassVar, Self
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import Action, ActionRule
@@ -93,7 +93,7 @@ class FileNameSpec(JSONLike):
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
-            return search_dir_files_by_regex(value, group=0, directory=directory)
+            return search_dir_files_by_regex(value, directory=directory)
         return value
 
     def __repr__(self) -> str:
@@ -275,7 +275,7 @@ class OutputFileParser(JSONLike):
     environment: Environment | None = None
     inputs: list[str] | None = None
     outputs: list[str] | None = None
-    options: Dict | None = None
+    options: dict[str, Any] | None = None
     script_pass_env_spec: bool = False
     abortable: bool = False
     save_files: list[FileSpec] | bool = True

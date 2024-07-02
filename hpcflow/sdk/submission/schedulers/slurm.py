@@ -1,7 +1,7 @@
 from __future__ import annotations
 import subprocess
 import time
-from typing import Any, ClassVar, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -13,12 +13,14 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
-from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
+    from typing import Any, ClassVar
     from ...app import BaseApp
+    from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
+    from ..shells.base import Shell
 
 
 class SlurmPosix(QueuedScheduler):
@@ -68,7 +70,7 @@ class SlurmPosix(QueuedScheduler):
 
     @classmethod
     @TimeIt.decorator
-    def process_resources(cls, resources: ElementResources, scheduler_config: Dict) -> None:
+    def process_resources(cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -203,7 +205,7 @@ class SlurmPosix(QueuedScheduler):
         para_mode = resources.parallel_mode
 
         # select matching partition if possible:
-        all_parts: dict[str, dict] = scheduler_config.get("partitions", {})
+        all_parts = scheduler_config.get("partitions", {})
         if resources.SLURM_partition is not None:
             # check user-specified partition is valid and compatible with requested
             # cores/nodes:
@@ -218,9 +220,9 @@ class SlurmPosix(QueuedScheduler):
             # TODO: we when we support ParallelMode.HYBRID, these checks will have to
             # consider the total number of cores requested per node
             # (num_cores_per_node * num_threads)?
-            part_num_cores = part.get("num_cores")
-            part_num_cores_per_node = part.get("num_cores_per_node")
-            part_num_nodes = part.get("num_nodes")
+            part_num_cores = part.get("num_cores", [])
+            part_num_cores_per_node = part.get("num_cores_per_node", [])
+            part_num_nodes = part.get("num_nodes", [])
             part_para_modes = part.get("parallel_modes", [])
             if (
                 num_cores
@@ -263,9 +265,9 @@ class SlurmPosix(QueuedScheduler):
             part_match = False
             partition_name = ""
             for part_name, part_info in all_parts.items():
-                part_num_cores = part_info.get("num_cores")
-                part_num_cores_per_node = part_info.get("num_cores_per_node")
-                part_num_nodes = part_info.get("num_nodes")
+                part_num_cores = part_info.get("num_cores", [])
+                part_num_cores_per_node = part_info.get("num_cores_per_node", [])
+                part_num_nodes = part_info.get("num_nodes", [])
                 part_para_modes = part_info.get("parallel_modes", [])
                 if (
                     num_cores

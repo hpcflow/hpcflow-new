@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from valida.conditions import ConditionLike  # type: ignore
 from valida.rules import Rule as ValidaRule  # type: ignore
@@ -8,6 +8,7 @@ from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
+    from typing import Any
     from .actions import Action, ElementActionRun
     from .element import ElementIteration
 
@@ -20,7 +21,7 @@ class Rule(JSONLike):
         check_exists: str | None = None,
         check_missing: str | None = None,
         path: str | None = None,
-        condition: Dict | ConditionLike | None = None,
+        condition: dict[str, Any] | ConditionLike | None = None,
         cast: str | None = None,
         doc: str | None = None,
     ):
@@ -30,13 +31,14 @@ class Rule(JSONLike):
                 "(and optional `path`)"
             )
 
-        if isinstance(condition, dict):
-            condition = ConditionLike.from_json_like(condition)
+        if not isinstance(condition, dict):
+            self.condition = condition
+        else:
+            self.condition = ConditionLike.from_json_like(condition)
 
         self.check_exists = check_exists
         self.check_missing = check_missing
         self.path = path
-        self.condition = condition
         self.cast = cast
         self.doc = doc
 

@@ -9,8 +9,9 @@ from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-    from typing import Any, ClassVar, Dict
+    from typing import Any, ClassVar
     from ...app import BaseApp
+    from ...config.config import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
 
 
@@ -18,7 +19,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     app: ClassVar[BaseApp]
 
     @classmethod
-    def process_resources(cls, resources, scheduler_config: Dict) -> None:
+    def process_resources(cls, resources, scheduler_config: SchedulerConfigDescriptor) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.

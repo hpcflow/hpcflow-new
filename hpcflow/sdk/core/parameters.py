@@ -32,7 +32,7 @@ from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from typing import Any, ClassVar, Dict, Literal, NotRequired, Self, TypeAlias
+    from typing import Any, ClassVar, Literal, NotRequired, Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
@@ -71,7 +71,7 @@ class ParameterValue:
         else:
             raise NotImplementedError
 
-    def prepare_JSON_dump(self) -> Dict:
+    def prepare_JSON_dump(self) -> dict[str, Any]:
         raise NotImplementedError
 
     def dump_to_HDF5_group(self, group):
@@ -1473,10 +1473,10 @@ class ResourceSpec(JSONLike):
         use_job_array: bool | None = None,
         max_array_items: int | None = None,
         time_limit: str | timedelta | None = None,
-        scheduler_args: Dict | None = None,
-        shell_args: Dict | None = None,
+        scheduler_args: dict[str, Any] | None = None,
+        shell_args: dict[str, Any] | None = None,
         os_name: str | None = None,
-        environments: Dict | None = None,
+        environments: dict[str,  dict[str, Any]] | None = None,
         SGE_parallel_env: str | None = None,
         SLURM_partition: str | None = None,
         SLURM_num_tasks: str | None = None,

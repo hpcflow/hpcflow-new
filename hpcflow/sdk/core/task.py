@@ -856,7 +856,7 @@ class Task(JSONLike):
 
         obj = copy.deepcopy(self)
         new_refs: list[int] = []
-        source = {"type": "default_input", "task_insert_ID": insert_ID}
+        source: ParamSource = {"type": "default_input", "task_insert_ID": insert_ID}
         for schema in obj.schemas:
             new_refs.extend(schema.make_persistent(workflow, source))
 

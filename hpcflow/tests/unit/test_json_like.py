@@ -89,16 +89,17 @@ def test_BaseJSONLike_child_object_class_namespace_via_obj(null_config):
 
 
 def test_BaseJSONLike_child_object_class_namespace_via_name_and_dict_namespace(
-    BaseJSONLikeSubClass,
+    BaseJSONLikeSubClass: type[BaseJSONLike],
 ):
     """Child object class passed as a name and namespace passed as a dict."""
+    T: type = BaseJSONLikeSubClass  # Workaround for python/mypy#14458
 
     @dataclass
-    class ObjB(BaseJSONLikeSubClass):
+    class ObjB(T):
         c: int
 
     @dataclass
-    class ObjA(BaseJSONLikeSubClass):
+    class ObjA(T):
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -120,16 +121,17 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_dict_namespace(
 
 
 def test_BaseJSONLike_child_object_class_namespace_via_name_and_func_locals(
-    BaseJSONLikeSubClass,
+    BaseJSONLikeSubClass: type[BaseJSONLike],
 ):
     """Child object class passed as a name and namespace passed as function locals."""
+    T: type = BaseJSONLikeSubClass  # Workaround for python/mypy#14458
 
     @dataclass
-    class ObjB(BaseJSONLikeSubClass):
+    class ObjB(T):
         c: int
 
     @dataclass
-    class ObjA(BaseJSONLikeSubClass):
+    class ObjA(T):
         _child_objects = (
             ChildObjectSpec(
                 name="b",
@@ -151,16 +153,17 @@ def test_BaseJSONLike_child_object_class_namespace_via_name_and_func_locals(
 
 
 def test_BaseJSONLike_child_object_class_namespace_via_name_and_SimpleNamespace(
-    BaseJSONLikeSubClass,
+    BaseJSONLikeSubClass: type[BaseJSONLike],
 ):
     """Child object class passed as a name and namespace passed as a SimpleNamespace."""
+    T: type = BaseJSONLikeSubClass  # Workaround for python/mypy#14458
 
     @dataclass
-    class ObjB(BaseJSONLikeSubClass):
+    class ObjB(T):
         c: int
 
     @dataclass
-    class ObjA(BaseJSONLikeSubClass):
+    class ObjA(T):
         _child_objects = (
             ChildObjectSpec(
                 name="b",

@@ -7,7 +7,7 @@ import shutil
 import socket
 import subprocess
 from textwrap import indent
-from typing import TypedDict, overload, TYPE_CHECKING
+from typing import TypedDict, cast, overload, TYPE_CHECKING
 
 import numpy as np
 from hpcflow.sdk.core.actions import EARStatus
@@ -21,8 +21,8 @@ from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.submission.shells import get_shell
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import Any, ClassVar, Dict, List, Literal, NotRequired
-    from numpy.typing import NDArray
+    from typing import Any, ClassVar, Literal, NotRequired
+    from numpy.typing import NDArray, ArrayLike
     from ..app import BaseApp
     from ..core.actions import ElementActionRun
     from ..core.element import ElementResources
@@ -54,7 +54,7 @@ class JobScriptCreationArguments(TypedDict):
     task_elements: dict[int, list[int]]
     EAR_ID: NDArray
     resources: ElementResources
-    task_loop_idx: list[Dict]
+    task_loop_idx: list[dict[str, int]]
     dependencies: dict[int, ResolvedDependencies]
     submit_time: NotRequired[datetime]
     submit_hostname: NotRequired[str]
@@ -133,29 +133,29 @@ def generate_EAR_resource_map(
 
 @TimeIt.decorator
 def group_resource_map_into_jobscripts(
-    resource_map: List | NDArray,
+    resource_map: ArrayLike,
     none_val: Any = -1,
 ) -> tuple[list[JobScriptDescriptor], NDArray]:
-    resource_map = np.asanyarray(resource_map)
-    resource_idx = np.unique(resource_map)
+    resource_map_ = np.asanyarray(resource_map)
+    resource_idx = np.unique(resource_map_)
     jobscripts: list[JobScriptDescriptor] = []
-    allocated = np.zeros_like(resource_map)
-    js_map = np.ones_like(resource_map, dtype=float) * np.nan
-    nones_bool: NDArray = resource_map == none_val
+    allocated = np.zeros_like(resource_map_)
+    js_map = np.ones_like(resource_map_, dtype=float) * np.nan
+    nones_bool: NDArray = resource_map_ == none_val
     stop = False
-    for act_idx in range(resource_map.shape[0]):
+    for act_idx in range(resource_map_.shape[0]):
         for res_i in resource_idx:
             if res_i == none_val:
                 continue
 
-            if res_i not in resource_map[act_idx]:
+            if res_i not in resource_map_[act_idx]:
                 continue
 
-            resource_map[nones_bool] = res_i
-            diff = np.cumsum(np.abs(np.diff(resource_map[act_idx:], axis=0)), axis=0)
+            resource_map_[nones_bool] = res_i
+            diff = np.cumsum(np.abs(np.diff(resource_map_[act_idx:], axis=0)), axis=0)
 
             elem_bool = np.logical_and(
-                resource_map[act_idx] == res_i, allocated[act_idx] == False
+                resource_map_[act_idx] == res_i, allocated[act_idx] == False
             )
             elem_idx = np.where(elem_bool)[0]
             act_elem_bool = np.logical_and(elem_bool, nones_bool[act_idx] == False)
@@ -197,7 +197,7 @@ def group_resource_map_into_jobscripts(
         if stop:
             break
 
-    resource_map[nones_bool] = none_val
+    resource_map_[nones_bool] = none_val
 
     return jobscripts, js_map
 
@@ -375,7 +375,7 @@ class Jobscript(JSONLike):
         task_elements: dict[int, list[int]],
         EAR_ID: NDArray,
         resources: ElementResources,
-        task_loop_idx: list[Dict],
+        task_loop_idx: list[dict[str, int]],
         dependencies: dict[int, ResolvedDependencies],
         submit_time: datetime | None = None,
         submit_hostname: str | None = None,
@@ -502,7 +502,7 @@ class Jobscript(JSONLike):
         return self._resources
 
     @property
-    def task_loop_idx(self) -> list[Dict]:
+    def task_loop_idx(self) -> list[dict[str, int]]:
         return self._task_loop_idx
 
     @property
@@ -841,7 +841,7 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def compose_jobscript(
         self,
-        deps: Dict | None = None,
+        deps: dict[int, tuple[str, bool]] | None = None,
         os_name: str | None = None,
         shell_name: str | None = None,
         os_args: dict[str, Any] | None = None,
@@ -971,11 +971,11 @@ class Jobscript(JSONLike):
         self,
         os_name: str | None = None,
         shell_name: str | None = None,
-        deps: Dict | None = None,
-        os_args: Dict | None = None,
-        shell_args: Dict | None = None,
+        deps: dict[int, tuple[str, bool]] | None = None,
+        os_args: dict[str, Any] | None = None,
+        shell_args: dict[str, Any] | None = None,
         scheduler_name: str | None = None,
-        scheduler_args: Dict | None = None,
+        scheduler_args: dict[str, Any] | None = None,
     ):
         js_str = self.compose_jobscript(
             deps=deps,
@@ -990,20 +990,16 @@ class Jobscript(JSONLike):
             fp.write(js_str)
         return self.jobscript_path
 
-    def _get_EARs_arr(self):
-        EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
-        return EARs_arr
-
     @TimeIt.decorator
     def make_artifact_dirs(self) -> list[list[Path]]:
-        EARs_arr = self._get_EARs_arr()
+        EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
         task_loop_idx_arr = self.get_task_loop_idx_array()
 
         run_dirs: list[list[Path]] = []
         for js_elem_idx in range(self.num_elements):
             run_dirs_i: list[Path] = []
             for js_act_idx in range(self.num_actions):
-                EAR_i = EARs_arr[js_act_idx, js_elem_idx]
+                EAR_i: ElementActionRun = EARs_arr[js_act_idx, js_elem_idx]
                 t_iID = EAR_i.task.insert_ID
                 l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
                 r_idx = EAR_i.index
@@ -1019,7 +1015,7 @@ class Jobscript(JSONLike):
                 EAR_dir.mkdir(exist_ok=True, parents=True)
 
                 # copy (TODO: optionally symlink) any input files:
-                for name, path in EAR_i.get("input_files", {}).items():
+                for name, path in cast('dict[Any, str]', EAR_i.get("input_files", {})).items():
                     if path:
                         shutil.copy(path, EAR_dir)
 
@@ -1101,7 +1097,7 @@ class Jobscript(JSONLike):
     ) -> str:
         # map each dependency jobscript index to the JS ref (job/process ID) and if the
         # dependency is an array dependency:
-        deps = {}
+        deps: dict[int, tuple[str, bool]] = {}
         for js_idx, deps_i in self.dependencies.items():
             dep_js_ref, dep_js_is_arr = scheduler_refs[js_idx]
             # only submit an array dependency if both this jobscript and the dependency

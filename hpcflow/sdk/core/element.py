@@ -6,31 +6,26 @@ from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
-from hpcflow.sdk.core.actions import ElementAction, ElementActionRun
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.task import ElementSet, WorkflowTask
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
     get_enum_by_name_or_val,
     split_param_label,
 )
-from hpcflow.sdk.core.workflow import Workflow
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
-    from typing import Any, ClassVar, Dict, Literal
+    from typing import Any, ClassVar, Literal
     from ..app import BaseApp
     from ..typing import ParamSource
-    from .actions import Action
-    from .task import WorkflowTask
+    from .actions import Action, ElementAction, ElementActionRun
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
+    from .task import WorkflowTask, ElementSet
     from .workflow import Workflow
-    from .actions import ElementAction, ElementActionRun
-    from .task import Parameters
 
 
 class _ElementPrefixedParameter:
@@ -210,10 +205,10 @@ class ElementResources(JSONLike):
     max_array_items: int | None = None
     time_limit: str | None = None
 
-    scheduler_args: Dict | None = None
-    shell_args: Dict | None = None
+    scheduler_args: dict[str, Any] | None = None
+    shell_args: dict[str, Any] | None = None
     os_name: str | None = None
-    environments: Dict | None = None
+    environments: dict[str,  dict[str, Any]] | None = None
 
     # SGE scheduler specific:
     SGE_parallel_env: str | None = None
@@ -381,7 +376,7 @@ class ElementIteration:
         EAR_IDs: dict[int, list[int]],
         EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
         schema_parameters: list[str],
-        loop_idx: Dict,
+        loop_idx: dict[str, int],
     ):
         self._id = id_
         self._is_pending = is_pending
@@ -1098,7 +1093,7 @@ class Element:
         seq_idx: dict[str, int],
         src_idx: dict[str, int],
         iteration_IDs: list[int],
-        iterations: list[Dict],
+        iterations: list[dict[str, Any]],
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
