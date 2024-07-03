@@ -342,9 +342,9 @@ def test_batch_update_abort_if_modified_on_disk(workflow_w1: Workflow, schema_s2
 def test_closest_task_input_source_chosen(null_config, tmp_path: Path):
     wk = make_workflow(
         schemas_spec=[
-            [{"p1": None}, ("p1",), "t1"],
-            [{"p1": None}, ("p1",), "t2"],
-            [{"p1": None}, ("p1",), "t3"],
+            ({"p1": None}, ("p1",), "t1"),
+            ({"p1": None}, ("p1",), "t2"),
+            ({"p1": None}, ("p1",), "t3"),
         ],
         local_inputs={0: ("p1",)},
         path=tmp_path,

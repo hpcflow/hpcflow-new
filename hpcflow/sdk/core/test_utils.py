@@ -2,15 +2,29 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, TypeAlias, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
     from .actions import Action
+    from .element import ElementGroup
+    from .loop import Loop
+    from .object_list import ResourceList
+    from .parameters import InputSource
+    from .task import Task
+    from .task_schema import TaskSchema
+    from .workflow import Workflow, WorkflowTemplate
+    from ..typing import PathLike
 # mypy: disable-error-code="no-untyped-def"
 
-def make_schemas(ins_outs, ret_list=False):
-    out = []
+Strs: TypeAlias = str | tuple[str, ...]
+
+
+def make_schemas(
+    *ins_outs: tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]
+) -> list[TaskSchema]:
+    out: list[TaskSchema] = []
     for idx, info in enumerate(ins_outs):
         if len(info) == 2:
             (ins_i, outs_i) = info
@@ -31,7 +45,7 @@ def make_schemas(ins_outs, ret_list=False):
             out_file_parsers = [
                 hf.OutputFileParser(
                     output=hf.Parameter(out_i),
-                    output_files=[hf.FileSpec(label="file1", name="file1.txt")],
+                    output_files=[hf.FileSpec(label="file1", _name="file1.txt")],
                 )
                 for out_i in outs_i[2:]
             ]
@@ -51,28 +65,26 @@ def make_schemas(ins_outs, ret_list=False):
                 objective=obj,
                 actions=[act_i],
                 inputs=[hf.SchemaInput(k, default_value=v) for k, v in ins_i.items()],
-                outputs=[hf.SchemaOutput(k) for k in outs_i],
+                outputs=[hf.SchemaOutput(hf.Parameter(k)) for k in outs_i],
             )
         )
-    if len(ins_outs) == 1 and not ret_list:
-        out = out[0]
     return out
 
 
-def make_parameters(num):
+def make_parameters(num: int):
     return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
 def make_actions(
-    ins_outs: list[tuple[tuple[Any, ...] | str, str]],
-    env="env1",
+    ins_outs: list[tuple[Strs, str] | tuple[Strs, str, str]],
+    env: str = "env1",
 ) -> list[Action]:
     act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
         if len(ins_outs_i) == 2:
             ins, out = ins_outs_i
-            err = None
+            err: str | None = None
         else:
             ins, out, err = ins_outs_i
         if not isinstance(ins, tuple):
@@ -93,26 +105,26 @@ def make_actions(
 
 
 def make_tasks(
-    schemas_spec,
-    local_inputs=None,
-    local_sequences=None,
-    local_resources=None,
-    nesting_orders=None,
-    input_sources=None,
-    groups=None,
-):
+    schemas_spec: Iterable[tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]],
+    local_inputs: dict[int, Iterable[str]] | None = None,
+    local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
+    local_resources: dict[int, dict[str, dict]] | None = None,
+    nesting_orders: dict[int, dict[str, int]] | None = None,
+    input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
+    groups: dict[int, Iterable[ElementGroup]] | None = None,
+) -> list[Task]:
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
     nesting_orders = nesting_orders or {}
     input_sources = input_sources or {}
     groups = groups or {}
-    schemas = make_schemas(schemas_spec, ret_list=True)
-    tasks = []
+    schemas = make_schemas(*schemas_spec)
+    tasks: list[Task] = []
     for s_idx, s in enumerate(schemas):
         inputs = [
             hf.InputValue(hf.Parameter(i), value=int(i[1:]) * 100)
-            for i in local_inputs.get(s_idx, [])
+            for i in local_inputs.get(s_idx, ())
         ]
         seqs = [
             hf.ValueSequence(
@@ -120,7 +132,7 @@ def make_tasks(
                 values=[(int(i[0].split(".")[1][1:]) * 100) + j for j in range(i[1])],
                 nesting_order=i[2],
             )
-            for i in local_sequences.get(s_idx, [])
+            for i in local_sequences.get(s_idx, ())
         ]
         res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
         task = hf.Task(
@@ -130,27 +142,27 @@ def make_tasks(
             resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
             input_sources=input_sources.get(s_idx, None),
-            groups=groups.get(s_idx),
+            groups=list(groups.get(s_idx, [])),
         )
         tasks.append(task)
     return tasks
 
 
 def make_workflow(
-    schemas_spec,
-    path,
-    local_inputs=None,
-    local_sequences=None,
-    local_resources=None,
-    nesting_orders=None,
-    input_sources=None,
-    resources=None,
-    loops=None,
-    groups=None,
-    name="w1",
-    overwrite=False,
-    store="zarr",
-):
+    schemas_spec: Iterable[tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]],
+    path: PathLike,
+    local_inputs: dict[int, Iterable[str]] | None = None,
+    local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
+    local_resources: dict[int, dict[str, dict]] | None = None,
+    nesting_orders: dict[int, dict[str, int]] | None = None,
+    input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
+    resources: ResourceList | None = None,
+    loops: list[Loop] | None = None,
+    groups: dict[int, Iterable[ElementGroup]] | None = None,
+    name: str = "w1",
+    overwrite: bool = False,
+    store: str = "zarr",
+) -> Workflow:
     tasks = make_tasks(
         schemas_spec,
         local_inputs=local_inputs,
@@ -160,13 +172,12 @@ def make_workflow(
         input_sources=input_sources,
         groups=groups,
     )
-    template = {
+    template: Mapping[str, Any] = {
         "name": name,
         "tasks": tasks,
         "resources": resources,
+        **({"loops": loops} if loops else {})
     }
-    if loops:
-        template["loops"] = loops
     wk = hf.Workflow.from_template(
         hf.WorkflowTemplate(**template),
         path=path,
@@ -177,7 +188,7 @@ def make_workflow(
     return wk
 
 
-def make_test_data_YAML_workflow(workflow_name, path, **kwargs):
+def make_test_data_YAML_workflow(workflow_name, path, **kwargs) -> Workflow:
     """Generate a workflow whose template file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -190,7 +201,7 @@ def make_test_data_YAML_workflow(workflow_name, path, **kwargs):
         return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
 
 
-def make_test_data_YAML_workflow_template(workflow_name, **kwargs):
+def make_test_data_YAML_workflow_template(workflow_name, **kwargs) -> WorkflowTemplate:
     """Generate a workflow template whose file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:

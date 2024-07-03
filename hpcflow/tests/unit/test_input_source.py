@@ -826,7 +826,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_True_multipl
     null_config, tmp_path
 ):
     """Test no-reordering of specified element iterations of sources from the same task."""
-    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
 
     t1 = hf.Task(
         schema=s1,
@@ -869,7 +869,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_False_multip
     null_config, tmp_path
 ):
     """Test reordering of specified element iterations of sources from the same task."""
-    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
 
     t1 = hf.Task(
         schema=s1,
@@ -910,7 +910,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_False_multip
 
 def test_not_allow_non_coincident_task_sources(null_config, tmp_path):
     """Test only one coincident element from the two input sources"""
-    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         inputs={"p1": 1},
@@ -943,7 +943,7 @@ def test_not_allow_non_coincident_task_sources(null_config, tmp_path):
 
 def test_allow_non_coincident_task_sources(null_config, tmp_path):
     """Test can combine inputs from non-coincident element iterations of the same task."""
-    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         sequences=[
@@ -1006,7 +1006,7 @@ def test_input_source_task_input_from_multiple_element_sets_with_param_sequence(
 
 
 def test_raise_no_coincident_input_sources(null_config, tmp_path):
-    s1 = make_schemas([[{"p1": None, "p2": None}, ("p3",), "t1"]])
+    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         inputs={"p1": 100},

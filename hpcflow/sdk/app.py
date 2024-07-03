@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
         ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
-    from .core.environment import NumCores
+    from .core.environment import NumCores, Environment, Executable, ExecutableInstance
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
         CommandFilesList as CommandFilesList_, EnvironmentsList as _EnvironmentsList, ExecutablesList,
@@ -190,11 +190,11 @@ def get_app_attribute(name):
         raise AttributeError(f"module {app_obj.module!r} has no attribute {name!r}.")
 
 
-def get_app_module_all():
+def get_app_module_all() -> list[str]:
     return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
 
 
-def get_app_module_dir():
+def get_app_module_dir() -> Callable[[], list[str]]:
     return lambda: sorted(get_app_module_all())
 
 
@@ -329,7 +329,19 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementFilter(self) -> type[ElementFilter]:
         return self._get_app_core_class("ElementFilter")
-    
+
+    @property
+    def Environment(self) -> type[Environment]:
+        return self._get_app_core_class("Environment")
+
+    @property
+    def Executable(self) -> type[Executable]:
+        return self._get_app_core_class("Executable")
+
+    @property
+    def ExecutableInstance(self) -> type[ExecutableInstance]:
+        return self._get_app_core_class("ExecutableInstance")
+
     @property
     def NumCores(self) -> type[NumCores]:
         return self._get_app_core_class("NumCores")
