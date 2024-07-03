@@ -40,6 +40,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 if TYPE_CHECKING:
     from pathlib import Path
+    from typing import Literal
     from hpcflow.sdk.app import BaseApp
     from hpcflow.sdk.core.workflow import Workflow
     from hpcflow.sdk.submission.jobscript import Jobscript
@@ -86,7 +87,7 @@ def _make_API_CLI(app: BaseApp):
     def make_workflow(
         template_file_or_str: str,
         string: bool,
-        format: str | None,
+        format: Literal['json', 'yaml'] | None,
         path: Path | None,
         name: str | None,
         overwrite: bool,
@@ -138,7 +139,7 @@ def _make_API_CLI(app: BaseApp):
     def make_and_submit_workflow(
         template_file_or_str: str,
         string: bool,
-        format: str | None,
+        format: Literal['json', 'yaml'] | None,
         path: Path | None,
         name: str | None,
         overwrite: bool,

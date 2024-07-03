@@ -661,7 +661,7 @@ class Workflow:
     def from_template(
         cls,
         template: WorkflowTemplate,
-        path: PathLike | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -746,7 +746,7 @@ class Workflow:
     def from_YAML_file(
         cls,
         YAML_path: PathLike,
-        path: str | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -804,7 +804,7 @@ class Workflow:
     def from_YAML_string(
         cls,
         YAML_str: str,
-        path: str | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -862,7 +862,7 @@ class Workflow:
     def from_JSON_file(
         cls,
         JSON_path: PathLike,
-        path: str | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -922,7 +922,7 @@ class Workflow:
     def from_JSON_string(
         cls,
         JSON_str: str,
-        path: str | None = None,
+        path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
@@ -983,7 +983,7 @@ class Workflow:
     def from_file(
         cls,
         template_path: PathLike,
-        template_format: str | None = None,
+        template_format: Literal['json', 'yaml'] | None = None,
         path: str | None = None,
         name: str | None = None,
         overwrite: bool = False,
@@ -1031,7 +1031,7 @@ class Workflow:
         try:
             template = cls.app.WorkflowTemplate.from_file(
                 template_path,
-                cast(Any, template_format),
+                template_format,
                 variables=variables,
             )
         except Exception:

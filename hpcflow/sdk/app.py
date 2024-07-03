@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, List, TypeVar, Generic, NotRequired, TypedDict, cast, TYPE_CHECKING
+from typing import Any, TypeVar, Generic, TypedDict, cast, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -60,12 +60,13 @@ from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
+    from typing import Dict, List, Literal, NotRequired
     from rich.status import Status
     from .core.actions import (
         ElementActionRun, ElementAction, ActionEnvironment,
         Action, ActionScope, ActionScopeType, ActionRule)
     from .core.command_files import (
-        FileSpec, FileNameSpec, InputFileGenerator, FileNameStem, FileNameExt)
+        FileSpec, FileNameSpec, InputFileGenerator, FileNameStem, FileNameExt, OutputFileParser)
     from .core.commands import Command
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
@@ -79,7 +80,7 @@ if TYPE_CHECKING:
         WorkflowTaskList)
     from .core.parameters import (
         SchemaParameter, InputValue, Parameter, ParameterValue, InputSource, ResourceSpec, SchemaOutput,
-        InputSourceType)
+        InputSourceType, ValueSequence, SchemaInput)
     from .core.rule import Rule
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
@@ -370,12 +371,24 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("FileNameExt")
 
     @property
+    def OutputFileParser(self) -> type[OutputFileParser]:
+        return self._get_app_core_class("OutputFileParser")
+
+    @property
     def InputSource(self) -> type[InputSource]:
         return self._get_app_core_class("InputSource")
 
     @property
     def InputSourceType(self) -> type[InputSourceType]:
         return self._get_app_core_class("InputSourceType")
+
+    @property
+    def ValueSequence(self) -> type[ValueSequence]:
+        return self._get_app_core_class("ValueSequence")
+
+    @property
+    def SchemaInput(self) -> type[SchemaInput]:
+        return self._get_app_core_class("SchemaInput")
 
     @property
     def InputFileGenerator(self) -> type[InputFileGenerator]:
@@ -947,7 +960,7 @@ class BaseApp(metaclass=Singleton):
             )
         return scheduler_cls(**scheduler_kwargs)
 
-    def get_OS_supported_schedulers(self) -> List[str]:
+    def get_OS_supported_schedulers(self) -> list[str]:
         """Retrieve a list of schedulers that are supported in principle by this operating
         system.
 
@@ -1608,14 +1621,14 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: PathLike | str,
         is_string: bool = False,
-        template_format: str | None = None,
+        template_format: Literal['json', 'yaml'] | None = None,
         path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         status: bool = True,
     ) -> _Workflow:
@@ -1726,7 +1739,7 @@ class BaseApp(metaclass=Singleton):
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         JS_parallelism: bool | None = None,
         wait: bool = False,
@@ -1827,14 +1840,14 @@ class BaseApp(metaclass=Singleton):
     def _make_demo_workflow(
         self,
         workflow_name: str,
-        template_format: str | None = None,
+        template_format: Literal['json', 'yaml'] | None = None,
         path: PathLike | None = None,
         name: str | None = None,
         overwrite: bool = False,
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         status: bool = True,
     ) -> _Workflow:
@@ -1906,7 +1919,7 @@ class BaseApp(metaclass=Singleton):
         store: str = DEFAULT_STORE_FORMAT,
         ts_fmt: str | None = None,
         ts_name_fmt: str | None = None,
-        store_kwargs: Dict | None = None,
+        store_kwargs: dict[str, Any] | None = None,
         variables: dict[str, str] | None = None,
         JS_parallelism: bool | None = None,
         wait: bool = False,

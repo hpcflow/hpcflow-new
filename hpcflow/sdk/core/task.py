@@ -635,10 +635,10 @@ class Task(JSONLike):
     def __init__(
         self,
         schema: TaskSchema | str | list[TaskSchema] | list[str],
-        repeats: list[RepeatsDescriptor] | None = None,
+        repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         resources: dict[str, dict] | None = None,
-        inputs: list[InputValue] | None = None,
+        inputs: list[InputValue] | dict[str, Any] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
@@ -1545,7 +1545,7 @@ class WorkflowTask:
     def __get_task_group_index(
         self, labelled_path_i: str, inp_src: InputSource,
         padded_elem_iters: dict[str, list], inp_group_name: str | None
-    ) -> None | list[list[int]] | list[int]:
+    ) -> None | list[int]:  # | list[list[int]]
         src_task = inp_src.get_task(self.workflow)
         assert src_task
         src_elem_iters, src_elem_set_idx = self.__get_src_elem_iters(src_task, inp_src)
@@ -1618,6 +1618,7 @@ class WorkflowTask:
                 f"{labelled_path_i!r}."
             )
 
+        raise NotImplementedError("grouped input handling incomplete")
         return [group_dat_idx]  # TODO: generalise to multiple groups
 
     def _make_new_elements_persistent(
@@ -1711,13 +1712,12 @@ class WorkflowTask:
 
             for inp_src_idx, inp_src in enumerate(sources_i):
                 if inp_src.source_type is InputSourceType.TASK:
-                    grp_idx_ = self.__get_task_group_index(
+                    grp_idx = self.__get_task_group_index(
                         labelled_path_i, inp_src, padded_elem_iters, inp_group_name)
-                    if grp_idx_ is None:
+                    if grp_idx is None:
                         continue
-                    if isinstance(grp_idx_[0], list):
+                    if isinstance(grp_idx[0], list):
                         raise NotImplementedError("grouped input handling incomplete")
-                    grp_idx = cast(list[int], grp_idx_)
 
                     if self.app.InputSource.local() in sources_i:
                         # add task source to existing local source:

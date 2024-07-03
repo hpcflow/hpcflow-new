@@ -102,7 +102,7 @@ class TaskSchema(JSONLike):
         method: str | None = None,
         implementation: str | None = None,
         inputs: list[Parameter | SchemaInput] | None = None,
-        outputs: list[Parameter | SchemaOutput | SchemaOutput] | None = None,
+        outputs: list[Parameter | SchemaParameter] | None = None,
         version: str | None = None,
         parameter_class_modules: list[str] | None = None,
         web_doc: bool | None = True,
@@ -632,7 +632,7 @@ class TaskSchema(JSONLike):
         return [cls.app.SchemaInput(i) if isinstance(i, Parameter) else i for i in inputs]
 
     @classmethod
-    def __coerce_outputs(cls, outputs: Iterable[Parameter | SchemaInput | SchemaOutput]
+    def __coerce_outputs(cls, outputs: Iterable[Parameter | SchemaParameter]
                          ) -> list[SchemaOutput]:
         """ coerce Parameters to SchemaOutputs """
         return [o if isinstance(o, SchemaOutput)

@@ -274,7 +274,7 @@ class SchemaInput(SchemaParameter):
         parameter: Parameter | str,
         multiple: bool = False,
         labels: dict[str, LabelInfo] | None = None,
-        default_value: InputValue | NullDefault | None = NullDefault.NULL,
+        default_value: InputValue | Any | NullDefault = NullDefault.NULL,
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
         group: str | None = None,
     ):
@@ -322,13 +322,14 @@ class SchemaInput(SchemaParameter):
         for k, v in self.labels.items():
             labels_defaults_i = copy.deepcopy(labels_defaults)
             if default_value is not NullDefault.NULL:
-                if not isinstance(default_value, InputValue):
-                    default_value = self.app.InputValue(
+                if isinstance(default_value, InputValue):
+                    labels_defaults_i["default_value"] = default_value
+                else:
+                    labels_defaults_i["default_value"] = InputValue(
                         parameter=self.parameter,
                         value=default_value,
                         label=k,
                     )
-                labels_defaults_i["default_value"] = default_value
             label_i: LabelInfo = {**labels_defaults_i, **v}
             if "propagation_mode" in label_i:
                 label_i["propagation_mode"] = get_enum_by_name_or_val(
@@ -536,7 +537,7 @@ class ValueSequence(JSONLike):
         self,
         path: str,
         values: list[Any] | None,
-        nesting_order: int | None = 0,
+        nesting_order: int | float | None = 0,
         label: str | None = None,
         value_class_method: str | None = None,
     ):
@@ -544,7 +545,7 @@ class ValueSequence(JSONLike):
 
         self.path = path
         self.label = label
-        self.nesting_order = nesting_order
+        self.nesting_order = int(nesting_order or 0)
         self.value_class_method = value_class_method
 
         if values is not None:
