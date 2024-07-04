@@ -70,7 +70,8 @@ if TYPE_CHECKING:
     from .core.commands import Command
     from .core.element import (
         ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
-        ElementIteration, Element, ElementParameter, ElementResources, ElementFilter)
+        ElementIteration, Element, ElementParameter, ElementResources, ElementFilter,
+        ElementGroup)
     from .core.environment import NumCores, Environment, Executable, ExecutableInstance
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
@@ -329,6 +330,10 @@ class BaseApp(metaclass=Singleton):
     @property
     def ElementFilter(self) -> type[ElementFilter]:
         return self._get_app_core_class("ElementFilter")
+
+    @property
+    def ElementGroup(self) -> type[ElementGroup]:
+        return self._get_app_core_class("ElementGroup")
 
     @property
     def Environment(self) -> type[Environment]:
