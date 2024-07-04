@@ -669,13 +669,13 @@ def test_expected_element_input_parameter_value_class_method_merge_sequence(
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
 def test_upstream_input_source_merge_with_current_input_modification(
-    null_config, tmp_path: Path, store: str
+    null_config, tmp_path: Path, store: str, param_p2: Parameter
 ):
     s1 = hf.TaskSchema(
-        objective="t1", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+        objective="t1", inputs=[hf.SchemaInput(parameter=param_p2)]
     )
     s2 = hf.TaskSchema(
-        objective="t2", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+        objective="t2", inputs=[hf.SchemaInput(parameter=param_p2)]
     )
     tasks = [
         hf.Task(schema=s1, inputs=[hf.InputValue("p2", {"a": 101})]),
@@ -693,12 +693,12 @@ def test_upstream_input_source_merge_with_current_input_modification(
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_upstream_input_source_with_sub_parameter(null_config, tmp_path: Path, store: str):
+def test_upstream_input_source_with_sub_parameter(null_config, tmp_path: Path, store: str, param_p2: Parameter):
     s1 = hf.TaskSchema(
-        objective="t1", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+        objective="t1", inputs=[hf.SchemaInput(parameter=param_p2)]
     )
     s2 = hf.TaskSchema(
-        objective="t2", inputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))]
+        objective="t2", inputs=[hf.SchemaInput(parameter=param_p2)]
     )
     tasks = [
         hf.Task(

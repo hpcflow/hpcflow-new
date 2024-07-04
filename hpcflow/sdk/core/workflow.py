@@ -25,6 +25,7 @@ from hpcflow.sdk.core import (
 )
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
+from hpcflow.sdk.core.object_list import ResourceList
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
@@ -69,8 +70,8 @@ if TYPE_CHECKING:
     from .element import Element, ElementIteration
     from .loop import Loop, WorkflowLoop
     from .object_list import (
-        WorkflowTaskList, WorkflowLoopList, ResourceList, ObjectList)
-    from .parameters import InputSource
+        WorkflowTaskList, WorkflowLoopList, ResourceList, ObjectList, Resources)
+    from .parameters import InputSource, ResourceSpec
     from .task import Task, WorkflowTask
     from ..submission.submission import Submission
     from ..submission.jobscript import Jobscript, JobScriptCreationArguments
@@ -203,7 +204,7 @@ class WorkflowTemplate(JSONLike):
     tasks: list[Task] = field(default_factory=list)
     loops: list[Loop] = field(default_factory=list)
     workflow: Workflow | None = None
-    resources: ResourceList | None = None
+    resources: Resources = None
     environments: dict[str, dict[str, Any]] | None = None
     env_presets: str | list[str] | None = None
     source_file: str | None = field(default=None, compare=False)
@@ -212,7 +213,8 @@ class WorkflowTemplate(JSONLike):
     merge_envs: bool = True
 
     def __post_init__(self) -> None:
-        self.resources = self.app.ResourceList.normalise(self.resources)
+        resources = self.app.ResourceList.normalise(self.resources)
+        self.resources = resources
         self._set_parent_refs()
 
         # merge template-level `resources` into task element set resources (this mutates
@@ -221,7 +223,7 @@ class WorkflowTemplate(JSONLike):
         if self.merge_resources:
             for task in self.tasks:
                 for element_set in task.element_sets:
-                    element_set.resources.merge_other(self.resources)
+                    element_set.resources.merge_other(resources)
             self.merge_resources = False
 
         if self.merge_envs:
@@ -229,6 +231,13 @@ class WorkflowTemplate(JSONLike):
 
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
+
+    def _get_resources_copy(self) -> ResourceList:
+        """
+        Get a deep copy of the list of resources.
+        """
+        assert isinstance(self.resources, ResourceList)
+        return copy.deepcopy(self.resources)
 
     def _merge_envs_into_task_resources(self) -> None:
         self.merge_envs = False
@@ -1057,7 +1066,7 @@ class Workflow:
         template_name: str,
         tasks: list[Task] | None = None,
         loops: list[Loop] | None = None,
-        resources: dict[str, dict[str, Any]] | None = None,
+        resources: Resources = None,
         path: PathLike | None = None,
         workflow_name: str | None = None,
         overwrite: bool = False,
@@ -1107,8 +1116,7 @@ class Workflow:
             template_name,
             tasks=tasks or [],
             loops=loops or [],
-            resources=(None if resources is None else
-                       cls.app.ResourceList.normalise(resources)),
+            resources=resources,
         )
         return cls.from_template(
             template,
@@ -1734,8 +1742,7 @@ class Workflow:
         # make template-level inputs/resources think they are persistent:
         wk_dummy = cast(Workflow, _DummyPersistentWorkflow())
         param_src: ParamSource = {"type": "workflow_resources"}
-        assert isinstance(template.resources, ResourceList)
-        for res_i in copy.deepcopy(template.resources):
+        for res_i in template._get_resources_copy():
             res_i.make_persistent(wk_dummy, param_src)
 
         template_js_, template_sh = template.to_json_like(exclude={"tasks", "loops"})

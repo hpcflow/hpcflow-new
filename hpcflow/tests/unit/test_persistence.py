@@ -1,47 +1,52 @@
+from __future__ import annotations
 from importlib import resources
+from pathlib import Path
 import pytest
 from hpcflow.sdk.core.test_utils import make_test_data_YAML_workflow
-from hpcflow.sdk.persistence.base import StoreEAR, StoreElement, StoreElementIter
-from hpcflow.sdk.persistence.json import JSONPersistentStore
-
+from hpcflow.sdk.persistence.json import (
+    JSONPersistentStore, JsonStoreElement, JsonStoreElementIter, JsonStoreEAR)
 from hpcflow.app import app as hf
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_store_pending_add_task(tmp_path):
+def test_store_pending_add_task(tmp_path: Path):
     """Check expected pending state after adding a task."""
 
     # make store: 0 tasks:
-    store = JSONPersistentStore.make_test_store_from_spec([], dir=tmp_path)
+    store = JSONPersistentStore.make_test_store_from_spec(hf, [], dir=tmp_path)
     task_ID = store.add_task()
     assert store._pending.add_tasks == {task_ID: []}
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_store_pending_add_element(tmp_path):
+def test_store_pending_add_element(tmp_path: Path):
     """Check expected pending state after adding an element."""
 
     # make store: 1 task with 0 elements:
     store = JSONPersistentStore.make_test_store_from_spec(app=hf, spec=[{}], dir=tmp_path)
     elem_ID = store.add_element(task_ID=0)
     assert store._pending.add_elements == {
-        elem_ID: StoreElement(
+        elem_ID: JsonStoreElement(
             id_=elem_ID,
             is_pending=True,
-            element_idx=0,
+            es_idx=0,
             task_ID=0,
             iteration_IDs=[],
+            index=0,
+            seq_idx={},
+            src_idx={}
         )
     } and store._pending.add_task_element_IDs == {0: [0]}
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
 @pytest.mark.parametrize("elem_ID", [0, 1])
-def test_store_pending_add_element_iter(tmp_path, elem_ID):
+def test_store_pending_add_element_iter(tmp_path: Path, elem_ID: int):
     """Check expected pending state after adding an element iteration."""
 
     # make store: 1 task with 2 elements and 0 iterations:
     store = JSONPersistentStore.make_test_store_from_spec(
+        hf,
         [{"elements": [{}, {}]}],
         dir=tmp_path,
     )
@@ -51,23 +56,25 @@ def test_store_pending_add_element_iter(tmp_path, elem_ID):
         schema_parameters=[],
     )
     assert store._pending.add_elem_iters == {
-        iter_ID: StoreElementIter(
+        iter_ID: JsonStoreElementIter(
             id_=iter_ID,
             is_pending=True,
             element_ID=elem_ID,
             EAR_IDs={},
             data_idx={},
             schema_parameters=[],
+            EARs_initialised=False
         )
     } and store._pending.add_elem_iter_IDs == {elem_ID: [iter_ID]}
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_store_pending_add_EAR(tmp_path):
+def test_store_pending_add_EAR(tmp_path: Path):
     """Check expected pending state after adding an EAR."""
 
     # make store: 1 task with 1 element and 1 iteration:
     store = JSONPersistentStore.make_test_store_from_spec(
+        hf,
         [{"elements": [{"iterations": [{}]}]}],
         dir=tmp_path,
     )
@@ -79,7 +86,7 @@ def test_store_pending_add_EAR(tmp_path):
         metadata={},
     )
     assert store._pending.add_EARs == {
-        EAR_ID: StoreEAR(
+        EAR_ID: JsonStoreEAR(
             id_=EAR_ID,
             is_pending=True,
             elem_iter_ID=0,
@@ -92,21 +99,21 @@ def test_store_pending_add_EAR(tmp_path):
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_get_task_elements_task_is_pending(tmp_path):
+def test_get_task_elements_task_is_pending(tmp_path: Path):
     """Check we get an empty list when getting all task elements of a pending task to
     which no elements have been added."""
     # make store: 0 tasks:
-    store = JSONPersistentStore.make_test_store_from_spec([], dir=tmp_path)
+    store = JSONPersistentStore.make_test_store_from_spec(hf, [], dir=tmp_path)
     task_ID = store.add_task()
     assert store.get_task_elements(task_ID, slice(0, None)) == []
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_get_task_elements_single_element_is_pending(tmp_path):
+def test_get_task_elements_single_element_is_pending(tmp_path: Path):
     """Check expected return when getting all task elements of a persistent task that has
     a single pending element."""
     # make store: 1 task
-    store = JSONPersistentStore.make_test_store_from_spec([{}], dir=tmp_path)
+    store = JSONPersistentStore.make_test_store_from_spec(hf, [{}], dir=tmp_path)
     store.add_element(task_ID=0)
     assert store.get_task_elements(0, slice(0, None)) == [
         {
@@ -121,12 +128,12 @@ def test_get_task_elements_single_element_is_pending(tmp_path):
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_get_task_elements_multi_element_one_pending(tmp_path):
+def test_get_task_elements_multi_element_one_pending(tmp_path: Path):
     """Check expected return when getting all task elements of a persistent task that has
     a persistent element and a pending element."""
     # make store: 1 task with 1 element:
     store = JSONPersistentStore.make_test_store_from_spec(
-        [{"elements": [{}]}], dir=tmp_path
+        hf, [{"elements": [{}]}], dir=tmp_path
     )
     store.add_element(task_ID=0)
     assert store.get_task_elements(0, slice(0, None)) == [
@@ -150,12 +157,12 @@ def test_get_task_elements_multi_element_one_pending(tmp_path):
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_get_task_elements_single_element_iter_pending(tmp_path):
+def test_get_task_elements_single_element_iter_pending(tmp_path: Path):
     """Check expected return when getting all task elements of a persistent task that has
     a persistent element with a pending iteration."""
     # make store: 1 task with 1 element:
     store = JSONPersistentStore.make_test_store_from_spec(
-        [{"elements": [{}]}], dir=tmp_path
+        hf, [{"elements": [{}]}], dir=tmp_path
     )
     store.add_element_iteration(element_ID=0, data_idx={}, schema_parameters=[])
     assert store.get_task_elements(0, slice(0, None)) == [
@@ -181,12 +188,12 @@ def test_get_task_elements_single_element_iter_pending(tmp_path):
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
-def test_get_task_elements_single_element_iter_EAR_pending(tmp_path):
+def test_get_task_elements_single_element_iter_EAR_pending(tmp_path: Path):
     """Check expected return when getting all task elements of a persistent task that has
     a persistent element with a persistent iteration and a pending EAR"""
     # make store: 1 task with 1 element with 1 iteration:
     store = JSONPersistentStore.make_test_store_from_spec(
-        [{"elements": [{"iterations": [{}]}]}], dir=tmp_path
+        hf, [{"elements": [{"iterations": [{}]}]}], dir=tmp_path
     )
     store.add_EAR(elem_iter_ID=0, action_idx=0, commands_idx=[], data_idx={}, metadata={})
     assert store.get_task_elements(0, slice(0, None)) == [
@@ -223,7 +230,7 @@ def test_get_task_elements_single_element_iter_EAR_pending(tmp_path):
     ]
 
 
-def test_make_zarr_store_zstd_compressor(null_config, tmp_path):
+def test_make_zarr_store_zstd_compressor(null_config, tmp_path: Path):
     wk = make_test_data_YAML_workflow(
         workflow_name="workflow_1.yaml",
         path=tmp_path,
@@ -232,7 +239,7 @@ def test_make_zarr_store_zstd_compressor(null_config, tmp_path):
     )
 
 
-def test_make_zarr_store_no_compressor(null_config, tmp_path):
+def test_make_zarr_store_no_compressor(null_config, tmp_path: Path):
     wk = make_test_data_YAML_workflow(
         workflow_name="workflow_1.yaml",
         path=tmp_path,

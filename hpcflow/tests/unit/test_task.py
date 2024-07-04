@@ -469,7 +469,7 @@ def test_task_get_available_task_input_sources_one_parameter_extravaganza(
 def test_task_input_sources_output_label(null_config, tmp_path: Path):
     ts1 = hf.TaskSchema(
         objective="t1",
-        outputs=[hf.SchemaOutput(hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput("p1")],
         actions=[
             hf.Action(
                 commands=[
@@ -501,7 +501,7 @@ def test_task_input_sources_output_label_filtered(null_config, tmp_path: Path):
     ts1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput("p1")],
-        outputs=[hf.SchemaOutput(hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput("p1")],
         actions=[
             hf.Action(
                 commands=[
@@ -2413,7 +2413,7 @@ def test_group_values_input_and_output_source_from_upstream(null_config, tmp_pat
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput("p0")],
-        outputs=[hf.SchemaOutput(hf.Parameter("p1"))],
+        outputs=[hf.SchemaOutput("p1")],
         actions=[
             hf.Action(
                 commands=[
@@ -2428,7 +2428,7 @@ def test_group_values_input_and_output_source_from_upstream(null_config, tmp_pat
     s2 = hf.TaskSchema(
         objective="t2",
         inputs=[hf.SchemaInput("p1")],
-        outputs=[hf.SchemaOutput(hf.Parameter("p2"))],
+        outputs=[hf.SchemaOutput("p2")],
         actions=[
             hf.Action(
                 commands=[

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TypedDict, TYPE_CHECKING
 
 from valida.conditions import ConditionLike  # type: ignore
 from valida.rules import Rule as ValidaRule  # type: ignore
@@ -8,9 +8,21 @@ from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, NotRequired
     from .actions import Action, ElementActionRun
     from .element import ElementIteration
+
+
+class RuleArgs(TypedDict):
+    """
+    The keyword arguments that may be used to create a Rule.
+    """
+    check_exists: NotRequired[str]
+    check_missing: NotRequired[str]
+    path: NotRequired[str]
+    condition: NotRequired[dict[str, Any] | ConditionLike]
+    cast: NotRequired[str]
+    doc: NotRequired[str]
 
 
 class Rule(JSONLike):

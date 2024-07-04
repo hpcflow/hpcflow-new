@@ -2,6 +2,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import os
+from types import NoneType
 from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import Action, ElementAction, ElementActionRun
+    from .object_list import ResourceList
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
     from .task import WorkflowTask, ElementSet
     from .workflow import Workflow
@@ -996,10 +998,12 @@ class ElementIteration:
 
     def get_template_resources(self) -> dict[str, Any]:
         """Get template-level resources."""
-        out: dict[str, Any] = {}
-        for res_i in self.workflow.template.resources or ():
-            out[res_i.normalised_resources_path] = res_i._get_value()
-        return out
+        res = self.workflow.template.resources
+        assert isinstance(res, (ResourceList, NoneType))
+        return {
+            res_i.normalised_resources_path: res_i._get_value()
+            for res_i in res or ()
+        }
 
     @TimeIt.decorator
     def get_resources(
@@ -1025,35 +1029,30 @@ class ElementIteration:
         # question is perhaps "what would the resources be if this action were to become
         # an EAR?" which would then allow us to test a resources-based action rule.
 
-        resource_specs: dict[str, Any] = copy.deepcopy(self.get("resources"))
+        # FIXME: Use a TypedDict?
+        resource_specs: dict[str, dict[str, dict[str, Any]]] = copy.deepcopy(self.get("resources"))
 
         env_spec = action.get_environment_spec()
-        env_name = env_spec["name"]
+        env_name: str = env_spec["name"]
 
         # set default env specifiers, if none set:
-        if "any" not in resource_specs:
-            resource_specs["any"] = {}
-        if "environments" not in resource_specs["any"]:
+        if "environments" not in resource_specs.setdefault("any", {}):
             resource_specs["any"]["environments"] = {env_name: copy.deepcopy(env_spec)}
 
-        for scope, dat in resource_specs.items():
+        for dat in resource_specs.values():
             if "environments" in dat:
                 # keep only relevant user-provided environment specifiers:
-                resource_specs[scope]["environments"] = {
+                dat["environments"] = {
                     k: v for k, v in dat["environments"].items() if k == env_name
                 }
                 # merge user-provided specifiers into action specifiers:
-                resource_specs[scope]["environments"][env_name] = {
-                    **resource_specs[scope]["environments"].get(env_name, {}),
-                    **copy.deepcopy(env_spec),
-                }
+                dat["environments"].setdefault(env_name, {}).update(copy.deepcopy(env_spec))
 
         resources: dict[str, Any] = {}
         for scope_v in action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:
-            scope_s = scope_v.to_string()
-            scope_res = resource_specs.get(scope_s, {})
-            resources.update({k: v for k, v in scope_res.items() if v is not None})
+            scope_res = resource_specs.get(scope_v.to_string(), {})
+            resources.update((k, v) for k, v in scope_res.items() if v is not None)
 
         if set_defaults:
             # used in e.g. `Rule.test` if testing resource rules on element iterations:

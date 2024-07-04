@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Sequence
 import copy
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -31,12 +32,13 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
     from typing import Any, ClassVar, Literal, NotRequired, Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
     from .object_list import ResourceList
+    from .rule import RuleArgs
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .workflow import Workflow
 
@@ -505,7 +507,17 @@ class SchemaOutput(SchemaParameter):
     """A Parameter as outputted from particular task."""
 
     parameter: Parameter
-    propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
+    propagation_mode: ParameterPropagationMode
+
+    def __init__(
+        self, parameter: Parameter | str,
+        propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
+    ):
+        if isinstance(parameter, str):
+            self.parameter: Parameter = Parameter(typ=parameter)
+        else:
+            self.parameter = parameter
+        self.propagation_mode = propagation_mode
 
     @property
     def input_or_output(self) -> str:
@@ -1241,7 +1253,7 @@ class InputValue(AbstractInputValue):
         self,
         parameter: Parameter | SchemaInput | str,
         value: Any | None = None,
-        label: str | None = None,
+        label: str | Any = None,
         value_class_method: str | None = None,
         path: str | None = None,
         _check_obj: bool = True,
@@ -1405,6 +1417,34 @@ class InputValue(AbstractInputValue):
             return val
         else:
             return self._value
+
+
+class ResourceSpecArgs(TypedDict):
+    """
+    Supported keyword arguments for a ResourceSpec.
+    """
+    scope: NotRequired[ActionScope | str]
+    scratch: NotRequired[str]
+    parallel_mode: NotRequired[str | ParallelMode]
+    num_cores: NotRequired[int]
+    num_cores_per_node: NotRequired[int]
+    num_threads: NotRequired[int]
+    num_nodes: NotRequired[int]
+    scheduler: NotRequired[str]
+    shell: NotRequired[str]
+    use_job_array: NotRequired[bool]
+    max_array_items: NotRequired[int]
+    time_limit: NotRequired[str | timedelta]
+    scheduler_args: NotRequired[dict[str, Any]]
+    shell_args: NotRequired[dict[str, Any]]
+    os_name: NotRequired[str]
+    environments: NotRequired[dict[str,  dict[str, Any]]]
+    SGE_parallel_env: NotRequired[str]
+    SLURM_partition: NotRequired[str]
+    SLURM_num_tasks: NotRequired[str]
+    SLURM_num_tasks_per_node: NotRequired[str]
+    SLURM_num_nodes: NotRequired[str]
+    SLURM_num_cpus_per_task: NotRequired[str]
 
 
 class ResourceSpec(JSONLike):
@@ -1821,7 +1861,7 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
-_Where: TypeAlias = dict[str, Any] | Rule | list[dict[str, Any]] | list[Rule] | ElementFilter
+_Where: TypeAlias = RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter
 
 
 class InputSource(JSONLike):
@@ -1850,7 +1890,7 @@ class InputSource(JSONLike):
         else:
             self.where = self.app.ElementFilter(rules=[
                 rule if isinstance(rule, Rule) else Rule(**rule)
-                for rule in (where if isinstance(where, list) else [where])])
+                for rule in (where if isinstance(where, Sequence) else [where])])
 
         self.source_type = get_enum_by_name_or_val(InputSourceType, source_type)
         self.import_ref = import_ref

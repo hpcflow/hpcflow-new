@@ -24,7 +24,8 @@ from .errors import (
     ConfigValidationError,
 )
 if TYPE_CHECKING:
-    from typing import Any, Dict, Literal, TypeAlias, TypeVar
+    from typing import Any, Dict, TypeAlias, TypeVar
+    from ..typing import PathLike
     from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
 
     ConfigDict: TypeAlias = dict[str, dict[str, DefaultConfiguration]]
@@ -80,7 +81,7 @@ class ConfigFile:
     def select_invocation(
         configs: dict[str, Any],
         run_time_info: Dict,
-        path: Path,
+        path: PathLike,
         config_key: str | None = None,
     ) -> str:
         """Select a matching configuration for this invocation using run-time info."""

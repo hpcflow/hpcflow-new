@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from .actions import Action
     from .element import ElementGroup
     from .loop import Loop
-    from .object_list import ResourceList
+    from .object_list import Resources
     from .parameters import InputSource
     from .task import Task
     from .task_schema import TaskSchema
@@ -156,7 +156,7 @@ def make_workflow(
     local_resources: dict[int, dict[str, dict]] | None = None,
     nesting_orders: dict[int, dict[str, int]] | None = None,
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
-    resources: ResourceList | None = None,
+    resources: Resources = None,
     loops: list[Loop] | None = None,
     groups: dict[int, Iterable[ElementGroup]] | None = None,
     name: str = "w1",
@@ -188,7 +188,7 @@ def make_workflow(
     return wk
 
 
-def make_test_data_YAML_workflow(workflow_name, path, **kwargs) -> Workflow:
+def make_test_data_YAML_workflow(workflow_name: str, path: PathLike, **kwargs) -> Workflow:
     """Generate a workflow whose template file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -201,7 +201,7 @@ def make_test_data_YAML_workflow(workflow_name, path, **kwargs) -> Workflow:
         return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
 
 
-def make_test_data_YAML_workflow_template(workflow_name, **kwargs) -> WorkflowTemplate:
+def make_test_data_YAML_workflow_template(workflow_name: str, **kwargs) -> WorkflowTemplate:
     """Generate a workflow template whose file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:

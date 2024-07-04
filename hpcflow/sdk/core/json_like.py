@@ -146,7 +146,7 @@ def to_json_like(obj: JSONable, shared_data: _JSONDeserState = None, parent_refs
 class ChildObjectSpec:
     name: str
     class_name: str | None = None
-    class_obj: type[enum.Enum | JSONLike] | None = None
+    class_obj: type[enum.Enum | BaseJSONLike] | None = None
     # TODO: no need for class_obj/class_name if shared data?
     json_like_name: str | None = None
     is_multiple: bool | None = False
@@ -252,7 +252,7 @@ class BaseJSONLike:
         cls, child_obj_spec: ChildObjectSpec
     ) -> type[enum.Enum | JSONLike] | None:
         if child_obj_spec.class_obj:
-            return child_obj_spec.class_obj
+            return cast(type[enum.Enum | JSONLike], child_obj_spec.class_obj)
         elif child_obj_spec.class_name:
             ns = cls._class_namespace()
             if isinstance(ns, dict):

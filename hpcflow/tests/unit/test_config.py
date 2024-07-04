@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import pytest
 
@@ -5,7 +6,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.config.errors import ConfigFileValidationError, ConfigItemCallbackError
 
 
-def test_reset_config(new_null_config):
+def test_reset_config(new_null_config) -> None:
     cfg_dir = hf.config.config_directory
     machine_name = hf.config.machine
     new_machine_name = machine_name + "123"
@@ -15,7 +16,7 @@ def test_reset_config(new_null_config):
     assert hf.config.machine == machine_name
 
 
-def test_raise_on_invalid_config_file(new_null_config):
+def test_raise_on_invalid_config_file(new_null_config) -> None:
     # make an invalid config file:
     cfg_path = hf.config.config_file_path
     with cfg_path.open("at+") as f:
@@ -29,7 +30,7 @@ def test_raise_on_invalid_config_file(new_null_config):
     hf.unload_config()
 
 
-def test_reset_invalid_config(new_null_config):
+def test_reset_invalid_config(new_null_config) -> None:
     # make an invalid config file:
     cfg_path = hf.config.config_file_path
     with cfg_path.open("at+") as f:
@@ -41,19 +42,19 @@ def test_reset_invalid_config(new_null_config):
     hf.unload_config()
 
 
-def test_raise_on_set_default_scheduler_not_in_schedulers_list_invalid_name(null_config):
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_invalid_name(null_config) -> None:
     new_default = "invalid-scheduler"
     with pytest.raises(ConfigItemCallbackError):
         hf.config.default_scheduler = new_default
 
 
-def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name(null_config):
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name(null_config) -> None:
     new_default = "slurm"  # valid but unsupported (by default) scheduler
     with pytest.raises(ConfigItemCallbackError):
         hf.config.default_scheduler = new_default
 
 
-def test_without_callbacks_ctx_manager(null_config):
+def test_without_callbacks_ctx_manager(null_config) -> None:
     # set a new shell that would raise an error in the `callback_supported_shells`:
     new_default = "bash" if os.name == "nt" else "powershell"
 

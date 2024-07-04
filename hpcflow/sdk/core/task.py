@@ -7,12 +7,10 @@ from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
-from hpcflow.sdk.core.parameters import SchemaInput
-from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.element import Element, ElementGroup, ElementIteration
+from hpcflow.sdk.core.element import ElementGroup
 from hpcflow.sdk.core.errors import (
     ContainerKeyError,
     ExtraInputs,
@@ -51,8 +49,10 @@ if TYPE_CHECKING:
     from .actions import Action
     from .command_files import InputFile
     from .element import Element, ElementIteration, ElementFilter, ElementParameter
-    from .parameters import InputValue, InputSource, ValueSequence, SchemaOutput, ParameterPath
-    from .task_schema import TaskObjective
+    from .object_list import Resources
+    from .parameters import (
+        InputValue, InputSource, ValueSequence, SchemaInput, SchemaOutput, ParameterPath)
+    from .task_schema import TaskObjective, TaskSchema
     from .workflow import Workflow, WorkflowTemplate
     from ..persistence.base import StoreParameter
 
@@ -87,7 +87,7 @@ if TYPE_CHECKING:
         is_multi: bool
 
 
-INPUT_SOURCE_TYPES = ["local", "default", "task", "import"]
+INPUT_SOURCE_TYPES = ("local", "default", "task", "import")
 
 
 @dataclass
@@ -169,7 +169,7 @@ class ElementSet(JSONLike):
         inputs: list[InputValue] | dict[str, Any] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
-        resources: dict[str, dict] | list | None = None,
+        resources: Resources = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
@@ -210,7 +210,7 @@ class ElementSet(JSONLike):
         self.sourceable_elem_iters = sourceable_elem_iters
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
         self.merge_envs = merge_envs
-        self.original_input_sources: dict | None = None
+        self.original_input_sources: dict[str, list[InputSource]] | None = None
         self.original_nesting_order: dict[str, int] | None = None
 
         self._validate()
@@ -415,7 +415,7 @@ class ElementSet(JSONLike):
         inputs: list[InputValue] | dict[str, Any] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
-        resources: dict[str, dict] | list | None = None,
+        resources: Resources = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
@@ -637,7 +637,7 @@ class Task(JSONLike):
         schema: TaskSchema | str | list[TaskSchema] | list[str],
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
-        resources: dict[str, dict] | None = None,
+        resources: Resources = None,
         inputs: list[InputValue] | dict[str, Any] | None = None,
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
@@ -694,7 +694,7 @@ class Task(JSONLike):
                     continue
                 except KeyError:
                     raise KeyError(f"TaskSchema {i!r} not found.")
-            elif not isinstance(i, TaskSchema):
+            elif not isinstance(i, self.app.TaskSchema):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
@@ -878,7 +878,7 @@ class Task(JSONLike):
                 for schema_i in self.schemas:
                     for inp_j in schema_i.inputs:
                         if inp_j.typ == seq.input_type:
-                            assert isinstance(inp_j, SchemaInput)
+                            assert isinstance(inp_j, self.app.SchemaInput)
                             seq._parameter = inp_j.parameter
 
     def _validate(self) -> None:

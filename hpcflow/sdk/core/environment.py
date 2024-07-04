@@ -36,8 +36,8 @@ class NumCores(JSONLike):
 @dataclass
 class ExecutableInstance(JSONLike):
     app: ClassVar[BaseApp]
-    parallel_mode: str
-    num_cores: NumCores
+    parallel_mode: str | None
+    num_cores: NumCores | int
     command: str
 
     def __post_init__(self) -> None:
@@ -60,6 +60,9 @@ class ExecutableInstance(JSONLike):
     @classmethod
     def from_spec(cls, spec) -> ExecutableInstance:
         return cls(**spec)
+    
+    def _get_num_cores(self) -> NumCores:
+        return cast(NumCores, self.num_cores)
 
 
 class Executable(JSONLike):
@@ -103,7 +106,7 @@ class Executable(JSONLike):
         out: list[ExecutableInstance] = []
         for i in self.instances:
             if parallel_mode is None or i.parallel_mode == parallel_mode:
-                if num_cores is None or num_cores in i.num_cores:
+                if num_cores is None or num_cores in i._get_num_cores():
                     out.append(i)
         return out
 

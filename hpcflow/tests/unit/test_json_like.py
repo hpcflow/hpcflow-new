@@ -11,6 +11,10 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.core.json_like import BaseJSONLike, ChildObjectSpec
 from hpcflow.sdk.core.object_list import ObjectList
 
+# BE AWARE THAT MYPY CANNOT CORRECTLY TYPE-CHECK THIS FILE AT ALL.
+# It fails massively due to all the classes inside functions being passed to other functions.
+# Omitting the types makes it ignore them all, which us for the best.
+
 
 @pytest.fixture
 def null_config(tmp_path):

@@ -9,14 +9,14 @@ from hpcflow.sdk.core.task import ElementSet
 from hpcflow.sdk.core.workflow import WorkflowTemplate
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import Any, ClassVar, Self, Literal
+    from typing import Any, ClassVar, Self, Literal, TypeAlias
     from zarr import Group  # type: ignore
     from ..app import BaseApp
     from .actions import ActionScope
     from .command_files import FileSpec
     from .environment import Environment, Executable
     from .loop import WorkflowLoop
-    from .parameters import Parameter, ResourceSpec
+    from .parameters import Parameter, ResourceSpec, ResourceSpecArgs
     from .task import Task, TaskTemplate, TaskSchema, WorkflowTask
 
 T = TypeVar("T")
@@ -585,6 +585,11 @@ class WorkflowLoopList(DotAccessObjectList[WorkflowLoop]):
         self._objects.pop(index)
 
 
+# The type of things we can normalise to a ResourceList
+Resources: TypeAlias = (
+    ResourceSpec | 'ResourceList' | None | ResourceSpecArgs | dict | Sequence[ResourceSpec | ResourceSpecArgs | dict])
+
+
 class ResourceList(ObjectList[ResourceSpec]):
     _app: ClassVar[BaseApp]
     _app_attr = "_app"
@@ -640,9 +645,7 @@ class ResourceList(ObjectList[ResourceSpec]):
         return as_dict, shared_data
 
     @classmethod
-    def normalise(
-        cls, resources: ResourceSpec | ResourceList | None | dict | list[ResourceSpec | dict]
-    ) -> Self:
+    def normalise(cls, resources: Resources) -> Self:
         """Generate from resource-specs specified in potentially several ways."""
 
         if not resources:
@@ -651,8 +654,10 @@ class ResourceList(ObjectList[ResourceSpec]):
             # Already a ResourceList
             return cast(Self, resources)
         elif isinstance(resources, dict):
-            return cls.from_json_like(resources)
-        elif isinstance(resources, list):
+            return cls.from_json_like(cast(dict, resources))
+        elif isinstance(resources, ResourceSpec):
+            return cls([resources])
+        elif isinstance(resources, Sequence):
             def _ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
                 # for any resources that are persistent, if they have a
                 # `_resource_list` attribute, this means they are sourced from some
@@ -666,7 +671,7 @@ class ResourceList(ObjectList[ResourceSpec]):
             res_list: list[ResourceSpec] = []
             for res_i in resources:
                 if isinstance(res_i, dict):
-                    res_list.append(cls._app.ResourceSpec.from_json_like(res_i))
+                    res_list.append(cls._app.ResourceSpec.from_json_like(cast(dict, res_i)))
                 else:
                     res_list.append(_ensure_non_persistent(res_i))
             return cls(res_list)

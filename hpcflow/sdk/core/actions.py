@@ -31,7 +31,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from typing import Any, ClassVar, Literal, Self
+    from typing import Any, ClassVar, Literal, NotRequired, Self
     from valida.conditions import ConditionLike  # type: ignore
 
     from ..app import BaseApp
@@ -571,7 +571,7 @@ class ElementActionRun:
 
     def get_input_values(
         self,
-        inputs: list[str] | dict[str, dict] | None = None,
+        inputs: Sequence[str] | dict[str, dict] | None = None,
         label_dict: bool = True,
     ) -> dict[str, Any]:
         """Get a dict of (optionally a subset of) inputs values for this run.
@@ -1176,6 +1176,11 @@ class ActionRule(JSONLike):
         return cls(rule=cls.app.Rule(check_missing=check_missing))
 
 
+class ScriptData(TypedDict, total=False):
+    format: str
+    all_iterations: NotRequired[bool]
+
+
 class Action(JSONLike):
     """"""
 
@@ -1244,8 +1249,8 @@ class Action(JSONLike):
         environments: list[ActionEnvironment] | None = None,
         commands: list[Command] | None = None,
         script: str | None = None,
-        script_data_in: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
-        script_data_out: str | dict[str, str] | dict[str, dict[str, str]] | None = None,
+        script_data_in: str | Mapping[str, str | ScriptData] | None = None,
+        script_data_out: str | Mapping[str, str | ScriptData] | None = None,
         script_data_files_use_opt: bool = False,
         script_exe: str | None = None,
         script_pass_env_spec: bool = False,
@@ -1300,31 +1305,34 @@ class Action(JSONLike):
         self.script_data_out = self.__process_script_data(self._script_data_out, "outputs")
 
     def __process_script_data_str(
-            self, data_fmt: str, param_names: list[str]) -> dict[str, dict[str, str]]:
+            self, data_fmt: str, param_names: list[str]) -> dict[str, ScriptData]:
         # include all input parameters, using specified data format
         data_fmt = data_fmt.lower()
         return {k: {"format": data_fmt} for k in param_names}
 
     def __process_script_data_dict(
-        self, data_fmt: dict[str, str] | dict[str, dict[str, str]], prefix: str,
+        self, data_fmt: Mapping[str, str | ScriptData], prefix: str,
         param_names: list[str]
-    ) -> dict[str, dict[str, str]]:
+    ) -> dict[str, ScriptData]:
         _all_other_sym = "*"
-        all_params: dict[str, dict[str, str]] = {}
+        all_params: dict[str, ScriptData] = {}
         for k, v in data_fmt.items():
             # values might be strings, or dicts with "format" and potentially other
             # kwargs:
             if isinstance(v, dict):
                 # Make sure format is first key
-                v = dict(v)
-                all_params[k] = {"format": v.pop("format").lower(), **v}
+                v2: ScriptData = {
+                    "format": v["format"],
+                }
+                all_params[k] = v2
+                v2.update(v)
             else:
                 all_params[k] = {"format": v.lower()}
 
         if prefix == "inputs":
             # expand unlabelled-multiple inputs to multiple labelled inputs:
             multi_types = self.task_schema.multi_input_types
-            multis: dict[str, dict[str, str]] = {}
+            multis: dict[str, ScriptData] = {}
             for k in list(all_params.keys()):
                 if k in multi_types:
                     k_fmt = all_params.pop(k)
@@ -1347,8 +1355,8 @@ class Action(JSONLike):
         return all_params
 
     def __process_script_data(
-        self, data_fmt: str | dict[str, str] | dict[str, dict[str, str]] | None, prefix: str
-    ) -> dict[str, dict[str, str]]:
+        self, data_fmt: str | Mapping[str, str | ScriptData] | None, prefix: str
+    ) -> dict[str, ScriptData]:
         if not data_fmt:
             return {}
 

@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TypedDict, TypeAlias, TYPE_CHECKING
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from typing import Any, ClassVar
+    from collections.abc import Mapping, Sequence
+    from typing import Any, ClassVar, NotRequired
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]
 else:
@@ -12,17 +12,17 @@ else:
 
 
 class JobscriptHeaderArgs(TypedDict):
-    workflow_app_alias: str
-    env_setup: str
-    app_invoc: str | list[str]
-    run_log_file: str
-    config_dir: str
-    config_invoc_key: Any
-    workflow_path: str
-    sub_idx: int
-    js_idx: int
-    EAR_file_name: str
-    element_run_dirs_file_path: str
+    app_invoc: str | Sequence[str]
+    config_dir: NotRequired[str]
+    config_invoc_key: NotRequired[Any]
+    EAR_file_name: NotRequired[str]
+    element_run_dirs_file_path: NotRequired[str]
+    env_setup: NotRequired[str]
+    js_idx: NotRequired[int]
+    run_log_file: NotRequired[str]
+    sub_idx: NotRequired[int]
+    workflow_app_alias: NotRequired[str]
+    workflow_path: NotRequired[str]
 
 
 class Shell(ABC):
@@ -89,14 +89,11 @@ class Shell(ABC):
 
     def process_JS_header_args(self, header_args: JobscriptHeaderArgs) -> JobscriptHeaderArgs:
         app_invoc_ = header_args["app_invoc"]
-        if not isinstance(app_invoc_, list):
-            app_invoc = app_invoc_
-        else:
+        if isinstance(app_invoc_, list):
             app_invoc = self.process_app_invoc_executable(app_invoc_[0])
             for item in app_invoc_[1:]:
                 app_invoc += f' "{item}"'
-
-        header_args["app_invoc"] = app_invoc
+            header_args["app_invoc"] = app_invoc
         return header_args
 
     def prepare_JS_path(self, js_path: Path) -> str:
