@@ -47,8 +47,10 @@ class IterableParam(TypedDict):
 
 class Loop(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
-    _child_objects = (ChildObjectSpec(name="termination", class_name="Rule"),)
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
+        ChildObjectSpec(name="termination", class_name="Rule"),
+    )
 
     def __init__(
         self,

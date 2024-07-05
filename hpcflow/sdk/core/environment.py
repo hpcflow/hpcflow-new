@@ -5,6 +5,7 @@ from typing import cast, TYPE_CHECKING
 
 from textwrap import dedent
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ExecutablesList
@@ -34,6 +35,7 @@ class NumCores(JSONLike):
 
 
 @dataclass
+@hydrate
 class ExecutableInstance(JSONLike):
     app: ClassVar[BaseApp]
     parallel_mode: str | None

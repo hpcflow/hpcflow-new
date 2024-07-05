@@ -11,6 +11,7 @@ from typing import TypedDict, TypeVar, cast, TYPE_CHECKING
 import numpy as np
 from valida import Schema  # type: ignore
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.element import ElementFilter
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
@@ -20,8 +21,6 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.core.rule import Rule
-from hpcflow.sdk.core.task import ElementSet
-from hpcflow.sdk.core.task_schema import TaskSchema
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_enum_by_name_or_val,
@@ -29,7 +28,6 @@ from hpcflow.sdk.core.utils import (
     process_string_nodes,
     split_param_label,
 )
-from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -40,7 +38,7 @@ if TYPE_CHECKING:
     from .object_list import ResourceList
     from .rule import RuleArgs
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
-    from .workflow import Workflow
+    from .workflow import Workflow, WorkflowTemplate
 
 
 Address: TypeAlias = list[int | float | str]
@@ -102,9 +100,10 @@ class ParameterPath(JSONLike):
 
 
 @dataclass
+@hydrate
 class Parameter(JSONLike):
-    _validation_schema = "parameters_spec_schema.yaml"
-    _child_objects = (
+    _validation_schema: ClassVar[str] = "parameters_spec_schema.yaml"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="typ",
             json_like_name="type",
@@ -142,11 +141,11 @@ class Parameter(JSONLike):
             f")"
         )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.typ = check_valid_py_identifier(self.typ)
         self._set_value_class()
 
-    def _set_value_class(self):
+    def _set_value_class(self) -> None:
         # custom parameter classes must inherit from `ParameterValue` not the app
         # subclass:
         if self._value_class is None:
@@ -184,9 +183,9 @@ class SubParameter:
 @dataclass
 class SchemaParameter(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
+    _app_attr: ClassVar[str] = "app"
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
             class_name="Parameter",
@@ -502,7 +501,8 @@ class LabellingDescriptor(TypedDict):
     default_value: NotRequired[InputValue]
 
 
-@dataclass
+@dataclass(init=False)
+@hydrate
 class SchemaOutput(SchemaParameter):
     """A Parameter as outputted from particular task."""
 
@@ -1861,7 +1861,7 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
-_Where: TypeAlias = RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter
+_Where: TypeAlias = 'RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter'
 
 
 class InputSource(JSONLike):

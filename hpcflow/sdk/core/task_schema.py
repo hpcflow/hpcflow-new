@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
@@ -36,8 +37,9 @@ class ActParameterDependence(TypedDict):
 
 
 @dataclass
+@hydrate
 class TaskObjective(JSONLike):
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="name",
             is_single_attribute=True,
@@ -78,7 +80,7 @@ class TaskSchema(JSONLike):
     _hash_value = None
     _validate_actions = True
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="objective", class_name="TaskObjective"),
         ChildObjectSpec(
             name="inputs",

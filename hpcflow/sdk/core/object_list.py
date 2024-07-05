@@ -4,9 +4,6 @@ from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
-from hpcflow.sdk.core.parameters import ResourceSpec
-from hpcflow.sdk.core.task import ElementSet
-from hpcflow.sdk.core.workflow import WorkflowTemplate
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Self, Literal, TypeAlias
@@ -17,7 +14,8 @@ if TYPE_CHECKING:
     from .environment import Environment, Executable
     from .loop import WorkflowLoop
     from .parameters import Parameter, ResourceSpec, ResourceSpecArgs
-    from .task import Task, TaskTemplate, TaskSchema, WorkflowTask
+    from .task import Task, TaskTemplate, TaskSchema, WorkflowTask, ElementSet
+    from .workflow import WorkflowTemplate
 
 T = TypeVar("T")
 
@@ -388,7 +386,7 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         self._update_index()
 
 
-class TaskList(AppDataList[Task]):
+class TaskList(AppDataList['Task']):
     """A list-like container for a task-like list with dot-notation access by task
     unique-name."""
 
@@ -405,7 +403,7 @@ class TaskList(AppDataList[Task]):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
 
-class TaskTemplateList(AppDataList[TaskTemplate]):
+class TaskTemplateList(AppDataList['TaskTemplate']):
     """A list-like container for a task-like list with dot-notation access by task
     unique-name."""
 
@@ -422,7 +420,7 @@ class TaskTemplateList(AppDataList[TaskTemplate]):
         super().__init__(_objects, access_attribute="name", descriptor="task template")
 
 
-class TaskSchemasList(AppDataList[TaskSchema]):
+class TaskSchemasList(AppDataList['TaskSchema']):
     """A list-like container for a task schema list with dot-notation access by task
     schema unique-name."""
 
@@ -439,7 +437,7 @@ class TaskSchemasList(AppDataList[TaskSchema]):
         super().__init__(_objects, access_attribute="name", descriptor="task schema")
 
 
-class GroupList(AppDataList[Group]):
+class GroupList(AppDataList['Group']):
     """A list-like container for the task schema group list with dot-notation access by
     group name."""
 
@@ -456,7 +454,7 @@ class GroupList(AppDataList[Group]):
         super().__init__(_objects, access_attribute="name", descriptor="group")
 
 
-class EnvironmentsList(AppDataList[Environment]):
+class EnvironmentsList(AppDataList['Environment']):
     """A list-like container for environments with dot-notation access by name."""
 
     _child_objects = (
@@ -479,7 +477,7 @@ class EnvironmentsList(AppDataList[Environment]):
             return getattr(obj, "specifiers")[attr]
 
 
-class ExecutablesList(AppDataList[Executable]):
+class ExecutablesList(AppDataList['Executable']):
     """A list-like container for environment executables with dot-notation access by
     executable label."""
 
@@ -504,7 +502,7 @@ class ExecutablesList(AppDataList[Executable]):
         return obj
 
 
-class ParametersList(AppDataList[Parameter]):
+class ParametersList(AppDataList['Parameter']):
     """A list-like container for parameters with dot-notation access by parameter type."""
 
     _child_objects = (
@@ -541,7 +539,7 @@ class ParametersList(AppDataList[Parameter]):
             return all_out or [self._app.Parameter(typ=typ)]
 
 
-class CommandFilesList(AppDataList[FileSpec]):
+class CommandFilesList(AppDataList['FileSpec']):
     """A list-like container for command files with dot-notation access by label."""
 
     _child_objects = (
@@ -557,7 +555,7 @@ class CommandFilesList(AppDataList[FileSpec]):
         super().__init__(_objects, access_attribute="label", descriptor="command file")
 
 
-class WorkflowTaskList(DotAccessObjectList[WorkflowTask]):
+class WorkflowTaskList(DotAccessObjectList['WorkflowTask']):
     def __init__(self, _objects: Iterable[WorkflowTask]):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
@@ -577,7 +575,7 @@ class WorkflowTaskList(DotAccessObjectList[WorkflowTask]):
         self._reindex()
 
 
-class WorkflowLoopList(DotAccessObjectList[WorkflowLoop]):
+class WorkflowLoopList(DotAccessObjectList['WorkflowLoop']):
     def __init__(self, _objects: Iterable[WorkflowLoop]):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
@@ -587,10 +585,11 @@ class WorkflowLoopList(DotAccessObjectList[WorkflowLoop]):
 
 # The type of things we can normalise to a ResourceList
 Resources: TypeAlias = (
-    ResourceSpec | 'ResourceList' | None | ResourceSpecArgs | dict | Sequence[ResourceSpec | ResourceSpecArgs | dict])
+    'ResourceSpec | ResourceList | None | ResourceSpecArgs | dict |'
+    'Sequence[ResourceSpec | ResourceSpecArgs | dict]')
 
 
-class ResourceList(ObjectList[ResourceSpec]):
+class ResourceList(ObjectList['ResourceSpec']):
     _app: ClassVar[BaseApp]
     _app_attr = "_app"
     _child_objects = (
@@ -655,7 +654,7 @@ class ResourceList(ObjectList[ResourceSpec]):
             return cast(Self, resources)
         elif isinstance(resources, dict):
             return cls.from_json_like(cast(dict, resources))
-        elif isinstance(resources, ResourceSpec):
+        elif isinstance(resources, cls._app.ResourceSpec):
             return cls([resources])
         elif isinstance(resources, Sequence):
             def _ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
@@ -694,7 +693,7 @@ class ResourceList(ObjectList[ResourceSpec]):
             other_scoped = other.get(scope=scope_i)
             if in_self:
                 for k, v in other_scoped._get_members().items():
-                    if getattr(self_scoped, k) is None:
+                    if getattr(self_scoped, k, None) is None:
                         setattr(self_scoped, f"_{k}", copy.deepcopy(v))
             else:
                 self.add_object(copy.deepcopy(other_scoped))

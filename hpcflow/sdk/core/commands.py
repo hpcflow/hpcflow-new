@@ -7,6 +7,7 @@ from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -21,10 +22,11 @@ if TYPE_CHECKING:
 
 
 @dataclass
+@hydrate
 class Command(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
-    _child_objects = (
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="rules",
             class_name="ActionRule",

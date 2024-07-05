@@ -9,13 +9,12 @@ from logging import Logger
 from typing import Any, Dict, List, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.persistence.types import AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from .base import (
-        PersistentStore, AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
+    from .base import PersistentStore
     from ..app import BaseApp
     from ..typing import ParamSource
-    # TODO: Get the type variables
 
 
 class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):

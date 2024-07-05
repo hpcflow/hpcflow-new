@@ -24,9 +24,10 @@ from hpcflow.sdk.core.utils import (
     set_in_container,
     parse_timestamp
 )
-from hpcflow.sdk.core.workflow import Workflow
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.pending import PendingChanges
+from hpcflow.sdk.persistence.types import (
+    AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
@@ -43,11 +44,6 @@ if TYPE_CHECKING:
 T = TypeVar('T')
 T2 = TypeVar('T2')
 CTX = TypeVar('CTX')
-AnySTask = TypeVar("AnySTask", bound="StoreTask")
-AnySElement = TypeVar("AnySElement", bound="StoreElement")
-AnySElementIter = TypeVar("AnySElementIter", bound="StoreElementIter")
-AnySEAR = TypeVar("AnySEAR", bound="StoreEAR")
-AnySParameter = TypeVar("AnySParameter", bound="StoreParameter")
 
 PRIMITIVES = (
     int,
@@ -189,8 +185,8 @@ class StoreTask(Generic[T]):
     def encode(self) -> tuple[int, T, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def decode(cls, task_dat: T) -> Self:
         """Initialise a `StoreTask` from store task data
 
@@ -242,8 +238,8 @@ class StoreElement(Generic[T, CTX]):
     def encode(self, context: CTX) -> T:
         """Prepare store element data for the persistent store."""
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def decode(cls, elem_dat: T, context: CTX) -> Self:
         """Initialise a `StoreElement` from store element data"""
 
@@ -311,8 +307,8 @@ class StoreElementIter(Generic[T, CTX]):
     def encode(self, context: CTX) -> T:
         """Prepare store element iteration data for the persistent store."""
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def decode(cls, iter_dat: T, context: CTX) -> Self:
         """Initialise a `StoreElementIter` from persistent store element iteration data"""
 
@@ -433,8 +429,8 @@ class StoreEAR(Generic[T, CTX]):
     def encode(self, ts_fmt: str, context: CTX) -> T:
         """Prepare store EAR data for the persistent store."""
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def decode(cls, EAR_dat: T, ts_fmt: str, context: CTX) -> Self:
         """Initialise a `StoreEAR` from persistent store EAR data"""
 
@@ -519,8 +515,8 @@ class StoreParameter:
     file: Dict | None
     source: ParamSource
 
-    _encoders: dict[type, Callable] = {}
-    _decoders: dict[str, Callable] = {}
+    _encoders: dict[type, Callable] = field(default_factory=dict)
+    _decoders: dict[str, Callable] = field(default_factory=dict)
 
     def encode(self, **kwargs) -> dict[str, Any] | int:
         """Prepare store parameter data for the persistent store."""

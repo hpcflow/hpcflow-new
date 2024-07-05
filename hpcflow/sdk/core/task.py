@@ -7,6 +7,7 @@ from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -122,7 +123,7 @@ class ElementSet(JSONLike):
     """Class to represent a parametrisation of a new set of elements."""
 
     app: ClassVar[BaseApp]
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="inputs",
             class_name="InputValue",
@@ -700,7 +701,7 @@ class Task(JSONLike):
 
         self._schemas = _schemas
 
-        self._element_sets = ElementSet.ensure_element_sets(
+        self._element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -3165,6 +3166,7 @@ class Elements:
 
 
 @dataclass
+@hydrate
 class Parameters:
     _app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "_app"
@@ -3236,6 +3238,7 @@ class Parameters:
 
 
 @dataclass
+@hydrate
 class TaskInputParameters:
     """For retrieving schema input parameters across all elements."""
 
@@ -3267,6 +3270,7 @@ class TaskInputParameters:
 
 
 @dataclass
+@hydrate
 class TaskOutputParameters:
     """For retrieving schema output parameters across all elements."""
 
@@ -3298,6 +3302,7 @@ class TaskOutputParameters:
 
 
 @dataclass
+@hydrate
 class ElementPropagation:
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""

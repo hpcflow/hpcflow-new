@@ -22,6 +22,7 @@ from hpcflow.sdk.core.errors import (
     UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
     split_param_label,
@@ -1089,6 +1090,7 @@ class ActionScope(JSONLike):
 
 
 @dataclass
+@hydrate
 class ActionEnvironment(JSONLike):
     app: ClassVar[BaseApp]
     _app_attr = "app"

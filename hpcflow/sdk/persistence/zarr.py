@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import cast, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 
 import numpy as np
 import zarr  # type: ignore
@@ -45,7 +45,7 @@ from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import Any, Dict, Self
+    from typing import Dict, Self
     from ..app import BaseApp
     from ..core.json_like import JSONed
 
@@ -140,15 +140,15 @@ def append_items_to_ragged_array(arr, items):
 
 
 @dataclass
-class ZarrStoreTask(StoreTask[Dict]):
-    def encode(self) -> tuple[int, Dict, Dict]:
+class ZarrStoreTask(StoreTask[dict]):
+    def encode(self) -> tuple[int, dict, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
         task = {"id_": self.id_, **(self.task_template or {})}
         return self.index, wk_task, task
 
     @classmethod
-    def decode(cls, task_dat: Dict) -> Self:
+    def decode(cls, task_dat: dict) -> Self:
         """Initialise a `StoreTask` from persistent task data"""
         task_dat["element_IDs"] = task_dat["element_IDs"].tolist()
         return super().decode(task_dat)

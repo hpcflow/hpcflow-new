@@ -46,7 +46,7 @@ from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.log import AppLog, TimeIt
-from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
@@ -247,6 +247,7 @@ class BaseApp(metaclass=Singleton):
     _known_subs_file_name = "known_submissions.txt"
     _known_subs_file_sep = "::"
     _submission_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
+    __load_pending = False
 
     def __init__(
         self,
@@ -727,12 +728,16 @@ class BaseApp(metaclass=Singleton):
     @property
     def template_components(self) -> TemplateComponents:
         if not self.is_template_components_loaded:
+            if BaseApp.__load_pending:
+                return {}
+            BaseApp.__load_pending = True
             self._load_template_components()
+            BaseApp.__load_pending = False
         return self._template_components
 
     @property
     def _shared_data(self) -> Mapping[str, Any]:
-        return cast(Mapping[str, Any], self.template_components)
+        return cast('Mapping[str, Any]', self.template_components)
 
     def _ensure_template_component(self, name) -> None:
         """Invoked by access to individual template components (e.g. parameters)"""

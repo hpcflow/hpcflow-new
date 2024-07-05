@@ -5,6 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import cast, overload, TYPE_CHECKING
 
+from hpcflow.sdk.typing import hydrate, ParamSource
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
@@ -13,7 +14,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any, ClassVar, Self
     from ..app import BaseApp
-    from ..typing import ParamSource
     from .actions import Action, ActionRule
     from .environment import Environment
     from .object_list import CommandFilesList
@@ -23,12 +23,15 @@ if TYPE_CHECKING:
 
 
 @dataclass
+@hydrate
 class FileSpec(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
+    _app_attr: ClassVar[str] = "app"
 
-    _validation_schema = "files_spec_schema.yaml"
-    _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
+    _validation_schema: ClassVar[str] = "files_spec_schema.yaml"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
+        ChildObjectSpec(name="name", class_name="FileNameSpec"),
+    )
 
     label: str
     _name: str | FileNameSpec
@@ -63,9 +66,10 @@ class FileSpec(JSONLike):
         return self.name.ext
 
 
+@hydrate
 class FileNameSpec(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(self, name: str, args: list | None = None, is_regex: bool = False) -> None:
         self.name = name
@@ -125,10 +129,11 @@ class FileNameExt(JSONLike):
 
 
 @dataclass
+@hydrate
 class InputFileGenerator(JSONLike):
     app: ClassVar[BaseApp]
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="input_file",
             class_name="FileSpec",
@@ -220,6 +225,7 @@ class InputFileGenerator(JSONLike):
 
 
 @dataclass
+@hydrate
 class OutputFileParser(JSONLike):
     """
     Parameters
@@ -231,7 +237,7 @@ class OutputFileParser(JSONLike):
         required to parametrise this parser.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="output",
             class_name="Parameter",
@@ -379,6 +385,7 @@ class OutputFileParser(JSONLike):
                 fp.write(source_str)
 
 
+@hydrate
 class _FileContentsSpecifier(JSONLike):
     """Class to represent the contents of a file, either via a file-system path or
     directly."""
@@ -562,6 +569,7 @@ class _FileContentsSpecifier(JSONLike):
         raise NotImplementedError
 
 
+@hydrate
 class InputFile(_FileContentsSpecifier):
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
@@ -620,6 +628,7 @@ class InputFile(_FileContentsSpecifier):
         return f"input_files.{self.normalised_files_path}"
 
 
+@hydrate
 class InputFileGeneratorSource(_FileContentsSpecifier):
     def __init__(
         self,
@@ -632,6 +641,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
         super().__init__(path, contents, extension)
 
 
+@hydrate
 class OutputFileParserSource(_FileContentsSpecifier):
     def __init__(
         self,

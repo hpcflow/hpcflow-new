@@ -19,15 +19,16 @@ import numpy as np
 from fsspec.core import url_to_fs  # type: ignore
 import rich.console
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
-from hpcflow.sdk.core.object_list import ResourceList
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence import store_cls_from_str
+from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
 from hpcflow.sdk.submission.jobscript import (
@@ -153,6 +154,7 @@ class _Pathway:
 
 
 @dataclass
+@hydrate
 class WorkflowTemplate(JSONLike):
     """Class to represent initial parametrisation of a {app_name} workflow, with limited
     validation logic.
@@ -236,7 +238,7 @@ class WorkflowTemplate(JSONLike):
         """
         Get a deep copy of the list of resources.
         """
-        assert isinstance(self.resources, ResourceList)
+        assert isinstance(self.resources, self.app.ResourceList)
         return copy.deepcopy(self.resources)
 
     def _merge_envs_into_task_resources(self) -> None:

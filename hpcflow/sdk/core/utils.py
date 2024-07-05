@@ -39,7 +39,7 @@ T = TypeVar('T')
 T2 = TypeVar('T2')
 T3 = TypeVar('T3')
 TList: TypeAlias = 'T | list[TList]'
-TD = TypeVar('TD', bound=Mapping[str, Any])
+TD = TypeVar('TD', bound='Mapping[str, Any]')
 E = TypeVar("E", bound=enum.Enum)
 
 

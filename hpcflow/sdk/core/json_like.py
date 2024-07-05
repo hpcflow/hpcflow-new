@@ -8,6 +8,7 @@ import enum
 from types import SimpleNamespace
 from typing import overload, Protocol, cast, runtime_checkable, TYPE_CHECKING
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk import app, get_SDK_logger
 from .utils import get_md5_hash
 from .validation import get_schema
@@ -21,7 +22,7 @@ _BasicJsonTypes: TypeAlias = int | float | str | None
 _WriteStructure: TypeAlias = "list[JSONable] | tuple[JSONable, ...] | set[JSONable] | dict[str, JSONable]"
 _ReadStructure: TypeAlias = "Sequence[JSONed] | Mapping[str, JSONed]"
 JSONable: TypeAlias = "_WriteStructure | enum.Enum | BaseJSONLike | _BasicJsonTypes"
-JSONed: TypeAlias = _ReadStructure | _BasicJsonTypes
+JSONed: TypeAlias = "_ReadStructure | _BasicJsonTypes"
 
 if TYPE_CHECKING:
     _JSONDeserState: TypeAlias = dict[str, dict[str, JSONed]] | None
@@ -210,6 +211,7 @@ class ChildObjectSpec:
         self.json_like_name = self.json_like_name or self.name
 
 
+@hydrate
 class BaseJSONLike:
     """
     Parameters
@@ -439,7 +441,7 @@ class BaseJSONLike:
                     out.extend(
                         None if i is None
                         else chd_cls.from_json_like(
-                            cast(Any, i),  # FIXME: This is "Trust me, bro!" hack
+                            cast('Any', i),  # FIXME: This is "Trust me, bro!" hack
                             shared_data)
                         for i in multi_chd_objs
                     )
@@ -613,11 +615,12 @@ class BaseJSONLike:
         return copy, shared_data
 
 
+@hydrate
 class JSONLike(BaseJSONLike):
     """BaseJSONLike, where the class namespace is the App instance."""
 
     _app_attr: ClassVar[str] = "app"  # for some classes we change this to "_app"
-    __sdk_classes: list[type[BaseJSONLike]] = []
+    __sdk_classes: ClassVar[list[type[BaseJSONLike]]] = []
 
     @classmethod
     def _class_namespace(cls) -> BaseApp:

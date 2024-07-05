@@ -10,6 +10,7 @@ from valida.rules import Rule  # type: ignore
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
@@ -1547,6 +1548,7 @@ class Element:
 
 
 @dataclass(repr=False, eq=False)
+@hydrate
 class ElementParameter:
     app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "app"
