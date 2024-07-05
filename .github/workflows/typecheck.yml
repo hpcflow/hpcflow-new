@@ -31,4 +31,4 @@ jobs:
           poetry install --without dev,pyinstaller --with typecheck
       - name: Perform Type Check
         run: |
-          mypy hpcflow
+          poetry run mypy hpcflow
