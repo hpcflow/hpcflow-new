@@ -1064,7 +1064,7 @@ class Jobscript(JSONLike):
         init_proc = subprocess.Popen(
             args=args,
             cwd=str(self.workflow.path),
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         init_proc.wait()  # wait for the process ID file to be written
         process_ID = int(self.direct_win_pid_file_path.read_text())

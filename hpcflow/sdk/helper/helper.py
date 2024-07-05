@@ -88,7 +88,7 @@ def start_helper(
         )
         kwargs: dict[str, Any] = {}
         if os.name == "nt":
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
         if isinstance(timeout, timedelta):
             timeout = timeout.total_seconds()
