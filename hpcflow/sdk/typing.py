@@ -1,4 +1,5 @@
-from typing import ClassVar, Union, TypeAlias, TypeVar, get_type_hints
+from dataclasses import InitVar
+from typing import ClassVar, Union, TypeAlias, TypeVar, cast
 from pathlib import Path
 import re
 
@@ -19,11 +20,17 @@ def hydrate(cls: type[_T]) -> type[_T]:
     annotation can recognise that ClassVar-annotated fields are class variables.
     """
     anns = {}
+    cvre = re.compile(r"ClassVar\[(.*)\]")
+    ivre = re.compile(r"InitVar\[(.*)\]")
     for f, a in cls.__annotations__.items():
         if isinstance(a, str):
-            m = re.match(r"ClassVar\[(.*)\]", a)
+            m = cvre.match(a)
             if m:
                 anns[f] = ClassVar[m.group(1)]
+                continue
+            m = ivre.match(a)
+            if m:
+                anns[f] = InitVar(cast(type, m.group(1)))
                 continue
         anns[f] = a
     cls.__annotations__ = anns

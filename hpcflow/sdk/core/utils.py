@@ -98,6 +98,8 @@ def check_valid_py_identifier(name: str) -> str:
         trial_name = name[1:].replace("_", "")  # "internal" underscores are allowed
     except TypeError:
         raise exc
+    except KeyError as e:
+        raise KeyError(f"unexpected name type {name}") from e
     if (
         not name
         or not (name[0].isalpha() and ((trial_name[1:] or "a").isalnum()))

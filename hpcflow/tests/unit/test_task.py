@@ -119,7 +119,7 @@ def workflow_w3(null_config, tmp_path: Path, param_p1: Parameter, param_p2: Para
 
 @pytest.fixture
 def file_spec_fs1() -> FileSpec:
-    return hf.FileSpec(label="file1", _name="file1.txt")
+    return hf.FileSpec(label="file1", name="file1.txt")
 
 
 @pytest.fixture

@@ -137,17 +137,17 @@ class ConfigOptions:
     default_config: DefaultConfiguration = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
-    extra_schemas: list[Schema] = field(default_factory=list)
+    extra_schemas: Sequence[Schema] = field(default_factory=list)
     default_known_configs_dir: str | None = None
+    _schemas: Sequence[Schema] = field(init=False)
+    _configurable_keys: Sequence[str] = field(init=False)
 
     def __post_init__(self) -> None:
-        cfg_schemas, cfg_keys = self.init_schemas()
-        self._schemas = cfg_schemas
-        self._configurable_keys = cfg_keys
+        self._schemas, self._configurable_keys = self.init_schemas()
 
     def init_schemas(self) -> tuple[Sequence[Schema], Sequence[str]]:
         # Get allowed configurable keys from config schemas:
-        cfg_schemas = [get_schema("config_schema.yaml")] + self.extra_schemas
+        cfg_schemas = [get_schema("config_schema.yaml"), *self.extra_schemas]
         cfg_keys: list[str] = []
         for cfg_schema in cfg_schemas:
             for rule in cfg_schema.rules:

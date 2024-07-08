@@ -1162,12 +1162,12 @@ class ZarrPersistentStore(PersistentStore[
                 f"overwrite the existing file."
             )
 
-        dst_path = str(dst_path)
+        dst_path_s = str(dst_path)
 
         src_zarr_store = self.zarr_store
         zfs, _ = ask_pw_on_auth_exc(
             ZipFileSystem,
-            fo=dst_path,
+            fo=dst_path_s,
             mode="w",
             target_options={},
             add_pw_to="target_options",
@@ -1181,7 +1181,10 @@ class ZarrPersistentStore(PersistentStore[
         )
         del zfs  # ZipFileSystem remains open for instance lifetime
         status.stop()
-        return dst_path
+        return dst_path_s
+
+    def unzip(self, path=".", log=None):
+        raise ValueError("Not a zip store!")
 
 
 class ZarrZipPersistentStore(ZarrPersistentStore):
@@ -1203,7 +1206,7 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     def zip(self):
         raise ValueError("Already a zip store!")
 
-    def unzip(self, path=".", log=None):
+    def unzip(self, path=".", log=None) -> str:
         """
         Parameters
         ----------
@@ -1224,12 +1227,12 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
             if dst_path.exists():
                 raise FileExistsError(f"Directory at path already exists: {dst_path!r}.")
 
-            dst_path = str(dst_path)
+            dst_path_s = str(dst_path)
 
             src_zarr_store = self.zarr_store
-            dst_zarr_store = zarr.storage.FSStore(url=dst_path)
+            dst_zarr_store = zarr.storage.FSStore(url=dst_path_s)
             zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
-            return dst_path
+            return dst_path_s
 
     def copy(self, path=None) -> Path:
         # not sure how to do this.

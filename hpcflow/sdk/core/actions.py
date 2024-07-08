@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Mapping
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from datetime import datetime
 from enum import Enum
 import json
@@ -1093,29 +1093,37 @@ class ActionScope(JSONLike):
 @hydrate
 class ActionEnvironment(JSONLike):
     app: ClassVar[BaseApp]
-    _app_attr = "app"
+    _app_attr: ClassVar[str] = "app"
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="scope",
             class_name="ActionScope",
         ),
     )
 
-    environment: str | dict[str, Any]
-    scope: ActionScope = field(default_factory=ActionScope.any)
+    environment: dict[str, Any]
+    scope: ActionScope
 
-    def __post_init__(self) -> None:
-        orig_env = copy.deepcopy(self.environment)
-        if isinstance(self.environment, str):
-            self.environment = {"name": self.environment}
+    def __init__(
+        self, environment: str | dict[str, Any],
+        scope: ActionScope | None = None
+    ):
+        if scope is None:
+            self.scope = ActionScope.any()
+        else:
+            self.scope = scope
 
-        if "name" not in self.environment:
-            raise ActionEnvironmentMissingNameError(
-                f"The action-environment environment specification must include a string "
-                f"`name` key, or be specified as string that is that name. Provided "
-                f"environment key was {orig_env!r}."
-            )
+        if isinstance(environment, str):
+            self.environment = {"name": environment}
+        else:
+            if "name" not in environment:
+                raise ActionEnvironmentMissingNameError(
+                    f"The action-environment environment specification must include a string "
+                    f"`name` key, or be specified as string that is that name. Provided "
+                    f"environment key was {environment!r}."
+                )
+            self.environment = copy.deepcopy(environment)
 
 
 class ActionRule(JSONLike):
@@ -1123,8 +1131,10 @@ class ActionRule(JSONLike):
     included."""
 
     app: ClassVar[BaseApp]
-    _app_attr = "app"
-    _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
+        ChildObjectSpec(name="rule", class_name="Rule"),
+    )
 
     def __init__(
         self,
@@ -1137,7 +1147,7 @@ class ActionRule(JSONLike):
         doc: str | None = None,
     ):
         if rule is None:
-            rule = self.app.Rule(
+            self.rule = self.app.Rule(
                 check_exists=check_exists,
                 check_missing=check_missing,
                 path=path,
@@ -1153,17 +1163,16 @@ class ActionRule(JSONLike):
                 f"{self.__class__.__name__} `rule` specified in addition to rule "
                 f"constructor arguments."
             )
-
-        self.rule: Rule = rule
+        else:
+            self.rule = rule
+    
         self.action: Action | None = None  # assigned by parent action
         self.command: Command | None = None  # assigned by parent command
 
     def __eq__(self, other) -> bool:
         if type(other) is not self.__class__:
             return False
-        if self.rule == other.rule:
-            return True
-        return False
+        return self.rule == other.rule
 
     @TimeIt.decorator
     def test(self, element_iteration: ElementIteration) -> bool:
@@ -1187,8 +1196,8 @@ class Action(JSONLike):
     """"""
 
     app: ClassVar[BaseApp]
-    _app_attr = "app"
-    _child_objects = (
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="commands",
             class_name="Command",
@@ -1244,7 +1253,7 @@ class Action(JSONLike):
             shared_data_name="command_files",
         ),
     )
-    _script_data_formats = ("direct", "json", "hdf5")
+    _script_data_formats: ClassVar[tuple[str, ...]] = ("direct", "json", "hdf5")
 
     def __init__(
         self,

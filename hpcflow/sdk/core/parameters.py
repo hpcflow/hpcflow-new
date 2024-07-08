@@ -116,7 +116,7 @@ class Parameter(JSONLike):
 
     typ: str
     is_file: bool = False
-    sub_parameters: list[SubParameter] = field(default_factory=lambda: [])
+    sub_parameters: list[SubParameter] = field(default_factory=list)
     name: str | None = None
     _value_class: type | None = None
     _hash_value: str | None = field(default=None, repr=False)
@@ -1356,7 +1356,7 @@ class InputValue(AbstractInputValue):
         if "_value" in json_like:
             json_like["value"] = json_like.pop("_value")
 
-        obj = cls(**json_like, _InputValue__check_obj=False)
+        obj = cls(**json_like, _check_obj=False)
         obj._value_group_idx = _value_group_idx
         obj._value_is_obj = _value_is_obj
         obj._check_dict_value_if_object()

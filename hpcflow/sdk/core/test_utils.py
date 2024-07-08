@@ -45,7 +45,7 @@ def make_schemas(
             out_file_parsers = [
                 hf.OutputFileParser(
                     output=hf.Parameter(out_i),
-                    output_files=[hf.FileSpec(label="file1", _name="file1.txt")],
+                    output_files=[hf.FileSpec(label="file1", name="file1.txt")],
                 )
                 for out_i in outs_i[2:]
             ]

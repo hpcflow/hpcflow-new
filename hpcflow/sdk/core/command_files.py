@@ -1,6 +1,6 @@
 from __future__ import annotations
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from pathlib import Path
 from textwrap import dedent
 from typing import cast, overload, TYPE_CHECKING
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from .workflow import Workflow
 
 
-@dataclass
+@dataclass(init=False)
 @hydrate
 class FileSpec(JSONLike):
     app: ClassVar[BaseApp]
@@ -34,13 +34,15 @@ class FileSpec(JSONLike):
     )
 
     label: str
-    _name: str | FileNameSpec
+    name: FileNameSpec
     _hash_value: str | None = field(default=None, repr=False)
 
-    def __post_init__(self) -> None:
-        self._name = (
-            self.app.FileNameSpec(self._name) if isinstance(self._name, str) else self._name
+    def __init__(self, label: str, name: str | FileNameSpec, _hash_value: str | None = None) -> None:
+        self.label = label
+        self.name = (
+            self.app.FileNameSpec(name) if isinstance(name, str) else name
         )
+        self._hash_value = _hash_value
 
     def value(self, directory: str = ".") -> str:
         return cast(str, self.name.value(directory))
@@ -51,11 +53,6 @@ class FileSpec(JSONLike):
         if self.label == other.label and self.name == other.name:
             return True
         return False
-
-    @property
-    def name(self) -> FileNameSpec:
-        assert isinstance(self._name, FileNameSpec)
-        return self._name
 
     @property
     def stem(self) -> FileNameStem:
@@ -284,20 +281,26 @@ class OutputFileParser(JSONLike):
     options: dict[str, Any] | None = None
     script_pass_env_spec: bool = False
     abortable: bool = False
-    save_files: list[FileSpec] | bool = True
+    save_files: InitVar[list[FileSpec] | bool] = True
+    _save_files: list[FileSpec] = field(init=False)
     clean_up: list[str] = field(default_factory=list)
     rules: list[ActionRule] = field(default_factory=list)
-    _save_files: list[FileSpec] = field(default_factory=list)
 
-    def __post_init__(self) -> None:
-        if not self.save_files:
+    def __post_init__(self, save_files: list[FileSpec] | bool) -> None:
+        if not save_files:
             # save no files
             self._save_files = []
-        elif self.save_files is True:
+        elif save_files is True:
             # save all output files
             self._save_files = [i for i in self.output_files]
         else:
-            self._save_files = self.save_files
+            self._save_files = save_files
+
+    def to_dict(self) -> dict[str, Any]:
+        d = super().to_dict()
+        if "_save_files" in d:
+            d["save_files"] = d.pop("_save_files")
+        return d
 
     @classmethod
     def from_json_like(  # type: ignore[override]

@@ -822,7 +822,7 @@ class Task(JSONLike):
         w = wt.workflow
         assert w
         w._store.add_element_set(
-            self.insert_ID, element_set.to_json_like()[0]
+            self.insert_ID, cast(Mapping, element_set.to_json_like()[0])
         )
 
     @classmethod

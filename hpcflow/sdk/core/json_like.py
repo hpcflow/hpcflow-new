@@ -499,10 +499,11 @@ class BaseJSONLike:
             else:
                 obj = cls(**json_like_copy)
         except TypeError as err:
+            print(json_like_copy)
             raise TypeError(
                 f"Failed initialisation of class {cls.__name__!r}. Check the signature. "
                 f"Caught TypeError: {err}"
-            )
+            ) from err
 
         if need_hash:
             obj._set_hash()
@@ -550,7 +551,7 @@ class BaseJSONLike:
     def to_json_like(self, dct: dict[str, JSONable] | None = None,
                      shared_data: _JSONDeserState = None,
                      exclude: set[str | None] | None = None,
-                     path=None) -> tuple[Mapping[str, JSONed], _JSONDeserState]:
+                     path=None) -> tuple[Mapping[str, JSONed] | Sequence[JSONed], _JSONDeserState]:
         if dct is None:
             dct_value = {k: v for k, v in self.to_dict().items() if k not in (exclude or [])}
         else:
@@ -571,23 +572,25 @@ class BaseJSONLike:
                 if chd.parent_ref:
                     parent_refs.update({chd.name: chd.parent_ref})
 
-        json_like: Mapping[str, JSONed]
-        json_like, shared_data = to_json_like(
+        
+        json_like_, shared_data = to_json_like(
             dct_value, shared_data=shared_data, parent_refs=parent_refs, path=path
         )
-        copy = dict(json_like)
+        json_like: dict[str, JSONed] | list[JSONed] = cast("Any", json_like_)
         shared_data = shared_data or {}
 
         for chd in self._child_objects or []:
             assert chd.json_like_name is not None
-            if chd.name in copy:
-                copy[chd.json_like_name] = copy.pop(chd.name)
+            if chd.name in json_like:
+                assert isinstance(json_like, dict)
+                json_like[chd.json_like_name] = json_like.pop(chd.name)
 
             if chd.shared_data_name:
+                assert isinstance(json_like, dict)
                 if chd.shared_data_name not in shared_data:
                     shared_data[chd.shared_data_name] = {}
 
-                chd_obj_js = copy.pop(chd.json_like_name)
+                chd_obj_js = json_like.pop(chd.json_like_name)
 
                 if not chd.is_multiple:
                     chd_obj_js = [chd_obj_js]
@@ -606,13 +609,13 @@ class BaseJSONLike:
 
                 if not chd.is_multiple:
                     try:
-                        copy[chd.json_like_name] = shared_keys[0]
+                        json_like[chd.json_like_name] = shared_keys[0]
                     except IndexError:
-                        copy[chd.json_like_name] = None
+                        json_like[chd.json_like_name] = None
                 else:
-                    copy[chd.json_like_name] = shared_keys
+                    json_like[chd.json_like_name] = shared_keys
 
-        return copy, shared_data
+        return json_like, shared_data
 
 
 @hydrate

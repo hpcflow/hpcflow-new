@@ -151,6 +151,7 @@ def test_action_scope_no_raise_on_no_kwargs_type_output_file_parser() -> None:
 def test_action_scope_json_like_round_trip() -> None:
     as1 = hf.ActionScope.input_file_generator(file="file1")
     js, _ = as1.to_json_like()
+    assert isinstance(js, Mapping)
     as1_rl = hf.ActionScope.from_json_like(js)
     assert as1 == as1_rl
 

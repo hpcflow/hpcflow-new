@@ -12,11 +12,11 @@ from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
+from hpcflow.sdk.core.parameters import Parameter, SchemaOutput
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
-from hpcflow.sdk.core.parameters import Parameter
 from .json_like import ChildObjectSpec, JSONLike
-from .parameters import ParameterPropagationMode, SchemaInput
+from .parameters import Parameter, ParameterPropagationMode
 from .utils import check_valid_py_identifier
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from .actions import Action
     from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList
-    from .parameters import SchemaOutput, SchemaParameter
+    from .parameters import SchemaInput, SchemaOutput, SchemaParameter
     from .task import TaskTemplate
     from .workflow import Workflow
     from ..app import BaseApp
@@ -50,6 +50,10 @@ class TaskObjective(JSONLike):
 
     def __post_init__(self):
         self.name = check_valid_py_identifier(self.name)
+
+    @classmethod
+    def _parse_from_string(cls, string):
+        return string
 
 
 class TaskSchema(JSONLike):
@@ -629,17 +633,28 @@ class TaskSchema(JSONLike):
             return objective
 
     @classmethod
-    def __coerce_inputs(cls, inputs: Iterable[Parameter | SchemaInput]) -> list[SchemaInput]:
-        """ coerce Parameters to SchemaInputs """
-        return [cls.app.SchemaInput(i) if isinstance(i, Parameter) else i for i in inputs]
+    def __coerce_one_input(cls, i: Parameter | SchemaInput) -> SchemaInput:
+        return cls.app.SchemaInput(i) if isinstance(i, Parameter) else i
 
     @classmethod
-    def __coerce_outputs(cls, outputs: Iterable[Parameter | SchemaParameter]
-                         ) -> list[SchemaOutput]:
+    def __coerce_inputs(
+        cls, inputs: Iterable[Parameter | SchemaInput]
+    ) -> list[SchemaInput]:
+        """ coerce Parameters to SchemaInputs """
+        return [cls.__coerce_one_input(i) for i in inputs]
+
+    @classmethod
+    def __coerce_one_output(cls, o: Parameter | SchemaParameter) -> SchemaOutput:
+        return (o if isinstance(o, cls.app.SchemaOutput)
+                else cls.app.SchemaOutput(
+                    o if isinstance(o, Parameter) else o.parameter))
+
+    @classmethod
+    def __coerce_outputs(
+        cls, outputs: Iterable[Parameter | SchemaParameter]
+    ) -> list[SchemaOutput]:
         """ coerce Parameters to SchemaOutputs """
-        return [o if isinstance(o, SchemaOutput)
-                else cls.app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter) 
-                for o in outputs]
+        return [cls.__coerce_one_output(o) for o in outputs]
 
     def _validate(self):
         if self.method:

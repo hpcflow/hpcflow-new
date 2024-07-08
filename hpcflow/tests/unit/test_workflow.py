@@ -125,7 +125,7 @@ def act_2(null_config, act_env_1: ActionEnvironment) -> Action:
 def file_spec_fs1(
     null_config,
 ) -> FileSpec:
-    return hf.FileSpec(label="file1", _name="file1.txt")
+    return hf.FileSpec(label="file1", name="file1.txt")
 
 
 @pytest.fixture

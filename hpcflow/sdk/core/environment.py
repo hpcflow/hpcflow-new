@@ -22,16 +22,8 @@ class NumCores(JSONLike):
     stop: int
     step: int = 1
 
-    def __contains__(self, x):
+    def __contains__(self, x) -> bool:
         return x in range(self.start, self.stop + 1, self.step)
-
-    def __eq__(self, other):
-        return (
-            type(self) == type(other)
-            and self.start == other.start
-            and self.stop == other.stop
-            and self.step == other.step
-        )
 
 
 @dataclass
@@ -39,25 +31,22 @@ class NumCores(JSONLike):
 class ExecutableInstance(JSONLike):
     app: ClassVar[BaseApp]
     parallel_mode: str | None
-    num_cores: NumCores | int
+    num_cores: NumCores
     command: str
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.num_cores, NumCores):
-            nc = self.num_cores
-            if isinstance(nc, dict):
-                self.num_cores = self.app.NumCores(**nc)
-            else:
-                n = cast(int, nc)
-                self.num_cores = self.app.NumCores(n, n)
-
-    def __eq__(self, other):
-        return (
-            type(self) == type(other)
-            and self.parallel_mode == other.parallel_mode
-            and self.num_cores == other.num_cores
-            and self.command == other.command
-        )
+    def __init__(
+        self, parallel_mode: str | None,
+        num_cores: NumCores | int | dict,
+        command: str
+    ):
+        self.parallel_mode = parallel_mode
+        self.command = command
+        if isinstance(num_cores, NumCores):
+            self.num_cores = num_cores
+        elif isinstance(num_cores, int):
+            self.num_cores = NumCores(num_cores, num_cores)
+        else:
+            self.num_cores = NumCores(**num_cores)
 
     @classmethod
     def from_spec(cls, spec) -> ExecutableInstance:
@@ -68,7 +57,7 @@ class ExecutableInstance(JSONLike):
 
 
 class Executable(JSONLike):
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="instances",
             class_name="ExecutableInstance",
@@ -116,7 +105,7 @@ class Executable(JSONLike):
 class Environment(JSONLike):
     app: ClassVar[BaseApp]
     _validation_schema: ClassVar[str] = "environments_spec_schema.yaml"
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="executables",
             class_name="ExecutablesList",

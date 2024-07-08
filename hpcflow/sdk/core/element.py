@@ -208,8 +208,8 @@ class ElementResources(JSONLike):
     max_array_items: int | None = None
     time_limit: str | None = None
 
-    scheduler_args: dict[str, Any] | None = None
-    shell_args: dict[str, Any] | None = None
+    scheduler_args: dict[str, Any] = field(default_factory=dict)
+    shell_args: dict[str, Any] = field(default_factory=dict)
     os_name: str | None = None
     environments: dict[str,  dict[str, Any]] | None = None
 
@@ -235,9 +235,6 @@ class ElementResources(JSONLike):
         if self.parallel_mode:
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
-        self.scheduler_args = self.scheduler_args or {}
-        self.shell_args = self.shell_args or {}
-
     def __eq__(self, other) -> bool:
         if type(self) != type(other):
             return False
@@ -260,13 +257,11 @@ class ElementResources(JSONLike):
         shell_args = dct["shell_args"]
         envs = dct["environments"]
 
-        if isinstance(scheduler_args, dict):
-            if "options" in scheduler_args:
-                dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
-            dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
+        if "options" in scheduler_args:
+            dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
+        dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
 
-        if isinstance(shell_args, dict):
-            dct["shell_args"] = _hash_dict(shell_args)
+        dct["shell_args"] = _hash_dict(shell_args)
 
         if isinstance(envs, dict):
             for k, v in envs.items():
