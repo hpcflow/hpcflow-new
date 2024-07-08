@@ -5,7 +5,7 @@ version = "0.2.0a177"
 
 description = "Computational workflow management"
 authors = ["aplowman <adam.plowman@manchester.ac.uk>"]
-license = "MIT"
+license = "MPL-2.0"
 readme = "README.md"
 packages = [
     { include = "hpcflow" }
@@ -64,7 +64,7 @@ papermill = "^2.5.0"
 ipykernel = "^6.25.1"
 
 [tool.poetry.group.pyinstaller.dependencies]
-pyinstaller = "^5.13"
+pyinstaller = "^6.9.0"
 
 [tool.poetry.extras]
 test = ["pytest"]
