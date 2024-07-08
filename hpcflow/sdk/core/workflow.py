@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import random
+import shutil
 import string
 from threading import Thread
 import time
@@ -1705,7 +1706,7 @@ class Workflow:
         if template.source_file:
             wk.artifacts_path.mkdir(exist_ok=False)
             src = Path(template.source_file)
-            wk.artifacts_path.joinpath(src.name).write_text(src.read_text())
+            shutil.copy(src, wk.artifacts_path.joinpath(src.name))
 
         return wk
 

@@ -426,7 +426,8 @@ class Submission(JSONLike):
                                 # write script to disk:
                                 source_str = action.compose_source(snip_path)
                                 if source_str:
-                                    script_path.write_text(source_str, newline="\n")
+                                    with script_path.open("wt", newline="\n") as fp:
+                                        fp.write(source_str)
                                     seen[script_hash] = script_path
 
     def _set_run_abort(self, run_ID: int):
