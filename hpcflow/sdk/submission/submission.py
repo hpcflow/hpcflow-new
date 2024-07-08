@@ -418,7 +418,7 @@ class Submission(JSONLike):
                                 # try to make a symbolic link to the file previously
                                 # created:
                                 try:
-                                    script_path.symlink_to(prev_path)
+                                    script_path.symlink_to(prev_path.name)
                                 except OSError:
                                     # windows requires admin permission, copy instead:
                                     shutil.copy(prev_path, script_path)

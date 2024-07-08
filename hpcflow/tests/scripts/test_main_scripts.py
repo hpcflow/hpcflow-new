@@ -1,5 +1,7 @@
 import json
 import os
+from pathlib import Path
+import shutil
 import time
 import pytest
 
@@ -953,6 +955,14 @@ def test_main_script_two_schemas_same_action(null_config, tmp_path):
     # check output
     assert wk.tasks[0].elements[0].outputs.p2.value == p1_val + 100
     assert wk.tasks[1].elements[0].outputs.p2.value == p1_val + 100
+
+    # now copy the workflow elsewhere and check the symlink between the scripts still
+    # works:
+    wk_path = Path(wk.path)
+    copy_path = wk_path.parent.joinpath(wk_path.with_suffix(".copy"))
+    shutil.copytree(wk.path, copy_path, symlinks=True)
+    t2_script_path_copy = Path(str(t2_script_path).replace(wk.path, f"{wk.path}.copy"))
+    assert t1_script_path.read_text() == t2_script_path_copy.read_text()
 
 
 @pytest.mark.integration
