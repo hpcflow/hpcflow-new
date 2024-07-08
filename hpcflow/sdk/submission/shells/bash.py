@@ -43,17 +43,20 @@ class Bash(Shell):
         SUB_DIR="$WK_PATH/artifacts/submissions/${{SUB_IDX}}"
         JS_FUNCS_PATH="$SUB_DIR/{jobscript_functions_path}"
         . "$JS_FUNCS_PATH"        
-
-        export {app_caps}_WK_PATH=$WK_PATH
-        export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
-        export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
-        export {app_caps}_SUB_IDX={sub_idx}
-        export {app_caps}_JS_IDX={js_idx}
         
         EAR_ID_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{EAR_file_name}"
         SUB_TMP_DIR="$SUB_DIR/{tmp_dir_name}"
         SUB_LOG_DIR="$SUB_DIR/{log_dir_name}"
         SUB_STD_DIR="$SUB_DIR/{std_dir_name}"
+        SUB_SCRIPTS_DIR="$SUB_DIR/{scripts_dir_name}"
+
+        export {app_caps}_WK_PATH=$WK_PATH
+        export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
+        export {app_caps}_SUB_IDX={sub_idx}
+        export {app_caps}_SUB_SCRIPTS_DIR=$SUB_SCRIPTS_DIR
+        export {app_caps}_LOG_PATH="$SUB_LOG_DIR/js_${{JS_IDX}}.log"
+        export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
+        export {app_caps}_JS_IDX={js_idx}
     """
     )
     JS_SCHEDULER_HEADER = dedent(
@@ -67,7 +70,6 @@ class Bash(Shell):
     JS_DIRECT_HEADER = dedent(
         """\
         {shebang}
-
         {header}
         {wait_command}
     """
@@ -86,6 +88,7 @@ class Bash(Shell):
 
         export {app_caps}_RUN_ID=$EAR_ID
         export {app_caps}_RUN_LOG_PATH="$SUB_LOG_DIR/${app_caps}_RUN_ID.log"
+        export {app_caps}_LOG_PATH="${app_caps}_RUN_LOG_PATH"
         export {app_caps}_RUN_STD_PATH="$SUB_STD_DIR/${app_caps}_RUN_ID.txt"
         export {app_caps}_BLOCK_ACT_IDX=$block_act_idx
                 

@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import enum
 import os
+import shutil
 from pathlib import Path
 from textwrap import indent
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -51,6 +52,7 @@ class Submission(JSONLike):
     TMP_DIR_NAME = "tmp"
     LOG_DIR_NAME = "app_logs"
     STD_DIR_NAME = "app_std"
+    SCRIPTS_DIR_NAME = "scripts"
 
     _child_objects = (
         ChildObjectSpec(
@@ -95,7 +97,7 @@ class Submission(JSONLike):
         req_envs = defaultdict(lambda: defaultdict(set))
         for js_idx, js_i in enumerate(self.jobscripts):
             for run in js_i.all_EARs:
-                env_spec_h = tuple(zip(*run.env_spec.items()))  # hashable
+                env_spec_h = run.env_spec_hashable
                 for exec_label_j in run.action.get_required_executables():
                     req_envs[env_spec_h][exec_label_j].add(js_idx)
                 # add any environment for which an executable was not required:
@@ -105,7 +107,7 @@ class Submission(JSONLike):
         # check these envs/execs exist in app data:
         envs = []
         for env_spec_h, exec_js in req_envs.items():
-            env_spec = dict(zip(*env_spec_h))
+            env_spec = self.app.Action.env_spec_from_hashable(env_spec_h)
             non_name_spec = {k: v for k, v in env_spec.items() if k != "name"}
             spec_str = f" with specifiers {non_name_spec!r}" if non_name_spec else ""
             env_ref = f"{env_spec['name']!r}{spec_str}"
@@ -303,6 +305,10 @@ class Submission(JSONLike):
     def get_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
         return cls.get_path(submissions_path, sub_idx) / cls.STD_DIR_NAME
 
+    @classmethod
+    def get_scripts_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.SCRIPTS_DIR_NAME
+
     @property
     def path(self) -> Path:
         return self.get_path(self.workflow.submissions_path, self.index)
@@ -318,6 +324,10 @@ class Submission(JSONLike):
     @property
     def std_path(self):
         return self.get_std_path(self.workflow.submissions_path, self.index)
+
+    @property
+    def scripts_path(self):
+        return self.get_scripts_path(self.workflow.submissions_path, self.index)
 
     @property
     def all_EAR_IDs(self):
@@ -367,8 +377,63 @@ class Submission(JSONLike):
             # write a single line for each EAR currently in the workflow:
             fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
 
+    @TimeIt.decorator
+    def _write_scripts(self):
+        """Write to disk all action scripts associated with this submission."""
+        # could do this without looping over runs, but then we might write scripts that aren't
+        # needed (from runs that are not part of the submission)
+        actions_by_schema = defaultdict(lambda: defaultdict(set))
+        for run in self.all_EARs:
+            if run.is_snippet_script:
+                actions_by_schema[run.action.task_schema.name][
+                    run.element_action.action_idx
+                ].add(run.env_spec_hashable)
+
+        seen = {}
+        for task in self.workflow.tasks:
+            for schema in task.template.schemas:
+                if schema.name in actions_by_schema:
+                    for idx, action in enumerate(schema.actions):
+
+                        if action.script:
+                            script = action.script
+                        else:
+                            continue
+
+                        for env_spec_h in actions_by_schema[schema.name][idx]:
+
+                            env_spec = action.env_spec_from_hashable(env_spec_h)
+                            name, snip_path, specs = action.get_script_artifact_name(
+                                env_spec=env_spec,
+                                act_idx=idx,
+                                ret_specifiers=True,
+                            )
+                            script_hash = action.get_script_determinant_hash(specs)
+                            script_path = self.scripts_path / name
+                            prev_path = seen.get(script_hash)
+                            if script_path == prev_path:
+                                continue
+
+                            elif prev_path:
+                                # try to make a symbolic link to the file previously
+                                # created:
+                                try:
+                                    script_path.symlink_to(prev_path)
+                                except OSError:
+                                    # windows requires admin permission, copy instead:
+                                    shutil.copy(prev_path, script_path)
+                            else:
+                                # write script to disk:
+                                source_str = action.compose_source(snip_path)
+                                if source_str:
+                                    script_path.write_text(source_str, newline="\n")
+                                    seen[script_hash] = script_path
+
     def _set_run_abort(self, run_ID: int):
         """Modify the abort runs file to indicate a specified run should be aborted."""
+
+        # TODO: unused ?
+
         with self.abort_EARs_file_path.open(mode="rt", newline="\n") as fp:
             lines = fp.read().splitlines()
         lines[run_ID] = "1"
@@ -392,7 +457,7 @@ class Submission(JSONLike):
     ) -> Dict[Tuple[Tuple[int, int]], Scheduler]:
         """Get unique schedulers and which of the passed jobscripts they correspond to.
 
-        Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
+        Uniqueness is determined only by the `Scheduler.unique_properties` tuple.
 
         """
         js_idx = []
@@ -552,8 +617,14 @@ class Submission(JSONLike):
         self.tmp_path.mkdir(exist_ok=True)
         self.log_path.mkdir(exist_ok=True)
         self.std_path.mkdir(exist_ok=True)
+        self.scripts_path.mkdir(exist_ok=True)
+
         if not self.abort_EARs_file_path.is_file():
             self._write_abort_EARs_file()
+
+        # write scripts to the submission directory
+        self._write_scripts()  # TODO: move this to `add_submission`/Submission init?
+        #                           ... then some int-tests can be more like units?
 
         # map jobscript `index` to (scheduler job ID or process ID, is_array):
         scheduler_refs = {}

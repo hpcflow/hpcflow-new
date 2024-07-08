@@ -2853,12 +2853,50 @@ class Workflow:
                 # prepare subprocess command:
                 jobscript = self.submissions[submission_idx].jobscripts[js_idx]
                 cmd = jobscript.shell.get_command_file_launch_command(str(cmd_file_path))
-                add_env = {f"{self.app.package_name.upper()}_RUN_ID": str(run_ID)}
+                loop_idx_str = ";".join(
+                    f"{k}={v}" for k, v in run.element_iteration.loop_idx.items()
+                )
+                app_caps = self.app.package_name.upper()
+                add_env = {
+                    f"{app_caps}_RUN_ID": str(run_ID),
+                    f"{app_caps}_RUN_IDX": str(run.index),
+                    f"{app_caps}_ELEMENT_IDX": str(run.element.index),
+                    f"{app_caps}_ELEMENT_ID": str(run.element.id_),
+                    f"{app_caps}_ELEMENT_ITER_IDX": str(run.element_iteration.index),
+                    f"{app_caps}_ELEMENT_ITER_ID": str(run.element_iteration.id_),
+                    f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
+                }
+
+                if run.action.script:
+                    if run.is_snippet_script:
+                        script_artifact_name = run.get_script_artifact_name()
+                        script_dir = Path(os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"])
+                        script_name = script_artifact_name
+                    else:
+                        # not a snippet script; expect the script in the run execute
+                        # directory (i.e. created by a previous action)
+                        script_dir = Path.cwd()
+                        script_name = run.action.script
+
+                    script_name_no_ext = str(Path(script_name).stem)
+                    add_env.update(
+                        {
+                            f"{app_caps}_RUN_SCRIPT_NAME": script_name,
+                            f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_name_no_ext,
+                            f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
+                            f"{app_caps}_RUN_SCRIPT_PATH": str(script_dir / script_name),
+                        }
+                    )
+
                 env = {**dict(os.environ), **add_env}
+
                 self.app.submission_logger.debug(
                     f"Executing run commands via subprocess with command {cmd!r}, and "
-                    f"additional environment variables: {add_env!r}."
+                    f"environment variables as below."
                 )
+                for k, v in env.items():
+                    if k.startswith(app_caps):
+                        self.app.submission_logger.debug(f"{k} = {v}")
 
                 exe = self.app.Executor(cmd, env)
                 port = exe.start_zmq_server()  # start the server so we know the port
@@ -2902,11 +2940,15 @@ class Workflow:
                 f"index: {js_idx})"
             )
             jobscript = self.submissions[submission_idx].jobscripts[js_idx]
+
+            if run.action.script:
+                run.write_script_input_files(block_act_key)
+
             write_commands = True
             try:
                 commands, shell_vars = run.compose_commands(jobscript, block_act_key)
             except OutputFileParserNoOutputError:
-                # no commands to write
+                # no commands to write, might be used just for saving files
                 write_commands = False
 
             if write_commands:

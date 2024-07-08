@@ -33,7 +33,7 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 from hpcflow.sdk.submission.submission import Submission
-
+from hpcflow.sdk.utils.hashing import get_hash
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
@@ -481,6 +481,10 @@ class ElementActionRun:
     def env_spec(self) -> Dict[str, Any]:
         return self.resources.environments[self.action.get_environment_name()]
 
+    @property
+    def env_spec_hashable(self) -> Tuple:
+        return self.action.env_spec_to_hashable(self.env_spec)
+
     def get_directory(self) -> Path:
         task_dir_name = self.task.get_dir_name(loop_idx=self.element_iteration.loop_idx)
         elem_dir_name = self.element.dir_name
@@ -655,7 +659,7 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
-    def write_source(self, block_act_key: Tuple[int, int, int]):
+    def write_script_input_files(self, block_act_key: Tuple[int, int, int]):
 
         for fmt, ins in self.action.script_data_in_grouped.items():
             if fmt == "json":
@@ -681,15 +685,6 @@ class ElementActionRun:
                     for k, v in in_vals.items():
                         grp_k = f.create_group(k)
                         v.dump_to_HDF5_group(grp_k)
-
-        # write the script if it is specified as a app data script, otherwise we assume
-        # the script already exists in the working directory:
-        snip_path = self.action.get_snippet_script_path(self.action.script, self.env_spec)
-        if snip_path:
-            script_name = snip_path.name
-            source_str = self.action.compose_source(snip_path)
-            with Path(script_name).open("wt", newline="\n") as fp:
-                fp.write(source_str)
 
     def _param_save(self, block_act_key: Tuple[int, int, int]):
         """Save script-generated parameters that are stored within the supported script
@@ -723,6 +718,28 @@ class ElementActionRun:
                         param_cls = self.app.parameters.get(param_name)._value_class
                         param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
 
+    @property
+    def is_snippet_script(self) -> bool:
+        """Returns True if the action script string represents a script snippets that is
+        to be modified before execution (e.g. to receive and provide parameter data)."""
+        try:
+            return self.action.is_snippet_script(self.action.script)
+        except AttributeError:
+            return False
+
+    def get_script_artifact_name(self) -> str:
+        """Return the script name that is used when writing the script to the artifacts
+        directory within the workflow.
+
+        Like `Action.get_script_name`, this is only applicable for snippet scripts.
+
+        """
+        art_name, snip_path = self.action.get_script_artifact_name(
+            env_spec=self.env_spec,
+            act_idx=self.element_action.action_idx,
+        )
+        return art_name
+
     def compose_commands(
         self,
         jobscript: app.Jobscript,
@@ -740,18 +757,10 @@ class ElementActionRun:
         self.app.persistence_logger.debug("EAR.compose_commands")
         env_spec = self.env_spec
 
-        for ifg in self.action.input_file_generators:
-            # TODO: there should only be one at this stage if expanded?
-            ifg.write_source(self.action, env_spec)
-
         for ofp in self.action.output_file_parsers:
             # TODO: there should only be one at this stage if expanded?
             if ofp.output is None:
                 raise OutputFileParserNoOutputError()
-            ofp.write_source(self.action, env_spec)
-
-        if self.action.script:
-            self.write_source(block_act_key)
 
         command_lns = []
         env = jobscript.submission.environments.get(**env_spec)
@@ -1417,6 +1426,35 @@ class Action(JSONLike):
             return True
         return False
 
+    @staticmethod
+    def env_spec_to_hashable(env_spec: Dict) -> Tuple:
+        return tuple(zip(*env_spec.items()))
+
+    @staticmethod
+    def env_spec_from_hashable(env_spec_h: Tuple) -> Dict:
+        return dict(zip(*env_spec_h))
+
+    def get_script_determinants(self) -> Tuple:
+        """Get the attributes that affect the script."""
+        return (
+            self.script,
+            self.script_data_in,
+            self.script_data_out,
+            self.script_data_files_use_opt,
+            self.script_exe,
+        )
+
+    def get_script_determinant_hash(self, env_specs: Optional[Dict] = None) -> int:
+        """Get a hash of the instance attributes that uniquely determine the script.
+
+        The hash is not stable accross sessions or machines.
+
+        """
+        env_specs = env_specs or {}
+        return get_hash(
+            (self.get_script_determinants(), self.env_spec_to_hashable(env_specs))
+        )
+
     @classmethod
     def _json_like_constructor(cls, json_like):
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
@@ -1513,19 +1551,66 @@ class Action(JSONLike):
 
     @classmethod
     def get_script_name(cls, script: str) -> str:
-        """Return the script name."""
+        """Return the script name.
+
+        If `script` is a snippet script path, this method returns the name of the script
+        (i.e. the final component of the path). If `script` is not a snippet script path
+        (does not start with "<<script:"), then `script` is simply returned.
+
+        """
         if cls.is_snippet_script(script):
             pattern = r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
             match_obj = re.match(pattern, script)
             return match_obj.group(1)
         else:
-            # a script we can expect in the working directory:
+            # a script we can expect in the working directory, which might have been
+            # generated by a previous action
             return script
+
+    def get_script_artifact_name(
+        self, env_spec: Dict, act_idx: int, ret_specifiers=False
+    ) -> Union[Tuple[str, Path], Tuple[str, Path, Dict]]:
+        """Return the script name that is used when writing the script to the artifacts
+        directory within the workflow.
+
+        Like `Action.get_script_name`, this is only applicable for snippet scripts.
+
+        """
+        if not self.is_snippet_script(self.script):
+            raise ValueError("Not a snippet script!")
+
+        snip_path, specifiers = self.get_snippet_script_path(
+            self.script,
+            env_spec,
+            ret_specifiers=True,
+        )
+        specs_suffix = "__".join(f"{k}_{v}" for k, v in specifiers.items())
+        if specs_suffix:
+            specs_suffix = f".{specs_suffix}"
+
+        name = f"{self.task_schema.name}_act_{act_idx}{specs_suffix}{snip_path.suffix}"
+        if ret_specifiers:
+            return name, snip_path, specifiers
+        else:
+            return name, snip_path
 
     @classmethod
     def get_snippet_script_str(
-        cls, script, env_spec: Optional[Dict[str, Any]] = None
+        cls,
+        script,
+        env_spec: Optional[Dict[str, Any]] = None,
+        ret_specifiers: bool = False,
     ) -> str:
+        """Return the specified snippet `script` with variable substitutions completed.
+
+        Parameters
+        ----------
+        ret_specifiers
+            If True, also return a list of environment specifiers as a dict whose keys are
+            specifier keys found in the `script` path and whose values are the
+            corresponding values extracted from `env_spec`.
+
+        """
         if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
@@ -1535,26 +1620,56 @@ class Action(JSONLike):
         match_obj = re.match(pattern, script)
         out = match_obj.group(1)
 
-        if env_spec:
+        if env_spec is not None:
+            specifiers = {}
+
+            def repl(match_obj):
+                spec = match_obj.group(1)
+                specifiers[spec] = env_spec[spec]
+                return str(env_spec[spec])
+
             out = re.sub(
                 pattern=r"\<\<env:(.*?)\>\>",
-                repl=lambda match_obj: env_spec[match_obj.group(1)],
+                repl=repl,
                 string=out,
             )
+            if ret_specifiers:
+                out = (out, specifiers)
         return out
 
     @classmethod
     def get_snippet_script_path(
-        cls, script_path, env_spec: Optional[Dict[str, Any]] = None
+        cls,
+        script_path,
+        env_spec: Optional[Dict[str, Any]] = None,
+        ret_specifiers: bool = False,
     ) -> Path:
+        """Return the specified snippet `script` path.
+
+        Parameters
+        ----------
+        ret_specifiers
+            If True, also return a list of environment specifiers as a dict whose keys are
+            specifier keys found in the `script` path and whose values are the
+            corresponding values extracted from `env_spec`.
+
+        """
         if not cls.is_snippet_script(script_path):
             return False
 
-        path = cls.get_snippet_script_str(script_path, env_spec)
+        path = cls.get_snippet_script_str(script_path, env_spec, ret_specifiers)
+        if ret_specifiers:
+            path, specifiers = path
+
         if path in cls.app.scripts:
             path = cls.app.scripts.get(path)
 
-        return Path(path)
+        path = Path(path)
+
+        if ret_specifiers:
+            return path, specifiers
+        else:
+            return path
 
     @staticmethod
     def get_param_dump_file_stem(block_act_key: Tuple[int, int, int]):
@@ -1604,28 +1719,33 @@ class Action(JSONLike):
             run_ID_var = "$RUN_ID"
 
             # note: double quotes; workflow path may include spaces:
-            wk_path_var = '"$WK_PATH"'
-            app_std_path_var = f'"${app_caps}_RUN_STD_PATH"'
-            app_log_path_var = f'"${app_caps}_RUN_LOG_PATH"'
+            script_name_var = f'"${app_caps}_RUN_SCRIPT_NAME"'
+            script_name_no_ext_var = f'"${app_caps}_RUN_SCRIPT_NAME_NO_EXT"'
+            script_dir_var = f'"${app_caps}_RUN_SCRIPT_DIR"'
+            script_path_var = f'"${app_caps}_RUN_SCRIPT_PATH"'
+
+            script_cmd_vars = {
+                "script_name": script_name_var,
+                "script_name_no_ext": script_name_no_ext_var,
+                "script_dir": script_dir_var,
+                "script_path": script_path_var,
+            }
 
             for ifg in self.input_file_generators:
-                exe = "<<executable:python_script>>"
-                if ifg.script:
-                    script_name = self.get_script_name(ifg.script)
-                    variables = {
-                        "script_name": script_name,
-                        "script_name_no_ext": str(Path(script_name).stem),
-                    }
-                else:
-                    variables = {}
+                script_exe = "python_script"
+                exe = f"<<executable:{script_exe}>>"
+                variables = script_cmd_vars if ifg.script else {}
                 act_i = self.app.Action(
                     commands=[app.Command(executable=exe, variables=variables)],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
                     rules=main_rules + ifg.get_action_rules(),
+                    script=ifg.script,
+                    script_data_in="direct",
+                    script_data_out="direct",
+                    script_exe=script_exe,
                     script_pass_env_spec=ifg.script_pass_env_spec,
                     abortable=ifg.abortable,
-                    # TODO: add script_data_in etc? and to OFP?
                 )
                 act_i._task_schema = self.task_schema
                 if ifg.input_file not in inp_files:
@@ -1636,20 +1756,18 @@ class Action(JSONLike):
             out_files = []
             out_acts = []
             for ofp in self.output_file_parsers:
-                exe = "<<executable:python_script>>"
-                if ofp.script:
-                    script_name = self.get_script_name(ofp.script)
-                    variables = {
-                        "script_name": script_name,
-                        "script_name_no_ext": str(Path(script_name).stem),
-                    }
-                else:
-                    variables = {}
+                script_exe = "python_script"
+                exe = f"<<executable:{script_exe}>>"
+                variables = script_cmd_vars if ofp.script else {}
                 act_i = self.app.Action(
                     commands=[app.Command(executable=exe, variables=variables)],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
                     rules=list(self.rules) + ofp.get_action_rules(),
+                    script=ofp.script,
+                    script_data_in="direct",
+                    script_data_out="direct",
+                    script_exe=script_exe,
                     script_pass_env_spec=ofp.script_pass_env_spec,
                     abortable=ofp.abortable,
                 )
@@ -1663,15 +1781,7 @@ class Action(JSONLike):
             commands = self.commands
             if self.script:
                 exe = f"<<executable:{self.script_exe}>>"
-                if self.script:
-                    script_name = self.get_script_name(self.script)
-                    variables = {
-                        "script_name": script_name,
-                        "script_name_no_ext": str(Path(script_name).stem),
-                    }
-                else:
-                    variables = {}
-
+                variables = script_cmd_vars if self.script else {}
                 args = []
                 fn_args = (
                     r"${HPCFLOW_JS_IDX}",
@@ -2032,6 +2142,13 @@ class Action(JSONLike):
         if not self.script_is_python:
             return script_str
 
+        is_IFG = bool(self.input_file_generators)
+        is_OFP = bool(self.output_file_parsers)
+
+        if is_OFP and self.output_file_parsers[0].output is None:
+            # might be used just for saving files:
+            return
+
         app_caps = self.app.package_name.upper()
         py_imports = dedent(
             """\
@@ -2077,15 +2194,27 @@ class Action(JSONLike):
         else:
             py_main_block_workflow_load = ""
 
-        func_kwargs_lst = []
-        if "direct" in self.script_data_in_grouped:
-            direct_ins_str = "direct_ins = EAR.get_input_values_direct()"
-            direct_ins_arg_str = "**direct_ins"
-            func_kwargs_lst.append(direct_ins_arg_str)
-        else:
-            direct_ins_str = ""
+        kwargs_lns = []
+        double_splat_lns = []
+        if not any((is_IFG, is_OFP)) and "direct" in self.script_data_in_grouped:
+            double_splat_lns.append("**EAR.get_input_values_direct()")
+
+        elif is_IFG:
+            new_file_path = self.input_file_generators[0].input_file.name.value()
+            double_splat_lns.append("**EAR.get_IFG_input_values()")
+            kwargs_lns.append(f'"path": Path("{new_file_path}")')
+
+        elif is_OFP:
+            double_splat_lns.extend(
+                (
+                    "**EAR.get_OFP_output_files()",
+                    "**EAR.get_OFP_inputs()",
+                    "**EAR.get_OFP_outputs()",
+                )
+            )
 
         if self.script_data_in_has_files:
+            # TODO: add parser.add_argument s here
             # need to pass "_input_files" keyword argument to script main function:
             input_files_str = dedent(
                 """\
@@ -2096,12 +2225,12 @@ class Action(JSONLike):
                     inp_files["hdf5"] = Path(args.inputs_hdf5)
             """
             )
-            input_files_arg_str = "_input_files=inp_files"
-            func_kwargs_lst.append(input_files_arg_str)
+            kwargs_lns.append('"_input_files": inp_files')
         else:
             input_files_str = ""
 
         if self.script_data_out_has_files:
+            # TODO: add parser.add_argument s here
             # need to pass "_output_files" keyword argument to script main function:
             output_files_str = dedent(
                 """\
@@ -2112,15 +2241,27 @@ class Action(JSONLike):
                     out_files["hdf5"] = Path(args.outputs_hdf5)
             """
             )
-            output_files_arg_str = "_output_files=out_files"
-            func_kwargs_lst.append(output_files_arg_str)
+            kwargs_lns.append('"_output_files": out_files')
 
         else:
             output_files_str = ""
 
+        tab_indent = "    "
+        tab_indent_2 = 2 * tab_indent
+
+        all_kwargs_lns = kwargs_lns + double_splat_lns
+        all_kwargs_str = ",\n".join(all_kwargs_lns) + ","
+        func_kwargs_str = dedent(
+            """\
+            func_kwargs = {{
+            {kwargs_str}
+            }}
+        """
+        ).format(kwargs_str=indent(all_kwargs_str, tab_indent))
+
         script_main_func = Path(script_name).stem
-        func_invoke_str = f"{script_main_func}({', '.join(func_kwargs_lst)})"
-        if "direct" in self.script_data_out_grouped:
+        func_invoke_str = f"{script_main_func}(**func_kwargs)"
+        if not is_OFP and "direct" in self.script_data_out_grouped:
             py_main_block_invoke = f"outputs = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\
@@ -2129,29 +2270,41 @@ class Action(JSONLike):
                         wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
             )
+        elif is_OFP:
+            py_main_block_invoke = f"output = {func_invoke_str}"
+            py_main_block_outputs = dedent(
+                """\
+                with app.redirect_std_to_file(std_path):
+                    wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
+                """
+            ).format(output_typ=self.output_file_parsers[0].output.typ)
         else:
             py_main_block_invoke = func_invoke_str
             py_main_block_outputs = ""
 
-        tab_indent = "    "
-        tab_indent_2 = 2 * tab_indent
+        in_files = "\n" + indent(input_files_str, tab_indent_2) if input_files_str else ""
+        out_files = (
+            "\n" + indent(output_files_str, tab_indent_2) if output_files_str else ""
+        )
+        wk_load = (
+            "\n" + indent(py_main_block_workflow_load, tab_indent_2)
+            if py_main_block_workflow_load
+            else ""
+        )
         py_main_block = dedent(
             """\
             if __name__ == "__main__":
-            {py_imports}
-            {wk_load}
-            {direct_ins}
-            {in_files}
-            {out_files}
+            {py_imports}{wk_load}{in_files}{out_files}
+            {func_kwargs}
             {invoke}
             {outputs}
             """
         ).format(
             py_imports=indent(py_imports, tab_indent),
-            wk_load=indent(py_main_block_workflow_load, tab_indent_2),
-            direct_ins=indent(direct_ins_str, tab_indent_2),
-            in_files=indent(input_files_str, tab_indent_2),
-            out_files=indent(output_files_str, tab_indent_2),
+            wk_load=wk_load,
+            in_files=in_files,
+            out_files=out_files,
+            func_kwargs=indent(func_kwargs_str, tab_indent_2),
             invoke=indent(py_main_block_invoke, tab_indent),
             outputs=indent(py_main_block_outputs, tab_indent),
         )

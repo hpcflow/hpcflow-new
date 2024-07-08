@@ -22,7 +22,7 @@ class WindowsPowerShell(Shell):
         function {workflow_app_alias} {{
             & {{
         {env_setup}{app_invoc} `
-                    --with-config log_file_path "$env:{app_caps}_RUN_LOG_PATH" `
+                    --with-config log_file_path "$env:{app_caps}_LOG_PATH" `
                     --config-dir "{config_dir}" `
                     --config-key "{config_invoc_key}" `
                     $args
@@ -32,17 +32,6 @@ class WindowsPowerShell(Shell):
         function get_nth_line($file, $line) {{
             Get-Content $file | Select-Object -Skip $line -First 1
         }}
-
-        function StartJobHere($block) {{
-            $jobInitBlock = [scriptblock]::Create(@"
-                Function wkflow_app {{ $function:wkflow_app }}
-                Function get_nth_line {{ $function:get_nth_line }}
-                Function JoinMultiPath {{ $function:JoinMultiPath }}
-                Set-Location '$pwd'
-        "@)
-            Start-Job -InitializationScript $jobInitBlock -Script $block
-        }}
-
     """
     )
     JS_HEADER = dedent(
@@ -67,22 +56,24 @@ class WindowsPowerShell(Shell):
         $JS_FUNCS_PATH = Join-Path $SUB_DIR {jobscript_functions_path}
         . $JS_FUNCS_PATH
 
-        $env:{app_caps}_WK_PATH = $WK_PATH
-        $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
-        $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
-        $env:{app_caps}_SUB_IDX = {sub_idx}
-        $env:{app_caps}_JS_IDX = {js_idx}
-
         $EAR_ID_FILE = Join-Path $SUB_DIR {EAR_file_name}
         $SUB_TMP_DIR = Join-Path $SUB_DIR {tmp_dir_name}
         $SUB_LOG_DIR = Join-Path $SUB_DIR {log_dir_name}
         $SUB_STD_DIR = Join-Path $SUB_DIR {std_dir_name}
+        $SUB_SCRIPTS_DIR = Join-Path $SUB_DIR {scripts_dir_name}        
+
+        $env:{app_caps}_WK_PATH = $WK_PATH
+        $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
+        $env:{app_caps}_SUB_IDX = {sub_idx}
+        $env:{app_caps}_SUB_SCRIPTS_DIR = $SUB_SCRIPTS_DIR
+        $env:{app_caps}_LOG_PATH = Join-Path $SUB_LOG_DIR "js_$JS_IDX.log"
+        $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
+        $env:{app_caps}_JS_IDX = {js_idx}
     """
     )
     JS_DIRECT_HEADER = dedent(
         """\
         {shebang}
-
         {header}
         {wait_command}
     """
@@ -101,6 +92,7 @@ class WindowsPowerShell(Shell):
 
         $env:{app_caps}_RUN_ID = $EAR_ID
         $env:{app_caps}_RUN_LOG_PATH = Join-Path $SUB_LOG_DIR "$env:{app_caps}_RUN_ID.log"
+        $env:{app_caps}_LOG_PATH = $env:{app_caps}_RUN_LOG_PATH
         $env:{app_caps}_RUN_STD_PATH = Join-Path $SUB_STD_DIR "$env:{app_caps}_RUN_ID.txt"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
 
@@ -239,11 +231,16 @@ class WindowsPowerShell(Shell):
         ).format(app_name=app_caps)
 
         var_strings = (
+            f"{app_caps}_WK_PATH",
+            f"{app_caps}_SUB_SCRIPTS_DIR",
             f"{app_caps}_JS_IDX",
             f"{app_caps}_BLOCK_IDX",
             f"{app_caps}_BLOCK_ACT_IDX",
             f"{app_caps}_RUN_STD_PATH",
-            f"{app_caps}_WK_PATH",
+            f"{app_caps}_RUN_SCRIPT_NAME",
+            f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT",
+            f"{app_caps}_RUN_SCRIPT_DIR",
+            f"{app_caps}_RUN_SCRIPT_PATH",
         )
         add = False
         for i in var_strings:

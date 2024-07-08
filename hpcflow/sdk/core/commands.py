@@ -91,6 +91,7 @@ class Command(JSONLike):
                 exec_cmd = executable.filter_instances(**filter_exec)[0].command
                 out = exec_cmd.replace("<<num_cores>>", str(EAR.resources.num_cores))
             elif typ == "script":
+                # TODO: is this needed? we have <<script_name>> <<script_path>> etc as command variables
                 out = EAR.action.get_script_name(val)
             return out
 

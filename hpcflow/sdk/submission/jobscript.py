@@ -988,6 +988,7 @@ class Jobscript(JSONLike):
             "tmp_dir_name": self.submission.TMP_DIR_NAME,
             "log_dir_name": self.submission.LOG_DIR_NAME,
             "std_dir_name": self.submission.STD_DIR_NAME,
+            "scripts_dir_name": self.submission.SCRIPTS_DIR_NAME,
         }
 
         shebang = shell.JS_SHEBANG.format(

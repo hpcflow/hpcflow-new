@@ -72,7 +72,7 @@ def test_OFP_std_stream_redirect_on_exception(new_null_config, tmp_path):
     else:
         env_cmd = f'export {app_caps}_WK_PATH="nonsense_path"'
 
-    env_cmd += "; python <<script_name>> <<args>>"
+    env_cmd += "; python <<script_path>> <<args>>"
     bad_env = hf.Environment(
         name="bad_python_env",
         executables=[
@@ -138,6 +138,8 @@ def test_OFP_std_stream_redirect_on_exception(new_null_config, tmp_path):
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 
+    hf.reload_template_components()  # remove extra envs
+
 
 @pytest.mark.integration
 @pytest.mark.skipif("hf.run_time_info.is_frozen")
@@ -190,3 +192,171 @@ def test_OFP_std_out_std_err_not_redirected(null_config, tmp_path):
 
     assert std_out.strip() == stdout_msg
     assert std_err.strip() == stderr_msg
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_output_file_parser_pass_env_spec(null_config, tmp_path):
+    out_file_name = "my_output_file.txt"
+    out_file = hf.FileSpec(label="my_output_file", name=out_file_name)
+
+    if os.name == "nt":
+        cmd = f"Set-Content -Path {out_file_name} -Value (<<parameter:p1>> + 100)"
+    else:
+        cmd = f"echo $(( <<parameter:p1>> + 100 )) > {out_file_name}"
+
+    act = hf.Action(
+        commands=[hf.Command(cmd)],
+        output_file_parsers=[
+            hf.OutputFileParser(
+                output_files=[out_file],
+                output=hf.Parameter("p2"),
+                script="<<script:env_specifier_test/output_file_parser_pass_env_spec.py>>",
+                script_pass_env_spec=True,
+            ),
+        ],
+        environments=[hf.ActionEnvironment(environment="python_env")],
+    )
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[act],
+    )
+
+    t1 = hf.Task(schema=s1, inputs={"p1": 101})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="output_file_parser_pass_env_spec",
+        path=tmp_path,
+    )
+
+    wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text().strip()
+    assert std_out == "{'name': 'python_env'}"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_env_specifier_in_output_file_parser_script_path(new_null_config, tmp_path):
+
+    py_env = hf.Environment(
+        name="python_env",
+        specifiers={"version": "v1"},
+        executables=[
+            hf.Executable(
+                label="python_script",
+                instances=[
+                    hf.ExecutableInstance(
+                        command="python <<script_path>> <<args>>",
+                        num_cores=1,
+                        parallel_mode=None,
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(py_env, skip_duplicates=True)
+
+    out_file_name = "my_output_file.txt"
+    out_file = hf.FileSpec(label="my_output_file", name=out_file_name)
+
+    if os.name == "nt":
+        cmd = f"Set-Content -Path {out_file_name} -Value (<<parameter:p1>> + 100)"
+    else:
+        cmd = f"echo $(( <<parameter:p1>> + 100 )) > {out_file_name}"
+
+    act = hf.Action(
+        commands=[hf.Command(cmd)],
+        output_file_parsers=[
+            hf.OutputFileParser(
+                output_files=[out_file],
+                output=hf.Parameter("p2"),
+                script="<<script:env_specifier_test/<<env:version>>/output_file_parser_basic.py>>",
+            ),
+        ],
+        environments=[hf.ActionEnvironment(environment="python_env")],
+    )
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        outputs=[hf.SchemaInput(parameter=hf.Parameter("p2"))],
+        actions=[act],
+    )
+
+    p1_val = 101
+    p2_val_expected = p1_val + 100
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": p1_val},
+        environments={"python_env": {"version": "v1"}},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="output_file_parser_test_env_specifier",
+        path=tmp_path,
+    )
+
+    wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    # check the command successfully generated the output file:
+    out_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{out_file.name.name}"
+    out_file_contents = out_file_path.read_text()
+    assert out_file_contents.strip() == str(p2_val_expected)
+
+    # check the output is parsed correctly:
+    assert wk.tasks[0].elements[0].outputs.p2.value == p2_val_expected
+
+    hf.reload_template_components()  # remove extra envs
+
+
+@pytest.mark.integration
+def test_no_script_no_output_saves_files(null_config, tmp_path):
+    """Check we can use an output file parser with no script or output to save files."""
+    out_file_name = "my_output_file.txt"
+    out_file = hf.FileSpec(label="my_output_file", name=out_file_name)
+
+    if os.name == "nt":
+        cmd = f"Set-Content -Path {out_file_name} -Value (<<parameter:p1>> + 100)"
+    else:
+        cmd = f"echo $(( <<parameter:p1>> + 100 )) > {out_file_name}"
+
+    act = hf.Action(
+        commands=[hf.Command(cmd)],
+        output_file_parsers=[hf.OutputFileParser(output_files=[out_file])],
+        environments=[hf.ActionEnvironment(environment="python_env")],
+    )
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[act],
+    )
+
+    p1_val = 101
+    p2_val_expected = p1_val + 100
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="output_file_parser_test_no_output_no_script",
+        path=tmp_path,
+    )
+
+    wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    # check the output file is saved to artifacts:
+    out_file_path = wk.task_artifacts_path / f"task_0_t1/e_0/r_0/{out_file.name.name}"
+    out_file_contents = out_file_path.read_text()
+    assert out_file_contents.strip() == str(p2_val_expected)
+
+    # check no scripts generated
+    assert not any(wk.submissions[0].scripts_path.iterdir())

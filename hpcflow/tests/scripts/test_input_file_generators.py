@@ -70,7 +70,7 @@ def test_IFG_std_stream_redirect_on_exception(new_null_config, tmp_path):
     else:
         env_cmd = f'export {app_caps}_WK_PATH="nonsense_path"'
 
-    env_cmd += "; python <<script_name>> <<args>>"
+    env_cmd += "; python <<script_path>> <<args>>"
     bad_env = hf.Environment(
         name="bad_python_env",
         executables=[
@@ -125,6 +125,8 @@ def test_IFG_std_stream_redirect_on_exception(new_null_config, tmp_path):
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 
+    hf.reload_template_components()  # remove extra envs
+
 
 @pytest.mark.integration
 @pytest.mark.skipif("hf.run_time_info.is_frozen")
@@ -167,3 +169,122 @@ def test_IFG_std_out_std_err_not_redirected(null_config, tmp_path):
 
     assert std_out.strip() == stdout_msg
     assert std_err.strip() == stderr_msg
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_IFG_pass_env_spec(null_config, tmp_path):
+    inp_file = hf.FileSpec(label="my_input_file", name="my_input_file.txt")
+
+    if os.name == "nt":
+        cmd = "Get-Content <<file:my_input_file>>"
+    else:
+        cmd = "cat <<file:my_input_file>>"
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[hf.Command(cmd)],
+                input_file_generators=[
+                    hf.InputFileGenerator(
+                        input_file=inp_file,
+                        inputs=[hf.Parameter("p1")],
+                        script="<<script:env_specifier_test/input_file_generator_pass_env_spec.py>>",
+                        script_pass_env_spec=True,
+                    ),
+                ],
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    t1 = hf.Task(schema=s1, inputs={"p1": p1_val})
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="input_file_generator_pass_env_spec",
+        path=tmp_path,
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    # check the command successfully printed the env spec and file contents to stdout:
+    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text()
+    assert std_out.strip() == f"{{'name': 'python_env'}}\n{str(p1_val)}"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif("hf.run_time_info.is_frozen")
+def test_env_specifier_in_input_file_generator_script_path(new_null_config, tmp_path):
+
+    py_env = hf.Environment(
+        name="python_env",
+        specifiers={"version": "v1"},
+        executables=[
+            hf.Executable(
+                label="python_script",
+                instances=[
+                    hf.ExecutableInstance(
+                        command="python <<script_path>> <<args>>",
+                        num_cores=1,
+                        parallel_mode=None,
+                    )
+                ],
+            )
+        ],
+    )
+    hf.envs.add_object(py_env, skip_duplicates=True)
+
+    inp_file = hf.FileSpec(label="my_input_file", name="my_input_file.txt")
+
+    if os.name == "nt":
+        cmd = "Get-Content <<file:my_input_file>>"
+    else:
+        cmd = "cat <<file:my_input_file>>"
+
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
+        actions=[
+            hf.Action(
+                commands=[hf.Command(cmd)],
+                input_file_generators=[
+                    hf.InputFileGenerator(
+                        input_file=inp_file,
+                        inputs=[hf.Parameter("p1")],
+                        script="<<script:env_specifier_test/<<env:version>>/input_file_generator_basic.py>>",
+                    ),
+                ],
+                environments=[hf.ActionEnvironment(environment="python_env")],
+            )
+        ],
+    )
+    p1_val = 101
+    t1 = hf.Task(
+        schema=s1,
+        inputs={"p1": p1_val},
+        environments={"python_env": {"version": "v1"}},
+    )
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        template_name="input_file_generator_test_env_specifier",
+        path=tmp_path,
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+    # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
+    # to be later Python versions):
+    time.sleep(10)
+
+    # check the input file is written
+    inp_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{inp_file.name.name}"
+    inp_file_contents = inp_file_path.read_text()
+    assert inp_file_contents.strip() == str(p1_val)
+
+    # check the command successfully printed the file contents to stdout:
+    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text()
+    assert std_out.strip() == str(p1_val)
+
+    hf.reload_template_components()  # remove extra envs

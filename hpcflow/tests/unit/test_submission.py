@@ -240,6 +240,8 @@ def test_raise_missing_matching_env_executable(new_null_config, tmp_path):
     with pytest.raises(MissingEnvironmentExecutableInstanceError):
         wk.add_submission()
 
+    hf.reload_template_components()  # remove extra envs
+
 
 def test_no_raise_matching_env_executable(new_null_config, tmp_path):
     env_name = "my_hpcflow_env"
@@ -276,6 +278,8 @@ def test_no_raise_matching_env_executable(new_null_config, tmp_path):
     )
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
     wk.add_submission()
+
+    hf.reload_template_components()  # remove extra envs
 
 
 def test_raise_missing_env(new_null_config, tmp_path):
@@ -328,6 +332,8 @@ def test_custom_env_and_executable(new_null_config, tmp_path):
     )
     wk = hf.Workflow.from_template(wkt, path=tmp_path)
     wk.add_submission()
+
+    hf.reload_template_components()  # remove extra envs
 
 
 def test_abort_EARs_file_creation(null_config, tmp_path):
