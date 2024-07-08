@@ -257,12 +257,11 @@ class ElementResources(JSONLike):
             keys, vals = zip(*d.items())
             return hash(tuple((keys, vals)))
 
-        exclude = ("time_limit",)
+        exclude = ("time_limit", "environments")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
 
         scheduler_args = dct["scheduler_args"]
         shell_args = dct["shell_args"]
-        envs = dct["environments"]
 
         if isinstance(scheduler_args, dict):
             if "options" in scheduler_args:
@@ -271,11 +270,6 @@ class ElementResources(JSONLike):
 
         if isinstance(shell_args, dict):
             dct["shell_args"] = _hash_dict(shell_args)
-
-        if isinstance(envs, dict):
-            for k, v in envs.items():
-                dct["environments"][k] = _hash_dict(v)
-            dct["environments"] = _hash_dict(dct["environments"])
 
         return _hash_dict(dct)
 
