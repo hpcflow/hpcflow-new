@@ -44,5 +44,5 @@ def test_non_snippet_script_execution(null_config, tmp_path):
     # TODO: investigate why the value is not always populated on GHA Ubuntu runners (tends
     # to be later Python versions):
     time.sleep(10)
-    std_out = wk.submissions[0].jobscripts[1].direct_stdout_path.read_text().strip()
+    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text().strip()
     assert std_out.endswith(test_str)
