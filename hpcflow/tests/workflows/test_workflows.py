@@ -28,7 +28,9 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
 
 
 @pytest.mark.integration
-@pytest.skipif(sys.platform == "darwin", reason="fails/too slow; need to investigate")
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="fails/too slow; need to investigate"
+)
 def test_run_abort(tmp_path, new_null_config):
     wk = make_test_data_YAML_workflow("workflow_test_run_abort.yaml", path=tmp_path)
     wk.submit(add_to_known=False)
