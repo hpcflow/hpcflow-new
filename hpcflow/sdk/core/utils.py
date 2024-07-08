@@ -610,7 +610,7 @@ def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
 
     result: list[TList[T]] = list(lst)
     for lens_i in lens[::-1]:
-        result = cast(list[TList[T]], _reshape(result, lens_i))
+        result = cast('list[TList[T]]', _reshape(result, lens_i))
 
     return result
 
@@ -831,7 +831,7 @@ def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
     is_multi: list[tuple[bool, int]] = []  # whether a list, and the number of items to process
     for i in d.values():
         if isinstance(i, list):
-            flat.extend(cast(list[T2], i))
+            flat.extend(cast('list[T2]', i))
             is_multi.append((True, len(i)))
         else:
             flat.append(cast(T2, i))

@@ -25,6 +25,7 @@ from hpcflow.sdk.core.utils import (
     parse_timestamp
 )
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.persistence.pending import PendingChanges
 from hpcflow.sdk.persistence.types import (
     AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
@@ -507,6 +508,7 @@ class StoreEAR(Generic[T, CTX]):
 
 
 @dataclass
+@hydrate
 class StoreParameter:
     id_: int
     is_pending: bool
@@ -515,8 +517,8 @@ class StoreParameter:
     file: Dict | None
     source: ParamSource
 
-    _encoders: dict[type, Callable] = field(default_factory=dict)
-    _decoders: dict[str, Callable] = field(default_factory=dict)
+    _encoders: ClassVar[dict[type, Callable]] = {}
+    _decoders: ClassVar[dict[str, Callable]] = {}
 
     def encode(self, **kwargs) -> dict[str, Any] | int:
         """Prepare store parameter data for the persistent store."""
@@ -1928,7 +1930,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         for idx, i in enumerate(store_iters):
             EARs: dict[int, dict[str, Any]] | None = None
             if i.EAR_IDs is not None:
-                EARs = dict(zip(i.EAR_IDs.keys(), cast(Any, EARs_dcts[idx])))
+                EARs = dict(zip(i.EAR_IDs.keys(), cast('Any', EARs_dcts[idx])))
             iters.append(i.to_dict(EARs))
 
         # reshape iterations:

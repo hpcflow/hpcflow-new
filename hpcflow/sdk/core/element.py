@@ -191,6 +191,7 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 
 @dataclass
+@hydrate
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 

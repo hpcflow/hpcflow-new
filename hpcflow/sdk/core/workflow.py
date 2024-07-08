@@ -1158,11 +1158,11 @@ class Workflow:
         task_js, temp_comps_js = task_c.to_json_like()
         assert temp_comps_js is not None
         self._store.add_template_components(temp_comps_js)
-        self._store.add_task(new_index, cast(Mapping, task_js))
+        self._store.add_task(new_index, cast('Mapping', task_js))
 
         # update in-memory workflow template components:
         temp_comps = cast(
-            _TemplateComponents,
+            '_TemplateComponents',
             self.app.template_components_from_json_like(temp_comps_js))
         for comp_type, comps in temp_comps.items():
             ol = self.__template_components[comp_type]
@@ -1247,7 +1247,7 @@ class Workflow:
 
         # update persistent store:
         self._store.add_loop(
-            loop_template=cast(Mapping, loop_js),
+            loop_template=cast('Mapping', loop_js),
             iterable_parameters=wk_loop.iterable_parameters,
             parents=wk_loop.parents,
             num_added_iterations=wk_loop.num_added_iterations,
@@ -1321,7 +1321,7 @@ class Workflow:
 
     @property
     def __template_components(self) -> _TemplateComponents:
-        return cast(_TemplateComponents, self.template_components)
+        return cast('_TemplateComponents', self.template_components)
 
     @property
     def template(self) -> WorkflowTemplate:
@@ -2728,7 +2728,7 @@ class Workflow:
         self._pending["submissions"].append(new_idx)
         with self._store.cached_load():
             with self.batch_update():
-                self._store.add_submission(new_idx, dict(cast(Mapping, sub_obj_js)))
+                self._store.add_submission(new_idx, dict(cast('Mapping', sub_obj_js)))
 
         return self.submissions[new_idx]
 

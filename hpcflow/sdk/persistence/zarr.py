@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
 
 import numpy as np
+from  numpy.ma.core import MaskedArray
 import zarr  # type: ignore
 import zarr.attrs  # type: ignore
 import zarr.convenience  # type: ignore
@@ -18,6 +19,7 @@ from rich.console import Console
 from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd  # type: ignore
 from reretry import retry  # type: ignore
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
     MissingStoreEARError,
@@ -45,7 +47,7 @@ from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import Dict, Self
+    from typing import ClassVar, Dict, Self
     from ..app import BaseApp
     from ..core.json_like import JSONed
 
@@ -85,7 +87,7 @@ def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
 
 
 def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
-    for arr_path, arr_idx in type_lookup["arrays"]:
+    for arr_path, arr_idx in type_lookup.get("arrays", {}):
         try:
             rel_path = get_relative_path(arr_path, path)
         except ValueError:
@@ -103,14 +105,14 @@ def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
     return obj
 
 
-def _encode_masked_array(obj, type_lookup, path, root_group, arr_path):
+def _encode_masked_array(obj: MaskedArray, type_lookup, path, root_group, arr_path):
     data_idx = _encode_numpy_array(obj.data, type_lookup, path, root_group, arr_path)
     mask_idx = _encode_numpy_array(obj.mask, type_lookup, path, root_group, arr_path)
     type_lookup["masked_arrays"].append([path, [data_idx, mask_idx]])
 
 
 def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
-    for arr_path, (data_idx, mask_idx) in type_lookup["masked_arrays"]:
+    for arr_path, (data_idx, mask_idx) in type_lookup.get("masked_arrays", []):
         try:
             rel_path = get_relative_path(arr_path, path)
         except ValueError:
@@ -118,7 +120,7 @@ def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
 
         data = arr_group.get(f"arr_{data_idx}")
         mask = arr_group.get(f"arr_{mask_idx}")
-        dataset = np.ma.core.MaskedArray(data=data, mask=mask)
+        dataset = MaskedArray(data=data, mask=mask)
 
         if rel_path:
             set_in_container(obj, rel_path, dataset)
@@ -151,7 +153,7 @@ class ZarrStoreTask(StoreTask[dict]):
     def decode(cls, task_dat: dict) -> Self:
         """Initialise a `StoreTask` from persistent task data"""
         task_dat["element_IDs"] = task_dat["element_IDs"].tolist()
-        return super().decode(task_dat)
+        return cls(is_pending=False, **task_dat)
 
 
 @dataclass
@@ -273,12 +275,13 @@ class ZarrStoreEAR(StoreEAR[list[Any], dict[str, list[str]]]):
 
 
 @dataclass
+@hydrate
 class ZarrStoreParameter(StoreParameter):
-    _encoders = {  # keys are types
+    _encoders: ClassVar[dict] = {  # keys are types
         np.ndarray: _encode_numpy_array,
-        np.ma.core.MaskedArray: _encode_masked_array,
+        MaskedArray: _encode_masked_array,
     }
-    _decoders = {  # keys are keys in type_lookup
+    _decoders: ClassVar[dict] = {  # keys are keys in type_lookup
         "arrays": _decode_numpy_arrays,
         "masked_arrays": _decode_masked_arrays,
     }
@@ -954,10 +957,8 @@ class ZarrPersistentStore(PersistentStore[
                     id_: ZarrStoreTask.decode({**i, "element_IDs": elem_IDs_arr_dat[id_]})
                     for idx, (id_, i) in enumerate(task_dat.items())
                 }
-            else:
-                new_tasks = {}
-            self.task_cache.update(new_tasks)
-            tasks.update(new_tasks)
+                self.task_cache.update(new_tasks)
+                tasks.update(new_tasks)
         return tasks
 
     @TimeIt.decorator

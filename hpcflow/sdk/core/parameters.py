@@ -166,6 +166,8 @@ class Parameter(JSONLike):
     def to_dict(self):
         dct = super().to_dict()
         del dct["_value_class"]
+        if dct.get("name") is None:
+            dct.pop("name", None)
         dct.pop("_task_schema", None)  # TODO: how do we have a _task_schema ref?
         return dct
 
@@ -292,7 +294,7 @@ class SchemaInput(SchemaParameter):
             else:
                 self.parameter = parameter
         except ValueError:
-            self.parameter = Parameter(cast(str, parameter))
+            self.parameter = self.app.Parameter(cast(str, parameter))
 
         self.multiple = multiple
 
@@ -326,7 +328,7 @@ class SchemaInput(SchemaParameter):
                 if isinstance(default_value, InputValue):
                     labels_defaults_i["default_value"] = default_value
                 else:
-                    labels_defaults_i["default_value"] = InputValue(
+                    labels_defaults_i["default_value"] = self.app.InputValue(
                         parameter=self.parameter,
                         value=default_value,
                         label=k,
@@ -1219,6 +1221,7 @@ class ValuePerturbation(AbstractInputValue):
         return cls(**spec)
 
 
+@hydrate
 class InputValue(AbstractInputValue):
     """
     Parameters
@@ -1240,7 +1243,7 @@ class InputValue(AbstractInputValue):
     """
 
     app: ClassVar[BaseApp]
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
             class_name="Parameter",

@@ -499,7 +499,6 @@ class BaseJSONLike:
             else:
                 obj = cls(**json_like_copy)
         except TypeError as err:
-            print(json_like_copy)
             raise TypeError(
                 f"Failed initialisation of class {cls.__name__!r}. Check the signature. "
                 f"Caught TypeError: {err}"

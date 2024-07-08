@@ -1447,6 +1447,12 @@ class Action(JSONLike):
                 return snip_path.suffix == ".py"
         return False
 
+    def to_dict(self):
+        d = super().to_dict()
+        d["script_data_in"] = d.pop("_script_data_in")
+        d["script_data_out"] = d.pop("_script_data_out")
+        return d
+
     def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         _from_expand = kwargs.pop("_from_expand")

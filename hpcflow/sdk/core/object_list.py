@@ -1,11 +1,12 @@
 from __future__ import annotations
+from  collections.abc import Mapping
 import copy
 from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
     from typing import Any, ClassVar, Self, Literal, TypeAlias
     from zarr import Group  # type: ignore
     from ..app import BaseApp
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .command_files import FileSpec
     from .environment import Environment, Executable
     from .loop import WorkflowLoop
-    from .parameters import Parameter, ResourceSpec, ResourceSpecArgs
+    from .parameters import Parameter, ResourceSpec
     from .task import Task, TaskTemplate, TaskSchema, WorkflowTask, ElementSet
     from .workflow import WorkflowTemplate
 
@@ -50,7 +51,7 @@ class ObjectList(JSONLike, Generic[T]):
 
         self._validate()
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         obj = self.__class__(copy.deepcopy(self._objects, memo))
         obj._descriptor = self._descriptor
         obj._object_is_dict = self._object_is_dict
@@ -202,12 +203,18 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     attribute uniquely identifies a single object."""
 
     # access attributes must not be named after any "public" methods, to avoid confusion!
-    _pub_methods = ("get", "get_all", "add_object", "add_objects")
+    _pub_methods: ClassVar[tuple[str, ...]] = ("get", "get_all", "add_object", "add_objects")
 
     def __init__(self, _objects: Iterable[T], access_attribute: str, descriptor: str | None = None):
         self._access_attribute = access_attribute
         super().__init__(_objects, descriptor=descriptor)
         self._update_index()
+
+    def __deepcopy__(self, memo) -> Self:
+        obj = self.__class__(copy.deepcopy(self._objects, memo), self._access_attribute)
+        obj._descriptor = self._descriptor
+        obj._object_is_dict = self._object_is_dict
+        return obj
 
     def _validate(self):
         for idx, obj in enumerate(self._objects):
@@ -334,7 +341,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
 
 class AppDataList(DotAccessObjectList[T], Generic[T]):
     _app: ClassVar[BaseApp]
-    _app_attr = "_app"
+    _app_attr: ClassVar[str] = "_app"
 
     def to_dict(self) -> dict[str, Any]:
         return {"_objects": super().to_dict()["_objects"]}
@@ -651,7 +658,7 @@ class ResourceList(ObjectList['ResourceSpec']):
             return cls([cls._app.ResourceSpec()])
         elif isinstance(resources, ResourceList):
             # Already a ResourceList
-            return cast(Self, resources)
+            return cast('Self', resources)
         elif isinstance(resources, dict):
             return cls.from_json_like(cast(dict, resources))
         elif isinstance(resources, cls._app.ResourceSpec):

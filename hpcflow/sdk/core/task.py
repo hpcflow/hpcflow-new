@@ -822,7 +822,7 @@ class Task(JSONLike):
         w = wt.workflow
         assert w
         w._store.add_element_set(
-            self.insert_ID, cast(Mapping, element_set.to_json_like()[0])
+            self.insert_ID, cast('Mapping', element_set.to_json_like()[0])
         )
 
     @classmethod
@@ -842,6 +842,7 @@ class Task(JSONLike):
         kwargs = self.to_dict()
         _insert_ID = kwargs.pop("insert_ID")
         _dir_name = kwargs.pop("dir_name")
+        kwargs.pop("Task__groups", None)
         # _pending_element_sets = kwargs.pop("pending_element_sets")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._insert_ID = _insert_ID
@@ -866,6 +867,7 @@ class Task(JSONLike):
     def to_dict(self) -> dict[str, Any]:
         out = super().to_dict()
         out["_schema"] = out.pop("_schemas")
+        out.pop("Task__groups", None)
         return {
             k.lstrip("_"): v
             for k, v in out.items()
@@ -3002,8 +3004,9 @@ class WorkflowTask:
             if path_is_multi:
                 new_current_val: list[ParameterValue | Any] = []
                 for set_i, meth_i, val_i in zip(
-                    cast(list[bool], path_is_set), cast(list[str | None], val_cls_method),
-                    cast(list[ParameterValue | Any], current_val)
+                    cast('list[bool]', path_is_set),
+                    cast('list[str | None]', val_cls_method),
+                    cast('list[ParameterValue | Any]', current_val)
                 ):
                     if set_i and isinstance(val_i, dict):
                         new_current_val.append(cls.__map_parameter_value(PV_cls, meth_i, val_i))
