@@ -346,14 +346,6 @@ class Submission(JSONLike):
         return task_elem_EARs
 
     @property
-    def abort_EARs_file_name(self):
-        return f"abort_EARs.txt"
-
-    @property
-    def abort_EARs_file_path(self):
-        return self.path / self.abort_EARs_file_name
-
-    @property
     def is_scheduled(self) -> Tuple[bool]:
         """Return whether each jobscript of this submission uses a scheduler or not."""
         return tuple(i.is_scheduled for i in self.jobscripts)
@@ -371,11 +363,6 @@ class Submission(JSONLike):
             if active_states:
                 out[js.index] = active_states
         return out
-
-    def _write_abort_EARs_file(self):
-        with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
-            # write a single line for each EAR currently in the workflow:
-            fp.write("\n".join("0" for _ in range(self.workflow.num_EARs)) + "\n")
 
     @TimeIt.decorator
     def _write_scripts(self):
@@ -429,28 +416,6 @@ class Submission(JSONLike):
                                     with script_path.open("wt", newline="\n") as fp:
                                         fp.write(source_str)
                                     seen[script_hash] = script_path
-
-    def _set_run_abort(self, run_ID: int):
-        """Modify the abort runs file to indicate a specified run should be aborted."""
-
-        # TODO: unused ?
-
-        with self.abort_EARs_file_path.open(mode="rt", newline="\n") as fp:
-            lines = fp.read().splitlines()
-        lines[run_ID] = "1"
-
-        # write a new temporary run-abort file:
-        tmp_suffix = self.abort_EARs_file_path.suffix + ".tmp"
-        tmp = self.abort_EARs_file_path.with_suffix(tmp_suffix)
-        self.app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
-        with tmp.open(mode="wt", newline="\n") as fp:
-            fp.write("\n".join(i for i in lines) + "\n")
-
-        # atomic rename, overwriting original:
-        self.app.submission_logger.debug(
-            "Replacing original run abort file with new temporary file."
-        )
-        os.replace(src=tmp, dst=self.abort_EARs_file_path)
 
     @staticmethod
     def get_unique_schedulers_of_jobscripts(
@@ -619,9 +584,6 @@ class Submission(JSONLike):
         self.log_path.mkdir(exist_ok=True)
         self.std_path.mkdir(exist_ok=True)
         self.scripts_path.mkdir(exist_ok=True)
-
-        if not self.abort_EARs_file_path.is_file():
-            self._write_abort_EARs_file()
 
         # write scripts to the submission directory
         self._write_scripts()  # TODO: move this to `add_submission`/Submission init?

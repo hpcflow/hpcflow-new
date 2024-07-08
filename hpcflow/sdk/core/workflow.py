@@ -2523,12 +2523,7 @@ class Workflow:
                             break
         return out
 
-    def _abort_run_ID(self, submission_idx, run_ID: int):
-        """Modify the submission abort runs text file to signal that a run should be
-        aborted."""
-        self.submissions[submission_idx]._set_run_abort(run_ID)
-
-    def _abort_run_ID_new(self, run):
+    def _abort_run(self, run):
         # connect to the ZeroMQ server on the worker node:
         self.app.logger.info(f"abort run: {run!r}")
         self.app.Executor.send_abort(
@@ -2579,7 +2574,7 @@ class Workflow:
                 "The run is not defined as abortable in the task schema, so it cannot "
                 "be aborted."
             )
-        self._abort_run_ID_new(run)
+        self._abort_run(run)
 
     @TimeIt.decorator
     def cancel(self, hard=False):
