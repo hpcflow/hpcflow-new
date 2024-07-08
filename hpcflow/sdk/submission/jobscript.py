@@ -1375,10 +1375,10 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def get_active_states(
         self, as_json: bool = False
-    ) -> Dict[int, JobscriptElementState]:
+    ) -> Dict[int, Dict[int, JobscriptElementState]]:
         """If this jobscript is active on this machine, return the state information from
         the scheduler."""
-
+        # this returns: {BLOCK_IDX: {JS_ELEMENT_IDX: STATE}}
         if not self.is_submitted:
             out = {}
 
@@ -1404,6 +1404,9 @@ class Jobscript(JSONLike):
                 )
                 out = self.scheduler.get_job_state_info(js_refs=[self.scheduler_js_ref])
                 if out:
+                    # remove scheduler ref (should be only one):
+                    out = next(iter(out.values()))
+
                     if self.is_array:
                         # out values are dicts keyed by array index
                         # there will be exactly one block

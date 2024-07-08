@@ -2514,7 +2514,7 @@ class Workflow:
             if element_idx is not None and elem.index != element_idx:
                 continue
             for iter_i in elem.iterations:
-                for elem_acts in iter_i.actions:
+                for elem_acts in iter_i.actions.values():
                     for run in elem_acts.runs:
                         if run.status is EARStatus.running:
                             out.append(run)

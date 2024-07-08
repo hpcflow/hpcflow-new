@@ -27,9 +27,6 @@ def test_workflow_1_with_working_dir_with_spaces(tmp_path, new_null_config):
 
 
 @pytest.mark.integration
-@pytest.mark.skip(
-    reason="Sometimes fails on MacOS GHAs runner; too slow on Windows + Linux"
-)
 def test_run_abort(tmp_path, new_null_config):
     wk = make_test_data_YAML_workflow("workflow_test_run_abort.yaml", path=tmp_path)
     wk.submit(add_to_known=False)

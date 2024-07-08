@@ -361,7 +361,7 @@ class Submission(JSONLike):
     @TimeIt.decorator
     def get_active_jobscripts(
         self, as_json: bool = False
-    ) -> Dict[int, Dict[int, Dict[int, Dict[int, JobscriptElementState]]]]:
+    ) -> Dict[int, Dict[int, Dict[int, JobscriptElementState]]]:
         """Get jobscripts that are active on this machine, and their active states."""
         # this returns: {JS_IDX: {BLOCK_IDX: {JS_ELEMENT_IDX: STATE}}}
         # TODO: query the scheduler once for all jobscripts?
