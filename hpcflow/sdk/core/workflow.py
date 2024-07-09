@@ -2845,14 +2845,15 @@ class Workflow:
 
             self.app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
 
-            run_dir = run.get_directory()
-            self.app.submission_logger.debug(
-                f"changing directory to run execution directory: {run_dir}."
-            )
-            os.chdir(run_dir)
-
             # check if we should skip:
             if not run.skip:
+
+                run_dir = run.get_directory()
+                self.app.submission_logger.debug(
+                    f"changing directory to run execution directory: {run_dir}."
+                )
+                os.chdir(run_dir)
+
                 # write the command file that will be executed:
                 cmd_file_path = self.write_commands(submission_idx, block_act_key, run)
                 if not cmd_file_path.is_file():
@@ -2925,6 +2926,31 @@ class Workflow:
         with redirect_std_to_file(run_std_path):
             if run.skip:
                 ret_code = SKIPPED_EXIT_CODE
+            else:
+                # check if we need to terminate a loop if this is the last action of the
+                # loop iteration for this element:
+                elem_iter = run.element_iteration
+                task = elem_iter.task
+                check_loops = []
+                for loop_name in elem_iter.loop_idx:
+                    self.app.logger.info(
+                        f"checking loop termination of loop {loop_name!r}."
+                    )
+                    loop = self.loops.get(loop_name)
+                    if (
+                        loop.template.termination
+                        and task.insert_ID == loop.task_insert_IDs[-1]
+                        and run.element_action.action_idx == max(elem_iter.actions)
+                    ):
+                        check_loops.append(loop_name)
+                        # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
+                        # TODO: test with condition actions
+                        if loop.test_termination(elem_iter):
+                            self.app.logger.info(
+                                f"loop {loop_name!r} termination condition met for run "
+                                f"ID {run.id_!r}."
+                            )
+                            loop.skip_downstream_iterations(elem_iter)
 
             # set run end:
             self.set_EAR_end(
@@ -2973,35 +2999,6 @@ class Workflow:
                             stderr=(st_typ == "stderr"),
                             app_name=app_name,
                         )
-
-                # add loop-check command if this is the last action of this loop iteration
-                # for this element:
-                iter_i = run.element_action.element_iteration
-                task = iter_i.task
-                check_loops = []
-                for loop_name in iter_i.loop_idx:
-                    loop = self.loops.get(loop_name)
-                    if (
-                        loop.template.termination
-                        and task.insert_ID == loop.task_insert_IDs[-1]
-                        and run.element_action.action_idx == max(iter_i.actions)
-                    ):
-                        check_loops.append(loop_name)
-                        # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
-                        # TODO: test with condition actions
-
-                if check_loops:
-                    # write loop termination check commands
-                    self.app.logger.debug(
-                        f"adding loop termination check command for loops: {check_loops!r}"
-                    )
-                    loop_cmd = jobscript.shell.format_loop_check(
-                        workflow_app_alias=jobscript.workflow_app_alias,
-                        run_ID=run.id_,
-                        loop_names=check_loops,
-                        app_name=app_name,
-                    )
-                    commands += loop_cmd
 
                 commands = (
                     jobscript.shell.format_source_functions_file(app_name, commands)
@@ -3111,24 +3108,6 @@ class Workflow:
         for sub in self.submissions:
             id_lst.extend(list(sub.all_EAR_IDs))
         return id_lst
-
-    def check_loop_termination(self, run_ID: int, loop_names: List[str]) -> bool:
-        """Check if a loop should terminate, given the specified completed run, and if so,
-        set downstream iteration runs to be skipped."""
-        self.app.logger.info(
-            f"checking loop termination of loops {loop_names!r}; run_ID={run_ID}."
-        )
-        run = self.get_EARs_from_IDs([run_ID])[0]
-        elem_iter = run.element_iteration
-        element = elem_iter.element
-        print(f"Workflow.check_loop_termination: {run_ID=} {element=!r}")
-        for loop_name in loop_names:
-            loop = self.loops.get(loop_name)
-            if loop.test_termination(elem_iter):
-                self.app.logger.info(
-                    f"loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
-                )
-                loop.skip_downstream_iterations(elem_iter)
 
 
 @dataclass

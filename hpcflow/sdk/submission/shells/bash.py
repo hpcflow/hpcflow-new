@@ -252,21 +252,6 @@ class Bash(Shell):
             f"\n"
         )
 
-    def format_loop_check(
-        self,
-        workflow_app_alias: str,
-        run_ID: int,
-        loop_names: List[str],
-        app_name: str,
-    ):
-        app_caps = app_name.upper()
-        return (
-            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
-            f'internal workflow "${app_caps}_WK_PATH_ARG" check-loop '
-            f"{run_ID} {' '.join(loop_names)}"
-            f"\n"
-        )
-
 
 class WSLBash(Bash):
     DEFAULT_WSL_EXE = "wsl"
