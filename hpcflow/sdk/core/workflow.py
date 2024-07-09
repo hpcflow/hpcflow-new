@@ -2978,7 +2978,7 @@ class Workflow:
 
             write_commands = True
             try:
-                commands, shell_vars = run.compose_commands(jobscript, block_act_key)
+                commands, shell_vars = run.compose_commands(jobscript)
             except OutputFileParserNoOutputError:
                 # no commands to write, might be used just for saving files
                 write_commands = False
