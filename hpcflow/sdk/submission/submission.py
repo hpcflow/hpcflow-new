@@ -574,19 +574,6 @@ class Submission(JSONLike):
         # invoked in a new process before submission has completed, needs to know these:
         self.workflow._store._pending.commit_all()
 
-        # TODO: a submission should only be "submitted" once shouldn't it?
-        # no; there could be an IO error (e.g. internet connectivity), so might
-        # need to be able to reattempt submission of outstanding jobscripts.
-        self.path.mkdir(exist_ok=True)
-        self.tmp_path.mkdir(exist_ok=True)
-        self.log_path.mkdir(exist_ok=True)
-        self.std_path.mkdir(exist_ok=True)
-        self.scripts_path.mkdir(exist_ok=True)
-
-        # write scripts to the submission directory
-        self._write_scripts()  # TODO: move this to `add_submission`/Submission init?
-        #                           ... then some int-tests can be more like units?
-
         # map jobscript `index` to (scheduler job ID or process ID, is_array):
         scheduler_refs = {}
         submitted_js_idx = []

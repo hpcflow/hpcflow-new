@@ -2243,7 +2243,6 @@ class Workflow:
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
-        self.submissions_path.mkdir(exist_ok=True, parents=True)
         self.execution_path.mkdir(exist_ok=True, parents=True)
         self.task_artifacts_path.mkdir(exist_ok=True, parents=True)
 
@@ -2643,6 +2642,19 @@ class Workflow:
         with self._store.cached_load():
             with self.batch_update():
                 self._store.add_submission(new_idx, sub_obj_js)
+
+        # TODO: a submission should only be "submitted" once shouldn't it?
+        # no; there could be an IO error (e.g. internet connectivity), so might
+        # need to be able to reattempt submission of outstanding jobscripts.
+        self.submissions_path.mkdir(exist_ok=True, parents=True)
+        sub_obj.path.mkdir(exist_ok=True)
+        sub_obj.tmp_path.mkdir(exist_ok=True)
+        sub_obj.log_path.mkdir(exist_ok=True)
+        sub_obj.std_path.mkdir(exist_ok=True)
+        sub_obj.scripts_path.mkdir(exist_ok=True)
+
+        # write scripts to the submission directory
+        sub_obj._write_scripts()
 
         return self.submissions[new_idx]
 
