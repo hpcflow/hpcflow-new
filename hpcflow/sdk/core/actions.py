@@ -743,7 +743,6 @@ class ElementActionRun:
     def compose_commands(
         self,
         jobscript: app.Jobscript,
-        block_act_key: Tuple[int, int, int],
     ) -> Tuple[str, List[str], List[int]]:
         """
         Returns
