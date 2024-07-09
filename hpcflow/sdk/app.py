@@ -2046,13 +2046,10 @@ class BaseApp(metaclass=Singleton):
             if "status" in columns:
                 if act_js:
                     act_js_states = set(
-                        [
-                            i
-                            for js_dat in act_js.values()
-                            for block_dat in js_dat.values()
-                            for v in block_dat.values()
-                            for i in v.values()
-                        ]
+                        state_i
+                        for js_dat in act_js.values()
+                        for block_dat in js_dat.values()
+                        for state_i in block_dat.values()
                     )
                     status_text = "/".join(
                         f"[{i.colour}]{i.symbol}[/{i.colour}]"
