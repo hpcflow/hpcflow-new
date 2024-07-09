@@ -2842,17 +2842,15 @@ class Workflow:
 
             js_idx = block_act_key[0]
             run = self.get_EARs_from_IDs([run_ID])[0]
-
+            run_dir = run.get_directory()
+            self.app.submission_logger.debug(
+                f"changing directory to run execution directory: {run_dir}."
+            )
+            os.chdir(run_dir)
             self.app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
 
             # check if we should skip:
             if not run.skip:
-
-                run_dir = run.get_directory()
-                self.app.submission_logger.debug(
-                    f"changing directory to run execution directory: {run_dir}."
-                )
-                os.chdir(run_dir)
 
                 # write the command file that will be executed:
                 cmd_file_path = self.write_commands(submission_idx, block_act_key, run)
