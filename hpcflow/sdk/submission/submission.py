@@ -382,9 +382,7 @@ class Submission(JSONLike):
                 if schema.name in actions_by_schema:
                     for idx, action in enumerate(schema.actions):
 
-                        if action.script:
-                            script = action.script
-                        else:
+                        if not action.script:
                             continue
 
                         for env_spec_h in actions_by_schema[schema.name][idx]:
