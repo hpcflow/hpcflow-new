@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .command_files import FileSpec
     from .environment import Environment, Executable
     from .loop import WorkflowLoop
-    from .parameters import Parameter, ResourceSpec
+    from .parameters import Parameter, ResourceSpec, ResourceSpecArgs
     from .task import Task, TaskTemplate, TaskSchema, WorkflowTask, ElementSet
     from .workflow import WorkflowTemplate
 

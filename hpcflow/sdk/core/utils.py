@@ -195,8 +195,8 @@ def _ensure_int(path_comp: int, cur_data, cast_indices: bool) -> int:
         if cast_indices:
             try:
                 path_comp = int(path_comp)
-            except TypeError:
-                raise TypeError(msg)
+            except (TypeError, ValueError) as e:
+                raise TypeError(msg) from e
         else:
             raise TypeError(msg)
     return path_comp

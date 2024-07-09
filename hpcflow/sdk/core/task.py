@@ -2771,7 +2771,7 @@ class WorkflowTask:
 
     @staticmethod
     def __get_relevant_paths(
-        data_index: Iterable[str], path: list[str], children_of: str | None = None
+        data_index: Mapping[str, Any], path: list[str], children_of: str | None = None
     ) -> Mapping[str, RelevantPath]:
         relevant_paths: dict[str, RelevantPath] = {}
         # first extract out relevant paths in `data_index`:
@@ -2779,10 +2779,7 @@ class WorkflowTask:
             path_i_split = path_i.split(".")
             try:
                 rel_path = get_relative_path(path, path_i_split)
-                relevant_paths[path_i] = {
-                    "type": "parent",
-                    "relative_path": rel_path
-                }
+                relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
             except ValueError:
                 try:
                     update_path = get_relative_path(path_i_split, path)
@@ -2798,94 +2795,106 @@ class WorkflowTask:
 
         return relevant_paths
 
-    def __get_relevant_data_item(self, path: str, data_idx: int) -> tuple[Any, str | None, bool]:
-        # FIXME: This test is never true!
-        if path[0] == "repeats":
+    def __get_relevant_data_item(
+        self, path: str | None, path_i: str, data_idx_ij: int, raise_on_unset: bool
+    ) -> tuple[Any, bool, str | None]:
+        if path_i.split(".")[0] == "repeats":
             # data is an integer repeats index, rather than a parameter ID:
-            return data_idx, None, True
+            return data_idx_ij, True, None
 
-        param: StoreParameter = self.workflow.get_parameter(data_idx)
-        if param.file:
-            if param.file["store_contents"]:
-                path_val: Path = Path(self.workflow.path) / param.file["path"]
+        meth_i: str | None = None
+        data_j: Any
+        param_j = self.workflow.get_parameter(data_idx_ij)
+        is_set_i = param_j.is_set
+        if param_j.file:
+            if param_j.file["store_contents"]:
+                file_j = Path(self.workflow.path) / param_j.file["path"]
             else:
-                path_val = Path(param.file["path"])
-            return path_val.as_posix(), None, param.is_set
-
-        meth = param.source.get("value_class_method")
-        assert meth is None or isinstance(meth, str)
-        if param.is_pending:
-            p_data = param.data
-            # if pending, we need to convert `ParameterValue` objects to their dict
-            # representation, so they can be merged with other data:
-            if isinstance(p_data, ParameterValue):
+                file_j = Path(param_j.file["path"])
+            data_j = file_j.as_posix()
+        else:
+            meth_i = cast(str, param_j.source.get("value_class_method"))
+            if param_j.is_pending:
+                # if pending, we need to convert `ParameterValue` objects
+                # to their dict representation, so they can be merged with
+                # other data:
                 try:
-                    return p_data.to_dict(), meth, param.is_set
+                    data_j = cast('ParameterValue', param_j.data).to_dict()
                 except AttributeError:
-                    pass
-        # if not pending, data will be the result of an encode-decode cycle, and
-        # it will not be initialised as an object if the parameter is associated
-        # with a `ParameterValue` class. Or maybe the data is just in the right form anyway
-        return param.data, meth, param.is_set
+                    data_j = param_j.data
+            else:
+                # if not pending, data will be the result of an encode-
+                # decode cycle, and it will not be initialised as an
+                # object if the parameter is associated with a
+                # `ParameterValue` class.
+                data_j = param_j.data
+        if raise_on_unset and not is_set_i:
+            raise UnsetParameterDataError(
+                f"Element data path {path!r} resolves to unset data for "
+                f"(at least) data-index path: {path_i!r}."
+            )
+        return data_j, is_set_i, meth_i
 
     def __get_relevant_data(
-        self, relevant_data_idx: dict[str, list[int] | int],
+        self, relevant_data_idx: Mapping[str, list[int] | int],
         raise_on_unset: bool, path: str | None
     ) -> dict[str, RelevantData]:
         relevant_data: dict[str, RelevantData] = {}
         for path_i, data_idx_i in relevant_data_idx.items():
+            if not isinstance(data_idx_i, list):
+                data, is_set, meth = self.__get_relevant_data_item(
+                    path, path_i, data_idx_i, raise_on_unset)
+                relevant_data[path_i] = {
+                    "data": data,
+                    "value_class_method": meth,
+                    "is_set": is_set,
+                    "is_multi": False,
+                }
+                continue
+
             data_i: list[Any] = []
             methods_i: list[str | None] = []
             is_param_set_i: list[bool] = []
-            for data_idx_ij in (data_idx_i if isinstance(data_idx_i, list) else [data_idx_i]):
-                data_j, meth_i, is_set_i = self.__get_relevant_data_item(path_i, data_idx_ij)
-                if raise_on_unset and not is_set_i:
-                    raise UnsetParameterDataError(
-                        f"Element data path {path!r} resolves to unset data for "
-                        f"(at least) data-index path: {path_i!r}."
-                    )
+            for data_idx_ij in data_idx_i:
+                data_j, is_set_i, meth_i = self.__get_relevant_data_item(
+                    path, path_i, data_idx_ij, raise_on_unset)
                 data_i.append(data_j)
                 methods_i.append(meth_i)
                 is_param_set_i.append(is_set_i)
 
-            is_multi = isinstance(data_idx_i, list)
             relevant_data[path_i] = {
-                "data": data_i if is_multi else data_i[0],
-                "value_class_method": methods_i if is_multi else methods_i[0],
-                "is_set": is_param_set_i if is_multi else is_param_set_i[0],
-                "is_multi": is_multi,
+                "data": data_i,
+                "value_class_method": methods_i,
+                "is_set": is_param_set_i,
+                "is_multi": True,
             }
         if not raise_on_unset:
-            to_remove: set[str] = set()
+            to_remove: list[str] = []
             for key, dat_info in relevant_data.items():
                 if not dat_info["is_set"] and ((path and path in key) or not path):
                     # remove sub-paths, as they cannot be merged with this parent
-                    to_remove.union(
-                        k for k in relevant_data
-                        if k != key and k.startswith(key)
+                    to_remove.extend(
+                        k for k in relevant_data if k != key and k.startswith(key)
                     )
-            if to_remove:
-                relevant_data = {
-                    k: v for k, v in relevant_data.items() if k not in to_remove
-                }
+            relevant_data = {
+                k: v for k, v in relevant_data.items() if k not in to_remove
+            }
 
         return relevant_data
 
     @classmethod
     def __merge_relevant_data(
         cls,
-        relevant_data: dict[str, RelevantData],
-        relevant_paths: Mapping[str, RelevantPath],
-        PV_classes: dict[str, type[ParameterValue]],
-        path: str | None,
-        raise_on_missing: bool
-    ) -> tuple[list | ParameterValue | Any | list[Any] | None, int | None]:
-        current_val: list[ParameterValue | Any] | None = None
+        relevant_data: Mapping[str, RelevantData],
+        relevant_paths: Mapping[str, RelevantPath], PV_classes,
+        path: str | None, raise_on_missing: bool
+    ):
+        current_val: list | dict | Any | None = None
         assigned_from_parent = False
-        val_cls_method: list[str | None] | str | None = None
+        val_cls_method: str | None | list[str | None] = None
         path_is_multi = False
-        path_is_set: list[bool] | bool = False
-        all_multi_len: int | None = None
+        path_is_set: bool | list[bool] = False
+        all_multi_len = None
         for path_i, data_info_i in relevant_data.items():
             data_i = data_info_i["data"]
             if path_i == path:
@@ -2894,10 +2903,10 @@ class WorkflowTask:
                 path_is_set = data_info_i["is_set"]
 
             if data_info_i["is_multi"]:
-                if all_multi_len is not None:
+                if all_multi_len:
                     if len(data_i) != all_multi_len:
                         raise RuntimeError(
-                            "Cannot merge group values of different lengths."
+                            f"Cannot merge group values of different lengths."
                         )
                 else:
                     # keep track of group lengths, only merge equal-length groups;
@@ -2929,15 +2938,47 @@ class WorkflowTask:
                         err_path = ".".join([path_i] + err.path[:-1])
                         raise MayNeedObjectError(path=err_path)
                     continue
-                except (IndexError, ValueError):
+                except (IndexError, ValueError) as err:
                     if raise_on_missing:
-                        raise
+                        raise err
                     continue
                 else:
                     assigned_from_parent = True
             elif path_info["type"] == "update":
-                current_val = current_val or []
-                if not all_multi_len:
+                current_val = current_val or {}
+                if all_multi_len:
+                    if len(path_i.split(".")) == 2:
+                        # groups can only be "created" at the parameter level
+                        set_in_container(
+                            cont=current_val,
+                            path=path_info["update_path"],
+                            value=data_i,
+                            ensure_path=True,
+                            cast_indices=True,
+                        )
+                    else:
+                        # update group
+                        update_path = path_info["update_path"]
+                        if len(update_path) > 1:
+                            for idx, j in enumerate(data_i):
+                                set_in_container(
+                                    cont=current_val,
+                                    path=[*update_path[:1], idx, *update_path[1:]],
+                                    value=j,
+                                    ensure_path=True,
+                                    cast_indices=True,
+                                )
+                        else:
+                            for i, j in zip(current_val, data_i):
+                                set_in_container(
+                                    cont=i,
+                                    path=update_path,
+                                    value=j,
+                                    ensure_path=True,
+                                    cast_indices=True,
+                                )
+
+                else:
                     set_in_container(
                         current_val,
                         path_info["update_path"],
@@ -2945,37 +2986,6 @@ class WorkflowTask:
                         ensure_path=True,
                         cast_indices=True,
                     )
-                elif len(path_i.split(".")) == 2:
-                    # groups can only be "created" at the parameter level
-                    set_in_container(
-                        cont=current_val,
-                        path=path_info["update_path"],
-                        value=data_i,
-                        ensure_path=True,
-                        cast_indices=True,
-                    )
-                else:
-                    # update group
-                    update_path = path_info["update_path"]
-                    if len(update_path) > 1:
-                        for idx, j in enumerate(data_i):
-                            path_ij = [*update_path[0:1], idx, *update_path[1:]]
-                            set_in_container(
-                                cont=current_val,
-                                path=path_ij,
-                                value=j,
-                                ensure_path=True,
-                                cast_indices=True,
-                            )
-                    else:
-                        for idx, (i, j) in enumerate(zip(current_val, data_i)):
-                            set_in_container(
-                                cont=i,
-                                path=update_path,
-                                value=j,
-                                ensure_path=True,
-                                cast_indices=True,
-                            )
         if path in PV_classes:
             if path not in relevant_data:
                 # requested data must be a sub-path of relevant data, so we can assume
@@ -2985,6 +2995,7 @@ class WorkflowTask:
 
                 if not assigned_from_parent:
                     # search for unset parents in `relevant_data`:
+                    assert path is not None
                     path_split = path.split(".")
                     for parent_i_span in range(len(path_split) - 1, 1, -1):
                         parent_path_i = ".".join(path_split[0:parent_i_span])
@@ -3002,21 +3013,19 @@ class WorkflowTask:
             # initialise objects
             PV_cls = PV_classes[path]
             if path_is_multi:
-                new_current_val: list[ParameterValue | Any] = []
-                for set_i, meth_i, val_i in zip(
-                    cast('list[bool]', path_is_set),
-                    cast('list[str | None]', val_cls_method),
-                    cast('list[ParameterValue | Any]', current_val)
-                ):
-                    if set_i and isinstance(val_i, dict):
-                        new_current_val.append(cls.__map_parameter_value(PV_cls, meth_i, val_i))
-                    else:
-                        new_current_val.append(None)
-                return new_current_val, all_multi_len
+                current_val = [
+                    cls.__map_parameter_value(PV_cls, meth_i, val_i)
+                    if set_i and isinstance(val_i, dict) else None
+                    for set_i, meth_i, val_i in zip(
+                        cast('list[bool]', path_is_set),
+                        cast('list[str|None]', val_cls_method),
+                        cast('list[Any]', current_val))
+                ]
             elif path_is_set and isinstance(current_val, dict):
-                return cls.__map_parameter_value(PV_cls, val_cls_method, current_val), None
+                assert not isinstance(val_cls_method, list)
+                current_val = cls.__map_parameter_value(PV_cls, val_cls_method, current_val)
 
-        return current_val, None
+        return current_val, all_multi_len
 
     @staticmethod
     def __map_parameter_value(
@@ -3037,31 +3046,37 @@ class WorkflowTask:
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
         default: Any | None = None,
-    ) -> Any | list | ParameterValue | list[Any] | None:  # TODO: better type
+    ):
         """Get element data from the persistent store."""
+
+        # TODO: custom exception?
+        missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
+
         path_split = [] if not path else path.split(".")
 
         relevant_paths = self.__get_relevant_paths(data_index, path_split)
         if not relevant_paths:
             if raise_on_missing:
-                raise ValueError(f"Path {path!r} does not exist in the element data.")
+                raise missing_err
             return default
 
         relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
-        PV_cls_paths = [*relevant_paths.keys(), *([path] if path else [])]
+        PV_cls_paths = list(relevant_paths.keys()) + ([path] if path else [])
         PV_classes = self._paths_to_PV_classes(PV_cls_paths)
         relevant_data = self.__get_relevant_data(relevant_data_idx, raise_on_unset, path)
 
+        current_val = None
+        is_assigned = False
         try:
             current_val, _ = self.__merge_relevant_data(
                 relevant_data, relevant_paths, PV_classes, path, raise_on_missing
             )
-            return current_val
         except MayNeedObjectError as err:
             path_to_init = err.path
             path_to_init_split = path_to_init.split(".")
             relevant_paths = self.__get_relevant_paths(data_index, path_to_init_split)
-            PV_classes = self._paths_to_PV_classes([*relevant_paths.keys(), path_to_init])
+            PV_cls_paths = list(relevant_paths.keys()) + [path_to_init]
+            PV_classes = self._paths_to_PV_classes(PV_cls_paths)
             relevant_data_idx = {
                 k: v for k, v in data_index.items() if k in relevant_paths
             }
@@ -3074,17 +3089,17 @@ class WorkflowTask:
             rel_path_split = get_relative_path(path_split, path_to_init_split)
             try:
                 if group_len:
-                    return [
+                    current_val = [
                         get_in_container(
                             cont=i,
                             path=rel_path_split,
                             cast_indices=True,
                             allow_getattr=True,
                         )
-                        for i in cast(list, current_val)
+                        for i in current_val
                     ]
                 else:
-                    return get_in_container(
+                    current_val = get_in_container(
                         cont=current_val,
                         path=rel_path_split,
                         cast_indices=True,
@@ -3092,12 +3107,20 @@ class WorkflowTask:
                     )
             except (KeyError, IndexError, ValueError):
                 pass
+            else:
+                is_assigned = True
+
         except (KeyError, IndexError, ValueError):
             pass
+        else:
+            is_assigned = True
 
-        if raise_on_missing:
-            raise ValueError(f"Path {path!r} does not exist in the element data.")
-        return default
+        if not is_assigned:
+            if raise_on_missing:
+                raise missing_err
+            current_val = default
+
+        return current_val
 
 
 class Elements:
