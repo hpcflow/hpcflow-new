@@ -1091,7 +1091,10 @@ class ActionRule(JSONLike):
 
     @TimeIt.decorator
     def test(self, element_iteration: app.ElementIteration) -> bool:
-        return self.rule.test(element_like=element_iteration, action=self.action)
+        return self.rule.test(
+            element_like=element_iteration,
+            action=self.action or self.command.action,
+        )
 
     @classmethod
     def check_exists(cls, check_exists):
@@ -1111,6 +1114,7 @@ class Action(JSONLike):
             name="commands",
             class_name="Command",
             is_multiple=True,
+            parent_ref="action",
         ),
         ChildObjectSpec(
             name="input_file_generators",

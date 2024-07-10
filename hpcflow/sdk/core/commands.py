@@ -34,6 +34,9 @@ class Command(JSONLike):
     stdin: Optional[str] = None
     rules: Optional[List[app.ActionRule]] = field(default_factory=lambda: [])
 
+    def __post_init__(self):
+        self._set_parent_refs()
+
     def __repr__(self) -> str:
         out = []
         if self.command:
