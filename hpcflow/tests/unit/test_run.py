@@ -19,7 +19,7 @@ def test_compose_commands_no_shell_var(null_config, tmp_path):
     sub = wk.add_submission()
     js = sub.jobscripts[0]
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    _, shell_vars = run.compose_commands(jobscript=js, block_act_key=(0, 0, 0))
+    _, shell_vars = run.compose_commands(environments=sub.environments, shell=js.shell)
     assert shell_vars == {0: []}
 
 
@@ -47,7 +47,7 @@ def test_compose_commands_single_shell_var(null_config, tmp_path):
     sub = wk.add_submission()
     js = sub.jobscripts[0]
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    _, shell_vars = run.compose_commands(jobscript=js, block_act_key=(0, 0, 0))
+    _, shell_vars = run.compose_commands(environments=sub.environments, shell=js.shell)
     assert shell_vars == {0: [("outputs.p1", "parameter_p1", "stdout")]}
 
 
@@ -76,7 +76,7 @@ def test_compose_commands_multi_single_shell_var(null_config, tmp_path):
     sub = wk.add_submission()
     js = sub.jobscripts[0]
     run = wk.tasks[0].elements[0].iterations[0].action_runs[0]
-    _, shell_vars = run.compose_commands(jobscript=js, block_act_key=(0, 0, 0))
+    _, shell_vars = run.compose_commands(environments=sub.environments, shell=js.shell)
     assert shell_vars == {0: [], 1: [("outputs.p1", "parameter_p1", "stdout")]}
 
 
