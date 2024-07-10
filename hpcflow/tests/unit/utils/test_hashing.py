@@ -52,3 +52,14 @@ def test_get_hash_distinct_compound_types():
     assert get_hash({"a": {"b": {"c": [1, 2, 3, ("4", 5, 6)]}}}) == get_hash(
         {"a": {"b": {"c": [1, 2, 3, ("4", 5, 6)]}}}
     )
+
+
+def test_get_hash_order_insensitivity():
+    assert get_hash({"a": 1, "b": 2}) == get_hash({"b": 2, "a": 1})
+    assert get_hash({1, 2, 3}) == get_hash({2, 3, 1})
+
+
+def test_get_hash_order_sensitivity():
+    assert get_hash([1, 2, 3]) != get_hash([2, 3, 1])
+    assert get_hash((1, 2, 3)) != get_hash((2, 3, 1))
+    assert get_hash("abc") != get_hash("cba")
