@@ -97,7 +97,7 @@ class ObjectList(JSONLike, Generic[T]):
         return False
 
     def __eq__(self, other) -> bool:
-        return self._objects == other
+        return isinstance(other, ObjectList) and self._objects == other._objects
 
     def list_attrs(self):
         """Get a tuple of the unique access-attribute values of the constituent objects."""

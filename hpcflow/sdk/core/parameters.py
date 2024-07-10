@@ -153,6 +153,9 @@ class Parameter(JSONLike):
                 if i._typ == self.typ:
                     self._value_class = i
 
+    def __eq__(self, other) -> bool:
+        return isinstance(other, Parameter) and self.typ == other.typ
+
     def __lt__(self, other):
         return self.typ < other.typ
 

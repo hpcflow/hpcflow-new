@@ -595,7 +595,9 @@ class TaskSchema(JSONLike):
         )
 
     def __eq__(self, other):
-        if type(other) is not self.__class__:
+        if id(self) == id(other):
+            return True
+        if not isinstance(other, TaskSchema):
             return False
         if (
             self.objective == other.objective

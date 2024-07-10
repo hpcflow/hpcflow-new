@@ -89,7 +89,7 @@ class Shell(ABC):
 
     def process_JS_header_args(self, header_args: JobscriptHeaderArgs) -> JobscriptHeaderArgs:
         app_invoc_ = header_args["app_invoc"]
-        if isinstance(app_invoc_, list):
+        if not isinstance(app_invoc_, str):
             app_invoc = self.process_app_invoc_executable(app_invoc_[0])
             for item in app_invoc_[1:]:
                 app_invoc += f' "{item}"'

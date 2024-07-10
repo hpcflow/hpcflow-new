@@ -1029,7 +1029,7 @@ class ActionScope(JSONLike):
         return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, self.__class__):
+        if not isinstance(other, ActionScope):
             return False
         if self.typ is other.typ and self.kwargs == other.kwargs:
             return True
@@ -1089,7 +1089,7 @@ class ActionScope(JSONLike):
         return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, output=output)
 
 
-@dataclass
+@dataclass()
 @hydrate
 class ActionEnvironment(JSONLike):
     app: ClassVar[BaseApp]
@@ -1512,7 +1512,7 @@ class Action(JSONLike):
         return f"{self.__class__.__name__}({', '.join(out)})"
 
     def __eq__(self, other) -> bool:
-        if type(other) is not self.__class__:
+        if not isinstance(other, Action):
             return False
         return (
             self.commands == other.commands
