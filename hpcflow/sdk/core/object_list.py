@@ -1,12 +1,12 @@
 from __future__ import annotations
-from  collections.abc import Mapping
+from  collections.abc import Mapping, Sequence
 import copy
 from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator
     from typing import Any, ClassVar, Self, Literal, TypeAlias
     from zarr import Group  # type: ignore
     from ..app import BaseApp

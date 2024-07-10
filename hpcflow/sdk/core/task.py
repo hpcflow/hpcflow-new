@@ -762,19 +762,17 @@ class Task(JSONLike):
             return
         try:
             env_presets = self.schema.environment_presets
-            if env_presets is None:
-                raise ValueError
-        except ValueError:
+        except ValueError as e:
             # TODO: consider multiple schemas
             raise NotImplementedError(
                 "Cannot merge environment presets into a task with multiple schemas."
-            )
+            ) from e
 
         for es in self.element_sets:
             if es.env_preset:
                 # retrieve env specifiers from presets defined in the schema:
                 try:
-                    env_specs = env_presets[es.env_preset]
+                    env_specs = env_presets[es.env_preset]  # type: ignore[index]
                 except (TypeError, KeyError):
                     raise UnknownEnvironmentPresetError(
                         f"There is no environment preset named {es.env_preset!r} "
@@ -792,7 +790,7 @@ class Task(JSONLike):
                     _values = []
                     for i in seq.values or []:
                         try:
-                            _values.append(env_presets[i])
+                            _values.append(env_presets[i])  # type: ignore[index]
                         except (TypeError, KeyError):
                             raise UnknownEnvironmentPresetError(
                                 f"There is no environment preset named {i!r} defined "
@@ -2493,7 +2491,7 @@ class WorkflowTask:
             inputs = inputs or b_inputs
             resources = resources or b_resources
 
-        element_sets = ElementSet.ensure_element_sets(
+        element_sets = self.app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -2537,7 +2535,7 @@ class WorkflowTask:
             ]
 
             # note we must pass `resources` as a list since it is already persistent:
-            elem_set_i = ElementSet(
+            elem_set_i = self.app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,

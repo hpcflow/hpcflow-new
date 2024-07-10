@@ -695,3 +695,9 @@ class JSONPersistentStore(PersistentStore[
         with self.using_resource("metadata", action="read") as md:
             assert "name" in md
             return md["name"]
+
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str:
+        raise TypeError("unsupported operation: zipping-json")
+
+    def unzip(self, path: str = ".", log: str | None = None) -> str:
+        raise TypeError("unsupported operation: unzipping-json")

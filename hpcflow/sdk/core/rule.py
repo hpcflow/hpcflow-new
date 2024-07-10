@@ -8,9 +8,10 @@ from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
-    from typing import Any, NotRequired
+    from typing import Any, ClassVar, NotRequired
     from .actions import Action, ElementActionRun
     from .element import ElementIteration
+    from ..app import BaseApp
 
 
 class RuleArgs(TypedDict):
@@ -27,6 +28,8 @@ class RuleArgs(TypedDict):
 
 class Rule(JSONLike):
     """Class to represent a testable condition on an element iteration or run."""
+
+    app: ClassVar[BaseApp]
 
     def __init__(
         self,
@@ -113,13 +116,14 @@ class Rule(JSONLike):
                     return self.check_missing not in schema_data_idx
         else:
             if self.path and self.path.startswith("resources."):
-                if isinstance(element_like, ElementIteration):
+                if isinstance(element_like, self.app.ElementIteration):
                     assert action is not None
                     elem_res = element_like.get_resources(
                         action=action, set_defaults=True
                     )
                 else:
                     # must be an `ElementActionRun`
+                    assert isinstance(element_like, self.app.ElementActionRun)
                     elem_res = element_like.get_resources()
 
                 res_path = self.path.split(".")[1:]
