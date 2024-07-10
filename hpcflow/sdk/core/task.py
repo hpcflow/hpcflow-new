@@ -2620,7 +2620,7 @@ class WorkflowTask:
                 for src in sources:
                     if (
                         src.source_type is InputSourceType.TASK
-                        and src.task_ref
+                        and src.task_ref is not None
                         and src.task_ref not in deps
                     ):
                         deps.append(src.task_ref)
