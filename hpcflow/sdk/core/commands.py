@@ -167,7 +167,10 @@ class Command(JSONLike):
                 cmd_inp = ".".join(cmd_inp_parts[:-1])
             else:
                 cmd_inp = cmd_inp_full
-            inp_val = EAR.get(f"inputs.{cmd_inp}")  # TODO: what if schema output?
+            inp_val = EAR.get(
+                f"inputs.{cmd_inp}",
+                raise_on_unset=True,
+            )  # TODO: what if schema output?
             pattern_i = pattern.format(
                 types_pattern=types_pattern,
                 name=re.escape(cmd_inp),
@@ -180,9 +183,9 @@ class Command(JSONLike):
 
         # substitute input/output files in command:
         for cmd_file in EAR.action.get_command_file_labels():
-            file_path = EAR.get(f"input_files.{cmd_file}") or EAR.get(
-                f"output_files.{cmd_file}"
-            )
+            file_path = EAR.get(
+                f"input_files.{cmd_file}", raise_on_unset=True
+            ) or EAR.get(f"output_files.{cmd_file}", raise_on_unset=True)
             # assuming we have copied this file to the EAR directory, then we just
             # need the file name:
             file_name = Path(file_path).name

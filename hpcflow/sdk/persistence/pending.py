@@ -59,7 +59,7 @@ class PendingChanges:
         self.add_submission_parts: Dict[int, Dict[str, List[int]]] = None
 
         self.set_EARs_initialised: List[int] = None
-        self.set_EAR_submission_indices: Dict[int, int] = None
+        self.set_EAR_submission_data: Dict[int, Tuple[int, int]] = None
         self.set_EAR_skips: Dict[int, int] = None
         self.set_EAR_starts: Dict[int, Tuple[datetime, Dict], str] = None
         self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
@@ -93,7 +93,7 @@ class PendingChanges:
             or bool(self.add_template_components)
             or bool(self.add_element_sets)
             or bool(self.set_EARs_initialised)
-            or bool(self.set_EAR_submission_indices)
+            or bool(self.set_EAR_submission_data)
             or bool(self.set_EAR_starts)
             or bool(self.set_EAR_ends)
             or bool(self.set_EAR_skips)
@@ -278,10 +278,8 @@ class PendingChanges:
             self.store.num_EARs_cache = None  # invalidate cache
             # pending start/end times/snapshots, submission indices, and skips that belong
             # to pending EARs are now committed (accounted for in `get_EARs` above):
-            self.set_EAR_submission_indices = {
-                k: v
-                for k, v in self.set_EAR_submission_indices.items()
-                if k not in EAR_ids
+            self.set_EAR_submission_data = {
+                k: v for k, v in self.set_EAR_submission_data.items() if k not in EAR_ids
             }
             self.set_EAR_skips = {
                 k: v for k, v in self.set_EAR_skips.items() if k not in EAR_ids
@@ -311,15 +309,14 @@ class PendingChanges:
 
     @TimeIt.decorator
     def commit_EAR_submission_indices(self) -> None:
-        if self.set_EAR_submission_indices:
+        if self.set_EAR_submission_data:
             self.logger.debug(
-                f"commit: updating submission indices: "
-                f"{self.set_EAR_submission_indices!r}."
+                f"commit: updating submission data: {self.set_EAR_submission_data!r}."
             )
-            self.store._update_EAR_submission_indices(self.set_EAR_submission_indices)
-            for EAR_ID_i in self.set_EAR_submission_indices.keys():
+            self.store._update_EAR_submission_data(self.set_EAR_submission_data)
+            for EAR_ID_i in self.set_EAR_submission_data.keys():
                 self.store.EAR_cache.pop(EAR_ID_i, None)  # invalidate cache
-            self.clear_set_EAR_submission_indices()
+            self.clear_EAR_submission_data()
 
     @TimeIt.decorator
     def commit_EAR_starts(self) -> None:
@@ -477,8 +474,8 @@ class PendingChanges:
     def clear_set_EARs_initialised(self):
         self.set_EARs_initialised = []
 
-    def clear_set_EAR_submission_indices(self):
-        self.set_EAR_submission_indices = {}
+    def clear_EAR_submission_data(self):
+        self.set_EAR_submission_data = {}
 
     def clear_set_EAR_starts(self):
         self.set_EAR_starts = {}
@@ -544,7 +541,7 @@ class PendingChanges:
         self.clear_add_files()
         self.clear_add_template_components()
 
-        self.clear_set_EAR_submission_indices()
+        self.clear_EAR_submission_data()
         self.clear_set_EAR_starts()
         self.clear_set_EAR_ends()
         self.clear_set_EAR_skips()

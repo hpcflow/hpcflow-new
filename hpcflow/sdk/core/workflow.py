@@ -26,6 +26,7 @@ from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
     SKIPPED_EXIT_CODE,
+    NO_COMMANDS_EXIT_CODE,
 )
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.skip_reason import SkipReason
@@ -1978,12 +1979,6 @@ class Workflow:
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
-    def set_EAR_submission_index(self, EAR_ID: int, sub_idx: int) -> None:
-        """Set the submission index of an EAR."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_submission_index(EAR_ID, sub_idx)
-
     def set_EAR_start(self, EAR_ID: int, port_number: int) -> None:
         """Set the start time on an EAR."""
         self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
@@ -2623,25 +2618,13 @@ class Workflow:
             JS_parallelism=JS_parallelism,
         )
         sub_obj._set_environments()
-        all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.all_EAR_IDs]
+        all_EAR_ID = sub_obj.all_EAR_IDs
         if not all_EAR_ID:
             print(
                 f"There are no pending element action runs, so a new submission was not "
                 f"added."
             )
             return
-
-        with self._store.cached_load():
-            with self.batch_update():
-                for i in all_EAR_ID:
-                    self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
-
-        sub_obj_js, _ = sub_obj.to_json_like()
-        self._submissions.append(sub_obj)
-        self._pending["submissions"].append(new_idx)
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.add_submission(new_idx, sub_obj_js)
 
         # TODO: a submission should only be "submitted" once shouldn't it?
         # no; there could be an IO error (e.g. internet connectivity), so might
@@ -2652,9 +2635,26 @@ class Workflow:
         sub_obj.log_path.mkdir(exist_ok=True)
         sub_obj.std_path.mkdir(exist_ok=True)
         sub_obj.scripts_path.mkdir(exist_ok=True)
+        sub_obj.commands_path.mkdir(exist_ok=True)
 
-        # write scripts to the submission directory
-        sub_obj._write_scripts()
+        # write scripts and command files where possible to the submission directory:
+        cmd_file_IDs = sub_obj._write_scripts()
+
+        with self._store.cached_load():
+            with self.batch_update():
+                for i in all_EAR_ID:
+                    self._store.set_run_submission_data(
+                        EAR_ID=i,
+                        cmds_ID=cmd_file_IDs[i],
+                        sub_idx=new_idx,
+                    )
+
+        sub_obj_js, _ = sub_obj.to_json_like()
+        self._submissions.append(sub_obj)
+        self._pending["submissions"].append(new_idx)
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.add_submission(new_idx, sub_obj_js)
 
         return self.submissions[new_idx]
 
@@ -2836,6 +2836,7 @@ class Workflow:
 
         sub_str_path = Submission.get_std_path(self.submissions_path, submission_idx)
         run_std_path = sub_str_path / f"{str(run_ID)}.txt"  # TODO: refactor
+        has_commands = False
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
         with redirect_std_to_file(run_std_path):
@@ -2854,76 +2855,87 @@ class Workflow:
 
                 # write the command file that will be executed:
                 cmd_file_path = self.write_commands(submission_idx, block_act_key, run)
-                if not cmd_file_path.is_file():
-                    raise RuntimeError(f"Command file {cmd_file_path!r} does not exist.")
+                has_commands = bool(cmd_file_path)
+                if has_commands:
 
-                # prepare subprocess command:
-                jobscript = self.submissions[submission_idx].jobscripts[js_idx]
-                cmd = jobscript.shell.get_command_file_launch_command(str(cmd_file_path))
-                loop_idx_str = ";".join(
-                    f"{k}={v}" for k, v in run.element_iteration.loop_idx.items()
-                )
-                app_caps = self.app.package_name.upper()
-                add_env = {
-                    f"{app_caps}_RUN_ID": str(run_ID),
-                    f"{app_caps}_RUN_IDX": str(run.index),
-                    f"{app_caps}_ELEMENT_IDX": str(run.element.index),
-                    f"{app_caps}_ELEMENT_ID": str(run.element.id_),
-                    f"{app_caps}_ELEMENT_ITER_IDX": str(run.element_iteration.index),
-                    f"{app_caps}_ELEMENT_ITER_ID": str(run.element_iteration.id_),
-                    f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
-                }
+                    if not cmd_file_path.is_file():
+                        raise RuntimeError(
+                            f"Command file {cmd_file_path!r} does not exist."
+                        )
 
-                if run.action.script:
-                    if run.is_snippet_script:
-                        script_artifact_name = run.get_script_artifact_name()
-                        script_dir = Path(os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"])
-                        script_name = script_artifact_name
-                    else:
-                        # not a snippet script; expect the script in the run execute
-                        # directory (i.e. created by a previous action)
-                        script_dir = Path.cwd()
-                        script_name = run.action.script
-
-                    script_name_no_ext = str(Path(script_name).stem)
-                    add_env.update(
-                        {
-                            f"{app_caps}_RUN_SCRIPT_NAME": script_name,
-                            f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_name_no_ext,
-                            f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
-                            f"{app_caps}_RUN_SCRIPT_PATH": str(script_dir / script_name),
-                        }
+                    # prepare subprocess command:
+                    jobscript = self.submissions[submission_idx].jobscripts[js_idx]
+                    cmd = jobscript.shell.get_command_file_launch_command(
+                        str(cmd_file_path)
                     )
+                    loop_idx_str = ";".join(
+                        f"{k}={v}" for k, v in run.element_iteration.loop_idx.items()
+                    )
+                    app_caps = self.app.package_name.upper()
+                    add_env = {
+                        f"{app_caps}_RUN_ID": str(run_ID),
+                        f"{app_caps}_RUN_IDX": str(run.index),
+                        f"{app_caps}_ELEMENT_IDX": str(run.element.index),
+                        f"{app_caps}_ELEMENT_ID": str(run.element.id_),
+                        f"{app_caps}_ELEMENT_ITER_IDX": str(run.element_iteration.index),
+                        f"{app_caps}_ELEMENT_ITER_ID": str(run.element_iteration.id_),
+                        f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
+                    }
 
-                env = {**dict(os.environ), **add_env}
+                    if run.action.script:
+                        if run.is_snippet_script:
+                            script_artifact_name = run.get_script_artifact_name()
+                            script_dir = Path(os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"])
+                            script_name = script_artifact_name
+                        else:
+                            # not a snippet script; expect the script in the run execute
+                            # directory (i.e. created by a previous action)
+                            script_dir = Path.cwd()
+                            script_name = run.action.script
 
-                self.app.submission_logger.debug(
-                    f"Executing run commands via subprocess with command {cmd!r}, and "
-                    f"environment variables as below."
-                )
-                for k, v in env.items():
-                    if k.startswith(app_caps):
-                        self.app.submission_logger.debug(f"{k} = {v}")
+                        script_name_no_ext = str(Path(script_name).stem)
+                        add_env.update(
+                            {
+                                f"{app_caps}_RUN_SCRIPT_NAME": script_name,
+                                f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_name_no_ext,
+                                f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
+                                f"{app_caps}_RUN_SCRIPT_PATH": str(
+                                    script_dir / script_name
+                                ),
+                            }
+                        )
 
-                exe = self.app.Executor(cmd, env)
-                port = exe.start_zmq_server()  # start the server so we know the port
+                    env = {**dict(os.environ), **add_env}
 
-                try:
-                    self.set_EAR_start(EAR_ID=run_ID, port_number=port)
-                except:
-                    self.app.submission_logger.error(f"Failed to set run start.")
-                    exe.stop_zmq_server()
-                    raise
+                    self.app.submission_logger.debug(
+                        f"Executing run commands via subprocess with command {cmd!r}, and "
+                        f"environment variables as below."
+                    )
+                    for k, v in env.items():
+                        if k.startswith(app_caps):
+                            self.app.submission_logger.debug(f"{k} = {v}")
+
+                    exe = self.app.Executor(cmd, env)
+                    port = exe.start_zmq_server()  # start the server so we know the port
+
+                    try:
+                        self.set_EAR_start(EAR_ID=run_ID, port_number=port)
+                    except:
+                        self.app.submission_logger.error(f"Failed to set run start.")
+                        exe.stop_zmq_server()
+                        raise
 
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
-        if not run.skip:
+        if not run.skip and has_commands:
             ret_code = exe.run()  # this also shuts down the server
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
         with redirect_std_to_file(run_std_path):
             if run.skip:
                 ret_code = SKIPPED_EXIT_CODE
+            elif not has_commands:
+                ret_code = NO_COMMANDS_EXIT_CODE
             else:
                 # check if we need to terminate a loop if this is the last action of the
                 # loop iteration for this element:
@@ -2977,45 +2989,21 @@ class Workflow:
             if run.action.script:
                 run.write_script_input_files(block_act_key)
 
-            write_commands = True
-            try:
-                commands, shell_vars = run.compose_commands(
-                    environments=sub.environments,
-                    shell=jobscript.shell,
-                )
-            except OutputFileParserNoOutputError:
-                # no commands to write, might be used just for saving files
-                write_commands = False
+            cmd_file_name = f"{run.id_}{jobscript.shell.JS_EXT}"  # TODO: refactor
+            cmd_file_path = jobscript.submission.commands_path / cmd_file_name
+            if not cmd_file_path.is_file():
+                # only write if it does not already exist (from submit-time)
+                try:
+                    cmd_path = run.try_write_commands(
+                        jobscript=jobscript,
+                        environments=sub.environments,
+                        raise_on_unset=True,
+                    )
+                except OutputFileParserNoOutputError:
+                    # no commands to write, might be used just for saving files
+                    return False
 
-            if write_commands:
-                app_name = self.app.package_name
-                self.app.persistence_logger.debug("need to write commands")
-                for cmd_idx, var_dat in shell_vars.items():
-                    for param_name, shell_var_name, st_typ in var_dat:
-                        commands += jobscript.shell.format_save_parameter(
-                            workflow_app_alias=jobscript.workflow_app_alias,
-                            param_name=param_name,
-                            shell_var_name=shell_var_name,
-                            cmd_idx=cmd_idx,
-                            stderr=(st_typ == "stderr"),
-                            app_name=app_name,
-                        )
-
-                commands = (
-                    jobscript.shell.format_source_functions_file(app_name, commands)
-                    + commands
-                )
-            else:
-                # still need to write the file, the jobscript is expecting it.
-                commands = ""
-
-            self.app.persistence_logger.debug(f"commands to write: {commands!r}")
-            cmd_file_name = jobscript.get_commands_file_name(block_act_key)
-            with Path(cmd_file_name).open("wt", newline="\n") as fp:
-                # (assuming we have CD'd correctly to the element run directory)
-                fp.write(commands)
-
-        return resolve_path(cmd_file_name)
+        return cmd_file_path
 
     def process_shell_parameter_output(
         self, name: str, value: str, EAR_ID: int, cmd_idx: int, stderr: bool = False

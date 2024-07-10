@@ -19,6 +19,7 @@ from hpcflow.sdk.core.errors import (
     MissingEnvironmentExecutableInstanceError,
     MultipleEnvironmentsError,
     SubmissionFailure,
+    OutputFileParserNoOutputError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
@@ -53,6 +54,7 @@ class Submission(JSONLike):
     LOG_DIR_NAME = "app_logs"
     STD_DIR_NAME = "app_std"
     SCRIPTS_DIR_NAME = "scripts"
+    COMMANDS_DIR_NAME = "commands"
 
     _child_objects = (
         ChildObjectSpec(
@@ -80,7 +82,7 @@ class Submission(JSONLike):
         self._jobscripts = jobscripts
         self._submission_parts = submission_parts or {}
         self._JS_parallelism = JS_parallelism
-        self._environments = environments
+        self._environments = environments  # assigned by _set_environments
 
         self._submission_parts_lst = None  # assigned on first access; datetime objects
 
@@ -309,6 +311,10 @@ class Submission(JSONLike):
     def get_scripts_path(cls, submissions_path: Path, sub_idx: int) -> Path:
         return cls.get_path(submissions_path, sub_idx) / cls.SCRIPTS_DIR_NAME
 
+    @classmethod
+    def get_commands_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.COMMANDS_DIR_NAME
+
     @property
     def path(self) -> Path:
         return self.get_path(self.workflow.submissions_path, self.index)
@@ -330,12 +336,22 @@ class Submission(JSONLike):
         return self.get_scripts_path(self.workflow.submissions_path, self.index)
 
     @property
+    def commands_path(self):
+        return self.get_commands_path(self.workflow.submissions_path, self.index)
+
+    @property
     def all_EAR_IDs(self):
         return [i for js in self.jobscripts for i in js.all_EAR_IDs]
 
     @property
     def all_EARs(self):
         return [i for js in self.jobscripts for i in js.all_EARs]
+
+    @property
+    def all_EARs_by_jobscript(self) -> List:
+        ids = [i.all_EAR_IDs for i in self.jobscripts]
+        all_EARs = {i.id_: i for i in self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)}
+        return [[all_EARs[i] for i in js_ids] for js_ids in ids]
 
     @property
     @TimeIt.decorator
@@ -365,16 +381,42 @@ class Submission(JSONLike):
         return out
 
     @TimeIt.decorator
-    def _write_scripts(self):
+    def _write_scripts(self) -> Dict[int, int]:
         """Write to disk all action scripts associated with this submission."""
-        # could do this without looping over runs, but then we might write scripts that aren't
-        # needed (from runs that are not part of the submission)
         actions_by_schema = defaultdict(lambda: defaultdict(set))
-        for run in self.all_EARs:
-            if run.is_snippet_script:
-                actions_by_schema[run.action.task_schema.name][
-                    run.element_action.action_idx
-                ].add(run.env_spec_hashable)
+        cmd_hashes = defaultdict(set)
+
+        run_cmd_file_names = {}
+        for js_idx, js_runs in enumerate(self.all_EARs_by_jobscript):
+            js = self.jobscripts[js_idx]
+            for run in js_runs:
+                if run.is_snippet_script:
+                    actions_by_schema[run.action.task_schema.name][
+                        run.element_action.action_idx
+                    ].add(run.env_spec_hashable)
+
+                if run.action.commands:
+                    hash_i = run.get_commands_file_hash()
+                    if hash_i not in cmd_hashes:
+                        try:
+                            run.try_write_commands(
+                                environments=self.environments,
+                                jobscript=js,
+                            )
+                        except OutputFileParserNoOutputError:
+                            # no commands to write, might be used just for saving files
+                            run_cmd_file_names[run.id_] = None
+                    cmd_hashes[hash_i].add(run.id_)
+                else:
+                    run_cmd_file_names[run.id_] = None
+
+        for run_ids in cmd_hashes.values():
+            run_ids_srt = sorted(run_ids)
+            root_id = run_ids_srt[0]  # used for command file name for this group
+            # TODO: could store multiple IDs to reduce number of files created
+            for run_id_i in run_ids_srt:
+                if run_id_i not in run_cmd_file_names:
+                    run_cmd_file_names[run_id_i] = root_id
 
         seen = {}
         for task in self.workflow.tasks:
@@ -414,6 +456,8 @@ class Submission(JSONLike):
                                     with script_path.open("wt", newline="\n") as fp:
                                         fp.write(source_str)
                                     seen[script_hash] = script_path
+
+        return run_cmd_file_names
 
     @staticmethod
     def get_unique_schedulers_of_jobscripts(

@@ -11,3 +11,4 @@ https://tldp.org/LDP/abs/html/exitcodes.html
 ALL_TEMPLATE_FORMATS = ("yaml", "json")
 ABORT_EXIT_CODE = 64
 SKIPPED_EXIT_CODE = 65
+NO_COMMANDS_EXIT_CODE = 66

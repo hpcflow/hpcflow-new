@@ -313,6 +313,7 @@ class StoreEAR:
     commands_idx: List[int]
     data_idx: Dict[str, int]
     submission_idx: Optional[int] = None
+    commands_file_ID: Optional[int] = None
     skip: Optional[int] = 0
     success: Optional[bool] = None
     start_time: Optional[datetime] = None
@@ -341,6 +342,7 @@ class StoreEAR:
             "commands_idx": self.commands_idx,
             "data_idx": self.data_idx,
             "submission_idx": self.submission_idx,
+            "commands_file_ID": self.commands_file_ID,
             "success": self.success,
             "skip": self.skip,
             "start_time": self._encode_datetime(self.start_time, ts_fmt),
@@ -378,6 +380,7 @@ class StoreEAR:
             "commands_idx": self.commands_idx,
             "data_idx": self.data_idx,
             "submission_idx": self.submission_idx,
+            "commands_file_ID": self.commands_file_ID,
             "success": self.success,
             "skip": self.skip,
             "start_time": _process_datetime(self.start_time),
@@ -394,6 +397,7 @@ class StoreEAR:
     def update(
         self,
         submission_idx: Optional[int] = None,
+        commands_file_ID: Optional[int] = None,
         skip: Optional[int] = None,
         success: Optional[bool] = None,
         start_time: Optional[datetime] = None,
@@ -416,6 +420,9 @@ class StoreEAR:
         exit_code = exit_code if exit_code is not None else self.exit_code
         run_hn = run_hostname if run_hostname is not None else self.run_hostname
         port_num = port_number if port_number is not None else self.port_number
+        cmd_file = (
+            commands_file_ID if commands_file_ID is not None else self.commands_file_ID
+        )
 
         return self.__class__(
             id_=self.id_,
@@ -426,6 +433,7 @@ class StoreEAR:
             data_idx=self.data_idx,
             metadata=self.metadata,
             submission_idx=sub_idx,
+            commands_file_ID=cmd_file,
             skip=skip,
             success=success,
             start_time=start_time,
@@ -1069,10 +1077,10 @@ class PersistentStore(ABC):
             self.save()
 
     @TimeIt.decorator
-    def set_EAR_submission_index(
-        self, EAR_ID: int, sub_idx: int, save: bool = True
+    def set_run_submission_data(
+        self, EAR_ID: int, cmds_ID: int, sub_idx: int, save: bool = True
     ) -> None:
-        self._pending.set_EAR_submission_indices[EAR_ID] = sub_idx
+        self._pending.set_EAR_submission_data[EAR_ID] = (sub_idx, cmds_ID)
         if save:
             self.save()
 
@@ -1563,7 +1571,7 @@ class PersistentStore(ABC):
         EARs_new = []
         for EAR_i in EARs:
             # consider updates:
-            pend_sub = self._pending.set_EAR_submission_indices.get(EAR_i.id_)
+            pend_sub = self._pending.set_EAR_submission_data.get(EAR_i.id_)
             pend_start = self._pending.set_EAR_starts.get(EAR_i.id_)
             pend_end = self._pending.set_EAR_ends.get(EAR_i.id_)
             pend_skip = self._pending.set_EAR_skips.get(EAR_i.id_)
@@ -1572,9 +1580,11 @@ class PersistentStore(ABC):
                 pend_start if pend_start else (None, None, None, None)
             )
             p_et, p_se, p_ex, p_sx = pend_end if pend_end else (None, None, None, None)
+            p_sub, p_cmd = pend_sub if pend_sub else (None, None)
 
             updates = {
-                "submission_idx": pend_sub,
+                "submission_idx": p_sub,
+                "commands_file_ID": p_cmd,
                 "skip": pend_skip,
                 "success": p_sx,
                 "start_time": p_st,

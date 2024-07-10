@@ -239,6 +239,7 @@ class ZarrStoreEAR(StoreEAR):
             self.run_hostname,
             self.commands_idx,
             self.port_number,
+            self.commands_file_ID,
         ]
         return EAR_enc
 
@@ -262,6 +263,7 @@ class ZarrStoreEAR(StoreEAR):
             "run_hostname": EAR_dat[13],
             "commands_idx": EAR_dat[14],
             "port_number": EAR_dat[15],
+            "commands_file_ID": EAR_dat[16],
         }
         return cls(is_pending=False, **obj_dat)
 
@@ -606,8 +608,8 @@ class ZarrPersistentStore(PersistentStore):
             arr.attrs.put(attrs)
 
     @TimeIt.decorator
-    def _update_EAR_submission_indices(self, sub_indices: Dict[int:int]):
-        EAR_IDs = list(sub_indices.keys())
+    def _update_EAR_submission_data(self, sub_data: Dict[int, Tuple[int, int]]):
+        EAR_IDs = list(sub_data.keys())
         EARs = self._get_persistent_EARs(EAR_IDs)
 
         arr = self._get_EARs_arr(mode="r+")
@@ -615,8 +617,11 @@ class ZarrPersistentStore(PersistentStore):
         attrs = copy.deepcopy(attrs_orig)
 
         encoded_EARs = []
-        for EAR_ID_i, sub_idx_i in sub_indices.items():
-            new_EAR_i = EARs[EAR_ID_i].update(submission_idx=sub_idx_i)
+        for EAR_ID_i, (sub_idx_i, cmd_file_ID_i) in sub_data.items():
+            new_EAR_i = EARs[EAR_ID_i].update(
+                submission_idx=sub_idx_i,
+                commands_file_ID=cmd_file_ID_i,
+            )
             # seems to be a Zarr bug that prevents `set_coordinate_selection` with an
             # object array, so set one-by-one:
             arr[EAR_ID_i] = new_EAR_i.encode(attrs, self.ts_fmt)
