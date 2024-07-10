@@ -797,66 +797,9 @@ class ElementActionRun:
         This hash is not stable across sessions or machines.
 
         """
-
-        def _get_relevant_paths(data_index, path, children_of: str = None):
-            # TODO: refactor: this is the same function as used in
-            # `WorkflowTask._get_merged_parameter_data`; duplicating to avoid
-            # anticipated merge conflicts
-
-            relevant_paths = {}
-            # first extract out relevant paths in `data_index`:
-            for path_i in data_index:
-                path_i_split = path_i.split(".")
-                try:
-                    rel_path = get_relative_path(path, path_i_split)
-                    relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
-                except ValueError:
-                    try:
-                        update_path = get_relative_path(path_i_split, path)
-                        relevant_paths[path_i] = {
-                            "type": "update",
-                            "update_path": update_path,
-                        }
-                    except ValueError:
-                        # no intersection between paths
-                        if children_of and path_i.startswith(children_of):
-                            relevant_paths[path_i] = {"type": "sibling"}
-                        continue
-            return relevant_paths
-
-        # filter data index by input parameters that appear in the commands, or are used in
-        # rules in conditional commands:
-        param_types = self.action.get_command_parameter_types()
-        data_idx = self.get_data_idx()
-        partial_data_idx = {k: v for k, v in data_idx.items() if k in param_types}
-
-        # hash rule condition + any relevant data index from rule path
-        rule_data_indices = []
-        rule_conditions = []
-        for cmd in self.action.commands:
-            for act_rule in cmd.rules:
-                rule_path = act_rule.rule.path
-                rule_path_split = rule_path.split()
-                rule_cond = act_rule.rule.condition.to_json_like()
-                rule_conditions.append(rule_cond)
-                if rule_path.startswith("resources."):
-                    # include all resource paths for now:
-                    relevant_paths = _get_relevant_paths(data_idx, ["resources"])
-                else:
-                    relevant_paths = _get_relevant_paths(data_idx, rule_path_split)
-                relevant_data_idx = {
-                    k: v for k, v in data_idx.items() if k in relevant_paths
-                }
-                rule_data_indices.append(relevant_data_idx)
-
-        return get_hash(
-            (
-                self.action.task_schema.name,
-                self.element_action.action_idx,
-                partial_data_idx,
-                tuple(rule_conditions),
-                tuple(rule_data_indices),
-            )
+        return self.action.get_commands_file_hash(
+            data_idx=self.get_data_idx(),
+            action_idx=self.element_action.action_idx,
         )
 
     def try_write_commands(
@@ -865,7 +808,6 @@ class ElementActionRun:
         environments,
         raise_on_unset: bool = False,
     ) -> Union[None, Path]:
-        write_commands = True
         app_name = self.app.package_name
         try:
             commands, shell_vars = self.compose_commands(
@@ -894,6 +836,9 @@ class ElementActionRun:
         commands = (
             jobscript.shell.format_source_functions_file(app_name, commands) + commands
         )
+
+        print(f"commands")
+        pprint.pp(commands)
 
         cmd_file_name = f"{self.id_}{jobscript.shell.JS_EXT}"
         cmd_file_path = jobscript.submission.commands_path / cmd_file_name
@@ -2490,3 +2435,83 @@ class Action(JSONLike):
         elif prefix == "output_files":
             out = list(f"{i}" for i in self.get_output_file_labels())
         return out
+
+    def get_commands_file_hash(self, data_idx: Dict[str, int], action_idx: int) -> int:
+        """Get a hash that can be used to group together runs that will have the same
+        commands file.
+
+        This hash is not stable across sessions or machines.
+
+        """
+
+        def _get_relevant_paths(data_index, path, children_of: str = None):
+            # TODO: refactor: this is the same function as used in
+            # `WorkflowTask._get_merged_parameter_data`; duplicating to avoid
+            # anticipated merge conflicts
+
+            relevant_paths = {}
+            # first extract out relevant paths in `data_index`:
+            for path_i in data_index:
+                path_i_split = path_i.split(".")
+                try:
+                    rel_path = get_relative_path(path, path_i_split)
+                    relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
+                except ValueError:
+                    try:
+                        update_path = get_relative_path(path_i_split, path)
+                        relevant_paths[path_i] = {
+                            "type": "update",
+                            "update_path": update_path,
+                        }
+                    except ValueError:
+                        # no intersection between paths
+                        if children_of and path_i.startswith(children_of):
+                            relevant_paths[path_i] = {"type": "sibling"}
+                        continue
+            return relevant_paths
+
+        # filter data index by input parameters that appear in the commands, or are used in
+        # rules in conditional commands:
+        param_types = self.get_command_parameter_types()
+
+        relevant_paths = []
+        for i in param_types:
+            relevant_paths.extend(
+                list(_get_relevant_paths(data_idx, i.split(".")).keys())
+            )
+
+        # hash any relevant data index from rule path
+        for cmd in self.commands:
+            for act_rule in cmd.rules:
+                rule_path = act_rule.rule.path
+                rule_path_split = rule_path.split(".")
+                if rule_path.startswith("resources."):
+                    # include all resource paths for now:
+                    relevant_paths.extend(
+                        list(_get_relevant_paths(data_idx, ["resources"]).keys())
+                    )
+                else:
+                    relevant_paths.extend(
+                        list(_get_relevant_paths(data_idx, rule_path_split).keys())
+                    )
+
+        # note we don't need to consider action-level rules, since these determine
+        # whether a run will be included in a submission or not; this method is only
+        # called on runs that are part of a submission, at which point action-level rules
+        # are irrelevent.
+
+        relevant_data_idx = {k: v for k, v in data_idx.items() if k in relevant_paths}
+
+        try:
+            schema_name = self.task_schema.name
+        except AttributeError:
+            # allows for testing without making a schema
+            schema_name = ""
+
+        return get_hash(
+            (
+                schema_name,
+                action_idx,
+                relevant_data_idx,
+            )
+        )

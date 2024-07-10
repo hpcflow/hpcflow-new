@@ -2853,8 +2853,11 @@ class Workflow:
             # check if we should skip:
             if not run.skip:
 
+                if run.action.script:
+                    run.write_script_input_files(block_act_key)
+
                 # write the command file that will be executed:
-                cmd_file_path = self.write_commands(submission_idx, block_act_key, run)
+                cmd_file_path = self.ensure_commands_file(submission_idx, js_idx, run)
                 has_commands = bool(cmd_file_path)
                 if has_commands:
 
@@ -2969,32 +2972,40 @@ class Workflow:
                 exit_code=ret_code,
             )
 
-    def write_commands(
+    def ensure_commands_file(
         self,
         submission_idx: int,
-        block_act_key: Tuple[int, int, int],
+        js_idx: int,
         run: app.ElementActionRun,
-    ) -> Path:
-        """Write run-time commands for a given EAR."""
-        js_idx = block_act_key[0]
+    ) -> Union[Path, bool]:
+        """Ensure a commands file exists for the specified run."""
+        self.app.persistence_logger.debug("Workflow.ensure_commands_file")
+
+        if run.commands_file_ID is None:
+            # no commands to write
+            return False
+
         with self._store.cached_load():
-            self.app.persistence_logger.debug("Workflow.write_commands")
-            self.app.persistence_logger.debug(
-                f"loading jobscript (submission index: {submission_idx}; jobscript "
-                f"index: {js_idx})"
-            )
             sub = self.submissions[submission_idx]
             jobscript = sub.jobscripts[js_idx]
 
-            if run.action.script:
-                run.write_script_input_files(block_act_key)
-
+            # check if a commands file already exists, first checking using the run ID:
             cmd_file_name = f"{run.id_}{jobscript.shell.JS_EXT}"  # TODO: refactor
             cmd_file_path = jobscript.submission.commands_path / cmd_file_name
+
             if not cmd_file_path.is_file():
-                # only write if it does not already exist (from submit-time)
+                # then check for a file from the "root" run ID (the run ID of a run that
+                # shares the same commands file):
+
+                cmd_file_name = (
+                    f"{run.commands_file_ID}{jobscript.shell.JS_EXT}"  # TODO: refactor
+                )
+                cmd_file_path = jobscript.submission.commands_path / cmd_file_name
+
+            if not cmd_file_path.is_file():
+                # no file available, so write (using the run ID):
                 try:
-                    cmd_path = run.try_write_commands(
+                    cmd_file_path = run.try_write_commands(
                         jobscript=jobscript,
                         environments=sub.environments,
                         raise_on_unset=True,

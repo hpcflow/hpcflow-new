@@ -788,3 +788,91 @@ def test_command_rules_prevent_runs_initialised_with_valid_action_rules(
     assert len(wk.tasks[0].elements[0].action_runs[0].commands_idx) == 1
 
     assert not wk.tasks[1].elements[0].iterations[0].EARs_initialised
+
+
+def test_get_commands_file_hash_distinct_act_idx(null_config):
+    act = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    data_idx = {"inputs.p1": 0}
+    h1 = act.get_commands_file_hash(data_idx=data_idx, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx=data_idx, action_idx=1)
+    assert h1 != h2
+
+
+def test_get_commands_file_hash_distinct_data_idx_vals(null_config):
+    act = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    h1 = act.get_commands_file_hash(data_idx={"inputs.p1": 0}, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx={"inputs.p1": 1}, action_idx=0)
+    assert h1 != h2
+
+
+def test_get_commands_file_hash_distinct_data_idx_sub_vals(null_config):
+    act = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    di_1 = {"inputs.p1": 0, "inputs.p1.a": 1}
+    di_2 = {"inputs.p1": 0, "inputs.p1.a": 2}
+    h1 = act.get_commands_file_hash(data_idx=di_1, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx=di_2, action_idx=0)
+    assert h1 != h2
+
+
+def test_get_commands_file_hash_equivalent_data_idx_outputs(null_config):
+    """Different output data indices should not generate distinct hashes."""
+    act = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    di_1 = {"inputs.p1": 0, "outputs.p2": 1}
+    di_2 = {"inputs.p1": 0, "outputs.p2": 2}
+    h1 = act.get_commands_file_hash(data_idx=di_1, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx=di_2, action_idx=0)
+    assert h1 == h2
+
+
+def test_get_commands_file_hash_return_int(null_config):
+    act = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    h1 = act.get_commands_file_hash(data_idx={"inputs.p1": 0}, action_idx=0)
+    assert type(h1) == int
+
+
+def test_get_commands_file_hash_distinct_schema(null_config):
+    act_1 = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    act_2 = hf.Action(commands=[hf.Command("echo <<parameter:p1>>")])
+    hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput("p1")], actions=[act_1])
+    hf.TaskSchema(objective="t2", inputs=[hf.SchemaInput("p1")], actions=[act_2])
+    assert act_1.task_schema
+    assert act_2.task_schema
+    h1 = act_1.get_commands_file_hash(data_idx={}, action_idx=0)
+    h2 = act_2.get_commands_file_hash(data_idx={}, action_idx=0)
+    assert h1 != h2
+
+
+def test_get_commands_file_hash_equivalent_cmd_rule_inputs_path(null_config):
+    """Input-path rule does not affect hash, given equivalent data indices."""
+    act = hf.Action(
+        commands=[
+            hf.Command(
+                command="echo <<parameter:p1>>",
+                rules=[hf.ActionRule(path="inputs.p1", condition={"value.equal_to": 1})],
+            )
+        ],
+    )
+    h1 = act.get_commands_file_hash(data_idx={"inputs.p1": 0}, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx={"inputs.p1": 0}, action_idx=0)
+    assert h1 == h2
+
+
+def test_get_commands_file_hash_distinct_cmd_rule_resources_path(null_config):
+    """Resource-path rule affects hash given distinct resource data indices."""
+    act = hf.Action(
+        commands=[
+            hf.Command(
+                command="echo <<parameter:p1>>",
+                rules=[
+                    hf.ActionRule(
+                        path="resources.num_cores", condition={"value.equal_to": 8}
+                    )
+                ],
+            )
+        ],
+    )
+    di_1 = {"inputs.p1": 0, "resources.any.num_cores": 2}
+    di_2 = {"inputs.p1": 0, "resources.any.num_cores": 3}
+    h1 = act.get_commands_file_hash(data_idx=di_1, action_idx=0)
+    h2 = act.get_commands_file_hash(data_idx=di_2, action_idx=0)
+    assert h1 != h2
