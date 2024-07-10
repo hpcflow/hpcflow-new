@@ -907,7 +907,6 @@ class ZarrPersistentStore(PersistentStore[
         ]
         EARs = [ZarrStoreEAR(**i).encode(ts_fmt, EARs_arr.attrs.asdict()) for i in EARs]
 
-        print("APPEND_ITEMS TASKS", tasks)
         append_items_to_ragged_array(tasks_arr, tasks)
 
         elem_arr_add = np.empty((len(elements)), dtype=object)
@@ -946,7 +945,6 @@ class ZarrPersistentStore(PersistentStore[
                     if id_lst is None or i["id_"] in id_lst:
                         task_dat[i["id_"]] = {**i, "index": idx}
             if task_dat:
-                print(task_dat, elem_IDs, self._get_tasks_arr().chunk_store)
                 try:
                     elem_IDs_arr_dat = self._get_tasks_arr().get_coordinate_selection(
                         elem_IDs
