@@ -840,7 +840,6 @@ class Task(JSONLike):
         kwargs = self.to_dict()
         _insert_ID = kwargs.pop("insert_ID")
         _dir_name = kwargs.pop("dir_name")
-        kwargs.pop("Task__groups", None)
         # _pending_element_sets = kwargs.pop("pending_element_sets")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._insert_ID = _insert_ID
@@ -865,12 +864,12 @@ class Task(JSONLike):
     def to_dict(self) -> dict[str, Any]:
         out = super().to_dict()
         out["_schema"] = out.pop("_schemas")
-        out.pop("Task__groups", None)
-        return {
+        res = {
             k.lstrip("_"): v
             for k, v in out.items()
-            if k not in ("_name", "_pending_element_sets")
+            if k not in ("_name", "_pending_element_sets", "_Task__groups")
         }
+        return res
 
     def set_sequence_parameters(self, element_set: ElementSet):
         # set ValueSequence Parameter objects:

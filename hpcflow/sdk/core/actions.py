@@ -1834,6 +1834,7 @@ class Action(JSONLike):
             )
             main_act._task_schema = self.task_schema
             main_act._from_expand = True
+            main_act.process_script_data_formats()
 
             cmd_acts = inp_acts + [main_act] + out_acts
 

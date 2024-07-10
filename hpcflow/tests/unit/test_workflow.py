@@ -215,7 +215,7 @@ def test_raise_on_missing_inputs_add_first_task(empty_workflow: Workflow, schema
     with pytest.raises(MissingInputs) as exc_info:
         empty_workflow.add_task(t1)
 
-    assert exc_info.value.missing_inputs == [param_p1.typ]
+    assert exc_info.value.missing_inputs == (param_p1.typ, )
 
 
 def test_raise_on_missing_inputs_add_second_task(workflow_w1: Workflow, schema_s2: TaskSchema, param_p3: Parameter):
@@ -223,7 +223,7 @@ def test_raise_on_missing_inputs_add_second_task(workflow_w1: Workflow, schema_s
     with pytest.raises(MissingInputs) as exc_info:
         workflow_w1.add_task(t2)
 
-    assert exc_info.value.missing_inputs == [param_p3.typ]  # p2 comes from existing task
+    assert exc_info.value.missing_inputs == (param_p3.typ, )  # p2 comes from existing task
 
 
 @pytest.mark.skip(reason="TODO: Not implemented.")
