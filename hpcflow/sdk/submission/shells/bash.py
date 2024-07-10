@@ -236,7 +236,6 @@ class Bash(Shell):
         workflow_app_alias: str,
         param_name: str,
         shell_var_name: str,
-        EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
         app_name: str,
@@ -248,7 +247,7 @@ class Bash(Shell):
         return (
             f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
             f'internal workflow "${app_caps}_WK_PATH_ARG" save-parameter '
-            f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
+            f"{param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}{stderr_str} "
             f"\n"
         )
 

@@ -2996,7 +2996,6 @@ class Workflow:
                             workflow_app_alias=jobscript.workflow_app_alias,
                             param_name=param_name,
                             shell_var_name=shell_var_name,
-                            EAR_ID=run.id_,
                             cmd_idx=cmd_idx,
                             stderr=(st_typ == "stderr"),
                             app_name=app_name,

@@ -236,6 +236,7 @@ class WindowsPowerShell(Shell):
             f"{app_caps}_JS_IDX",
             f"{app_caps}_BLOCK_IDX",
             f"{app_caps}_BLOCK_ACT_IDX",
+            f"{app_caps}_RUN_ID",
             f"{app_caps}_RUN_STD_PATH",
             f"{app_caps}_RUN_SCRIPT_NAME",
             f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT",
@@ -258,7 +259,6 @@ class WindowsPowerShell(Shell):
         workflow_app_alias: str,
         param_name: str,
         shell_var_name: str,
-        EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
         app_name: str,
@@ -270,6 +270,6 @@ class WindowsPowerShell(Shell):
         return (
             f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
             f'internal workflow "${app_caps}_WK_PATH" save-parameter '
-            f"{param_name} ${shell_var_name} {EAR_ID} {cmd_idx}{stderr_str} "
+            f"{param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}{stderr_str} "
             f"\n"
         )
