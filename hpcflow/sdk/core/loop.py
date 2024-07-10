@@ -15,16 +15,12 @@ from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import ClassVar, Self
+    from typing import ClassVar, Self, TypeAlias
     from ..app import BaseApp
-    from ..typing import ParamSource
+    from ..typing import DataIndex, ParamSource
     from .parameters import SchemaInput, InputSource
     from .rule import Rule
     from .workflow import Workflow, WorkflowTemplate
-
-# from .parameters import Parameter
-
-# from valida.conditions import ConditionLike
 
 
 class IterableParam(TypedDict):
@@ -477,7 +473,7 @@ class WorkflowLoop:
 
         iters_key = tuple(parent_loop_indices_[k] for k in self.parents)
         cur_loop_idx = self.num_added_iterations[iters_key] - 1
-        all_new_data_idx: dict[tuple[int, int], dict[str, int]] = {}  # keys are (task.insert_ID and element.index)
+        all_new_data_idx: dict[tuple[int, int], DataIndex] = {}  # keys are (task.insert_ID and element.index)
 
         # initialise a new `num_added_iterations` key on each child loop:
         for child in child_loops:
@@ -503,7 +499,7 @@ class WorkflowLoop:
             for elem_idx in range(task.num_elements):
                 elem_ID = task.element_IDs[elem_idx]
 
-                new_data_idx: dict[str, int] = {}
+                new_data_idx: DataIndex = {}
 
                 # copy resources from zeroth iteration:
                 zeroth_iter_ID, zi_iter_data_idx = cache.zeroth_iters[elem_ID]
@@ -726,15 +722,17 @@ class WorkflowLoop:
         else:
             return cache.data_idx[src_elem_ID][loop_idx_key][f"outputs.{inp.typ}"]
 
-    def __get_task_index(self, task: WorkflowTask, orig_inp_src: InputSource,
-                         cache: LoopCache, elem_ID: int, inp: SchemaInput,
-                         inp_key: str, parent_loop_indices: dict[str, int],
-                         all_new_data_idx: dict[tuple[int, int], dict[str, int]]) -> int | list[int]:
+    def __get_task_index(
+        self, task: WorkflowTask, orig_inp_src: InputSource,
+        cache: LoopCache, elem_ID: int, inp: SchemaInput,
+        inp_key: str, parent_loop_indices: dict[str, int],
+        all_new_data_idx: dict[tuple[int, int], DataIndex]
+    ) -> int | list[int]:
         if orig_inp_src.task_ref not in self.task_insert_IDs:
             # source the data_idx from the iteration with same parent
             # loop indices as the new iteration to add:
             # src_iters = []
-            src_data_idx: list[dict[str, int]] = []
+            src_data_idx: list[DataIndex] = []
             for li_k, di_k in cache.data_idx[elem_ID].items():
                 li_k_dct = dict(li_k)
                 for p_k, p_v in parent_loop_indices.items():

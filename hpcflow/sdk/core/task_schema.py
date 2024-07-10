@@ -755,8 +755,8 @@ class TaskSchema(JSONLike):
         for out in self.outputs:
             out.parameter._set_value_class()
 
-    def make_persistent(self, workflow: Workflow, source: ParamSource) -> list[int]:
-        new_refs = []
+    def make_persistent(self, workflow: Workflow, source: ParamSource) -> list[int | list[int]]:
+        new_refs: list[int | list[int]] = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
                 if "default_value" in lab_info:

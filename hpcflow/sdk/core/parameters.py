@@ -82,7 +82,7 @@ class ParameterValue:
         raise NotImplementedError
 
     @classmethod
-    def save_from_JSON(cls, data, param_id: int, workflow):
+    def save_from_JSON(cls, data, param_id: int | list[int], workflow):
         raise NotImplementedError
 
 
@@ -1128,7 +1128,7 @@ class AbstractInputValue(JSONLike):
     _element_set: ElementSet | None = None
     _schema_input: SchemaInput | None = None
     _value: Any | None = None
-    _value_group_idx: int | None = None
+    _value_group_idx: int | list[int] | None = None
 
     def __repr__(self) -> str:
         try:
@@ -1153,7 +1153,7 @@ class AbstractInputValue(JSONLike):
 
     def make_persistent(
         self, workflow: Workflow, source: ParamSource
-    ) -> tuple[str, list[int], bool]:
+    ) -> tuple[str, list[int | list[int]], bool]:
         """Save value to a persistent workflow.
 
         Returns
@@ -1378,7 +1378,7 @@ class InputValue(AbstractInputValue):
     def normalised_path(self) -> str:
         return f"inputs.{self.normalised_inputs_path}"
 
-    def make_persistent(self, workflow: Workflow, source: ParamSource) -> tuple[str, list[int], bool]:
+    def make_persistent(self, workflow: Workflow, source: ParamSource) -> tuple[str, list[int | list[int]], bool]:
         source = copy.deepcopy(source)
         if self.value_class_method is not None:
             source["value_class_method"] = self.value_class_method
@@ -1414,7 +1414,7 @@ class InputValue(AbstractInputValue):
     @property
     def value(self) -> Any:
         if self._value_group_idx is not None and self.workflow:
-            val = self.workflow.get_parameter_data(self._value_group_idx)
+            val = self.workflow.get_parameter_data(cast(int, self._value_group_idx))
             if self._value_is_obj and self.parameter._value_class:
                 return self.parameter._value_class(**val)
             return val
@@ -1535,7 +1535,7 @@ class ResourceSpec(JSONLike):
 
         # assigned by `make_persistent`
         self._workflow: Workflow | None = None
-        self._value_group_idx: int | None = None
+        self._value_group_idx: int | list[int] | None = None
 
         # user-specified resource parameters:
         self._scratch = scratch
@@ -1648,7 +1648,7 @@ class ResourceSpec(JSONLike):
 
     def make_persistent(
         self, workflow: Workflow, source: ParamSource
-    ) -> tuple[str, list[int], bool]:
+    ) -> tuple[str, list[int | list[int]], bool]:
         """Save to a persistent workflow.
 
         Returns
@@ -1697,7 +1697,7 @@ class ResourceSpec(JSONLike):
 
     def _get_value(self, value_name: str | None = None):
         if self._value_group_idx is not None and self.workflow:
-            val = self.workflow.get_parameter_data(self._value_group_idx)
+            val = self.workflow.get_parameter_data(cast(int, self._value_group_idx))
         else:
             val = self._get_members()
         if value_name is not None and val is not None:

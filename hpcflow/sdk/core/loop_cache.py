@@ -8,6 +8,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.cache import DependencyCache
 if TYPE_CHECKING:
     from typing import Self, TypedDict
+    from ..typing import DataIndex
     from .loop import Loop
     from .parameters import InputSource
     from .task import WorkflowTask, InputStatus
@@ -58,8 +59,8 @@ class LoopCache:
 
     element_dependents: dict[int, dict[int, DependentDescriptor]]
     elements: dict[int, ElementDescriptor]
-    zeroth_iters: dict[int, tuple[int, dict[str, int]]]
-    data_idx: dict[int, dict[tuple[tuple[str, int], ...], dict[str, int]]]
+    zeroth_iters: dict[int, tuple[int, DataIndex]]
+    data_idx: dict[int, dict[tuple[tuple[str, int], ...], DataIndex]]
     iterations: dict[int, tuple[int, int]]
     task_iterations: dict[int, list[int]]
 
@@ -80,7 +81,7 @@ class LoopCache:
     def update_loop_indices(self, new_loop_name: str, iter_IDs: list[int]):
         elem_ids = {v[0] for k, v in self.iterations.items() if k in iter_IDs}
         for i in elem_ids:
-            new_item: dict[tuple[tuple[str, int], ...], dict[str, int]] = {}
+            new_item: dict[tuple[tuple[str, int], ...], DataIndex] = {}
             for k, v in self.data_idx[i].items():
                 new_k = dict(k)
                 new_k[new_loop_name] = 0
@@ -89,7 +90,8 @@ class LoopCache:
 
     @TimeIt.decorator
     def add_iteration(
-        self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx, data_idx: dict[str, int]
+        self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx: dict[str, int],
+        data_idx: DataIndex
     ):
         """Update the cache to include a newly added iteration."""
         self.task_iterations[task_insert_ID].append(iter_ID)
@@ -110,7 +112,7 @@ class LoopCache:
         elem_deps: dict[int, dict[int, DependentDescriptor]] = {}
 
         # keys: element IDs, values: dict with keys: tuple(loop_idx), values: data index
-        data_idx_cache: dict[int, dict[tuple[tuple[str, int], ...], dict[str, int]]] = {}
+        data_idx_cache: dict[int, dict[tuple[tuple[str, int], ...], DataIndex]] = {}
 
         # keys: iteration IDs, values: tuple of (element ID, integer index into values
         # dict in `data_idx_cache` [accessed via `.keys()[index]`])
@@ -120,7 +122,7 @@ class LoopCache:
         # "task_insert_ID":
         elements: dict[int, ElementDescriptor] = {}
 
-        zeroth_iters: dict[int, tuple[int, dict[str, int]]] = {}
+        zeroth_iters: dict[int, tuple[int, DataIndex]] = {}
         task_iterations = defaultdict(list)
         for task in tasks:
             for elem_idx in task.element_IDs:
@@ -139,7 +141,7 @@ class LoopCache:
                     }
                     for i in deps_cache.elem_elem_dependents_rec[element.id_]
                 }
-                elem_iters: dict[tuple[tuple[str, int], ...], dict[str, int]] = {}
+                elem_iters: dict[tuple[tuple[str, int], ...], DataIndex] = {}
                 for idx, iter_i in enumerate(element.iterations):
                     if idx == 0:
                         zeroth_iters[element.id_] = (iter_i.id_, iter_i.data_idx)

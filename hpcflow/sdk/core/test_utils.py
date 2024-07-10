@@ -328,7 +328,7 @@ class P1_parameter_cls(ParameterValue):
             self.sub_param.dump_to_HDF5_group(sub_group)
 
     @classmethod
-    def save_from_JSON(cls, data, param_id: int, workflow):
+    def save_from_JSON(cls, data, param_id: int | list[int], workflow: Workflow):
         obj = cls(**data)  # TODO: pass sub-param
         workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)
 

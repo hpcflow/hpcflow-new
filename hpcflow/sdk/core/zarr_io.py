@@ -14,7 +14,7 @@ PRIMITIVES = (
 )
 
 
-def _zarr_encode(obj, zarr_group, path=None, encoded=None):
+def _zarr_encode(obj, zarr_group: zarr.Group, path=None, encoded=None):
     path = path or []
     encoded = encoded or []
 
@@ -67,7 +67,7 @@ def _zarr_encode(obj, zarr_group, path=None, encoded=None):
     return out, encoded
 
 
-def zarr_encode(data, zarr_group, is_pending_add, is_set):
+def zarr_encode(data, zarr_group: zarr.Group, is_pending_add, is_set):
     data, encoded = _zarr_encode(data, zarr_group)
     zarr_group.attrs["encoded"] = encoded
     zarr_group.attrs["data"] = data

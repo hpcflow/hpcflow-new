@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeVar, TypedDict
     from ..app import BaseApp
-    from ..typing import ParamSource
+    from ..typing import DataIndex, ParamSource
     from .actions import Action
     from .command_files import InputFile
     from .element import Element, ElementIteration, ElementFilter, ElementParameter
@@ -852,12 +852,12 @@ class Task(JSONLike):
         obj._pending_element_sets = self._pending_element_sets
         return obj
 
-    def to_persistent(self, workflow: Workflow, insert_ID: int) -> tuple[Self, list[int]]:
+    def to_persistent(self, workflow: Workflow, insert_ID: int) -> tuple[Self, list[int | list[int]]]:
         """Return a copy where any schema input defaults are saved to a persistent
         workflow. Element set data is not made persistent."""
 
         obj = copy.deepcopy(self)
-        new_refs: list[int] = []
+        new_refs: list[int | list[int]] = []
         source: ParamSource = {"type": "default_input", "task_insert_ID": insert_ID}
         for schema in obj.schemas:
             new_refs.extend(schema.make_persistent(workflow, source))
@@ -1548,7 +1548,7 @@ class WorkflowTask:
     def __get_task_group_index(
         self, labelled_path_i: str, inp_src: InputSource,
         padded_elem_iters: dict[str, list], inp_group_name: str | None
-    ) -> None | list[int]:  # | list[list[int]]
+    ) -> None | Sequence[int | list[int]]:
         src_task = inp_src.get_task(self.workflow)
         assert src_task
         src_elem_iters, src_elem_set_idx = self.__get_src_elem_iters(src_task, inp_src)
@@ -1576,12 +1576,12 @@ class WorkflowTask:
         if not inp_group_name:
             return grp_idx
 
-        group_dat_idx: list[int] = []
+        group_dat_idx: list[int | list[int]] = []
         for dat_idx_i, src_set_idx_i, src_iter in zip(
             grp_idx, src_elem_set_idx, src_elem_iters
         ):
             src_es = src_task.template.element_sets[src_set_idx_i]
-            if inp_group_name in [i.name for i in src_es.groups or []]:
+            if any(inp_group_name == i.name for i in src_es.groups):
                 group_dat_idx.append(dat_idx_i)
             else:
                 # if for any recursive iteration dependency, this group is
@@ -1599,7 +1599,7 @@ class WorkflowTask:
                     for j in i.element.element_set.groups
                 ]
 
-                if inp_group_name in [i.name for i in src_iter_deps_groups or []]:
+                if any(inp_group_name == i.name for i in src_iter_deps_groups):
                     group_dat_idx.append(dat_idx_i)
 
                 # also check input dependencies
@@ -1609,7 +1609,7 @@ class WorkflowTask:
                     k_es: ElementSet = self.workflow.tasks.get(
                         insert_ID=k_task_iID
                     ).template.element_sets[k_es_idx]
-                    if inp_group_name in [i.name for i in k_es.groups or []]:
+                    if any(inp_group_name == i.name for i in k_es.groups):
                         group_dat_idx.append(dat_idx_i)
 
                 # TODO: this only goes to one level of dependency
@@ -1621,13 +1621,12 @@ class WorkflowTask:
                 f"{labelled_path_i!r}."
             )
 
-        raise NotImplementedError("grouped input handling incomplete")
-        return [group_dat_idx]  # TODO: generalise to multiple groups
+        return [cast(int, group_dat_idx)]  # TODO: generalise to multiple groups
 
     def _make_new_elements_persistent(
         self, element_set: ElementSet, element_set_idx: int,
         padded_elem_iters: dict[str, list]
-    ) -> tuple[dict[str, list[int]], dict[str, list[int]], dict[str, list[int]]]:
+    ) -> tuple[dict[str, list[int | list[int]]], dict[str, Sequence[int]], dict[str, list[int]]]:
         """Save parameter data to the persistent workflow."""
 
         # TODO: rewrite. This method is a little hard to follow and results in somewhat
@@ -1635,8 +1634,8 @@ class WorkflowTask:
         # given input, the local source element(s) will always come first, regardless of
         # the ordering in element_set.input_sources.
 
-        input_data_idx: dict[str, list[int]] = {}
-        sequence_idx: dict[str, list[int]] = {}
+        input_data_idx: dict[str, list[int | list[int]]] = {}
+        sequence_idx: dict[str, Sequence[int]] = {}
         source_idx: dict[str, list[int]] = {}
 
         # Assign first assuming all locally defined values are to be used:
@@ -1648,11 +1647,11 @@ class WorkflowTask:
         loc_inp_src = self.app.InputSource.local()
         for res_i in element_set.resources:
             key, dat_ref, _ = res_i.make_persistent(self.workflow, param_src)
-            input_data_idx[key] = dat_ref
+            input_data_idx[key] = list(dat_ref)
 
         for inp_i in element_set.inputs:
             key, dat_ref, _ = inp_i.make_persistent(self.workflow, param_src)
-            input_data_idx[key] = dat_ref
+            input_data_idx[key] = list(dat_ref)
             key_ = key.split("inputs.")[1]
             try:
                 # TODO: wouldn't need to do this if we raise when an InputValue is
@@ -1663,13 +1662,13 @@ class WorkflowTask:
                 pass
 
         for inp_file_i in element_set.input_files:
-            key, dat_ref, _ = inp_file_i.make_persistent(self.workflow, param_src)
-            input_data_idx[key] = dat_ref
+            key, input_dat_ref, _ = inp_file_i.make_persistent(self.workflow, param_src)
+            input_data_idx[key] = list(input_dat_ref)
 
         for seq_i in element_set.sequences:
-            key, dat_ref, _ = seq_i.make_persistent(self.workflow, param_src)
-            input_data_idx[key] = dat_ref
-            sequence_idx[key] = list(range(len(dat_ref)))
+            key, seq_dat_ref, _ = seq_i.make_persistent(self.workflow, param_src)
+            input_data_idx[key] = list(seq_dat_ref)
+            sequence_idx[key] = list(range(len(seq_dat_ref)))
             try:
                 key_ = key.split("inputs.")[1]
             except IndexError:
@@ -1680,14 +1679,14 @@ class WorkflowTask:
                 # value.
                 source_idx[key] = [
                     element_set.input_sources[key_].index(loc_inp_src)
-                ] * len(dat_ref)
+                ] * len(seq_dat_ref)
             except ValueError:
                 pass
 
         for rep_spec in element_set.repeats:
             seq_key = f"repeats.{rep_spec['name']}"
-            num_range = list(range(rep_spec["number"]))
-            input_data_idx[seq_key] = num_range
+            num_range = range(rep_spec["number"])
+            input_data_idx[seq_key] = list(num_range)
             sequence_idx[seq_key] = num_range
 
         # Now check for task- and default-sources and overwrite or append to local sources:
@@ -1719,8 +1718,6 @@ class WorkflowTask:
                         labelled_path_i, inp_src, padded_elem_iters, inp_group_name)
                     if grp_idx is None:
                         continue
-                    if isinstance(grp_idx[0], list):
-                        raise NotImplementedError("grouped input handling incomplete")
 
                     if self.app.InputSource.local() in sources_i:
                         # add task source to existing local source:
@@ -1729,7 +1726,7 @@ class WorkflowTask:
 
                     else:  # BUG: doesn't work for multiple task inputs sources
                         # overwrite existing local source (if it exists):
-                        input_data_idx[key] = grp_idx
+                        input_data_idx[key] = list(grp_idx)
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
                         if key in sequence_idx:
                             sequence_idx.pop(key)
@@ -1739,14 +1736,13 @@ class WorkflowTask:
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     assert def_val is not None
                     assert def_val._value_group_idx is not None
-                    grp_idx = [def_val._value_group_idx]
+                    grp_idx_ = def_val._value_group_idx
                     if self.app.InputSource.local() in sources_i:
-                        input_data_idx[key] += grp_idx
-                        source_idx[key] += [inp_src_idx] * len(grp_idx)
-
+                        input_data_idx[key].append(grp_idx_)
+                        source_idx[key].append(inp_src_idx)
                     else:
-                        input_data_idx[key] = grp_idx
-                        source_idx[key] = [inp_src_idx] * len(grp_idx)
+                        input_data_idx[key] = [grp_idx_]
+                        source_idx[key] = [inp_src_idx]
 
         # sort smallest to largest path, so more-specific items overwrite less-specific
         # items in parameter retrieval in `WorkflowTask._get_merged_parameter_data`:
@@ -2062,13 +2058,13 @@ class WorkflowTask:
 
     def generate_new_elements(
         self,
-        input_data_indices: dict[str, list[int]],
-        output_data_indices: dict[str, list[int]],
-        element_data_indices: Sequence[dict[str, int]],
-        sequence_indices: dict[str, list[int]],
-        source_indices: dict[str, list[int]],
-    ) -> tuple[list[dict[str, int]], dict[str, list[int]], dict[str, list[int]]]:
-        new_elements: list[dict[str, int]] = []
+        input_data_indices: Mapping[str, Sequence[int | list[int]]],
+        output_data_indices: Mapping[str, Sequence[int]],
+        element_data_indices: Sequence[Mapping[str, int]],
+        sequence_indices: Mapping[str, Sequence[int]],
+        source_indices: Mapping[str, Sequence[int]],
+    ) -> tuple[list[DataIndex], dict[str, list[int]], dict[str, list[int]]]:
+        new_elements: list[DataIndex] = []
         element_sequence_indices: dict[str, list[int]] = {}
         element_src_indices: dict[str, list[int]] = {}
         for i_idx, i in enumerate(element_data_indices):
@@ -2209,7 +2205,7 @@ class WorkflowTask:
     @TimeIt.decorator
     def _initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
         # keys are (act_idx, EAR_idx):
-        all_data_idx: dict[tuple[int, int], dict[str, int]] = {}
+        all_data_idx: dict[tuple[int, int], DataIndex] = {}
         action_runs: dict[tuple[int, int], dict[str, Any]] = {}
 
         # keys are parameter indices, values are EAR_IDs to update those sources to
@@ -2244,7 +2240,7 @@ class WorkflowTask:
                 # with EARs initialised, we can update the pre-allocated schema-level
                 # parameters with the correct EAR reference:
                 for i in psrc_update:
-                    param_src_updates[i] = {"EAR_ID": EAR_ID}
+                    param_src_updates[cast(int, i)] = {"EAR_ID": EAR_ID}
                 run_0 = {
                     "elem_iter_ID": element_iter.id_,
                     "action_idx": act_idx,

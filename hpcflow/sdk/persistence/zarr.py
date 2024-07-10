@@ -130,7 +130,7 @@ def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
     return obj
 
 
-def append_items_to_ragged_array(arr, items):
+def append_items_to_ragged_array(arr: zarr.Array, items: Sequence[int]):
     """Append an array to a Zarr ragged array.
 
     I think `arr.append([item])` should work, but does not for some reason, so we do it
@@ -478,9 +478,9 @@ class ZarrPersistentStore(PersistentStore[
         )
         parameter_data.create_group(name=cls._param_user_arr_grp_name)
 
-    def _append_tasks(self, tasks: Iterable[StoreTask]):
+    def _append_tasks(self, tasks: Iterable[ZarrStoreTask]):
         elem_IDs_arr = self._get_tasks_arr(mode="r+")
-        elem_IDs = []
+        elem_IDs: list[int] = []
         with self.using_resource("attrs", "update") as attrs:
             for i_idx, i in enumerate(tasks):
                 idx, wk_task_i, task_i = i.encode()
@@ -907,6 +907,7 @@ class ZarrPersistentStore(PersistentStore[
         ]
         EARs = [ZarrStoreEAR(**i).encode(ts_fmt, EARs_arr.attrs.asdict()) for i in EARs]
 
+        print("APPEND_ITEMS TASKS", tasks)
         append_items_to_ragged_array(tasks_arr, tasks)
 
         elem_arr_add = np.empty((len(elements)), dtype=object)
@@ -936,14 +937,16 @@ class ZarrPersistentStore(PersistentStore[
         tasks, id_lst = self._get_cached_persistent_tasks(id_lst)
         if id_lst:
             with self.using_resource("attrs", action="read") as attrs:
-                task_dat = {}
-                elem_IDs = []
+                task_dat: dict[int, dict[str, Any]] = {}
+                elem_IDs: list[int] = []
+                i: dict[str, Any]
                 for idx, i in enumerate(attrs["tasks"]):
                     i = copy.deepcopy(i)
                     elem_IDs.append(i.pop("element_IDs_idx"))
                     if id_lst is None or i["id_"] in id_lst:
                         task_dat[i["id_"]] = {**i, "index": idx}
             if task_dat:
+                print(task_dat, elem_IDs, self._get_tasks_arr().chunk_store)
                 try:
                     elem_IDs_arr_dat = self._get_tasks_arr().get_coordinate_selection(
                         elem_IDs
@@ -955,7 +958,7 @@ class ZarrPersistentStore(PersistentStore[
 
                 new_tasks = {
                     id_: ZarrStoreTask.decode({**i, "element_IDs": elem_IDs_arr_dat[id_]})
-                    for idx, (id_, i) in enumerate(task_dat.items())
+                    for id_, i in task_dat.items()
                 }
                 self.task_cache.update(new_tasks)
                 tasks.update(new_tasks)

@@ -11,6 +11,7 @@ EI_idx_type: TypeAlias = tuple[int, int, int]
 EAR_idx_type: TypeAlias = tuple[int, int, int, int, int]
 
 ParamSource: TypeAlias = dict[str, str | int]
+DataIndex: TypeAlias = dict[str, int | list[int]]
 
 _T = TypeVar('_T')
 

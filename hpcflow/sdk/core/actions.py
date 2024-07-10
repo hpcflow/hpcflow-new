@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from valida.conditions import ConditionLike  # type: ignore
 
     from ..app import BaseApp
-    from ..typing import ParamSource
+    from ..typing import DataIndex, ParamSource
     from ..submission.jobscript import Jobscript
     from .commands import Command
     from .command_files import InputFileGenerator, OutputFileParser, FileSpec
@@ -172,7 +172,7 @@ class ElementActionRun:
         is_pending: bool,
         element_action: ElementAction,
         index: int,
-        data_idx: dict[str, int],
+        data_idx: DataIndex,
         commands_idx: list[int],
         start_time: datetime | None,
         end_time: datetime | None,
@@ -253,7 +253,7 @@ class ElementActionRun:
         return self.element_iteration.workflow
 
     @property
-    def data_idx(self) -> dict[str, int]:
+    def data_idx(self) -> DataIndex:
         return self._data_idx
 
     @property
@@ -367,7 +367,7 @@ class ElementActionRun:
         """
         return self.action.get_parameter_names(prefix)
 
-    def get_data_idx(self, path: str | None = None) -> dict[str, int]:
+    def get_data_idx(self, path: str | None = None) -> DataIndex:
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
@@ -746,7 +746,7 @@ class ElementActionRun:
                 with load_path.open(mode="rt") as f:
                     file_data = json.load(f)
                     for param_name, param_dat in file_data.items():
-                        param_id = self.data_idx[f"outputs.{param_name}"]
+                        param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
                         param_cls = parameters.get(param_name)._value_class
                         if param_cls and issubclass(param_cls, self.app.ParameterValue):
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
@@ -760,7 +760,7 @@ class ElementActionRun:
                 load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
-                        param_id = self.data_idx[f"outputs.{param_name}"]
+                        param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
                         param_cls = parameters.get(param_name)._value_class
                         if param_cls and issubclass(param_cls, self.app.ParameterValue):
                             param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
@@ -1945,11 +1945,11 @@ class Action(JSONLike):
         self,
         act_idx: int,
         EAR_ID: int,
-        schema_data_idx: dict[str, int],
-        all_data_idx: dict[tuple[int, int], dict[str, int]],
+        schema_data_idx: DataIndex,
+        all_data_idx: dict[tuple[int, int], DataIndex],
         workflow: Workflow,
         param_source: ParamSource,
-    ) -> list[int]:
+    ) -> list[int | list[int]]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.
 
@@ -1976,7 +1976,7 @@ class Action(JSONLike):
             for k, v in schema_data_idx.items()
             if ("resources" in k or "repeats" in k)
         }
-        param_src_update = []
+        param_src_update: list[int | list[int]] = []
         for key in keys:
             sub_param_idx = {}
             if (
@@ -1987,7 +1987,7 @@ class Action(JSONLike):
             ):
                 # look for an index in previous data indices (where for inputs we look
                 # for *output* parameters of the same name):
-                k_idx: int | None = None
+                k_idx: int | list[int] | None = None
                 for prev_data_idx in all_data_idx.values():
                     if key.startswith("inputs"):
                         k_param = key.split("inputs.")[1]

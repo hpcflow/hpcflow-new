@@ -66,7 +66,7 @@ if TYPE_CHECKING:
     import psutil
     from rich.status import Status
     from ..app import BaseApp, TemplateComponents
-    from ..typing import ParamSource
+    from ..typing import DataIndex, ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .loop import Loop, WorkflowLoop
@@ -129,7 +129,7 @@ class _Pathway:
     id_: int
     names: dict[str, int]
     iter_ids: list[int] = field(default_factory=list)
-    data_idx: list[dict[str, int]] = field(default_factory=list)
+    data_idx: list[DataIndex] = field(default_factory=list)
 
     @overload
     def as_tuple(self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[False] = False) -> tuple[int, dict[str, int]]: ...
@@ -1912,7 +1912,7 @@ class Workflow:
 
     def _set_file(
         self,
-        param_id: int | None,
+        param_id: int | list[int] | None,
         store_contents: bool,
         is_input: bool,
         path: Path | str,
@@ -1921,7 +1921,7 @@ class Workflow:
         clean_up: bool = False,
     ) -> None:
         self._store.set_file(
-            param_id=param_id,
+            param_id=cast(int, param_id),
             store_contents=store_contents,
             is_input=is_input,
             path=path,
@@ -2197,11 +2197,11 @@ class Workflow:
 
     @TimeIt.decorator
     def set_parameter_value(
-        self, param_id: int, value: Any, commit: bool = False
+        self, param_id: int | list[int], value: Any, commit: bool = False
     ) -> None:
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_parameter_value(param_id, value)
+                self._store.set_parameter_value(cast(int, param_id), value)
 
         if commit:
             # force commit now:

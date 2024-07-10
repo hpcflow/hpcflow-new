@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
     from ..app import BaseApp
-    from ..typing import PathLike, ParamSource
+    from ..typing import DataIndex, PathLike, ParamSource
     from ..core.json_like import JSONed
     from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
@@ -103,7 +103,7 @@ class RunMeta(TypedDict):  # FIXME:
     elem_iter_ID: int
     action_idx: int
     commands_idx: list[int]
-    data_idx: dict[str, int]
+    data_idx: DataIndex
     metadata: Metadata | None
     end_time: NotRequired[str | None]
     exit_code: int | None
@@ -300,7 +300,7 @@ class StoreElementIter(Generic[T, CTX]):
     element_ID: int
     EARs_initialised: bool
     EAR_IDs: dict[int, list[int]] | None
-    data_idx: dict[str, int]
+    data_idx: DataIndex
     schema_parameters: list[str]
     loop_idx: dict[str, int] = field(default_factory=dict)
 
@@ -406,7 +406,7 @@ class StoreEAR(Generic[T, CTX]):
     elem_iter_ID: int
     action_idx: int
     commands_idx: list[int]
-    data_idx: dict[str, int]
+    data_idx: DataIndex
     submission_idx: int | None = None
     skip: bool = False
     success: bool | None = None
@@ -507,6 +507,16 @@ class StoreEAR(Generic[T, CTX]):
         )
 
 
+class _TypeLookup(TypedDict, total=False):
+    tuples: list[list[int]]
+    sets: list[list[int]]
+
+
+class EncodedStoreParameter(TypedDict):
+    data: Any
+    type_lookup: _TypeLookup
+
+
 @dataclass
 @hydrate
 class StoreParameter:
@@ -526,7 +536,7 @@ class StoreParameter:
             if self.file:
                 return {"file": self.file}
             else:
-                return self._encode(obj=self.data, **kwargs)
+                return cast(dict, self._encode(obj=self.data, **kwargs))
         else:
             return PARAM_DATA_NOT_SET
 
@@ -536,28 +546,30 @@ class StoreParameter:
         from ..core.parameters import ParameterValue as PV
         return isinstance(value, PV)
 
+    def _init_type_lookup(self) -> _TypeLookup:
+        return cast(_TypeLookup, {
+            "tuples": [],
+            "sets": [],
+            **{k: [] for k in self._decoders.keys()},
+        })
+
     def _encode(
         self,
         obj: ParameterValue | list | tuple | set | dict | int | float | str | None | Any,
         path: list[int] | None = None,
-        type_lookup: Dict | None = None,
+        type_lookup: _TypeLookup | None = None,
         **kwargs,
-    ) -> dict[str, Any]:
+    ) -> EncodedStoreParameter:
         """Recursive encoder."""
 
         path = path or []
         if type_lookup is None:
-            type_lookup = {
-                "tuples": [],
-                "sets": [],
-                **{k: [] for k in self._decoders.keys()},
-            }
+            type_lookup = self._init_type_lookup()
 
         if len(path) > 50:
             raise RuntimeError("I'm in too deep!")
 
         if self.__is_parameter_value(obj):
-            assert type_lookup is not None
             encoded = self._encode(
                 obj=obj.to_dict(),
                 path=path,
@@ -567,7 +579,6 @@ class StoreParameter:
             data, type_lookup = encoded["data"], encoded["type_lookup"]
 
         elif isinstance(obj, (list, tuple, set)):
-            assert type_lookup is not None
             data = []
             for idx, item in enumerate(obj):
                 encoded = self._encode(
@@ -653,11 +664,12 @@ class StoreParameter:
                 is_pending=False,
             )
 
+        data_ = cast(EncodedStoreParameter, data)
         path = path or []
 
-        obj = get_in_container(data["data"], path)
+        obj = get_in_container(data_["data"], path)
 
-        for tuple_path in data["type_lookup"]["tuples"]:
+        for tuple_path in data_["type_lookup"]["tuples"]:
             try:
                 rel_path = get_relative_path(tuple_path, path)
             except ValueError:
@@ -667,7 +679,7 @@ class StoreParameter:
             else:
                 obj = tuple(obj)
 
-        for set_path in data["type_lookup"]["sets"]:
+        for set_path in data_["type_lookup"]["sets"]:
             try:
                 rel_path = get_relative_path(set_path, path)
             except ValueError:
@@ -680,7 +692,7 @@ class StoreParameter:
         for data_type in cls._decoders:
             obj = cls._decoders[data_type](
                 obj=obj,
-                type_lookup=data["type_lookup"],
+                type_lookup=data_["type_lookup"],
                 path=path,
                 **kwargs,
             )
@@ -1194,7 +1206,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def add_element_iteration(
         self,
         element_ID: int,
-        data_idx: dict[str, int],
+        data_idx: DataIndex,
         schema_parameters: list[str],
         loop_idx: dict[str, int] | None = None,
         save: bool = True,
@@ -1223,7 +1235,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         elem_iter_ID: int,
         action_idx: int,
         commands_idx: list[int],
-        data_idx: dict[str, int],
+        data_idx: DataIndex,
         metadata: Metadata | None = None,
         save: bool = True,
     ) -> int:

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
     from typing import Any, ClassVar, Literal
     from ..app import BaseApp
-    from ..typing import ParamSource
+    from ..typing import DataIndex, ParamSource
     from .actions import Action, ElementAction, ElementActionRun
     from .object_list import ResourceList
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
@@ -370,7 +370,7 @@ class ElementIteration:
         is_pending: bool,
         index: int,
         element: Element,
-        data_idx: dict[str, int],
+        data_idx: DataIndex,
         EARs_initialised: bool,
         EAR_IDs: dict[int, list[int]],
         EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
@@ -404,7 +404,7 @@ class ElementIteration:
         )
 
     @property
-    def data_idx(self) -> dict[str, int]:
+    def data_idx(self) -> DataIndex:
         """The overall element iteration data index, before resolution of EARs."""
         return self._data_idx
 
@@ -529,7 +529,7 @@ class ElementIteration:
         path: str | None = None,
         action_idx: int | None = None,
         run_idx: int = -1,
-    ) -> dict[str, int]:
+    ) -> DataIndex:
         """
         Parameters
         ----------
@@ -564,7 +564,7 @@ class ElementIteration:
 
     def __get_parameter_sources(
         self,
-        data_idx: dict[str, int],
+        data_idx: DataIndex,
         filter_type: str | None,
         use_task_index: bool
     ) -> Mapping[str, ParamSource | list[ParamSource]]:
@@ -1264,7 +1264,7 @@ class Element:
         path: str | None = None,
         action_idx: int | None = None,
         run_idx: int = -1,
-    ) -> dict[str, int]:
+    ) -> DataIndex:
         """Get the data index of the most recent element iteration.
 
         Parameters
@@ -1555,7 +1555,7 @@ class ElementParameter:
     element: Element | ElementIteration
 
     @property
-    def data_idx(self) -> dict[str, int]:
+    def data_idx(self) -> DataIndex:
         return self.parent.get_data_idx(path=self.path)
 
     @property
@@ -1573,7 +1573,7 @@ class ElementParameter:
     @property
     def data_idx_is_set(self) -> dict[str, bool]:
         return {
-            k: self.task.workflow.is_parameter_set(v) for k, v in self.data_idx.items()
+            k: self.task.workflow.is_parameter_set(cast(int, v)) for k, v in self.data_idx.items()
         }
 
     @property
