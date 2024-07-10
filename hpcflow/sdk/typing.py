@@ -4,6 +4,9 @@ from pathlib import Path
 import re
 
 PathLike: TypeAlias = Union[str, Path, None]
+"""
+Things we can convert into a proper path.
+"""
 
 # EAR: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
 E_idx_type: TypeAlias = tuple[int, int]
@@ -11,7 +14,12 @@ EI_idx_type: TypeAlias = tuple[int, int, int]
 EAR_idx_type: TypeAlias = tuple[int, int, int, int, int]
 
 ParamSource: TypeAlias = dict[str, str | int]
+
 DataIndex: TypeAlias = dict[str, int | list[int]]
+"""
+The type of indices to data. These are *normally* dictionaries of integers,
+but can have leaves being lists of integers when dealing with iterations.
+"""
 
 _T = TypeVar('_T')
 
