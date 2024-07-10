@@ -742,7 +742,8 @@ class ElementActionRun:
 
     def compose_commands(
         self,
-        jobscript: app.Jobscript,
+        environments,
+        shell,
     ) -> Tuple[str, List[str], List[int]]:
         """
         Returns
@@ -762,7 +763,7 @@ class ElementActionRun:
                 raise OutputFileParserNoOutputError()
 
         command_lns = []
-        env = jobscript.submission.environments.get(**env_spec)
+        env = environments.get(**env_spec)
         if env.setup:
             command_lns += list(env.setup)
 
@@ -771,7 +772,7 @@ class ElementActionRun:
             if cmd_idx in self.commands_idx:
                 # only execute commands that have no rules, or all valid rules:
                 cmd_str, shell_vars_i = command.get_command_line(
-                    EAR=self, shell=jobscript.shell, env=env
+                    EAR=self, shell=shell, env=env
                 )
                 shell_vars[cmd_idx] = shell_vars_i
                 command_lns.append(cmd_str)

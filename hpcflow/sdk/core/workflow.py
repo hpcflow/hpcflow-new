@@ -2971,14 +2971,18 @@ class Workflow:
                 f"loading jobscript (submission index: {submission_idx}; jobscript "
                 f"index: {js_idx})"
             )
-            jobscript = self.submissions[submission_idx].jobscripts[js_idx]
+            sub = self.submissions[submission_idx]
+            jobscript = sub.jobscripts[js_idx]
 
             if run.action.script:
                 run.write_script_input_files(block_act_key)
 
             write_commands = True
             try:
-                commands, shell_vars = run.compose_commands(jobscript)
+                commands, shell_vars = run.compose_commands(
+                    environments=sub.environments,
+                    shell=jobscript.shell,
+                )
             except OutputFileParserNoOutputError:
                 # no commands to write, might be used just for saving files
                 write_commands = False
