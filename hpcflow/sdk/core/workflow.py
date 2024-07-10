@@ -75,7 +75,8 @@ if TYPE_CHECKING:
     from .parameters import InputSource, ResourceSpec
     from .task import Task, WorkflowTask
     from ..submission.submission import Submission
-    from ..submission.jobscript import Jobscript, JobScriptCreationArguments
+    from ..submission.jobscript import (
+        Jobscript, JobScriptDescriptor, JobScriptCreationArguments)
     from ..persistence.base import (
         StoreElement, StoreElementIter, AnySParameter, StoreTask, StoreParameter,
         StoreEAR, TemplateMeta)
@@ -2749,12 +2750,12 @@ class Workflow:
         return js_objs
 
     def __EAR_obj_map(
-        self, jsca: JobScriptCreationArguments, task: WorkflowTask,
+        self, js_desc: JobScriptDescriptor, jsca: JobScriptCreationArguments, task: WorkflowTask,
         task_actions: Sequence[tuple[int, int, int]], EAR_map: NDArray
     ) -> dict[int, ElementActionRun]:
         all_EAR_IDs: list[int] = []
         for js_elem_idx, (elem_idx, act_indices) in enumerate(
-            jsca["elements"].items()
+            js_desc["elements"].items()
         ):
             for act_idx in act_indices:
                 EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
@@ -2833,7 +2834,7 @@ class Workflow:
                     "dependencies": {},
                 }
 
-                all_EAR_objs = self.__EAR_obj_map(js_i, task, task_actions, EAR_map)
+                all_EAR_objs = self.__EAR_obj_map(js_dat, js_i, task, task_actions, EAR_map)
 
                 for js_elem_idx, (elem_idx, act_indices) in enumerate(
                     js_dat["elements"].items()
