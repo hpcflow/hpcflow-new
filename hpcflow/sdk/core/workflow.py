@@ -2303,9 +2303,9 @@ class Workflow:
 
         if ret_iter_IDs:
             if ret_data_idx:
-                return [path_i.as_tuple(ret_iter_IDs=True) for path_i in pathway]
-            else:
                 return [path_i.as_tuple(ret_iter_IDs=True, ret_data_idx=True) for path_i in pathway]
+            else:
+                return [path_i.as_tuple(ret_iter_IDs=True) for path_i in pathway]
         else:
             if ret_data_idx:
                 return [path_i.as_tuple(ret_data_idx=True) for path_i in pathway]
