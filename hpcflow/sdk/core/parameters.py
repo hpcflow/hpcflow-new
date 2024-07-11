@@ -30,7 +30,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterator
     from typing import Any, ClassVar, Literal, NotRequired, Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
@@ -177,6 +177,20 @@ class Parameter(JSONLike):
     @property
     def url_slug(self) -> str:
         return self.typ.lower().replace("_", "-")
+
+    def _instantiate_value(self, source: ParamSource, val: dict) -> Any:
+        """
+        Convert the serialized form of this parameter to its "real" form,
+        if that is valid to do at all.
+        """
+        if self._value_class is None:
+            return val
+        method_name = source.get("value_class_method")
+        if isinstance(method_name, str) and str:
+            method = getattr(self._value_class, method_name)
+        else:
+            method = self._value_class
+        return method(**val)
 
 
 @dataclass
@@ -457,11 +471,11 @@ class SchemaInput(SchemaParameter):
     @property
     def single_labelled_data(self) -> LabelInfo | None:
         label = self.single_label
-        if label:
+        if label is not None:
             return self.labels[label]
         return None
 
-    def labelled_info(self) -> Iterable[LabellingDescriptor]: 
+    def labelled_info(self) -> Iterator[LabellingDescriptor]: 
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""
             dct: LabellingDescriptor = {
@@ -891,18 +905,11 @@ class ValueSequence(JSONLike):
                 # yet been committed to disk:
                 if (
                     self.parameter
-                    and self.parameter._value_class
                     and self._values_are_objs
                     and self._values_are_objs[idx]
-                    and not isinstance(val_i, self.parameter._value_class)
+                    and isinstance(val_i, dict)
                 ):
-                    method_name = param_i.source.get("value_class_method")
-                    if method_name:
-                        assert isinstance(method_name, str)
-                        method = getattr(self.parameter._value_class, method_name)
-                    else:
-                        method = self.parameter._value_class
-                    val_i = method(**val_i)
+                    val_i = self.parameter._instantiate_value(param_i.source, val_i)
 
                 vals.append(val_i)
             return vals

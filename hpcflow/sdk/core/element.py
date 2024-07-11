@@ -1253,11 +1253,12 @@ class Element:
                 f"No sequence with path {sequence_path!r} in this element's originating "
                 f"element set."
             )
-        if seq.values is None:
+        values = seq.values
+        if values is None:
             raise ValueError(
                 f"Sequence with path {sequence_path!r} has no defined values."
             )
-        return seq.values[self.sequence_idx[sequence_path]]
+        return values[self.sequence_idx[sequence_path]]
 
     def get_data_idx(
         self,

@@ -13,7 +13,7 @@ E_idx_type: TypeAlias = tuple[int, int]
 EI_idx_type: TypeAlias = tuple[int, int, int]
 EAR_idx_type: TypeAlias = tuple[int, int, int, int, int]
 
-ParamSource: TypeAlias = dict[str, str | int]
+ParamSource: TypeAlias = dict[str, str | int]  # TODO: Convert to TypedDict
 
 DataIndex: TypeAlias = dict[str, int | list[int]]
 """
