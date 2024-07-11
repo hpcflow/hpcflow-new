@@ -568,12 +568,12 @@ class ValueSequence(JSONLike):
         self,
         path: str,
         values: list[Any] | None,
-        nesting_order: int | float | None = 0,
+        nesting_order: int | float | None = None,
         label: str | int | None = None,
         value_class_method: str | None = None,
     ):
         self.path, self.label = self._validate_parameter_path(path, label)
-        self.nesting_order = int(nesting_order or 0)
+        self.nesting_order = float(nesting_order) if nesting_order is not None else None
         self.value_class_method = value_class_method
 
         if values is not None:

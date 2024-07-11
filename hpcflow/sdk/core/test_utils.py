@@ -109,7 +109,7 @@ def make_tasks(
     local_inputs: dict[int, Iterable[str]] | None = None,
     local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
     local_resources: dict[int, dict[str, dict]] | None = None,
-    nesting_orders: dict[int, dict[str, int]] | None = None,
+    nesting_orders: dict[int, dict[str, float]] | None = None,
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
     groups: dict[int, Iterable[ElementGroup]] | None = None,
 ) -> list[Task]:
@@ -154,7 +154,7 @@ def make_workflow(
     local_inputs: dict[int, Iterable[str]] | None = None,
     local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
     local_resources: dict[int, dict[str, dict]] | None = None,
-    nesting_orders: dict[int, dict[str, int]] | None = None,
+    nesting_orders: dict[int, dict[str, float]] | None = None,
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
     resources: Resources = None,
     loops: list[Loop] | None = None,

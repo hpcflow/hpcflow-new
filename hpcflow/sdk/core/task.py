@@ -63,11 +63,11 @@ if TYPE_CHECKING:
     class RepeatsDescriptor(TypedDict):
         name: str
         number: int
-        nesting_order: int
+        nesting_order: float
 
     class MultiplicityDescriptor(TypedDict):
         multiplicity: int
-        nesting_order: int
+        nesting_order: float
         path: str
 
     class ParentPath(TypedDict):
@@ -174,7 +174,7 @@ class ElementSet(JSONLike):
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         env_preset: str | None = None,
         environments: dict[str, dict[str, Any]] | None = None,
         sourceable_elem_iters: list[int] | None = None,
@@ -212,7 +212,7 @@ class ElementSet(JSONLike):
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
         self.merge_envs = merge_envs
         self.original_input_sources: dict[str, list[InputSource]] | None = None
-        self.original_nesting_order: dict[str, int] | None = None
+        self.original_nesting_order: dict[str, float] | None = None
 
         self._validate()
         self._set_parent_refs()
@@ -317,7 +317,7 @@ class ElementSet(JSONLike):
                 {
                     "name": "",
                     "number": repeats,
-                    "nesting_order": 0,
+                    "nesting_order": 0.0,
                 }
             ]
         else:
@@ -393,7 +393,7 @@ class ElementSet(JSONLike):
                         f"{allowed_str}."
                     )
                 seq_inp_types.append(inp_type)
-            if seq_i.path not in self.nesting_order and seq_i.nesting_order:
+            if seq_i.path not in self.nesting_order and seq_i.nesting_order is not None:
                 self.nesting_order[seq_i.path] = seq_i.nesting_order
 
         for rep_spec in self.repeats:
@@ -420,7 +420,7 @@ class ElementSet(JSONLike):
         repeats: list[RepeatsDescriptor] | int | None = None,
         groups: list[ElementGroup] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         env_preset: str | None = None,
         environments: dict[str, dict[str, Any]] | None = None,
         allow_non_coincident_task_sources: bool = False,
@@ -643,7 +643,7 @@ class Task(JSONLike):
         input_files: list[InputFile] | None = None,
         sequences: list[ValueSequence] | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         env_preset: str | None = None,
         environments: dict[str, dict[str, Any]] | None = None,
         allow_non_coincident_task_sources: bool = False,
@@ -960,15 +960,14 @@ class Task(JSONLike):
     def prepare_element_resolution(
         self, element_set: ElementSet, input_data_indices: Mapping[str, Sequence]
     ) -> list[MultiplicityDescriptor]:
-        multiplicities: list[MultiplicityDescriptor] = []
-        for path_i, inp_idx_i in input_data_indices.items():
-            multiplicities.append(
-                {
-                    "multiplicity": len(inp_idx_i),
-                    "nesting_order": element_set.nesting_order.get(path_i, -1),
-                    "path": path_i,
-                }
-            )
+        multiplicities: list[MultiplicityDescriptor] = [
+            {
+                "multiplicity": len(inp_idx_i),
+                "nesting_order": element_set.nesting_order.get(path_i, -1.0),
+                "path": path_i,
+            }
+            for path_i, inp_idx_i in input_data_indices.items()
+        ]
 
         # if all inputs with non-unit multiplicity have the same multiplicity and a
         # default nesting order of -1 or 0 (which will have probably been set by a
@@ -980,7 +979,7 @@ class Task(JSONLike):
         for idx, i in enumerate(multiplicities):
             if i["multiplicity"] == 1:
                 unit_multis.append(idx)
-            elif i["nesting_order"] in (-1, 0):
+            elif i["nesting_order"] in (-1.0, 0.0):
                 non_unit_multis[idx] = i["multiplicity"]
             else:
                 change = False
@@ -2111,7 +2110,7 @@ class WorkflowTask:
         multiplicities : list of MultiplicityDescriptor
             Each list item represents a sequence of values with keys:
                 multiplicity: int
-                nesting_order: int
+                nesting_order: float
                 path : str
 
         Returns
@@ -2128,7 +2127,7 @@ class WorkflowTask:
         multi_srt_grp = group_by_dict_key_values(multi_srt, "nesting_order")
 
         element_dat_idx: list[dict[str, int]] = [{}]
-        last_nest_ord: int | None = None
+        last_nest_ord: float | None = None
         for para_sequences in multi_srt_grp:
             # check all equivalent nesting_orders have equivalent multiplicities
             all_multis = {i["multiplicity"] for i in para_sequences}
@@ -2343,7 +2342,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
@@ -2360,7 +2359,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
@@ -2376,7 +2375,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: list[ElementPropagation] | Mapping[str, ElementPropagation | Mapping[str, Any]] | None = None,
@@ -2427,7 +2426,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
@@ -2444,7 +2443,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
@@ -2461,7 +2460,7 @@ class WorkflowTask:
         resources: dict[str, dict] | list | None = None,
         repeats: list[RepeatsDescriptor] | int | None = None,
         input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, int] | None = None,
+        nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
@@ -3330,7 +3329,7 @@ class ElementPropagation:
     _app_attr: ClassVar[str] = "app"
 
     task: WorkflowTask
-    nesting_order: dict[str, int] | None = None
+    nesting_order: dict[str, float] | None = None
     input_sources: dict[str, list[InputSource]] | None = None
 
     @property
