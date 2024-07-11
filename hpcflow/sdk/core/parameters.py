@@ -737,7 +737,7 @@ class ValueSequence(JSONLike):
         obj._values_method_args = _values_method_args
         return obj
 
-    def _validate_parameter_path(self, path: str, label: str | int | None) -> tuple[str, str]:
+    def _validate_parameter_path(self, path: str, label: str | int | None) -> tuple[str, str | int | None]:
         """Parse the supplied path and perform basic checks on it.
 
         This method also adds the specified `SchemaInput` label to the path and checks for
@@ -745,7 +745,6 @@ class ValueSequence(JSONLike):
 
         """
         label_arg = label
-        label_s: str
 
         if not isinstance(path, str):
             raise MalformedParameterPathError(
@@ -765,24 +764,20 @@ class ValueSequence(JSONLike):
         _, label_from_path = split_param_label(path_l)
 
         if path_split[0] == "inputs":
-            if label_arg:
-                label_arg = str(label_arg)
-                if not label_from_path:
+            if label_arg is not None and label_arg != "":
+                if label_from_path is None:
                     # add label to path without lower casing any parts:
                     path_split_orig = path.split(".")
                     path_split_orig[1] += f"[{label_arg}]"
                     path = ".".join(path_split_orig)
-                elif label_arg != label_from_path:
+                elif str(label_arg) != label_from_path:
                     raise ValueError(
                         f"{self.__class__.__name__} `label` argument is specified as "
                         f"{label_arg!r}, but a distinct label is implied by the sequence "
                         f"path: {path!r}."
                     )
-                label_s = label_arg
             elif label_from_path:
-                label_s = label_from_path
-            else:
-                label_s = ""
+                label = label_from_path
 
         elif path_split[0] == "resources":
             if label_from_path or label_arg:
@@ -800,28 +795,26 @@ class ValueSequence(JSONLike):
                 ) from None
 
             if len(path_split) > 2:
-                path_split_2 = path_split[2]
-                allowed = ResourceSpec.ALLOWED_PARAMETERS
-                if path_split_2 not in allowed:
-                    allowed_keys_str = ", ".join(f'"{i}"' for i in allowed)
+                if path_split[2] not in ResourceSpec.ALLOWED_PARAMETERS:
+                    allowed_keys_str = ", ".join(
+                        f'"{i}"' for i in ResourceSpec.ALLOWED_PARAMETERS)
                     raise UnknownResourceSpecItemError(
-                        f"Resource item name {path_split_2!r} is unknown. Allowed "
+                        f"Resource item name {path_split[2]!r} is unknown. Allowed "
                         f"resource item names are: {allowed_keys_str}."
                     )
-            label_s = ""
+            label = ""
 
         elif path_split[0] == "environments":
             # rewrite as a resources path:
             path = f"resources.any.{path}"
-            label_s = str(label) if label is not None else ""
+            label = str(label) if label is not None else ""
         else:
-            label_s = str(label) if label is not None else ""
+            pass
+            # note: `env_preset` paths also need to be transformed into `resources`
+            # paths, but we cannot do that until the sequence is part of a task, since
+            # the available environment presets are defined in the task schema.
 
-        # note: `env_preset` paths also need to be transformed into `resources` paths, but
-        # we cannot do that until the sequence is part of a task, since the available
-        # environment presets are defined in the task schema.
-
-        return path, label_s
+        return path, label
 
     def to_dict(self):
         out = super().to_dict()
