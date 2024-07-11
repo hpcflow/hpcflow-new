@@ -837,9 +837,6 @@ class ElementActionRun:
             jobscript.shell.format_source_functions_file(app_name, commands) + commands
         )
 
-        print(f"commands")
-        pprint.pp(commands)
-
         cmd_file_name = f"{self.id_}{jobscript.shell.JS_EXT}"
         cmd_file_path = jobscript.submission.commands_path / cmd_file_name
         with cmd_file_path.open("wt", newline="\n") as fp:
