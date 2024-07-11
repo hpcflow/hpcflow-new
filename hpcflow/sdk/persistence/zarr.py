@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from typing import ClassVar, Dict, Self
     from ..app import BaseApp
     from ..core.json_like import JSONed
+    from ..typing import ParamSource
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -714,16 +715,17 @@ class ZarrPersistentStore(PersistentStore[
         base_arr = self._get_parameter_base_array(mode="r+")
         base_arr.set_coordinate_selection(param_ids, new_data)
 
-    def _update_parameter_sources(self, sources: Mapping[int, Dict]):
+    def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
 
         param_ids = list(sources.keys())
         src_arr = self._get_parameter_sources_array(mode="r+")
         existing_sources = src_arr.get_coordinate_selection(param_ids)
-        new_sources: list[dict] = []
-        for idx, source_i in enumerate(sources.values()):
-            new_src_i = update_param_source_dict(existing_sources[idx], source_i)
-            new_sources.append(new_src_i)
+        new_sources = [
+            update_param_source_dict(
+                cast('ParamSource', existing_sources[idx]), source_i)
+            for idx, source_i in enumerate(sources.values())
+        ]
         src_arr.set_coordinate_selection(param_ids, new_sources)
 
     def _update_template_components(self, tc: Dict):
@@ -1094,7 +1096,7 @@ class ZarrPersistentStore(PersistentStore[
         return params
 
     @TimeIt.decorator
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, Dict]:
+    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
             src_arr = self._get_parameter_sources_array(mode="r")

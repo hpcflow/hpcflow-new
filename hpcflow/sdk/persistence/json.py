@@ -419,7 +419,7 @@ class JSONPersistentStore(PersistentStore[
                     param_i = param_i.set_data(value)
                 params["data"][str(param_id)] = param_i.encode()
 
-    def _update_parameter_sources(self, sources: Mapping[int, Dict]):
+    def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
 
         param_ids = list(sources.keys())

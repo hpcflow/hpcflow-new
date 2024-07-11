@@ -63,8 +63,8 @@ TEMPLATE_COMP_TYPES = (
 PARAM_DATA_NOT_SET: Final[int] = 0
 
 
-def update_param_source_dict(source: dict[T, T2], update: dict[T, T2]) -> dict[T, T2]:
-    return dict(sorted({**source, **update}.items()))
+def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamSource:
+    return cast('ParamSource', dict(sorted({**source, **update}.items())))
 
 
 class StoreCreationInfo(TypedDict):
@@ -734,14 +734,13 @@ class StoreParameter:
 
     def update_source(self, src: ParamSource) -> Self:
         """Return a copy, with updated source."""
-        new_src = update_param_source_dict(self.source, src)
         return self.__class__(
             id_=self.id_,
             is_set=self.is_set,
             is_pending=self.is_pending,
             data=self.data,
             file=self.file,
-            source=new_src,
+            source=update_param_source_dict(self.source, src),
         )
 
 

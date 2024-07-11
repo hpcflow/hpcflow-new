@@ -186,7 +186,7 @@ class Parameter(JSONLike):
         if self._value_class is None:
             return val
         method_name = source.get("value_class_method")
-        if isinstance(method_name, str) and str:
+        if method_name is not None:
             method = getattr(self._value_class, method_name)
         else:
             method = self._value_class
@@ -569,13 +569,10 @@ class ValueSequence(JSONLike):
         path: str,
         values: list[Any] | None,
         nesting_order: int | float | None = 0,
-        label: str | None = None,
+        label: str | int | None = None,
         value_class_method: str | None = None,
     ):
-        path, label = self._validate_parameter_path(path, label or "")
-
-        self.path = path
-        self.label = label
+        self.path, self.label = self._validate_parameter_path(path, label)
         self.nesting_order = int(nesting_order or 0)
         self.value_class_method = value_class_method
 
@@ -740,7 +737,7 @@ class ValueSequence(JSONLike):
         obj._values_method_args = _values_method_args
         return obj
 
-    def _validate_parameter_path(self, path: str, label: str):
+    def _validate_parameter_path(self, path: str, label: str | int | None) -> tuple[str, str]:
         """Parse the supplied path and perform basic checks on it.
 
         This method also adds the specified `SchemaInput` label to the path and checks for
@@ -748,6 +745,7 @@ class ValueSequence(JSONLike):
 
         """
         label_arg = label
+        label_s: str
 
         if not isinstance(path, str):
             raise MalformedParameterPathError(
@@ -768,20 +766,23 @@ class ValueSequence(JSONLike):
 
         if path_split[0] == "inputs":
             if label_arg:
+                label_arg = str(label_arg)
                 if not label_from_path:
                     # add label to path without lower casing any parts:
                     path_split_orig = path.split(".")
                     path_split_orig[1] += f"[{label_arg}]"
                     path = ".".join(path_split_orig)
-                    label = label_arg
                 elif label_arg != label_from_path:
                     raise ValueError(
                         f"{self.__class__.__name__} `label` argument is specified as "
                         f"{label_arg!r}, but a distinct label is implied by the sequence "
                         f"path: {path!r}."
                     )
+                label_s = label_arg
             elif label_from_path:
-                label = label_from_path
+                label_s = label_from_path
+            else:
+                label_s = ""
 
         elif path_split[0] == "resources":
             if label_from_path or label_arg:
@@ -807,16 +808,20 @@ class ValueSequence(JSONLike):
                         f"Resource item name {path_split_2!r} is unknown. Allowed "
                         f"resource item names are: {allowed_keys_str}."
                     )
+            label_s = ""
 
         elif path_split[0] == "environments":
             # rewrite as a resources path:
             path = f"resources.any.{path}"
+            label_s = str(label) if label is not None else ""
+        else:
+            label_s = str(label) if label is not None else ""
 
         # note: `env_preset` paths also need to be transformed into `resources` paths, but
         # we cannot do that until the sequence is part of a task, since the available
         # environment presets are defined in the task schema.
 
-        return path, label
+        return path, label_s
 
     def to_dict(self):
         out = super().to_dict()

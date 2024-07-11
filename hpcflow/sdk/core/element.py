@@ -661,23 +661,26 @@ class ElementIteration:
             return out
 
         # format as a dict with compact string values
-        task_key = "task_insert_ID"  # TODO: is this right?
-        self_task_val = (
-            self.task.index if task_key == "task_idx" else self.task.insert_ID
-        )
         out_strs: dict[str, str] = {}
         for k, v in out.items():
             assert isinstance(v, dict)
             if v["type"] == "local_input":
-                if v[task_key] == self_task_val:
-                    out_strs[k] = "local"
+                if use_task_index:
+                    if v["task_idx"] == self.task.index:
+                        out_strs[k] = "local"
+                    else:
+                        out_strs[k] = f"task.{v["task_idx"]}.input"
                 else:
-                    out_strs[k] = f"task.{v[task_key]}.input"
+                    if v["task_insert_ID"] == self.task.insert_ID:
+                        out_strs[k] = "local"
+                    else:
+                        out_strs[k] = f"task.{v["task_insert_ID"]}.input"
             elif v["type"] == "default_input":
                 out_strs == "default"
             else:
+                idx = v['task_idx'] if use_task_index else v['task_insert_ID']
                 out_strs[k] = (
-                    f"task.{v[task_key]}.element.{v['element_idx']}."
+                    f"task.{idx}.element.{v['element_idx']}."
                     f"action.{v['action_idx']}.run.{v['run_idx']}"
                 )
         return out_strs
@@ -812,10 +815,10 @@ class ElementIteration:
             return self.workflow.get_elements_from_IDs(out)
         return out
 
-    def get_input_dependencies(self) -> dict[str, dict]:
+    def get_input_dependencies(self) -> dict[str, ParamSource]:
         """Get locally defined inputs/sequences/defaults from other tasks that this
         element iteration depends on."""
-        out: dict[str, dict] = {}
+        out: dict[str, ParamSource] = {}
         for k, v in self.get_parameter_sources().items():
             for v_i in (v if isinstance(v, list) else [v]):
                 if (
@@ -1408,7 +1411,7 @@ class Element:
             return self.latest_iteration.get_element_dependencies(as_objects=True)
         return self.latest_iteration.get_element_dependencies()
 
-    def get_input_dependencies(self) -> dict[str, dict]:
+    def get_input_dependencies(self) -> dict[str, ParamSource]:
         """Get locally defined inputs/sequences/defaults from other tasks that this
         the most recent iteration of this element depends on."""
         return self.latest_iteration.get_input_dependencies()

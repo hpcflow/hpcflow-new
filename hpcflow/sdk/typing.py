@@ -1,5 +1,5 @@
 from dataclasses import InitVar
-from typing import ClassVar, Union, TypeAlias, TypeVar, cast
+from typing import ClassVar, NotRequired, TypeAlias, TypedDict, TypeVar, Union, cast
 from pathlib import Path
 import re
 
@@ -8,12 +8,23 @@ PathLike: TypeAlias = Union[str, Path, None]
 Things we can convert into a proper path.
 """
 
+class ParamSource(TypedDict):
+    type: NotRequired[str]
+    EAR_ID: NotRequired[int]
+    task_insert_ID: NotRequired[int]
+    action_idx: NotRequired[int]
+    element_idx: NotRequired[int]
+    element_set_idx: NotRequired[int]
+    run_idx: NotRequired[int]
+    sequence_idx: NotRequired[int]
+    task_idx: NotRequired[int]
+    value_class_method: NotRequired[str]
+
+
 # EAR: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
 E_idx_type: TypeAlias = tuple[int, int]
 EI_idx_type: TypeAlias = tuple[int, int, int]
 EAR_idx_type: TypeAlias = tuple[int, int, int, int, int]
-
-ParamSource: TypeAlias = dict[str, str | int]  # TODO: Convert to TypedDict
 
 DataIndex: TypeAlias = dict[str, int | list[int]]
 """

@@ -791,11 +791,11 @@ class Task(JSONLike):
                     for i in seq.values or []:
                         try:
                             _values.append(env_presets[i])  # type: ignore[index]
-                        except (TypeError, KeyError):
+                        except (TypeError, KeyError) as e:
                             raise UnknownEnvironmentPresetError(
                                 f"There is no environment preset named {i!r} defined "
                                 f"in the task schema {self.schema.name}."
-                            )
+                            ) from e
                     seq._values = _values
 
     def _reset_pending_element_sets(self) -> None:
@@ -2206,7 +2206,7 @@ class WorkflowTask:
         action_runs: dict[tuple[int, int], dict[str, Any]] = {}
 
         # keys are parameter indices, values are EAR_IDs to update those sources to
-        param_src_updates: dict[int, dict[str, Any]] = {}
+        param_src_updates: dict[int, ParamSource] = {}
 
         count = 0
         for act_idx, action in self.template.all_schema_actions():
