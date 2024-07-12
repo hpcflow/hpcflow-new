@@ -14,6 +14,7 @@ from valida.datapath import DataPath, MapValue
 from valida.schema import write_tree_html
 
 from hpcflow.sdk.config.callbacks import callback_vars as config_callback_vars
+
 if TYPE_CHECKING:
     from hpcflow.sdk.app import BaseApp
 
