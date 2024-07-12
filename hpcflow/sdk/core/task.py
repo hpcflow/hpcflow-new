@@ -233,7 +233,7 @@ class ElementSet(JSONLike):
 
         # note: `env_preset` is merged into resources by the Task init.
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any] | None) -> Self:
         dct = self.to_dict()
         orig_inp = dct.pop("original_input_sources", None)
         orig_nest = dct.pop("original_nesting_order", None)
@@ -474,7 +474,7 @@ class ElementSet(JSONLike):
     def undefined_input_types(self) -> set[str]:
         return self.task_template.all_schema_input_types - self.defined_input_types
 
-    def get_sequence_from_path(self, sequence_path) -> ValueSequence | None:
+    def get_sequence_from_path(self, sequence_path: str) -> ValueSequence | None:
         for i in self.sequences:
             if i.path == sequence_path:
                 return i
@@ -505,7 +505,7 @@ class ElementSet(JSONLike):
     def get_locally_defined_inputs(self) -> list[str]:
         return self.get_defined_parameter_types() + self.get_defined_sub_parameter_types()
 
-    def get_sequence_by_path(self, path) -> ValueSequence | None:
+    def get_sequence_by_path(self, path: str) -> ValueSequence | None:
         for seq in self.sequences:
             if seq.path == path:
                 return seq
@@ -2100,10 +2100,8 @@ class WorkflowTask:
 
     @staticmethod
     def resolve_element_data_indices(multiplicities: list[MultiplicityDescriptor]) -> list[dict[str, int]]:
-        """Find the index of the Zarr parameter group index list corresponding to each
+        """Find the index of the parameter group index list corresponding to each
         input data for all elements.
-
-        # TODO: update docstring; shouldn't reference Zarr.
 
         Parameters
         ----------
@@ -2120,6 +2118,11 @@ class WorkflowTask:
             input data paths and whose values are indices that index the values of the
             dict returned by the `task.make_persistent` method.
 
+        Note
+        ----  
+        Non-integer nesting orders result in doing the dot product of that sequence with
+        all the current sequences instead of just with the other sequences at the same
+        nesting order (or as a cross product for other nesting orders entire). 
         """
 
         # order by nesting order (lower nesting orders will be slowest-varying):
@@ -2127,7 +2130,7 @@ class WorkflowTask:
         multi_srt_grp = group_by_dict_key_values(multi_srt, "nesting_order")
 
         element_dat_idx: list[dict[str, int]] = [{}]
-        last_nest_ord: float | None = None
+        last_nest_ord: int | None = None
         for para_sequences in multi_srt_grp:
             # check all equivalent nesting_orders have equivalent multiplicities
             all_multis = {i["multiplicity"] for i in para_sequences}
@@ -2140,7 +2143,7 @@ class WorkflowTask:
                     f"multiplicities {[i['multiplicity'] for i in para_sequences]}."
                 )
 
-            cur_nest_ord = para_sequences[0]["nesting_order"]
+            cur_nest_ord = int(para_sequences[0]["nesting_order"])
             new_elements: list[dict[str, int]] = []
             for elem_idx, element in enumerate(element_dat_idx):
                 if last_nest_ord is not None and cur_nest_ord == last_nest_ord:
