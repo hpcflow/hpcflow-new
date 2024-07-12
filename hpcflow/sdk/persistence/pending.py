@@ -72,8 +72,8 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
         self.set_EARs_initialised: list[int] = []
         self.set_EAR_submission_indices: dict[int, int] = {}
         self.set_EAR_skips: list[int] = []
-        self.set_EAR_starts: dict[int, tuple[datetime, Dict, str]] = {}
-        self.set_EAR_ends: dict[int, tuple[datetime, Dict, int, bool]] = {}
+        self.set_EAR_starts: dict[int, tuple[datetime, dict[str, Any], str]] = {}
+        self.set_EAR_ends: dict[int, tuple[datetime, dict[str, Any], int, bool]] = {}
 
         self.set_js_metadata: dict[int, dict[int, dict[str, Any]]] = {}
 

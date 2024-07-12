@@ -623,7 +623,7 @@ class ZarrPersistentStore(PersistentStore[
                 # object array, so set one-by-one:
                 arr[EAR_ID_i] = new_EAR_i.encode(self.ts_fmt, attrs)
 
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
+    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: dict[str, Any], s_hn: str):
         arr = self._get_EARs_arr(mode="r+")
         with self.__mutate_attrs(arr) as attrs:
             EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
@@ -635,7 +635,7 @@ class ZarrPersistentStore(PersistentStore[
             arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_EAR_end(
-        self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool
+        self, EAR_id: int, e_time: datetime, e_snap: dict[str, Any], ext_code: int, success: bool
     ):
         arr = self._get_EARs_arr(mode="r+")
         with self.__mutate_attrs(arr) as attrs:

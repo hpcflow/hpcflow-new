@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from ..app import BaseApp
     from ..typing import DataIndex, PathLike, ParamSource
     from ..core.json_like import JSONed
+    from ..core.loop import IterableParam
     from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
 
@@ -74,6 +75,9 @@ class StoreCreationInfo(TypedDict):
 
 
 class ElemMeta(TypedDict):
+    """
+    The kwargs supported for a StoreElement.
+    """
     id_: int
     index: int
     es_idx: int
@@ -83,22 +87,31 @@ class ElemMeta(TypedDict):
     iteration_IDs: list[int]
 
 
-class IterMeta(TypedDict):  # FIXME:
+class IterMeta(TypedDict):
+    """
+    The kwargs supported for a StoreElementIter.
+    """
+    data_idx: DataIndex
     EAR_IDs: dict[int, list[int]]
     EARs_initialised: bool
-    loop_idx: dict[str, int]
     element_ID: int
-    data_idx: dict[str, int]
+    loop_idx: dict[str, int]
     schema_parameters: list[str]
 
 
 class LoopMeta(TypedDict):
+    """
+    Component of Metadata.
+    """
     num_added_iterations: list[list[list[int] | int]]
     parents: list[str]
-    iterable_parameters: None
+    iterable_parameters: dict[str, IterableParam]
 
 
-class RunMeta(TypedDict):  # FIXME:
+class RunMeta(TypedDict):
+    """
+    The kwargs supported for StoreEAR.
+    """
     id_: int
     elem_iter_ID: int
     action_idx: int
@@ -108,8 +121,8 @@ class RunMeta(TypedDict):  # FIXME:
     end_time: NotRequired[str | None]
     exit_code: int | None
     start_time: NotRequired[str | None]
-    snapshot_start: dict | None
-    snapshot_end: dict | None
+    snapshot_start: dict[str, Any] | None
+    snapshot_end: dict[str, Any] | None
     submission_idx: int | None
     run_hostname: str | None
     success: bool | None
@@ -122,23 +135,23 @@ class TaskMeta(TypedDict):
     element_IDs: list[int]
 
 
-class TemplateMeta(TypedDict):
-    loops: list[dict]  # FIXME:
-    tasks: list[dict]  # FIXME:
+class TemplateMeta(TypedDict):  # FIXME: Incomplete, see WorkflowTemplate
+    loops: list[dict]
+    tasks: list[dict]
 
 
 class Metadata(TypedDict):
     creation_info: NotRequired[StoreCreationInfo]
-    elements: NotRequired[list[ElemMeta]]  # FIXME:
+    elements: NotRequired[list[ElemMeta]]
     iters: NotRequired[list[IterMeta]]
     loops: NotRequired[list[LoopMeta]]
     name: NotRequired[str]
     num_added_tasks: NotRequired[int]
     replaced_workflow: NotRequired[str]
-    runs: NotRequired[list[RunMeta]]  # FIXME:
+    runs: NotRequired[list[RunMeta]]
     tasks: NotRequired[list[TaskMeta]]
-    template: NotRequired[TemplateMeta]  # FIXME:
-    template_components: NotRequired[dict[None, None]]  # FIXME:
+    template: NotRequired[TemplateMeta]
+    template_components: NotRequired[dict[str, Any]]
     ts_fmt: NotRequired[str]
     ts_name_fmt: NotRequired[str]
 
@@ -412,8 +425,8 @@ class StoreEAR(Generic[T, CTX]):
     success: bool | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    snapshot_start: Dict | None = None
-    snapshot_end: Dict | None = None
+    snapshot_start: dict[str, Any] | None = None
+    snapshot_end: dict[str, Any] | None = None
     exit_code: int | None = None
     metadata: Metadata | None = None
     run_hostname: str | None = None
@@ -470,8 +483,8 @@ class StoreEAR(Generic[T, CTX]):
         success: bool | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-        snapshot_start: Dict | None = None,
-        snapshot_end: Dict | None = None,
+        snapshot_start: dict[str, Any] | None = None,
+        snapshot_end: dict[str, Any] | None = None,
         exit_code: int | None = None,
         run_hostname: str | None = None,
     ) -> Self:
@@ -2005,11 +2018,13 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _update_EAR_submission_indices(self, sub_indices: Mapping[int, int]) -> None: ...
 
     @abstractmethod
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str) -> None: ...
+    def _update_EAR_start(
+        self, EAR_id: int, s_time: datetime, s_snap: dict[str, Any], s_hn: str
+    ) -> None: ...
 
     @abstractmethod
     def _update_EAR_end(
-        self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool
+        self, EAR_id: int, e_time: datetime, e_snap: dict[str, Any], ext_code: int, success: bool
     ) -> None: ...
 
     @abstractmethod

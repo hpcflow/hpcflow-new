@@ -242,7 +242,7 @@ class JSONPersistentStore(PersistentStore[
         cls,
         app: BaseApp, *,
         template_js: TemplateMeta,
-        template_components_js: Dict,
+        template_components_js: dict[str, Any],
         wk_path: str,
         fs: AbstractFileSystem,
         name: str,
@@ -372,7 +372,9 @@ class JSONPersistentStore(PersistentStore[
             for EAR_ID_i, sub_idx_i in sub_indices.items():
                 md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
 
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: Dict, s_hn: str):
+    def _update_EAR_start(
+        self, EAR_id: int, s_time: datetime, s_snap: dict[str, Any], s_hn: str
+    ):
         with self.using_resource("metadata", action="update") as md:
             assert "runs" in md
             md["runs"][EAR_id]["start_time"] = s_time.strftime(self.ts_fmt)
@@ -380,7 +382,7 @@ class JSONPersistentStore(PersistentStore[
             md["runs"][EAR_id]["run_hostname"] = s_hn
 
     def _update_EAR_end(
-        self, EAR_id: int, e_time: datetime, e_snap: Dict, ext_code: int, success: bool
+        self, EAR_id: int, e_time: datetime, e_snap: dict[str, Any], ext_code: int, success: bool
     ):
         with self.using_resource("metadata", action="update") as md:
             assert "runs" in md

@@ -520,9 +520,10 @@ class _FileContentsSpecifier(JSONLike):
         # TODO: fix
         assert self._value_group_idx is None
         if self._value_group_idx is not None:
-            # FIXME: No such method?
-            assert hasattr(self.workflow, "get_zarr_parameter_group")
-            grp = self.workflow.get_zarr_parameter_group(self._value_group_idx)
+            from ..persistence.zarr import ZarrPersistentStore
+            assert isinstance(self.workflow._store, ZarrPersistentStore)
+            # FIXME: Next two lines are both thoroughly broken, but at least resolve to something
+            grp = self.workflow._store._get_parameter_group(self._value_group_idx)
             val = zarr_decode(grp)
         else:
             val = self._get_members(ensure_contents=(value_name == "contents"))
