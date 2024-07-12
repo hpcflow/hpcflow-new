@@ -1267,7 +1267,7 @@ class Action(JSONLike):
         self.script_data_in = script_data_in
         self.script_data_out = script_data_out
         self.script_data_files_use_opt = (
-            script_data_files_use_opt if not self.script_is_python else True
+            script_data_files_use_opt if not self.script_is_python_snippet else True
         )
         self.script_exe = script_exe.lower() if script_exe else None
         self.script_pass_env_spec = script_pass_env_spec
@@ -1413,13 +1413,14 @@ class Action(JSONLike):
         return "direct" in self.script_data_out_grouped  # TODO: test
 
     @property
-    def script_is_python(self) -> bool:
-        """Return True if the script is a Python script (determined by the file
+    def script_is_python_snippet(self) -> bool:
+        """Return True if the script is a Python snippet script (determined by the file
         extension)"""
         if self.script:
             snip_path = self.get_snippet_script_path(self.script)
             if snip_path:
                 return snip_path.suffix == ".py"
+        return False
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -2221,7 +2222,7 @@ class Action(JSONLike):
         with snip_path.open("rt") as fp:
             script_str = fp.read()
 
-        if not self.script_is_python:
+        if not self.script_is_python_snippet:
             return script_str
 
         is_IFG = bool(self.input_file_generators)
