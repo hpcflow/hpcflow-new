@@ -136,7 +136,9 @@ def test_select_invocation_multiple_specified_higher_specificity_selected_first(
     assert matched == "specific"
 
 
-def test_select_invocation_multiple_specified_higher_specificity_selected_second() -> None:
+def test_select_invocation_multiple_specified_higher_specificity_selected_second() -> (
+    None
+):
     configs: dict[str, Any] = {
         "default": {
             "invocation": {

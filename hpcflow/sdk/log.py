@@ -11,15 +11,16 @@ from dataclasses import dataclass
 from typing import ParamSpec, TypeVar
 
 
-P = ParamSpec('P')
-T = TypeVar('T')
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 @dataclass
 class _Summary:
     """
-    Summary of a particular node's execution time. 
+    Summary of a particular node's execution time.
     """
+
     number: int
     mean: float
     stddev: float
@@ -82,7 +83,7 @@ class TimeIt:
                 min(v),
                 max(v),
                 sum(v),
-                {}
+                {},
             )
             for k, v in cls.timers.items()
         }
@@ -102,8 +103,11 @@ class TimeIt:
 
     @classmethod
     def summarise_string(cls) -> None:
-        def _format_nodes(node: dict[tuple[str, ...], _Summary], depth: int=0,
-                          depth_final: Sequence[bool] = ()):
+        def _format_nodes(
+            node: dict[tuple[str, ...], _Summary],
+            depth: int = 0,
+            depth_final: Sequence[bool] = (),
+        ):
             for idx, (k, v) in enumerate(node.items()):
                 is_final_child = idx == len(node) - 1
                 angle = "└ " if is_final_child else "├ "
@@ -162,8 +166,13 @@ class AppLog:
         if new_level:
             self.console_handler.setLevel(new_level.upper())
 
-    def add_file_logger(self, path: Path, level: str | None = None,
-                        fmt: str | None = None, max_bytes: int | None = None) -> logging.Handler:
+    def add_file_logger(
+        self,
+        path: Path,
+        level: str | None = None,
+        fmt: str | None = None,
+        max_bytes: int | None = None,
+    ) -> logging.Handler:
         fmt = fmt or f"%(asctime)s %(levelname)s %(name)s: %(message)s"
         level = level or AppLog.DEFAULT_LOG_FILE_LEVEL
         max_bytes = max_bytes or int(10e6)

@@ -434,7 +434,9 @@ def test_unique_schedulers_one_direct(new_null_config, tmp_path) -> None:
     assert len(scheds) == 1
 
 
-def test_unique_schedulers_one_direct_distinct_resources(new_null_config, tmp_path) -> None:
+def test_unique_schedulers_one_direct_distinct_resources(
+    new_null_config, tmp_path
+) -> None:
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
         inputs={"p1": 1},
@@ -483,7 +485,9 @@ def test_unique_schedulers_one_SLURM(new_null_config, tmp_path) -> None:
 
 
 @pytest.mark.slurm
-def test_unique_schedulers_one_SLURM_distinct_resources(new_null_config, tmp_path) -> None:
+def test_unique_schedulers_one_SLURM_distinct_resources(
+    new_null_config, tmp_path
+) -> None:
     hf.config.add_scheduler("slurm")
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,

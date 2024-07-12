@@ -12,6 +12,7 @@ from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import NoCLIFormatMethodError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parameters import ParameterValue
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from ..app import BaseApp
@@ -242,8 +243,7 @@ class Command(JSONLike):
 
     @staticmethod
     def _prepare_kwargs_from_string(
-        args_str: str | None,
-        doubled_quoted_args: list[str] | None = None
+        args_str: str | None, doubled_quoted_args: list[str] | None = None
     ) -> dict[str, str]:
         if args_str is None:
             return {}
@@ -268,10 +268,14 @@ class Command(JSONLike):
         return kwargs
 
     def process_std_stream(self, name: str, value: str, stderr: bool) -> Any:
-        def _parse_list(lst_str: str, item_type: str = "str", delim: str = " ") -> list[Any]:
+        def _parse_list(
+            lst_str: str, item_type: str = "str", delim: str = " "
+        ) -> list[Any]:
             return [parse_types[item_type](i) for i in lst_str.split(delim)]
 
-        def _parse_array(arr_str: str, item_type: str = "float", delim: str = " ") -> np.ndarray[Any, np.dtype[Any]]:
+        def _parse_array(
+            arr_str: str, item_type: str = "float", delim: str = " "
+        ) -> np.ndarray[Any, np.dtype[Any]]:
             return np.array(
                 _parse_list(lst_str=arr_str, item_type=item_type, delim=delim)
             )

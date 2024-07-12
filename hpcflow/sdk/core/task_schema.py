@@ -18,6 +18,7 @@ from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from .json_like import ChildObjectSpec, JSONLike
 from .parameters import Parameter, ParameterPropagationMode
 from .utils import check_valid_py_identifier
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from typing import Any, ClassVar, Self
@@ -642,20 +643,22 @@ class TaskSchema(JSONLike):
     def __coerce_inputs(
         cls, inputs: Iterable[Parameter | SchemaInput]
     ) -> list[SchemaInput]:
-        """ coerce Parameters to SchemaInputs """
+        """coerce Parameters to SchemaInputs"""
         return [cls.__coerce_one_input(i) for i in inputs]
 
     @classmethod
     def __coerce_one_output(cls, o: Parameter | SchemaParameter) -> SchemaOutput:
-        return (o if isinstance(o, cls.app.SchemaOutput)
-                else cls.app.SchemaOutput(
-                    o if isinstance(o, Parameter) else o.parameter))
+        return (
+            o
+            if isinstance(o, cls.app.SchemaOutput)
+            else cls.app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
+        )
 
     @classmethod
     def __coerce_outputs(
         cls, outputs: Iterable[Parameter | SchemaParameter]
     ) -> list[SchemaOutput]:
-        """ coerce Parameters to SchemaOutputs """
+        """coerce Parameters to SchemaOutputs"""
         return [cls.__coerce_one_output(o) for o in outputs]
 
     def _validate(self):
@@ -757,7 +760,9 @@ class TaskSchema(JSONLike):
         for out in self.outputs:
             out.parameter._set_value_class()
 
-    def make_persistent(self, workflow: Workflow, source: ParamSource) -> list[int | list[int]]:
+    def make_persistent(
+        self, workflow: Workflow, source: ParamSource
+    ) -> list[int | list[int]]:
         new_refs: list[int | list[int]] = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
@@ -813,15 +818,13 @@ class TaskSchema(JSONLike):
         self, parameter: SchemaParameter
     ) -> ActParameterDependence:
         """Find if/where a given parameter is used by the schema's actions."""
-        out: ActParameterDependence = {
-            "input_file_writers": [], "commands": []
-        }
+        out: ActParameterDependence = {"input_file_writers": [], "commands": []}
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
             out["input_file_writers"].extend(
-                (act_idx, i) for i in deps["input_file_writers"])
-            out["commands"].extend(
-                (act_idx, i) for i in deps["commands"])
+                (act_idx, i) for i in deps["input_file_writers"]
+            )
+            out["commands"].extend((act_idx, i) for i in deps["commands"])
         return out
 
     def get_key(self):
@@ -852,8 +855,4 @@ class TaskSchema(JSONLike):
     @property
     def multi_input_types(self) -> list[str]:
         """Get a list of input types that have multiple labels."""
-        return [
-            inp.parameter.typ
-            for inp in self.inputs
-            if inp.multiple
-        ]
+        return [inp.parameter.typ for inp in self.inputs if inp.multiple]

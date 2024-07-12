@@ -3,6 +3,7 @@ from getpass import getpass
 from typing import TypeVar, TYPE_CHECKING
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
+
 if TYPE_CHECKING:
     from typing import Callable, TypeVar
     from fsspec import AbstractFileSystem  # type: ignore
@@ -10,8 +11,9 @@ if TYPE_CHECKING:
     T = TypeVar("T")
 
 
-def ask_pw_on_auth_exc(f: Callable[..., T], *args, add_pw_to: str | None = None,
-                       **kwargs) -> tuple[T, str | None]:
+def ask_pw_on_auth_exc(
+    f: Callable[..., T], *args, add_pw_to: str | None = None, **kwargs
+) -> tuple[T, str | None]:
     from paramiko.ssh_exception import SSHException
 
     try:

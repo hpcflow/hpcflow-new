@@ -13,6 +13,7 @@ from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
 from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.log import TimeIt
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import ClassVar, Self, TypeAlias
@@ -89,7 +90,9 @@ class Loop(JSONLike):
         self._non_iterable_parameters = non_iterable_parameters or []
         self._termination = termination
 
-        self._workflow_template: WorkflowTemplate | None = None  # assigned by parent WorkflowTemplate
+        self._workflow_template: WorkflowTemplate | None = (
+            None  # assigned by parent WorkflowTemplate
+        )
 
     def to_dict(self):
         out = super().to_dict()
@@ -148,10 +151,7 @@ class Loop(JSONLike):
             raise RuntimeError(
                 "Workflow template must be assigned to retrieve task objects of the loop."
             )
-        return tuple(
-            wf.tasks.get(insert_ID=i)
-            for i in self.task_insert_IDs
-        )
+        return tuple(wf.tasks.get(insert_ID=i) for i in self.task_insert_IDs)
 
     def _validate_against_template(self) -> None:
         """Validate the loop parameters against the associated workflow."""
@@ -160,7 +160,8 @@ class Loop(JSONLike):
         wf = self.__workflow()
         if not wf:
             raise RuntimeError(
-                "workflow cannot be validated against as it is not assigned")
+                "workflow cannot be validated against as it is not assigned"
+            )
         for insert_ID in self.task_insert_IDs:
             try:
                 wf.tasks.get(insert_ID=insert_ID)
@@ -396,10 +397,7 @@ class WorkflowLoop:
     ) -> WorkflowLoop:
         parent_loops = cls._get_parent_loops(index, workflow, template)
         parent_names = [i.name for i in parent_loops if i.name]
-        num_added_iters = {
-            tuple(i[j] for j in parent_names): 1
-            for i in iter_loop_idx
-        }
+        num_added_iters = {tuple(i[j] for j in parent_names): 1 for i in iter_loop_idx}
 
         return cls(
             index=index,
@@ -462,8 +460,11 @@ class WorkflowLoop:
         return children
 
     @TimeIt.decorator
-    def add_iteration(self, parent_loop_indices: dict[str, int] | None = None,
-                      cache: LoopCache | None = None) -> None:
+    def add_iteration(
+        self,
+        parent_loop_indices: dict[str, int] | None = None,
+        cache: LoopCache | None = None,
+    ) -> None:
         if not cache:
             cache = LoopCache.build(self.workflow)
         assert cache is not None
@@ -473,7 +474,9 @@ class WorkflowLoop:
 
         iters_key = tuple(parent_loop_indices_[k] for k in self.parents)
         cur_loop_idx = self.num_added_iterations[iters_key] - 1
-        all_new_data_idx: dict[tuple[int, int], DataIndex] = {}  # keys are (task.insert_ID and element.index)
+        all_new_data_idx: dict[tuple[int, int], DataIndex] = (
+            {}
+        )  # keys are (task.insert_ID and element.index)
 
         # initialise a new `num_added_iterations` key on each child loop:
         for child in child_loops:
@@ -521,8 +524,16 @@ class WorkflowLoop:
                     if is_inp_task:
                         assert iter_dat is not None
                         inp_dat_idx = self.__get_looped_index(
-                            task, elem_ID, cache, iter_dat, inp, parent_loops,
-                            parent_loop_indices_, child_loops, cur_loop_idx)
+                            task,
+                            elem_ID,
+                            cache,
+                            iter_dat,
+                            inp,
+                            parent_loops,
+                            parent_loop_indices_,
+                            child_loops,
+                            cur_loop_idx,
+                        )
                         new_data_idx[inp_key] = inp_dat_idx
                     else:
                         orig_inp_src = cache.elements[elem_ID]["input_sources"][inp_key]
@@ -545,8 +556,15 @@ class WorkflowLoop:
 
                         elif orig_inp_src.source_type is InputSourceType.TASK:
                             inp_dat_idx = self.__get_task_index(
-                                task, orig_inp_src, cache, elem_ID, inp, inp_key,
-                                parent_loop_indices_, all_new_data_idx)
+                                task,
+                                orig_inp_src,
+                                cache,
+                                elem_ID,
+                                inp,
+                                inp_key,
+                                parent_loop_indices_,
+                                all_new_data_idx,
+                            )
 
                         if inp_dat_idx is None:
                             raise RuntimeError(
@@ -624,8 +642,7 @@ class WorkflowLoop:
                     )
 
     def __get_src_ID_and_groups(
-        self, elem_ID: int, iter_dat: IterableParam, inp: SchemaInput,
-        cache: LoopCache
+        self, elem_ID: int, iter_dat: IterableParam, inp: SchemaInput, cache: LoopCache
     ) -> tuple[int, list[int]]:
         src_elem_IDs = {
             k: v
@@ -639,10 +656,7 @@ class WorkflowLoop:
         grouped_elems = [
             src_elem_j_ID
             for src_elem_j_ID, src_elem_j_dat in src_elem_IDs.items()
-            if any(
-                k == inp_group_name
-                for k in src_elem_j_dat["group_names"]
-            )    
+            if any(k == inp_group_name for k in src_elem_j_dat["group_names"])
         ]
 
         if not grouped_elems and len(src_elem_IDs) > 1:
@@ -665,11 +679,18 @@ class WorkflowLoop:
 
         return nth_key(src_elem_IDs, 0), grouped_elems
 
-    def __get_looped_index(self, task: WorkflowTask, elem_ID: int, cache: LoopCache,
-                           iter_dat: IterableParam, inp: SchemaInput,
-                           parent_loops: list[WorkflowLoop],
-                           parent_loop_indices: dict[str, int],
-                           child_loops: list[WorkflowLoop], cur_loop_idx: int):
+    def __get_looped_index(
+        self,
+        task: WorkflowTask,
+        elem_ID: int,
+        cache: LoopCache,
+        iter_dat: IterableParam,
+        inp: SchemaInput,
+        parent_loops: list[WorkflowLoop],
+        parent_loop_indices: dict[str, int],
+        child_loops: list[WorkflowLoop],
+        cur_loop_idx: int,
+    ):
         # source from final output task of previous iteration, with all parent
         # loop indices the same as previous iteration, and all child loop indices
         # maximised:
@@ -680,12 +701,13 @@ class WorkflowLoop:
             src_elem_ID = elem_ID
             grouped_elems: list[int] = []
         else:
-            src_elem_ID, grouped_elems = self.__get_src_ID_and_groups(elem_ID, iter_dat, inp, cache)
+            src_elem_ID, grouped_elems = self.__get_src_ID_and_groups(
+                elem_ID, iter_dat, inp, cache
+            )
 
         child_loop_max_iters: dict[str, int] = {}
         parent_loop_same_iters = {
-            i.name: parent_loop_indices[i.name]
-            for i in parent_loops
+            i.name: parent_loop_indices[i.name] for i in parent_loops
         }
         child_iter_parents = {
             **parent_loop_same_iters,
@@ -710,8 +732,7 @@ class WorkflowLoop:
         loop_idx_key = tuple(sorted(source_iter_loop_idx.items()))
         if grouped_elems:
             src_data_idx = [
-                cache.data_idx[src_elem_ID][loop_idx_key]
-                for src_elem_ID in grouped_elems
+                cache.data_idx[src_elem_ID][loop_idx_key] for src_elem_ID in grouped_elems
             ]
             if not src_data_idx:
                 raise RuntimeError(
@@ -723,10 +744,15 @@ class WorkflowLoop:
             return cache.data_idx[src_elem_ID][loop_idx_key][f"outputs.{inp.typ}"]
 
     def __get_task_index(
-        self, task: WorkflowTask, orig_inp_src: InputSource,
-        cache: LoopCache, elem_ID: int, inp: SchemaInput,
-        inp_key: str, parent_loop_indices: dict[str, int],
-        all_new_data_idx: dict[tuple[int, int], DataIndex]
+        self,
+        task: WorkflowTask,
+        orig_inp_src: InputSource,
+        cache: LoopCache,
+        elem_ID: int,
+        inp: SchemaInput,
+        inp_key: str,
+        parent_loop_indices: dict[str, int],
+        all_new_data_idx: dict[tuple[int, int], DataIndex],
     ) -> int | list[int]:
         if orig_inp_src.task_ref not in self.task_insert_IDs:
             # source the data_idx from the iteration with same parent
@@ -744,7 +770,7 @@ class WorkflowLoop:
             # could be multiple, but they should all have the same
             # data index for this parameter:
             return src_data_idx[0][inp_key]
-        
+
         is_group = (
             inp.single_labelled_data is not None
             and "group" in inp.single_labelled_data
@@ -777,10 +803,12 @@ class WorkflowLoop:
 
         if is_group:
             # Convert into simple list of indices
-            return list(chain.from_iterable(
-                self.__as_sequence(all_new_data_idx[i][prev_dat_idx_key])
-                for i in new_sources
-            ))
+            return list(
+                chain.from_iterable(
+                    self.__as_sequence(all_new_data_idx[i][prev_dat_idx_key])
+                    for i in new_sources
+                )
+            )
         else:
             assert len(new_sources) == 1
             return all_new_data_idx[new_sources[0]][prev_dat_idx_key]

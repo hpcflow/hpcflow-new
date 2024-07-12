@@ -42,13 +42,17 @@ def test_reset_invalid_config(new_null_config) -> None:
     hf.unload_config()
 
 
-def test_raise_on_set_default_scheduler_not_in_schedulers_list_invalid_name(null_config) -> None:
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_invalid_name(
+    null_config,
+) -> None:
     new_default = "invalid-scheduler"
     with pytest.raises(ConfigItemCallbackError):
         hf.config.default_scheduler = new_default
 
 
-def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name(null_config) -> None:
+def test_raise_on_set_default_scheduler_not_in_schedulers_list_valid_name(
+    null_config,
+) -> None:
     new_default = "slurm"  # valid but unsupported (by default) scheduler
     with pytest.raises(ConfigItemCallbackError):
         hf.config.default_scheduler = new_default

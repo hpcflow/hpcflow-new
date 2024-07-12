@@ -41,7 +41,9 @@ def test_get_command_line(null_config, tmp_path: Path):
 
 
 @pytest.mark.parametrize("shell_args", [("powershell", "nt"), ("bash", "posix")])
-def test_get_command_line_with_stdout(null_config, tmp_path: Path, shell_args: tuple[str, str]):
+def test_get_command_line_with_stdout(
+    null_config, tmp_path: Path, shell_args: tuple[str, str]
+):
     s1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput(parameter=hf.Parameter("p1"))],
@@ -389,7 +391,9 @@ def test_get_command_line_parameter_value_custom_method(null_config, tmp_path: P
     assert cmd_str == f"Write-Output ({p1_value.a + 4} + 100)"
 
 
-def test_get_command_line_parameter_value_custom_method_with_args(null_config, tmp_path: Path):
+def test_get_command_line_parameter_value_custom_method_with_args(
+    null_config, tmp_path: Path
+):
     add_val = 35
     s1 = hf.TaskSchema(
         objective="t1",

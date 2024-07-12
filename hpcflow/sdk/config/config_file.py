@@ -23,13 +23,15 @@ from .errors import (
     ConfigInvocationKeyNotFoundError,
     ConfigValidationError,
 )
+
 if TYPE_CHECKING:
     from typing import Any, Dict, TypeAlias, TypeVar
     from ..typing import PathLike
     from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
 
     ConfigDict: TypeAlias = dict[str, dict[str, DefaultConfiguration]]
-    T = TypeVar('T')
+    T = TypeVar("T")
+
 
 class ConfigFile:
     """Configuration file."""
@@ -174,7 +176,9 @@ class ConfigFile:
 
     @staticmethod
     def _resolve_config_dir(
-        config_opt: ConfigOptions, logger: logging.Logger, directory: str | Path | None = None
+        config_opt: ConfigOptions,
+        logger: logging.Logger,
+        directory: str | Path | None = None,
     ) -> Path:
         """Find the directory in which to locate the configuration file.
 
@@ -258,7 +262,9 @@ class ConfigFile:
 
         return new_contents
 
-    def add_default_config(self, config_options: ConfigOptions, name: str | None = None) -> str:
+    def add_default_config(
+        self, config_options: ConfigOptions, name: str | None = None
+    ) -> str:
         """Add a new default config to the config file, and create the file if it doesn't
         exist."""
 

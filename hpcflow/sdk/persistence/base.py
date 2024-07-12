@@ -22,13 +22,19 @@ from hpcflow.sdk.core.utils import (
     remap,
     reshape,
     set_in_container,
-    parse_timestamp
+    parse_timestamp,
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.persistence.pending import PendingChanges
 from hpcflow.sdk.persistence.types import (
-    AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter)
+    AnySTask,
+    AnySElement,
+    AnySElementIter,
+    AnySEAR,
+    AnySParameter,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
@@ -43,9 +49,9 @@ if TYPE_CHECKING:
     from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
 
-T = TypeVar('T')
-T2 = TypeVar('T2')
-CTX = TypeVar('CTX')
+T = TypeVar("T")
+T2 = TypeVar("T2")
+CTX = TypeVar("CTX")
 
 PRIMITIVES = (
     int,
@@ -65,7 +71,7 @@ PARAM_DATA_NOT_SET: Final[int] = 0
 
 
 def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamSource:
-    return cast('ParamSource', dict(sorted({**source, **update}.items())))
+    return cast("ParamSource", dict(sorted({**source, **update}.items())))
 
 
 class StoreCreationInfo(TypedDict):
@@ -78,6 +84,7 @@ class ElemMeta(TypedDict):
     """
     The kwargs supported for a StoreElement.
     """
+
     id_: int
     index: int
     es_idx: int
@@ -91,6 +98,7 @@ class IterMeta(TypedDict):
     """
     The kwargs supported for a StoreElementIter.
     """
+
     data_idx: DataIndex
     EAR_IDs: dict[int, list[int]]
     EARs_initialised: bool
@@ -103,6 +111,7 @@ class LoopMeta(TypedDict):
     """
     Component of Metadata.
     """
+
     num_added_iterations: list[list[list[int] | int]]
     parents: list[str]
     iterable_parameters: dict[str, IterableParam]
@@ -112,6 +121,7 @@ class RunMeta(TypedDict):
     """
     The kwargs supported for StoreEAR.
     """
+
     id_: int
     elem_iter_ID: int
     action_idx: int
@@ -341,9 +351,7 @@ class StoreElementIter(Generic[T, CTX]):
         }
 
     @TimeIt.decorator
-    def append_EAR_IDs(
-        self, pend_IDs: Mapping[int, Sequence[int]]
-    ) -> Self:
+    def append_EAR_IDs(self, pend_IDs: Mapping[int, Sequence[int]]) -> Self:
         """Return a copy, with additional EAR IDs."""
 
         EAR_IDs = copy.deepcopy(self.EAR_IDs) or {}
@@ -362,9 +370,7 @@ class StoreElementIter(Generic[T, CTX]):
         )
 
     @TimeIt.decorator
-    def update_loop_idx(
-        self, loop_idx: dict[str, int]
-    ) -> Self:
+    def update_loop_idx(self, loop_idx: dict[str, int]) -> Self:
         """Return a copy, with the loop index updated."""
         loop_idx_new = copy.deepcopy(self.loop_idx)
         loop_idx_new.update(loop_idx)
@@ -557,14 +563,18 @@ class StoreParameter:
     def __is_parameter_value(value) -> TypeGuard[ParameterValue]:
         # avoid circular import of `ParameterValue` until needed...
         from ..core.parameters import ParameterValue as PV
+
         return isinstance(value, PV)
 
     def _init_type_lookup(self) -> _TypeLookup:
-        return cast(_TypeLookup, {
-            "tuples": [],
-            "sets": [],
-            **{k: [] for k in self._decoders.keys()},
-        })
+        return cast(
+            _TypeLookup,
+            {
+                "tuples": [],
+                "sets": [],
+                **{k: [] for k in self._decoders.keys()},
+            },
+        )
 
     def _encode(
         self,
@@ -652,7 +662,8 @@ class StoreParameter:
         cls,
         id_: int,
         data: dict[str, Any] | Literal[0] | None,
-        source: ParamSource, *,
+        source: ParamSource,
+        *,
         path: list[str] | None = None,
         **kwargs,
     ) -> Self:
@@ -757,7 +768,9 @@ class StoreParameter:
         )
 
 
-class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
+class PersistentStore(
+    ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]
+):
     _name: ClassVar[str]
 
     @classmethod
@@ -785,16 +798,20 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     _res_map: ClassVar[CommitResourceMap]
 
     def __init__(
-        self, app: BaseApp, workflow: Workflow | None, path: Path | str,
-        fs: AbstractFileSystem | None = None
+        self,
+        app: BaseApp,
+        workflow: Workflow | None,
+        path: Path | str,
+        fs: AbstractFileSystem | None = None,
     ):
         self.app = app
         self.__workflow = workflow
         self.path = str(path)
         self.fs = fs
 
-        self._pending: PendingChanges[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter] \
-            = PendingChanges(app=app, store=self, resource_map=self._res_map)
+        self._pending: PendingChanges[
+            AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
+        ] = PendingChanges(app=app, store=self, resource_map=self._res_map)
 
         self._resources_in_use: set[tuple[str, str]] = set()
         self._in_batch_mode = False
@@ -803,24 +820,19 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self._reset_cache()
 
     @abstractmethod
-    def cached_load(self) -> contextlib.AbstractContextManager[None]:
-        ...
+    def cached_load(self) -> contextlib.AbstractContextManager[None]: ...
 
     @abstractmethod
-    def get_name(self) -> str:
-        ...
+    def get_name(self) -> str: ...
 
     @abstractmethod
-    def get_creation_info(self) -> StoreCreationInfo:
-        ...
+    def get_creation_info(self) -> StoreCreationInfo: ...
 
     @abstractmethod
-    def get_ts_fmt(self) -> str:
-        ...
+    def get_ts_fmt(self) -> str: ...
 
     @abstractmethod
-    def get_ts_name_fmt(self) -> str:
-        ...
+    def get_ts_name_fmt(self) -> str: ...
 
     @abstractmethod
     def remove_replaced_dir(self) -> None: ...
@@ -829,18 +841,17 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def reinstate_replaced_dir(self) -> None: ...
 
     @abstractmethod
-    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str:
-        ...
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str: ...
 
     @abstractmethod
-    def unzip(self, path: str = ".", log: str | None = None) -> str:
-        ...
+    def unzip(self, path: str = ".", log: str | None = None) -> str: ...
 
     @classmethod
     @abstractmethod
     def write_empty_workflow(
         cls,
-        app: BaseApp, *,
+        app: BaseApp,
+        *,
         template_js: TemplateMeta,
         template_components_js: Dict,
         wk_path: str,
@@ -850,8 +861,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         creation_info: StoreCreationInfo,
         ts_fmt: str,
         ts_name_fmt: str,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @property
     def workflow(self) -> Workflow:
@@ -951,7 +961,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
     @staticmethod
     def prepare_test_store_from_spec(
-        task_spec: Sequence[Mapping[str, Sequence[Mapping[str, Sequence[Mapping[str, Sequence]]]]]]
+        task_spec: Sequence[
+            Mapping[str, Sequence[Mapping[str, Sequence[Mapping[str, Sequence]]]]]
+        ]
     ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
         """Generate a valid store from a specification in terms of nested
         elements/iterations/EARs.
@@ -976,37 +988,45 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
                     EAR_IDs_dct = {0: EAR_IDs} if EAR_IDs else {}
 
                     for _ in EARs_k:
-                        EARs.append({
-                            "id_": len(EARs),
-                            "is_pending": False,
-                            "elem_iter_ID": len(elem_iters),
-                            "action_idx": 0,
-                            "data_idx": {},
-                            "metadata": {},
-                        })
+                        EARs.append(
+                            {
+                                "id_": len(EARs),
+                                "is_pending": False,
+                                "elem_iter_ID": len(elem_iters),
+                                "action_idx": 0,
+                                "data_idx": {},
+                                "metadata": {},
+                            }
+                        )
 
-                    elem_iters.append({
-                        "id_": len(elem_iters),
+                    elem_iters.append(
+                        {
+                            "id_": len(elem_iters),
+                            "is_pending": False,
+                            "element_ID": len(elements),
+                            "EAR_IDs": EAR_IDs_dct,
+                            "data_idx": {},
+                            "schema_parameters": [],
+                        }
+                    )
+                elements.append(
+                    {
+                        "id_": len(elements),
                         "is_pending": False,
-                        "element_ID": len(elements),
-                        "EAR_IDs": EAR_IDs_dct,
-                        "data_idx": {},
-                        "schema_parameters": [],
-                    })
-                elements.append({
-                    "id_": len(elements),
+                        "element_idx": elem_idx,
+                        "seq_idx": {},
+                        "src_idx": {},
+                        "task_ID": task_idx,
+                        "iteration_IDs": iter_IDs,
+                    }
+                )
+            tasks.append(
+                {
+                    "id_": len(tasks),
                     "is_pending": False,
-                    "element_idx": elem_idx,
-                    "seq_idx": {},
-                    "src_idx": {},
-                    "task_ID": task_idx,
-                    "iteration_IDs": iter_IDs,
-                })
-            tasks.append({
-                "id_": len(tasks),
-                "is_pending": False,
-                "element_IDs": elem_IDs,
-            })
+                    "element_IDs": elem_IDs,
+                }
+            )
         return (tasks, elements, elem_iters, EARs)
 
     def remove_path(self, path: str | Path) -> None:
@@ -1044,7 +1064,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         def _rename_path(_replaced: str, _original: str) -> None:
             self.logger.debug(f"_rename_path: {_replaced!r} --> {_original!r}.")
             try:
-                fs.rename(_replaced, _original, recursive=True)  # TODO: why need recursive?
+                fs.rename(
+                    _replaced, _original, recursive=True
+                )  # TODO: why need recursive?
             except TypeError:
                 # `SFTPFileSystem.rename` has no  `recursive` argument:
                 fs.rename(_replaced, _original)
@@ -1125,7 +1147,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         if not self.workflow._in_batch_mode:
             self._pending.commit_all()
 
-    def add_template_components(self, temp_comps: Mapping[str, Any], save: bool = True) -> None:
+    def add_template_components(
+        self, temp_comps: Mapping[str, Any], save: bool = True
+    ) -> None:
         all_tc = self.get_template_components()
         for name, dat in temp_comps.items():
             if name in all_tc:
@@ -1193,8 +1217,12 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             self.save()
 
     def add_element(
-        self, task_ID: int, es_idx: int, seq_idx: dict[str, int], src_idx: dict[str, int],
-        save: bool = True
+        self,
+        task_ID: int,
+        es_idx: int,
+        seq_idx: dict[str, int],
+        src_idx: dict[str, int],
+        save: bool = True,
     ) -> int:
         """Add a new element to a task."""
         self.logger.debug(f"Adding store element.")
@@ -1357,7 +1385,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         self,
         is_set: bool,
         source: ParamSource,
-        data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any = None,
+        data: (
+            ParameterValue | list | tuple | set | dict | int | float | str | None | Any
+        ) = None,
         file: Dict | None = None,
         save: bool = True,
     ) -> int:
@@ -1494,8 +1524,10 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
                         fp.write(dat["contents"])
 
     def add_set_parameter(
-        self, data: ParameterValue | list | tuple | set | dict | int | float | str | Any,
-        source: ParamSource, save: bool = True
+        self,
+        data: ParameterValue | list | tuple | set | dict | int | float | str | Any,
+        source: ParamSource,
+        save: bool = True,
     ) -> int:
         return self._add_parameter(data=data, is_set=True, source=source, save=save)
 
@@ -1525,14 +1557,17 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             self.save()
 
     def update_loop_num_iters(
-        self, index: int, num_added_iters: Mapping[tuple[int, ...], int],
-        save: bool = True
+        self,
+        index: int,
+        num_added_iters: Mapping[tuple[int, ...], int],
+        save: bool = True,
     ) -> None:
         self.logger.debug(
             f"Updating loop {index!r} num added iterations to {num_added_iters!r}."
         )
         self._pending.update_loop_num_iters[index] = [
-            [list(k), v] for k, v in num_added_iters.items()]
+            [list(k), v] for k, v in num_added_iters.items()
+        ]
         if save:
             self.save()
 
@@ -1548,7 +1583,8 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             f"to {num_added_iters}."
         )
         self._pending.update_loop_num_iters[index] = [
-            [list(k), v] for k, v in num_added_iters.items()]
+            [list(k), v] for k, v in num_added_iters.items()
+        ]
         self._pending.update_loop_parents[index] = parents
         if save:
             self.save()
@@ -1589,7 +1625,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             tasks_new.append(task_i)
         return tasks_new
 
-    def __process_retrieved_loops(self, loops: dict[int, dict[str, Any]]) -> dict[int, dict[str, Any]]:
+    def __process_retrieved_loops(
+        self, loops: dict[int, dict[str, Any]]
+    ) -> dict[int, dict[str, Any]]:
         """Add pending data to retrieved loops."""
         loops_new: dict[int, dict[str, Any]] = {}
         for id_, loop_i in loops.items():
@@ -1636,7 +1674,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self.__process_retrieved_tasks(task_list)
 
     @abstractmethod
-    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, dict[str, Any]]: ...
+    def _get_persistent_loops(
+        self, id_lst: Iterable[int] | None = None
+    ) -> dict[int, dict[str, Any]]: ...
 
     def get_loops_by_IDs(self, ids: Iterable[int]) -> dict[int, dict[str, Any]]:
         """Retrieve loops by index (ID), including pending."""
@@ -1666,7 +1706,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self.__process_retrieved_loops(loops)
 
     @abstractmethod
-    def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None) -> dict[int, Any]: ...
+    def _get_persistent_submissions(
+        self, id_lst: Iterable[int] | None = None
+    ) -> dict[int, Any]: ...
 
     @TimeIt.decorator
     def get_submissions(self) -> dict[int, Dict]:
@@ -1694,7 +1736,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return dict(sorted(subs.items()))
 
     @abstractmethod
-    def _get_persistent_elements(self, id_lst: Iterable[int]) -> dict[int, AnySElement]: ...
+    def _get_persistent_elements(
+        self, id_lst: Iterable[int]
+    ) -> dict[int, AnySElement]: ...
 
     @TimeIt.decorator
     def get_elements(self, ids: Iterable[int]) -> Sequence[AnySElement]:
@@ -1788,10 +1832,15 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
             }
             if EAR_i.id_ in self._pending.set_EAR_skips:
                 updates["skip"] = True
-            updates["start_time"], updates["snapshot_start"], updates["run_hostname"] = \
+            updates["start_time"], updates["snapshot_start"], updates["run_hostname"] = (
                 self._pending.set_EAR_starts.get(EAR_i.id_, (None, None, None))
-            updates["end_time"], updates["snapshot_end"], updates["exit_code"], updates["success"] = \
-                self._pending.set_EAR_ends.get(EAR_i.id_, (None, None, None, None))
+            )
+            (
+                updates["end_time"],
+                updates["snapshot_end"],
+                updates["exit_code"],
+                updates["success"],
+            ) = self._pending.set_EAR_ends.get(EAR_i.id_, (None, None, None, None))
             if any(i is not None for i in updates.values()):
                 EAR_i = EAR_i.update(**updates)
 
@@ -1829,13 +1878,19 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     ) -> tuple[dict[int, AnySElement], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.element_cache)
 
-    def _get_cached_persistent_tasks(self, id_lst: Iterable[int]) -> tuple[dict[int, AnySTask], list[int]]:
+    def _get_cached_persistent_tasks(
+        self, id_lst: Iterable[int]
+    ) -> tuple[dict[int, AnySTask], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.task_cache)
 
-    def _get_cached_persistent_param_sources(self, id_lst: Iterable[int]) -> tuple[dict[int, ParamSource], list[int]]:
+    def _get_cached_persistent_param_sources(
+        self, id_lst: Iterable[int]
+    ) -> tuple[dict[int, ParamSource], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.param_sources_cache)
 
-    def _get_cached_persistent_parameters(self, id_lst: Iterable[int]) -> tuple[dict[int, AnySParameter], list[int]]:
+    def _get_cached_persistent_parameters(
+        self, id_lst: Iterable[int]
+    ) -> tuple[dict[int, AnySParameter], list[int]]:
         return self._get_cached_persistent_items(id_lst, self.parameter_cache)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
@@ -1843,11 +1898,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         return self.get_EARs([EAR_ID])[0].skip
 
     @TimeIt.decorator
-    def get_parameters(
-        self,
-        id_lst: Iterable[int],
-        **kwargs
-    ) -> list[AnySParameter]:
+    def get_parameters(self, id_lst: Iterable[int], **kwargs) -> list[AnySParameter]:
         """
         Parameters
         ----------
@@ -1861,8 +1912,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         id_pers = id_set.difference(all_pending)
         id_pend = id_set.intersection(all_pending)
 
-        params = dict(
-            self._get_persistent_parameters(id_pers, **kwargs)) if id_pers else {}
+        params = (
+            dict(self._get_persistent_parameters(id_pers, **kwargs)) if id_pers else {}
+        )
         params.update((i, self._pending.add_parameters[i]) for i in id_pend)
 
         # order as requested:
@@ -1870,9 +1922,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
     @abstractmethod
     def _get_persistent_parameters(
-        self,
-        id_lst: Iterable[int],
-        **kwargs
+        self, id_lst: Iterable[int], **kwargs
     ) -> Mapping[int, AnySParameter]: ...
 
     @TimeIt.decorator
@@ -1908,19 +1958,24 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
         # order as requested, and consider pending source updates:
         return [
             self.__merge_param_source(
-                src[id_i], self._pending.update_param_sources.get(id_i))
+                src[id_i], self._pending.update_param_sources.get(id_i)
+            )
             for id_i in id_lst
         ]
 
     @staticmethod
-    def __merge_param_source(src_i: ParamSource, pend_src: ParamSource | None) -> ParamSource:
+    def __merge_param_source(
+        src_i: ParamSource, pend_src: ParamSource | None
+    ) -> ParamSource:
         """
         Helper to merge a second dict in if it is provided.
         """
         return {**src_i, **pend_src} if pend_src else src_i
 
     @abstractmethod
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]: ...
+    def _get_persistent_param_sources(
+        self, id_lst: Iterable[int]
+    ) -> dict[int, ParamSource]: ...
 
     @TimeIt.decorator
     def get_task_elements(
@@ -1936,25 +1991,23 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
         all_elem_IDs = self.get_task(task_id).element_IDs
         store_elements = self.get_elements(
-            all_elem_IDs if idx_lst is None else (all_elem_IDs[i] for i in idx_lst))
-        iter_IDs_flat, iter_IDs_lens = flatten(
-            [i.iteration_IDs for i in store_elements])
+            all_elem_IDs if idx_lst is None else (all_elem_IDs[i] for i in idx_lst)
+        )
+        iter_IDs_flat, iter_IDs_lens = flatten([i.iteration_IDs for i in store_elements])
         store_iters = self.get_element_iterations(iter_IDs_flat)
 
         # retrieve EARs:
-        EARs_dcts = remap([
-            list((i.EAR_IDs or {}).values())
-            for i in store_iters
-        ], lambda ears: [
-            ear.to_dict()
-            for ear in self.get_EARs(ears)])
+        EARs_dcts = remap(
+            [list((i.EAR_IDs or {}).values()) for i in store_iters],
+            lambda ears: [ear.to_dict() for ear in self.get_EARs(ears)],
+        )
 
         # add EARs to iterations:
         iters: list[dict[str, Any]] = []
         for idx, i in enumerate(store_iters):
             EARs: dict[int, dict[str, Any]] | None = None
             if i.EAR_IDs is not None:
-                EARs = dict(zip(i.EAR_IDs.keys(), cast('Any', EARs_dcts[idx])))
+                EARs = dict(zip(i.EAR_IDs.keys(), cast("Any", EARs_dcts[idx])))
             iters.append(i.to_dict(EARs))
 
         # reshape iterations:
@@ -1962,8 +2015,7 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
         # add iterations to elements:
         return [
-            element.to_dict(iters_rs[idx])
-            for idx, element in enumerate(store_elements)
+            element.to_dict(iters_rs[idx]) for idx, element in enumerate(store_elements)
         ]
 
     @abstractmethod
@@ -1991,7 +2043,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _append_submissions(self, subs: dict[int, Dict]) -> None: ...
 
     @abstractmethod
-    def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]) -> None: ...
+    def _append_submission_parts(
+        self, sub_parts: dict[int, dict[str, list[int]]]
+    ) -> None: ...
 
     @abstractmethod
     def _append_elements(self, elems: Sequence[AnySElement]) -> None: ...
@@ -2006,7 +2060,9 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _append_elem_iters(self, iters: Sequence[AnySElementIter]) -> None: ...
 
     @abstractmethod
-    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: Sequence[int]) -> None: ...
+    def _append_elem_iter_EAR_IDs(
+        self, iter_ID: int, act_idx: int, EAR_IDs: Sequence[int]
+    ) -> None: ...
 
     @abstractmethod
     def _append_EARs(self, EARs: Sequence[AnySEAR]) -> None: ...
@@ -2024,7 +2080,12 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
 
     @abstractmethod
     def _update_EAR_end(
-        self, EAR_id: int, e_time: datetime, e_snap: dict[str, Any], ext_code: int, success: bool
+        self,
+        EAR_id: int,
+        e_time: datetime,
+        e_snap: dict[str, Any],
+        ext_code: int,
+        success: bool,
     ) -> None: ...
 
     @abstractmethod
@@ -2046,22 +2107,32 @@ class PersistentStore(ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySE
     def _update_loop_index(self, iter_ID: int, loop_idx: dict[str, int]) -> None: ...
 
     @abstractmethod
-    def _update_loop_num_iters(self, index: int, num_iters: list[list[list[int] | int]]) -> None: ...
+    def _update_loop_num_iters(
+        self, index: int, num_iters: list[list[list[int] | int]]
+    ) -> None: ...
 
     @abstractmethod
     def _update_loop_parents(self, index: int, parents: list[str]) -> None: ...
 
     @overload
-    def using_resource(self, res_label: Literal["metadata"], action: str) -> AbstractContextManager[Metadata]: ...
+    def using_resource(
+        self, res_label: Literal["metadata"], action: str
+    ) -> AbstractContextManager[Metadata]: ...
 
     @overload
-    def using_resource(self, res_label: Literal["submissions"], action: str) -> AbstractContextManager[list[Dict]]: ...
+    def using_resource(
+        self, res_label: Literal["submissions"], action: str
+    ) -> AbstractContextManager[list[Dict]]: ...
 
     @overload
-    def using_resource(self, res_label: Literal["parameters"], action: str) -> AbstractContextManager[dict[str, dict[str, Any]]]: ...
+    def using_resource(
+        self, res_label: Literal["parameters"], action: str
+    ) -> AbstractContextManager[dict[str, dict[str, Any]]]: ...
 
     @overload
-    def using_resource(self, res_label: Literal["attrs"], action: str) -> AbstractContextManager[Dict]: ...
+    def using_resource(
+        self, res_label: Literal["attrs"], action: str
+    ) -> AbstractContextManager[Dict]: ...
 
     @contextlib.contextmanager
     def using_resource(self, res_label: str, action: str) -> Iterator[Any]:

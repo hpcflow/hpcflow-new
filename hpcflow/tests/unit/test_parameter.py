@@ -24,7 +24,9 @@ class MyParameterP1(ParameterValue):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_submission_with_specified_parameter_class_module(null_config, tmp_path: Path, store: str):
+def test_submission_with_specified_parameter_class_module(
+    null_config, tmp_path: Path, store: str
+):
     """Test we can use a ParameterValue subclass that is defined separately from the main
     code (i.e. not automatically imported on app init)."""
 
@@ -191,7 +193,9 @@ def test_demo_data_substitution_param_value_class_method(new_null_config, tmp_pa
         "retrieving demo data from GitHub."
     ),
 )
-def test_demo_data_substitution_value_sequence_class_method(new_null_config, tmp_path: Path):
+def test_demo_data_substitution_value_sequence_class_method(
+    new_null_config, tmp_path: Path
+):
     yaml_str = dedent(
         """\
         name: temp

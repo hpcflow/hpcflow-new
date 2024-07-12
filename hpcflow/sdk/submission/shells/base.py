@@ -2,9 +2,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TypedDict, TypeAlias, TYPE_CHECKING
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from typing import Any, ClassVar, NotRequired
+
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]
 else:
@@ -47,8 +49,9 @@ class Shell(ABC):
     JS_INDENT: ClassVar[str]
     __slots__ = ("_executable", "os_args")
 
-    def __init__(self, executable: str | None = None,
-                 os_args: dict[str, str] | None = None):
+    def __init__(
+        self, executable: str | None = None, os_args: dict[str, str] | None = None
+    ):
         self._executable = executable or self.DEFAULT_EXE
         self.os_args = os_args or {}
 
@@ -73,7 +76,9 @@ class Shell(ABC):
     def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get shell and operating system information."""
 
-    def get_wait_command(self, workflow_app_alias: str, sub_idx: int, deps: Mapping[int, Any]):
+    def get_wait_command(
+        self, workflow_app_alias: str, sub_idx: int, deps: Mapping[int, Any]
+    ):
         if deps:
             return (
                 f'{workflow_app_alias} workflow $WK_PATH_ARG wait --jobscripts "{sub_idx}:'
@@ -87,7 +92,9 @@ class Shell(ABC):
     def process_app_invoc_executable(app_invoc_exe: str) -> str:
         return app_invoc_exe
 
-    def process_JS_header_args(self, header_args: JobscriptHeaderArgs) -> JobscriptHeaderArgs:
+    def process_JS_header_args(
+        self, header_args: JobscriptHeaderArgs
+    ) -> JobscriptHeaderArgs:
         app_invoc_ = header_args["app_invoc"]
         if not isinstance(app_invoc_, str):
             app_invoc = self.process_app_invoc_executable(app_invoc_[0])
@@ -122,7 +129,9 @@ class Shell(ABC):
         """
 
     @abstractmethod
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str: ...
+    def format_loop_check(
+        self, workflow_app_alias: str, loop_name: str, run_ID: int
+    ) -> str: ...
 
     @abstractmethod
     def format_stream_assignment(self, shell_var_name, command) -> str: ...

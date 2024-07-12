@@ -7,6 +7,7 @@ class _JES:
     """
     Model of the state of a JobscriptElementState
     """
+
     _value: int
     symbol: str
     colour: str

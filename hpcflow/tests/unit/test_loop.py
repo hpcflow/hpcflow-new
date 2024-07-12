@@ -291,7 +291,9 @@ def test_get_iteration_task_pathway_nested_loops_multi_iter(null_config, tmp_pat
 @pytest.mark.skip(
     reason="second set of asserts fail; need to re-source inputs on adding iterations."
 )
-def test_get_iteration_task_pathway_nested_loops_multi_iter_jagged(null_config, tmp_path: Path):
+def test_get_iteration_task_pathway_nested_loops_multi_iter_jagged(
+    null_config, tmp_path: Path
+):
     ts1 = hf.TaskSchema(
         objective="t1",
         inputs=[hf.SchemaInput("p1")],
@@ -451,7 +453,9 @@ def test_get_iteration_task_pathway_unconnected_loops(null_config, tmp_path: Pat
     assert pathway[4][2][0]["inputs.p1"] == pathway[3][2][0]["outputs.p1"]
 
 
-def test_wk_loop_input_sources_including_non_iteration_task_source(null_config, tmp_path: Path):
+def test_wk_loop_input_sources_including_non_iteration_task_source(
+    null_config, tmp_path: Path
+):
     act_env = hf.ActionEnvironment("null_env")
     ts1 = hf.TaskSchema(
         objective="t1",

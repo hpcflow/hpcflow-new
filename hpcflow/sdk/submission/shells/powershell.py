@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
+
 if TYPE_CHECKING:
     from typing import ClassVar
     from .base import VersionInfo
@@ -159,7 +160,7 @@ class WindowsPowerShell(Shell):
             "shell_name": "powershell",
             "shell_executable": self.executable,
             "shell_version": PS_version,
-            **osinfo
+            **osinfo,
         }
 
     @staticmethod
@@ -192,7 +193,9 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str:
+    def format_loop_check(
+        self, workflow_app_alias: str, loop_name: str, run_ID: int
+    ) -> str:
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH check-loop "

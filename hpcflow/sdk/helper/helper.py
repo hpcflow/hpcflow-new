@@ -12,6 +12,7 @@ from typing import Any, TYPE_CHECKING
 import psutil
 
 from .watcher import MonitorController
+
 if TYPE_CHECKING:
     from hpcflow.sdk.app import BaseApp
 
@@ -187,7 +188,6 @@ def get_helper_uptime(app: BaseApp) -> None | timedelta:
     create_time = datetime.fromtimestamp(proc.create_time())
     uptime = datetime.now() - create_time
     return uptime
-    
 
 
 def get_helper_logger(app: BaseApp) -> logging.Logger:
@@ -203,8 +203,10 @@ def get_helper_logger(app: BaseApp) -> logging.Logger:
 
 
 def helper_timeout(
-    app: BaseApp, timeout: timedelta, controller: MonitorController,
-    logger: logging.Logger
+    app: BaseApp,
+    timeout: timedelta,
+    controller: MonitorController,
+    logger: logging.Logger,
 ):
     """Kill the helper due to running duration exceeding the timeout."""
 

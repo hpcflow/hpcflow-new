@@ -10,6 +10,7 @@ from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
 )
+
 if TYPE_CHECKING:
     from typing import ClassVar
     from .base import VersionInfo, JobscriptHeaderArgs
@@ -157,7 +158,7 @@ class Bash(Shell):
             "shell_name": "bash",
             "shell_executable": self.executable,
             "shell_version": bash_version,
-            **({} if exclude_os else self._get_OS_info_POSIX())
+            **({} if exclude_os else self._get_OS_info_POSIX()),
         }
 
     @staticmethod
@@ -189,7 +190,9 @@ class Bash(Shell):
             f"\n"
         )
 
-    def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int) -> str:
+    def format_loop_check(
+        self, workflow_app_alias: str, loop_name: str, run_ID: int
+    ) -> str:
         return (
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" check-loop '

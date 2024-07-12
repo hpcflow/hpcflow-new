@@ -8,13 +8,14 @@ from typing import overload, TYPE_CHECKING
 from hpcflow.sdk.core.errors import UnsupportedSchedulerError, UnsupportedShellError
 
 from hpcflow.sdk.submission.shells import get_supported_shells
+
 if TYPE_CHECKING:
     from typing import Any, TypeVar
     from .config import Config
     from ..typing import PathLike
     from ..submission.schedulers import QueuedScheduler
 
-    T = TypeVar('T')
+    T = TypeVar("T")
 
 
 def callback_vars(config: Config, value) -> str:
@@ -37,8 +38,10 @@ def callback_vars(config: Config, value) -> str:
 @overload
 def callback_file_paths(config: Config, file_path: PathLike) -> PathLike: ...
 
+
 @overload
 def callback_file_paths(config: Config, file_path: list[PathLike]) -> list[PathLike]: ...
+
 
 def callback_file_paths(config: Config, file_path: PathLike | list[PathLike]):
     if isinstance(file_path, list):
@@ -61,11 +64,14 @@ def callback_bool(config: Config, value: str | bool) -> bool:
 @overload
 def callback_lowercase(config: Config, value: list[str]) -> list[str]: ...
 
+
 @overload
 def callback_lowercase(config: Config, value: dict[str, T]) -> dict[str, T]: ...
 
+
 @overload
 def callback_lowercase(config: Config, value: str) -> str: ...
+
 
 def callback_lowercase(
     config: Config, value: list[str] | dict[str, T] | str
@@ -88,7 +94,9 @@ def exists_in_schedulers(config: Config, value: T) -> T:
     return value
 
 
-def callback_supported_schedulers(config: Config, schedulers: dict[str, Any]) -> dict[str, Any]:
+def callback_supported_schedulers(
+    config: Config, schedulers: dict[str, Any]
+) -> dict[str, Any]:
     # validate against supported schedulers according to the OS - this won't validate that
     # a particular scheduler actually exists on this system:
     available = config._app.get_OS_supported_schedulers()
@@ -122,7 +130,9 @@ def set_scheduler_invocation_match(config: Config, scheduler: str) -> None:
             )
 
 
-def callback_scheduler_set_up(config: Config, schedulers: dict[str, Any]) -> dict[str, Any]:
+def callback_scheduler_set_up(
+    config: Config, schedulers: dict[str, Any]
+) -> dict[str, Any]:
     """Invoked on set of `schedulers`.
 
     Runs scheduler-specific config initialisation.

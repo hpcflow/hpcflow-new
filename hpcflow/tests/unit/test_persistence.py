@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 from hpcflow.sdk.core.test_utils import make_test_data_YAML_workflow
 from hpcflow.sdk.persistence.json import (
-    JSONPersistentStore, JsonStoreElement, JsonStoreElementIter, JsonStoreEAR)
+    JSONPersistentStore,
+    JsonStoreElement,
+    JsonStoreElementIter,
+    JsonStoreEAR,
+)
 from hpcflow.app import app as hf
 
 
@@ -34,7 +38,7 @@ def test_store_pending_add_element(tmp_path: Path):
             iteration_IDs=[],
             index=0,
             seq_idx={},
-            src_idx={}
+            src_idx={},
         )
     } and store._pending.add_task_element_IDs == {0: [0]}
 
@@ -63,7 +67,7 @@ def test_store_pending_add_element_iter(tmp_path: Path, elem_ID: int):
             EAR_IDs={},
             data_idx={},
             schema_parameters=[],
-            EARs_initialised=False
+            EARs_initialised=False,
         )
     } and store._pending.add_elem_iter_IDs == {elem_ID: [iter_ID]}
 

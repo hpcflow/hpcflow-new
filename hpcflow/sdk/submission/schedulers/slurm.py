@@ -13,6 +13,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
     from typing import Any, ClassVar
@@ -70,7 +71,9 @@ class SlurmPosix(QueuedScheduler):
 
     @classmethod
     @TimeIt.decorator
-    def process_resources(cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
+    def process_resources(
+        cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
+    ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -106,19 +109,16 @@ class SlurmPosix(QueuedScheduler):
                         f"but {resources.SLURM_num_cpus_per_task!r} was specified."
                     )
                 resources.num_threads = resources.num_threads or resources.num_cores
-                if (
-                    not resources.num_threads
-                    and not resources.SLURM_num_cpus_per_task
-                ):
+                if not resources.num_threads and not resources.SLURM_num_cpus_per_task:
                     raise ValueError(
                         f"For the {resources.parallel_mode.name.lower()} parallel "
                         f"mode, specify `num_threads` (or its synonym for this "
                         f"parallel mode: `num_cores`), or the SLURM-specific "
                         f"parameter `SLURM_num_cpus_per_task`."
                     )
-                elif (
-                    resources.num_threads and resources.SLURM_num_cpus_per_task
-                ) and (resources.num_threads != resources.SLURM_num_cpus_per_task):
+                elif (resources.num_threads and resources.SLURM_num_cpus_per_task) and (
+                    resources.num_threads != resources.SLURM_num_cpus_per_task
+                ):
                     raise IncompatibleSLURMArgumentsError(
                         f"Incompatible parameters for `num_cores`/`num_threads` "
                         f"({resources.num_threads}) and `SLURM_num_cpus_per_task` "
@@ -434,7 +434,9 @@ class SlurmPosix(QueuedScheduler):
                     _arr_idx.append(int(i_range_str) - 1)
             return base_job_ID, _arr_idx
 
-    def _parse_job_states(self, stdout: str) -> dict[str, dict[int | None, JobscriptElementState]]:
+    def _parse_job_states(
+        self, stdout: str
+    ) -> dict[str, dict[int | None, JobscriptElementState]]:
         """Parse output from Slurm `squeue` command with a simple format."""
         info: dict[str, dict[int | None, JobscriptElementState]] = {}
         for ln in stdout.split("\n"):
@@ -521,9 +523,10 @@ class SlurmPosix(QueuedScheduler):
             count += 1
 
     def cancel_jobs(
-        self, js_refs: list[str],
+        self,
+        js_refs: list[str],
         jobscripts: list[Jobscript] | None = None,
-        num_js_elements: int = 0  # Ignored!
+        num_js_elements: int = 0,  # Ignored!
     ):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(

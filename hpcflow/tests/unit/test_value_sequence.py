@@ -125,7 +125,9 @@ def test_resources_value_sequence_path_attributes():
 
 
 @pytest.mark.parametrize("store", ["json", "zarr"])
-def test_value_sequence_object_values_during_workflow_init(null_config, tmp_path: Path, store: str):
+def test_value_sequence_object_values_during_workflow_init(
+    null_config, tmp_path: Path, store: str
+):
     p1 = hf.Parameter("p1c")
     s1 = hf.TaskSchema(objective="t1", inputs=[hf.SchemaInput(parameter=p1)])
     obj = P1(a=101)

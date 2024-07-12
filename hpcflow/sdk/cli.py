@@ -38,6 +38,7 @@ from hpcflow.sdk.cli_common import (
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
+
 if TYPE_CHECKING:
     from pathlib import Path
     from typing import Literal
@@ -87,7 +88,7 @@ def _make_API_CLI(app: BaseApp):
     def make_workflow(
         template_file_or_str: str,
         string: bool,
-        format: Literal['json', 'yaml'] | None,
+        format: Literal["json", "yaml"] | None,
         path: Path | None,
         name: str | None,
         overwrite: bool,
@@ -139,7 +140,7 @@ def _make_API_CLI(app: BaseApp):
     def make_and_submit_workflow(
         template_file_or_str: str,
         string: bool,
-        format: Literal['json', 'yaml'] | None,
+        format: Literal["json", "yaml"] | None,
         path: Path | None,
         name: str | None,
         overwrite: bool,
@@ -1116,7 +1117,9 @@ def make_cli(app: BaseApp):
         ),
     )
     @click.pass_context
-    def new_CLI(ctx: click.Context, config_dir, config_key, with_config, timeit, timeit_file):
+    def new_CLI(
+        ctx: click.Context, config_dir, config_key, with_config, timeit, timeit_file
+    ):
         app.run_time_info.from_CLI = True
         TimeIt.active = timeit or timeit_file
         TimeIt.file_path = timeit_file

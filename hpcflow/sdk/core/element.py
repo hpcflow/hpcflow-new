@@ -19,6 +19,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
     from typing import Any, ClassVar, Literal
@@ -47,7 +48,9 @@ class _ElementPrefixedParameter:
         self._element_action = element_action
         self._element_action_run = element_action_run
 
-        self._prefixed_names_unlabelled: dict[str, list[str]] | None = None  # assigned on first access
+        self._prefixed_names_unlabelled: dict[str, list[str]] | None = (
+            None  # assigned on first access
+        )
 
     def __getattr__(self, name) -> ElementParameter | dict[str, ElementParameter]:
         if name not in self.prefixed_names_unlabelled:
@@ -212,7 +215,7 @@ class ElementResources(JSONLike):
     scheduler_args: dict[str, Any] = field(default_factory=dict)
     shell_args: dict[str, Any] = field(default_factory=dict)
     os_name: str | None = None
-    environments: dict[str,  dict[str, Any]] | None = None
+    environments: dict[str, dict[str, Any]] | None = None
 
     # SGE scheduler specific:
     SGE_parallel_env: str | None = None
@@ -563,10 +566,7 @@ class ElementIteration:
         return copy.deepcopy(data_idx)
 
     def __get_parameter_sources(
-        self,
-        data_idx: DataIndex,
-        filter_type: str | None,
-        use_task_index: bool
+        self, data_idx: DataIndex, filter_type: str | None, use_task_index: bool
     ) -> Mapping[str, ParamSource | list[ParamSource]]:
         # the value associated with `repeats.*` is the repeats index, not a parameter ID:
         for k in list(data_idx.keys()):
@@ -592,13 +592,9 @@ class ElementIteration:
         # Filter to just the elements that have the right type property
         filtered = (
             (k, self.__filter_param_source_by_type(v, filter_type))
-            for k, v in out.items() 
+            for k, v in out.items()
         )
-        return {
-            k: v
-            for k, v in filtered
-            if v is not None
-        }
+        return {k: v for k, v in filtered if v is not None}
 
     @staticmethod
     def __filter_param_source_by_type(
@@ -678,7 +674,7 @@ class ElementIteration:
             elif v["type"] == "default_input":
                 out_strs == "default"
             else:
-                idx = v['task_idx'] if use_task_index else v['task_insert_ID']
+                idx = v["task_idx"] if use_task_index else v["task_insert_ID"]
                 out_strs[k] = (
                     f"task.{idx}.element.{v['element_idx']}."
                     f"action.{v['action_idx']}.run.{v['run_idx']}"
@@ -758,7 +754,7 @@ class ElementIteration:
             # upstream tasks:
             out = []
             for src in self.get_parameter_sources(typ="EAR_output").values():
-                for src_i in (src if isinstance(src, list) else [src]):
+                for src_i in src if isinstance(src, list) else [src]:
                     EAR_ID_i = src_i["EAR_ID"]
                     assert isinstance(EAR_ID_i, int)
                     out.append(EAR_ID_i)
@@ -820,7 +816,7 @@ class ElementIteration:
         element iteration depends on."""
         out: dict[str, ParamSource] = {}
         for k, v in self.get_parameter_sources().items():
-            for v_i in (v if isinstance(v, list) else [v]):
+            for v_i in v if isinstance(v, list) else [v]:
                 if (
                     v_i["type"] in ["local_input", "default_input"]
                     and v_i["task_insert_ID"] != self.task.insert_ID
@@ -830,14 +826,10 @@ class ElementIteration:
         return out
 
     @overload
-    def get_task_dependencies(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     @overload
-    def get_task_dependencies(
-        self, as_objects: Literal[True]
-    ) -> list[WorkflowTask]: ...
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
 
     def get_task_dependencies(
         self, as_objects: bool = False
@@ -862,14 +854,10 @@ class ElementIteration:
         return out
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[True]
-    ) -> list[ElementActionRun]: ...
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
 
     @TimeIt.decorator
     def get_dependent_EARs(
@@ -1001,8 +989,7 @@ class ElementIteration:
         res = self.workflow.template.resources
         assert isinstance(res, (ResourceList, NoneType))
         return {
-            res_i.normalised_resources_path: res_i._get_value()
-            for res_i in res or ()
+            res_i.normalised_resources_path: res_i._get_value() for res_i in res or ()
         }
 
     @TimeIt.decorator
@@ -1030,7 +1017,9 @@ class ElementIteration:
         # an EAR?" which would then allow us to test a resources-based action rule.
 
         # FIXME: Use a TypedDict?
-        resource_specs: dict[str, dict[str, dict[str, Any]]] = copy.deepcopy(self.get("resources"))
+        resource_specs: dict[str, dict[str, dict[str, Any]]] = copy.deepcopy(
+            self.get("resources")
+        )
 
         env_spec = action.get_environment_spec()
         env_name: str = env_spec["name"]
@@ -1046,7 +1035,9 @@ class ElementIteration:
                     k: v for k, v in dat["environments"].items() if k == env_name
                 }
                 # merge user-provided specifiers into action specifiers:
-                dat["environments"].setdefault(env_name, {}).update(copy.deepcopy(env_spec))
+                dat["environments"].setdefault(env_name, {}).update(
+                    copy.deepcopy(env_spec)
+                )
 
         resources: dict[str, Any] = {}
         for scope_v in action.get_possible_scopes()[::-1]:
@@ -1284,7 +1275,9 @@ class Element:
 
     @overload
     def get_parameter_sources(
-        self, path: str | None = None, *,
+        self,
+        path: str | None = None,
+        *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,
@@ -1294,7 +1287,9 @@ class Element:
 
     @overload
     def get_parameter_sources(
-        self, path: str | None = None, *,
+        self,
+        path: str | None = None,
+        *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,
@@ -1303,7 +1298,9 @@ class Element:
     ) -> dict[str, str]: ...
 
     def get_parameter_sources(
-        self, path: str | None = None, *,
+        self,
+        path: str | None = None,
+        *,
         action_idx: int | None = None,
         run_idx: int = -1,
         typ: str | None = None,
@@ -1360,9 +1357,7 @@ class Element:
     ) -> list[ElementActionRun]: ...
 
     @overload
-    def get_EAR_dependencies(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     def get_EAR_dependencies(
         self, as_objects: bool = False
@@ -1394,9 +1389,7 @@ class Element:
         return self.latest_iteration.get_element_iteration_dependencies()
 
     @overload
-    def get_element_dependencies(
-        self, as_objects: Literal[True]
-    ) -> list[Element]: ...
+    def get_element_dependencies(self, as_objects: Literal[True]) -> list[Element]: ...
 
     @overload
     def get_element_dependencies(
@@ -1417,14 +1410,10 @@ class Element:
         return self.latest_iteration.get_input_dependencies()
 
     @overload
-    def get_task_dependencies(
-        self, as_objects: Literal[True]
-    ) -> list[WorkflowTask]: ...
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
 
     @overload
-    def get_task_dependencies(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     def get_task_dependencies(
         self, as_objects: bool = False
@@ -1439,14 +1428,10 @@ class Element:
         return self.latest_iteration.get_task_dependencies()
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[True]
-    ) -> list[ElementActionRun]: ...
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     def get_dependent_EARs(
         self, as_objects: bool = False
@@ -1472,20 +1457,14 @@ class Element:
         """Get element iterations that depend on the most recent iteration of this
         element."""
         if as_objects:
-            return self.latest_iteration.get_dependent_element_iterations(
-                as_objects=True
-            )
+            return self.latest_iteration.get_dependent_element_iterations(as_objects=True)
         return self.latest_iteration.get_dependent_element_iterations()
 
     @overload
-    def get_dependent_elements(
-        self, as_objects: Literal[True]
-    ) -> list[Element]: ...
+    def get_dependent_elements(self, as_objects: Literal[True]) -> list[Element]: ...
 
     @overload
-    def get_dependent_elements(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_dependent_elements(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     def get_dependent_elements(
         self, as_objects: bool = False
@@ -1496,14 +1475,10 @@ class Element:
         return self.latest_iteration.get_dependent_elements()
 
     @overload
-    def get_dependent_tasks(
-        self, as_objects: Literal[True]
-    ) -> list[WorkflowTask]: ...
+    def get_dependent_tasks(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
 
     @overload
-    def get_dependent_tasks(
-        self, as_objects: Literal[False] = False
-    ) -> list[int]: ...
+    def get_dependent_tasks(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     def get_dependent_tasks(
         self, as_objects: bool = False
@@ -1577,7 +1552,8 @@ class ElementParameter:
     @property
     def data_idx_is_set(self) -> dict[str, bool]:
         return {
-            k: self.task.workflow.is_parameter_set(cast(int, v)) for k, v in self.data_idx.items()
+            k: self.task.workflow.is_parameter_set(cast(int, v))
+            for k, v in self.data_idx.items()
         }
 
     @property
@@ -1594,9 +1570,7 @@ class ElementFilter(JSONLike):
 
     rules: list[Rule] = field(default_factory=list)
 
-    def filter(
-        self, element_iters: list[ElementIteration]
-    ) -> list[ElementIteration]:
+    def filter(self, element_iters: list[ElementIteration]) -> list[ElementIteration]:
         out: list[ElementIteration] = []
         for i in element_iters:
             if all(rule_j.test(i) for rule_j in self.rules):

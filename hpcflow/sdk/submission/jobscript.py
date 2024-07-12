@@ -19,6 +19,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.submission.shells import get_shell
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import Any, ClassVar, Literal, NotRequired
@@ -49,6 +50,7 @@ class JobScriptCreationArguments(TypedDict):
     """
     Arguments to pass to create a JobScript.
     """
+
     task_insert_IDs: list[int]
     task_actions: list[tuple[int, int, int]]
     task_elements: dict[int, list[int]]
@@ -172,7 +174,9 @@ def group_resource_map_into_jobscripts(
             ds_act_idx += act_idx + 1
             ds_elem_idx = elem_idx[ds_elem_idx]
 
-            EARs_by_elem: dict[int, list[int]] = {k.item(): [act_idx] for k in act_elem_idx[0]}
+            EARs_by_elem: dict[int, list[int]] = {
+                k.item(): [act_idx] for k in act_elem_idx[0]
+            }
             for ds_a, ds_e in zip(ds_act_idx, ds_elem_idx):
                 EARs_by_elem.setdefault(ds_e.item(), []).append(ds_a.item())
 
@@ -205,7 +209,7 @@ def group_resource_map_into_jobscripts(
 @TimeIt.decorator
 def resolve_jobscript_dependencies(
     jobscripts: dict[int, JobScriptCreationArguments],
-    element_deps: dict[int, dict[int, list[int]]]
+    element_deps: dict[int, dict[int, list[int]]],
 ) -> dict[int, dict[int, ResolvedDependencies]]:
     # first pass is to find the mappings between jobscript elements:
     jobscript_deps: dict[int, dict[int, ResolvedDependencies]] = {}
@@ -226,7 +230,8 @@ def resolve_jobscript_dependencies(
                             jobscript_deps[js_idx][js_k_idx] = {"js_element_mapping": {}}
 
                         jobscript_deps[js_idx][js_k_idx]["js_element_mapping"].setdefault(
-                            js_elem_idx_i, [])
+                            js_elem_idx_i, []
+                        )
 
                         # retrieve column index, which is the JS-element index:
                         js_elem_idx_k: int = np.where(
@@ -253,9 +258,9 @@ def resolve_jobscript_dependencies(
             js_i_num_js_elements = jobscripts[js_i_idx]["EAR_ID"].shape[1]
             js_k_num_js_elements = jobscripts[js_k_idx]["EAR_ID"].shape[1]
 
-            is_all_i_elems = sorted(
-                set(deps_j["js_element_mapping"].keys())
-            ) == list(range(js_i_num_js_elements))
+            is_all_i_elems = sorted(set(deps_j["js_element_mapping"].keys())) == list(
+                range(js_i_num_js_elements)
+            )
 
             is_all_k_single = set(
                 len(i) for i in deps_j["js_element_mapping"].values()
@@ -315,10 +320,7 @@ def merge_jobscripts_across_tasks(
             js_j["task_insert_IDs"].append(js["task_insert_IDs"][0])
             js_j["task_loop_idx"].append(js["task_loop_idx"][0])
 
-            add_acts = [
-                (a, b, num_loop_idx)
-                for a, b, _ in js["task_actions"]
-            ]
+            add_acts = [(a, b, num_loop_idx) for a, b, _ in js["task_actions"]]
 
             js_j["task_actions"].extend(add_acts)
             for k, v in js["task_elements"].items():
@@ -389,7 +391,7 @@ class Jobscript(JSONLike):
         scheduler_name: str | None = None,
         running: bool | None = None,
         resource_hash: str | None = None,
-        elements: dict[int, list[int]] | None = None
+        elements: dict[int, list[int]] | None = None,
     ):
         if resource_hash is not None:
             raise AttributeError("resource_hash must not be supplied")
@@ -426,11 +428,19 @@ class Jobscript(JSONLike):
 
         self._submission: Submission | None = None  # assigned by parent Submission
         self._index: int | None = None  # assigned by parent Submission
-        self._scheduler_obj: Scheduler | None = None  # assigned on first access to `scheduler` property
-        self._shell_obj: Shell | None = None  # assigned on first access to `shell` property
-        self._submit_time_obj: datetime | None = None  # assigned on first access to `submit_time` property
+        self._scheduler_obj: Scheduler | None = (
+            None  # assigned on first access to `scheduler` property
+        )
+        self._shell_obj: Shell | None = (
+            None  # assigned on first access to `shell` property
+        )
+        self._submit_time_obj: datetime | None = (
+            None  # assigned on first access to `submit_time` property
+        )
         self._running = running
-        self._all_EARs: list[ElementActionRun] | None = None  # assigned on first access to `all_EARs` property
+        self._all_EARs: list[ElementActionRun] | None = (
+            None  # assigned on first access to `all_EARs` property
+        )
 
     def __repr__(self):
         return (
@@ -515,9 +525,7 @@ class Jobscript(JSONLike):
         """Get the first start time from all EARs."""
         if not self.is_submitted:
             return None
-        return min((
-            i.start_time for i in self.all_EARs if i.start_time
-        ), default=None)
+        return min((i.start_time for i in self.all_EARs if i.start_time), default=None)
 
     @property
     @TimeIt.decorator
@@ -525,15 +533,14 @@ class Jobscript(JSONLike):
         """Get the last end time from all EARs."""
         if not self.is_submitted:
             return None
-        return max((
-            i.end_time for i in self.all_EARs if i.end_time
-        ), default=None)
+        return max((i.end_time for i in self.all_EARs if i.end_time), default=None)
 
     @property
     def submit_time(self) -> datetime | None:
         if self._submit_time_obj is None and self._submit_time is not None:
             self._submit_time_obj = parse_timestamp(
-                self._submit_time, self.workflow.ts_fmt)
+                self._submit_time, self.workflow.ts_fmt
+            )
         return self._submit_time_obj
 
     @property
@@ -624,9 +631,13 @@ class Jobscript(JSONLike):
     def _get_submission_scheduler_args(self):
         return self.resources.scheduler_args
 
-    def _get_shell(self, os_name: str | None, shell_name: str | None,
-                   os_args: dict[str, Any] | None = None,
-                   shell_args: dict[str, Any] | None = None) -> Shell:
+    def _get_shell(
+        self,
+        os_name: str | None,
+        shell_name: str | None,
+        os_args: dict[str, Any] | None = None,
+        shell_args: dict[str, Any] | None = None,
+    ) -> Shell:
         """Get an arbitrary shell, not necessarily associated with submission."""
         os_args = os_args or {}
         shell_args = shell_args or {}
@@ -1015,7 +1026,9 @@ class Jobscript(JSONLike):
                 EAR_dir.mkdir(exist_ok=True, parents=True)
 
                 # copy (TODO: optionally symlink) any input files:
-                for name, path in cast('dict[Any, str]', EAR_i.get("input_files", {})).items():
+                for name, path in cast(
+                    "dict[Any, str]", EAR_i.get("input_files", {})
+                ).items():
                     if path:
                         shutil.copy(path, EAR_dir)
 
@@ -1064,7 +1077,7 @@ class Jobscript(JSONLike):
         init_proc = subprocess.Popen(
             args=args,
             cwd=str(self.workflow.path),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         init_proc.wait()  # wait for the process ID file to be written
         process_ID = int(self.direct_win_pid_file_path.read_text())
@@ -1216,10 +1229,7 @@ class Jobscript(JSONLike):
 
     @property
     def scheduler_ref(self) -> SchedulerRef:
-        return {
-            "js_refs": [self.scheduler_js_ref],
-            "num_js_elements": self.num_elements
-        }
+        return {"js_refs": [self.scheduler_js_ref], "num_js_elements": self.num_elements}
 
     @overload
     def get_active_states(
@@ -1227,9 +1237,7 @@ class Jobscript(JSONLike):
     ) -> dict[int, JobscriptElementState]: ...
 
     @overload
-    def get_active_states(
-        self, as_json: Literal[True]
-    ) -> dict[int, str]: ...
+    def get_active_states(self, as_json: Literal[True]) -> dict[int, str]: ...
 
     @TimeIt.decorator
     def get_active_states(
@@ -1286,6 +1294,4 @@ class Jobscript(JSONLike):
         self.app.submission_logger.info(
             f"Cancelling jobscript {self.index} of submission {self.submission.index}"
         )
-        self.scheduler.cancel_jobs(
-            **self.scheduler_ref, jobscripts=[self]
-        )
+        self.scheduler.cancel_jobs(**self.scheduler_ref, jobscripts=[self])

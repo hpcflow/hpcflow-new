@@ -7,6 +7,7 @@ import psutil
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 from hpcflow.sdk.submission.shells.base import Shell
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from typing import Any, ClassVar
@@ -19,7 +20,9 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     app: ClassVar[BaseApp]
 
     @classmethod
-    def process_resources(cls, resources, scheduler_config: SchedulerConfigDescriptor) -> None:
+    def process_resources(
+        cls, resources, scheduler_config: SchedulerConfigDescriptor
+    ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -57,7 +60,9 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
             p.kill()
 
     @staticmethod
-    def _get_jobscript_processes(js_refs: list[tuple[int, list[str]]]) -> list[psutil.Process]:
+    def _get_jobscript_processes(
+        js_refs: list[tuple[int, list[str]]]
+    ) -> list[psutil.Process]:
         procs: list[psutil.Process] = []
         for p_id, p_cmdline in js_refs:
             try:
@@ -72,23 +77,22 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
 
     @overload
     @classmethod
-    def wait_for_jobscripts(
-        cls,
-        js_refs: list[tuple[int, list[str]]]
-    ) -> None: ...
+    def wait_for_jobscripts(cls, js_refs: list[tuple[int, list[str]]]) -> None: ...
 
     @overload
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: list[tuple[int, list[str]]], *,
+        js_refs: list[tuple[int, list[str]]],
+        *,
         callback: Callable[[psutil.Process], None],
     ) -> list[psutil.Process]: ...
 
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: list[tuple[int, list[str]]], *,
+        js_refs: list[tuple[int, list[str]]],
+        *,
         callback: Callable[[psutil.Process], None] | None = None,
     ) -> list[psutil.Process] | None:
         """Wait until the specified jobscripts have completed."""
@@ -98,7 +102,8 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         return gone if callback else None
 
     def get_job_state_info(
-        self, *,
+        self,
+        *,
         js_refs: list[tuple[int, list[str]]] | None = None,
         num_js_elements: int = 0,
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
@@ -121,9 +126,10 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         self,
         js_refs: list[tuple[int, list[str]]],
         jobscripts: list[Jobscript] | None = None,
-        num_js_elements: int = 0  # Ignored!
+        num_js_elements: int = 0,  # Ignored!
     ):
         js_proc_id: dict[int, Jobscript]
+
         def callback(proc: psutil.Process):
             try:
                 js = js_proc_id[proc.pid]

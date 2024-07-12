@@ -468,7 +468,9 @@ def test_process_script_data_in_dict_unlabelled_to_labelled(null_config) -> None
     }
 
 
-def test_process_script_data_in_dict_unlabelled_to_labelled_with_mixed_label(null_config) -> None:
+def test_process_script_data_in_dict_unlabelled_to_labelled_with_mixed_label(
+    null_config,
+) -> None:
     act = hf.Action(
         script="<<script:path/to/some/script>>",
         script_data_in={"p1": "json", "p1[two]": "hdf5"},
@@ -504,7 +506,9 @@ def test_process_script_data_in_dict_labelled_mixed_catch_all(null_config) -> No
     }
 
 
-def test_process_script_data_in_dict_unlabelled_to_labelled_mixed_catch_all(null_config) -> None:
+def test_process_script_data_in_dict_unlabelled_to_labelled_mixed_catch_all(
+    null_config,
+) -> None:
     act = hf.Action(
         script="<<script:path/to/some/script>>",
         script_data_in={"p1": "json", "*": "hdf5"},
@@ -549,7 +553,9 @@ def test_process_script_data_in_dict_raise_invalid_parameter(null_config) -> Non
         )
 
 
-def test_process_script_data_in_dict_raise_invalid_parameter_unknown_label(null_config) -> None:
+def test_process_script_data_in_dict_raise_invalid_parameter_unknown_label(
+    null_config,
+) -> None:
     act = hf.Action(
         script="<<script:path/to/some/script>>",
         script_data_in={"p1[two]": "json"},

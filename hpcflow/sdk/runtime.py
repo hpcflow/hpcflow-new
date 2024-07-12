@@ -29,10 +29,13 @@ class RunTimeInfo:
         be equal to the virtual environment directory.
     """
 
-    def __init__(self, name: str, package_name: str, version: str, logger: logging.Logger) -> None:
+    def __init__(
+        self, name: str, package_name: str, version: str, logger: logging.Logger
+    ) -> None:
         is_frozen: bool = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
         bundle_dir = (
-            sys._MEIPASS if is_frozen and hasattr(sys, "_MEIPASS")
+            sys._MEIPASS
+            if is_frozen and hasattr(sys, "_MEIPASS")
             else os.path.dirname(os.path.abspath(__file__))
         )
 

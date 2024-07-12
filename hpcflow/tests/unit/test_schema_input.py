@@ -93,7 +93,9 @@ def test_element_inputs_removes_schema_param_trivial_label(null_config, tmp_path
     assert element.iterations[0].action_runs[0].inputs._get_prefixed_names() == ["p1"]
 
 
-def test_element_get_does_not_removes_multiple_schema_param_label(null_config, tmp_path: Path):
+def test_element_get_does_not_removes_multiple_schema_param_label(
+    null_config, tmp_path: Path
+):
     p1_val = 101
     label = "my_label"
     s1 = hf.TaskSchema(
@@ -144,7 +146,9 @@ def test_element_inputs_does_not_remove_multiple_schema_param_label(
     ]
 
 
-def test_get_input_values_for_multiple_schema_input_single_label(null_config, tmp_path: Path):
+def test_get_input_values_for_multiple_schema_input_single_label(
+    null_config, tmp_path: Path
+):
     p1_val = 101
     label = "my_label"
     s1 = hf.TaskSchema(
@@ -295,7 +299,9 @@ def test_get_input_values_for_multiple_schema_input(null_config, tmp_path: Path)
     assert run.get_input_values() == {"p2": 201, "p1": {label: 101}}
 
 
-def test_get_input_values_for_multiple_schema_input_with_object(null_config, tmp_path: Path):
+def test_get_input_values_for_multiple_schema_input_with_object(
+    null_config, tmp_path: Path
+):
     p1_val = P1(a=101)
     label = "my_label"
     s1 = hf.TaskSchema(

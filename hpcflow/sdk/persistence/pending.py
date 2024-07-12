@@ -9,7 +9,14 @@ from logging import Logger
 from typing import Any, Dict, List, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.persistence.types import AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
+from hpcflow.sdk.persistence.types import (
+    AnySTask,
+    AnySElement,
+    AnySElementIter,
+    AnySEAR,
+    AnySParameter,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from .base import PersistentStore
@@ -17,7 +24,9 @@ if TYPE_CHECKING:
     from ..typing import ParamSource
 
 
-class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
+class PendingChanges(
+    Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]
+):
     """Class to store pending changes and merge them into a persistent store.
 
     Parameters
@@ -45,9 +54,12 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
     """
 
     def __init__(
-        self, app: BaseApp,
-        store: PersistentStore[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter],
-        resource_map: CommitResourceMap
+        self,
+        app: BaseApp,
+        store: PersistentStore[
+            AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
+        ],
+        resource_map: CommitResourceMap,
     ):
         self.app = app
         self.store = store
@@ -118,11 +130,7 @@ class PendingChanges(Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, An
 
     def where_pending(self) -> list[str]:
         excluded = {"app", "store", "resource_map"}
-        return [
-            k
-            for k, v in self.__dict__.items()
-            if k not in excluded and bool(v)
-        ]
+        return [k for k, v in self.__dict__.items() if k not in excluded and bool(v)]
 
     @property
     def logger(self) -> Logger:
@@ -621,7 +629,7 @@ class CommitResourceMap:
             if not cur_res_group:
                 # start a new resource group: a mapping between resource labels and the
                 # commit methods that require those resources:
-                
+
                 cur_res_group = (dict.fromkeys(res_labels), [fld.name])
 
             elif not res_labels or set(res_labels).intersection(cur_res_group[0]):

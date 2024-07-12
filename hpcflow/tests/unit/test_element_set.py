@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 import pytest
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import MalformedNestingOrderPath
+
 if TYPE_CHECKING:
     from pathlib import Path
     from hpcflow.sdk.core.parameters import Parameter, ResourceSpecArgs
@@ -31,7 +32,9 @@ def param_p3() -> Parameter:
 
 
 @pytest.fixture
-def workflow_w1(null_config, tmp_path: Path, param_p1: Parameter, param_p2: Parameter) -> Workflow:
+def workflow_w1(
+    null_config, tmp_path: Path, param_p1: Parameter, param_p2: Parameter
+) -> Workflow:
     s1 = hf.TaskSchema("t1", actions=[], inputs=[param_p1], outputs=[param_p2])
     s2 = hf.TaskSchema("t2", actions=[], inputs=[param_p2])
 

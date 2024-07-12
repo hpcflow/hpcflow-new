@@ -4,6 +4,7 @@ import sys
 import time
 from typing import Any, ClassVar, Generic, TypeVar, override, TYPE_CHECKING
 from abc import ABC, abstractmethod
+
 if TYPE_CHECKING:
     from ..shells import Shell
     from ..jobscript import Jobscript
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
     from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Scheduler(ABC, Generic[T]):
@@ -39,8 +40,9 @@ class Scheduler(ABC, Generic[T]):
             return self.__dict__ == other.__dict__
 
     @abstractmethod
-    def process_resources(self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
-        ...
+    def process_resources(
+        self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
+    ) -> None: ...
 
     def get_version_info(self) -> dict[str, str | list[str]]:
         return {}
@@ -64,19 +66,18 @@ class Scheduler(ABC, Generic[T]):
 
     @abstractmethod
     def get_job_state_info(
-        self, *, js_refs: list[T] | None = None,
-        num_js_elements: int = 0
-    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
-        ...
+        self, *, js_refs: list[T] | None = None, num_js_elements: int = 0
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]: ...
 
     @abstractmethod
     def wait_for_jobscripts(self, js_refs: list[T]) -> None: ...
 
     @abstractmethod
     def cancel_jobs(
-        self, js_refs: list[T],
+        self,
+        js_refs: list[T],
         jobscripts: list[Jobscript] | None = None,
-        num_js_elements: int = 0  # Ignored!
+        num_js_elements: int = 0,  # Ignored!
     ) -> None: ...
 
 
@@ -134,5 +135,4 @@ class QueuedScheduler(Scheduler[str]):
             time.sleep(2)
 
     @abstractmethod
-    def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
-        ...
+    def format_options(self, resources, num_elements, is_array, sub_idx) -> str: ...

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
 
 import numpy as np
-from  numpy.ma.core import MaskedArray
+from numpy.ma.core import MaskedArray
 import zarr  # type: ignore
 import zarr.attrs  # type: ignore
 import zarr.convenience  # type: ignore
@@ -38,13 +38,14 @@ from hpcflow.sdk.persistence.base import (
     StoreParameter,
     StoreTask,
     StoreCreationInfo,
-    TemplateMeta
+    TemplateMeta,
 )
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from typing import ClassVar, Dict, Self
@@ -288,9 +289,15 @@ class ZarrStoreParameter(StoreParameter):
     }
 
 
-class ZarrPersistentStore(PersistentStore[
-    ZarrStoreTask, ZarrStoreElement, ZarrStoreElementIter, ZarrStoreEAR, ZarrStoreParameter
-]):
+class ZarrPersistentStore(
+    PersistentStore[
+        ZarrStoreTask,
+        ZarrStoreElement,
+        ZarrStoreElementIter,
+        ZarrStoreEAR,
+        ZarrStoreParameter,
+    ]
+):
     _name = "zarr"
     _features = PersistentStoreFeatures(
         create=True,
@@ -362,7 +369,10 @@ class ZarrPersistentStore(PersistentStore[
                 self.logger.debug(
                     "reinstating temporarily renamed pre-existing workflow."
                 )
-                self.rename_path(md["replaced_workflow"], self.path, )
+                self.rename_path(
+                    md["replaced_workflow"],
+                    self.path,
+                )
 
     @staticmethod
     def _get_zarr_store(path: str | Path, fs: AbstractFileSystem) -> zarr.storage.Store:
@@ -371,7 +381,8 @@ class ZarrPersistentStore(PersistentStore[
     @classmethod
     def write_empty_workflow(
         cls,
-        app: BaseApp, *,
+        app: BaseApp,
+        *,
         template_js: TemplateMeta,
         template_components_js: Dict,
         wk_path: str,
@@ -563,7 +574,9 @@ class ZarrPersistentStore(PersistentStore[
             arr_add[:] = [i.encode(attrs) for i in iters]
             arr.append(arr_add)
 
-    def _append_elem_iter_EAR_IDs(self, iter_ID: int, act_idx: int, EAR_IDs: Sequence[int]):
+    def _append_elem_iter_EAR_IDs(
+        self, iter_ID: int, act_idx: int, EAR_IDs: Sequence[int]
+    ):
         arr = self._get_iters_arr(mode="r+")
         attrs = self.__as_dict(arr.attrs)
         iter_dat = cast(list, arr[iter_ID])
@@ -623,7 +636,9 @@ class ZarrPersistentStore(PersistentStore[
                 # object array, so set one-by-one:
                 arr[EAR_ID_i] = new_EAR_i.encode(self.ts_fmt, attrs)
 
-    def _update_EAR_start(self, EAR_id: int, s_time: datetime, s_snap: dict[str, Any], s_hn: str):
+    def _update_EAR_start(
+        self, EAR_id: int, s_time: datetime, s_snap: dict[str, Any], s_hn: str
+    ):
         arr = self._get_EARs_arr(mode="r+")
         with self.__mutate_attrs(arr) as attrs:
             EAR_i = self._get_persistent_EARs([EAR_id])[EAR_id]
@@ -635,7 +650,12 @@ class ZarrPersistentStore(PersistentStore[
             arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
     def _update_EAR_end(
-        self, EAR_id: int, e_time: datetime, e_snap: dict[str, Any], ext_code: int, success: bool
+        self,
+        EAR_id: int,
+        e_time: datetime,
+        e_snap: dict[str, Any],
+        ext_code: int,
+        success: bool,
     ):
         arr = self._get_EARs_arr(mode="r+")
         with self.__mutate_attrs(arr) as attrs:
@@ -722,8 +742,7 @@ class ZarrPersistentStore(PersistentStore[
         src_arr = self._get_parameter_sources_array(mode="r+")
         existing_sources = src_arr.get_coordinate_selection(param_ids)
         new_sources = [
-            update_param_source_dict(
-                cast('ParamSource', existing_sources[idx]), source_i)
+            update_param_source_dict(cast("ParamSource", existing_sources[idx]), source_i)
             for idx, source_i in enumerate(sources.values())
         ]
         src_arr.set_coordinate_selection(param_ids, new_sources)
@@ -1060,10 +1079,7 @@ class ZarrPersistentStore(PersistentStore[
 
     @TimeIt.decorator
     def _get_persistent_parameters(
-        self,
-        id_lst: Iterable[int], *,
-        dataset_copy: bool = False,
-        **kwargs
+        self, id_lst: Iterable[int], *, dataset_copy: bool = False, **kwargs
     ) -> dict[int, ZarrStoreParameter]:
 
         params, id_lst = self._get_cached_persistent_parameters(id_lst)
@@ -1096,7 +1112,9 @@ class ZarrPersistentStore(PersistentStore[
         return params
 
     @TimeIt.decorator
-    def _get_persistent_param_sources(self, id_lst: Iterable[int]) -> dict[int, ParamSource]:
+    def _get_persistent_param_sources(
+        self, id_lst: Iterable[int]
+    ) -> dict[int, ParamSource]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
             src_arr = self._get_parameter_sources_array(mode="r")

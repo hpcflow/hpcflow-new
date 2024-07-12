@@ -8,6 +8,7 @@ PathLike: TypeAlias = Union[str, Path, None]
 Things we can convert into a proper path.
 """
 
+
 class ParamSource(TypedDict):
     type: NotRequired[str]
     EAR_ID: NotRequired[int]
@@ -32,7 +33,8 @@ The type of indices to data. These are *normally* dictionaries of integers,
 but can have leaves being lists of integers when dealing with iterations.
 """
 
-_T = TypeVar('_T')
+_T = TypeVar("_T")
+
 
 def hydrate(cls: type[_T]) -> type[_T]:
     """

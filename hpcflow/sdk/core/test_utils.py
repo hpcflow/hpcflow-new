@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, TypeAlias, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from .actions import Action
@@ -22,7 +23,8 @@ Strs: TypeAlias = str | tuple[str, ...]
 
 
 def make_schemas(
-    *ins_outs: tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]
+    *ins_outs: tuple[dict[str, Any], tuple[str, ...]]
+    | tuple[dict[str, Any], tuple[str, ...], str]
 ) -> list[TaskSchema]:
     out: list[TaskSchema] = []
     for idx, info in enumerate(ins_outs):
@@ -105,9 +107,14 @@ def make_actions(
 
 
 def make_tasks(
-    schemas_spec: Iterable[tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]],
+    schemas_spec: Iterable[
+        tuple[dict[str, Any], tuple[str, ...]]
+        | tuple[dict[str, Any], tuple[str, ...], str]
+    ],
     local_inputs: dict[int, Iterable[str]] | None = None,
-    local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
+    local_sequences: (
+        dict[int, Iterable[tuple[str, int, int | float | None]]] | None
+    ) = None,
     local_resources: dict[int, dict[str, dict]] | None = None,
     nesting_orders: dict[int, dict[str, float]] | None = None,
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
@@ -149,10 +156,15 @@ def make_tasks(
 
 
 def make_workflow(
-    schemas_spec: Iterable[tuple[dict[str, Any], tuple[str, ...]] | tuple[dict[str, Any], tuple[str, ...], str]],
+    schemas_spec: Iterable[
+        tuple[dict[str, Any], tuple[str, ...]]
+        | tuple[dict[str, Any], tuple[str, ...], str]
+    ],
     path: PathLike,
     local_inputs: dict[int, Iterable[str]] | None = None,
-    local_sequences: dict[int, Iterable[tuple[str, int, int | float | None]]] | None = None,
+    local_sequences: (
+        dict[int, Iterable[tuple[str, int, int | float | None]]] | None
+    ) = None,
     local_resources: dict[int, dict[str, dict]] | None = None,
     nesting_orders: dict[int, dict[str, float]] | None = None,
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
@@ -176,7 +188,7 @@ def make_workflow(
         "name": name,
         "tasks": tasks,
         "resources": resources,
-        **({"loops": loops} if loops else {})
+        **({"loops": loops} if loops else {}),
     }
     wk = hf.Workflow.from_template(
         hf.WorkflowTemplate(**template),
@@ -188,7 +200,9 @@ def make_workflow(
     return wk
 
 
-def make_test_data_YAML_workflow(workflow_name: str, path: PathLike, **kwargs) -> Workflow:
+def make_test_data_YAML_workflow(
+    workflow_name: str, path: PathLike, **kwargs
+) -> Workflow:
     """Generate a workflow whose template file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -201,7 +215,9 @@ def make_test_data_YAML_workflow(workflow_name: str, path: PathLike, **kwargs) -
         return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
 
 
-def make_test_data_YAML_workflow_template(workflow_name: str, **kwargs) -> WorkflowTemplate:
+def make_test_data_YAML_workflow_template(
+    workflow_name: str, **kwargs
+) -> WorkflowTemplate:
     """Generate a workflow template whose file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -286,9 +302,7 @@ class P1_parameter_cls(ParameterValue):
     def sum(*objs, **kwargs) -> str:
         return str(sum(i.a for i in objs))
 
-    def custom_CLI_format(
-        self, add: str | None = None, sub: str | None = None
-    ) -> str:
+    def custom_CLI_format(self, add: str | None = None, sub: str | None = None) -> str:
         add_i = 4 if add is None else int(add)
         sub_i = 0 if sub is None else int(sub)
         return str(self.a + add_i - sub_i)

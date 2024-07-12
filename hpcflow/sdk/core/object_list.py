@@ -1,10 +1,11 @@
 from __future__ import annotations
-from  collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 import copy
 from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
     from typing import Any, ClassVar, Self, Literal, TypeAlias
@@ -88,7 +89,11 @@ class ObjectList(JSONLike, Generic[T]):
     def __getitem__(self, key) -> T | list[T]:
         """Provide list-like index access."""
         result = self._objects.__getitem__(key)
-        return list(map(self._get_item, result)) if isinstance(key, slice) else self._get_item(result)
+        return (
+            list(map(self._get_item, result))
+            if isinstance(key, slice)
+            else self._get_item(result)
+        )
 
     def __contains__(self, item: T) -> bool:
         if self._objects:
@@ -170,19 +175,16 @@ class ObjectList(JSONLike, Generic[T]):
 
     @overload
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: Literal[False] = False
+        self, obj: T, index: int = -1, *, skip_duplicates: Literal[False] = False
     ) -> int: ...
 
     @overload
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: Literal[True]
+        self, obj: T, index: int = -1, *, skip_duplicates: Literal[True]
     ) -> int | None: ...
 
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: bool = False
+        self, obj: T, index: int = -1, *, skip_duplicates: bool = False
     ) -> None | int:
         if skip_duplicates and obj in self:
             return None
@@ -203,9 +205,16 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     attribute uniquely identifies a single object."""
 
     # access attributes must not be named after any "public" methods, to avoid confusion!
-    _pub_methods: ClassVar[tuple[str, ...]] = ("get", "get_all", "add_object", "add_objects")
+    _pub_methods: ClassVar[tuple[str, ...]] = (
+        "get",
+        "get_all",
+        "add_object",
+        "add_objects",
+    )
 
-    def __init__(self, _objects: Iterable[T], access_attribute: str, descriptor: str | None = None):
+    def __init__(
+        self, _objects: Iterable[T], access_attribute: str, descriptor: str | None = None
+    ):
         self._access_attribute = access_attribute
         super().__init__(_objects, descriptor=descriptor)
         self._update_index()
@@ -305,19 +314,16 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
 
     @overload
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: Literal[False] = False
+        self, obj: T, index: int = -1, *, skip_duplicates: Literal[False] = False
     ) -> int: ...
 
     @overload
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: Literal[True]
+        self, obj: T, index: int = -1, *, skip_duplicates: Literal[True]
     ) -> int | None: ...
 
     def add_object(
-        self, obj: T, index: int = -1, *,
-        skip_duplicates: bool = False
+        self, obj: T, index: int = -1, *, skip_duplicates: bool = False
     ) -> int | None:
         if skip_duplicates:
             new_index = super().add_object(obj, index, skip_duplicates=True)
@@ -326,8 +332,9 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         self._update_index()
         return new_index
 
-    def add_objects(self, objs: Iterable[T], index: int = -1, *,
-                    skip_duplicates: bool = False):
+    def add_objects(
+        self, objs: Iterable[T], index: int = -1, *, skip_duplicates: bool = False
+    ):
         if skip_duplicates:
             for obj in objs:
                 index_ = self.add_object(obj, index, skip_duplicates=True)
@@ -352,26 +359,38 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
 
     @overload
     @classmethod
-    def from_json_like(cls, json_like: str,
-                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-                       is_hashed: bool = False) -> Self | None: ...
+    def from_json_like(
+        cls,
+        json_like: str,
+        shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+        is_hashed: bool = False,
+    ) -> Self | None: ...
 
     @overload
     @classmethod
-    def from_json_like(cls, json_like: Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]],
-                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-                       is_hashed: bool = False) -> Self: ...
+    def from_json_like(
+        cls,
+        json_like: Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]],
+        shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+        is_hashed: bool = False,
+    ) -> Self: ...
 
     @overload
     @classmethod
-    def from_json_like(cls, json_like: None,
-                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-                       is_hashed: bool = False) -> None: ...
+    def from_json_like(
+        cls,
+        json_like: None,
+        shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+        is_hashed: bool = False,
+    ) -> None: ...
 
     @classmethod
-    def from_json_like(cls, json_like: str | Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]] | None,
-                       shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-                       is_hashed: bool = False) -> Self | None:
+    def from_json_like(
+        cls,
+        json_like: str | Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]] | None,
+        shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
+        is_hashed: bool = False,
+    ) -> Self | None:
         """
         Parameters
         ----------
@@ -381,19 +400,22 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         """
         if is_hashed:
             assert isinstance(json_like, Mapping)
-            return super().from_json_like([
-                {**cast(Mapping, obj_js), "_hash_value": hash_val}
-                for hash_val, obj_js in json_like.items()
-            ], shared_data=shared_data)
+            return super().from_json_like(
+                [
+                    {**cast(Mapping, obj_js), "_hash_value": hash_val}
+                    for hash_val, obj_js in json_like.items()
+                ],
+                shared_data=shared_data,
+            )
         else:
-            return super().from_json_like(json_like, shared_data=shared_data)    
+            return super().from_json_like(json_like, shared_data=shared_data)
 
     def _remove_object(self, index: int):
         self._objects.pop(index)
         self._update_index()
 
 
-class TaskList(AppDataList['Task']):
+class TaskList(AppDataList["Task"]):
     """A list-like container for a task-like list with dot-notation access by task
     unique-name."""
 
@@ -410,7 +432,7 @@ class TaskList(AppDataList['Task']):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
 
-class TaskTemplateList(AppDataList['TaskTemplate']):
+class TaskTemplateList(AppDataList["TaskTemplate"]):
     """A list-like container for a task-like list with dot-notation access by task
     unique-name."""
 
@@ -427,7 +449,7 @@ class TaskTemplateList(AppDataList['TaskTemplate']):
         super().__init__(_objects, access_attribute="name", descriptor="task template")
 
 
-class TaskSchemasList(AppDataList['TaskSchema']):
+class TaskSchemasList(AppDataList["TaskSchema"]):
     """A list-like container for a task schema list with dot-notation access by task
     schema unique-name."""
 
@@ -444,7 +466,7 @@ class TaskSchemasList(AppDataList['TaskSchema']):
         super().__init__(_objects, access_attribute="name", descriptor="task schema")
 
 
-class GroupList(AppDataList['Group']):
+class GroupList(AppDataList["Group"]):
     """A list-like container for the task schema group list with dot-notation access by
     group name."""
 
@@ -461,7 +483,7 @@ class GroupList(AppDataList['Group']):
         super().__init__(_objects, access_attribute="name", descriptor="group")
 
 
-class EnvironmentsList(AppDataList['Environment']):
+class EnvironmentsList(AppDataList["Environment"]):
     """A list-like container for environments with dot-notation access by name."""
 
     _child_objects = (
@@ -484,7 +506,7 @@ class EnvironmentsList(AppDataList['Environment']):
             return getattr(obj, "specifiers")[attr]
 
 
-class ExecutablesList(AppDataList['Executable']):
+class ExecutablesList(AppDataList["Executable"]):
     """A list-like container for environment executables with dot-notation access by
     executable label."""
 
@@ -509,7 +531,7 @@ class ExecutablesList(AppDataList['Executable']):
         return obj
 
 
-class ParametersList(AppDataList['Parameter']):
+class ParametersList(AppDataList["Parameter"]):
     """A list-like container for parameters with dot-notation access by parameter type."""
 
     _child_objects = (
@@ -546,7 +568,7 @@ class ParametersList(AppDataList['Parameter']):
             return all_out or [self._app.Parameter(typ=typ)]
 
 
-class CommandFilesList(AppDataList['FileSpec']):
+class CommandFilesList(AppDataList["FileSpec"]):
     """A list-like container for command files with dot-notation access by label."""
 
     _child_objects = (
@@ -562,7 +584,7 @@ class CommandFilesList(AppDataList['FileSpec']):
         super().__init__(_objects, access_attribute="label", descriptor="command file")
 
 
-class WorkflowTaskList(DotAccessObjectList['WorkflowTask']):
+class WorkflowTaskList(DotAccessObjectList["WorkflowTask"]):
     def __init__(self, _objects: Iterable[WorkflowTask]):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
@@ -572,7 +594,9 @@ class WorkflowTaskList(DotAccessObjectList['WorkflowTask']):
             i._index = idx
         self._update_index()
 
-    def add_object(self, obj: WorkflowTask, index: int = -1, skip_duplicates = False) -> int:
+    def add_object(
+        self, obj: WorkflowTask, index: int = -1, skip_duplicates=False
+    ) -> int:
         index = super().add_object(obj, index)
         self._reindex()
         return index
@@ -582,7 +606,7 @@ class WorkflowTaskList(DotAccessObjectList['WorkflowTask']):
         self._reindex()
 
 
-class WorkflowLoopList(DotAccessObjectList['WorkflowLoop']):
+class WorkflowLoopList(DotAccessObjectList["WorkflowLoop"]):
     def __init__(self, _objects: Iterable[WorkflowLoop]):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
@@ -592,11 +616,12 @@ class WorkflowLoopList(DotAccessObjectList['WorkflowLoop']):
 
 # The type of things we can normalise to a ResourceList
 Resources: TypeAlias = (
-    'ResourceSpec | ResourceList | None | ResourceSpecArgs | dict |'
-    'Sequence[ResourceSpec | ResourceSpecArgs | dict]')
+    "ResourceSpec | ResourceList | None | ResourceSpecArgs | dict |"
+    "Sequence[ResourceSpec | ResourceSpecArgs | dict]"
+)
 
 
-class ResourceList(ObjectList['ResourceSpec']):
+class ResourceList(ObjectList["ResourceSpec"]):
     _app: ClassVar[BaseApp]
     _app_attr = "_app"
     _child_objects = (
@@ -613,7 +638,9 @@ class ResourceList(ObjectList['ResourceSpec']):
     def __init__(self, _objects: Iterable[ResourceSpec]):
         super().__init__(_objects, descriptor="resource specification")
         self._element_set: ElementSet | None = None  # assigned by parent ElementSet
-        self._workflow_template: WorkflowTemplate | None = None  # assigned by parent WorkflowTemplate
+        self._workflow_template: WorkflowTemplate | None = (
+            None  # assigned by parent WorkflowTemplate
+        )
 
         # check distinct scopes for each item:
         scopes = [i.to_string() for i in self.get_scopes()]
@@ -658,26 +685,30 @@ class ResourceList(ObjectList['ResourceSpec']):
             return cls([cls._app.ResourceSpec()])
         elif isinstance(resources, ResourceList):
             # Already a ResourceList
-            return cast('Self', resources)
+            return cast("Self", resources)
         elif isinstance(resources, dict):
             return cls.from_json_like(cast(dict, resources))
         elif isinstance(resources, cls._app.ResourceSpec):
             return cls([resources])
         elif isinstance(resources, Sequence):
+
             def _ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
                 # for any resources that are persistent, if they have a
                 # `_resource_list` attribute, this means they are sourced from some
                 # other persistent workflow, rather than, say, a workflow being
                 # loaded right now, so make a non-persistent copy:
                 if resource_spec._value_group_idx is not None and (
-                        resource_spec._resource_list is not None):
+                    resource_spec._resource_list is not None
+                ):
                     return resource_spec.copy_non_persistent()
                 return resource_spec
 
             res_list: list[ResourceSpec] = []
             for res_i in resources:
                 if isinstance(res_i, dict):
-                    res_list.append(cls._app.ResourceSpec.from_json_like(cast(dict, res_i)))
+                    res_list.append(
+                        cls._app.ResourceSpec.from_json_like(cast(dict, res_i))
+                    )
                 else:
                     res_list.append(_ensure_non_persistent(res_i))
             return cls(res_list)

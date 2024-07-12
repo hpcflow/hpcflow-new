@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING
 
 from hpcflow.sdk.core.utils import get_md5_hash
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     import zarr  # type: ignore
@@ -97,7 +98,14 @@ class StoreResource(ABC):
 class JSONFileStoreResource(StoreResource):
     """For caching reads and writes to a JSON file."""
 
-    def __init__(self, app: BaseApp, name: str, filename: str, path: str | Path, fs: AbstractFileSystem):
+    def __init__(
+        self,
+        app: BaseApp,
+        name: str,
+        filename: str,
+        path: str | Path,
+        fs: AbstractFileSystem,
+    ):
         self.filename = filename
         self.path = path
         self.fs = fs

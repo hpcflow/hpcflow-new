@@ -498,13 +498,7 @@ def test_substitute_string_vars_repeated_var():
 
 
 def test_substitute_string_vars_empty_vars():
-    assert (
-        substitute_string_vars(
-            "hello bob!",
-            variables={}
-        )
-        == "hello bob!"
-    )
+    assert substitute_string_vars("hello bob!", variables={}) == "hello bob!"
 
 
 def test_substitute_string_vars_raise_no_vars():
@@ -522,7 +516,10 @@ def test_substitute_string_vars_non_str():
 
 
 def test_substitute_string_vars_default_value():
-    assert substitute_string_vars("hello <<var:my_name[default=bill]>>!", variables={}) == "hello bill!"
+    assert (
+        substitute_string_vars("hello <<var:my_name[default=bill]>>!", variables={})
+        == "hello bill!"
+    )
 
 
 def test_substitute_string_vars_default_value_with_specified():

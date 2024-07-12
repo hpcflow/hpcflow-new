@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from hpcflow.sdk.core.utils import nth_key
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.cache import DependencyCache
+
 if TYPE_CHECKING:
     from typing import Self, TypedDict
     from ..typing import DataIndex
@@ -90,8 +91,12 @@ class LoopCache:
 
     @TimeIt.decorator
     def add_iteration(
-        self, iter_ID: int, task_insert_ID: int, element_ID: int, loop_idx: dict[str, int],
-        data_idx: DataIndex
+        self,
+        iter_ID: int,
+        task_insert_ID: int,
+        element_ID: int,
+        loop_idx: dict[str, int],
+        data_idx: DataIndex,
     ):
         """Update the cache to include a newly added iteration."""
         self.task_iterations[task_insert_ID].append(iter_ID)
@@ -108,7 +113,9 @@ class LoopCache:
 
         loops = list(workflow.template.loops or []) + (loops or [])
         task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
-        tasks: list[WorkflowTask] = [workflow.tasks.get(insert_ID=i) for i in sorted(task_iIDs)]
+        tasks: list[WorkflowTask] = [
+            workflow.tasks.get(insert_ID=i) for i in sorted(task_iIDs)
+        ]
         elem_deps: dict[int, dict[int, DependentDescriptor]] = {}
 
         # keys: element IDs, values: dict with keys: tuple(loop_idx), values: data index

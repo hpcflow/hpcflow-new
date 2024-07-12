@@ -30,16 +30,17 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
     from typing import Any, TypeAlias
     from numpy.typing import NDArray
 
-T = TypeVar('T')
-T2 = TypeVar('T2')
-T3 = TypeVar('T3')
-TList: TypeAlias = 'T | list[TList]'
-TD = TypeVar('TD', bound='Mapping[str, Any]')
+T = TypeVar("T")
+T2 = TypeVar("T2")
+T3 = TypeVar("T3")
+TList: TypeAlias = "T | list[TList]"
+TD = TypeVar("TD", bound="Mapping[str, Any]")
 E = TypeVar("E", bound=enum.Enum)
 
 
@@ -111,10 +112,14 @@ def check_valid_py_identifier(name: str) -> str:
 
 
 @overload
-def group_by_dict_key_values(lst: list[dict[T, T2]], key: T) -> list[list[dict[T, T2]]]: ...
+def group_by_dict_key_values(
+    lst: list[dict[T, T2]], key: T
+) -> list[list[dict[T, T2]]]: ...
+
 
 @overload
 def group_by_dict_key_values(lst: list[TD], key: str) -> list[list[TD]]: ...
+
 
 def group_by_dict_key_values(lst: list, key):
     """Group a list of dicts according to specified equivalent key-values.
@@ -230,7 +235,9 @@ def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=Fal
     return cur_data
 
 
-def set_in_container(cont, path: Sequence, value, ensure_path=False, cast_indices=False) -> None:
+def set_in_container(
+    cont, path: Sequence, value, ensure_path=False, cast_indices=False
+) -> None:
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
@@ -299,14 +306,14 @@ def get_relative_path(path1: Sequence[T], path2: Sequence[T]) -> Sequence[T]:
     return path1[len_path2:]
 
 
-def search_dir_files_by_regex(pattern: str | re.Pattern[str], directory: str = ".") -> list[str]:
+def search_dir_files_by_regex(
+    pattern: str | re.Pattern[str], directory: str = "."
+) -> list[str]:
     """Search recursively for files in a directory by a regex pattern and return matching
     file paths, relative to the given directory."""
     dir_ = Path(directory)
     return [
-        str(i.relative_to(dir_))
-        for i in dir_.rglob("*")
-        if re.search(pattern, i.name)
+        str(i.relative_to(dir_)) for i in dir_.rglob("*") if re.search(pattern, i.name)
     ]
 
 
@@ -357,7 +364,9 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
 
 
 @TimeIt.decorator
-def read_YAML_str(yaml_str: str, typ="safe", variables: dict[str, str] | None = None) -> Any:
+def read_YAML_str(
+    yaml_str: str, typ="safe", variables: dict[str, str] | None = None
+) -> Any:
     """Load a YAML string."""
     if variables is not None and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
@@ -366,7 +375,9 @@ def read_YAML_str(yaml_str: str, typ="safe", variables: dict[str, str] | None = 
 
 
 @TimeIt.decorator
-def read_YAML_file(path: PathLike, typ="safe", variables: dict[str, str] | None = None) -> Any:
+def read_YAML_file(
+    path: PathLike, typ="safe", variables: dict[str, str] | None = None
+) -> Any:
     with fsspec.open(path, "rt") as f:
         yaml_str: str = f.read()
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
@@ -395,8 +406,11 @@ def write_JSON_file(obj, path: str | Path) -> None:
         json.dump(obj, fp)
 
 
-def get_item_repeat_index(lst: Sequence[T], distinguish_singular: bool = False,
-                          item_callable: Callable[[T], Any] | None = None):
+def get_item_repeat_index(
+    lst: Sequence[T],
+    distinguish_singular: bool = False,
+    item_callable: Callable[[T], Any] | None = None,
+):
     """Get the repeat index for each item in a list.
 
     Parameters
@@ -448,8 +462,9 @@ def get_md5_hash(obj) -> str:
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
 
-def get_nested_indices(idx: int, size: int, nest_levels: int,
-                       raise_on_rollover: bool = False) -> list[int]:
+def get_nested_indices(
+    idx: int, size: int, nest_levels: int, raise_on_rollover: bool = False
+) -> list[int]:
     """Generate the set of nested indices of length `n` that correspond to a global
     `idx`.
 
@@ -506,8 +521,9 @@ def ensure_in(item: T, lst: list[T]) -> int:
         return len(lst) - 1
 
 
-def list_to_dict(lst: list[dict[T, T2]],
-                 exclude: Iterable[T] | None = None) -> dict[T, list[T2]]:
+def list_to_dict(
+    lst: list[dict[T, T2]], exclude: Iterable[T] | None = None
+) -> dict[T, list[T2]]:
     # TODO: test
     exc = frozenset(exclude or ())
     dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exc}
@@ -557,7 +573,9 @@ def replace_items(lst: list[T], start: int, end: int, repl: list[T]) -> list[T]:
     return lst
 
 
-def flatten(lst: list[int] | list[list[int]] | list[list[list[int]]]) -> tuple[list[int], tuple[list[int], ...]]:
+def flatten(
+    lst: list[int] | list[list[int]] | list[list[list[int]]],
+) -> tuple[list[int], tuple[list[int], ...]]:
     """Flatten an arbitrarily (but of uniform depth) nested list and return shape
     information to enable un-flattening.
 
@@ -572,7 +590,9 @@ def flatten(lst: list[int] | list[list[int]] | list[list[list[int]]]) -> tuple[l
 
     """
 
-    def _flatten(lst: list[int] | list[list[int]] | list[list[list[int]]], depth=0) -> list[int]:
+    def _flatten(
+        lst: list[int] | list[list[int]] | list[list[list[int]]], depth=0
+    ) -> list[int]:
         out: list[int] = []
         for i in lst:
             if isinstance(i, list):
@@ -604,13 +624,14 @@ def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
     """
     Apply the reverse of `flatten`.
     """
+
     def _reshape(lst: list[T2], lens: Sequence[int]) -> list[list[T2]]:
         lens_acc = [0, *accumulate(lens)]
         return [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
 
     result: list[TList[T]] = list(lst)
     for lens_i in lens[::-1]:
-        result = cast('list[TList[T]]', _reshape(result, lens_i))
+        result = cast("list[TList[T]]", _reshape(result, lens_i))
 
     return result
 
@@ -620,11 +641,15 @@ def remap(a: list[int], b: Callable[[Sequence[int]], Sequence[T]]) -> list[T]: .
 
 
 @overload
-def remap(a: list[list[int]], b: Callable[[Sequence[int]], Sequence[T]]) -> list[list[T]]: ...
+def remap(
+    a: list[list[int]], b: Callable[[Sequence[int]], Sequence[T]]
+) -> list[list[T]]: ...
 
 
 @overload
-def remap(a: list[list[list[int]]], b: Callable[[Sequence[int]], Sequence[T]]) -> list[list[list[T]]]: ...
+def remap(
+    a: list[list[list[int]]], b: Callable[[Sequence[int]], Sequence[T]]
+) -> list[list[list[T]]]: ...
 
 
 def remap(a, b):
@@ -695,10 +720,14 @@ def open_file(filename: str):
 @overload
 def get_enum_by_name_or_val(enum_cls: type[E], key: None) -> None: ...
 
+
 @overload
 def get_enum_by_name_or_val(enum_cls: type[E], key: str | int | float | E) -> E: ...
 
-def get_enum_by_name_or_val(enum_cls: type[E], key: str | int | float | E | None) -> E | None:
+
+def get_enum_by_name_or_val(
+    enum_cls: type[E], key: str | int | float | E | None
+) -> E | None:
     """Retrieve an enum by name or value, assuming uppercase names and integer values."""
     err = f"Unknown enum key or value {key!r} for class {enum_cls!r}"
     if key is None or isinstance(key, enum_cls):
@@ -728,14 +757,12 @@ def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:
     callable."""
 
     if isinstance(data, dict):
-        return cast(T, {
-            k: process_string_nodes(v, str_processor)
-            for k, v in data.items()})
+        return cast(
+            T, {k: process_string_nodes(v, str_processor) for k, v in data.items()}
+        )
 
     elif isinstance(data, (list, tuple, set, frozenset)):
-        _data = (
-            process_string_nodes(i, str_processor)
-            for i in data)
+        _data = (process_string_nodes(i, str_processor) for i in data)
         if isinstance(data, tuple):
             return cast(T, tuple(_data))
         elif isinstance(data, set):
@@ -812,8 +839,9 @@ def linspace_rect(
     return np.hstack(stacked)
 
 
-def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
-                             callable: Callable[[list[T2]], list[T3]]) -> Mapping[T, T3 | list[T3]]:
+def dict_values_process_flat(
+    d: Mapping[T, T2 | list[T2]], callable: Callable[[list[T2]], list[T3]]
+) -> Mapping[T, T3 | list[T3]]:
     """
     Return a copy of a dict, where the values are processed by a callable that is to
     be called only once, and where the values may be single items or lists of items.
@@ -826,10 +854,12 @@ def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
 
     """
     flat: list[T2] = []  # values of `d`, flattened
-    is_multi: list[tuple[bool, int]] = []  # whether a list, and the number of items to process
+    is_multi: list[tuple[bool, int]] = (
+        []
+    )  # whether a list, and the number of items to process
     for i in d.values():
         if isinstance(i, list):
-            flat.extend(cast('list[T2]', i))
+            flat.extend(cast("list[T2]", i))
             is_multi.append((True, len(i)))
         else:
             flat.append(cast(T2, i))
@@ -860,12 +890,18 @@ def nth_key(dct: Iterable[T], n: int) -> T:
 def nth_value(dct: dict[Any, T], n: int) -> T:
     return dct[nth_key(dct, n)]
 
+
 def parse_timestamp(timestamp: str | datetime, ts_fmt: str) -> datetime:
     """
     Standard timestamp parsing.
     Ensures that timestamps are internally all UTC.
     """
     return (
-        timestamp if isinstance(timestamp, datetime)
-        else datetime.strptime(timestamp, ts_fmt)
-    ).replace(tzinfo=timezone.utc).astimezone()
+        (
+            timestamp
+            if isinstance(timestamp, datetime)
+            else datetime.strptime(timestamp, ts_fmt)
+        )
+        .replace(tzinfo=timezone.utc)
+        .astimezone()
+    )

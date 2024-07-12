@@ -14,6 +14,7 @@ from hpcflow.sdk.core.test_utils import (
     P1_sub_parameter_cls as P1_sub,
     make_schemas,
 )
+
 if TYPE_CHECKING:
     from pathlib import Path
     from hpcflow.sdk.core.parameters import Parameter
@@ -212,7 +213,11 @@ def null_config(tmp_path: Path):
 
 @pytest.mark.skip(reason="Need to add e.g. parameters of the workflow to the app data.")
 def test_specified_sourceable_elements_subset(
-    null_config, param_p1: Parameter, param_p2: Parameter, param_p3: Parameter, tmp_path: Path
+    null_config,
+    param_p1: Parameter,
+    param_p2: Parameter,
+    param_p3: Parameter,
+    tmp_path: Path,
 ):
     input_p1 = hf.SchemaInput(param_p1, default_value=1001)
     input_p2 = hf.SchemaInput(param_p2, default_value=np.array([2002, 2003]))
@@ -242,9 +247,14 @@ def test_specified_sourceable_elements_subset(
         and wk.tasks[1].elements[0].input_sources["inputs.p3"] == "element.0.OUTPUT"
     )
 
+
 @pytest.mark.skip(reason="Need to add e.g. parameters of the workflow to the app data.")
 def test_specified_sourceable_elements_all_available(
-    null_config, param_p1: Parameter, param_p2: Parameter, param_p3: Parameter, tmp_path: Path
+    null_config,
+    param_p1: Parameter,
+    param_p2: Parameter,
+    param_p3: Parameter,
+    tmp_path: Path,
 ):
     input_p1 = hf.SchemaInput(param_p1, default_value=1001)
     input_p2 = hf.SchemaInput(param_p2, default_value=np.array([2002, 2003]))
@@ -278,7 +288,11 @@ def test_specified_sourceable_elements_all_available(
 
 @pytest.mark.skip(reason="Need to add e.g. parameters of the workflow to the app data.")
 def test_no_sourceable_elements_so_raise_missing(
-    null_config, param_p1: Parameter, param_p2: Parameter, param_p3: Parameter, tmp_path: Path
+    null_config,
+    param_p1: Parameter,
+    param_p2: Parameter,
+    param_p3: Parameter,
+    tmp_path: Path,
 ):
     input_p1 = hf.SchemaInput(param_p1, default_value=1001)
     input_p2 = hf.SchemaInput(param_p2, default_value=np.array([2002, 2003]))
@@ -302,7 +316,11 @@ def test_no_sourceable_elements_so_raise_missing(
 
 @pytest.mark.skip(reason="Need to add e.g. parameters of the workflow to the app data.")
 def test_no_sourceable_elements_so_default_used(
-    null_config, param_p1: Parameter, param_p2: Parameter, param_p3: Parameter, tmp_path: Path
+    null_config,
+    param_p1: Parameter,
+    param_p2: Parameter,
+    param_p3: Parameter,
+    tmp_path: Path,
 ):
     input_p1 = hf.SchemaInput(param_p1, default_value=1001)
     input_p2 = hf.SchemaInput(param_p2, default_value=np.array([2002, 2003]))
@@ -831,7 +849,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_True_multipl
     null_config, tmp_path: Path
 ):
     """Test no-reordering of specified element iterations of sources from the same task."""
-    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
+    (s1,) = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
 
     t1 = hf.Task(
         schema=s1,
@@ -874,7 +892,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_False_multip
     null_config, tmp_path: Path
 ):
     """Test reordering of specified element iterations of sources from the same task."""
-    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
+    (s1,) = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
 
     t1 = hf.Task(
         schema=s1,
@@ -915,7 +933,7 @@ def test_element_iters_order_with_allow_non_coincident_task_sources_False_multip
 
 def test_not_allow_non_coincident_task_sources(null_config, tmp_path: Path):
     """Test only one coincident element from the two input sources"""
-    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
+    (s1,) = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         inputs={"p1": 1},
@@ -948,7 +966,7 @@ def test_not_allow_non_coincident_task_sources(null_config, tmp_path: Path):
 
 def test_allow_non_coincident_task_sources(null_config, tmp_path: Path):
     """Test can combine inputs from non-coincident element iterations of the same task."""
-    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
+    (s1,) = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         sequences=[
@@ -1011,7 +1029,7 @@ def test_input_source_task_input_from_multiple_element_sets_with_param_sequence(
 
 
 def test_raise_no_coincident_input_sources(null_config, tmp_path: Path):
-    s1, = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
+    (s1,) = make_schemas(({"p1": None, "p2": None}, ("p3",), "t1"))
     t1 = hf.Task(
         schema=s1,
         inputs={"p1": 100},

@@ -55,13 +55,15 @@ from .errors import (
     ConfigUnknownOverrideError,
     ConfigValidationError,
 )
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
     from typing import Any, Literal, NotRequired, TypeAlias, TypeVar
     from ..app import BaseApp
-    T = TypeVar('T')
-    GetterCallback: TypeAlias = Callable[['Config', T], T]
-    SetterCallback: TypeAlias = Callable[['Config', T], Any]
+
+    T = TypeVar("T")
+    GetterCallback: TypeAlias = Callable[["Config", T], T]
+    SetterCallback: TypeAlias = Callable[["Config", T], Any]
 
 
 class SGEParallelEnvsDescriptor(TypedDict):
@@ -156,7 +158,9 @@ class ConfigOptions:
 
         return (cfg_schemas, cfg_keys)
 
-    def validate(self, data: T, logger: logging.Logger, metadata=None, raise_with_metadata=True) -> T:
+    def validate(
+        self, data: T, logger: logging.Logger, metadata=None, raise_with_metadata=True
+    ) -> T:
         """Validate configuration items of the loaded invocation."""
 
         logger.debug("Validating configuration...")
@@ -424,9 +428,9 @@ class Config:
         else:
             super().__setattr__(name, value)
 
-    def _disable_callbacks(self, callbacks: Sequence[str]) -> tuple[
-            dict[str, Sequence[GetterCallback]],
-            dict[str, Sequence[SetterCallback]]]:
+    def _disable_callbacks(
+        self, callbacks: Sequence[str]
+    ) -> tuple[dict[str, Sequence[GetterCallback]], dict[str, Sequence[SetterCallback]]]:
         """Disable named get and set callbacks.
 
         Returns
@@ -481,7 +485,9 @@ class Config:
             real_path = cfg_dir.joinpath(real_path)
         return real_path
 
-    def register_config_get_callback(self, name: str) -> Callable[[GetterCallback], GetterCallback]:
+    def register_config_get_callback(
+        self, name: str
+    ) -> Callable[[GetterCallback], GetterCallback]:
         """Decorator to register a function as a configuration callback for a specified
         configuration item name, to be invoked on `get` of the item."""
 
@@ -501,7 +507,9 @@ class Config:
 
         return decorator
 
-    def register_config_set_callback(self, name: str) -> Callable[[SetterCallback], SetterCallback]:
+    def register_config_set_callback(
+        self, name: str
+    ) -> Callable[[SetterCallback], SetterCallback]:
         """Decorator to register a function as a configuration callback for a specified
         configuration item name, to be invoked on `set` of the item."""
 
@@ -526,10 +534,14 @@ class Config:
         return [*self._configurable_keys, *self._meta_data.keys()]
 
     @overload
-    def get_all(self, *, include_overrides=True, as_str: Literal[True]) -> dict[str, str]: ...
+    def get_all(
+        self, *, include_overrides=True, as_str: Literal[True]
+    ) -> dict[str, str]: ...
 
     @overload
-    def get_all(self, *, include_overrides=True, as_str: Literal[False]=False) -> dict[str, Any]: ...
+    def get_all(
+        self, *, include_overrides=True, as_str: Literal[False] = False
+    ) -> dict[str, Any]: ...
 
     def get_all(self, *, include_overrides=True, as_str=False) -> dict[str, Any]:
         """Get all configurable items."""
@@ -549,7 +561,7 @@ class Config:
                     items[key] = self._get(
                         name=key,
                         include_overrides=include_overrides,
-                        raise_on_missing=True
+                        raise_on_missing=True,
                     )
             except ValueError:
                 continue
@@ -674,19 +686,22 @@ class Config:
 
     @overload
     def _set(
-        self, name: str, value: str, *,
-        is_json: Literal[True], callback=True, quiet=False
+        self, name: str, value: str, *, is_json: Literal[True], callback=True, quiet=False
     ) -> None: ...
 
     @overload
     def _set(
-        self, name: str, value, *,
-        is_json: Literal[False]=False, callback=True, quiet=False
+        self,
+        name: str,
+        value,
+        *,
+        is_json: Literal[False] = False,
+        callback=True,
+        quiet=False,
     ) -> None: ...
 
     def _set(
-        self, name: str, value, *,
-        is_json=False, callback=True, quiet=False
+        self, name: str, value, *, is_json=False, callback=True, quiet=False
     ) -> None:
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
@@ -745,12 +760,18 @@ class Config:
             print(f"value is already: {callback_val!r}")
 
     @overload
-    def set(self, path: str, value: Any, *, is_json: Literal[False] = False, quiet=False) -> None: ...
+    def set(
+        self, path: str, value: Any, *, is_json: Literal[False] = False, quiet=False
+    ) -> None: ...
 
     @overload
-    def set(self, path: str, value: str, *, is_json: Literal[True], quiet=False) -> None: ...
+    def set(
+        self, path: str, value: str, *, is_json: Literal[True], quiet=False
+    ) -> None: ...
 
-    def set(self, path: str, value: Any, *, is_json: bool = False, quiet: bool = False) -> None:
+    def set(
+        self, path: str, value: Any, *, is_json: bool = False, quiet: bool = False
+    ) -> None:
         """Set the value of a configuration item."""
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
@@ -992,7 +1013,9 @@ class Config:
             defaults["WSL_executable"] = "wsl.exe"
         self.add_shell("wsl", **defaults)
 
-    def import_from_file(self, file_path: Path | str, *, rename=True, make_new=False) -> None:
+    def import_from_file(
+        self, file_path: Path | str, *, rename=True, make_new=False
+    ) -> None:
         """Import config items from a (remote or local) YAML file. Existing config items
         of the same names will be overwritten.
 

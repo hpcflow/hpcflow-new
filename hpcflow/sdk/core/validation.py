@@ -2,16 +2,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from importlib import resources
 from typing import Generic, Protocol, TypeVar
-from valida import (  # type: ignore
-    Schema as VSchema)
+from valida import Schema as VSchema  # type: ignore
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ValidatedData(Protocol, Generic[T]):
     @property
     def is_valid(self) -> bool: ...
     def get_failures_string(self) -> str: ...
+
     cast_data: T
 
 

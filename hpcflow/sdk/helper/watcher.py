@@ -1,9 +1,13 @@
-from collections.abc import Callable,Sequence
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from logging import Logger
 from pathlib import Path
 from watchdog.observers.polling import PollingObserver
-from watchdog.events import FileSystemEvent, FileSystemEventHandler, PatternMatchingEventHandler
+from watchdog.events import (
+    FileSystemEvent,
+    FileSystemEventHandler,
+    PatternMatchingEventHandler,
+)
 
 
 class _PMEHDelegate(PatternMatchingEventHandler):
@@ -24,7 +28,9 @@ class _FSEHDelegate(FileSystemEventHandler):
 
 
 class MonitorController:
-    def __init__(self, workflow_dirs_file_path: str | Path, watch_interval, logger: Logger):
+    def __init__(
+        self, workflow_dirs_file_path: str | Path, watch_interval, logger: Logger
+    ):
         if isinstance(watch_interval, timedelta):
             watch_interval = watch_interval.total_seconds()
 
@@ -62,7 +68,9 @@ class MonitorController:
         )
 
     @staticmethod
-    def parse_watch_workflows_file(path: str | Path, logger: Logger) -> list[dict[str, Path]]:
+    def parse_watch_workflows_file(
+        path: str | Path, logger: Logger
+    ) -> list[dict[str, Path]]:
         # TODO: and parse element IDs as well; and record which are set/unset.
         with Path(path).open("rt") as fp:
             lns = fp.readlines()
@@ -101,8 +109,10 @@ class MonitorController:
 
 class WorkflowMonitor:
     def __init__(
-        self, workflow_paths: list[dict[str, Path]], watch_interval: float | timedelta,
-        logger: Logger
+        self,
+        workflow_paths: list[dict[str, Path]],
+        watch_interval: float | timedelta,
+        logger: Logger,
     ):
         if isinstance(watch_interval, timedelta):
             watch_interval = watch_interval.total_seconds()

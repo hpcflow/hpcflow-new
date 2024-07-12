@@ -30,6 +30,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any, ClassVar, Literal, NotRequired, Self
@@ -41,8 +42,14 @@ if TYPE_CHECKING:
     from .commands import Command
     from .command_files import InputFileGenerator, OutputFileParser, FileSpec
     from .element import (
-        Element, ElementIteration, ElementInputs, ElementOutputs, ElementResources,
-        ElementInputFiles, ElementOutputFiles)
+        Element,
+        ElementIteration,
+        ElementInputs,
+        ElementOutputs,
+        ElementResources,
+        ElementInputFiles,
+        ElementOutputFiles,
+    )
     from .environment import Environment
     from .object_list import EnvironmentsList, ParametersList
     from .parameters import SchemaParameter
@@ -82,6 +89,7 @@ class _EARStatus:
     """
     Model of the state of an EARStatus.
     """
+
     _value: int
     colour: str
     symbol: str
@@ -150,12 +158,14 @@ class EARStatus(_EARStatus, Enum):
     @classmethod
     def get_non_running_submitted_states(cls) -> frozenset[EARStatus]:
         """Return the set of all non-running states, excluding those before submission."""
-        return frozenset({
-            cls.skipped,
-            cls.aborted,
-            cls.success,
-            cls.error,
-        })
+        return frozenset(
+            {
+                cls.skipped,
+                cls.aborted,
+                cls.success,
+                cls.error,
+            }
+        )
 
     @property
     def rich_repr(self) -> str:
@@ -376,7 +386,8 @@ class ElementActionRun:
 
     @overload
     def get_parameter_sources(
-        self, *,
+        self,
+        *,
         path: str | None = None,
         typ: str | None = None,
         as_strings: Literal[False] = False,
@@ -385,7 +396,8 @@ class ElementActionRun:
 
     @overload
     def get_parameter_sources(
-        self, *,
+        self,
+        *,
         path: str | None = None,
         typ: str | None = None,
         as_strings: Literal[True],
@@ -394,7 +406,8 @@ class ElementActionRun:
 
     @TimeIt.decorator
     def get_parameter_sources(
-        self, *,
+        self,
+        *,
         path: str | None = None,
         typ: str | None = None,
         as_strings: bool = False,
@@ -435,20 +448,22 @@ class ElementActionRun:
         )
 
     @overload
-    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
-        ...
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     @overload
-    def get_EAR_dependencies(self, as_objects: Literal[True]) -> list[ElementActionRun]:
-        ...
+    def get_EAR_dependencies(
+        self, as_objects: Literal[True]
+    ) -> list[ElementActionRun]: ...
 
     @TimeIt.decorator
-    def get_EAR_dependencies(self, as_objects=False) -> list[ElementActionRun] | list[int]:
+    def get_EAR_dependencies(
+        self, as_objects=False
+    ) -> list[ElementActionRun] | list[int]:
         """Get EARs that this EAR depends on."""
 
         out: list[int] = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            for src_i in (src if isinstance(src, list) else [src]):
+            for src_i in src if isinstance(src, list) else [src]:
                 EAR_ID_i: int = src_i["EAR_ID"]
                 if EAR_ID_i != self.id_:
                     # don't record a self dependency!
@@ -470,7 +485,7 @@ class ElementActionRun:
         out: dict[str, dict[str, Any]] = {}
         wanted_types = ("local_input", "default_input")
         for k, v in self.get_parameter_sources().items():
-            for v_i in (v if isinstance(v, list) else [v]):
+            for v_i in v if isinstance(v, list) else [v]:
                 if (
                     v_i["type"] in wanted_types
                     and v_i["task_insert_ID"] != self.task.insert_ID
@@ -480,16 +495,10 @@ class ElementActionRun:
         return out
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[False]=False
-    ) -> list[int]:
-        ...
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]: ...
 
     @overload
-    def get_dependent_EARs(
-        self, as_objects: Literal[True]
-    ) -> list[ElementActionRun]:
-        ...
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
 
     def get_dependent_EARs(self, as_objects=False) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
@@ -558,7 +567,9 @@ class ElementActionRun:
     def get_environment(self) -> Environment:
         return self.action.get_environment()
 
-    def get_all_previous_iteration_runs(self, include_self: bool = True) -> list[ElementActionRun]:
+    def get_all_previous_iteration_runs(
+        self, include_self: bool = True
+    ) -> list[ElementActionRun]:
         """Get a list of run over all iterations that correspond to this run, optionally
         including this run."""
         self_iter = self.element_iteration
@@ -599,7 +610,9 @@ class ElementActionRun:
             path_i, label_i = split_param_label(inp_name)
 
             try:
-                all_iters = isinstance(inputs, dict) and inputs[inp_name]["all_iterations"]
+                all_iters = (
+                    isinstance(inputs, dict) and inputs[inp_name]["all_iterations"]
+                )
             except (TypeError, KeyError):
                 all_iters = False
 
@@ -763,7 +776,9 @@ class ElementActionRun:
                         param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
                         param_cls = parameters.get(param_name)._value_class
                         if param_cls and issubclass(param_cls, self.app.ParameterValue):
-                            param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
+                            param_cls.save_from_HDF5_group(
+                                h5_grp, param_id, self.workflow
+                            )
 
     def compose_commands(
         self, jobscript: Jobscript, JS_action_idx: int
@@ -798,7 +813,9 @@ class ElementActionRun:
         if env.setup:
             command_lns += list(env.setup)
 
-        shell_vars: dict[int, list[tuple[str, ...]]] = {}  # keys are cmd_idx, each value is a list of tuples
+        shell_vars: dict[int, list[tuple[str, ...]]] = (
+            {}
+        )  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
             if cmd_idx in self.commands_idx:
                 # only execute commands that have no rules, or all valid rules:
@@ -817,8 +834,12 @@ class ElementAction:
     app: ClassVar[BaseApp]
     _app_attr = "app"
 
-    def __init__(self, element_iteration: ElementIteration, action_idx: int,
-                 runs: dict[Mapping[str, Any], Any]):
+    def __init__(
+        self,
+        element_iteration: ElementIteration,
+        action_idx: int,
+        runs: dict[Mapping[str, Any], Any],
+    ):
         self._element_iteration = element_iteration
         self._action_idx = action_idx
         self._runs = runs
@@ -915,7 +936,8 @@ class ElementAction:
     @overload
     def get_parameter_sources(
         self,
-        path: str | None = None, *,
+        path: str | None = None,
+        *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: Literal[False] = False,
@@ -925,7 +947,8 @@ class ElementAction:
     @overload
     def get_parameter_sources(
         self,
-        path: str | None = None, *,
+        path: str | None = None,
+        *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: Literal[True],
@@ -934,7 +957,8 @@ class ElementAction:
 
     def get_parameter_sources(
         self,
-        path: str | None = None, *,
+        path: str | None = None,
+        *,
         run_idx: int = -1,
         typ: str | None = None,
         as_strings: bool = False,
@@ -1052,7 +1076,7 @@ class ActionScope(JSONLike):
                 name, val = i.split("=")
                 kwargs[name.strip()] = val.strip()
         return kwargs
-    
+
     def to_string(self) -> str:
         kwargs_str = ""
         if self.kwargs:
@@ -1060,8 +1084,11 @@ class ActionScope(JSONLike):
         return f"{self.typ.name.lower()}{kwargs_str}"
 
     @classmethod
-    def _from_json_like(cls, json_like: Mapping[str, Any] | Sequence[Mapping[str, Any]],
-                        shared_data: Mapping[str, Any]) -> Self:
+    def _from_json_like(
+        cls,
+        json_like: Mapping[str, Any] | Sequence[Mapping[str, Any]],
+        shared_data: Mapping[str, Any],
+    ) -> Self:
         if not isinstance(json_like, Mapping):
             raise TypeError("only mappings are supported for becoming an ActionScope")
         if not isinstance(json_like, cls._customdict):
@@ -1106,8 +1133,7 @@ class ActionEnvironment(JSONLike):
     scope: ActionScope
 
     def __init__(
-        self, environment: str | dict[str, Any],
-        scope: ActionScope | None = None
+        self, environment: str | dict[str, Any], scope: ActionScope | None = None
     ):
         if scope is None:
             self.scope = ActionScope.any()
@@ -1165,7 +1191,7 @@ class ActionRule(JSONLike):
             )
         else:
             self.rule = rule
-    
+
         self.action: Action | None = None  # assigned by parent action
         self.command: Command | None = None  # assigned by parent command
 
@@ -1313,17 +1339,22 @@ class Action(JSONLike):
 
     def process_script_data_formats(self):
         self.script_data_in = self.__process_script_data(self._script_data_in, "inputs")
-        self.script_data_out = self.__process_script_data(self._script_data_out, "outputs")
+        self.script_data_out = self.__process_script_data(
+            self._script_data_out, "outputs"
+        )
 
     def __process_script_data_str(
-            self, data_fmt: str, param_names: list[str]) -> dict[str, ScriptData]:
+        self, data_fmt: str, param_names: list[str]
+    ) -> dict[str, ScriptData]:
         # include all input parameters, using specified data format
         data_fmt = data_fmt.lower()
         return {k: {"format": data_fmt} for k in param_names}
 
     def __process_script_data_dict(
-        self, data_fmt: Mapping[str, str | ScriptData], prefix: str,
-        param_names: list[str]
+        self,
+        data_fmt: Mapping[str, str | ScriptData],
+        prefix: str,
+        param_names: list[str],
     ) -> dict[str, ScriptData]:
         _all_other_sym = "*"
         all_params: dict[str, ScriptData] = {}
@@ -1539,7 +1570,9 @@ class Action(JSONLike):
             for i in self.input_file_generators
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
-        commands: list[int] = []  # TODO: indices of commands in which this parameter appears
+        commands: list[int] = (
+            []
+        )  # TODO: indices of commands in which this parameter appears
         return {"input_file_writers": writer_files, "commands": commands}
 
     def get_resolved_action_env(
@@ -1549,7 +1582,9 @@ class Action(JSONLike):
         output_file_parser: OutputFileParser | None = None,
         commands: list[Command] | None = None,
     ) -> ActionEnvironment:
-        possible = [i for i in self.environments if i.scope and i.scope.typ in relevant_scopes]
+        possible = [
+            i for i in self.environments if i.scope and i.scope.typ in relevant_scopes
+        ]
         if not possible:
             if input_file_generator:
                 msg = f"input file generator {input_file_generator.input_file.label!r}"
@@ -1581,7 +1616,9 @@ class Action(JSONLike):
             input_file_generator=input_file_generator,
         )
 
-    def get_output_file_parser_action_env(self, output_file_parser: OutputFileParser) -> ActionEnvironment:
+    def get_output_file_parser_action_env(
+        self, output_file_parser: OutputFileParser
+    ) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1675,16 +1712,24 @@ class Action(JSONLike):
     def get_param_load_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
         return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
 
-    def get_param_dump_file_path_JSON(self, js_idx: int | str, js_act_idx: int | str) -> Path:
+    def get_param_dump_file_path_JSON(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_dump_file_path_HDF5(self, js_idx: int | str, js_act_idx: int | str) -> Path:
+    def get_param_dump_file_path_HDF5(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
 
-    def get_param_load_file_path_JSON(self, js_idx: int | str, js_act_idx: int | str) -> Path:
+    def get_param_load_file_path_JSON(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_load_file_path_HDF5(self, js_idx: int | str, js_act_idx: int | str) -> Path:
+    def get_param_load_file_path_HDF5(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
     def expand(self) -> list[Action]:
@@ -1726,7 +1771,9 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        self.app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(
+                            executable=exe, arguments=args, variables=variables
+                        )
                     ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
@@ -1759,7 +1806,9 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        self.app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(
+                            executable=exe, arguments=args, variables=variables
+                        )
                     ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
@@ -2090,9 +2139,7 @@ class Action(JSONLike):
         else:
             return self.app.ActionScope.main()
 
-    def is_input_type_required(
-        self, typ: str, provided_files: list[FileSpec]
-    ) -> bool:
+    def is_input_type_required(self, typ: str, provided_files: list[FileSpec]) -> bool:
         # TODO: for now assume a script takes all inputs
         if (
             self.script

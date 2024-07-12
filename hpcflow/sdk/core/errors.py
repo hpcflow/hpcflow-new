@@ -256,8 +256,10 @@ class UnsupportedSchedulerError(ResourceValidationError):
     """
 
     def __init__(
-        self, scheduler: str, supported: Iterable[str] | None = None,
-        available: Iterable[str] | None = None
+        self,
+        scheduler: str,
+        supported: Iterable[str] | None = None,
+        available: Iterable[str] | None = None,
     ) -> None:
         if supported is not None:
             message = (

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Self, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from .element import Element, ElementIteration
@@ -36,8 +37,12 @@ class DependencyCache:
         num_runs = workflow.num_EARs
 
         all_store_runs: Sequence[StoreEAR] = workflow._store.get_EARs(range(num_runs))
-        all_store_iters: Sequence[StoreElementIter] = workflow._store.get_element_iterations(range(num_iters))
-        all_store_elements: Sequence[StoreElement] = workflow._store.get_elements(range(num_elems))
+        all_store_iters: Sequence[StoreElementIter] = (
+            workflow._store.get_element_iterations(range(num_iters))
+        )
+        all_store_elements: Sequence[StoreElement] = workflow._store.get_elements(
+            range(num_elems)
+        )
         all_param_sources: Sequence[ParamSource] = workflow.get_all_parameter_sources()
         all_data_idx: list[dict[str, list[int]]] = [
             {

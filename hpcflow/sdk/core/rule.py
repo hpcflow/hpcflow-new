@@ -7,6 +7,7 @@ from valida.rules import Rule as ValidaRule  # type: ignore
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
+
 if TYPE_CHECKING:
     from typing import Any, ClassVar, NotRequired
     from .actions import Action, ElementActionRun
@@ -18,6 +19,7 @@ class RuleArgs(TypedDict):
     """
     The keyword arguments that may be used to create a Rule.
     """
+
     check_exists: NotRequired[str]
     check_missing: NotRequired[str]
     path: NotRequired[str]
@@ -141,6 +143,6 @@ class Rule(JSONLike):
             # path to first element (see: https://github.com/hpcflow/valida/issues/9):
             rule = ValidaRule(path=[0], condition=self.condition, cast=self.cast)
             return rule.test([element_dat]).is_valid
-        
+
         # Something bizarre was specified. Don't match it!
         return False

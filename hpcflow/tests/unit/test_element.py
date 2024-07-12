@@ -10,6 +10,7 @@ from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,
 )
+
 if TYPE_CHECKING:
     from hpcflow.sdk.core.workflow import Workflow
 
@@ -649,7 +650,9 @@ def test_element_resources_get_jobscript_hash_equal_non_truthy_scheduler_args() 
     )
 
 
-def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_options() -> None:
+def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_options() -> (
+    None
+):
 
     assert (
         hf.ElementResources(
@@ -661,7 +664,9 @@ def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_option
     )
 
 
-def test_element_resources_get_jobscript_hash_unequal_scheduler_args_same_options() -> None:
+def test_element_resources_get_jobscript_hash_unequal_scheduler_args_same_options() -> (
+    None
+):
 
     assert (
         hf.ElementResources(

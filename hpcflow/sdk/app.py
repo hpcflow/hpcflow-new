@@ -40,7 +40,7 @@ from hpcflow.sdk.core.utils import (
     read_JSON_file,
     write_YAML_file,
     write_JSON_file,
-    parse_timestamp
+    parse_timestamp,
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
@@ -57,38 +57,86 @@ from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_windows,
 )
 from hpcflow.sdk.typing import PathLike
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
     from typing import Dict, List, Literal, NotRequired
     from rich.status import Status
     from .core.actions import (
-        ElementActionRun, ElementAction, ActionEnvironment,
-        Action, ActionScope, ActionScopeType, ActionRule)
+        ElementActionRun,
+        ElementAction,
+        ActionEnvironment,
+        Action,
+        ActionScope,
+        ActionScopeType,
+        ActionRule,
+    )
     from .core.command_files import (
-        FileSpec, FileNameSpec, InputFileGenerator, FileNameStem, FileNameExt, OutputFileParser)
+        FileSpec,
+        FileNameSpec,
+        InputFileGenerator,
+        FileNameStem,
+        FileNameExt,
+        OutputFileParser,
+    )
     from .core.commands import Command
     from .core.element import (
-        ElementInputs, ElementOutputs, ElementInputFiles, ElementOutputFiles,
-        ElementIteration, Element, ElementParameter, ElementResources, ElementFilter,
-        ElementGroup)
+        ElementInputs,
+        ElementOutputs,
+        ElementInputFiles,
+        ElementOutputFiles,
+        ElementIteration,
+        Element,
+        ElementParameter,
+        ElementResources,
+        ElementFilter,
+        ElementGroup,
+    )
     from .core.environment import NumCores, Environment, Executable, ExecutableInstance
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
-        CommandFilesList as CommandFilesList_, EnvironmentsList as _EnvironmentsList, ExecutablesList,
-        GroupList, ParametersList as _ParametersList,
-        ResourceList, TaskList, TaskSchemasList as _TaskSchemasList, TaskTemplateList, WorkflowLoopList,
-        WorkflowTaskList)
+        CommandFilesList as CommandFilesList_,
+        EnvironmentsList as _EnvironmentsList,
+        ExecutablesList,
+        GroupList,
+        ParametersList as _ParametersList,
+        ResourceList,
+        TaskList,
+        TaskSchemasList as _TaskSchemasList,
+        TaskTemplateList,
+        WorkflowLoopList,
+        WorkflowTaskList,
+    )
     from .core.parameters import (
-        SchemaParameter, InputValue, Parameter, ParameterValue, InputSource, ResourceSpec, SchemaOutput,
-        InputSourceType, ValueSequence, SchemaInput)
+        SchemaParameter,
+        InputValue,
+        Parameter,
+        ParameterValue,
+        InputSource,
+        ResourceSpec,
+        SchemaOutput,
+        InputSourceType,
+        ValueSequence,
+        SchemaInput,
+    )
     from .core.rule import Rule
     from .core.run_dir_files import RunDirAppFiles
     from .core.task import (
-        Task, WorkflowTask, Parameters, TaskInputParameters, TaskOutputParameters,
-        ElementPropagation, ElementSet, TaskSourceType)
+        Task,
+        WorkflowTask,
+        Parameters,
+        TaskInputParameters,
+        TaskOutputParameters,
+        ElementPropagation,
+        ElementSet,
+        TaskSourceType,
+    )
     from .core.task_schema import TaskSchema, TaskObjective
-    from .core.workflow import Workflow as _Workflow, WorkflowTemplate as _WorkflowTemplate
+    from .core.workflow import (
+        Workflow as _Workflow,
+        WorkflowTemplate as _WorkflowTemplate,
+    )
     from .submission.jobscript import Jobscript
     from .submission.submission import Submission
     from .submission.schedulers import Scheduler, QueuedScheduler
@@ -100,7 +148,7 @@ if TYPE_CHECKING:
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class KnownSubmission(TypedDict):
@@ -170,6 +218,7 @@ def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
         return url_to_fs(*args, **kwargs)
 
     return _inner(*args, **kwargs)
+
 
 def __getattr__(name):
     """Allow access to core classes and API functions."""
@@ -298,8 +347,12 @@ class BaseApp(metaclass=Singleton):
 
         self._builtin_template_components = template_components or {}
 
-        self._config: Config | None = None  # assigned on first access to `config` property
-        self._config_files: dict[str, ConfigFile] = {}  # assigned on config load, keys are string absolute paths
+        self._config: Config | None = (
+            None  # assigned on first access to `config` property
+        )
+        self._config_files: dict[str, ConfigFile] = (
+            {}
+        )  # assigned on config load, keys are string absolute paths
 
         # Set by `_load_template_components`:
         self._template_components: TemplateComponents = {}
@@ -607,6 +660,7 @@ class BaseApp(metaclass=Singleton):
     @property
     def QueuedScheduler(self) -> type[QueuedScheduler]:
         from .submission.schedulers import QueuedScheduler as QS
+
         return QS
 
     @property
@@ -737,7 +791,7 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def _shared_data(self) -> Mapping[str, Any]:
-        return cast('Mapping[str, Any]', self.template_components)
+        return cast("Mapping[str, Any]", self.template_components)
 
     def _ensure_template_component(self, name) -> None:
         """Invoked by access to individual template components (e.g. parameters)"""
@@ -782,27 +836,27 @@ class BaseApp(metaclass=Singleton):
             params: list[Any] = self._builtin_template_components.get("parameters", [])
             for path in self.config.parameter_sources:
                 params.extend(read_YAML_file(path))
-            param_list = self.ParametersList.from_json_like(
-                params, shared_data=self_tc
-            )
+            param_list = self.ParametersList.from_json_like(params, shared_data=self_tc)
             assert isinstance(param_list, self.ParametersList)
             self._template_components["parameters"] = param_list
             self._parameters = param_list
 
         if "command_files" in include:
-            cmd_files: list[Any] = self._builtin_template_components.get("command_files", [])
+            cmd_files: list[Any] = self._builtin_template_components.get(
+                "command_files", []
+            )
             for path in self.config.command_file_sources:
                 cmd_files.extend(read_YAML_file(path))
-            cf_list = self.CommandFilesList.from_json_like(
-                cmd_files, shared_data=self_tc
-            )
+            cf_list = self.CommandFilesList.from_json_like(cmd_files, shared_data=self_tc)
             assert isinstance(cf_list, self.CommandFilesList)
             self._template_components["command_files"] = cf_list
             self._command_files = cf_list
 
         if "environments" in include:
             envs = []
-            builtin_envs: list[Any] = self._builtin_template_components.get("environments", [])
+            builtin_envs: list[Any] = self._builtin_template_components.get(
+                "environments", []
+            )
             for path in self.config.environment_sources:
                 envs_i_lst = read_YAML_file(path)
                 for env_j in envs_i_lst:
@@ -812,9 +866,7 @@ class BaseApp(metaclass=Singleton):
                             builtin_envs.pop(b_idx)
                     envs.append(env_j)
             envs = builtin_envs + envs
-            env_list = self.EnvironmentsList.from_json_like(
-                envs, shared_data=self_tc
-            )
+            env_list = self.EnvironmentsList.from_json_like(envs, shared_data=self_tc)
             assert isinstance(env_list, self.EnvironmentsList)
             self._template_components["environments"] = env_list
             self._environments = env_list
@@ -823,9 +875,7 @@ class BaseApp(metaclass=Singleton):
             schemas: list[Any] = self._builtin_template_components.get("task_schemas", [])
             for path in self.config.task_schema_sources:
                 schemas.extend(read_YAML_file(path))
-            ts_list = self.TaskSchemasList.from_json_like(
-                schemas, shared_data=self_tc
-            )
+            ts_list = self.TaskSchemasList.from_json_like(schemas, shared_data=self_tc)
             assert isinstance(ts_list, self.TaskSchemasList)
             self._template_components["task_schemas"] = ts_list
             self._task_schemas = ts_list
@@ -838,9 +888,7 @@ class BaseApp(metaclass=Singleton):
         self.logger.info(f"Template components loaded ({include!r}).")
 
     @staticmethod
-    def __open_text_resource(
-        package: ModuleType | str, resource: str
-    ):
+    def __open_text_resource(package: ModuleType | str, resource: str):
         try:
             return resources.files(package).joinpath(resource).open("r")
         except AttributeError:
@@ -849,8 +897,7 @@ class BaseApp(metaclass=Singleton):
 
     @staticmethod
     def __get_file_context(
-        package: ModuleType | str,
-        src: str
+        package: ModuleType | str, src: str
     ) -> AbstractContextManager[Path] | None:
         try:
             try:
@@ -961,7 +1008,10 @@ class BaseApp(metaclass=Singleton):
         }
 
     def get_scheduler(
-        self, scheduler_name: str, os_name: str, scheduler_args: dict[str, Any] | None = None
+        self,
+        scheduler_name: str,
+        os_name: str,
+        scheduler_args: dict[str, Any] | None = None,
     ) -> Scheduler:
         """Get an arbitrary scheduler object."""
         scheduler_kwargs = scheduler_args or {}
@@ -1365,17 +1415,23 @@ class BaseApp(metaclass=Singleton):
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def template_components_from_json_like(self, json_like: dict[str, dict]) -> TemplateComponents:
+    def template_components_from_json_like(
+        self, json_like: dict[str, dict]
+    ) -> TemplateComponents:
         tc: TemplateComponents = {}
         sd: Mapping[str, Any] = tc
         tc["parameters"] = self.ParametersList.from_json_like(
-            json_like.get("parameters", {}), shared_data=sd, is_hashed=True)
+            json_like.get("parameters", {}), shared_data=sd, is_hashed=True
+        )
         tc["command_files"] = self.CommandFilesList.from_json_like(
-            json_like.get("command_files", {}), shared_data=sd, is_hashed=True)
+            json_like.get("command_files", {}), shared_data=sd, is_hashed=True
+        )
         tc["environments"] = self.EnvironmentsList.from_json_like(
-            json_like.get("environments", {}), shared_data=sd, is_hashed=True)
+            json_like.get("environments", {}), shared_data=sd, is_hashed=True
+        )
         tc["task_schemas"] = self.TaskSchemasList.from_json_like(
-            json_like.get("task_schemas", {}), shared_data=sd, is_hashed=True)
+            json_like.get("task_schemas", {}), shared_data=sd, is_hashed=True
+        )
         return tc
 
     def get_parameter_task_schema_map(self) -> dict[str, list[list[str]]]:
@@ -1460,10 +1516,7 @@ class BaseApp(metaclass=Singleton):
     def read_known_submissions_file(self) -> list[KnownSubmission]:
         """Retrieve existing workflows that *might* be running."""
         with self.known_subs_file_path.open("rt", newline="\n") as fh:
-            return [
-                self._parse_known_submissions_line(ln)
-                for ln in fh.readlines()
-            ]
+            return [self._parse_known_submissions_line(ln) for ln in fh.readlines()]
 
     def _add_to_known_submissions(
         self,
@@ -1643,7 +1696,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: PathLike | str,
         is_string: bool = False,
-        template_format: Literal['json', 'yaml'] | None = None,
+        template_format: Literal["json", "yaml"] | None = None,
         path: PathLike = None,
         name: str | None = None,
         overwrite: bool = False,
@@ -1696,8 +1749,8 @@ class BaseApp(metaclass=Singleton):
         self.API_logger.info("make_workflow called")
 
         status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
-            Console().status("Making persistent workflow...")
-            if status else nullcontext())
+            Console().status("Making persistent workflow...") if status else nullcontext()
+        )
 
         with status_context as status_:
             if not is_string:
@@ -1862,7 +1915,7 @@ class BaseApp(metaclass=Singleton):
     def _make_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Literal['json', 'yaml'] | None = None,
+        template_format: Literal["json", "yaml"] | None = None,
         path: PathLike | None = None,
         name: str | None = None,
         overwrite: bool = False,
@@ -1912,8 +1965,8 @@ class BaseApp(metaclass=Singleton):
         self.API_logger.info("make_demo_workflow called")
 
         status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
-            Console().status("Making persistent workflow...")
-            if status else nullcontext())
+            Console().status("Making persistent workflow...") if status else nullcontext()
+        )
 
         with status_context as status_:
             with self.get_demo_workflow_template_file(workflow_name) as template_path:
@@ -2165,7 +2218,9 @@ class BaseApp(metaclass=Singleton):
             known_subs = []
 
         # keys are (workflow path, submission index)
-        active_jobscripts: dict[tuple[str, int], dict[int, dict[int, JobscriptElementState]]] = {}
+        active_jobscripts: dict[
+            tuple[str, int], dict[int, dict[int, JobscriptElementState]]
+        ] = {}
         loaded_workflows: dict[str, _Workflow] = {}  # keys are workflow path
 
         # loop in reverse so we process more-recent submissions first:
@@ -2186,7 +2241,8 @@ class BaseApp(metaclass=Singleton):
             out_item: KnownSubmissionItem = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
-                "workflow_path": file_dat_i["path"],"submit_time": submit_time_str,
+                "workflow_path": file_dat_i["path"],
+                "submit_time": submit_time_str,
                 "submit_time_obj": submit_time_obj,
                 "start_time": start_time_str,
                 "start_time_obj": start_time_obj,
@@ -2272,7 +2328,8 @@ class BaseApp(metaclass=Singleton):
                             try:
                                 if as_json:
                                     act_i_js = cast(  # not actually used?
-                                        Any, sub.get_active_jobscripts(as_json=True))
+                                        Any, sub.get_active_jobscripts(as_json=True)
+                                    )
                                 else:
                                     act_i_js = sub.get_active_jobscripts()
                             except KeyboardInterrupt:
@@ -2317,7 +2374,10 @@ class BaseApp(metaclass=Singleton):
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["end_time_obj"] or i["start_time_obj"] or i.get("submit_time_obj") or def_timestamp
+                i["end_time_obj"]
+                or i["start_time_obj"]
+                or i.get("submit_time_obj")
+                or def_timestamp
             ),
             reverse=True,
         )
@@ -2469,7 +2529,9 @@ class BaseApp(metaclass=Singleton):
                 all_cells: dict[str, str | Text | Padding] = {}
                 if "status" in columns:
                     if act_js:
-                        act_js_states = set([j for i in act_js.values() for j in i.values()])
+                        act_js_states = set(
+                            [j for i in act_js.values() for j in i.values()]
+                        )
                         all_cells["status"] = "/".join(
                             f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
                         )
@@ -2513,7 +2575,9 @@ class BaseApp(metaclass=Singleton):
                             for elem_idx, EARs in elements.items():
                                 elem_status = Text(f"{elem_idx} | ", style=style)
                                 for i in EARs:
-                                    elem_status.append(i.status.symbol, style=i.status.colour)
+                                    elem_status.append(
+                                        i.status.symbol, style=i.status.colour
+                                    )
                                 elem_tab_i.add_row(elem_status)
                             task_tab.add_row(task.unique_name, elem_tab_i, style=style)
                     else:
@@ -2537,7 +2601,9 @@ class BaseApp(metaclass=Singleton):
                         all_cells["actions_compact"] = ""
 
                 if "submit_time" in columns or "times" in columns:
-                    submit_time = parse_timestamp(dat_i["submit_time"], self._submission_ts_fmt)
+                    submit_time = parse_timestamp(
+                        dat_i["submit_time"], self._submission_ts_fmt
+                    )
                     submit_time_full = submit_time.strftime(ts_fmt)
 
                 if "start_time" in columns or "times" in columns:
@@ -2579,7 +2645,8 @@ class BaseApp(metaclass=Singleton):
 
                     if start_time:
                         times_tab.add_row(
-                            Text("st.", style=style_it), Text(start_time_part, style=style)
+                            Text("st.", style=style_it),
+                            Text(start_time_part, style=style),
                         )
                     if end_time:
                         times_tab.add_row(
@@ -2609,9 +2676,7 @@ class BaseApp(metaclass=Singleton):
 
         return path
 
-    def _resolve_workflow_reference(
-        self, workflow_ref, ref_type: str | None
-    ) -> Path:
+    def _resolve_workflow_reference(self, workflow_ref, ref_type: str | None) -> Path:
         path = None
         if ref_type == "path":
             path = Path(workflow_ref)

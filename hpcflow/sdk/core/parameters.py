@@ -29,6 +29,7 @@ from hpcflow.sdk.core.utils import (
     split_param_label,
 )
 from hpcflow.sdk.submission.submission import timedelta_format
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any, ClassVar, Literal, NotRequired, Self, TypeAlias
@@ -418,11 +419,11 @@ class SchemaInput(SchemaParameter):
                         "value": v["default_value"],
                         "label": k,
                     }
-                json_like["labels"][k][
-                    "default_value"
-                ] = cls.app.InputValue.from_json_like(
-                    json_like=inp_val_kwargs,
-                    shared_data=shared_data,
+                json_like["labels"][k]["default_value"] = (
+                    cls.app.InputValue.from_json_like(
+                        json_like=inp_val_kwargs,
+                        shared_data=shared_data,
+                    )
                 )
 
         obj = super().from_json_like(json_like, shared_data)
@@ -476,7 +477,7 @@ class SchemaInput(SchemaParameter):
             return self.labels[label]
         return None
 
-    def labelled_info(self) -> Iterator[LabellingDescriptor]: 
+    def labelled_info(self) -> Iterator[LabellingDescriptor]:
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""
             dct: LabellingDescriptor = {
@@ -530,8 +531,9 @@ class SchemaOutput(SchemaParameter):
     propagation_mode: ParameterPropagationMode
 
     def __init__(
-        self, parameter: Parameter | str,
-        propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT
+        self,
+        parameter: Parameter | str,
+        propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
     ):
         if isinstance(parameter, str):
             self.parameter: Parameter = Parameter(typ=parameter)
@@ -565,6 +567,7 @@ class BuiltinSchemaParameter:
 
 class ValueSequence(JSONLike):
     app: ClassVar[BaseApp]
+
     def __init__(
         self,
         path: str,
@@ -579,13 +582,15 @@ class ValueSequence(JSONLike):
 
         if values is not None:
             self._values: list[Any] | None = [
-                _process_demo_data_strings(self.app, i)
-                for i in values]
+                _process_demo_data_strings(self.app, i) for i in values
+            ]
         else:
             self._values = None
 
         self._values_group_idx: list[int] | None = None
-        self._values_are_objs: list[bool] | None = None  # assigned initially on `make_persistent`
+        self._values_are_objs: list[bool] | None = (
+            None  # assigned initially on `make_persistent`
+        )
 
         self._workflow: Workflow | None = None
         self._element_set: ElementSet | None = None  # assigned by parent ElementSet
@@ -738,7 +743,9 @@ class ValueSequence(JSONLike):
         obj._values_method_args = _values_method_args
         return obj
 
-    def _validate_parameter_path(self, path: str, label: str | int | None) -> tuple[str, str | int | None]:
+    def _validate_parameter_path(
+        self, path: str, label: str | int | None
+    ) -> tuple[str, str | int | None]:
         """Parse the supplied path and perform basic checks on it.
 
         This method also adds the specified `SchemaInput` label to the path and checks for
@@ -798,7 +805,8 @@ class ValueSequence(JSONLike):
             if len(path_split) > 2:
                 if path_split[2] not in ResourceSpec.ALLOWED_PARAMETERS:
                     allowed_keys_str = ", ".join(
-                        f'"{i}"' for i in ResourceSpec.ALLOWED_PARAMETERS)
+                        f'"{i}"' for i in ResourceSpec.ALLOWED_PARAMETERS
+                    )
                     raise UnknownResourceSpecItemError(
                         f"Resource item name {path_split[2]!r} is unknown. Allowed "
                         f"resource item names are: {allowed_keys_str}."
@@ -947,8 +955,13 @@ class ValueSequence(JSONLike):
 
     @classmethod
     def _values_from_rectangle(
-        cls, start: Sequence[float], stop: Sequence[float], num: Sequence[int],
-        coord: int | tuple[int, int] | None = None, include: Sequence[str] | None = None, **kwargs
+        cls,
+        start: Sequence[float],
+        stop: Sequence[float],
+        num: Sequence[int],
+        coord: int | tuple[int, int] | None = None,
+        include: Sequence[str] | None = None,
+        **kwargs,
     ) -> list[float]:
         vals = linspace_rect(start=start, stop=stop, num=num, include=include, **kwargs)
         if coord is not None:
@@ -958,7 +971,11 @@ class ValueSequence(JSONLike):
 
     @classmethod
     def _values_from_random_uniform(
-        cls, num: int, low: float = 0.0, high: float = 1.0, seed: int | list[int] | None = None
+        cls,
+        num: int,
+        low: float = 0.0,
+        high: float = 1.0,
+        seed: int | list[int] | None = None,
     ) -> list[float]:
         rng = np.random.default_rng(seed)
         return rng.uniform(low=low, high=high, size=num).tolist()
@@ -1399,7 +1416,9 @@ class InputValue(AbstractInputValue):
     def normalised_path(self) -> str:
         return f"inputs.{self.normalised_inputs_path}"
 
-    def make_persistent(self, workflow: Workflow, source: ParamSource) -> tuple[str, list[int | list[int]], bool]:
+    def make_persistent(
+        self, workflow: Workflow, source: ParamSource
+    ) -> tuple[str, list[int | list[int]], bool]:
         source = copy.deepcopy(source)
         if self.value_class_method is not None:
             source["value_class_method"] = self.value_class_method
@@ -1447,6 +1466,7 @@ class ResourceSpecArgs(TypedDict):
     """
     Supported keyword arguments for a ResourceSpec.
     """
+
     scope: NotRequired[ActionScope | str]
     scratch: NotRequired[str]
     parallel_mode: NotRequired[str | ParallelMode]
@@ -1462,7 +1482,7 @@ class ResourceSpecArgs(TypedDict):
     scheduler_args: NotRequired[dict[str, Any]]
     shell_args: NotRequired[dict[str, Any]]
     os_name: NotRequired[str]
-    environments: NotRequired[dict[str,  dict[str, Any]]]
+    environments: NotRequired[dict[str, dict[str, Any]]]
     SGE_parallel_env: NotRequired[str]
     SLURM_partition: NotRequired[str]
     SLURM_num_tasks: NotRequired[str]
@@ -1516,7 +1536,9 @@ class ResourceSpec(JSONLike):
     )
 
     @staticmethod
-    def __parse_thing(typ: type[ActionScope], val: ActionScope | str | None) -> ActionScope | None:
+    def __parse_thing(
+        typ: type[ActionScope], val: ActionScope | str | None
+    ) -> ActionScope | None:
         if isinstance(val, typ):
             return val
         elif val is None:
@@ -1541,7 +1563,7 @@ class ResourceSpec(JSONLike):
         scheduler_args: dict[str, Any] | None = None,
         shell_args: dict[str, Any] | None = None,
         os_name: str | None = None,
-        environments: dict[str,  dict[str, Any]] | None = None,
+        environments: dict[str, dict[str, Any]] | None = None,
         SGE_parallel_env: str | None = None,
         SLURM_partition: str | None = None,
         SLURM_num_tasks: str | None = None,
@@ -1856,7 +1878,7 @@ class ResourceSpec(JSONLike):
                 f"attribute is not. This might be because we are in the process of "
                 f"creating the workflow object."
             )
-        
+
         return None
 
     @property
@@ -1885,7 +1907,7 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
-_Where: TypeAlias = 'RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter'
+_Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter"
 
 
 class InputSource(JSONLike):
@@ -1912,9 +1934,12 @@ class InputSource(JSONLike):
         if where is None or isinstance(where, ElementFilter):
             self.where: ElementFilter | None = where
         else:
-            self.where = self.app.ElementFilter(rules=[
-                rule if isinstance(rule, Rule) else Rule(**rule)
-                for rule in (where if isinstance(where, Sequence) else [where])])
+            self.where = self.app.ElementFilter(
+                rules=[
+                    rule if isinstance(rule, Rule) else Rule(**rule)
+                    for rule in (where if isinstance(where, Sequence) else [where])
+                ]
+            )
 
         self.source_type = get_enum_by_name_or_val(InputSourceType, source_type)
         self.import_ref = import_ref
@@ -2067,8 +2092,12 @@ class InputSource(JSONLike):
         }
 
     @classmethod
-    def import_(cls, import_ref: int, element_iters: list[int] | None = None,
-                where: _Where | None = None) -> Self:
+    def import_(
+        cls,
+        import_ref: int,
+        element_iters: list[int] | None = None,
+        where: _Where | None = None,
+    ) -> Self:
         return cls(
             source_type=InputSourceType.IMPORT,
             import_ref=import_ref,
@@ -2085,13 +2114,19 @@ class InputSource(JSONLike):
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
-    def task(cls, task_ref: int, task_source_type: TaskSourceType | str | None = None,
-             element_iters: list[int] | None = None, where: _Where | None = None) -> Self:
+    def task(
+        cls,
+        task_ref: int,
+        task_source_type: TaskSourceType | str | None = None,
+        element_iters: list[int] | None = None,
+        where: _Where | None = None,
+    ) -> Self:
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,
             task_source_type=get_enum_by_name_or_val(
-                TaskSourceType, task_source_type or TaskSourceType.OUTPUT),
+                TaskSourceType, task_source_type or TaskSourceType.OUTPUT
+            ),
             where=where,
             element_iters=element_iters,
         )

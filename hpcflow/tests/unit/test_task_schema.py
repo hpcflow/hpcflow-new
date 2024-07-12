@@ -8,6 +8,7 @@ from hpcflow.sdk.core.errors import (
     InvalidIdentifier,
 )
 from hpcflow.sdk.core.test_utils import make_actions, make_parameters
+
 if TYPE_CHECKING:
     from hpcflow.sdk.core.actions import Action, ActionEnvironment
     from hpcflow.sdk.core.task import TaskObjective
@@ -42,7 +43,9 @@ def test_task_schema_equality() -> None:
 def test_init_with_str_objective(action_a1: Action) -> None:
     obj_str = "t1"
     obj = hf.TaskObjective(obj_str)
-    assert hf.TaskSchema(obj_str, actions=[action_a1]) == hf.TaskSchema(obj, actions=[action_a1])
+    assert hf.TaskSchema(obj_str, actions=[action_a1]) == hf.TaskSchema(
+        obj, actions=[action_a1]
+    )
 
 
 def test_init_with_method_with_underscore(schema_s1_kwargs) -> None:

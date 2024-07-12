@@ -20,6 +20,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.core.utils import parse_timestamp
 from hpcflow.sdk.log import TimeIt
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from typing import ClassVar, Literal
@@ -91,7 +92,9 @@ class Submission(JSONLike):
         self._JS_parallelism = JS_parallelism
         self._environments = environments
 
-        self._submission_parts_lst: list[SubmissionPart] | None = None  # assigned on first access
+        self._submission_parts_lst: list[SubmissionPart] | None = (
+            None  # assigned on first access
+        )
 
         if workflow:
             self.workflow = workflow
@@ -199,16 +202,14 @@ class Submission(JSONLike):
     def get_start_time(self, submit_time: str) -> datetime | None:
         """Get the start time of a given submission part."""
         times = (
-            self.jobscripts[i].start_time
-            for i in self._submission_parts[submit_time])
+            self.jobscripts[i].start_time for i in self._submission_parts[submit_time]
+        )
         return min((t for t in times if t is not None), default=None)
 
     @TimeIt.decorator
     def get_end_time(self, submit_time: str) -> datetime | None:
         """Get the end time of a given submission part."""
-        times = (
-            self.jobscripts[i].end_time
-            for i in self._submission_parts[submit_time])
+        times = (self.jobscripts[i].end_time for i in self._submission_parts[submit_time])
         return max((t for t in times if t is not None), default=None)
 
     @property
@@ -216,17 +217,15 @@ class Submission(JSONLike):
     def start_time(self) -> datetime | None:
         """Get the first non-None start time over all submission parts."""
         times = (
-            self.get_start_time(submit_time)
-            for submit_time in self._submission_parts)
+            self.get_start_time(submit_time) for submit_time in self._submission_parts
+        )
         return min((t for t in times if t is not None), default=None)
 
     @property
     @TimeIt.decorator
     def end_time(self) -> datetime | None:
         """Get the final non-None end time over all submission parts."""
-        times = (
-            self.get_end_time(submit_time)
-            for submit_time in self._submission_parts)
+        times = (self.get_end_time(submit_time) for submit_time in self._submission_parts)
         return max((t for t in times if t is not None), default=None)
 
     @property
@@ -291,8 +290,9 @@ class Submission(JSONLike):
     @property
     @TimeIt.decorator
     def EARs_by_elements(self) -> Mapping[int, Mapping[int, Sequence[ElementActionRun]]]:
-        task_elem_EARs: dict[int, dict[int, list[ElementActionRun]]] = \
-            defaultdict(lambda: defaultdict(list))
+        task_elem_EARs: dict[int, dict[int, list[ElementActionRun]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         for i in self.all_EARs:
             task_elem_EARs[i.task.index][i.element.index].append(i)
         return task_elem_EARs
@@ -323,17 +323,15 @@ class Submission(JSONLike):
         # this returns: {JS_IDX: {JS_ELEMENT_IDX: STATE}}
         # TODO: query the scheduler once for all jobscripts?
         if as_json:
-            details = ((js.index, js.get_active_states(as_json=True))
-                       for js in self.jobscripts)
-            return {
-                idx: state for idx, state in details if state
-            }
+            details = (
+                (js.index, js.get_active_states(as_json=True)) for js in self.jobscripts
+            )
+            return {idx: state for idx, state in details if state}
         else:
-            dets2 = ((js.index, js.get_active_states(as_json=False))
-                     for js in self.jobscripts)
-            return {
-                idx: state for idx, state in dets2 if state
-            }
+            dets2 = (
+                (js.index, js.get_active_states(as_json=False)) for js in self.jobscripts
+            )
+            return {idx: state for idx, state in dets2 if state}
 
     def _write_abort_EARs_file(self) -> None:
         with self.abort_EARs_file_path.open(mode="wt", newline="\n") as fp:
@@ -407,8 +405,7 @@ class Submission(JSONLike):
         return dict(zip((tuple(i) for i in js_idx), shells))
 
     def __raise_failure(
-        self, submitted_js_idx: list[int],
-        exceptions: list[JobscriptSubmissionFailure]
+        self, submitted_js_idx: list[int], exceptions: list[JobscriptSubmissionFailure]
     ):
         msg = f"Some jobscripts in submission index {self.index} could not be submitted"
         if submitted_js_idx:

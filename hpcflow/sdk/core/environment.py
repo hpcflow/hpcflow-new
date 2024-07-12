@@ -10,6 +10,7 @@ from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ExecutablesList
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import ClassVar
@@ -35,9 +36,7 @@ class ExecutableInstance(JSONLike):
     command: str
 
     def __init__(
-        self, parallel_mode: str | None,
-        num_cores: NumCores | int | dict,
-        command: str
+        self, parallel_mode: str | None, num_cores: NumCores | int | dict, command: str
     ):
         self.parallel_mode = parallel_mode
         self.command = command
@@ -51,7 +50,7 @@ class ExecutableInstance(JSONLike):
     @classmethod
     def from_spec(cls, spec) -> ExecutableInstance:
         return cls(**spec)
-    
+
     def _get_num_cores(self) -> NumCores:
         return cast(NumCores, self.num_cores)
 
@@ -93,7 +92,9 @@ class Executable(JSONLike):
     def environment(self):
         return self._executables_list.environment
 
-    def filter_instances(self, parallel_mode: str | None = None, num_cores: int | None = None) -> list[ExecutableInstance]:
+    def filter_instances(
+        self, parallel_mode: str | None = None, num_cores: int | None = None
+    ) -> list[ExecutableInstance]:
         out: list[ExecutableInstance] = []
         for i in self.instances:
             if parallel_mode is None or i.parallel_mode == parallel_mode:
@@ -114,9 +115,12 @@ class Environment(JSONLike):
     )
 
     def __init__(
-        self, name: str, setup: Sequence[str] | None = None, specifiers: dict | None = None,
+        self,
+        name: str,
+        setup: Sequence[str] | None = None,
+        specifiers: dict | None = None,
         executables: ExecutablesList | Sequence[Executable] | None = None,
-        _hash_value: str | None = None
+        _hash_value: str | None = None,
     ):
         self.name = name
         self.specifiers = specifiers or {}
@@ -129,9 +133,7 @@ class Environment(JSONLike):
         self.setup: tuple[str, ...] | None
         if setup:
             if isinstance(setup, str):
-                self.setup = tuple(
-                    i.strip() for i in dedent(setup).strip().split("\n")
-                )
+                self.setup = tuple(i.strip() for i in dedent(setup).strip().split("\n"))
             else:
                 self.setup = tuple(setup)
         else:

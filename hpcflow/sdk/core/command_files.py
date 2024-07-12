@@ -10,6 +10,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import search_dir_files_by_regex
 from hpcflow.sdk.core.zarr_io import zarr_decode
 from hpcflow.sdk.core.parameters import _process_demo_data_strings
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any, ClassVar, Self
@@ -37,11 +38,11 @@ class FileSpec(JSONLike):
     name: FileNameSpec
     _hash_value: str | None = field(default=None, repr=False)
 
-    def __init__(self, label: str, name: str | FileNameSpec, _hash_value: str | None = None) -> None:
+    def __init__(
+        self, label: str, name: str | FileNameSpec, _hash_value: str | None = None
+    ) -> None:
         self.label = label
-        self.name = (
-            self.app.FileNameSpec(name) if isinstance(name, str) else name
-        )
+        self.name = self.app.FileNameSpec(name) if isinstance(name, str) else name
         self._hash_value = _hash_value
 
     def value(self, directory: str = ".") -> str:
@@ -68,7 +69,9 @@ class FileNameSpec(JSONLike):
     app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "app"
 
-    def __init__(self, name: str, args: list | None = None, is_regex: bool = False) -> None:
+    def __init__(
+        self, name: str, args: list | None = None, is_regex: bool = False
+    ) -> None:
         self.name = name
         self.args = args
         self.is_regex = is_regex
@@ -521,6 +524,7 @@ class _FileContentsSpecifier(JSONLike):
         assert self._value_group_idx is None
         if self._value_group_idx is not None:
             from ..persistence.zarr import ZarrPersistentStore
+
             assert isinstance(self.workflow._store, ZarrPersistentStore)
             # FIXME: Next two lines are both thoroughly broken, but at least resolve to something
             grp = self.workflow._store._get_parameter_group(self._value_group_idx)
@@ -600,7 +604,9 @@ class InputFile(_FileContentsSpecifier):
 
         super().__init__(path, contents, extension, store_contents)
 
-    def _get_members(self, ensure_contents: bool = False, use_file_label: bool = False) -> dict[str, Any]:
+    def _get_members(
+        self, ensure_contents: bool = False, use_file_label: bool = False
+    ) -> dict[str, Any]:
         out = super()._get_members(ensure_contents)
         if use_file_label:
             out["file"] = self.file.label
@@ -638,7 +644,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
         self,
         generator: InputFileGenerator,
         path: Path | str | None = None,
-        contents: str | None= None,
+        contents: str | None = None,
         extension: str = "",
     ):
         self.generator = generator

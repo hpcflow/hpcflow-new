@@ -11,6 +11,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from typing import Any, ClassVar
@@ -40,7 +41,7 @@ class SGEPosix(QueuedScheduler):
 
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
     DEFAULT_SUBMIT_CMD: ClassVar[str] = "qsub"
-    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = ("qstat")
+    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = "qstat"
     DEFAULT_DEL_CMD: ClassVar[str] = "qdel"
     DEFAULT_JS_CMD: ClassVar[str] = "#$"
     DEFAULT_ARRAY_SWITCH: ClassVar[str] = "-t"
@@ -83,7 +84,9 @@ class SGEPosix(QueuedScheduler):
 
     @classmethod
     @TimeIt.decorator
-    def process_resources(cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor) -> None:
+    def process_resources(
+        cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
+    ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -152,12 +155,16 @@ class SGEPosix(QueuedScheduler):
     def _format_array_request(self, num_elements: int) -> str:
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def _format_std_stream_file_option_lines(self, is_array: bool, sub_idx: int) -> Iterator[str]:
+    def _format_std_stream_file_option_lines(
+        self, is_array: bool, sub_idx: int
+    ) -> Iterator[str]:
         # note: we can't modify the file names
         yield f"{self.js_cmd} -o ./artifacts/submissions/{sub_idx}"
         yield f"{self.js_cmd} -e ./artifacts/submissions/{sub_idx}"
 
-    def format_options(self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int) -> str:
+    def format_options(
+        self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
+    ) -> str:
         opts: list[str] = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self._format_core_request_lines(resources))
@@ -258,8 +265,10 @@ class SGEPosix(QueuedScheduler):
 
             arr_idx_s = ln[task_id_idx:].strip()
             arr_idx = (
-                int(arr_idx_s) - 1   # We are using zero-indexed info
-                if arr_idx_s else None)
+                int(arr_idx_s) - 1  # We are using zero-indexed info
+                if arr_idx_s
+                else None
+            )
 
             info.setdefault(base_job_ID, {})[arr_idx] = state
         return info
@@ -280,9 +289,10 @@ class SGEPosix(QueuedScheduler):
         return info
 
     def cancel_jobs(
-        self, js_refs: list[str],
+        self,
+        js_refs: list[str],
         jobscripts: list[Jobscript] | None = None,
-        num_js_elements: int = 0  # Ignored!
+        num_js_elements: int = 0,  # Ignored!
     ):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
