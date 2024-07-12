@@ -669,12 +669,12 @@ class ElementIteration:
                     if v["task_idx"] == self.task.index:
                         out_strs[k] = "local"
                     else:
-                        out_strs[k] = f"task.{v["task_idx"]}.input"
+                        out_strs[k] = f"task.{v['task_idx']}.input"
                 else:
                     if v["task_insert_ID"] == self.task.insert_ID:
                         out_strs[k] = "local"
                     else:
-                        out_strs[k] = f"task.{v["task_insert_ID"]}.input"
+                        out_strs[k] = f"task.{v['task_insert_ID']}.input"
             elif v["type"] == "default_input":
                 out_strs == "default"
             else:
