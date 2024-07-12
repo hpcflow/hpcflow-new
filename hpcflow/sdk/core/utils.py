@@ -752,10 +752,10 @@ def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:
 
 
 def linspace_rect(
-    start: list[float],
-    stop: list[float],
-    num: list[int],
-    include: list[str] | None = None,
+    start: Sequence[float],
+    stop: Sequence[float],
+    num: Sequence[int],
+    include: Sequence[str] | None = None,
     **kwargs,
 ) -> NDArray:
     """Generate a linear space around a rectangle.
@@ -779,19 +779,18 @@ def linspace_rect(
 
     """
 
-    if num[0] == 1 or num[1] == 1:
+    if num[0] <= 1 or num[1] <= 1:
         raise ValueError("Both values in `num` must be greater than 1.")
 
-    if not include:
-        include = ["top", "right", "bottom", "left"]
+    inc = set(include) if include else {"top", "right", "bottom", "left"}
 
     c0_range = np.linspace(start=start[0], stop=stop[0], num=num[0], **kwargs)
     c1_range_all = np.linspace(start=start[1], stop=stop[1], num=num[1], **kwargs)
 
     c1_range = c1_range_all
-    if "bottom" in include:
+    if "bottom" in inc:
         c1_range = c1_range[1:]
-    if "top" in include:
+    if "top" in inc:
         c1_range = c1_range[:-1]
 
     c0_range_c1_start = np.vstack([c0_range, np.repeat(start[1], num[0])])
@@ -801,17 +800,16 @@ def linspace_rect(
     c1_range_c0_stop = np.vstack([np.repeat(c0_range[-1], len(c1_range)), c1_range])
 
     stacked = []
-    if "top" in include:
+    if "top" in inc:
         stacked.append(c0_range_c1_stop)
-    if "right" in include:
+    if "right" in inc:
         stacked.append(c1_range_c0_stop)
-    if "bottom" in include:
+    if "bottom" in inc:
         stacked.append(c0_range_c1_start)
-    if "left" in include:
+    if "left" in inc:
         stacked.append(c1_range_c0_start)
 
-    rect = np.hstack(stacked)
-    return rect
+    return np.hstack(stacked)
 
 
 def dict_values_process_flat(d: Mapping[T, T2 | list[T2]],
