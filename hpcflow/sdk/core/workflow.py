@@ -1696,7 +1696,14 @@ class Workflow:
 
         return wk
 
-    def zip(self, path=".", log=None, overwrite=False) -> str:
+    def zip(
+        self,
+        path=".",
+        log=None,
+        overwrite=False,
+        include_execute=False,
+        include_rechunk_backups=False,
+    ) -> str:
         """
         Parameters
         ----------
@@ -1705,7 +1712,13 @@ class Workflow:
             directory, the zip file will be created within this directory. Otherwise,
             this path is assumed to be the full file path to the new zip file.
         """
-        return self._store.zip(path=path, log=log, overwrite=overwrite)
+        return self._store.zip(
+            path=path,
+            log=log,
+            overwrite=overwrite,
+            include_execute=include_execute,
+            include_rechunk_backups=include_rechunk_backups,
+        )
 
     def unzip(self, path=".", log=None) -> str:
         """
@@ -2942,6 +2955,34 @@ class Workflow:
                     final = sorted(iter_dat, key=lambda x: x[1], reverse=True)[0]
                     final_runs[loop_name].append(final[0])
         return dict(final_runs)
+
+    def rechunk_runs(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_parameter_base(
+            chunk_size=chunk_size, backup=backup, status=status
+        )
+
+    def rechunk(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        """Rechunk metadata/runs and parameters/base arrays."""
+        self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+        self.rechunk_parameter_base(chunk_size=chunk_size, backup=backup, status=status)
 
 
 @dataclass
