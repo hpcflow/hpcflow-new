@@ -1356,3 +1356,12 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     def delete_no_confirm(self) -> None:
         # `ZipFileSystem.rm()` does not seem to be implemented.
         raise NotImplementedError()
+
+    def _rechunk_arr(
+        self,
+        arr,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        raise NotImplementedError
