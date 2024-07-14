@@ -31,6 +31,8 @@ from hpcflow.sdk.cli_common import (
     zip_path_opt,
     zip_overwrite_opt,
     zip_log_opt,
+    zip_include_execute_opt,
+    zip_include_rechunk_backups_opt,
     unzip_path_opt,
     unzip_log_opt,
     rechunk_backup_opt,
@@ -428,11 +430,28 @@ def _make_workflow_CLI(app):
     @zip_path_opt
     @zip_overwrite_opt
     @zip_log_opt
+    @zip_include_execute_opt
+    @zip_include_rechunk_backups_opt
     @click.pass_context
-    def zip_workflow(ctx, path, overwrite, log):
+    def zip_workflow(
+        ctx,
+        path,
+        overwrite,
+        log,
+        include_execute,
+        include_rechunk_backups,
+    ):
         """Generate a copy of the workflow in the zip file format in the current working
         directory."""
-        click.echo(ctx.obj["workflow"].zip(path=path, overwrite=overwrite, log=log))
+        click.echo(
+            ctx.obj["workflow"].zip(
+                path=path,
+                overwrite=overwrite,
+                log=log,
+                include_execute=include_execute,
+                include_rechunk_backups=include_rechunk_backups,
+            )
+        )
 
     @workflow.command(name="unzip")
     @unzip_path_opt
@@ -745,8 +764,18 @@ def _make_zip_CLI(app):
     @zip_path_opt
     @zip_overwrite_opt
     @zip_log_opt
+    @zip_include_execute_opt
+    @zip_include_rechunk_backups_opt
     @workflow_ref_type_opt
-    def zip_workflow(workflow_ref, path, overwrite, log, ref_type):
+    def zip_workflow(
+        workflow_ref,
+        path,
+        overwrite,
+        log,
+        include_execute,
+        include_rechunk_backups,
+        ref_type,
+    ):
         """Generate a copy of the specified workflow in the zip file format in the
         current working directory.
 
@@ -755,7 +784,15 @@ def _make_zip_CLI(app):
         """
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
-        click.echo(wk.zip(path=path, overwrite=overwrite, log=log))
+        click.echo(
+            wk.zip(
+                path=path,
+                overwrite=overwrite,
+                log=log,
+                include_execute=include_execute,
+                include_rechunk_backups=include_rechunk_backups,
+            )
+        )
 
     return zip_workflow
 

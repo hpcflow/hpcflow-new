@@ -1154,7 +1154,14 @@ class ZarrPersistentStore(PersistentStore):
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["name"]
 
-    def zip(self, path=".", log=None, overwrite=False):
+    def zip(
+        self,
+        path=".",
+        log=None,
+        overwrite=False,
+        include_execute=False,
+        include_rechunk_backups=False,
+    ):
         """
         Parameters
         ----------
@@ -1190,10 +1197,17 @@ class ZarrPersistentStore(PersistentStore):
             add_pw_to="target_options",
         )
         dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
+        excludes = []
+        if not include_execute:
+            excludes.append("execute")
+        if not include_rechunk_backups:
+            excludes.append("runs.bak")
+            excludes.append("base.bak")
+
         zarr.convenience.copy_store(
             src_zarr_store,
             dst_zarr_store,
-            excludes="execute",
+            excludes=excludes or None,
             log=log,
         )
         del zfs  # ZipFileSystem remains open for instance lifetime
