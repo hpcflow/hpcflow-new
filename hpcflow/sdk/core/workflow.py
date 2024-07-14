@@ -2943,6 +2943,34 @@ class Workflow:
                     final_runs[loop_name].append(final[0])
         return dict(final_runs)
 
+    def rechunk_runs(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_parameter_base(
+            chunk_size=chunk_size, backup=backup, status=status
+        )
+
+    def rechunk(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        """Rechunk metadata/runs and parameters/base arrays."""
+        self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+        self.rechunk_parameter_base(chunk_size=chunk_size, backup=backup, status=status)
+
 
 @dataclass
 class WorkflowBlueprint:

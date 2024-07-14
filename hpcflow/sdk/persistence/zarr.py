@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import shutil
+import time
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
@@ -1197,6 +1199,103 @@ class ZarrPersistentStore(PersistentStore):
         del zfs  # ZipFileSystem remains open for instance lifetime
         status.stop()
         return dst_path
+
+    def _rechunk_arr(
+        self,
+        arr,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        arr_path = Path(self.workflow.path) / arr.path
+        arr_name = arr.path.split("/")[-1]
+
+        if status:
+            console = Console()
+            status = console.status("Rechunking...")
+            status.start()
+        backup_time = None
+
+        if backup:
+            if status:
+                status.update("Backing up...")
+            backup_path = arr_path.with_suffix(".bak")
+            if backup_path.is_dir():
+                pass
+            else:
+                tic = time.perf_counter()
+                shutil.copytree(arr_path, backup_path)
+                toc = time.perf_counter()
+                backup_time = toc - tic
+
+        tic = time.perf_counter()
+        arr_rc_path = arr_path.with_suffix(".rechunked")
+        arr = zarr.open(arr_path)
+        if status:
+            status.update("Creating new array...")
+        arr_rc = zarr.create(
+            store=arr_rc_path,
+            shape=arr.shape,
+            chunks=arr.shape if chunk_size is None else chunk_size,
+            dtype=object,
+            object_codec=MsgPack(),
+        )
+        if status:
+            status.update("Copying data...")
+        data = np.empty(shape=arr.shape, dtype=object)
+        bad_data = []
+        for idx in range(len(arr)):
+            try:
+                data[idx] = arr[idx]
+            except RuntimeError:
+                # blosc decompression errors
+                bad_data.append(idx)
+                pass
+        arr_rc[:] = data
+
+        arr_rc.attrs.put(arr.attrs.asdict())
+
+        if status:
+            status.update("Deleting old array...")
+        shutil.rmtree(arr_path)
+
+        if status:
+            status.update("Moving new array into place...")
+        shutil.move(arr_rc_path, arr_path)
+
+        toc = time.perf_counter()
+        rechunk_time = toc - tic
+
+        if status:
+            status.stop()
+
+        if backup_time:
+            print(f"Time to backup {arr_name}: {backup_time:.1f} s")
+
+        print(f"Time to rechunk and move {arr_name}: {rechunk_time:.1f} s")
+
+        if bad_data:
+            print(f"Bad data at {arr_name} indices: {bad_data}.")
+
+        return arr_rc
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        arr = self._get_parameter_base_array()
+        return self._rechunk_arr(arr, chunk_size, backup, status)
+
+    def rechunk_runs(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        arr = self._get_EARs_arr()
+        return self._rechunk_arr(arr, chunk_size, backup, status)
 
 
 class ZarrZipPersistentStore(ZarrPersistentStore):
