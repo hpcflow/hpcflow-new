@@ -351,9 +351,9 @@ class BaseApp(metaclass=Singleton):
         self._config: Config | None = (
             None  # assigned on first access to `config` property
         )
-        self._config_files: dict[
-            str, ConfigFile
-        ] = {}  # assigned on config load, keys are string absolute paths
+        self._config_files: dict[str, ConfigFile] = (
+            {}
+        )  # assigned on config load, keys are string absolute paths
 
         # Set by `_load_template_components`:
         self._template_components: TemplateComponents = {}

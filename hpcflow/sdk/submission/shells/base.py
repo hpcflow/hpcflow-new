@@ -119,8 +119,7 @@ class Shell(ABC):
         EAR_ID: int,
         cmd_idx: int,
         stderr: bool,
-    ):
-        ...
+    ): ...
 
     @abstractmethod
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
@@ -133,9 +132,7 @@ class Shell(ABC):
     @abstractmethod
     def format_loop_check(
         self, workflow_app_alias: str, loop_name: str, run_ID: int
-    ) -> str:
-        ...
+    ) -> str: ...
 
     @abstractmethod
-    def format_stream_assignment(self, shell_var_name, command) -> str:
-        ...
+    def format_stream_assignment(self, shell_var_name, command) -> str: ...

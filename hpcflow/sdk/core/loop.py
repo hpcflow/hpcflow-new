@@ -474,9 +474,9 @@ class WorkflowLoop:
 
         iters_key = tuple(parent_loop_indices_[k] for k in self.parents)
         cur_loop_idx = self.num_added_iterations[iters_key] - 1
-        all_new_data_idx: dict[
-            tuple[int, int], DataIndex
-        ] = {}  # keys are (task.insert_ID and element.index)
+        all_new_data_idx: dict[tuple[int, int], DataIndex] = (
+            {}
+        )  # keys are (task.insert_ID and element.index)
 
         # initialise a new `num_added_iterations` key on each child loop:
         for child in child_loops:

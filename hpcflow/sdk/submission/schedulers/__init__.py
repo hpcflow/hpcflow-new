@@ -42,8 +42,7 @@ class Scheduler(ABC, Generic[T]):
     @abstractmethod
     def process_resources(
         self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def get_version_info(self) -> dict[str, str | list[str]]:
         return {}
@@ -63,18 +62,15 @@ class Scheduler(ABC, Generic[T]):
         shell: Shell,
         js_path: str,
         deps: dict[Any, tuple[Any, ...]],
-    ) -> list[str]:
-        ...
+    ) -> list[str]: ...
 
     @abstractmethod
     def get_job_state_info(
         self, *, js_refs: list[T] | None = None, num_js_elements: int = 0
-    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
-        ...
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]: ...
 
     @abstractmethod
-    def wait_for_jobscripts(self, js_refs: list[T]) -> None:
-        ...
+    def wait_for_jobscripts(self, js_refs: list[T]) -> None: ...
 
     @abstractmethod
     def cancel_jobs(
@@ -82,8 +78,7 @@ class Scheduler(ABC, Generic[T]):
         js_refs: list[T],
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 class QueuedScheduler(Scheduler[str]):
@@ -140,5 +135,4 @@ class QueuedScheduler(Scheduler[str]):
             time.sleep(2)
 
     @abstractmethod
-    def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
-        ...
+    def format_options(self, resources, num_elements, is_array, sub_idx) -> str: ...
