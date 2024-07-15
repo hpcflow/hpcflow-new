@@ -255,7 +255,7 @@ def test_make_zarr_store_no_compressor(null_config, tmp_path: Path):
 
 
 @pytest.mark.integration
-def test_zarr_rechunk_data_equivalent(null_config, tmp_path):
+def test_zarr_rechunk_data_equivalent(null_config, tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
         inputs={"p1": 101},
@@ -287,7 +287,7 @@ def test_zarr_rechunk_data_equivalent(null_config, tmp_path):
 
 
 @pytest.mark.integration
-def test_zarr_rechunk_data_equivalent_custom_chunk_size(null_config, tmp_path):
+def test_zarr_rechunk_data_equivalent_custom_chunk_size(null_config, tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
         inputs={"p1": 101},
@@ -316,7 +316,7 @@ def test_zarr_rechunk_data_equivalent_custom_chunk_size(null_config, tmp_path):
 
 
 @pytest.mark.integration
-def test_zarr_rechunk_data_no_backup_load_runs(null_config, tmp_path):
+def test_zarr_rechunk_data_no_backup_load_runs(null_config, tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
         inputs={"p1": 101},
@@ -345,7 +345,7 @@ def test_zarr_rechunk_data_no_backup_load_runs(null_config, tmp_path):
 
 
 @pytest.mark.integration
-def test_zarr_rechunk_data_no_backup_load_parameter_base(null_config, tmp_path):
+def test_zarr_rechunk_data_no_backup_load_parameter_base(null_config, tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
         inputs={"p1": 101},

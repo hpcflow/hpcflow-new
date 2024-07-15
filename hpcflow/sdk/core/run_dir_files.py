@@ -1,6 +1,6 @@
 from __future__ import annotations
 import re
-from typing import ClassVar, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
 if TYPE_CHECKING:
