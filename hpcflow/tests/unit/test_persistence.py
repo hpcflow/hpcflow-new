@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import numpy as np
-import zarr
+import zarr  # type: ignore
 import pytest
 from hpcflow.sdk.core.test_utils import make_test_data_YAML_workflow
 from hpcflow.sdk.persistence.json import (
