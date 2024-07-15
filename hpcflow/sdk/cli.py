@@ -32,8 +32,13 @@ from hpcflow.sdk.cli_common import (
     zip_path_opt,
     zip_overwrite_opt,
     zip_log_opt,
+    zip_include_execute_opt,
+    zip_include_rechunk_backups_opt,
     unzip_path_opt,
     unzip_log_opt,
+    rechunk_backup_opt,
+    rechunk_chunk_size_opt,
+    rechunk_status_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
@@ -456,12 +461,29 @@ def _make_workflow_CLI(app: BaseApp):
     @zip_path_opt
     @zip_overwrite_opt
     @zip_log_opt
+    @zip_include_execute_opt
+    @zip_include_rechunk_backups_opt
     @click.pass_context
-    def zip_workflow(ctx: click.Context, path: str, overwrite: bool, log: str | None):
+    def zip_workflow(
+        ctx: click.Context,
+        path: str,
+        overwrite: bool,
+        log: str | None,
+        include_execute: bool,
+        include_rechunk_backups: bool,
+    ):
         """Generate a copy of the workflow in the zip file format in the current working
         directory."""
         wf: Workflow = ctx.obj["workflow"]
-        click.echo(wf.zip(path=path, overwrite=overwrite, log=log))
+        click.echo(
+            wf.zip(
+                path=path,
+                overwrite=overwrite,
+                log=log,
+                include_execute=include_execute,
+                include_rechunk_backups=include_rechunk_backups,
+            )
+        )
 
     @workflow.command(name="unzip")
     @unzip_path_opt
@@ -472,6 +494,39 @@ def _make_workflow_CLI(app: BaseApp):
         current working directory."""
         wf: Workflow = ctx.obj["workflow"]
         click.echo(wf.unzip(path=path, log=log))
+
+    @workflow.command(name="rechunk")
+    @rechunk_backup_opt
+    @rechunk_chunk_size_opt
+    @rechunk_status_opt
+    @click.pass_context
+    def rechunk(ctx: click.Context, backup: bool, chunk_size: int, status: bool):
+        """Rechunk metadata/runs and parameters/base arrays."""
+        wf: Workflow = ctx.obj["workflow"]
+        wf.rechunk(backup=backup, chunk_size=chunk_size, status=status)
+
+    @workflow.command(name="rechunk-runs")
+    @rechunk_backup_opt
+    @rechunk_chunk_size_opt
+    @rechunk_status_opt
+    @click.pass_context
+    def rechunk_runs(ctx: click.Context, backup: bool, chunk_size: int, status: bool):
+        """Rechunk the metadata/runs array."""
+        wf: Workflow = ctx.obj["workflow"]
+        wf.rechunk_runs(
+            backup=backup, chunk_size=chunk_size, status=status
+        )
+
+    @workflow.command(name="rechunk-parameter-base")
+    @rechunk_backup_opt
+    @rechunk_chunk_size_opt
+    @rechunk_status_opt
+    @click.pass_context
+    def rechunk_parameter_base(ctx, backup, chunk_size, status):
+        """Rechunk the parameters/base array."""
+        ctx.obj["workflow"].rechunk_parameter_base(
+            backup=backup, chunk_size=chunk_size, status=status
+        )
 
     if workflow.help:
         workflow.help = workflow.help.format(app_name=app.name)
@@ -750,8 +805,18 @@ def _make_zip_CLI(app: BaseApp):
     @zip_path_opt
     @zip_overwrite_opt
     @zip_log_opt
+    @zip_include_execute_opt
+    @zip_include_rechunk_backups_opt
     @workflow_ref_type_opt
-    def zip_workflow(workflow_ref, path, overwrite, log, ref_type):
+    def zip_workflow(
+        workflow_ref: str,
+        path: str,
+        overwrite: bool,
+        log: str | None,
+        include_execute: bool,
+        include_rechunk_backups: bool,
+        ref_type: str | None,
+    ):
         """Generate a copy of the specified workflow in the zip file format in the
         current working directory.
 
@@ -760,7 +825,15 @@ def _make_zip_CLI(app: BaseApp):
         """
         workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
         wk = app.Workflow(workflow_path)
-        click.echo(wk.zip(path=path, overwrite=overwrite, log=log))
+        click.echo(
+            wk.zip(
+                path=path,
+                overwrite=overwrite,
+                log=log,
+                include_execute=include_execute,
+                include_rechunk_backups=include_rechunk_backups,
+            )
+        )
 
     return zip_workflow
 
@@ -770,7 +843,7 @@ def _make_unzip_CLI(app: BaseApp):
     @click.argument("workflow_path")
     @unzip_path_opt
     @unzip_log_opt
-    def unzip_workflow(workflow_path, path, log):
+    def unzip_workflow(workflow_path: str, path: str, log):
         """Generate a copy of the specified zipped workflow in the submittable Zarr
         format in the current working directory.
 
@@ -787,7 +860,7 @@ def _make_cancel_CLI(app: BaseApp):
     @click.command()
     @click.argument("workflow_ref")
     @workflow_ref_type_opt
-    def cancel(workflow_ref, ref_type):
+    def cancel(workflow_ref: str, ref_type):
         """Stop all running jobscripts of the specified workflow.
 
         WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
@@ -797,6 +870,27 @@ def _make_cancel_CLI(app: BaseApp):
         app.cancel(workflow_ref, ref_type)
 
     return cancel
+
+
+def _make_rechunk_CLI(app: BaseApp):
+    @click.command(name="rechunk")
+    @click.argument("workflow_ref")
+    @workflow_ref_type_opt
+    @rechunk_backup_opt
+    @rechunk_chunk_size_opt
+    @rechunk_status_opt
+    def rechunk(workflow_ref, ref_type, backup, chunk_size, status):
+        """Rechunk metadata/runs and parameters/base arrays.
+
+        WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
+        workflow path.
+
+        """
+        workflow_path = app._resolve_workflow_reference(workflow_ref, ref_type)
+        wk = app.Workflow(workflow_path)
+        wk.rechunk(backup=backup, chunk_size=chunk_size, status=status)
+
+    return rechunk
 
 
 def _make_open_CLI(app: BaseApp):
@@ -1173,6 +1267,7 @@ def make_cli(app: BaseApp):
     new_CLI.add_command(_make_cancel_CLI(app))
     new_CLI.add_command(_make_zip_CLI(app))
     new_CLI.add_command(_make_unzip_CLI(app))
+    new_CLI.add_command(_make_rechunk_CLI(app))
     for cli_cmd in _make_API_CLI(app):
         new_CLI.add_command(cli_cmd)
 

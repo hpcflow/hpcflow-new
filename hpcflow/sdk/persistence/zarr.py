@@ -6,14 +6,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
+import shutil
+import time
 
 import numpy as np
 from numpy.ma.core import MaskedArray
 import zarr  # type: ignore
 import zarr.attrs  # type: ignore
 import zarr.convenience  # type: ignore
+import zarr.errors  # type: ignore
 import zarr.storage  # type: ignore
-from fsspec import AbstractFileSystem  # type: ignore
 from fsspec.implementations.zip import ZipFileSystem  # type: ignore
 from rich.console import Console
 from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd  # type: ignore
@@ -48,7 +50,9 @@ from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from fsspec import AbstractFileSystem  # type: ignore
     from typing import ClassVar, Dict, Self
+    from zarr import Array, Group  # type: ignore
     from ..app import BaseApp
     from ..core.json_like import JSONed
     from ..typing import ParamSource
@@ -132,7 +136,7 @@ def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
     return obj
 
 
-def append_items_to_ragged_array(arr: zarr.Array, items: Sequence[int]):
+def append_items_to_ragged_array(arr: Array, items: Sequence[int]):
     """Append an array to a Zarr ragged array.
 
     I think `arr.append([item])` should work, but does not for some reason, so we do it
@@ -539,7 +543,7 @@ class ZarrPersistentStore(
         return cast(dict, attrs.asdict())
 
     @contextmanager
-    def __mutate_attrs(self, arr: zarr.Array) -> Iterator[dict[str, list[str]]]:
+    def __mutate_attrs(self, arr: Array) -> Iterator[dict[str, list[str]]]:
         attrs_orig = self.__as_dict(arr.attrs)
         attrs = copy.deepcopy(attrs_orig)
         yield attrs
@@ -805,27 +809,27 @@ class ZarrPersistentStore(
             self._zarr_store = self._get_zarr_store(self.path, self.fs)
         return self._zarr_store
 
-    def _get_root_group(self, mode: str = "r", **kwargs) -> zarr.Group:
+    def _get_root_group(self, mode: str = "r", **kwargs) -> Group:
         return zarr.open(self.zarr_store, mode=mode, **kwargs)
 
-    def _get_parameter_group(self, mode: str = "r", **kwargs) -> zarr.Group:
+    def _get_parameter_group(self, mode: str = "r", **kwargs) -> Group:
         return self._get_root_group(mode=mode, **kwargs).get(self._param_grp_name)
 
-    def _get_parameter_base_array(self, mode: str = "r", **kwargs) -> zarr.Array:
+    def _get_parameter_base_array(self, mode: str = "r", **kwargs) -> Array:
         path = f"{self._param_grp_name}/{self._param_base_arr_name}"
         return zarr.open(self.zarr_store, mode=mode, path=path, **kwargs)
 
-    def _get_parameter_sources_array(self, mode: str = "r") -> zarr.Array:
+    def _get_parameter_sources_array(self, mode: str = "r") -> Array:
         return self._get_parameter_group(mode=mode).get(self._param_sources_arr_name)
 
-    def _get_parameter_user_array_group(self, mode: str = "r") -> zarr.Group:
+    def _get_parameter_user_array_group(self, mode: str = "r") -> Group:
         return self._get_parameter_group(mode=mode).get(self._param_user_arr_grp_name)
 
     def _get_parameter_data_array_group(
         self,
         parameter_idx: int,
         mode: str = "r",
-    ) -> zarr.Group:
+    ) -> Group:
         return self._get_parameter_user_array_group(mode=mode).get(
             self._param_data_arr_grp_name(parameter_idx)
         )
@@ -846,19 +850,19 @@ class ZarrPersistentStore(
         )
         return group, f"arr_{arr_idx}"
 
-    def _get_metadata_group(self, mode: str = "r") -> zarr.Group:
+    def _get_metadata_group(self, mode: str = "r") -> Group:
         return self._get_root_group(mode=mode).get("metadata")
 
-    def _get_tasks_arr(self, mode: str = "r") -> zarr.Array:
+    def _get_tasks_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._task_arr_name)
 
-    def _get_elements_arr(self, mode: str = "r") -> zarr.Array:
+    def _get_elements_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._elem_arr_name)
 
-    def _get_iters_arr(self, mode: str = "r") -> zarr.Array:
+    def _get_iters_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._iter_arr_name)
 
-    def _get_EARs_arr(self, mode: str = "r") -> zarr.Array:
+    def _get_EARs_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._EAR_arr_name)
 
     @classmethod
@@ -1159,7 +1163,14 @@ class ZarrPersistentStore(
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["name"]
 
-    def zip(self, path=".", log=None, overwrite=False):
+    def zip(
+        self,
+        path=".",
+        log=None,
+        overwrite=False,
+        include_execute=False,
+        include_rechunk_backups=False,
+    ):
         """
         Parameters
         ----------
@@ -1195,10 +1206,17 @@ class ZarrPersistentStore(
             add_pw_to="target_options",
         )
         dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
+        excludes = []
+        if not include_execute:
+            excludes.append("execute")
+        if not include_rechunk_backups:
+            excludes.append("runs.bak")
+            excludes.append("base.bak")
+
         zarr.convenience.copy_store(
             src_zarr_store,
             dst_zarr_store,
-            excludes="execute",
+            excludes=excludes or None,
             log=log,
         )
         del zfs  # ZipFileSystem remains open for instance lifetime
@@ -1207,6 +1225,103 @@ class ZarrPersistentStore(
 
     def unzip(self, path=".", log=None):
         raise ValueError("Not a zip store!")
+
+    def _rechunk_arr(
+        self,
+        arr: Array,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Array:
+        arr_path = Path(self.workflow.path) / arr.path
+        arr_name = arr.path.split("/")[-1]
+
+        if status:
+            console = Console()
+            s = console.status("Rechunking...")
+            s.start()
+        backup_time = None
+
+        if backup:
+            if status:
+                s.update("Backing up...")
+            backup_path = arr_path.with_suffix(".bak")
+            if backup_path.is_dir():
+                pass
+            else:
+                tic = time.perf_counter()
+                shutil.copytree(arr_path, backup_path)
+                toc = time.perf_counter()
+                backup_time = toc - tic
+
+        tic = time.perf_counter()
+        arr_rc_path = arr_path.with_suffix(".rechunked")
+        arr = zarr.open(arr_path)
+        if status:
+            s.update("Creating new array...")
+        arr_rc = zarr.create(
+            store=arr_rc_path,
+            shape=arr.shape,
+            chunks=arr.shape if chunk_size is None else chunk_size,
+            dtype=object,
+            object_codec=MsgPack(),
+        )
+        if status:
+            s.update("Copying data...")
+        data = np.empty(shape=arr.shape, dtype=object)
+        bad_data = []
+        for idx in range(len(arr)):
+            try:
+                data[idx] = arr[idx]
+            except RuntimeError:
+                # blosc decompression errors
+                bad_data.append(idx)
+                pass
+        arr_rc[:] = data
+
+        arr_rc.attrs.put(arr.attrs.asdict())
+
+        if status:
+            s.update("Deleting old array...")
+        shutil.rmtree(arr_path)
+
+        if status:
+            s.update("Moving new array into place...")
+        shutil.move(arr_rc_path, arr_path)
+
+        toc = time.perf_counter()
+        rechunk_time = toc - tic
+
+        if status:
+            s.stop()
+
+        if backup_time:
+            print(f"Time to backup {arr_name}: {backup_time:.1f} s")
+
+        print(f"Time to rechunk and move {arr_name}: {rechunk_time:.1f} s")
+
+        if bad_data:
+            print(f"Bad data at {arr_name} indices: {bad_data}.")
+
+        return arr_rc
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Array:
+        arr = self._get_parameter_base_array()
+        return self._rechunk_arr(arr, chunk_size, backup, status)
+
+    def rechunk_runs(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Array:
+        arr = self._get_EARs_arr()
+        return self._rechunk_arr(arr, chunk_size, backup, status)
 
 
 class ZarrZipPersistentStore(ZarrPersistentStore):
@@ -1263,3 +1378,12 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     def delete_no_confirm(self) -> None:
         # `ZipFileSystem.rm()` does not seem to be implemented.
         raise NotImplementedError()
+
+    def _rechunk_arr(
+        self,
+        arr,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Array:
+        raise NotImplementedError

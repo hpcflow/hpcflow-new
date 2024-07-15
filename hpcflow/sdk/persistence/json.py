@@ -734,8 +734,24 @@ class JSONPersistentStore(
             assert "name" in md
             return md["name"]
 
-    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str:
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False, include_execute=False, include_rechunk_backups=False) -> str:
         raise TypeError("unsupported operation: zipping-json")
 
     def unzip(self, path: str = ".", log: str | None = None) -> str:
         raise TypeError("unsupported operation: unzipping-json")
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Any:
+        raise TypeError("unsupported operation: rechunk-json")
+
+    def rechunk_runs(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Any:
+        raise TypeError("unsupported operation: rechunk-json")

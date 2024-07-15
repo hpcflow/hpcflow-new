@@ -1,4 +1,24 @@
 
+<a name="v0.2.0a178"></a>
+## [v0.2.0a178](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a177...v0.2.0a178) - 2024.07.14
+
+### ✨ Features
+
+* exclude rechunk backups from zip by default, add option to include execute
+* add rechunk CLI
+* add `Workflow.rechunk` for zarr store type to reduce number of files
+
+### 🐛 Bug Fixes
+
+* update GHA workflows
+* centos GHAs - build exes
+* centos GHAs
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.2.0a177"></a>
 ## [v0.2.0a177](https://github.com/hpcflow/hpcflow-new/compare/v0.2.0a176...v0.2.0a177) - 2024.05.22
 

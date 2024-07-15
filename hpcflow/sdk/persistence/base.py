@@ -841,10 +841,26 @@ class PersistentStore(
     def reinstate_replaced_dir(self) -> None: ...
 
     @abstractmethod
-    def zip(self, path: str = ".", log: str | None = None, overwrite=False) -> str: ...
+    def zip(self, path: str = ".", log: str | None = None, overwrite=False, include_execute=False, include_rechunk_backups=False) -> str: ...
 
     @abstractmethod
     def unzip(self, path: str = ".", log: str | None = None) -> str: ...
+
+    @abstractmethod
+    def rechunk_parameter_base(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Any: ...
+
+    @abstractmethod
+    def rechunk_runs(
+        self,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
+    ) -> Any: ...
 
     @classmethod
     @abstractmethod
