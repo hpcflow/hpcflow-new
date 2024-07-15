@@ -81,10 +81,12 @@ class ObjectList(JSONLike, Generic[T]):
             return self._objects.__iter__()
 
     @overload
-    def __getitem__(self, key: int) -> T: ...
+    def __getitem__(self, key: int) -> T:
+        ...
 
     @overload
-    def __getitem__(self, key: slice) -> list[T]: ...
+    def __getitem__(self, key: slice) -> list[T]:
+        ...
 
     def __getitem__(self, key) -> T | list[T]:
         """Provide list-like index access."""
@@ -176,12 +178,14 @@ class ObjectList(JSONLike, Generic[T]):
     @overload
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: Literal[False] = False
-    ) -> int: ...
+    ) -> int:
+        ...
 
     @overload
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: Literal[True]
-    ) -> int | None: ...
+    ) -> int | None:
+        ...
 
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: bool = False
@@ -315,12 +319,14 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     @overload
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: Literal[False] = False
-    ) -> int: ...
+    ) -> int:
+        ...
 
     @overload
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: Literal[True]
-    ) -> int | None: ...
+    ) -> int | None:
+        ...
 
     def add_object(
         self, obj: T, index: int = -1, *, skip_duplicates: bool = False
@@ -364,7 +370,8 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         json_like: str,
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
         is_hashed: bool = False,
-    ) -> Self | None: ...
+    ) -> Self | None:
+        ...
 
     @overload
     @classmethod
@@ -373,7 +380,8 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         json_like: Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]],
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
         is_hashed: bool = False,
-    ) -> Self: ...
+    ) -> Self:
+        ...
 
     @overload
     @classmethod
@@ -382,7 +390,8 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         json_like: None,
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
         is_hashed: bool = False,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @classmethod
     def from_json_like(

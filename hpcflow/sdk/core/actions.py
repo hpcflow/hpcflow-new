@@ -392,7 +392,8 @@ class ElementActionRun:
         typ: str | None = None,
         as_strings: Literal[False] = False,
         use_task_index: bool = False,
-    ) -> dict[str, dict[str, Any]]: ...
+    ) -> dict[str, dict[str, Any]]:
+        ...
 
     @overload
     def get_parameter_sources(
@@ -402,7 +403,8 @@ class ElementActionRun:
         typ: str | None = None,
         as_strings: Literal[True],
         use_task_index: bool = False,
-    ) -> dict[str, str]: ...
+    ) -> dict[str, str]:
+        ...
 
     @TimeIt.decorator
     def get_parameter_sources(
@@ -448,12 +450,12 @@ class ElementActionRun:
         )
 
     @overload
-    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     @overload
-    def get_EAR_dependencies(
-        self, as_objects: Literal[True]
-    ) -> list[ElementActionRun]: ...
+    def get_EAR_dependencies(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
 
     @TimeIt.decorator
     def get_EAR_dependencies(
@@ -495,10 +497,12 @@ class ElementActionRun:
         return out
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]: ...
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
 
     def get_dependent_EARs(self, as_objects=False) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
@@ -813,9 +817,9 @@ class ElementActionRun:
         if env.setup:
             command_lns += list(env.setup)
 
-        shell_vars: dict[int, list[tuple[str, ...]]] = (
-            {}
-        )  # keys are cmd_idx, each value is a list of tuples
+        shell_vars: dict[
+            int, list[tuple[str, ...]]
+        ] = {}  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
             if cmd_idx in self.commands_idx:
                 # only execute commands that have no rules, or all valid rules:
@@ -942,7 +946,8 @@ class ElementAction:
         typ: str | None = None,
         as_strings: Literal[False] = False,
         use_task_index: bool = False,
-    ) -> dict[str, dict[str, Any]]: ...
+    ) -> dict[str, dict[str, Any]]:
+        ...
 
     @overload
     def get_parameter_sources(
@@ -953,7 +958,8 @@ class ElementAction:
         typ: str | None = None,
         as_strings: Literal[True],
         use_task_index: bool = False,
-    ) -> dict[str, str]: ...
+    ) -> dict[str, str]:
+        ...
 
     def get_parameter_sources(
         self,
@@ -1570,9 +1576,9 @@ class Action(JSONLike):
             for i in self.input_file_generators
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
-        commands: list[int] = (
-            []
-        )  # TODO: indices of commands in which this parameter appears
+        commands: list[
+            int
+        ] = []  # TODO: indices of commands in which this parameter appears
         return {"input_file_writers": writer_files, "commands": commands}
 
     def get_resolved_action_env(

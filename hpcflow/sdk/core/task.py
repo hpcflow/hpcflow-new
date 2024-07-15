@@ -225,12 +225,12 @@ class ElementSet(JSONLike):
         self._set_parent_refs()
 
         self._task_template: Task | None = None  # assigned by parent Task
-        self._defined_input_types: set[str] | None = (
-            None  # assigned on _task_template assignment
-        )
-        self._element_local_idx_range: list[int] | None = (
-            None  # assigned by WorkflowTask._add_element_set
-        )
+        self._defined_input_types: set[
+            str
+        ] | None = None  # assigned on _task_template assignment
+        self._element_local_idx_range: list[
+            int
+        ] | None = None  # assigned by WorkflowTask._add_element_set
 
         # merge `environments` into element set resources (this mutates `resources`, and
         # should only happen on creation of the element set, not re-initialisation from a
@@ -556,10 +556,12 @@ class ElementSet(JSONLike):
         return [i.id_ for i in self.element_iterations]
 
     @overload
-    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     @overload
-    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
 
     def get_task_dependencies(
         self, as_objects: bool = False
@@ -2386,7 +2388,8 @@ class WorkflowTask:
             | None
         ) = None,
         return_indices: Literal[True],
-    ) -> list[int]: ...
+    ) -> list[int]:
+        ...
 
     @overload
     def add_elements(
@@ -2408,7 +2411,8 @@ class WorkflowTask:
             | None
         ) = None,
         return_indices: Literal[False] = False,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def add_elements(
         self,
@@ -2481,7 +2485,8 @@ class WorkflowTask:
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: Literal[False] = False,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @overload
     def _add_elements(
@@ -2499,7 +2504,8 @@ class WorkflowTask:
         sourceable_elem_iters: list[int] | None = None,
         propagate_to: dict[str, ElementPropagation] | None = None,
         return_indices: Literal[True],
-    ) -> list[int]: ...
+    ) -> list[int]:
+        ...
 
     @TimeIt.decorator
     def _add_elements(
@@ -2613,13 +2619,15 @@ class WorkflowTask:
     def get_element_dependencies(
         self,
         as_objects: Literal[False] = False,
-    ) -> list[int]: ...
+    ) -> list[int]:
+        ...
 
     @overload
     def get_element_dependencies(
         self,
         as_objects: Literal[True],
-    ) -> list[Element]: ...
+    ) -> list[Element]:
+        ...
 
     def get_element_dependencies(
         self,
@@ -2644,10 +2652,12 @@ class WorkflowTask:
         return deps
 
     @overload
-    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]: ...
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     @overload
-    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
 
     def get_task_dependencies(
         self,
@@ -2682,10 +2692,12 @@ class WorkflowTask:
     def get_dependent_elements(
         self,
         as_objects: Literal[False] = False,
-    ) -> list[int]: ...
+    ) -> list[int]:
+        ...
 
     @overload
-    def get_dependent_elements(self, as_objects: Literal[True]) -> list[Element]: ...
+    def get_dependent_elements(self, as_objects: Literal[True]) -> list[Element]:
+        ...
 
     def get_dependent_elements(
         self,
@@ -2706,10 +2718,12 @@ class WorkflowTask:
         return deps
 
     @overload
-    def get_dependent_tasks(self, as_objects: Literal[False] = False) -> list[int]: ...
+    def get_dependent_tasks(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     @overload
-    def get_dependent_tasks(self, as_objects: Literal[True]) -> list[WorkflowTask]: ...
+    def get_dependent_tasks(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
 
     @TimeIt.decorator
     def get_dependent_tasks(
@@ -3226,13 +3240,15 @@ class Elements:
     def __getitem__(
         self,
         selection: int,
-    ) -> Element: ...
+    ) -> Element:
+        ...
 
     @overload
     def __getitem__(
         self,
         selection: slice | list[int],
-    ) -> list[Element]: ...
+    ) -> list[Element]:
+        ...
 
     @TimeIt.decorator
     def __getitem__(
@@ -3285,12 +3301,12 @@ class Parameters:
         yield from self.__getitem__(slice(None))
 
     @overload
-    def __getitem__(self, selection: int) -> Any | ElementParameter: ...
+    def __getitem__(self, selection: int) -> Any | ElementParameter:
+        ...
 
     @overload
-    def __getitem__(
-        self, selection: slice | list[int]
-    ) -> list[Any | ElementParameter]: ...
+    def __getitem__(self, selection: slice | list[int]) -> list[Any | ElementParameter]:
+        ...
 
     def __getitem__(
         self,

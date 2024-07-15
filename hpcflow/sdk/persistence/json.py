@@ -734,7 +734,14 @@ class JSONPersistentStore(
             assert "name" in md
             return md["name"]
 
-    def zip(self, path: str = ".", log: str | None = None, overwrite=False, include_execute=False, include_rechunk_backups=False) -> str:
+    def zip(
+        self,
+        path: str = ".",
+        log: str | None = None,
+        overwrite=False,
+        include_execute=False,
+        include_rechunk_backups=False,
+    ) -> str:
         raise TypeError("unsupported operation: zipping-json")
 
     def unzip(self, path: str = ".", log: str | None = None) -> str:

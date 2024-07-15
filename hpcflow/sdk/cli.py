@@ -513,9 +513,7 @@ def _make_workflow_CLI(app: BaseApp):
     def rechunk_runs(ctx: click.Context, backup: bool, chunk_size: int, status: bool):
         """Rechunk the metadata/runs array."""
         wf: Workflow = ctx.obj["workflow"]
-        wf.rechunk_runs(
-            backup=backup, chunk_size=chunk_size, status=status
-        )
+        wf.rechunk_runs(backup=backup, chunk_size=chunk_size, status=status)
 
     @workflow.command(name="rechunk-parameter-base")
     @rechunk_backup_opt

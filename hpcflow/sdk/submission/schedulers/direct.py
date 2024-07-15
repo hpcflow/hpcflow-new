@@ -77,7 +77,8 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
 
     @overload
     @classmethod
-    def wait_for_jobscripts(cls, js_refs: list[tuple[int, list[str]]]) -> None: ...
+    def wait_for_jobscripts(cls, js_refs: list[tuple[int, list[str]]]) -> None:
+        ...
 
     @overload
     @classmethod
@@ -86,7 +87,8 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         js_refs: list[tuple[int, list[str]]],
         *,
         callback: Callable[[psutil.Process], None],
-    ) -> list[psutil.Process]: ...
+    ) -> list[psutil.Process]:
+        ...
 
     @classmethod
     def wait_for_jobscripts(
