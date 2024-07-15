@@ -1,6 +1,7 @@
 """Module defining a function that returns the click CLI group for manipulating the app
 configuration."""
 
+from __future__ import annotations
 import json
 import logging
 import warnings

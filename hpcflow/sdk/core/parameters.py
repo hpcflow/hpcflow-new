@@ -32,8 +32,9 @@ from hpcflow.sdk.submission.submission import timedelta_format
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from typing import Any, ClassVar, Literal, NotRequired, Self, TypeAlias
+    from typing import Any, ClassVar, Literal, Self, TypeAlias
     from numpy.typing import ArrayLike
+    from ..compat.typing import NotRequired
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope

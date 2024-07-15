@@ -58,7 +58,8 @@ from .errors import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
-    from typing import Any, Literal, NotRequired, TypeAlias, TypeVar
+    from typing import Any, Literal, TypeAlias, TypeVar
+    from ..compat.typing import NotRequired
     from ..app import BaseApp
 
     T = TypeVar("T")

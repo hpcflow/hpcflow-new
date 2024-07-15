@@ -62,10 +62,11 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, ClassVar, Literal, NotRequired, Protocol, Self, TypeAlias
+    from typing import Any, ClassVar, Literal, Protocol, Self, TypeAlias
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
+    from ..compat.typing import NotRequired
     from ..app import BaseApp, TemplateComponents
     from ..typing import DataIndex, ParamSource
     from .actions import ElementActionRun

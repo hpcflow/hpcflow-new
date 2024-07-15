@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 
 from hpcflow.sdk.core.errors import UnsupportedShellError

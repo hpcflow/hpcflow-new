@@ -61,8 +61,9 @@ from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
-    from typing import Dict, List, Literal, NotRequired
+    from typing import Dict, List, Literal
     from rich.status import Status
+    from .compat.typing import NotRequired
     from .core.actions import (
         ElementActionRun,
         ElementAction,

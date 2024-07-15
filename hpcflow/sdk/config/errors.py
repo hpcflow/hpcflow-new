@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class ConfigError(Exception):
     """Raised when a valid configuration can not be associated with the current
     invocation."""

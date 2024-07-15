@@ -33,8 +33,9 @@ from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from typing import Any, ClassVar, Literal, NotRequired, Self
+    from typing import Any, ClassVar, Literal, Self
     from valida.conditions import ConditionLike  # type: ignore
+    from ..compat.typing import NotRequired
 
     from ..app import BaseApp
     from ..typing import DataIndex, ParamSource

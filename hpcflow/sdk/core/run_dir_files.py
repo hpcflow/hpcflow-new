@@ -34,7 +34,7 @@ class RunDirAppFiles:
     @classmethod
     def get_commands_file_name(
         cls, js_idx: int | str, js_action_idx: int | str, shell: Shell
-    ):
+    ) -> str:
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
@@ -46,15 +46,14 @@ class RunDirAppFiles:
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_inputs"
 
     @classmethod
-    def get_run_param_load_file_prefix(
-        cls, js_idx: int | str, js_action_idx: int | str
+    def get_run_param_load_file_prefix(cls, js_idx: int | str, js_action_idx: int | str
     ) -> str:
         """Get the prefix to a file in the run directory that the app will load parameter
         data from."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_outputs"
 
     @classmethod
-    def take_snapshot(cls):
+    def take_snapshot(cls) -> dict[str, Any]:
         """Take a JSONLikeDirSnapShot, and process to ignore files created by the app.
 
         This includes command files that are invoked by jobscripts, the app log file, and

@@ -9,7 +9,8 @@ from hpcflow.sdk.core.utils import get_in_container
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
-    from typing import Any, ClassVar, NotRequired
+    from typing import Any, ClassVar
+    from ..compat.typing import NotRequired
     from .actions import Action, ElementActionRun
     from .element import ElementIteration
     from ..app import BaseApp

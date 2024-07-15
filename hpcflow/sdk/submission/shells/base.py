@@ -5,7 +5,8 @@ from typing import TypedDict, TypeAlias, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from typing import Any, ClassVar, NotRequired
+    from typing import Any, ClassVar
+    from ...compat.typing import NotRequired
 
     # This needs PEP 728 for a better type, alas
     VersionInfo: TypeAlias = dict[str, str | list[str]]

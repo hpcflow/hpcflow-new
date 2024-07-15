@@ -1,5 +1,6 @@
 """Click CLI options that are used as decorators in multiple modules."""
 
+from __future__ import annotations
 import click
 
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS

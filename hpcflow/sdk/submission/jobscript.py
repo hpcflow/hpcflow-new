@@ -22,8 +22,9 @@ from hpcflow.sdk.submission.shells import get_shell
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import Any, ClassVar, Literal, NotRequired
+    from typing import Any, ClassVar, Literal
     from numpy.typing import NDArray, ArrayLike
+    from ..compat.typing import NotRequired
     from ..app import BaseApp
     from ..core.actions import ElementActionRun
     from ..core.element import ElementResources
