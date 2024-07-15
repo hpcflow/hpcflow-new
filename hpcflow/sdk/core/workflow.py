@@ -1711,7 +1711,14 @@ class Workflow:
 
         return wk
 
-    def zip(self, path=".", log=None, overwrite=False) -> str:
+    def zip(
+        self,
+        path=".",
+        log=None,
+        overwrite=False,
+        include_execute=False,
+        include_rechunk_backups=False,
+    ) -> str:
         """
         Parameters
         ----------
@@ -1720,7 +1727,13 @@ class Workflow:
             directory, the zip file will be created within this directory. Otherwise,
             this path is assumed to be the full file path to the new zip file.
         """
-        return self._store.zip(path=path, log=log, overwrite=overwrite)
+        return self._store.zip(
+            path=path,
+            log=log,
+            overwrite=overwrite,
+            include_execute=include_execute,
+            include_rechunk_backups=include_rechunk_backups,
+        )
 
     def unzip(self, path=".", log=None) -> str:
         """

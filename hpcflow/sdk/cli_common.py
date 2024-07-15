@@ -181,6 +181,8 @@ zip_overwrite_opt = click.option(
     help="If set, any existing file will be overwritten.",
 )
 zip_log_opt = click.option("--log", help="Path to a log file to use during zipping.")
+zip_include_execute_opt = click.option("--include-execute", is_flag=True)
+zip_include_rechunk_backups_opt = click.option("--include-rechunk-backups", is_flag=True)
 unzip_path_opt = click.option(
     "--path",
     default=".",
@@ -191,3 +193,23 @@ unzip_path_opt = click.option(
     ),
 )
 unzip_log_opt = click.option("--log", help="Path to a log file to use during unzipping.")
+rechunk_backup_opt = click.option(
+    "--backup/--no-backup",
+    default=True,
+    help=("First copy a backup of the array to a directory ending in `.bak`."),
+)
+rechunk_chunk_size_opt = click.option(
+    "--chunk-size",
+    type=click.INT,
+    default=None,
+    help=(
+        "New chunk size (array items per chunk). If unset (as by default), the array "
+        "will be rechunked to a single chunk array (i.e with a chunk size equal to the "
+        "array's shape)."
+    ),
+)
+rechunk_status_opt = click.option(
+    "--status/--no-status",
+    default=True,
+    help="If True, display a live status to track rechunking progress.",
+)

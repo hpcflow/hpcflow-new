@@ -445,12 +445,10 @@ jobs:
 
   release-github-PyPI:
     needs:
-      [
-        bump-version,
-        build-executables,
-        build-executables-linux,
-        make-workflow-benchmark-upload,
-      ]
+      - bump-version
+      - build-executables
+      - build-executables-linux
+      - make-workflow-benchmark-upload
     runs-on: ubuntu-latest
     outputs:
       binary_download_links: ${{ steps.get_binary_download_links.outputs.binary_download_links }}
