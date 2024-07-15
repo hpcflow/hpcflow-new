@@ -46,7 +46,8 @@ class RunDirAppFiles:
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_inputs"
 
     @classmethod
-    def get_run_param_load_file_prefix(cls, js_idx: int | str, js_action_idx: int | str
+    def get_run_param_load_file_prefix(
+        cls, js_idx: int | str, js_action_idx: int | str
     ) -> str:
         """Get the prefix to a file in the run directory that the app will load parameter
         data from."""
