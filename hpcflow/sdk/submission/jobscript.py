@@ -439,9 +439,9 @@ class Jobscript(JSONLike):
             None  # assigned on first access to `submit_time` property
         )
         self._running = running
-        self._all_EARs: list[ElementActionRun] | None = (
-            None  # assigned on first access to `all_EARs` property
-        )
+        self._all_EARs: list[
+            ElementActionRun
+        ] | None = None  # assigned on first access to `all_EARs` property
 
     def __repr__(self):
         return (
@@ -1235,10 +1235,12 @@ class Jobscript(JSONLike):
     @overload
     def get_active_states(
         self, as_json: Literal[False] = False
-    ) -> dict[int, JobscriptElementState]: ...
+    ) -> dict[int, JobscriptElementState]:
+        ...
 
     @overload
-    def get_active_states(self, as_json: Literal[True]) -> dict[int, str]: ...
+    def get_active_states(self, as_json: Literal[True]) -> dict[int, str]:
+        ...
 
     @TimeIt.decorator
     def get_active_states(

@@ -55,37 +55,43 @@ def _is_base_json_like(value: JSONable) -> TypeGuard[BaseJSONLike]:
 @overload
 def to_json_like(
     obj: int, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[int, _JSONDeserState]: ...
+) -> tuple[int, _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: float, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[float, _JSONDeserState]: ...
+) -> tuple[float, _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: str, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[str, _JSONDeserState]: ...
+) -> tuple[str, _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: None, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[None, _JSONDeserState]: ...
+) -> tuple[None, _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: enum.Enum, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[str, _JSONDeserState]: ...
+) -> tuple[str, _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: list[JSONable], shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[Sequence[JSONed], _JSONDeserState]: ...
+) -> tuple[Sequence[JSONed], _JSONDeserState]:
+    ...
 
 
 @overload
@@ -94,13 +100,15 @@ def to_json_like(
     shared_data: _JSONDeserState = None,
     parent_refs=None,
     path=None,
-) -> tuple[Sequence[JSONed], _JSONDeserState]: ...
+) -> tuple[Sequence[JSONed], _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: set[JSONable], shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[Sequence[JSONed], _JSONDeserState]: ...
+) -> tuple[Sequence[JSONed], _JSONDeserState]:
+    ...
 
 
 @overload
@@ -109,13 +117,15 @@ def to_json_like(
     shared_data: _JSONDeserState = None,
     parent_refs=None,
     path=None,
-) -> tuple[Mapping[str, JSONed], _JSONDeserState]: ...
+) -> tuple[Mapping[str, JSONed], _JSONDeserState]:
+    ...
 
 
 @overload
 def to_json_like(
     obj: BaseJSONLike, shared_data: _JSONDeserState = None, parent_refs=None, path=None
-) -> tuple[Mapping[str, JSONed], _JSONDeserState]: ...
+) -> tuple[Mapping[str, JSONed], _JSONDeserState]:
+    ...
 
 
 def to_json_like(
@@ -274,13 +284,13 @@ class BaseJSONLike:
     @classmethod
     def _set_class_namespace(
         cls, value: SimpleNamespace, is_dict: Literal[False] = False
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @overload
     @classmethod
-    def _set_class_namespace(
-        cls, value: dict[str, Any], is_dict: Literal[True]
-    ) -> None: ...
+    def _set_class_namespace(cls, value: dict[str, Any], is_dict: Literal[True]) -> None:
+        ...
 
     @classmethod
     def _set_class_namespace(
@@ -320,7 +330,8 @@ class BaseJSONLike:
         cls,
         json_like: str,
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-    ) -> Self | None: ...
+    ) -> Self | None:
+        ...
 
     @overload
     @classmethod
@@ -328,7 +339,8 @@ class BaseJSONLike:
         cls,
         json_like: Sequence[Mapping[str, JSONed]] | Mapping[str, JSONed],
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-    ) -> Self: ...
+    ) -> Self:
+        ...
 
     @overload
     @classmethod
@@ -336,7 +348,8 @@ class BaseJSONLike:
         cls,
         json_like: None,
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @classmethod
     def from_json_like(

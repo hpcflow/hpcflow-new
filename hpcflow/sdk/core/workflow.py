@@ -100,11 +100,14 @@ if TYPE_CHECKING:
     _TemplateComponents: TypeAlias = dict[str, ObjectList[JSONLike]]
 
     class AbstractFileSystem(Protocol):
-        def exists(self, path: str) -> bool: ...
+        def exists(self, path: str) -> bool:
+            ...
 
-        def rename(self, from_: str, to: str, *, recursive: bool = False) -> None: ...
+        def rename(self, from_: str, to: str, *, recursive: bool = False) -> None:
+            ...
 
-        def rm(self, path: str, *, recursive: bool = False) -> None: ...
+        def rm(self, path: str, *, recursive: bool = False) -> None:
+            ...
 
 
 class _DummyPersistentWorkflow:
@@ -156,22 +159,26 @@ class _Pathway:
         *,
         ret_iter_IDs: Literal[False] = False,
         ret_data_idx: Literal[False] = False,
-    ) -> tuple[int, dict[str, int]]: ...
+    ) -> tuple[int, dict[str, int]]:
+        ...
 
     @overload
     def as_tuple(
         self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False
-    ) -> tuple[int, dict[str, int], tuple[int, ...]]: ...
+    ) -> tuple[int, dict[str, int], tuple[int, ...]]:
+        ...
 
     @overload
     def as_tuple(
         self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]
-    ) -> tuple[int, dict[str, int], tuple[dict[str, int], ...]]: ...
+    ) -> tuple[int, dict[str, int], tuple[dict[str, int], ...]]:
+        ...
 
     @overload
     def as_tuple(
         self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]
-    ) -> tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]: ...
+    ) -> tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]:
+        ...
 
     def as_tuple(self, *, ret_iter_IDs=False, ret_data_idx=False):
         if ret_iter_IDs:
@@ -1561,10 +1568,12 @@ class Workflow:
         task_idx: int
 
     @overload
-    def get_EARs_from_IDs(self, ids: Iterable[int]) -> list[ElementActionRun]: ...
+    def get_EARs_from_IDs(self, ids: Iterable[int]) -> list[ElementActionRun]:
+        ...
 
     @overload
-    def get_EARs_from_IDs(self, ids: int) -> ElementActionRun: ...
+    def get_EARs_from_IDs(self, ids: int) -> ElementActionRun:
+        ...
 
     @TimeIt.decorator
     def get_EARs_from_IDs(
@@ -1928,10 +1937,12 @@ class Workflow:
         return {i.id_: (i.data if i.data is not None else i.file) for i in params}
 
     @overload
-    def check_parameters_exist(self, id_lst: int) -> bool: ...
+    def check_parameters_exist(self, id_lst: int) -> bool:
+        ...
 
     @overload
-    def check_parameters_exist(self, id_lst: list[int]) -> list[bool]: ...
+    def check_parameters_exist(self, id_lst: list[int]) -> list[bool]:
+        ...
 
     def check_parameters_exist(self, id_lst: int | list[int]) -> bool | list[bool]:
         if isinstance(id_lst, int):
@@ -1987,12 +1998,12 @@ class Workflow:
     @overload
     def get_task_unique_names(
         self, map_to_insert_ID: Literal[False] = False
-    ) -> list[str]: ...
+    ) -> list[str]:
+        ...
 
     @overload
-    def get_task_unique_names(
-        self, map_to_insert_ID: Literal[True]
-    ) -> dict[str, int]: ...
+    def get_task_unique_names(self, map_to_insert_ID: Literal[True]) -> dict[str, int]:
+        ...
 
     def get_task_unique_names(
         self, map_to_insert_ID: bool = False
@@ -2284,24 +2295,26 @@ class Workflow:
         *,
         ret_iter_IDs: Literal[False] = False,
         ret_data_idx: Literal[False] = False,
-    ) -> list[tuple[int, dict[str, int]]]: ...
+    ) -> list[tuple[int, dict[str, int]]]:
+        ...
 
     @overload
     def get_iteration_task_pathway(
         self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]
-    ) -> list[tuple[int, dict[str, int], tuple[dict[str, int], ...]]]: ...
+    ) -> list[tuple[int, dict[str, int], tuple[dict[str, int], ...]]]:
+        ...
 
     @overload
     def get_iteration_task_pathway(
         self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False
-    ) -> list[tuple[int, dict[str, int], tuple[int, ...]]]: ...
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...]]]:
+        ...
 
     @overload
     def get_iteration_task_pathway(
         self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]
-    ) -> list[
-        tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]
-    ]: ...
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]]:
+        ...
 
     @TimeIt.decorator
     def get_iteration_task_pathway(
@@ -2451,7 +2464,8 @@ class Workflow:
         tasks: list[int] | None = None,
         cancel: bool = False,
         status: bool = True,
-    ) -> dict[int, list[int]]: ...
+    ) -> dict[int, list[int]]:
+        ...
 
     @overload
     def submit(
@@ -2466,7 +2480,8 @@ class Workflow:
         tasks: list[int] | None = None,
         cancel: bool = False,
         status: bool = True,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def submit(
         self,
@@ -3114,9 +3129,9 @@ class Workflow:
         loop = self.loops.get(loop_name)
         elem_iter = self.get_EARs_from_IDs(run_ID).element_iteration
         if loop.test_termination(elem_iter):
-            to_skip: list[int] = (
-                []
-            )  # run IDs of downstream iterations that can be skipped
+            to_skip: list[
+                int
+            ] = []  # run IDs of downstream iterations that can be skipped
             elem_id = elem_iter.element.id_
             loop_map = self.get_loop_map()  # over all jobscripts
             for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():

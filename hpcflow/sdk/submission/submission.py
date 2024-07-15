@@ -92,9 +92,9 @@ class Submission(JSONLike):
         self._JS_parallelism = JS_parallelism
         self._environments = environments
 
-        self._submission_parts_lst: list[SubmissionPart] | None = (
-            None  # assigned on first access
-        )
+        self._submission_parts_lst: list[
+            SubmissionPart
+        ] | None = None  # assigned on first access
 
         if workflow:
             self.workflow = workflow
@@ -308,12 +308,12 @@ class Submission(JSONLike):
     @overload
     def get_active_jobscripts(
         self, as_json: Literal[False] = False
-    ) -> dict[int, dict[int, JobscriptElementState]]: ...
+    ) -> dict[int, dict[int, JobscriptElementState]]:
+        ...
 
     @overload
-    def get_active_jobscripts(
-        self, as_json: Literal[True]
-    ) -> dict[int, dict[int, str]]: ...
+    def get_active_jobscripts(self, as_json: Literal[True]) -> dict[int, dict[int, str]]:
+        ...
 
     @TimeIt.decorator
     def get_active_jobscripts(

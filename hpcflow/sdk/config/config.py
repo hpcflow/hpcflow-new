@@ -535,14 +535,14 @@ class Config:
         return [*self._configurable_keys, *self._meta_data.keys()]
 
     @overload
-    def get_all(
-        self, *, include_overrides=True, as_str: Literal[True]
-    ) -> dict[str, str]: ...
+    def get_all(self, *, include_overrides=True, as_str: Literal[True]) -> dict[str, str]:
+        ...
 
     @overload
     def get_all(
         self, *, include_overrides=True, as_str: Literal[False] = False
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        ...
 
     def get_all(self, *, include_overrides=True, as_str=False) -> dict[str, Any]:
         """Get all configurable items."""
@@ -615,7 +615,8 @@ class Config:
         as_str: Literal[False] = False,
         callback=True,
         default_value=None,
-    ) -> Any: ...
+    ) -> Any:
+        ...
 
     @overload
     def _get(
@@ -627,7 +628,8 @@ class Config:
         as_str: Literal[True],
         callback=True,
         default_value=None,
-    ) -> list[str] | str: ...
+    ) -> list[str] | str:
+        ...
 
     def _get(
         self,
@@ -688,7 +690,8 @@ class Config:
     @overload
     def _set(
         self, name: str, value: str, *, is_json: Literal[True], callback=True, quiet=False
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @overload
     def _set(
@@ -699,7 +702,8 @@ class Config:
         is_json: Literal[False] = False,
         callback=True,
         quiet=False,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def _set(
         self, name: str, value, *, is_json=False, callback=True, quiet=False
@@ -763,12 +767,12 @@ class Config:
     @overload
     def set(
         self, path: str, value: Any, *, is_json: Literal[False] = False, quiet=False
-    ) -> None: ...
+    ) -> None:
+        ...
 
     @overload
-    def set(
-        self, path: str, value: str, *, is_json: Literal[True], quiet=False
-    ) -> None: ...
+    def set(self, path: str, value: str, *, is_json: Literal[True], quiet=False) -> None:
+        ...
 
     def set(
         self, path: str, value: Any, *, is_json: bool = False, quiet: bool = False
