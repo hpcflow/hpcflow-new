@@ -3156,6 +3156,34 @@ class Workflow:
             id_lst.extend(list(sub.all_EAR_IDs))
         return id_lst
 
+    def rechunk_runs(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+
+    def rechunk_parameter_base(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        self._store.rechunk_parameter_base(
+            chunk_size=chunk_size, backup=backup, status=status
+        )
+
+    def rechunk(
+        self,
+        chunk_size: Optional[int] = None,
+        backup: Optional[bool] = True,
+        status: Optional[bool] = True,
+    ):
+        """Rechunk metadata/runs and parameters/base arrays."""
+        self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
+        self.rechunk_parameter_base(chunk_size=chunk_size, backup=backup, status=status)
+
 
 @dataclass
 class WorkflowBlueprint:
