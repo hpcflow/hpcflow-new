@@ -14,7 +14,7 @@ from hpcflow.sdk.persistence.json import (
 from hpcflow.app import app as hf
 
 if TYPE_CHECKING:
-    from hpcflow.sdk.persistence.zarr import ZarrPersistentStore, ZarrStoreParameter
+    from hpcflow.sdk.persistence.zarr import ZarrPersistentStore
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")

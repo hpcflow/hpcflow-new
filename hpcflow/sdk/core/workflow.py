@@ -1373,7 +1373,7 @@ class Workflow:
                 temp_js = self._store.get_template()
 
                 # TODO: insert_ID and id_ are the same thing:
-                for task in cast(list[dict], temp_js["tasks"]):
+                for task in cast('list[dict]', temp_js["tasks"]):
                     task.pop("id_", None)
 
                 template = self.app.WorkflowTemplate.from_json_like(
