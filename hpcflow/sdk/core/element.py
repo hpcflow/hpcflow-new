@@ -2,7 +2,6 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import os
-from types import NoneType
 from typing import cast, overload, TYPE_CHECKING
 
 from valida.rules import Rule  # type: ignore
@@ -1005,9 +1004,11 @@ class ElementIteration:
     def get_template_resources(self) -> dict[str, Any]:
         """Get template-level resources."""
         res = self.workflow.template.resources
-        assert isinstance(res, (ResourceList, NoneType))
+        if res is None:
+            return {}
+        assert isinstance(res, ResourceList)
         return {
-            res_i.normalised_resources_path: res_i._get_value() for res_i in res or ()
+            res_i.normalised_resources_path: res_i._get_value() for res_i in res
         }
 
     @TimeIt.decorator
