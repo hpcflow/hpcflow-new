@@ -311,7 +311,7 @@ class BaseJSONLike:
         cls, child_obj_spec: ChildObjectSpec
     ) -> type[enum.Enum | JSONLike] | None:
         if child_obj_spec.class_obj:
-            return cast('type[enum.Enum | JSONLike]', child_obj_spec.class_obj)
+            return cast("type[enum.Enum | JSONLike]", child_obj_spec.class_obj)
         elif child_obj_spec.class_name:
             ns = cls._class_namespace()
             if isinstance(ns, dict):
@@ -466,7 +466,7 @@ class BaseJSONLike:
                 or child_obj_spec.shared_data_name
             ):
                 # Nothing to process:
-                return cast('JSONable', json_like_i)
+                return cast("JSONable", json_like_i)
 
             # (if is_dict_values) indices into multi_chd_objs that enable reconstruction
             # of the source dict:
@@ -552,7 +552,7 @@ class BaseJSONLike:
                 if chd.json_like_name and chd.json_like_name in json_like_copy:
                     jlc = dict(json_like_copy)
                     json_like_i = jlc.pop(chd.json_like_name)
-                    jlc[chd.name] = cast('JSONed', from_json_like_item(chd, json_like_i))
+                    jlc[chd.name] = cast("JSONed", from_json_like_item(chd, json_like_i))
                     json_like_copy = jlc
 
         assert isinstance(json_like_copy, Mapping)

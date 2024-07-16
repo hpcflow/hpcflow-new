@@ -221,7 +221,7 @@ def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=Fal
             try:
                 cur_data = cur_data[path_comp]
             except KeyError:
-                raise ContainerKeyError(path=cast('list[str]', path[: idx + 1]))
+                raise ContainerKeyError(path=cast("list[str]", path[: idx + 1]))
         elif allow_getattr:
             try:
                 cur_data = getattr(cur_data, path_comp)
