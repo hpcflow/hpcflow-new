@@ -1,12 +1,13 @@
 from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Self, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from ..compat.typing import Self
     from .element import Element, ElementIteration
     from .workflow import Workflow
     from ..persistence.base import StoreEAR, StoreElement, StoreElementIter

@@ -45,7 +45,8 @@ from hpcflow.sdk.core.utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-    from typing import Any, ClassVar, Literal, Self, TypeAlias, TypeVar, TypedDict
+    from typing import Any, ClassVar, Literal, TypeVar, TypedDict
+    from ..compat.typing import Self, TypeAlias
     from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from .actions import Action
@@ -62,7 +63,6 @@ if TYPE_CHECKING:
     )
     from .task_schema import TaskObjective, TaskSchema
     from .workflow import Workflow, WorkflowTemplate
-    from ..persistence.base import StoreParameter
 
     RelevantPath: TypeAlias = "ParentPath | UpdatePath | SiblingPath"
     StrSeq = TypeVar("StrSeq", bound=Sequence[str])

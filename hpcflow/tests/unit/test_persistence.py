@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from typing import cast, TYPE_CHECKING
 import numpy as np
 import zarr  # type: ignore
 import pytest
@@ -10,8 +11,10 @@ from hpcflow.sdk.persistence.json import (
     JsonStoreElementIter,
     JsonStoreEAR,
 )
-from hpcflow.sdk.persistence.zarr import ZarrPersistentStore
 from hpcflow.app import app as hf
+if TYPE_CHECKING:
+    from hpcflow.sdk.persistence.zarr import (
+        ZarrPersistentStore, ZarrStoreParameter)
 
 
 @pytest.mark.skip("need to refactor `make_test_store_from_spec`")
@@ -270,8 +273,7 @@ def test_zarr_rechunk_data_equivalent(null_config, tmp_path: Path):
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=True, status=False, chunk_size=None)  # None -> one chunk
 
-    store: ZarrPersistentStore = wk._store
-    arr = store._get_EARs_arr()
+    arr = cast('ZarrPersistentStore', wk._store)._get_EARs_arr()
     assert arr.chunks == arr.shape
 
     bak_path = (Path(wk.path) / arr.path).with_suffix(".bak")
@@ -302,8 +304,7 @@ def test_zarr_rechunk_data_equivalent_custom_chunk_size(null_config, tmp_path: P
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=True, status=False, chunk_size=2)
 
-    store: ZarrPersistentStore = wk._store
-    arr = store._get_EARs_arr()
+    arr = cast('ZarrPersistentStore', wk._store)._get_EARs_arr()
     assert arr.chunks == (2,)
 
     bak_path = (Path(wk.path) / arr.path).with_suffix(".bak")
@@ -331,8 +332,7 @@ def test_zarr_rechunk_data_no_backup_load_runs(null_config, tmp_path: Path):
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=False, status=False)
 
-    store: ZarrPersistentStore = wk._store
-    arr = store._get_EARs_arr()
+    arr = cast('ZarrPersistentStore', wk._store)._get_EARs_arr()
 
     bak_path = (Path(wk.path) / arr.path).with_suffix(".bak")
     assert not bak_path.is_file()
@@ -360,14 +360,12 @@ def test_zarr_rechunk_data_no_backup_load_parameter_base(null_config, tmp_path: 
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_parameter_base(backup=False, status=False)
 
-    store: ZarrPersistentStore = wk._store
-    arr = store._get_parameter_base_array()
+    arr = cast('ZarrPersistentStore', wk._store)._get_parameter_base_array()
 
     bak_path = (Path(wk.path) / arr.path).with_suffix(".bak")
     assert not bak_path.is_file()
 
     # check we can load parameters:
-    params = wk.get_all_parameters()
     param_IDs = []
-    for i in params:
+    for i in wk.get_all_parameters():
         param_IDs.append(i.id_)

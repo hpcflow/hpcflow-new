@@ -38,9 +38,9 @@ from hpcflow.sdk.persistence.types import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, Dict, ClassVar, Final, Literal, Self, TypeGuard
+    from typing import Any, Dict, ClassVar, Final, Literal
     from fsspec import AbstractFileSystem  # type: ignore
-    from ..compat.typing import NotRequired
+    from ..compat.typing import NotRequired, Self, TypeGuard
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
     from ..app import BaseApp

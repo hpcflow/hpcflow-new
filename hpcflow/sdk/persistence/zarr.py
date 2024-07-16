@@ -51,8 +51,9 @@ from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from fsspec import AbstractFileSystem  # type: ignore
-    from typing import ClassVar, Dict, Self
+    from typing import ClassVar, Dict
     from zarr import Array, Group  # type: ignore
+    from ..compat.typing import Self
     from ..app import BaseApp
     from ..core.json_like import JSONed
     from ..typing import ParamSource

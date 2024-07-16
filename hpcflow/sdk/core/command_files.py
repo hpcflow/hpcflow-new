@@ -13,7 +13,8 @@ from hpcflow.sdk.core.parameters import _process_demo_data_strings
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from typing import Any, ClassVar, Self
+    from typing import Any, ClassVar
+    from ..compat.typing import Self
     from ..app import BaseApp
     from .actions import Action, ActionRule
     from .environment import Environment

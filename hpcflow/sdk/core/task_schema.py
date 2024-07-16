@@ -12,16 +12,16 @@ from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
-from hpcflow.sdk.core.parameters import Parameter, SchemaOutput
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
-from .json_like import ChildObjectSpec, JSONLike
-from .parameters import Parameter, ParameterPropagationMode
-from .utils import check_valid_py_identifier
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.parameters import Parameter, ParameterPropagationMode
+from hpcflow.sdk.core.utils import check_valid_py_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from typing import Any, ClassVar, Self
+    from typing import Any, ClassVar
+    from ..compat.typing import Self
     from .actions import Action
     from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList

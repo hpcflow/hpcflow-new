@@ -8,8 +8,9 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSON
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-    from typing import Any, ClassVar, Self, Literal, TypeAlias
+    from typing import Any, ClassVar, Literal
     from zarr import Group  # type: ignore
+    from ..compat.typing import Self, TypeAlias
     from ..app import BaseApp
     from .actions import ActionScope
     from .command_files import FileSpec

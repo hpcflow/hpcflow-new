@@ -62,11 +62,11 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, ClassVar, Literal, Protocol, Self, TypeAlias
+    from typing import Any, ClassVar, Literal, Protocol
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
-    from ..compat.typing import NotRequired
+    from ..compat.typing import NotRequired, Self, TypeAlias
     from ..app import BaseApp, TemplateComponents
     from ..typing import DataIndex, ParamSource
     from .actions import ElementActionRun
@@ -79,7 +79,7 @@ if TYPE_CHECKING:
         ObjectList,
         Resources,
     )
-    from .parameters import InputSource, ResourceSpec
+    from .parameters import InputSource
     from .task import Task, WorkflowTask
     from ..submission.submission import Submission
     from ..submission.jobscript import (
@@ -90,7 +90,6 @@ if TYPE_CHECKING:
     from ..persistence.base import (
         StoreElement,
         StoreElementIter,
-        AnySParameter,
         StoreTask,
         StoreParameter,
         StoreEAR,
@@ -1917,7 +1916,7 @@ class Workflow:
         return self.get_parameter_set_statuses([index])[0]
 
     @TimeIt.decorator
-    def get_all_parameters(self, **kwargs) -> list[AnySParameter]:
+    def get_all_parameters(self, **kwargs) -> list[StoreParameter]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
@@ -1933,8 +1932,10 @@ class Workflow:
     @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs) -> dict[int, Any]:
         """Retrieve all workflow parameter data."""
-        params: Sequence[StoreParameter] = self.get_all_parameters(**kwargs)
-        return {i.id_: (i.data if i.data is not None else i.file) for i in params}
+        return {
+            i.id_: (i.data if i.data is not None else i.file)
+            for i in self.get_all_parameters(**kwargs)
+        }
 
     @overload
     def check_parameters_exist(self, id_lst: int) -> bool:
