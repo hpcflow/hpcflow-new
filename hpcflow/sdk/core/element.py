@@ -1007,9 +1007,7 @@ class ElementIteration:
         if res is None:
             return {}
         assert isinstance(res, ResourceList)
-        return {
-            res_i.normalised_resources_path: res_i._get_value() for res_i in res
-        }
+        return {res_i.normalised_resources_path: res_i._get_value() for res_i in res}
 
     @TimeIt.decorator
     def get_resources(
