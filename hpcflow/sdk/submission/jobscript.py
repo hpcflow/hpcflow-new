@@ -14,7 +14,7 @@ from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.utils import parse_timestamp
+from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
@@ -1212,7 +1212,7 @@ class Jobscript(JSONLike):
             self.workflow._store._pending.commit_all()
             ref = f"{process_ID}"
 
-        self._set_submit_time(datetime.utcnow())
+        self._set_submit_time(current_timestamp())
 
         return ref
 

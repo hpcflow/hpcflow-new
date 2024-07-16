@@ -19,7 +19,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
-from hpcflow.sdk.core.utils import parse_timestamp
+from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
@@ -541,7 +541,7 @@ class Submission(JSONLike):
                 continue
 
         if submitted_js_idx:
-            dt_str = datetime.utcnow().strftime(self.app._submission_ts_fmt)
+            dt_str = current_timestamp().strftime(self.app._submission_ts_fmt)
             self._append_submission_part(
                 submit_time=dt_str,
                 submitted_js_idx=submitted_js_idx,

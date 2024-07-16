@@ -909,3 +909,10 @@ def parse_timestamp(timestamp: str | datetime, ts_fmt: str) -> datetime:
         .replace(tzinfo=timezone.utc)
         .astimezone()
     )
+
+
+def current_timestamp() -> datetime:
+    """
+    Get a UTC timestamp for the current time
+    """
+    return datetime.now(timezone.utc)

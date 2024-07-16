@@ -23,6 +23,7 @@ from hpcflow.sdk.core.utils import (
     reshape,
     set_in_container,
     parse_timestamp,
+    current_timestamp,
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import hydrate
@@ -1361,7 +1362,7 @@ class PersistentStore(
             self.save()
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
-        dt = datetime.utcnow()
+        dt = current_timestamp()
         ss_js = self.app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname)
@@ -1373,7 +1374,7 @@ class PersistentStore(
         self, EAR_ID: int, exit_code: int, success: bool, save: bool = True
     ) -> datetime:
         # TODO: save output files
-        dt = datetime.utcnow()
+        dt = current_timestamp()
         ss_js = self.app.RunDirAppFiles.take_snapshot()
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
         if save:
