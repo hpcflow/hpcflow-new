@@ -2,7 +2,7 @@ from __future__ import annotations
 import shutil
 import signal
 from typing import overload, cast, TYPE_CHECKING
-from typing_extensions import override
+from typing_extensions import override, TypeAlias
 import psutil
 
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
@@ -16,8 +16,10 @@ if TYPE_CHECKING:
     from ...config.config import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
 
+DirectRef: TypeAlias = 'tuple[int, list[str]]'
 
-class DirectScheduler(Scheduler[tuple[int, list[str]]]):
+
+class DirectScheduler(Scheduler[DirectRef]):
     app: ClassVar[BaseApp]
 
     @classmethod
@@ -48,7 +50,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         timeout=None,
         on_terminate=None,
     ):
-        all_procs = []
+        all_procs: list[psutil.Process] = []
         for i in procs:
             all_procs.append(i)
             all_procs.extend(i.children(recursive=True))
@@ -58,13 +60,13 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
                 i.send_signal(sig)
             except psutil.NoSuchProcess:
                 pass
-        gone, alive = psutil.wait_procs(all_procs, timeout=timeout, callback=on_terminate)
+        _, alive = psutil.wait_procs(all_procs, timeout=timeout, callback=on_terminate)
         for p in alive:
             p.kill()
 
     @staticmethod
     def _get_jobscript_processes(
-        js_refs: list[tuple[int, list[str]]]
+        js_refs: list[DirectRef]
     ) -> list[psutil.Process]:
         procs: list[psutil.Process] = []
         for p_id, p_cmdline in js_refs:
@@ -81,14 +83,14 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     @overload
     @override
     @classmethod
-    def wait_for_jobscripts(cls, js_refs: list[tuple[int, list[str]]]) -> None:
+    def wait_for_jobscripts(cls, js_refs: list[DirectRef]) -> None:
         ...
 
     @overload
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: list[tuple[int, list[str]]],
+        js_refs: list[DirectRef],
         *,
         callback: Callable[[psutil.Process], None],
     ) -> list[psutil.Process]:
@@ -97,7 +99,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     @classmethod
     def wait_for_jobscripts(
         cls,
-        js_refs: list[tuple[int, list[str]]],
+        js_refs: list[DirectRef],
         *,
         callback: Callable[[psutil.Process], None] | None = None,
     ) -> list[psutil.Process] | None:
@@ -111,7 +113,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     def get_job_state_info(
         self,
         *,
-        js_refs: list[tuple[int, list[str]]] | None = None,
+        js_refs: list[DirectRef] | None = None,
         num_js_elements: int = 0,
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
@@ -132,7 +134,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     @override
     def cancel_jobs(
         self,
-        js_refs: list[tuple[int, list[str]]],
+        js_refs: list[DirectRef],
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ):

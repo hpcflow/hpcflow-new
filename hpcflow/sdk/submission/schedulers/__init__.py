@@ -18,6 +18,9 @@ T = TypeVar("T")
 
 
 class Scheduler(ABC, Generic[T]):
+    """
+    T: The type of a jobscript reference.
+    """
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 

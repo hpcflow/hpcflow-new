@@ -53,11 +53,15 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from fsspec import AbstractFileSystem  # type: ignore
     from typing import ClassVar, Dict
-    from typing_extensions import Self
+    from typing_extensions import Self, TypeAlias
     from zarr import Array, Group  # type: ignore
     from ..app import BaseApp
     from ..core.json_like import JSONed
     from ..typing import ParamSource
+
+
+ListAny: TypeAlias = 'list[Any]'
+ZarrAttrs: TypeAlias = 'dict[str, list[str]]'
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -167,9 +171,9 @@ class ZarrStoreTask(StoreTask[dict]):
 
 
 @dataclass
-class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
+class ZarrStoreElement(StoreElement[ListAny, ZarrAttrs]):
     @override
-    def encode(self, attrs: dict[str, list[str]]) -> list[Any]:
+    def encode(self, attrs: ZarrAttrs) -> ListAny:
         """Prepare store elements data for the persistent store.
 
         This method mutates `attrs`.
@@ -186,7 +190,7 @@ class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
 
     @override
     @classmethod
-    def decode(cls, elem_dat: list[Any], attrs: dict[str, list[str]]) -> Self:
+    def decode(cls, elem_dat: ListAny, attrs: ZarrAttrs) -> Self:
         """Initialise a `StoreElement` from persistent element data"""
         obj_dat = {
             "id_": elem_dat[0],
@@ -201,9 +205,9 @@ class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
 
 
 @dataclass
-class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
+class ZarrStoreElementIter(StoreElementIter[ListAny, ZarrAttrs]):
     @override
-    def encode(self, attrs: dict[str, list[str]]) -> list[Any]:
+    def encode(self, attrs: ZarrAttrs) -> ListAny:
         """Prepare store element iteration data for the persistent store.
 
         This method mutates `attrs`.
@@ -223,7 +227,7 @@ class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
 
     @override
     @classmethod
-    def decode(cls, iter_dat: list[Any], attrs: dict[str, list[str]]) -> Self:
+    def decode(cls, iter_dat: ListAny, attrs: ZarrAttrs) -> Self:
         """Initialise a `ZarrStoreElementIter` from persistent element iteration data"""
         obj_dat = {
             "id_": iter_dat[0],
@@ -238,9 +242,9 @@ class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
 
 
 @dataclass
-class ZarrStoreEAR(StoreEAR[list[Any], dict[str, list[str]]]):
+class ZarrStoreEAR(StoreEAR[ListAny, ZarrAttrs]):
     @override
-    def encode(self, ts_fmt: str, attrs: dict[str, list[str]]) -> list[Any]:
+    def encode(self, ts_fmt: str, attrs: ZarrAttrs) -> ListAny:
         """Prepare store EAR data for the persistent store.
 
         This method mutates `attrs`.
@@ -268,7 +272,7 @@ class ZarrStoreEAR(StoreEAR[list[Any], dict[str, list[str]]]):
 
     @override
     @classmethod
-    def decode(cls, EAR_dat: list[Any], ts_fmt: str, attrs: dict[str, list[str]]) -> Self:
+    def decode(cls, EAR_dat: ListAny, ts_fmt: str, attrs: ZarrAttrs) -> Self:
         """Initialise a `ZarrStoreEAR` from persistent EAR data"""
         obj_dat = {
             "id_": EAR_dat[0],
@@ -546,14 +550,14 @@ class ZarrPersistentStore(
         arr[task_ID] = elem_IDs_new
 
     @staticmethod
-    def __as_dict(attrs: zarr.attrs.Attributes) -> dict[str, list[str]]:
+    def __as_dict(attrs: zarr.attrs.Attributes) -> ZarrAttrs:
         """
         Type thunk to work around incomplete typing in zarr.
         """
-        return cast(dict, attrs.asdict())
+        return cast(ZarrAttrs, attrs.asdict())
 
     @contextmanager
-    def __mutate_attrs(self, arr: Array) -> Iterator[dict[str, list[str]]]:
+    def __mutate_attrs(self, arr: Array) -> Iterator[ZarrAttrs]:
         attrs_orig = self.__as_dict(arr.attrs)
         attrs = copy.deepcopy(attrs_orig)
         yield attrs
