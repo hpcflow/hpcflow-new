@@ -60,8 +60,8 @@ if TYPE_CHECKING:
     from ..typing import ParamSource
 
 
-ListAny: TypeAlias = 'list[Any]'
-ZarrAttrs: TypeAlias = 'dict[str, list[str]]'
+ListAny: TypeAlias = "list[Any]"
+ZarrAttrs: TypeAlias = "dict[str, list[str]]"
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general

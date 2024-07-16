@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ...config.config import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
 
-DirectRef: TypeAlias = 'tuple[int, list[str]]'
+DirectRef: TypeAlias = "tuple[int, list[str]]"
 
 
 class DirectScheduler(Scheduler[DirectRef]):
@@ -65,9 +65,7 @@ class DirectScheduler(Scheduler[DirectRef]):
             p.kill()
 
     @staticmethod
-    def _get_jobscript_processes(
-        js_refs: list[DirectRef]
-    ) -> list[psutil.Process]:
+    def _get_jobscript_processes(js_refs: list[DirectRef]) -> list[psutil.Process]:
         procs: list[psutil.Process] = []
         for p_id, p_cmdline in js_refs:
             try:
