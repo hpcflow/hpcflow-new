@@ -44,8 +44,8 @@ if TYPE_CHECKING:
     from .workflow import Workflow, WorkflowTemplate
 
 
-Address: TypeAlias = list[int | float | str]
-Numeric: TypeAlias = int | float | np.number
+Address: TypeAlias = 'list[int | float | str]'
+Numeric: TypeAlias = 'int | float | np.number'
 T = TypeVar("T")
 
 

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from ..typing import PathLike
 # mypy: disable-error-code="no-untyped-def"
 
-Strs: TypeAlias = str | tuple[str, ...]
+Strs: TypeAlias = 'str | tuple[str, ...]'
 
 
 def make_schemas(

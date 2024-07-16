@@ -60,9 +60,10 @@ class RunTimeInfo:
 
             try:
                 get_ipython  # type: ignore
-                self.in_ipython = True
             except NameError:
                 pass
+            else:
+                self.in_ipython = True
 
             if hasattr(sys, "ps1"):
                 self.is_interactive = True

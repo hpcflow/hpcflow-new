@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ..app import BaseApp
     from .object_list import ObjectList
 
-_BasicJsonTypes: TypeAlias = int | float | str | None
+_BasicJsonTypes: TypeAlias = 'int | float | str | None'
 _WriteStructure: TypeAlias = (
     "list[JSONable] | tuple[JSONable, ...] | set[JSONable] | dict[str, JSONable]"
 )
@@ -29,7 +29,7 @@ JSONable: TypeAlias = "_WriteStructure | enum.Enum | BaseJSONLike | _BasicJsonTy
 JSONed: TypeAlias = "_ReadStructure | _BasicJsonTypes"
 
 if TYPE_CHECKING:
-    _JSONDeserState: TypeAlias = dict[str, dict[str, JSONed]] | None
+    _JSONDeserState: TypeAlias = 'dict[str, dict[str, JSONed]] | None'
 
 
 PRIMITIVES = (

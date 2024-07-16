@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..compat.typing import TypeAlias
     from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
 
-    ConfigDict: TypeAlias = dict[str, dict[str, DefaultConfiguration]]
+    ConfigDict: TypeAlias = 'dict[str, dict[str, DefaultConfiguration]]'
     T = TypeVar("T")
 
 
