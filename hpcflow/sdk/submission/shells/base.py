@@ -1,17 +1,16 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TypedDict, TypeAlias, TYPE_CHECKING
+from typing import TypedDict, TYPE_CHECKING
+from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from typing import Any, ClassVar
     from typing_extensions import NotRequired
 
-    # This needs PEP 728 for a better type, alas
-    VersionInfo: TypeAlias = "dict[str, str | list[str]]"
-else:
-    VersionInfo: TypeAlias = dict
+# This needs PEP 728 for a better type, alas
+VersionInfo: TypeAlias = "dict[str, str | list[str]]"
 
 
 class JobscriptHeaderArgs(TypedDict):

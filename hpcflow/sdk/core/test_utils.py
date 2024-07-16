@@ -2,12 +2,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any, TypeAlias, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
+    from typing_extensions import TypeAlias
     from .actions import Action
     from .element import ElementGroup
     from .loop import Loop

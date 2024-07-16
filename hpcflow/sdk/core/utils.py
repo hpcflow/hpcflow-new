@@ -33,7 +33,8 @@ from hpcflow.sdk.typing import PathLike
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
-    from typing import Any, TypeAlias
+    from typing import Any
+    from typing_extensions import TypeAlias
     from numpy.typing import NDArray
 
 T = TypeVar("T")
