@@ -37,7 +37,7 @@ from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Dict
-    from ..compat.typing import Self
+    from typing_extensions import Self
     from ..app import BaseApp
     from ..core.json_like import JSONed
     from ..core.workflow import Workflow

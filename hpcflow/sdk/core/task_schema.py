@@ -21,7 +21,7 @@ from hpcflow.sdk.core.utils import check_valid_py_identifier
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from typing import Any, ClassVar
-    from ..compat.typing import Self
+    from typing_extensions import Self
     from .actions import Action
     from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList

@@ -7,7 +7,7 @@ from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from ..compat.typing import Self
+    from typing_extensions import Self
     from .element import Element, ElementIteration
     from .workflow import Workflow
     from ..persistence.base import StoreEAR, StoreElement, StoreElementIter

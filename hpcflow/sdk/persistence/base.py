@@ -39,8 +39,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
     from typing import Any, Dict, ClassVar, Final, Literal
+    from typing_extensions import NotRequired, Self, TypeGuard
     from fsspec import AbstractFileSystem  # type: ignore
-    from ..compat.typing import NotRequired, Self, TypeGuard
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
     from ..app import BaseApp

@@ -26,8 +26,8 @@ from .errors import (
 
 if TYPE_CHECKING:
     from typing import Any, Dict, TypeVar
+    from typing_extensions import TypeAlias
     from ..typing import PathLike
-    from ..compat.typing import TypeAlias
     from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
 
     ConfigDict: TypeAlias = "dict[str, dict[str, DefaultConfiguration]]"

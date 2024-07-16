@@ -9,7 +9,7 @@ from hpcflow.sdk.core.cache import DependencyCache
 
 if TYPE_CHECKING:
     from typing import TypedDict
-    from ..compat.typing import Self
+    from typing_extensions import Self
     from ..typing import DataIndex
     from .loop import Loop
     from .parameters import InputSource

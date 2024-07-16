@@ -46,7 +46,7 @@ from hpcflow.sdk.core.utils import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Literal, TypeVar, TypedDict
-    from ..compat.typing import Self, TypeAlias
+    from typing_extensions import Self, TypeAlias
     from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from .actions import Action

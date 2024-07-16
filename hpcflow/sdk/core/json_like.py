@@ -16,7 +16,7 @@ from .errors import ToJSONLikeChildReferenceError
 
 if TYPE_CHECKING:
     from typing import Any, ClassVar, Literal
-    from ..compat.typing import Self, TypeAlias, TypeGuard
+    from typing_extensions import Self, TypeAlias, TypeGuard
     from ..app import BaseApp
     from .object_list import ObjectList
 

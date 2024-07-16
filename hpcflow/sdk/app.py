@@ -62,8 +62,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
     from typing import Dict, List, Literal
+    from typing_extensions import NotRequired
     from rich.status import Status
-    from .compat.typing import NotRequired
     from .core.actions import (
         ElementActionRun,
         ElementAction,

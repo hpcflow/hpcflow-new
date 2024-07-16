@@ -8,7 +8,8 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 import statistics
 from dataclasses import dataclass
-from typing import ParamSpec, TypeVar
+from typing import TypeVar
+from typing_extensions import ParamSpec
 
 
 P = ParamSpec("P")

@@ -1,9 +1,9 @@
 from __future__ import annotations
 from dataclasses import InitVar
 from typing import ClassVar, TypedDict, TypeVar, cast
+from typing_extensions import NotRequired, TypeAlias
 from pathlib import Path
 import re
-from .compat.typing import NotRequired, TypeAlias
 
 PathLike: TypeAlias = "str | Path | None"
 """

@@ -17,7 +17,7 @@ from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import ClassVar
-    from ..compat.typing import Self
+    from typing_extensions import Self
     from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from .parameters import SchemaInput, InputSource
