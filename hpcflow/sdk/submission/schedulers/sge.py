@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import re
 from typing import TYPE_CHECKING
+from typing_extensions import override
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -83,6 +84,7 @@ class SGEPosix(QueuedScheduler):
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
     @classmethod
+    @override
     @TimeIt.decorator
     def process_resources(
         cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
@@ -162,6 +164,7 @@ class SGEPosix(QueuedScheduler):
         yield f"{self.js_cmd} -o ./artifacts/submissions/{sub_idx}"
         yield f"{self.js_cmd} -e ./artifacts/submissions/{sub_idx}"
 
+    @override
     def format_options(
         self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
     ) -> str:
@@ -184,6 +187,7 @@ class SGEPosix(QueuedScheduler):
 
         return "\n".join(opts) + "\n"
 
+    @override
     @TimeIt.decorator
     def get_version_info(self):
         vers_cmd = self.show_cmd + ["-help"]
@@ -197,6 +201,7 @@ class SGEPosix(QueuedScheduler):
             "scheduler_version": version,
         }
 
+    @override
     def get_submit_command(
         self,
         shell: Shell,
@@ -273,6 +278,7 @@ class SGEPosix(QueuedScheduler):
             info.setdefault(base_job_ID, {})[arr_idx] = state
         return info
 
+    @override
     def get_job_state_info(
         self, *, js_refs: list[str] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
@@ -288,6 +294,7 @@ class SGEPosix(QueuedScheduler):
             return {k: v for k, v in info.items() if k in js_refs}
         return info
 
+    @override
     def cancel_jobs(
         self,
         js_refs: list[str],

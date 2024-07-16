@@ -2,6 +2,7 @@ from __future__ import annotations
 import shutil
 import signal
 from typing import overload, cast, TYPE_CHECKING
+from typing_extensions import override
 import psutil
 
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
@@ -20,6 +21,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
     app: ClassVar[BaseApp]
 
     @classmethod
+    @override
     def process_resources(
         cls, resources, scheduler_config: SchedulerConfigDescriptor
     ) -> None:
@@ -30,6 +32,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         """
         return
 
+    @override
     def get_submit_command(
         self,
         shell: Shell,
@@ -76,6 +79,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         return procs
 
     @overload
+    @override
     @classmethod
     def wait_for_jobscripts(cls, js_refs: list[tuple[int, list[str]]]) -> None:
         ...
@@ -103,6 +107,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
         assert not alive
         return gone if callback else None
 
+    @override
     def get_job_state_info(
         self,
         *,
@@ -124,6 +129,7 @@ class DirectScheduler(Scheduler[tuple[int, list[str]]]):
 
         return info
 
+    @override
     def cancel_jobs(
         self,
         js_refs: list[tuple[int, list[str]]],
@@ -190,6 +196,7 @@ class DirectWindows(DirectScheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @override
     def get_submit_command(
         self, shell: Shell, js_path: str, deps: dict[Any, tuple[Any, ...]]
     ) -> list[str]:

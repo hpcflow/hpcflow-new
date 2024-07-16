@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
+from typing_extensions import override
 import shutil
 import time
 
@@ -150,12 +151,14 @@ def append_items_to_ragged_array(arr: Array, items: Sequence[int]):
 
 @dataclass
 class ZarrStoreTask(StoreTask[dict]):
+    @override
     def encode(self) -> tuple[int, dict, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
         task = {"id_": self.id_, **(self.task_template or {})}
         return self.index, wk_task, task
 
+    @override
     @classmethod
     def decode(cls, task_dat: dict) -> Self:
         """Initialise a `StoreTask` from persistent task data"""
@@ -165,6 +168,7 @@ class ZarrStoreTask(StoreTask[dict]):
 
 @dataclass
 class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
+    @override
     def encode(self, attrs: dict[str, list[str]]) -> list[Any]:
         """Prepare store elements data for the persistent store.
 
@@ -180,6 +184,7 @@ class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
             self.iteration_IDs,
         ]
 
+    @override
     @classmethod
     def decode(cls, elem_dat: list[Any], attrs: dict[str, list[str]]) -> Self:
         """Initialise a `StoreElement` from persistent element data"""
@@ -197,6 +202,7 @@ class ZarrStoreElement(StoreElement[list[Any], dict[str, list[str]]]):
 
 @dataclass
 class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
+    @override
     def encode(self, attrs: dict[str, list[str]]) -> list[Any]:
         """Prepare store element iteration data for the persistent store.
 
@@ -215,6 +221,7 @@ class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
             [[ensure_in(dk, attrs["loops"]), dv] for dk, dv in self.loop_idx.items()],
         ]
 
+    @override
     @classmethod
     def decode(cls, iter_dat: list[Any], attrs: dict[str, list[str]]) -> Self:
         """Initialise a `ZarrStoreElementIter` from persistent element iteration data"""
@@ -232,6 +239,7 @@ class ZarrStoreElementIter(StoreElementIter[list[Any], dict[str, list[str]]]):
 
 @dataclass
 class ZarrStoreEAR(StoreEAR[list[Any], dict[str, list[str]]]):
+    @override
     def encode(self, ts_fmt: str, attrs: dict[str, list[str]]) -> list[Any]:
         """Prepare store EAR data for the persistent store.
 
@@ -258,6 +266,7 @@ class ZarrStoreEAR(StoreEAR[list[Any], dict[str, list[str]]]):
             self.commands_idx,
         ]
 
+    @override
     @classmethod
     def decode(cls, EAR_dat: list[Any], ts_fmt: str, attrs: dict[str, list[str]]) -> Self:
         """Initialise a `ZarrStoreEAR` from persistent EAR data"""

@@ -1,11 +1,13 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 import sys
 import time
-from typing import Any, ClassVar, Generic, TypeVar, override, TYPE_CHECKING
-from abc import ABC, abstractmethod
+from typing import Generic, TypeVar, TYPE_CHECKING
+from typing_extensions import override
 
 if TYPE_CHECKING:
+    from typing import Any, ClassVar
     from ..shells import Shell
     from ..jobscript import Jobscript
     from ..jobscript_info import JobscriptElementState
@@ -43,7 +45,11 @@ class Scheduler(ABC, Generic[T]):
     def process_resources(
         self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
     ) -> None:
-        ...
+        """Perform scheduler-specific processing to the element resources.
+
+        Note: this mutates `resources`.
+
+        """
 
     def get_version_info(self) -> dict[str, str | list[str]]:
         return {}

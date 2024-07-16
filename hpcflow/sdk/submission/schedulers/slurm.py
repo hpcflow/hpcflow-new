@@ -2,6 +2,7 @@ from __future__ import annotations
 import subprocess
 import time
 from typing import TYPE_CHECKING
+from typing_extensions import override
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
@@ -70,6 +71,7 @@ class SlurmPosix(QueuedScheduler):
         super().__init__(*args, **kwargs)
 
     @classmethod
+    @override
     @TimeIt.decorator
     def process_resources(
         cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
@@ -336,6 +338,7 @@ class SlurmPosix(QueuedScheduler):
         yield f"{self.js_cmd} -o {base}.out"
         yield f"{self.js_cmd} -e {base}.err"
 
+    @override
     def format_options(
         self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
     ) -> str:
@@ -357,6 +360,7 @@ class SlurmPosix(QueuedScheduler):
 
         return "\n".join(opts) + "\n"
 
+    @override
     @TimeIt.decorator
     def get_version_info(self):
         vers_cmd = [self.submit_cmd, "--version"]
@@ -375,6 +379,7 @@ class SlurmPosix(QueuedScheduler):
             "scheduler_version": version,
         }
 
+    @override
     def get_submit_command(
         self,
         shell: Shell,
@@ -482,6 +487,7 @@ class SlurmPosix(QueuedScheduler):
             return list(known_jobs)
         return list(known_jobs.intersection(job_IDs))
 
+    @override
     def get_job_state_info(
         self, *, js_refs: list[str] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
@@ -522,6 +528,7 @@ class SlurmPosix(QueuedScheduler):
                 return {}
             count += 1
 
+    @override
     def cancel_jobs(
         self,
         js_refs: list[str],

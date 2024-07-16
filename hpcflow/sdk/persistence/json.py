@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 from typing import cast, TYPE_CHECKING
+from typing_extensions import override
 
 from fsspec import filesystem, AbstractFileSystem  # type: ignore
 from hpcflow.sdk.core.errors import (
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
 
 
 class JsonStoreTask(StoreTask[TaskMeta]):
+    @override
     def encode(self) -> tuple[int, TaskMeta, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
         assert self.task_template is not None
@@ -56,6 +58,7 @@ class JsonStoreTask(StoreTask[TaskMeta]):
         task = {"id_": self.id_, **self.task_template}
         return self.index, wk_task, task
 
+    @override
     @classmethod
     def decode(cls, task_dat: TaskMeta) -> Self:
         """Initialise a `StoreTask` from store task data
@@ -68,12 +71,14 @@ class JsonStoreTask(StoreTask[TaskMeta]):
 
 
 class JsonStoreElement(StoreElement[ElemMeta, None]):
+    @override
     def encode(self, context: None) -> ElemMeta:
         """Prepare store element data for the persistent store."""
         dct = self.__dict__
         del dct["is_pending"]
         return cast(ElemMeta, dct)
 
+    @override
     @classmethod
     def decode(cls, elem_dat: ElemMeta, context: None) -> Self:
         """Initialise a `JsonStoreElement` from store element data"""
@@ -81,12 +86,14 @@ class JsonStoreElement(StoreElement[ElemMeta, None]):
 
 
 class JsonStoreElementIter(StoreElementIter[IterMeta, None]):
+    @override
     def encode(self, context: None) -> IterMeta:
         """Prepare store element iteration data for the persistent store."""
         dct = self.__dict__
         del dct["is_pending"]
         return cast(IterMeta, dct)
 
+    @override
     @classmethod
     def decode(cls, iter_dat: IterMeta, context: None) -> Self:
         """Initialise a `JsonStoreElementIter` from persistent store element iteration data"""
@@ -103,6 +110,7 @@ class JsonStoreElementIter(StoreElementIter[IterMeta, None]):
 
 
 class JsonStoreEAR(StoreEAR[RunMeta, None]):
+    @override
     def encode(self, ts_fmt: str, context: None) -> RunMeta:
         """Prepare store EAR data for the persistent store."""
         return {
@@ -123,6 +131,7 @@ class JsonStoreEAR(StoreEAR[RunMeta, None]):
             "run_hostname": self.run_hostname,
         }
 
+    @override
     @classmethod
     def decode(cls, EAR_dat: RunMeta, ts_fmt: str, context: None) -> Self:
         """Initialise a `JsonStoreEAR` from persistent store EAR data"""

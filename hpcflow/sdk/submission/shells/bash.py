@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
 from typing import cast, TYPE_CHECKING
+from typing_extensions import override
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import (
@@ -133,6 +134,7 @@ class Bash(Shell):
     def _get_OS_info_POSIX(self) -> Mapping[str, str]:
         return get_OS_info_POSIX(linux_release_file=self.linux_release_file)
 
+    @override
     def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get bash version information.
 
@@ -166,10 +168,12 @@ class Bash(Shell):
         # escape spaces with a back slash:
         return app_invoc_exe.replace(" ", r"\ ")
 
+    @override
     @staticmethod
     def format_stream_assignment(shell_var_name: str, command: str) -> str:
         return f"{shell_var_name}=`{command}`"
 
+    @override
     def format_save_parameter(
         self,
         workflow_app_alias: str,
@@ -190,6 +194,7 @@ class Bash(Shell):
             f"\n"
         )
 
+    @override
     def format_loop_check(
         self, workflow_app_alias: str, loop_name: str, run_ID: int
     ) -> str:
@@ -201,6 +206,7 @@ class Bash(Shell):
             f"\n"
         )
 
+    @override
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a subshell.
 
@@ -324,6 +330,7 @@ class WSLBash(Bash):
     def prepare_element_run_dirs(self, run_dirs: list[list[Path]]) -> list[list[str]]:
         return [["/".join(str(j).split("\\")) for j in i] for i in run_dirs]
 
+    @override
     def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get WSL and bash version information.
 

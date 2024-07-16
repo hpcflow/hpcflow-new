@@ -2,6 +2,7 @@ from __future__ import annotations
 import subprocess
 from textwrap import dedent, indent
 from typing import TYPE_CHECKING
+from typing_extensions import override
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
@@ -135,6 +136,7 @@ class WindowsPowerShell(Shell):
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + ["-File", js_path]
 
+    @override
     def get_version_info(self, exclude_os: bool = False) -> VersionInfo:
         """Get powershell version information.
 
@@ -170,9 +172,11 @@ class WindowsPowerShell(Shell):
             app_invoc_exe = f"& '{app_invoc_exe}'"
         return app_invoc_exe
 
+    @override
     def format_stream_assignment(self, shell_var_name, command) -> str:
         return f"${shell_var_name} = {command}"
 
+    @override
     def format_save_parameter(
         self,
         workflow_app_alias: str,
@@ -193,6 +197,7 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
+    @override
     def format_loop_check(
         self, workflow_app_alias: str, loop_name: str, run_ID: int
     ) -> str:
@@ -204,6 +209,7 @@ class WindowsPowerShell(Shell):
             f"\n"
         )
 
+    @override
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
         """Format commands to run within a child scope.
 
