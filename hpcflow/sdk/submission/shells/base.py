@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ...compat.typing import NotRequired
 
     # This needs PEP 728 for a better type, alas
-    VersionInfo: TypeAlias = 'dict[str, str | list[str]]'
+    VersionInfo: TypeAlias = "dict[str, str | list[str]]"
 else:
     VersionInfo: TypeAlias = dict
 

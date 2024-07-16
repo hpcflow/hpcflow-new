@@ -63,8 +63,8 @@ if TYPE_CHECKING:
     from ..app import BaseApp
 
     T = TypeVar("T")
-    GetterCallback: TypeAlias = 'Callable[[Config, T], T]'
-    SetterCallback: TypeAlias = 'Callable[[Config, T], Any]'
+    GetterCallback: TypeAlias = "Callable[[Config, T], T]"
+    SetterCallback: TypeAlias = "Callable[[Config, T], Any]"
 
 
 class SGEParallelEnvsDescriptor(TypedDict):

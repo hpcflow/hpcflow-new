@@ -96,7 +96,7 @@ if TYPE_CHECKING:
         TemplateMeta,
     )
 
-    _TemplateComponents: TypeAlias = 'dict[str, ObjectList[JSONLike]]'
+    _TemplateComponents: TypeAlias = "dict[str, ObjectList[JSONLike]]"
 
     class AbstractFileSystem(Protocol):
         def exists(self, path: str) -> bool:
