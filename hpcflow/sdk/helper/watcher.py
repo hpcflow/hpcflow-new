@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections.abc import Callable, Sequence
 from datetime import timedelta
 from logging import Logger

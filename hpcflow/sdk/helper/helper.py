@@ -23,7 +23,7 @@ DEFAULT_WATCH_INTERVAL = 10  # seconds
 
 
 def kill_proc_tree(
-    pid, sig=signal.SIGTERM, include_parent=True, timeout=None, on_terminate=None
+    pid: int, sig=signal.SIGTERM, include_parent=True, timeout=None, on_terminate=None
 ):
     """Kill a process tree (including grandchildren) with signal
     "sig" and return a (gone, still_alive) tuple.
@@ -70,9 +70,9 @@ def get_helper_watch_list(app: BaseApp):
 
 def start_helper(
     app: BaseApp,
-    timeout=DEFAULT_TIMEOUT,
-    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
-    watch_interval=DEFAULT_WATCH_INTERVAL,
+    timeout: timedelta | float = DEFAULT_TIMEOUT,
+    timeout_check_interval: timedelta | float = DEFAULT_TIMEOUT_CHECK,
+    watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
     logger: logging.Logger | None = None,
 ):
     PID_file = get_PID_file_path(app)
@@ -135,9 +135,9 @@ def start_helper(
 
 def restart_helper(
     app: BaseApp,
-    timeout=DEFAULT_TIMEOUT,
-    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
-    watch_interval=DEFAULT_WATCH_INTERVAL,
+    timeout: timedelta | float = DEFAULT_TIMEOUT,
+    timeout_check_interval: timedelta | float = DEFAULT_TIMEOUT_CHECK,
+    watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
 ):
     logger = stop_helper(app, return_logger=True)
     start_helper(app, timeout, timeout_check_interval, watch_interval, logger=logger)
@@ -230,8 +230,8 @@ def helper_timeout(
 def run_helper(
     app: BaseApp,
     timeout: timedelta | float = DEFAULT_TIMEOUT,
-    timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
-    watch_interval=DEFAULT_WATCH_INTERVAL,
+    timeout_check_interval: timedelta | float = DEFAULT_TIMEOUT_CHECK,
+    watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
 ):
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.

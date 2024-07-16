@@ -1,7 +1,7 @@
-from datetime import timedelta
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import click
-import psutil
 
 from .helper import (
     DEFAULT_TIMEOUT,
@@ -18,6 +18,8 @@ from .helper import (
     get_helper_PID,
     get_helper_uptime,
 )
+if TYPE_CHECKING:
+    from ..app import BaseApp
 
 timeout_option = click.option(
     "--timeout",
@@ -45,7 +47,7 @@ watch_interval_option = click.option(
 )
 
 
-def get_helper_CLI(app):
+def get_helper_CLI(app: BaseApp):
     """Generate the CLI to provide some server-like functionality."""
 
     @click.group()
@@ -56,7 +58,7 @@ def get_helper_CLI(app):
     @timeout_option
     @timeout_check_interval_option
     @watch_interval_option
-    def start(timeout, timeout_check_interval, watch_interval):
+    def start(timeout: float, timeout_check_interval: float, watch_interval: float):
         """Start the helper process."""
         start_helper(app, timeout, timeout_check_interval, watch_interval)
 
@@ -69,7 +71,7 @@ def get_helper_CLI(app):
     @timeout_option
     @timeout_check_interval_option
     @watch_interval_option
-    def run(timeout, timeout_check_interval, watch_interval):
+    def run(timeout: float, timeout_check_interval: float, watch_interval: float):
         """Run the helper functionality."""
         run_helper(app, timeout, timeout_check_interval, watch_interval)
 
@@ -77,13 +79,13 @@ def get_helper_CLI(app):
     @timeout_option
     @timeout_check_interval_option
     @watch_interval_option
-    def restart(timeout, timeout_check_interval, watch_interval):
+    def restart(timeout: float, timeout_check_interval: float, watch_interval: float):
         """Restart (or start) the helper process."""
         restart_helper(app, timeout, timeout_check_interval, watch_interval)
 
     @helper.command()
     @click.option("-f", "--file", is_flag=True)
-    def pid(file):
+    def pid(file: bool):
         """Get the process ID of the running helper, if running."""
         pid_info = get_helper_PID(app)
         if pid_info:
@@ -94,30 +96,30 @@ def get_helper_CLI(app):
                 click.echo(pid)
 
     @helper.command()
-    def clear():
+    def clear() -> None:
         """Remove the PID file (and kill the helper process if it exists). This should not
         normally be needed."""
         clear_helper(app)
 
     @helper.command()
-    def uptime():
+    def uptime() -> None:
         """Get the uptime of the helper process, if it is running."""
         out = get_helper_uptime(app)
         if out:
             click.echo(out)
 
     @helper.command()
-    def log_path():
+    def log_path() -> None:
         """Get the path to the helper log file (may not exist)."""
         click.echo(get_helper_log_path(app))
 
     @helper.command()
-    def watch_list_path():
+    def watch_list_path() -> None:
         """Get the path to the workflow watch list file (may not exist)."""
         click.echo(get_watcher_file_path(app))
 
     @helper.command()
-    def watch_list():
+    def watch_list() -> None:
         """Get the list of workflows currently being watched."""
         for wk in get_helper_watch_list(app) or []:
             click.echo(str(wk["path"]))
