@@ -43,6 +43,8 @@ from .callbacks import (
     set_callback_file_paths,
     check_load_data_files,
     set_scheduler_invocation_match,
+    callback_update_log_file_path,
+    callback_update_log_file_level,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -198,7 +200,8 @@ class Config:
             "default_scheduler": (exists_in_schedulers, set_scheduler_invocation_match),
             "default_shell": (callback_supported_shells,),
             "schedulers": (callback_supported_schedulers, callback_scheduler_set_up),
-            "log_file_path": (set_callback_file_paths,),
+            "log_file_path": (callback_update_log_file_path,),
+            "log_file_level": (callback_update_log_file_level,),
             "log_console_level": (callback_update_log_console_level,),
             "demo_data_manifest_file": (set_callback_file_paths,),
         }

@@ -146,7 +146,7 @@ class TimeIt:
 
 class AppLog:
     DEFAULT_LOG_CONSOLE_LEVEL = "WARNING"
-    DEFAULT_LOG_FILE_LEVEL = "INFO"
+    DEFAULT_LOG_FILE_LEVEL = "WARNING"
 
     def __init__(self, app, log_console_level=None):
         self.app = app
@@ -169,6 +169,7 @@ class AppLog:
             self.console_handler.setLevel(new_level.upper())
 
     def add_file_logger(self, path, level=None, fmt=None, max_bytes=None):
+        path = Path(path)
         fmt = fmt or f"%(asctime)s %(levelname)s %(name)s: %(message)s"
         level = level or AppLog.DEFAULT_LOG_FILE_LEVEL
         max_bytes = max_bytes or int(10e6)

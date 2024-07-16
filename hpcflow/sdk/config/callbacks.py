@@ -1,6 +1,5 @@
 """Module that defines built-in callback functions for configuration item values."""
 
-
 import os
 import re
 import fsspec
@@ -154,3 +153,13 @@ def check_load_data_files(config, value):
 
 def callback_update_log_console_level(config, value):
     config._app.log.update_console_level(value)
+
+
+def callback_update_log_file_path(config, value):
+    config._app.log.remove_file_handlers()
+    config._app.log.add_file_logger(value, level=config.get("log_file_level"))
+
+
+def callback_update_log_file_level(config, value):
+    config._app.log.remove_file_handlers()
+    config._app.log.add_file_logger(config.get("log_file_path"), level=value)
