@@ -152,14 +152,30 @@ def check_load_data_files(config, value):
 
 
 def callback_update_log_console_level(config, value):
-    config._app.log.update_console_level(value)
+    config._app.log.update_console_level(new_level=value)
 
 
-def callback_update_log_file_path(config, value):
-    config._app.log.remove_file_handlers()
-    config._app.log.add_file_logger(value, level=config.get("log_file_level"))
+def callback_unset_log_console_level(config):
+    """Reset the console handler to the default level."""
+    config._app.log.update_console_level()
 
 
 def callback_update_log_file_level(config, value):
-    config._app.log.remove_file_handlers()
-    config._app.log.add_file_logger(config.get("log_file_path"), level=value)
+    config._app.log.update_file_level(new_level=value)
+
+
+def callback_update_log_file_path(config, value):
+    """Update the log file path, or remove the file handler if no path specifed."""
+    config._app.log.remove_file_handler()
+    if value:
+        config._app.log.add_file_logger(path=value, level=config.get("log_file_level"))
+
+
+def callback_unset_log_file_level(config):
+    """Reset the file handler to the default level."""
+    config._app.log.update_file_level()
+
+
+def callback_unset_log_file_path(config):
+    """Remove the log file handler."""
+    config._app.log.remove_file_handler()

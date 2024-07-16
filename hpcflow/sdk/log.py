@@ -155,6 +155,7 @@ class AppLog:
         self.console_handler = self._add_console_logger(
             level=log_console_level or AppLog.DEFAULT_LOG_CONSOLE_LEVEL
         )
+        self.file_handler = None
 
     def _add_console_logger(self, level, fmt=None):
         fmt = fmt or "%(levelname)s %(name)s: %(message)s"
@@ -164,9 +165,14 @@ class AppLog:
         self.logger.addHandler(handler)
         return handler
 
-    def update_console_level(self, new_level):
-        if new_level:
-            self.console_handler.setLevel(new_level.upper())
+    def update_console_level(self, new_level=None):
+        new_level = new_level or AppLog.DEFAULT_LOG_CONSOLE_LEVEL
+        self.console_handler.setLevel(new_level.upper())
+
+    def update_file_level(self, new_level=None):
+        if self.file_handler:
+            new_level = new_level or AppLog.DEFAULT_LOG_FILE_LEVEL
+            self.file_handler.setLevel(new_level.upper())
 
     def add_file_logger(self, path, level=None, fmt=None, max_bytes=None):
         path = Path(path)
@@ -182,12 +188,13 @@ class AppLog:
         handler.setFormatter(logging.Formatter(fmt))
         handler.setLevel(level.upper())
         self.logger.addHandler(handler)
-        return handler
+        self.file_handler = handler
 
-    def remove_file_handlers(self):
-        """Remove all file handlers."""
-        # TODO: store a `file_handlers` attribute as well as `console_handlers`
-        for hdlr in self.logger.handlers:
-            if isinstance(hdlr, logging.FileHandler):
-                self.logger.debug(f"Removing file handler from the AppLog: {hdlr!r}.")
-                self.logger.removeHandler(hdlr)
+    def remove_file_handler(self):
+        """Remove the file handler."""
+        if self.file_handler:
+            self.logger.debug(
+                f"Removing file handler from the AppLog: {self.file_handler!r}."
+            )
+            self.logger.removeHandler(self.file_handler)
+            self.file_handler = None

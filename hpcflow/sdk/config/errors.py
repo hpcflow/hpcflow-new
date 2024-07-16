@@ -24,7 +24,13 @@ class ConfigUnknownOverrideError(ConfigError):
 
 class ConfigNonConfigurableError(ConfigError):
     def __init__(self, name, message=None):
-        self.message = message or (f"Specified name {name!r} is not a configurable item.")
+        if not message:
+            if not isinstance(name, str):
+                names_str = ", ".join(f"{i!r}" for i in name)
+                msg = f"Specified names {names_str} are not configurable items."
+            else:
+                msg = f"Specified name {name!r} is not a configurable item."
+        self.message = message or msg
         super().__init__(self.message)
 
 

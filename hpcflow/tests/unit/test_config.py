@@ -6,6 +6,7 @@ from hpcflow.app import app as hf
 from hpcflow.sdk.config.errors import (
     ConfigFileValidationError,
     ConfigItemCallbackError,
+    ConfigNonConfigurableError,
     ConfigReadOnlyError,
 )
 
@@ -107,3 +108,82 @@ def test_cache_read_only(new_null_config):
     with pytest.raises(ConfigReadOnlyError):
         with hf.config.cached_config():
             hf.config.machine = "456"
+
+
+def test_workflow_template_config_validation(new_null_config, tmp_path):
+    wkt = hf.WorkflowTemplate(
+        tasks=[],
+        config={"log_file_level": "debug"},
+        name="test_workflow_config_validation",
+    )
+    assert wkt.config == {"log_file_level": "debug"}
+
+
+def test_workflow_template_config_validation_raises(unload_config, tmp_path):
+    with pytest.raises(ConfigNonConfigurableError):
+        hf.WorkflowTemplate(
+            tasks=[],
+            config={"bad_key": "debug"},
+            name="test_workflow_config_validation_raises",
+        )
+
+    # workflow template config validation should not need to load the whole config:
+    assert not hf.is_config_loaded
+
+
+def test_config_with_updates(new_null_config):
+    level_1 = hf.config.get("log_console_level")
+    with hf.config._with_updates({"log_console_level": "debug"}):
+        level_2 = hf.config.get("log_console_level")
+    level_3 = hf.config.get("log_console_level")
+    assert level_1 == level_3 != level_2
+    hf.reload_config()
+
+
+@pytest.mark.integration
+def test_workflow_template_config_set(new_null_config, tmp_path):
+    """Test we can set a workflow-level config item and that it is correctly applied
+    during execution."""
+
+    t1 = hf.Task(
+        schema=hf.task_schemas.test_t1_conditional_OS,
+        inputs={"p1": 101},
+    )
+    log_path = tmp_path / "log.log"
+    hf.config.set("log_file_level", "warning")
+    hf.config.set("log_file_path", log_path)
+
+    log_str_1 = "this should not appear in the log file"
+    hf.submission_logger.debug(log_str_1)
+
+    log_str_2 = "this should appear in the log file"
+    hf.submission_logger.warn(log_str_2)
+
+    assert log_path.is_file()
+    log_file_contents = log_path.read_text()
+    assert log_str_1 not in log_file_contents
+    assert log_str_2 in log_file_contents
+
+    wk = hf.Workflow.from_template_data(
+        tasks=[t1],
+        config={"log_file_level": "debug"},
+        workflow_name="test_workflow_config",
+        template_name="test_workflow_config",
+        path=tmp_path,
+    )
+    wk.submit(wait=True, status=False, add_to_known=False)
+    time.sleep(10)  # TODO: still required?
+
+    # check some DEBUG messages present in the run logs
+    debug_str = " DEBUG hpcflow.persistence:"
+
+    run_log = wk.submissions[0].log_path / "0.log"  # TODO: refactor
+    assert run_log.is_file()
+
+    run_log_contents = run_log.read_text()
+    assert debug_str in run_log_contents
+
+    # log file level should not have changed:
+    assert hf.config.get("log_file_level") == "warning"
+
+    hf.reload_config()

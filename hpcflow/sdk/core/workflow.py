@@ -13,6 +13,7 @@ import string
 from threading import Thread
 import time
 from typing import Any, Dict, Iterable, Iterator, List, Literal, Optional, Tuple, Union
+from functools import wraps
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem
@@ -22,6 +23,7 @@ from fsspec.core import url_to_fs
 import rich.console
 
 from hpcflow.sdk import app
+from hpcflow.sdk.config.errors import ConfigNonConfigurableError
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
@@ -145,6 +147,7 @@ class WorkflowTemplate(JSONLike):
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
     workflow: Optional[app.Workflow] = None
     resources: Optional[Dict[str, Dict]] = None
+    config: Optional[Dict] = field(default_factory=lambda: {})
     environments: Optional[Dict[str, Dict[str, Any]]] = None
     env_presets: Optional[Union[str, List[str]]] = None
     source_file: Optional[str] = field(default=None, compare=False)
@@ -170,6 +173,13 @@ class WorkflowTemplate(JSONLike):
 
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
+
+        if self.config:
+            # don't do a full validation (which would require loading the config file),
+            # just check all specified keys are configurable:
+            bad_keys = set(self.config) - set(self.app.config_options._configurable_keys)
+            if bad_keys:
+                raise ConfigNonConfigurableError(name=bad_keys)
 
     def _merge_envs_into_task_resources(self):
 
@@ -493,6 +503,23 @@ def resolve_fsspec(path: PathLike, **kwargs) -> Tuple[Any, str, str]:
             path = str(Path(path).resolve())
 
     return fs, path, pw
+
+
+def load_workflow_config(func):
+    """Decorator to apply workflow-level config items during execution of a Workflow
+    method."""
+
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+
+        updates = self.template.config
+        if updates:
+            with self.app.config._with_updates(updates):
+                return func(self, *args, **kwargs)
+        else:
+            return func(self, *args, **kwargs)
+
+    return wrapped
 
 
 class Workflow:
@@ -987,6 +1014,7 @@ class Workflow:
         tasks: Optional[List[app.Task]] = None,
         loops: Optional[List[app.Loop]] = None,
         resources: Optional[Dict[str, Dict]] = None,
+        config: Optional[Dict] = None,
         path: Optional[PathLike] = None,
         workflow_name: Optional[str] = None,
         overwrite: Optional[bool] = False,
@@ -1010,6 +1038,9 @@ class Workflow:
             Mapping of action scopes to resource requirements, to be applied to all
             element sets in the workflow. `resources` specified in an element set take
             precedence of those defined here for the whole workflow.
+        config
+            Configuration items that should be set whenever the resulting workflow is
+            loaded. This includes config items that apply during workflow execution.
         path
             The directory in which the workflow will be generated. The current directory
             if not specified.
@@ -1037,6 +1068,7 @@ class Workflow:
             tasks=tasks or [],
             loops=loops or [],
             resources=resources,
+            config=config,
         )
         return cls.from_template(
             template,
@@ -2608,6 +2640,7 @@ class Workflow:
                 return self._add_submission(tasks, JS_parallelism, force_array)
 
     @TimeIt.decorator
+    @load_workflow_config
     def _add_submission(
         self,
         tasks: Optional[List[int]] = None,
@@ -2835,6 +2868,7 @@ class Workflow:
 
         return submission_jobscripts, all_element_deps
 
+    @load_workflow_config
     def execute_run(
         self,
         submission_idx: int,

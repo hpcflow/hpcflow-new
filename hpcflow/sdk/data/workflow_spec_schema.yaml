@@ -6,6 +6,7 @@ rules:
         - name
         - source_file
         - resources
+        - config
         - environments
         - env_presets
         - template_components

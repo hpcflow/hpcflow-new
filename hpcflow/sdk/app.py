@@ -705,10 +705,12 @@ class BaseApp(metaclass=Singleton):
             **overrides,
         )
         self.log.update_console_level(self.config.get("log_console_level"))
-        self.log.add_file_logger(
-            path=self.config.get("log_file_path"),
-            level=self.config.get("log_file_level"),
-        )
+        log_file_path = self.config.get("log_file_path")
+        if log_file_path:
+            self.log.add_file_logger(
+                path=log_file_path,
+                level=self.config.get("log_file_level"),
+            )
         self.logger.info(f"Configuration loaded from: {self.config.config_file_path}")
         self._ensure_user_data_hostname_dir()
 
@@ -765,7 +767,7 @@ class BaseApp(metaclass=Singleton):
     ) -> None:
         if warn and not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
-        self.log.remove_file_handlers()
+        self.log.remove_file_handler()
         self._config_files = {}
         self._load_config(config_dir, config_key, **overrides)
 

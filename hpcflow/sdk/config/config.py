@@ -37,6 +37,7 @@ from .callbacks import (
     callback_supported_schedulers,
     callback_supported_shells,
     callback_update_log_console_level,
+    callback_unset_log_console_level,
     callback_vars,
     callback_file_paths,
     exists_in_schedulers,
@@ -45,6 +46,8 @@ from .callbacks import (
     set_scheduler_invocation_match,
     callback_update_log_file_path,
     callback_update_log_file_level,
+    callback_unset_log_file_level,
+    callback_unset_log_file_path,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -206,6 +209,12 @@ class Config:
             "demo_data_manifest_file": (set_callback_file_paths,),
         }
 
+        self._unset_callbacks = {
+            "log_console_level": (callback_unset_log_console_level,),
+            "log_file_level": (callback_unset_log_file_level,),
+            "log_file_path": (callback_unset_log_file_path,),
+        }
+
         self._configurable_keys = self._options._configurable_keys
         self._modified_keys = {}
         self._unset_keys = []
@@ -259,7 +268,7 @@ class Config:
             super().__setattr__(name, value)
 
     def _disable_callbacks(self, callbacks) -> Tuple[Dict]:
-        """Disable named get and set callbacks.
+        """Disable named get, set, and unset callbacks.
 
         Returns
         -------
@@ -274,21 +283,28 @@ class Config:
             k: tuple(i for i in v if i.__name__ not in callbacks)
             for k, v in self._set_callbacks.items()
         }
+        unset_callbacks_tmp = {
+            k: tuple(i for i in v if i.__name__ not in callbacks)
+            for k, v in self._unset_callbacks.items()
+        }
         get_callbacks = copy.deepcopy(self._get_callbacks)
         set_callbacks = copy.deepcopy(self._set_callbacks)
+        unset_callbacks = copy.deepcopy(self._unset_callbacks)
         self._get_callbacks = get_callbacks_tmp
         self._set_callbacks = set_callbacks_tmp
-        return (get_callbacks, set_callbacks)
+        self._unset_callbacks = unset_callbacks_tmp
+        return (get_callbacks, set_callbacks, unset_callbacks)
 
     @contextlib.contextmanager
     def _without_callbacks(self, *callbacks):
-        """Context manager to temporarily exclude named get and set callbacks."""
-        get_callbacks, set_callbacks = self._disable_callbacks(*callbacks)
+        """Context manager to temporarily exclude named get, set, and unset callbacks."""
+        get_cb, set_cb, unset_cb = self._disable_callbacks(*callbacks)
         try:
             yield
         finally:
-            self._get_callbacks = get_callbacks
-            self._set_callbacks = set_callbacks
+            self._get_callbacks = get_cb
+            self._set_callbacks = set_cb
+            self._unset_callbacks = unset_cb
 
     def _validate(self):
         data = self.get_all(include_overrides=True)
@@ -485,7 +501,7 @@ class Config:
 
     def _set(self, name, value, is_json=False, callback=True, quiet=False):
         if self._use_cache:
-            raise ConfigReadOnlyError
+            raise ConfigReadOnlyError()
 
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
@@ -569,7 +585,7 @@ class Config:
             root = value
         self._set(name, root, quiet=quiet)
 
-    def unset(self, name):
+    def unset(self, name, callback=True):
         """Unset the value of a configuration item."""
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
@@ -579,6 +595,13 @@ class Config:
         self._unset_keys.append(name)
         try:
             self._validate()
+            if callback:
+                for cb in self._unset_callbacks.get(name, []):
+                    self._logger.debug(
+                        f"Invoking `config.unset` callback for item {name!r}: "
+                        f"{cb.__name__!r}."
+                    )
+                    cb(self)
         except ConfigValidationError as err:
             self._unset_keys.pop()
             raise ConfigChangeValidationError(name, validation_err=err) from None
@@ -924,3 +947,28 @@ class Config:
         finally:
             self._use_cache = False
             self._config_cache = {}  # reset the cache
+
+    def _is_set(self, name):
+        """Check if a (non-metadata) config item is set."""
+        if name in self._unset_keys:
+            return False
+        elif name in self._modified_keys:
+            return True
+        else:
+            return self._file.is_item_set(self._config_key, name)
+
+    @contextlib.contextmanager
+    def _with_updates(self, updates):
+        # need to run callbacks for unsetting?
+        prev_unset = copy.deepcopy(self._unset_keys)
+        prev_modified = copy.deepcopy(self._modified_keys)
+        to_unset = []
+        try:
+            for k, v in updates.items():
+                if not self._is_set(k):
+                    to_unset.append(k)
+                self.set(k, v)
+            yield
+        finally:
+            self._unset_keys = prev_unset
+            self._modified_keys = prev_modified
