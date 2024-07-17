@@ -2679,7 +2679,8 @@ class Workflow:
         sub_obj.path.mkdir(exist_ok=True)
         sub_obj.tmp_path.mkdir(exist_ok=True)
         sub_obj.log_path.mkdir(exist_ok=True)
-        sub_obj.std_path.mkdir(exist_ok=True)
+        sub_obj.app_std_path.mkdir(exist_ok=True)
+        sub_obj.js_std_path.mkdir(exist_ok=True)
         sub_obj.scripts_path.mkdir(exist_ok=True)
         sub_obj.commands_path.mkdir(exist_ok=True)
 
@@ -2881,7 +2882,7 @@ class Workflow:
         # to go:
         os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
 
-        sub_str_path = Submission.get_std_path(self.submissions_path, submission_idx)
+        sub_str_path = Submission.get_app_std_path(self.submissions_path, submission_idx)
         run_std_path = sub_str_path / f"{str(run_ID)}.txt"  # TODO: refactor
         has_commands = False
 

@@ -52,7 +52,8 @@ class Submission(JSONLike):
 
     TMP_DIR_NAME = "tmp"
     LOG_DIR_NAME = "app_logs"
-    STD_DIR_NAME = "app_std"
+    APP_STD_DIR_NAME = "app_std"
+    JS_STD_DIR_NAME = "js_std"
     SCRIPTS_DIR_NAME = "scripts"
     COMMANDS_DIR_NAME = "commands"
 
@@ -304,8 +305,12 @@ class Submission(JSONLike):
         return cls.get_path(submissions_path, sub_idx) / cls.LOG_DIR_NAME
 
     @classmethod
-    def get_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
-        return cls.get_path(submissions_path, sub_idx) / cls.STD_DIR_NAME
+    def get_app_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.APP_STD_DIR_NAME
+
+    @classmethod
+    def get_js_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+        return cls.get_path(submissions_path, sub_idx) / cls.JS_STD_DIR_NAME
 
     @classmethod
     def get_scripts_path(cls, submissions_path: Path, sub_idx: int) -> Path:
@@ -328,8 +333,12 @@ class Submission(JSONLike):
         return self.get_log_path(self.workflow.submissions_path, self.index)
 
     @property
-    def std_path(self):
-        return self.get_std_path(self.workflow.submissions_path, self.index)
+    def app_std_path(self):
+        return self.get_app_std_path(self.workflow.submissions_path, self.index)
+
+    @property
+    def js_std_path(self):
+        return self.get_js_std_path(self.workflow.submissions_path, self.index)
 
     @property
     def scripts_path(self):

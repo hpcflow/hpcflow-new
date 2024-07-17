@@ -860,12 +860,19 @@ class Jobscript(JSONLike):
         return self.submission.path / self.jobscript_functions_name
 
     @property
+    def std_path(self):
+        """Directory in which to store jobscript standard out and error stream files."""
+        return self.submission.js_std_path / str(self.index)
+
+    @property
     def direct_stdout_path(self):
-        return self.submission.path / self.direct_stdout_file_name
+        # TODO: will depend if joined?
+        return self.std_path / self.direct_stdout_file_name
 
     @property
     def direct_stderr_path(self):
-        return self.submission.path / self.direct_stderr_file_name
+        # TODO: will depend if joined?
+        return self.std_path / self.direct_stderr_file_name
 
     @property
     def direct_win_pid_file_path(self):
@@ -987,7 +994,7 @@ class Jobscript(JSONLike):
             "EAR_file_name": self.EAR_ID_file_name,
             "tmp_dir_name": self.submission.TMP_DIR_NAME,
             "log_dir_name": self.submission.LOG_DIR_NAME,
-            "std_dir_name": self.submission.STD_DIR_NAME,
+            "app_std_dir_name": self.submission.APP_STD_DIR_NAME,
             "scripts_dir_name": self.submission.SCRIPTS_DIR_NAME,
         }
 
@@ -1005,6 +1012,7 @@ class Jobscript(JSONLike):
                     num_elements=self.blocks[0].num_elements,  # only used for array jobs
                     is_array=self.is_array,
                     sub_idx=self.submission.index,
+                    js_idx=self.index,
                 ),
                 header=header,
             )
@@ -1264,6 +1272,9 @@ class Jobscript(JSONLike):
                 for js_idx, (js_ref, _) in scheduler_refs.items():
                     if js_idx not in deps:
                         deps[js_idx] = (js_ref, False)
+
+        # make directory for jobscripts stdout/err stream files:
+        self.std_path.mkdir(exist_ok=True)
 
         with self.EAR_ID_file_path.open(mode="wt", newline="\n") as ID_fp:
             for block in self.blocks:

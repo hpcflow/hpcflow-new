@@ -59,7 +59,7 @@ class WindowsPowerShell(Shell):
         $EAR_ID_FILE = Join-Path $SUB_DIR {EAR_file_name}
         $SUB_TMP_DIR = Join-Path $SUB_DIR {tmp_dir_name}
         $SUB_LOG_DIR = Join-Path $SUB_DIR {log_dir_name}
-        $SUB_STD_DIR = Join-Path $SUB_DIR {std_dir_name}
+        $SUB_STD_DIR = Join-Path $SUB_DIR {app_std_dir_name}
         $SUB_SCRIPTS_DIR = Join-Path $SUB_DIR {scripts_dir_name}        
 
         $env:{app_caps}_WK_PATH = $WK_PATH

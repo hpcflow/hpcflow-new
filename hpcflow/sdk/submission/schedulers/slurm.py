@@ -330,26 +330,26 @@ class SlurmPosix(Scheduler):
         max_str = f"%{resources.max_array_items}" if resources.max_array_items else ""
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}{max_str}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx):
+    def format_std_stream_file_option_lines(self, is_array, sub_idx, js_idx):
         base = r"%x_"
         if is_array:
             base += r"%A.%a"
         else:
             base += r"%j"
 
-        base = f"./artifacts/submissions/{sub_idx}/{base}"
+        base = f"./artifacts/submissions/{sub_idx}/js_std/{js_idx}/{base}"
         return [
             f"{self.js_cmd} -o {base}.out",
             f"{self.js_cmd} -e {base}.err",
         ]
 
-    def format_options(self, resources, num_elements, is_array, sub_idx):
+    def format_options(self, resources, num_elements, is_array, sub_idx, js_idx):
         opts = []
         opts.extend(self.format_core_request_lines(resources))
         if is_array:
             opts.append(self.format_array_request(num_elements, resources))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
+        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx, js_idx))
 
         for opt_k, opt_v in self.options.items():
             if isinstance(opt_v, list):

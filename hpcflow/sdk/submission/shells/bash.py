@@ -47,7 +47,7 @@ class Bash(Shell):
         EAR_ID_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{EAR_file_name}"
         SUB_TMP_DIR="$SUB_DIR/{tmp_dir_name}"
         SUB_LOG_DIR="$SUB_DIR/{log_dir_name}"
-        SUB_STD_DIR="$SUB_DIR/{std_dir_name}"
+        SUB_STD_DIR="$SUB_DIR/{app_std_dir_name}"
         SUB_SCRIPTS_DIR="$SUB_DIR/{scripts_dir_name}"
 
         export {app_caps}_WK_PATH=$WK_PATH

@@ -575,7 +575,7 @@ def test_script_std_stream_redirect_on_exception(new_null_config, tmp_path):
 
     # std stream file has workflow not found traceback
     run = wk.get_all_EARs()[0]
-    std_stream_path = run.get_std_path()
+    std_stream_path = run.get_app_std_path()
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 
@@ -1100,7 +1100,7 @@ def test_shell_env_vars(null_config, tmp_path):
         assert env_dat["HPCFLOW_RUN_SCRIPT_NAME"] == script_name
         assert env_dat["HPCFLOW_RUN_SCRIPT_NAME_NO_EXT"] == script_path.stem
 
-        assert env_dat["HPCFLOW_RUN_STD_PATH"] == str(run.get_std_path())
+        assert env_dat["HPCFLOW_RUN_STD_PATH"] == str(run.get_app_std_path())
         assert (
             env_dat["HPCFLOW_RUN_LOG_PATH"]
             == env_dat["HPCFLOW_LOG_PATH"]

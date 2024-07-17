@@ -134,7 +134,7 @@ def test_OFP_std_stream_redirect_on_exception(new_null_config, tmp_path):
 
     # std stream file has workflow not found traceback
     run = wk.get_all_EARs()[1]
-    std_stream_path = run.get_std_path()
+    std_stream_path = run.get_app_std_path()
     assert std_stream_path.is_file()
     assert "WorkflowNotFoundError" in std_stream_path.read_text()
 
