@@ -2,9 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
+from hpcflow.sdk.typing import hydrate
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -232,10 +233,11 @@ def make_test_data_YAML_workflow_template(
 
 
 @dataclass
+@hydrate
 class P1_sub_parameter_cls(ParameterValue):
-    _typ = "p1_sub"
+    _typ: ClassVar[str] = "p1_sub"
 
-    e: int
+    e: int = 0
 
     def CLI_format(self) -> str:
         return str(self.e)
@@ -252,18 +254,20 @@ class P1_sub_parameter_cls(ParameterValue):
 
 
 @dataclass
+@hydrate
 class P1_sub_parameter_cls_2(ParameterValue):
-    _typ = "p1_sub_2"
+    _typ: ClassVar[str] = "p1_sub_2"
 
-    f: int
+    f: int = 0
 
 
 @dataclass
+@hydrate
 class P1_parameter_cls(ParameterValue):
-    _typ = "p1c"
-    _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
+    _typ: ClassVar[str] = "p1c"
+    _sub_parameters: ClassVar[dict[str, str]] = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 
-    a: int
+    a: int = 0
     d: int | None = None
     sub_param: P1_sub_parameter_cls | None = None
 

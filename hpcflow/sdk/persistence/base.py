@@ -76,6 +76,15 @@ def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamS
     return cast("ParamSource", dict(sorted({**source, **update}.items())))
 
 
+class FileDescriptor(TypedDict):
+    is_input: bool
+    store_contents: bool
+    dst_path: str
+    path: str | None
+    clean_up: bool
+    contents: NotRequired[str]
+
+
 class StoreCreationInfo(TypedDict):
     app_info: dict[str, Any]
     create_time: str
@@ -745,7 +754,7 @@ class StoreParameter:
             source=self.source,
         )
 
-    def set_file(self, value: Any) -> Self:
+    def set_file(self, value: Dict) -> Self:
         """Return a copy, with file set."""
         if self.is_set:
             raise RuntimeError(f"Parameter ID {self.id_!r} is already set!")
@@ -1494,7 +1503,7 @@ class PersistentStore(
                 "is_input": is_input,
                 "dst_path": str(dst_path),
                 "path": str(path),
-                "contents": contents,
+                "contents": contents or "",
                 "clean_up": clean_up,
             }
         )
@@ -1556,7 +1565,7 @@ class PersistentStore(
             self.save()
         return p_id
 
-    def _append_files(self, files: list[dict[str, Any]]):
+    def _append_files(self, files: list[FileDescriptor]):
         """Add new files to the files or artifacts directories."""
         for dat in files:
             if dat["store_contents"]:

@@ -62,9 +62,11 @@ def _process_demo_data_strings(app: BaseApp, value: T) -> T:
     return process_string_nodes(value, string_processor)
 
 
+@dataclass
+@hydrate
 class ParameterValue:
-    _typ: str | None = None
-    _sub_parameters: dict[str, str] = {}
+    _typ: ClassVar[str | None] = None
+    _sub_parameters: ClassVar[dict[str, str]] = {}
 
     def to_dict(self):
         if hasattr(self, "__dict__"):
@@ -121,7 +123,7 @@ class Parameter(JSONLike):
     is_file: bool = False
     sub_parameters: list[SubParameter] = field(default_factory=list)
     name: str | None = None
-    _value_class: type | None = None
+    _value_class: type[ParameterValue] | None = None
     _hash_value: str | None = field(default=None, repr=False)
     _validation: Schema | None = None
 
@@ -155,6 +157,7 @@ class Parameter(JSONLike):
             for i in ParameterValue.__subclasses__():
                 if i._typ == self.typ:
                     self._value_class = i
+                    break
 
     def __eq__(self, other) -> bool:
         return isinstance(other, Parameter) and self.typ == other.typ
@@ -194,6 +197,13 @@ class Parameter(JSONLike):
         else:
             method = self._value_class
         return method(**val)
+    
+    def _force_value_class(self) -> type[ParameterValue] | None:
+        param_cls = self._value_class
+        if param_cls is None:
+            self._set_value_class()
+            param_cls = self._value_class
+        return param_cls
 
 
 @dataclass

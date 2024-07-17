@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     )
     from .environment import Environment
     from .object_list import EnvironmentsList, ParametersList
-    from .parameters import SchemaParameter
+    from .parameters import SchemaParameter, ParameterValue
     from .rule import Rule
     from .task import WorkflowTask
     from .task_schema import TaskSchema
@@ -726,7 +726,7 @@ class ElementActionRun:
                 in_vals_processed = {}
                 for k, v in in_vals.items():
                     try:
-                        v = v.prepare_JSON_dump()
+                        v = cast('ParameterValue', v).prepare_JSON_dump()
                     except (AttributeError, NotImplementedError):
                         pass
                     in_vals_processed[k] = v
@@ -740,7 +740,7 @@ class ElementActionRun:
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
                         grp_k = f.create_group(k)
-                        v.dump_to_HDF5_group(grp_k)
+                        cast('ParameterValue', v).dump_to_HDF5_group(grp_k)
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -765,8 +765,8 @@ class ElementActionRun:
                     file_data = json.load(f)
                     for param_name, param_dat in file_data.items():
                         param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
-                        param_cls = parameters.get(param_name)._value_class
-                        if param_cls and issubclass(param_cls, self.app.ParameterValue):
+                        param_cls = parameters.get(param_name)._force_value_class()
+                        if param_cls is not None:
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
                             continue
                         # try to save as a primitive:
@@ -779,11 +779,15 @@ class ElementActionRun:
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
                         param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
-                        param_cls = parameters.get(param_name)._value_class
-                        if param_cls and issubclass(param_cls, self.app.ParameterValue):
+                        param = parameters.get(param_name)
+                        param_cls = param._force_value_class()
+                        self.app.logger.info("serialize %s with %s", param, param_cls)
+                        if param_cls is not None:
                             param_cls.save_from_HDF5_group(
                                 h5_grp, param_id, self.workflow
                             )
+                        else:
+                            self.app.logger.warn("parameter %s could not be saved", param_name)
 
     def compose_commands(
         self, jobscript: Jobscript, JS_action_idx: int

@@ -759,7 +759,6 @@ class ElementIteration:
             for src in self.get_parameter_sources(typ="EAR_output").values():
                 for src_i in src if isinstance(src, list) else [src]:
                     EAR_ID_i = src_i["EAR_ID"]
-                    assert isinstance(EAR_ID_i, int)
                     out.append(EAR_ID_i)
             out = sorted(set(out))
 

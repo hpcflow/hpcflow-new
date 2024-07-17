@@ -19,7 +19,7 @@ from hpcflow.sdk.persistence.types import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from .base import PersistentStore
+    from .base import PersistentStore, FileDescriptor
     from ..app import BaseApp
     from ..typing import ParamSource
 
@@ -72,7 +72,7 @@ class PendingChanges(
         self.add_elem_iters: dict[int, AnySElementIter] = {}
         self.add_EARs: dict[int, AnySEAR] = {}
         self.add_parameters: dict[int, AnySParameter] = {}
-        self.add_files: list[Dict] = []
+        self.add_files: list[FileDescriptor] = []
         self.add_template_components: dict[str, dict[str, Dict]] = {}
         self.add_element_sets: dict[int, list[Mapping]] = {}
 
@@ -397,7 +397,6 @@ class PendingChanges(
             self.store._set_parameter_values(self.set_parameters)
             for id_i in param_ids:
                 self.store.parameter_cache.pop(id_i, None)
-
         self.clear_set_parameters()
 
     @TimeIt.decorator

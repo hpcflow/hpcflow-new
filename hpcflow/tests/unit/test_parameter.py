@@ -5,17 +5,20 @@ import random
 import string
 import sys
 from textwrap import dedent
+from typing import ClassVar
 
 import pytest
 import requests
 
 from hpcflow.app import app as hf
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.parameters import ParameterValue
 
 
 @dataclass
+@hydrate
 class MyParameterP1(ParameterValue):
-    _typ = "p1_test"
+    _typ: ClassVar[str] = "p1_test"
     a: int
 
     def CLI_format(self):

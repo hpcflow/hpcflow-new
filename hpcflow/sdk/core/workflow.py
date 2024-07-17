@@ -2589,7 +2589,7 @@ class Workflow:
     def __wait_for_scheduled_jobscripts(self, jobscripts: list[Jobscript]):
         """Wait for the passed scheduled jobscripts to finish."""
         schedulers = self.app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
-        threads = []
+        threads: list[Thread] = []
         for js_indices, sched in schedulers.items():
             jobscripts_gen = (
                 self.submissions[sub_idx].jobscripts[js_idx]
@@ -2622,8 +2622,8 @@ class Workflow:
             for sub in self.submissions:
                 sub_js[sub.index].extend(sub.get_active_jobscripts())
 
-        js_direct = []
-        js_sched = []
+        js_direct: list[Jobscript] = []
+        js_sched: list[Jobscript] = []
         for sub_idx, all_js_idx in sub_js.items():
             for js_idx in all_js_idx:
                 try:

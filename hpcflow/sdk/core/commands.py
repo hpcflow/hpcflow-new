@@ -338,7 +338,7 @@ class Command(JSONLike):
         return value
 
     @staticmethod
-    def _extract_executable_labels(cmd_str) -> list[str]:
+    def _extract_executable_labels(cmd_str: str) -> list[str]:
         exe_regex = r"\<\<(?:executable):(.*?)\>\>"
         return re.findall(exe_regex, cmd_str)
 
