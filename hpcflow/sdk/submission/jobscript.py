@@ -826,6 +826,11 @@ class Jobscript(JSONLike):
         return f"js_{self.index}_EAR_IDs.txt"
 
     @property
+    def direct_std_out_err_file_name(self):
+        """For direct execution stdout and stderr combined."""
+        return f"js_{self.index}_std.log"
+
+    @property
     def direct_stdout_file_name(self):
         """For direct execution stdout."""
         return f"js_{self.index}_stdout.log"
@@ -865,14 +870,24 @@ class Jobscript(JSONLike):
         return self.submission.js_std_path / str(self.index)
 
     @property
+    def direct_std_out_err_path(self):
+        """File path of combined standard output and error streams for direct
+        submission."""
+        return self.std_path / self.direct_std_out_err_file_name
+
+    @property
     def direct_stdout_path(self):
-        # TODO: will depend if joined?
-        return self.std_path / self.direct_stdout_file_name
+        if self.resources.combine_jobscript_std:
+            return self.direct_std_out_err_path
+        else:
+            return self.std_path / self.direct_stdout_file_name
 
     @property
     def direct_stderr_path(self):
-        # TODO: will depend if joined?
-        return self.std_path / self.direct_stderr_file_name
+        if self.resources.combine_jobscript_std:
+            return self.direct_std_out_err_path
+        else:
+            return self.std_path / self.direct_stderr_file_name
 
     @property
     def direct_win_pid_file_path(self):
@@ -1229,17 +1244,25 @@ class Jobscript(JSONLike):
     def _launch_direct_js_posix(self) -> int:
         # direct submission; submit jobscript asynchronously:
         # detached process, avoid interrupt signals propagating to the subprocess:
-        with self.direct_stdout_path.open("wt") as fp_stdout:
-            with self.direct_stderr_path.open("wt") as fp_stderr:
-                # note: Popen copies the file objects, so this works!
-                proc = subprocess.Popen(
-                    args=self.submit_cmdline,
-                    stdout=fp_stdout,
-                    stderr=fp_stderr,
-                    cwd=str(self.workflow.path),
-                    start_new_session=True,
-                )
-                process_ID = proc.pid
+
+        def _launch(fp_stdout, fp_stderr):
+            # note: Popen copies the file objects, so this works!
+            proc = subprocess.Popen(
+                args=self.submit_cmdline,
+                stdout=fp_stdout,
+                stderr=fp_stderr,
+                cwd=str(self.workflow.path),
+                start_new_session=True,
+            )
+            return proc.pid
+
+        if self.resources.combine_jobscript_std:
+            with self.direct_std_out_err_path.open("wt") as fp_std:
+                process_ID = _launch(fp_std, fp_std)
+        else:
+            with self.direct_stdout_path.open("wt") as fp_stdout:
+                with self.direct_stderr_path.open("wt") as fp_stderr:
+                    process_ID = _launch(fp_stdout, fp_stderr)
 
         return process_ID
 

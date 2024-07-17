@@ -185,7 +185,7 @@ class WindowsPowerShell(Shell):
         """
 
         proc = subprocess.run(
-            args=self.executable + ["$PSVersionTable.PSVersion.ToString()"],
+            args=self.executable + ["-Command", "$PSVersionTable.PSVersion.ToString()"],
             stdout=subprocess.PIPE,
             text=True,
         )

@@ -196,6 +196,7 @@ class ElementResources(JSONLike):
     shell: Optional[str] = None
     use_job_array: Optional[bool] = None
     max_array_items: Optional[int] = None
+    combine_jobscript_std: Optional[bool] = field(default_factory=lambda: os.name != "nt")
     time_limit: Optional[str] = None
 
     scheduler_args: Optional[Dict] = field(default_factory=dict)
@@ -355,6 +356,12 @@ class ElementResources(JSONLike):
                 scheduler=self.scheduler,
                 supported=self.app.config.schedulers,
             )
+
+        if self.os_name == "nt" and self.combine_jobscript_std:
+            raise NotImplementedError(
+                "`combine_jobscript_std` is not yet supported on Windows."
+            )
+
         # might raise `UnsupportedShellError`:
         get_shell(shell_name=self.shell, os_name=self.os_name)
 

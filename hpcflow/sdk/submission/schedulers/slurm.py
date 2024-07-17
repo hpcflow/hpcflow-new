@@ -330,7 +330,7 @@ class SlurmPosix(Scheduler):
         max_str = f"%{resources.max_array_items}" if resources.max_array_items else ""
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}{max_str}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx, js_idx):
+    def format_std_stream_file_option_lines(self, is_array, sub_idx, js_idx, combine_std):
         base = r"%x_"
         if is_array:
             base += r"%A.%a"
@@ -338,10 +338,10 @@ class SlurmPosix(Scheduler):
             base += r"%j"
 
         base = f"./artifacts/submissions/{sub_idx}/js_std/{js_idx}/{base}"
-        return [
-            f"{self.js_cmd} -o {base}.out",
-            f"{self.js_cmd} -e {base}.err",
-        ]
+        out = [f"{self.js_cmd} --output {base}.out"]
+        if not combine_std:
+            out.append(f"{self.js_cmd} --error {base}.err")
+        return out
 
     def format_options(self, resources, num_elements, is_array, sub_idx, js_idx):
         opts = []
@@ -349,7 +349,11 @@ class SlurmPosix(Scheduler):
         if is_array:
             opts.append(self.format_array_request(num_elements, resources))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx, js_idx))
+        opts.extend(
+            self.format_std_stream_file_option_lines(
+                is_array, sub_idx, js_idx, resources.combine_jobscript_std
+            )
+        )
 
         for opt_k, opt_v in self.options.items():
             if isinstance(opt_v, list):

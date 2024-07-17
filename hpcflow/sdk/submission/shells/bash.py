@@ -24,7 +24,7 @@ class Bash(Shell):
         {workflow_app_alias} () {{
         (
         {env_setup}{app_invoc}\\
-                --with-config log_file_path "${app_caps}_RUN_LOG_PATH"\\
+                --with-config log_file_path "${app_caps}_LOG_PATH"\\
                 --config-dir "{config_dir}"\\
                 --config-key "{config_invoc_key}"\\
                 "$@"
@@ -255,13 +255,22 @@ class Bash(Shell):
 class WSLBash(Bash):
     DEFAULT_WSL_EXE = "wsl"
 
+    JS_FUNCS = dedent(
+        """\
+        {workflow_app_alias} () {{
+        (
+        {env_setup}{app_invoc}\\
+                --with-config log_file_path "$(wslpath -m ${app_caps}_LOG_PATH)"\\
+                --config-dir "{config_dir}"\\
+                --config-key "{config_invoc_key}"\\
+                "$@"
+        )
+        }}
+    """
+    )
     JS_HEADER = Bash.JS_HEADER.replace(
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',
-    )
-    JS_FUNCS = Bash.JS_FUNCS.replace(  # TODO: fix
-        '--with-config log_file_path "`pwd`',
-        '--with-config log_file_path "$(wslpath -m `pwd`)',
     )
     JS_RUN_CMD = (
         dedent(
@@ -277,6 +286,7 @@ class WSLBash(Bash):
         WSLENV=$WSLENV:${{APP_CAPS}}_JS_ELEM_IDX
         WSLENV=$WSLENV:${{APP_CAPS}}_BLOCK_ELEM_IDX
         WSLENV=$WSLENV:${{APP_CAPS}}_BLOCK_IDX
+        WSLENV=$WSLENV:${{APP_CAPS}}_LOG_PATH/p
 
     """
         )

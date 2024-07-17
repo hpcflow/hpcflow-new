@@ -149,13 +149,15 @@ class SGEPosix(Scheduler):
     def format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx, js_idx):
+    def format_std_stream_file_option_lines(self, is_array, sub_idx, js_idx, combine_std):
         # note: we can't modify the file names
         base = f"./artifacts/submissions/{sub_idx}/js_std/{js_idx}"
-        return [
-            f"{self.js_cmd} -o {base}",
-            f"{self.js_cmd} -e {base}",
-        ]
+        out = [f"{self.js_cmd} -o {base}"]
+        if combine_std:
+            out.append(f"{self.js_cmd} -j y")  # redirect stderr to stdout
+        else:
+            out.append(f"{self.js_cmd} -e {base}")
+        return out
 
     def format_options(self, resources, num_elements, is_array, sub_idx, js_idx):
         opts = []
@@ -164,7 +166,11 @@ class SGEPosix(Scheduler):
         if is_array:
             opts.append(self.format_array_request(num_elements))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx, js_idx))
+        opts.extend(
+            self.format_std_stream_file_option_lines(
+                is_array, sub_idx, js_idx, resources.combine_jobscript_std
+            )
+        )
 
         for opt_k, opt_v in self.options.items():
             if isinstance(opt_v, list):
