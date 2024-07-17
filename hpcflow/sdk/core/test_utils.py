@@ -265,7 +265,10 @@ class P1_sub_parameter_cls_2(ParameterValue):
 @hydrate
 class P1_parameter_cls(ParameterValue):
     _typ: ClassVar[str] = "p1c"
-    _sub_parameters: ClassVar[dict[str, str]] = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
+    _sub_parameters: ClassVar[dict[str, str]] = {
+        "sub_param": "p1_sub",
+        "sub_param_2": "p1_sub_2",
+    }
 
     a: int = 0
     d: int | None = None

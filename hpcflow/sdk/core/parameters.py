@@ -197,7 +197,7 @@ class Parameter(JSONLike):
         else:
             method = self._value_class
         return method(**val)
-    
+
     def _force_value_class(self) -> type[ParameterValue] | None:
         param_cls = self._value_class
         if param_cls is None:

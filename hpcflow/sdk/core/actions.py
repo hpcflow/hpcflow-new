@@ -726,7 +726,7 @@ class ElementActionRun:
                 in_vals_processed = {}
                 for k, v in in_vals.items():
                     try:
-                        v = cast('ParameterValue', v).prepare_JSON_dump()
+                        v = cast("ParameterValue", v).prepare_JSON_dump()
                     except (AttributeError, NotImplementedError):
                         pass
                     in_vals_processed[k] = v
@@ -740,7 +740,7 @@ class ElementActionRun:
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
                         grp_k = f.create_group(k)
-                        cast('ParameterValue', v).dump_to_HDF5_group(grp_k)
+                        cast("ParameterValue", v).dump_to_HDF5_group(grp_k)
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -787,7 +787,9 @@ class ElementActionRun:
                                 h5_grp, param_id, self.workflow
                             )
                         else:
-                            self.app.logger.warn("parameter %s could not be saved", param_name)
+                            self.app.logger.warn(
+                                "parameter %s could not be saved", param_name
+                            )
 
     def compose_commands(
         self, jobscript: Jobscript, JS_action_idx: int
