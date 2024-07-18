@@ -1030,6 +1030,7 @@ def test_shell_env_vars(null_config, tmp_path):
                 script_data_out="direct",
                 script_exe="python_script",
                 environments=[hf.ActionEnvironment(environment="python_env")],
+                requires_dir=True,
             )
         ],
     )
