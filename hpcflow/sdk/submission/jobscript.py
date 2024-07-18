@@ -1047,11 +1047,22 @@ class Jobscript(JSONLike):
 
         out = header
         run_cmd = shell.JS_RUN_CMD.format(workflow_app_alias=self.workflow_app_alias)
+
+        if self.resources.write_app_logs:
+            run_log_enable_disable = shell.JS_RUN_LOG_PATH_ENABLE.format(
+                run_log_file_name=self.submission.get_app_log_file_name(
+                    run_ID=shell.format_env_var_get(f"{app_caps}_RUN_ID")
+                )
+            )
+        else:
+            run_log_enable_disable = shell.JS_RUN_LOG_PATH_DISABLE
+
         block_run = shell.JS_RUN.format(
             EAR_files_delimiter=self._EAR_files_delimiter,
             app_caps=app_caps,
             run_cmd=run_cmd,
             sub_tmp_dir=self.submission.tmp_path,
+            run_log_enable_disable=run_log_enable_disable,
         )
         if len(self.blocks) == 1:
             # forgo element and action loops if not necessary:

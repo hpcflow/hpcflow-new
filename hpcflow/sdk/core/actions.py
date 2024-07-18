@@ -503,12 +503,12 @@ class ElementActionRun:
         )
         return run_dir
 
-    def get_log_path(self) -> Path:
-        log_dir = Submission.get_log_path(
+    def get_app_log_path(self) -> Path:
+        return Submission.get_app_log_file_path(
             self.workflow.submissions_path,
             self.submission_idx,
+            self.id_,
         )
-        return log_dir / f"{self.id_}.log"  # TODO: refactor
 
     def get_app_std_path(self) -> Path:
         std_dir = Submission.get_app_std_path(

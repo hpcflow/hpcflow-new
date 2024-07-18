@@ -2678,11 +2678,13 @@ class Workflow:
         self.submissions_path.mkdir(exist_ok=True, parents=True)
         sub_obj.path.mkdir(exist_ok=True)
         sub_obj.tmp_path.mkdir(exist_ok=True)
-        sub_obj.log_path.mkdir(exist_ok=True)
         sub_obj.app_std_path.mkdir(exist_ok=True)
         sub_obj.js_std_path.mkdir(exist_ok=True)
         sub_obj.scripts_path.mkdir(exist_ok=True)
         sub_obj.commands_path.mkdir(exist_ok=True)
+
+        if sub_obj.needs_app_log_dir:
+            sub_obj.app_log_path.mkdir(exist_ok=True)
 
         # write scripts and command files where possible to the submission directory:
         cmd_file_IDs = sub_obj._write_scripts()

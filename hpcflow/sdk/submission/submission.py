@@ -292,6 +292,13 @@ class Submission(JSONLike):
             SubmissionStatus.PARTIALLY_SUBMITTED,
         )
 
+    @property
+    def needs_app_log_dir(self) -> bool:
+        for js in self.jobscripts:
+            if js.resources.write_app_logs:
+                return True
+        return False
+
     @classmethod
     def get_path(cls, submissions_path: Path, sub_idx: int) -> Path:
         return submissions_path / str(sub_idx)
@@ -301,8 +308,21 @@ class Submission(JSONLike):
         return cls.get_path(submissions_path, sub_idx) / cls.TMP_DIR_NAME
 
     @classmethod
-    def get_log_path(cls, submissions_path: Path, sub_idx: int) -> Path:
+    def get_app_log_path(cls, submissions_path: Path, sub_idx: int) -> Path:
         return cls.get_path(submissions_path, sub_idx) / cls.LOG_DIR_NAME
+
+    @staticmethod
+    def get_app_log_file_name(run_ID: int):
+        # TODO: consider combine_app_logs argument
+        return f"r_{run_ID}.log"
+
+    @classmethod
+    def get_app_log_file_path(cls, submissions_path: Path, sub_idx: int, run_ID: int):
+        return (
+            cls.get_path(submissions_path, sub_idx)
+            / cls.LOG_DIR_NAME
+            / cls.get_app_log_file_name(run_ID)
+        )
 
     @classmethod
     def get_app_std_path(cls, submissions_path: Path, sub_idx: int) -> Path:
@@ -329,8 +349,8 @@ class Submission(JSONLike):
         return self.get_tmp_path(self.workflow.submissions_path, self.index)
 
     @property
-    def log_path(self) -> Path:
-        return self.get_log_path(self.workflow.submissions_path, self.index)
+    def app_log_path(self) -> Path:
+        return self.get_app_log_path(self.workflow.submissions_path, self.index)
 
     @property
     def app_std_path(self):

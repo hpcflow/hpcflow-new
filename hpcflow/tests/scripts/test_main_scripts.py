@@ -1107,7 +1107,7 @@ def test_shell_env_vars(null_config, tmp_path):
         assert (
             env_dat["HPCFLOW_RUN_LOG_PATH"]
             == env_dat["HPCFLOW_LOG_PATH"]
-            == str(run.get_log_path())
+            == str(run.get_app_log_path())
         )
 
         assert env_dat["HPCFLOW_ELEMENT_ID"] == str(run.element.id_)

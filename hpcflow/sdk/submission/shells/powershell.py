@@ -78,10 +78,11 @@ class WindowsPowerShell(Shell):
         {wait_command}
     """
     )
-    JS_RUN_CMD = dedent(
-        """\
-        {workflow_app_alias} internal workflow $WK_PATH execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
-    """
+    JS_RUN_LOG_PATH_ENABLE = 'Join-Path $SUB_LOG_DIR "{run_log_file_name}"'
+    JS_RUN_LOG_PATH_DISABLE = '" "'
+    JS_RUN_CMD = (
+        "{workflow_app_alias} internal workflow $WK_PATH execute-run "
+        "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
     JS_RUN = dedent(
         """\
@@ -91,7 +92,7 @@ class WindowsPowerShell(Shell):
         }}
 
         $env:{app_caps}_RUN_ID = $EAR_ID
-        $env:{app_caps}_RUN_LOG_PATH = Join-Path $SUB_LOG_DIR "$env:{app_caps}_RUN_ID.log"
+        $env:{app_caps}_RUN_LOG_PATH = {run_log_enable_disable}
         $env:{app_caps}_LOG_PATH = $env:{app_caps}_RUN_LOG_PATH
         $env:{app_caps}_RUN_STD_PATH = Join-Path $SUB_STD_DIR "$env:{app_caps}_RUN_ID.txt"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
@@ -211,6 +212,9 @@ class WindowsPowerShell(Shell):
             # use call operator and single-quote the executable path:
             app_invoc_exe = f"& '{app_invoc_exe}'"
         return app_invoc_exe
+
+    def format_env_var_get(self, var: str):
+        return f"$env:{var}"
 
     def format_array(self, lst: List) -> str:
         return "@(" + ", ".join(str(i) for i in lst) + ")"

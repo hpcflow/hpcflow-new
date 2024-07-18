@@ -48,6 +48,7 @@ from .callbacks import (
     callback_update_log_file_level,
     callback_unset_log_file_level,
     callback_unset_log_file_path,
+    callback_log_file_path,
 )
 from .config_file import ConfigFile
 from .errors import (
@@ -184,7 +185,7 @@ class Config:
             "environment_sources": (callback_file_paths,),
             "parameter_sources": (callback_file_paths,),
             "command_file_sources": (callback_file_paths,),
-            "log_file_path": (callback_vars, callback_file_paths),
+            "log_file_path": (callback_vars, callback_log_file_path),
             "telemetry": (callback_bool,),
             "schedulers": (callback_lowercase, callback_supported_schedulers),
             "shells": (callback_lowercase,),

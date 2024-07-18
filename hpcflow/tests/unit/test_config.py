@@ -157,7 +157,7 @@ def test_workflow_template_config_set(new_null_config, tmp_path):
     hf.submission_logger.debug(log_str_1)
 
     log_str_2 = "this should appear in the log file"
-    hf.submission_logger.warn(log_str_2)
+    hf.submission_logger.warning(log_str_2)
 
     assert log_path.is_file()
     log_file_contents = log_path.read_text()
@@ -177,10 +177,11 @@ def test_workflow_template_config_set(new_null_config, tmp_path):
     # check some DEBUG messages present in the run logs
     debug_str = " DEBUG hpcflow.persistence:"
 
-    run_log = wk.submissions[0].log_path / "0.log"  # TODO: refactor
-    assert run_log.is_file()
+    run = wk.get_EARs_from_IDs([0])[0]
+    run_log_path = run.get_app_log_path()
+    assert run_log_path.is_file()
 
-    run_log_contents = run_log.read_text()
+    run_log_contents = run_log_path.read_text()
     assert debug_str in run_log_contents
 
     # log file level should not have changed:

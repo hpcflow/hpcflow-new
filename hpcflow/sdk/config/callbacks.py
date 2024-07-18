@@ -151,6 +151,14 @@ def check_load_data_files(config, value):
     config._app.reload_template_components(warn=False)
 
 
+def callback_log_file_path(config, value):
+    value = value.strip()
+    if value:
+        return config._resolve_path(value)
+    else:
+        return value
+
+
 def callback_update_log_console_level(config, value):
     config._app.log.update_console_level(new_level=value)
 

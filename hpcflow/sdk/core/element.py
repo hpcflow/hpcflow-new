@@ -196,6 +196,7 @@ class ElementResources(JSONLike):
     shell: Optional[str] = None
     use_job_array: Optional[bool] = None
     max_array_items: Optional[int] = None
+    write_app_logs: Optional[bool] = False
     combine_jobscript_std: Optional[bool] = field(default_factory=lambda: os.name != "nt")
     time_limit: Optional[str] = None
 

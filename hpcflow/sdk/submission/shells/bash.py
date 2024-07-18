@@ -74,10 +74,11 @@ class Bash(Shell):
         {wait_command}
     """
     )
-    JS_RUN_CMD = dedent(
-        """\
-        {workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
-    """
+    JS_RUN_LOG_PATH_ENABLE = '"$SUB_LOG_DIR/{run_log_file_name}"'
+    JS_RUN_LOG_PATH_DISABLE = '" "'
+    JS_RUN_CMD = (
+        '{workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-run '
+        "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
     JS_RUN = dedent(
         """\
@@ -87,7 +88,7 @@ class Bash(Shell):
         fi
 
         export {app_caps}_RUN_ID=$EAR_ID
-        export {app_caps}_RUN_LOG_PATH="$SUB_LOG_DIR/${app_caps}_RUN_ID.log"
+        export {app_caps}_RUN_LOG_PATH={run_log_enable_disable}
         export {app_caps}_LOG_PATH="${app_caps}_RUN_LOG_PATH"
         export {app_caps}_RUN_STD_PATH="$SUB_STD_DIR/${app_caps}_RUN_ID.txt"
         export {app_caps}_BLOCK_ACT_IDX=$block_act_idx
@@ -213,6 +214,9 @@ class Bash(Shell):
         # escape spaces with a back slash:
         app_invoc_exe = app_invoc_exe.replace(" ", r"\ ")
         return app_invoc_exe
+
+    def format_env_var_get(self, var: str):
+        return f"${var}"
 
     def format_array(self, lst: List) -> str:
         return "(" + " ".join(str(i) for i in lst) + ")"
