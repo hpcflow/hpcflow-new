@@ -1250,7 +1250,7 @@ class Action(JSONLike):
         rules: Optional[List[app.ActionRule]] = None,
         save_files: Optional[List[str]] = None,
         clean_up: Optional[List[str]] = None,
-        requires_dir: Optional[bool] = False,
+        requires_dir: Optional[bool] = None,
     ):
         """
         Parameters
@@ -1283,6 +1283,11 @@ class Action(JSONLike):
         self.rules = rules or []
         self.save_files = save_files or []
         self.clean_up = clean_up or []
+
+        if requires_dir is None:
+            requires_dir = (
+                True if self.input_file_generators or self.output_file_parsers else False
+            )
         self.requires_dir = requires_dir
 
         self._task_schema = None  # assigned by parent TaskSchema
