@@ -164,11 +164,14 @@ def test_IFG_std_out_std_err_not_redirected(null_config, tmp_path):
     # to be later Python versions):
     time.sleep(10)
 
-    std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text()
-    std_err = wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
-
-    assert std_out.strip() == stdout_msg
-    assert std_err.strip() == stderr_msg
+    if wk.submissions[0].jobscripts[0].resources.combine_jobscript_std:
+        std_out_err = wk.submissions[0].jobscripts[0].direct_std_out_err_path.read_text()
+        assert std_out_err.strip() == f"{stdout_msg}\n{stderr_msg}"
+    else:
+        std_out = wk.submissions[0].jobscripts[0].direct_stdout_path.read_text()
+        std_err = wk.submissions[0].jobscripts[0].direct_stderr_path.read_text()
+        assert std_out.strip() == stdout_msg
+        assert std_err.strip() == stderr_msg
 
 
 @pytest.mark.integration
