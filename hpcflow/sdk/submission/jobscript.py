@@ -12,7 +12,10 @@ from typing import TypedDict, cast, overload, TYPE_CHECKING
 import numpy as np
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import (
-    JobscriptSubmissionFailure, JobscriptSubmissionFailureArgs, NotSubmitMachineError)
+    JobscriptSubmissionFailure,
+    JobscriptSubmissionFailureArgs,
+    NotSubmitMachineError,
+)
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
@@ -1009,14 +1012,16 @@ class Jobscript(JSONLike):
                 self.__make_action_dir(
                     EARs_arr[js_act_idx, js_elem_idx],
                     task_loop_idx_arr[js_act_idx, js_elem_idx].item(),
-                    js_act_idx, js_elem_idx)
+                    js_act_idx,
+                    js_elem_idx,
+                )
                 for js_act_idx in range(self.num_actions)
             ]
             for js_elem_idx in range(self.num_elements)
         ]
 
     def __make_action_dir(
-        self, EAR_i: ElementActionRun, l_idx: int, js_act_idx : int, js_elem_idx: int
+        self, EAR_i: ElementActionRun, l_idx: int, js_act_idx: int, js_elem_idx: int
     ) -> Path:
         t_iID = EAR_i.task.insert_ID
         r_idx = EAR_i.index
@@ -1080,8 +1085,9 @@ class Jobscript(JSONLike):
         # direct submission; submit jobscript asynchronously:
         # detached process, avoid interrupt signals propagating to the subprocess:
         assert self.submit_cmdline is not None
-        with self.direct_stdout_path.open("wt") as fp_stdout, \
-                self.direct_stderr_path.open("wt") as fp_stderr:
+        with self.direct_stdout_path.open(
+            "wt"
+        ) as fp_stdout, self.direct_stderr_path.open("wt") as fp_stderr:
             # note: Popen copies the file objects, so this works!
             proc = subprocess.Popen(
                 args=self.submit_cmdline,
@@ -1167,13 +1173,15 @@ class Jobscript(JSONLike):
         except Exception as subprocess_exc:
             err_args["subprocess_exc"] = subprocess_exc
             raise JobscriptSubmissionFailure(
-                "Failed to execute submit command.", **err_args)
+                "Failed to execute submit command.", **err_args
+            )
 
         if isinstance(self.scheduler, QueuedScheduler):
             # scheduled submission
             if stderr:
                 raise JobscriptSubmissionFailure(
-                    "Non-empty stderr from submit command.", **err_args)
+                    "Non-empty stderr from submit command.", **err_args
+                )
 
             try:
                 job_ID = self.scheduler.parse_submission_output(stdout)
@@ -1185,7 +1193,8 @@ class Jobscript(JSONLike):
                 # differently).
                 err_args["job_ID_parse_exc"] = job_ID_parse_exc
                 raise JobscriptSubmissionFailure(
-                    "Failed to parse job ID from stdout.", **err_args)
+                    "Failed to parse job ID from stdout.", **err_args
+                )
 
             self._set_scheduler_job_ID(job_ID)
             ref = job_ID

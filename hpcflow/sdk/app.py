@@ -1965,8 +1965,9 @@ class BaseApp(metaclass=Singleton):
             Console().status("Making persistent workflow...") if status else nullcontext()
         )
 
-        with status_context as status_, \
-                self.get_demo_workflow_template_file(workflow_name) as template_path:
+        with status_context as status_, self.get_demo_workflow_template_file(
+            workflow_name
+        ) as template_path:
             return self.Workflow.from_file(
                 template_path=template_path,
                 template_format=template_format,

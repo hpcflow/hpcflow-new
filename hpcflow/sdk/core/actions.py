@@ -792,7 +792,7 @@ class ElementActionRun:
                             # Unlike with JSON, we've no fallback so we warn
                             self.app.logger.warn(
                                 "parameter %s could not be saved; serializer not found",
-                                param_name
+                                param_name,
                             )
 
     def compose_commands(

@@ -763,9 +763,9 @@ class Workflow:
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
             )
-            with wk._store.cached_load(), \
-                    wk.batch_update(is_workflow_creation=True), \
-                    wk._store.cache_ctx():
+            with wk._store.cached_load(), wk.batch_update(
+                is_workflow_creation=True
+            ), wk._store.cache_ctx():
                 for idx, task in enumerate(template.tasks):
                     if status:
                         status.update(
@@ -774,9 +774,7 @@ class Workflow:
                         )
                     wk._add_task(task)
                 if status:
-                    status.update(
-                        f"Preparing to add {len(template.loops)} loops..."
-                    )
+                    status.update(f"Preparing to add {len(template.loops)} loops...")
                 if template.loops:
                     # TODO: if loop with non-initialisable actions, will fail
                     cache = LoopCache.build(workflow=wk, loops=template.loops)
@@ -1410,8 +1408,7 @@ class Workflow:
                         template=self.template.loops[idx],
                         parents=loop_dat["parents"],
                         num_added_iterations={
-                            tuple(i[0]): i[1]
-                            for i in loop_dat["num_added_iterations"]
+                            tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
                         },
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
@@ -1426,8 +1423,7 @@ class Workflow:
             with self._store.cached_load():
                 subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
-                    sub = self.app.Submission.from_json_like(
-                        {"index": idx, **sub_dat})
+                    sub = self.app.Submission.from_json_like({"index": idx, **sub_dat})
                     sub.workflow = self
                     subs.append(sub)
                 self._submissions = subs

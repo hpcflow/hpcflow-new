@@ -199,7 +199,8 @@ class JobscriptSubmissionFailureArgs(TypedDict):
 class JobscriptSubmissionFailure(RuntimeError):
     def __init__(
         self,
-        message: str, *,
+        message: str,
+        *,
         submit_cmd: list[str],
         js_idx: int,
         js_path: str,
