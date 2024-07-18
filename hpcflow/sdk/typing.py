@@ -37,6 +37,9 @@ but can have leaves being lists of integers when dealing with iterations.
 
 _T = TypeVar("_T")
 
+_CLASS_VAR_RE = re.compile(r"ClassVar\[(.*)\]")
+_INIT_VAR_RE = re.compile(r"InitVar\[(.*)\]")
+
 
 def hydrate(cls: type[_T]) -> type[_T]:
     """
@@ -44,15 +47,13 @@ def hydrate(cls: type[_T]) -> type[_T]:
     annotation can recognise that ClassVar-annotated fields are class variables.
     """
     anns = {}
-    cvre = re.compile(r"ClassVar\[(.*)\]")
-    ivre = re.compile(r"InitVar\[(.*)\]")
     for f, a in cls.__annotations__.items():
         if isinstance(a, str):
-            m = cvre.match(a)
+            m = _CLASS_VAR_RE.match(a)
             if m:
                 anns[f] = ClassVar[m.group(1)]
                 continue
-            m = ivre.match(a)
+            m = _INIT_VAR_RE.match(a)
             if m:
                 anns[f] = InitVar(cast(type, m.group(1)))
                 continue

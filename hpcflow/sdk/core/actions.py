@@ -716,6 +716,11 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
+    @staticmethod
+    def __cast_param_value(v: Any) -> ParameterValue:
+        # UGLY but could be worse
+        return v
+
     def write_source(self, js_idx: int, js_act_idx: int):
         import h5py  # type: ignore
 
@@ -723,10 +728,10 @@ class ElementActionRun:
             if fmt == "json":
                 in_vals = self.get_input_values(inputs=ins, label_dict=False)
                 dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
-                in_vals_processed = {}
+                in_vals_processed: dict[str, Any] = {}
                 for k, v in in_vals.items():
                     try:
-                        v = cast("ParameterValue", v).prepare_JSON_dump()
+                        v = self.__cast_param_value(v).prepare_JSON_dump()
                     except (AttributeError, NotImplementedError):
                         pass
                     in_vals_processed[k] = v
@@ -739,8 +744,7 @@ class ElementActionRun:
                 dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
-                        grp_k = f.create_group(k)
-                        cast("ParameterValue", v).dump_to_HDF5_group(grp_k)
+                        self.__cast_param_value(v).dump_to_HDF5_group(f.create_group(k))
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -779,16 +783,16 @@ class ElementActionRun:
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
                         param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
-                        param = parameters.get(param_name)
-                        param_cls = param._force_value_class()
-                        self.app.logger.info("serialize %s with %s", param, param_cls)
+                        param_cls = parameters.get(param_name)._force_value_class()
                         if param_cls is not None:
                             param_cls.save_from_HDF5_group(
                                 h5_grp, param_id, self.workflow
                             )
                         else:
+                            # Unlike with JSON, we've no fallback so we warn
                             self.app.logger.warn(
-                                "parameter %s could not be saved", param_name
+                                "parameter %s could not be saved; serializer not found",
+                                param_name
                             )
 
     def compose_commands(
@@ -1656,13 +1660,10 @@ class Action(JSONLike):
                 f"Cannot choose a single environment from this action because it is not "
                 f"expanded, meaning multiple action environments might exist."
             )
-        e = self.environments[0].environment
-        assert not isinstance(e, str)
-        return e
+        return self.environments[0].environment
 
     def get_environment(self) -> Environment:
-        envs: EnvironmentsList = self.app.envs
-        return envs.get(**self.get_environment_spec())
+        return self.app.envs.get(**self.get_environment_spec())
 
     @staticmethod
     def is_snippet_script(script: str | None) -> bool:
@@ -1672,17 +1673,21 @@ class Action(JSONLike):
             return False
         return script.startswith("<<script:")
 
+    _SCRIPT_NAME_RE: ClassVar = re.compile(r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>")
+
     @classmethod
     def get_script_name(cls, script: str) -> str:
         """Return the script name."""
         if cls.is_snippet_script(script):
-            pattern = r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
-            match_obj = re.match(pattern, script)
+            match_obj = re.match(cls._SCRIPT_NAME_RE, script)
             if not match_obj:
                 raise ValueError("incomplete <<script:>>")
             return match_obj.group(1)
         # a script we can expect in the working directory:
         return script
+
+    _SCRIPT_RE: ClassVar = re.compile(r"\<\<script:(.*:?)\>\>")
+    _ENV_RE: ClassVar = re.compile(r"\<\<env:(.*?)\>\>")
 
     @classmethod
     def get_snippet_script_str(
@@ -1693,15 +1698,14 @@ class Action(JSONLike):
                 f"Must be an app-data script name (e.g. "
                 f"<<script:path/to/app/data/script.py>>), but received {script}"
             )
-        pattern = r"\<\<script:(.*:?)\>\>"
-        match_obj = re.match(pattern, script)
+        match_obj = re.match(cls._SCRIPT_RE, script)
         if not match_obj:
             raise ValueError("incomplete <<script:>>")
         out = cast(str, match_obj.group(1))
 
         if env_spec:
             out = re.sub(
-                pattern=r"\<\<env:(.*?)\>\>",
+                pattern=cls._ENV_RE,
                 repl=lambda match_obj: env_spec[match_obj.group(1)],
                 string=out,
             )

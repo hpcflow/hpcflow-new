@@ -182,6 +182,18 @@ class ConfigOptions:
         return validated_data
 
 
+class ConfigMetadata(TypedDict):
+    config_directory: Path
+    config_file_name: str
+    config_file_path: Path
+    config_file_contents: str
+    config_key: str
+    config_schemas: Sequence[Schema]
+    invoking_user_id: str
+    host_user_id: str
+    host_user_id_file_path: Path
+
+
 class Config:
     """Application configuration as defined in one or more config files.
 
@@ -267,7 +279,7 @@ class Config:
 
         host_uid, host_uid_file_path = self._get_user_id()
 
-        metadata = {
+        metadata: ConfigMetadata = {
             "config_directory": self._file.directory,
             "config_file_name": self._file.path.name,
             "config_file_path": self._file.path,
@@ -482,7 +494,7 @@ class Config:
         real_path = Path(path)
         real_path = real_path.expanduser()
         if not real_path.is_absolute():
-            cfg_dir = cast(Path, self._meta_data["config_directory"])
+            cfg_dir = self._meta_data["config_directory"]
             real_path = cfg_dir.joinpath(real_path)
         return real_path
 
@@ -647,7 +659,7 @@ class Config:
             raise ConfigUnknownItemError(name=name)
 
         elif name in self._meta_data:
-            val = self._meta_data[name]
+            val = cast(dict, self._meta_data)[name]
 
         elif include_overrides and name in self._overrides:
             val = self._overrides[name]
@@ -697,7 +709,7 @@ class Config:
     def _set(
         self,
         name: str,
-        value,
+        value: Any,
         *,
         is_json: Literal[False] = False,
         callback=True,

@@ -317,14 +317,13 @@ class SchemaInput(SchemaParameter):
         # TODO: test we allow unlabelled with accepts-multiple True.
         # TODO: test we allow a single labelled with accepts-multiple False.
 
-        try:
-            if isinstance(parameter, str):
-                # Workaround for mypy bug
+        if isinstance(parameter, str):
+            try:
                 self.parameter = self.app.parameters.get(parameter)
-            else:
-                self.parameter = parameter
-        except ValueError:
-            self.parameter = self.app.Parameter(cast(str, parameter))
+            except ValueError:
+                self.parameter = self.app.Parameter(parameter)
+        else:
+            self.parameter = parameter
 
         self.multiple = multiple
 

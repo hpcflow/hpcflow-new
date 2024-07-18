@@ -1,6 +1,8 @@
 from __future__ import annotations
 import os
 from collections.abc import Iterable
+from typing import TypedDict
+from typing_extensions import NotRequired
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
@@ -184,10 +186,20 @@ class SchedulerVersionsFailure(RuntimeError):
         super().__init__(message)
 
 
+class JobscriptSubmissionFailureArgs(TypedDict):
+    submit_cmd: list[str]
+    js_idx: int
+    js_path: str
+    stdout: NotRequired[str]
+    stderr: NotRequired[str]
+    subprocess_exc: NotRequired[Exception]
+    job_ID_parse_exc: NotRequired[Exception]
+
+
 class JobscriptSubmissionFailure(RuntimeError):
     def __init__(
         self,
-        message: str,
+        message: str, *,
         submit_cmd: list[str],
         js_idx: int,
         js_path: str,

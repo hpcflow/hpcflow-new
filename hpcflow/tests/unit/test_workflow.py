@@ -355,10 +355,9 @@ def test_batch_update_abort_if_modified_on_disk(
 ):
     t2 = hf.Task(schema=schema_s2, inputs=[hf.InputValue(param_p3, 301)])
     with pytest.raises(WorkflowBatchUpdateFailedError):
-        with workflow_w1._store.cached_load():
-            with workflow_w1.batch_update():
-                workflow_w1.add_task(t2)
-                modify_workflow_metadata_on_disk(workflow_w1)
+        with workflow_w1._store.cached_load(), workflow_w1.batch_update():
+            workflow_w1.add_task(t2)
+            modify_workflow_metadata_on_disk(workflow_w1)
 
 
 def test_closest_task_input_source_chosen(null_config, tmp_path: Path):

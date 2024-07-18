@@ -902,7 +902,6 @@ class Task(JSONLike):
                 for schema_i in self.schemas:
                     for inp_j in schema_i.inputs:
                         if inp_j.typ == seq.input_type:
-                            assert isinstance(inp_j, self.app.SchemaInput)
                             seq._parameter = inp_j.parameter
 
     def _validate(self) -> None:
@@ -2872,7 +2871,7 @@ class WorkflowTask:
                 file_j = Path(param_j.file["path"])
             data_j = file_j.as_posix()
         else:
-            meth_i = cast(str, param_j.source.get("value_class_method"))
+            meth_i = param_j.source.get("value_class_method")
             if param_j.is_pending:
                 # if pending, we need to convert `ParameterValue` objects
                 # to their dict representation, so they can be merged with
@@ -2957,7 +2956,7 @@ class WorkflowTask:
         val_cls_method: str | None | list[str | None] = None
         path_is_multi = False
         path_is_set: bool | list[bool] = False
-        all_multi_len = None
+        all_multi_len: int | None = None
         for path_i, data_info_i in relevant_data.items():
             data_i = data_info_i["data"]
             if path_i == path:

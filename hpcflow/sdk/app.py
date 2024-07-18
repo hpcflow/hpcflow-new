@@ -838,7 +838,6 @@ class BaseApp(metaclass=Singleton):
             for path in self.config.parameter_sources:
                 params.extend(read_YAML_file(path))
             param_list = self.ParametersList.from_json_like(params, shared_data=self_tc)
-            assert isinstance(param_list, self.ParametersList)
             self._template_components["parameters"] = param_list
             self._parameters = param_list
 
@@ -849,7 +848,6 @@ class BaseApp(metaclass=Singleton):
             for path in self.config.command_file_sources:
                 cmd_files.extend(read_YAML_file(path))
             cf_list = self.CommandFilesList.from_json_like(cmd_files, shared_data=self_tc)
-            assert isinstance(cf_list, self.CommandFilesList)
             self._template_components["command_files"] = cf_list
             self._command_files = cf_list
 
@@ -868,7 +866,6 @@ class BaseApp(metaclass=Singleton):
                     envs.append(env_j)
             envs = builtin_envs + envs
             env_list = self.EnvironmentsList.from_json_like(envs, shared_data=self_tc)
-            assert isinstance(env_list, self.EnvironmentsList)
             self._template_components["environments"] = env_list
             self._environments = env_list
 
@@ -877,7 +874,6 @@ class BaseApp(metaclass=Singleton):
             for path in self.config.task_schema_sources:
                 schemas.extend(read_YAML_file(path))
             ts_list = self.TaskSchemasList.from_json_like(schemas, shared_data=self_tc)
-            assert isinstance(ts_list, self.TaskSchemasList)
             self._template_components["task_schemas"] = ts_list
             self._task_schemas = ts_list
 
@@ -1969,21 +1965,21 @@ class BaseApp(metaclass=Singleton):
             Console().status("Making persistent workflow...") if status else nullcontext()
         )
 
-        with status_context as status_:
-            with self.get_demo_workflow_template_file(workflow_name) as template_path:
-                return self.Workflow.from_file(
-                    template_path=template_path,
-                    template_format=template_format,
-                    path=str(path) if path else None,
-                    name=name,
-                    overwrite=overwrite,
-                    store=store,
-                    ts_fmt=ts_fmt,
-                    ts_name_fmt=ts_name_fmt,
-                    store_kwargs=store_kwargs,
-                    variables=variables,
-                    status=status_,
-                )
+        with status_context as status_, \
+                self.get_demo_workflow_template_file(workflow_name) as template_path:
+            return self.Workflow.from_file(
+                template_path=template_path,
+                template_format=template_format,
+                path=str(path) if path else None,
+                name=name,
+                overwrite=overwrite,
+                store=store,
+                ts_fmt=ts_fmt,
+                ts_name_fmt=ts_name_fmt,
+                store_kwargs=store_kwargs,
+                variables=variables,
+                status=status_,
+            )
 
     def _make_and_submit_demo_workflow(
         self,

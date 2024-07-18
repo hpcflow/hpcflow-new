@@ -152,12 +152,11 @@ def copy_all_demo_workflows(app: BaseApp):
         obj = app.load_demo_workflow(name)
         dst = Path(f"reference/demo_workflow_{name}")
         file_name = app.copy_demo_workflow(name, dst=dst, doc=False)
-        value = {
+        out[name] = {
             "obj": obj,
             "file_path": f"demo_workflow_{name}",
             "file_name": file_name,
         }
-        out[name] = value
     return out
 
 

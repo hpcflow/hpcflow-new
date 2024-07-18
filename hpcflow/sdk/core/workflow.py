@@ -763,30 +763,30 @@ class Workflow:
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
             )
-            with wk._store.cached_load():
-                with wk.batch_update(is_workflow_creation=True):
-                    with wk._store.cache_ctx():
-                        for idx, task in enumerate(template.tasks):
-                            if status:
-                                status.update(
-                                    f"Adding task {idx + 1}/{len(template.tasks)} "
-                                    f"({task.name!r})..."
-                                )
-                            wk._add_task(task)
+            with wk._store.cached_load(), \
+                    wk.batch_update(is_workflow_creation=True), \
+                    wk._store.cache_ctx():
+                for idx, task in enumerate(template.tasks):
+                    if status:
+                        status.update(
+                            f"Adding task {idx + 1}/{len(template.tasks)} "
+                            f"({task.name!r})..."
+                        )
+                    wk._add_task(task)
+                if status:
+                    status.update(
+                        f"Preparing to add {len(template.loops)} loops..."
+                    )
+                if template.loops:
+                    # TODO: if loop with non-initialisable actions, will fail
+                    cache = LoopCache.build(workflow=wk, loops=template.loops)
+                    for idx, loop in enumerate(template.loops):
                         if status:
                             status.update(
-                                f"Preparing to add {len(template.loops)} loops..."
+                                f"Adding loop {idx + 1}/"
+                                f"{len(template.loops)} ({loop.name!r})"
                             )
-                        if template.loops:
-                            # TODO: if loop with non-initialisable actions, will fail
-                            cache = LoopCache.build(workflow=wk, loops=template.loops)
-                            for idx, loop in enumerate(template.loops):
-                                if status:
-                                    status.update(
-                                        f"Adding loop {idx + 1}/"
-                                        f"{len(template.loops)} ({loop.name!r})"
-                                    )
-                                wk._add_loop(loop, cache=cache, status=status)
+                        wk._add_loop(loop, cache=cache, status=status)
         except Exception:
             if status:
                 status.stop()
@@ -1224,9 +1224,8 @@ class Workflow:
         new_wk_task._add_elements(element_sets=task.element_sets)
 
     def add_task(self, task: Task, new_index: int | None = None) -> None:
-        with self._store.cached_load():
-            with self.batch_update():
-                self._add_task(task, new_index=new_index)
+        with self._store.cached_load(), self.batch_update():
+            self._add_task(task, new_index=new_index)
 
     def add_task_after(self, new_task: Task, task_ref: Task | None = None) -> None:
         """Add a new task after the specified task.
@@ -1323,9 +1322,8 @@ class Workflow:
 
     def add_loop(self, loop: Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._add_loop(loop)
+        with self._store.cached_load(), self.batch_update():
+            self._add_loop(loop)
 
     @property
     def creation_info(self) -> CreationInfo:
@@ -1388,17 +1386,16 @@ class Workflow:
     def tasks(self) -> WorkflowTaskList:
         if self._tasks is None:
             with self._store.cached_load():
-                all_tasks = self._store.get_tasks()
-                wk_tasks = []
-                for i in all_tasks:
-                    wk_task = self.app.WorkflowTask(
+                all_tasks: Iterable[StoreTask] = self._store.get_tasks()
+                self._tasks = self.app.WorkflowTaskList(
+                    self.app.WorkflowTask(
                         workflow=self,
                         template=self.template.tasks[i.index],
                         index=i.index,
                         element_IDs=i.element_IDs,
                     )
-                    wk_tasks.append(wk_task)
-                self._tasks = self.app.WorkflowTaskList(wk_tasks)
+                    for i in all_tasks
+                )
 
         return self._tasks
 
@@ -1406,21 +1403,20 @@ class Workflow:
     def loops(self) -> WorkflowLoopList:
         if self._loops is None:
             with self._store.cached_load():
-                wk_loops = []
-                for idx, loop_dat in self._store.get_loops().items():
-                    num_add_iters = {
-                        tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
-                    }
-                    wk_loop = self.app.WorkflowLoop(
+                self._loops = self.app.WorkflowLoopList(
+                    self.app.WorkflowLoop(
                         index=idx,
                         workflow=self,
                         template=self.template.loops[idx],
                         parents=loop_dat["parents"],
-                        num_added_iterations=num_add_iters,
+                        num_added_iterations={
+                            tuple(i[0]): i[1]
+                            for i in loop_dat["num_added_iterations"]
+                        },
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
-                    wk_loops.append(wk_loop)
-                self._loops = self.app.WorkflowLoopList(wk_loops)
+                    for idx, loop_dat in self._store.get_loops().items()
+                )
         return self._loops
 
     @property
@@ -1430,8 +1426,8 @@ class Workflow:
             with self._store.cached_load():
                 subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
-                    sub_js = {"index": idx, **sub_dat}
-                    sub = self.app.Submission.from_json_like(sub_js)
+                    sub = self.app.Submission.from_json_like(
+                        {"index": idx, **sub_dat})
                     sub.workflow = self
                     subs.append(sub)
                 self._submissions = subs
@@ -1506,10 +1502,10 @@ class Workflow:
 
         element_idx_by_task: dict[int, set[int]] = defaultdict(set)
         index_paths: list[Workflow._IndexPath1] = []
-        for el, tk in zip(store_elems, store_tasks):
-            elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(Workflow._IndexPath1(elem_idx, tk.index))
-            element_idx_by_task[tk.index].add(elem_idx)
+        for elem, task in zip(store_elems, store_tasks):
+            elem_idx = task.element_IDs.index(elem.id_)
+            index_paths.append(Workflow._IndexPath1(elem_idx, task.index))
+            element_idx_by_task[task.index].add(elem_idx)
 
         elements_by_task = {
             task_idx: {idx: self.tasks[task_idx].elements[idx] for idx in elem_idxes}
@@ -1540,11 +1536,11 @@ class Workflow:
         element_idx_by_task: dict[int, set[int]] = defaultdict(set)
 
         index_paths: list[Workflow._IndexPath2] = []
-        for it, el, tk in zip(store_iters, store_elems, store_tasks):
-            iter_idx = el.iteration_IDs.index(it.id_)
-            elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(Workflow._IndexPath2(iter_idx, elem_idx, tk.index))
-            element_idx_by_task[tk.index].add(elem_idx)
+        for itr, elem, task in zip(store_iters, store_elems, store_tasks):
+            iter_idx = elem.iteration_IDs.index(itr.id_)
+            elem_idx = task.element_IDs.index(elem.id_)
+            index_paths.append(Workflow._IndexPath2(iter_idx, elem_idx, task.index))
+            element_idx_by_task[task.index].add(elem_idx)
 
         elements_by_task = {
             task_idx: {idx: self.tasks[task_idx].elements[idx] for idx in elem_idx}
@@ -2137,16 +2133,14 @@ class Workflow:
 
     def set_EAR_submission_index(self, EAR_ID: int, sub_idx: int) -> None:
         """Set the submission index of an EAR."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_submission_index(EAR_ID, sub_idx)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_submission_index(EAR_ID, sub_idx)
 
     def set_EAR_start(self, EAR_ID: int) -> None:
         """Set the start time on an EAR."""
         self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_start(EAR_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_start(EAR_ID)
 
     def set_EAR_end(
         self,
@@ -2258,9 +2252,8 @@ class Workflow:
     def set_EAR_skip(self, EAR_ID: int) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
         termination condition being met."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_skip(EAR_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_skip(EAR_ID)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
         """Check if an EAR is to be skipped."""
@@ -2271,9 +2264,8 @@ class Workflow:
     def set_parameter_value(
         self, param_id: int | list[int], value: Any, commit: bool = False
     ) -> None:
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_parameter_value(cast(int, param_id), value)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_parameter_value(cast(int, param_id), value)
 
         if commit:
             # force commit now:
@@ -2281,9 +2273,8 @@ class Workflow:
 
     def set_EARs_initialised(self, iter_ID: int):
         """Set `ElementIteration.EARs_initialised` to True for the specified iteration."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EARs_initialised(iter_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EARs_initialised(iter_ID)
 
     def elements(self) -> Iterator[Element]:
         for task in self.tasks:
@@ -2534,21 +2525,19 @@ class Workflow:
             if status
             else nullcontext()
         )
-        with status_context as status_:
-            with self._store.cached_load():
-                if not self._store.is_submittable:
-                    raise NotImplementedError("The workflow is not submittable.")
-                with self.batch_update():
-                    # commit updates before raising exception:
-                    with self._store.cache_ctx():
-                        exceptions, submitted_js = self._submit(
-                            ignore_errors=ignore_errors,
-                            JS_parallelism=JS_parallelism,
-                            print_stdout=print_stdout,
-                            status=status_,
-                            add_to_known=add_to_known,
-                            tasks=tasks,
-                        )
+        with status_context as status_, self._store.cached_load():
+            if not self._store.is_submittable:
+                raise NotImplementedError("The workflow is not submittable.")
+            # commit updates before raising exception:
+            with self.batch_update(), self._store.cache_ctx():
+                exceptions, submitted_js = self._submit(
+                    ignore_errors=ignore_errors,
+                    JS_parallelism=JS_parallelism,
+                    print_stdout=print_stdout,
+                    status=status_,
+                    add_to_known=add_to_known,
+                    tasks=tasks,
+                )
 
         if exceptions:
             msg = "\n" + "\n\n".join(i.message for i in exceptions)
@@ -2792,9 +2781,8 @@ class Workflow:
         self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
     ) -> Submission | None:
         # JS_parallelism=None means guess
-        with self._store.cached_load():
-            with self.batch_update():
-                return self._add_submission(tasks, JS_parallelism)
+        with self._store.cached_load(), self.batch_update():
+            return self._add_submission(tasks, JS_parallelism)
 
     @TimeIt.decorator
     def _add_submission(
@@ -2817,18 +2805,16 @@ class Workflow:
             )
             return None
 
-        with self._store.cached_load():
-            with self.batch_update():
-                for i in all_EAR_ID:
-                    self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
+        with self._store.cached_load(), self.batch_update():
+            for i in all_EAR_ID:
+                self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
 
         sub_obj_js, _ = sub_obj.to_json_like()
         assert self._submissions is not None
         self._submissions.append(sub_obj)
         self._pending["submissions"].append(new_idx)
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.add_submission(new_idx, dict(cast("Mapping", sub_obj_js)))
+        with self._store.cached_load(), self.batch_update():
+            self._store.add_submission(new_idx, dict(cast("Mapping", sub_obj_js)))
 
         return self.submissions[new_idx]
 
@@ -3039,11 +3025,10 @@ class Workflow:
     ) -> Any:
         """Process the shell stdout/stderr stream according to the associated Command
         object."""
-        with self._store.cached_load():
-            with self.batch_update():
-                EAR = self.get_EARs_from_IDs(EAR_ID)
-                command = EAR.action.commands[cmd_idx]
-                return command.process_std_stream(name, value, stderr)
+        with self._store.cached_load(), self.batch_update():
+            EAR = self.get_EARs_from_IDs(EAR_ID)
+            command = EAR.action.commands[cmd_idx]
+            return command.process_std_stream(name, value, stderr)
 
     def save_parameter(
         self,
@@ -3053,11 +3038,10 @@ class Workflow:
     ):
         self.app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
         self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
-        with self._store.cached_load():
-            with self.batch_update():
-                EAR = self.get_EARs_from_IDs(EAR_ID)
-                param_id = EAR.data_idx[name]
-                self.set_parameter_value(param_id, value)
+        with self._store.cached_load(), self.batch_update():
+            EAR = self.get_EARs_from_IDs(EAR_ID)
+            param_id = EAR.data_idx[name]
+            self.set_parameter_value(param_id, value)
 
     def show_all_EAR_statuses(self) -> None:
         print(

@@ -11,7 +11,8 @@ from typing import TypedDict, cast, overload, TYPE_CHECKING
 
 import numpy as np
 from hpcflow.sdk.core.actions import EARStatus
-from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
+from hpcflow.sdk.core.errors import (
+    JobscriptSubmissionFailure, JobscriptSubmissionFailureArgs, NotSubmitMachineError)
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
@@ -89,8 +90,8 @@ def generate_EAR_resource_map(
     # TODO: assume single iteration for now; later we will loop over Loop tasks for each
     # included task and call this func with specific loop indices
     none_val = -1
-    resources = []
-    resource_hashes = []
+    resources: list[ElementResources] = []
+    resource_hashes: list[int] = []
 
     arr_shape = (task.num_actions, task.num_elements)
     resource_map = np.empty(arr_shape, dtype=int)
@@ -443,7 +444,7 @@ class Jobscript(JSONLike):
             ElementActionRun
         ] | None = None  # assigned on first access to `all_EARs` property
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"index={self.index!r}, "
@@ -453,7 +454,7 @@ class Jobscript(JSONLike):
             f")"
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         dct = super().to_dict()
         del dct["_index"]
         del dct["_scheduler_obj"]
@@ -473,7 +474,7 @@ class Jobscript(JSONLike):
     def workflow_app_alias(self) -> str:
         return self._workflow_app_alias
 
-    def get_commands_file_name(self, js_action_idx, shell=None):
+    def get_commands_file_name(self, js_action_idx, shell=None) -> str:
         return self.app.RunDirAppFiles.get_commands_file_name(
             js_idx=self.index,
             js_action_idx=js_action_idx,
@@ -597,17 +598,13 @@ class Jobscript(JSONLike):
 
         support_EAR_para = self.workflow._store._features.EAR_parallelism
         if self.resources.use_job_array is None:
-            if self.num_elements > 1 and support_EAR_para:
-                return True
-            else:
-                return False
-        else:
-            if self.resources.use_job_array and not support_EAR_para:
-                raise ValueError(
-                    f"Store type {self.workflow._store!r} does not support element "
-                    f"parallelism, so jobs cannot be submitted as scheduler arrays."
-                )
-            return self.resources.use_job_array
+            return self.num_elements > 1 and support_EAR_para
+        if self.resources.use_job_array and not support_EAR_para:
+            raise ValueError(
+                f"Store type {self.workflow._store!r} does not support element "
+                f"parallelism, so jobs cannot be submitted as scheduler arrays."
+            )
+        return self.resources.use_job_array
 
     @property
     def os_name(self) -> str:
@@ -626,10 +623,10 @@ class Jobscript(JSONLike):
     def _get_submission_os_args(self) -> dict[str, str]:
         return {"linux_release_file": self.app.config.linux_release_file}
 
-    def _get_submission_shell_args(self):
+    def _get_submission_shell_args(self) -> dict[str, Any]:
         return self.resources.shell_args
 
-    def _get_submission_scheduler_args(self):
+    def _get_submission_scheduler_args(self) -> dict[str, Any]:
         return self.resources.scheduler_args
 
     def _get_shell(
@@ -988,7 +985,7 @@ class Jobscript(JSONLike):
         shell_args: dict[str, Any] | None = None,
         scheduler_name: str | None = None,
         scheduler_args: dict[str, Any] | None = None,
-    ):
+    ) -> Path:
         js_str = self.compose_jobscript(
             deps=deps,
             os_name=os_name,
@@ -1007,37 +1004,34 @@ class Jobscript(JSONLike):
         EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
         task_loop_idx_arr = self.get_task_loop_idx_array()
 
-        run_dirs: list[list[Path]] = []
-        for js_elem_idx in range(self.num_elements):
-            run_dirs_i: list[Path] = []
-            for js_act_idx in range(self.num_actions):
-                EAR_i: ElementActionRun = EARs_arr[js_act_idx, js_elem_idx]
-                t_iID = EAR_i.task.insert_ID
-                l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
-                r_idx = EAR_i.index
+        return [
+            [
+                self.__make_action_dir(
+                    EARs_arr[js_act_idx, js_elem_idx],
+                    task_loop_idx_arr[js_act_idx, js_elem_idx].item(),
+                    js_act_idx, js_elem_idx)
+                for js_act_idx in range(self.num_actions)
+            ]
+            for js_elem_idx in range(self.num_elements)
+        ]
 
-                loop_idx_i = self.task_loop_idx[l_idx]
-                task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(
-                    loop_idx_i
-                )
-                elem_dir = EAR_i.element.dir_name
-                run_dir = f"r_{r_idx}"
+    def __make_action_dir(
+        self, EAR_i: ElementActionRun, l_idx: int, js_act_idx : int, js_elem_idx: int
+    ) -> Path:
+        t_iID = EAR_i.task.insert_ID
+        r_idx = EAR_i.index
+        loop_idx_i = self.task_loop_idx[l_idx]
+        task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(loop_idx_i)
+        elem_dir = EAR_i.element.dir_name
 
-                EAR_dir = Path(self.workflow.execution_path, task_dir, elem_dir, run_dir)
-                EAR_dir.mkdir(exist_ok=True, parents=True)
+        EAR_dir = self.workflow.execution_path / task_dir / elem_dir / f"r_{r_idx}"
+        EAR_dir.mkdir(exist_ok=True, parents=True)
 
-                # copy (TODO: optionally symlink) any input files:
-                for name, path in cast(
-                    "dict[Any, str]", EAR_i.get("input_files", {})
-                ).items():
-                    if path:
-                        shutil.copy(path, EAR_dir)
-
-                run_dirs_i.append(EAR_dir.relative_to(self.workflow.path))
-
-            run_dirs.append(run_dirs_i)
-
-        return run_dirs
+        # copy (TODO: optionally symlink) any input files:
+        for path in cast("dict[Any, str]", EAR_i.get("input_files", {})).values():
+            if path:
+                shutil.copy(path, EAR_dir)
+        return EAR_dir.relative_to(self.workflow.path)
 
     @TimeIt.decorator
     def _launch_direct_js_win(self) -> int:
@@ -1060,15 +1054,13 @@ class Jobscript(JSONLike):
         args = [
             "powershell.exe",
             "-Command",
-            (
-                f"$JS_proc = Start-Process "
-                f'-Passthru -NoNewWindow -FilePath "{exe_path}" '
-                f'-RedirectStandardOutput "{self.direct_stdout_path}" '
-                f'-RedirectStandardError "{self.direct_stderr_path}" '
-                f'-WorkingDirectory "{self.workflow.path}" '
-                f"-ArgumentList {arg_list_str}; "
-                f'Set-Content -Path "{self.direct_win_pid_file_path}" -Value $JS_proc.Id'
-            ),
+            f"$JS_proc = Start-Process "
+            f'-Passthru -NoNewWindow -FilePath "{exe_path}" '
+            f'-RedirectStandardOutput "{self.direct_stdout_path}" '
+            f'-RedirectStandardError "{self.direct_stderr_path}" '
+            f'-WorkingDirectory "{self.workflow.path}" '
+            f"-ArgumentList {arg_list_str}; "
+            f'Set-Content -Path "{self.direct_win_pid_file_path}" -Value $JS_proc.Id',
         ]
 
         self.app.submission_logger.info(
@@ -1077,31 +1069,47 @@ class Jobscript(JSONLike):
         # for some reason we still need to create a "detached" process here as well:
         init_proc = subprocess.Popen(
             args=args,
-            cwd=str(self.workflow.path),
+            cwd=self.workflow.path,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         init_proc.wait()  # wait for the process ID file to be written
-        process_ID = int(self.direct_win_pid_file_path.read_text())
-        return process_ID
+        return int(self.direct_win_pid_file_path.read_text())
 
     @TimeIt.decorator
     def _launch_direct_js_posix(self) -> int:
         # direct submission; submit jobscript asynchronously:
         # detached process, avoid interrupt signals propagating to the subprocess:
         assert self.submit_cmdline is not None
-        with self.direct_stdout_path.open("wt") as fp_stdout:
-            with self.direct_stderr_path.open("wt") as fp_stderr:
-                # note: Popen copies the file objects, so this works!
-                proc = subprocess.Popen(
-                    args=self.submit_cmdline,
-                    stdout=fp_stdout,
-                    stderr=fp_stderr,
-                    cwd=str(self.workflow.path),
-                    start_new_session=True,
-                )
-                process_ID = proc.pid
+        with self.direct_stdout_path.open("wt") as fp_stdout, \
+                self.direct_stderr_path.open("wt") as fp_stderr:
+            # note: Popen copies the file objects, so this works!
+            proc = subprocess.Popen(
+                args=self.submit_cmdline,
+                stdout=fp_stdout,
+                stderr=fp_stderr,
+                cwd=self.workflow.path,
+                start_new_session=True,
+            )
+            return proc.pid
 
-        return process_ID
+    @TimeIt.decorator
+    def _launch_queued(
+        self, submit_cmd: list[str], print_stdout: bool
+    ) -> tuple[str, str]:
+        # scheduled submission, wait for submission so we can parse the job ID:
+        proc = subprocess.run(
+            args=submit_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=self.workflow.path,
+        )
+        stdout = proc.stdout.decode().strip()
+        stderr = proc.stderr.decode().strip()
+        if print_stdout and stdout:
+            print(stdout)
+        if stderr:
+            print(stderr)
+        return stdout, stderr
 
     @TimeIt.decorator
     def submit(
@@ -1129,8 +1137,7 @@ class Jobscript(JSONLike):
         run_dirs = self.make_artifact_dirs()
         self.write_EAR_ID_file()
         self.write_element_run_dir_file(run_dirs)
-        js_path = self.write_jobscript(deps=deps)
-        js_path = self.shell.prepare_JS_path(js_path)
+        js_path = self.shell.prepare_JS_path(self.write_jobscript(deps=deps))
         submit_cmd = self.scheduler.get_submit_command(self.shell, js_path, deps)
         self.app.submission_logger.info(
             f"submitting jobscript {self.index!r} with command: {submit_cmd!r}"
@@ -1139,66 +1146,46 @@ class Jobscript(JSONLike):
         self._set_submit_hostname(socket.gethostname())
         self._set_submit_machine(self.app.config.get("machine"))
 
-        err_args = {
+        err_args: JobscriptSubmissionFailureArgs = {
+            "submit_cmd": submit_cmd,
             "js_idx": self.index,
             "js_path": js_path,
-            "subprocess_exc": None,
-            "job_ID_parse_exc": None,
         }
-        is_scheduler = isinstance(self.scheduler, QueuedScheduler)
         job_ID: str | None = None
         process_ID: int | None = None
         try:
-            if is_scheduler:
+            if isinstance(self.scheduler, QueuedScheduler):
                 # scheduled submission, wait for submission so we can parse the job ID:
-                proc = subprocess.run(
-                    args=submit_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    cwd=str(self.workflow.path),
-                )
-                stdout = proc.stdout.decode().strip()
-                stderr = proc.stderr.decode().strip()
+                stdout, stderr = self._launch_queued(submit_cmd, print_stdout)
                 err_args["stdout"] = stdout
                 err_args["stderr"] = stderr
-                if print_stdout and stdout:
-                    print(stdout)
-                if stderr:
-                    print(stderr)
             else:
                 if os.name == "nt":
                     process_ID = self._launch_direct_js_win()
                 else:
                     process_ID = self._launch_direct_js_posix()
-
         except Exception as subprocess_exc:
-            err_args["message"] = f"Failed to execute submit command."
-            err_args["submit_cmd"] = submit_cmd
-            err_args["stdout"] = None
-            err_args["stderr"] = None
             err_args["subprocess_exc"] = subprocess_exc
-            raise JobscriptSubmissionFailure(**err_args)
+            raise JobscriptSubmissionFailure(
+                "Failed to execute submit command.", **err_args)
 
-        if is_scheduler:
+        if isinstance(self.scheduler, QueuedScheduler):
             # scheduled submission
             if stderr:
-                err_args["message"] = "Non-empty stderr from submit command."
-                err_args["submit_cmd"] = submit_cmd
-                raise JobscriptSubmissionFailure(**err_args)
+                raise JobscriptSubmissionFailure(
+                    "Non-empty stderr from submit command.", **err_args)
 
             try:
                 job_ID = self.scheduler.parse_submission_output(stdout)
                 assert job_ID is not None
-
             except Exception as job_ID_parse_exc:
                 # TODO: maybe handle this differently. If there is no stderr, then the job
                 # probably did submit fine, but the issue is just with parsing the job ID
                 # (e.g. if the scheduler version was updated and it now outputs
                 # differently).
-                err_args["message"] = "Failed to parse job ID from stdout."
-                err_args["submit_cmd"] = submit_cmd
                 err_args["job_ID_parse_exc"] = job_ID_parse_exc
-                raise JobscriptSubmissionFailure(**err_args)
+                raise JobscriptSubmissionFailure(
+                    "Failed to parse job ID from stdout.", **err_args)
 
             self._set_scheduler_job_ID(job_ID)
             ref = job_ID
