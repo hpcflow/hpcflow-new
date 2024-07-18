@@ -2587,7 +2587,7 @@ class WorkflowTask:
                 for data_idx_ij in data_idx_i:
                     meth_i = None
                     is_set_i = True
-                    if path_i[0] == "repeats":
+                    if path_i.startswith("repeats."):
                         # data is an integer repeats index, rather than a parameter ID:
                         data_j = data_idx_ij
                     else:
