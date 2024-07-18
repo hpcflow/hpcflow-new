@@ -426,6 +426,10 @@ class Submission(JSONLike):
 
                 if run.action.commands:
                     hash_i = run.get_commands_file_hash()
+                    # TODO: could further reduce number of files in the case the data
+                    # indices hash is the same: if commands objects are the same and
+                    # environment objects are the same, then the files will be the same,
+                    # even if runs come from different task schemas/actions...
                     if hash_i not in cmd_hashes:
                         try:
                             run.try_write_commands(
@@ -438,6 +442,17 @@ class Submission(JSONLike):
                     cmd_hashes[hash_i].add(run.id_)
                 else:
                     run_cmd_file_names[run.id_] = None
+
+                if run.action.requires_dir:
+                    # ensure a working directory exists (it might have been created by a
+                    # previous submission):
+                    run_dir = run.get_directory()
+                    run_dir.mkdir(exist_ok=True, parents=True)
+
+                    # copy (TODO: optionally symlink) any input files:
+                    for name, path in run.get("input_files", {}).items():
+                        if path:
+                            shutil.copy(path, run_dir)
 
         for run_ids in cmd_hashes.values():
             run_ids_srt = sorted(run_ids)

@@ -134,6 +134,7 @@ class InputFileGenerator(JSONLike):
     script_pass_env_spec: Optional[bool] = False
     abortable: Optional[bool] = False
     rules: Optional[List[app.ActionRule]] = None
+    requires_dir: Optional[bool] = True
 
     def __post_init__(self):
         self.rules = self.rules or []
@@ -207,6 +208,7 @@ class OutputFileParser(JSONLike):
     save_files: Union[List[str], bool] = True
     clean_up: Optional[List[str]] = None
     rules: Optional[List[app.ActionRule]] = None
+    requires_dir: Optional[bool] = True
 
     def __post_init__(self):
         if not self.save_files:

@@ -511,42 +511,6 @@ class JobscriptBlock(JSONLike):
         return loop_idx
 
     @TimeIt.decorator
-    def make_artifact_dirs(self):
-        # TODO: consider using run.get_directory() instead for EAR_dir? whatever is faster
-        EARs_arr = self._get_EARs_arr()
-        task_loop_idx_arr = self.get_task_loop_idx_array()
-
-        run_dirs = []
-        for js_elem_idx in range(self.num_elements):
-            run_dirs_i = []
-            for js_act_idx in range(self.num_actions):
-                EAR_i = EARs_arr[js_act_idx, js_elem_idx]
-                t_iID = EAR_i.task.insert_ID
-                l_idx = task_loop_idx_arr[js_act_idx, js_elem_idx].item()
-                r_idx = EAR_i.index
-
-                loop_idx_i = self.task_loop_idx[l_idx]
-                task_dir = self.workflow.tasks.get(insert_ID=t_iID).get_dir_name(
-                    loop_idx_i
-                )
-                elem_dir = EAR_i.element.dir_name
-                run_dir = f"r_{r_idx}"
-
-                EAR_dir = Path(self.workflow.execution_path, task_dir, elem_dir, run_dir)
-                EAR_dir.mkdir(exist_ok=True, parents=True)
-
-                # copy (TODO: optionally symlink) any input files:
-                for name, path in EAR_i.get("input_files", {}).items():
-                    if path:
-                        shutil.copy(path, EAR_dir)
-
-                run_dirs_i.append(EAR_dir.relative_to(self.workflow.path))
-
-            run_dirs.append(run_dirs_i)
-
-        return run_dirs
-
-    @TimeIt.decorator
     def write_EAR_ID_file(self, fp):
         """Write a text file with `num_elements` lines and `num_actions` delimited tokens
         per line, representing whether a given EAR must be executed."""
@@ -1326,7 +1290,6 @@ class Jobscript(JSONLike):
 
         with self.EAR_ID_file_path.open(mode="wt", newline="\n") as ID_fp:
             for block in self.blocks:
-                block.make_artifact_dirs()
                 block.write_EAR_ID_file(ID_fp)
 
         js_path = self.write_jobscript(deps=deps)

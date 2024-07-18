@@ -1250,6 +1250,7 @@ class Action(JSONLike):
         rules: Optional[List[app.ActionRule]] = None,
         save_files: Optional[List[str]] = None,
         clean_up: Optional[List[str]] = None,
+        requires_dir: Optional[bool] = False,
     ):
         """
         Parameters
@@ -1282,6 +1283,7 @@ class Action(JSONLike):
         self.rules = rules or []
         self.save_files = save_files or []
         self.clean_up = clean_up or []
+        self.requires_dir = requires_dir
 
         self._task_schema = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
@@ -1814,6 +1816,7 @@ class Action(JSONLike):
                     script_exe=script_exe,
                     script_pass_env_spec=ifg.script_pass_env_spec,
                     abortable=ifg.abortable,
+                    requires_dir=ifg.requires_dir,
                 )
                 act_i._task_schema = self.task_schema
                 if ifg.input_file not in inp_files:
@@ -1838,6 +1841,7 @@ class Action(JSONLike):
                     script_exe=script_exe,
                     script_pass_env_spec=ofp.script_pass_env_spec,
                     abortable=ofp.abortable,
+                    requires_dir=ofp.requires_dir,
                 )
                 act_i._task_schema = self.task_schema
                 for j in ofp.output_files:
@@ -1895,6 +1899,7 @@ class Action(JSONLike):
                 output_files=out_files,
                 save_files=self.save_files,
                 clean_up=self.clean_up,
+                requires_dir=self.requires_dir,
             )
             main_act._task_schema = self.task_schema
             main_act._from_expand = True

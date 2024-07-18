@@ -2893,11 +2893,12 @@ class Workflow:
 
             js_idx = block_act_key[0]
             run = self.get_EARs_from_IDs([run_ID])[0]
-            run_dir = run.get_directory()
-            self.app.submission_logger.debug(
-                f"changing directory to run execution directory: {run_dir}."
-            )
-            os.chdir(run_dir)
+            if run.action.requires_dir:
+                run_dir = run.get_directory()
+                self.app.submission_logger.debug(
+                    f"changing directory to run execution directory: {run_dir}."
+                )
+                os.chdir(run_dir)
             self.app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
 
             # check if we should skip:
