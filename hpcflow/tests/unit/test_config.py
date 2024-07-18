@@ -167,6 +167,7 @@ def test_workflow_template_config_set(new_null_config, tmp_path):
     wk = hf.Workflow.from_template_data(
         tasks=[t1],
         config={"log_file_level": "debug"},
+        resources={"any": {"write_app_logs": True}},
         workflow_name="test_workflow_config",
         template_name="test_workflow_config",
         path=tmp_path,

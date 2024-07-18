@@ -876,18 +876,32 @@ class Jobscript(JSONLike):
         return self.std_path / self.direct_std_out_err_file_name
 
     @property
+    def _direct_stdout_path(self):
+        return self.std_path / self.direct_stdout_file_name
+
+    @property
+    def _direct_stderr_path(self):
+        return self.std_path / self.direct_stderr_file_name
+
+    @property
     def direct_stdout_path(self):
+        """File path to which the direct jobscript's standard output is saved. This will
+        be the same as `direct_stderr_path` if `resources.combine_jobscript_std` is
+        True."""
         if self.resources.combine_jobscript_std:
             return self.direct_std_out_err_path
         else:
-            return self.std_path / self.direct_stdout_file_name
+            return self._direct_stdout_path
 
     @property
     def direct_stderr_path(self):
+        """File path to which the direct jobscript's standard error is saved. This will
+        be the same as `direct_stdout_path` if `resources.combine_jobscript_std` is
+        True."""
         if self.resources.combine_jobscript_std:
             return self.direct_std_out_err_path
         else:
-            return self.std_path / self.direct_stderr_file_name
+            return self._direct_stderr_path
 
     @property
     def direct_win_pid_file_path(self):
