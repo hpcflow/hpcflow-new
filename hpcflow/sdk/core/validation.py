@@ -1,8 +1,8 @@
 from __future__ import annotations
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from importlib import resources
 from typing import Any, Generic, Protocol, TypeVar
-from valida import Schema as VSchema  # type: ignore
+from valida import Schema as ValidaSchema  # type: ignore
 
 T = TypeVar("T")
 
@@ -55,6 +55,9 @@ class Schema(Protocol):
     def add_schema(self, schema: Schema, root_path: Any = None) -> None:
         ...
 
+    def to_tree(self, **kwargs) -> Sequence[Mapping[str, str]]:
+        ...
+
 
 def get_schema(filename) -> Schema:
     """Get a valida `Schema` object from the embedded data directory."""
@@ -66,5 +69,5 @@ def get_schema(filename) -> Schema:
         fh = resources.open_text(package, filename)
     schema_dat = fh.read()
     fh.close()
-    schema = VSchema.from_yaml(schema_dat)
+    schema = ValidaSchema.from_yaml(schema_dat)
     return schema

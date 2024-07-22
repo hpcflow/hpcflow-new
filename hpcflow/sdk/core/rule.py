@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TypedDict, TYPE_CHECKING
 
 from valida.conditions import ConditionLike  # type: ignore
-from valida.rules import Rule as ValidaRule  # type: ignore
+from valida import Rule as ValidaRule  # type: ignore
 
 from hpcflow.sdk.core.json_like import JSONLike
 from hpcflow.sdk.core.utils import get_in_container
@@ -140,10 +140,22 @@ class Rule(JSONLike):
                     raise_on_unset=True,
                 )
             # test the rule:
-            # note: Valida can't `rule.test` scalars yet, so wrap it in a list and set
-            # path to first element (see: https://github.com/hpcflow/valida/issues/9):
-            rule = ValidaRule(path=[0], condition=self.condition, cast=self.cast)
-            return rule.test([element_dat]).is_valid
+            return self._valida_check(element_dat)
 
         # Something bizarre was specified. Don't match it!
         return False
+
+    def _valida_check(self, value: Any) -> bool:
+        """
+        Check this rule against the specific object, under the assumption that we need
+        to use valida for the check. Does not do path tracing to select the object to
+        pass; that is the caller's responsibility.
+        """
+        # note: Valida can't `rule.test` scalars yet, so wrap it in a list and set
+        # path to first element (see: https://github.com/hpcflow/valida/issues/9):
+        rule = ValidaRule(
+            path=[0],
+            condition=self.condition,
+            cast=self.cast,
+        )
+        return rule.test([value]).is_valid

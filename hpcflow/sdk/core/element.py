@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 import os
 from typing import cast, overload, TYPE_CHECKING
 
-from valida.rules import Rule  # type: ignore
-
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
@@ -27,6 +25,7 @@ if TYPE_CHECKING:
     from .actions import Action, ElementAction, ElementActionRun
     from .object_list import ResourceList
     from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
+    from .rule import Rule
     from .task import WorkflowTask, ElementSet
     from .workflow import Workflow
 
@@ -1595,8 +1594,11 @@ class ElementParameter:
 
 
 @dataclass
+@hydrate
 class ElementFilter(JSONLike):
-    _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ]] = (
+        ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),
+    )
 
     rules: list[Rule] = field(default_factory=list)
 

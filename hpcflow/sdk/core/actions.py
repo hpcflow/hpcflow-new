@@ -1185,7 +1185,7 @@ class ActionRule(JSONLike):
         check_exists: str | None = None,
         check_missing: str | None = None,
         path: str | None = None,
-        condition: dict | ConditionLike | None = None,
+        condition: dict[str, Any] | ConditionLike | None = None,
         cast: str | None = None,
         doc: str | None = None,
     ):

@@ -5,8 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast, overload, TYPE_CHECKING
 
-from valida.rules import Rule  # type: ignore
-
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
@@ -51,8 +49,11 @@ if TYPE_CHECKING:
     from ..typing import DataIndex, ParamSource
     from .actions import Action
     from .command_files import InputFile
-    from .element import Element, ElementIteration, ElementFilter, ElementParameter
-    from .object_list import Resources
+    from .element import (
+        Element, ElementIteration, ElementFilter, ElementParameter,
+        _ElementPrefixedParameter as EPP
+    )
+    from .object_list import ParametersList, Resources
     from .parameters import (
         InputValue,
         InputSource,
@@ -61,6 +62,7 @@ if TYPE_CHECKING:
         SchemaOutput,
         ParameterPath,
     )
+    from .rule import Rule
     from .task_schema import TaskObjective, TaskSchema
     from .workflow import Workflow, WorkflowTemplate
 
@@ -1096,6 +1098,30 @@ class Task(JSONLike):
         else:
             return labelled_path
 
+    @staticmethod
+    def __filtered_iters(wk_task: WorkflowTask, where: Rule) -> list[int]:
+        param_path = cast(str, where.path)
+        param_path_split: list[str] = param_path.split(".")
+        src_elem_iters: list[int] = []
+
+        for elem in wk_task.elements:
+            params: EPP = getattr(elem, param_path_split[0])
+            param: ElementParameter = getattr(params, param_path_split[1])
+            param_dat = param.value
+
+            # for remaining paths components try both getattr and
+            # getitem:
+            for path_k in param_path_split[2:]:
+                try:
+                    param_dat = param_dat[path_k]
+                except TypeError:
+                    param_dat = getattr(param_dat, path_k)
+
+            if where._valida_check(param_dat):
+                src_elem_iters.append(elem.iterations[0].id_)
+
+        return src_elem_iters
+
     def get_available_task_input_sources(
         self,
         element_set: ElementSet,
@@ -1160,30 +1186,9 @@ class Task(JSONLike):
                             # find element iteration IDs that match the output label
                             # filter:
                             if out_label.where:
-                                # TODO: Is this correct? where.path is a DataPath, not str
-                                param_path_split: list[str] = out_label.where.path.split(
-                                    "."
+                                src_elem_iters = self.__filtered_iters(
+                                    src_wk_task_i, out_label.where
                                 )
-
-                                for elem_i in src_wk_task_i.elements:
-                                    params = getattr(elem_i, param_path_split[0])
-                                    param_dat = getattr(params, param_path_split[1]).value
-
-                                    # for remaining paths components try both getattr and
-                                    # getitem:
-                                    for path_k in param_path_split[2:]:
-                                        try:
-                                            param_dat = param_dat[path_k]
-                                        except TypeError:
-                                            param_dat = getattr(param_dat, path_k)
-
-                                    rule = Rule(
-                                        path=[0],
-                                        condition=out_label.where.condition,
-                                        cast=out_label.where.cast,
-                                    )
-                                    if rule.test([param_dat]).is_valid:
-                                        src_elem_iters.append(elem_i.iterations[0].id_)
                             else:
                                 src_elem_iters = [
                                     elem_i.iterations[0].id_

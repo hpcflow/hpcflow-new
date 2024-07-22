@@ -9,7 +9,7 @@ import re
 from typing import TypedDict, TypeVar, cast, TYPE_CHECKING
 
 import numpy as np
-from valida import Schema  # type: ignore
+from valida import Schema as ValidaSchema  # type: ignore
 
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.element import ElementFilter
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from .rule import RuleArgs
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .workflow import Workflow, WorkflowTemplate
+    from .validation import Schema
 
 
 Address: TypeAlias = "list[int | float | str]"
@@ -115,7 +116,7 @@ class Parameter(JSONLike):
         ),
         ChildObjectSpec(
             name="_validation",
-            class_obj=Schema,
+            class_obj=ValidaSchema,
         ),
     )
 

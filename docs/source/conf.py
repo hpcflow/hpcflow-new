@@ -17,9 +17,10 @@ from hpcflow.sdk.config.callbacks import callback_vars as config_callback_vars
 
 if TYPE_CHECKING:
     from hpcflow.sdk.app import BaseApp
+    from hpcflow.sdk.core.validation import Schema
 
 
-def get_classmethods(cls: type):
+def get_classmethods(cls: type) -> list[str]:
     """Get a list of class methods of a given class."""
     return sorted(
         [
@@ -33,16 +34,16 @@ def get_classmethods(cls: type):
 
 
 def _write_valida_tree_html(
-    schema,
-    path,
+    schema: Schema,
+    path: str | Path,
     from_path=None,
     anchor_root=None,
     heading_start_level=1,
     show_root_heading=True,
-):
+) -> Path:
     tree = schema.to_tree(nested=True, from_path=from_path)
-    path = Path(path).resolve()
-    with path.open(mode="wt", encoding="utf-8") as fp:
+    path_ = Path(path).resolve()
+    with path_.open(mode="wt", encoding="utf-8") as fp:
         fp.write(
             write_tree_html(
                 tree,
@@ -51,10 +52,10 @@ def _write_valida_tree_html(
                 show_root_heading=show_root_heading,
             )
         )
-    return path
+    return path_
 
 
-def generate_download_links_table():
+def generate_download_links_table() -> str:
     """Generate install/index.rst file programmatically, including binary download links."""
     EXE_PLAT_LOOKUP = {
         "win.exe": "Windows executable",
@@ -73,7 +74,9 @@ def generate_download_links_table():
     links_table = (
         '<table class="binary-downloads-table">'
         + "".join(
-            f'<tr><td>{EXE_PLAT_LOOKUP["-".join(exe_name.split("-")[2:])]}</td><td><a href="{link}">{exe_name}</a></td></tr>'
+            f'''<tr><td>{
+                EXE_PLAT_LOOKUP["-".join(exe_name.split("-")[2:])]
+            }</td><td><a href="{link}">{exe_name}</a></td></tr>'''
             for exe_name, link in sorted(bins_dat.items())
         )
         + "</table>"
@@ -210,7 +213,7 @@ with open("config.jsonc") as fp:
     )
     config_dat = json.loads(json_str)
 
-app = importlib.import_module(config_dat["package"], "app")
+app: BaseApp = importlib.import_module(config_dat["package"], "app")
 release = app.version
 project = config_dat["project"]
 copyright = config_dat["copyright"]
