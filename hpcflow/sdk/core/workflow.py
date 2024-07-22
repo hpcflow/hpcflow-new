@@ -1423,7 +1423,8 @@ class Workflow:
             with self._store.cached_load():
                 subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
-                    sub = self.app.Submission.from_json_like({"index": idx, **sub_dat})
+                    sub = self.app.Submission.from_json_like(
+                        {"index": idx, **cast(dict, sub_dat)})
                     sub.workflow = self
                     subs.append(sub)
                 self._submissions = subs
@@ -2810,7 +2811,7 @@ class Workflow:
         self._submissions.append(sub_obj)
         self._pending["submissions"].append(new_idx)
         with self._store.cached_load(), self.batch_update():
-            self._store.add_submission(new_idx, dict(cast("Mapping", sub_obj_js)))
+            self._store.add_submission(new_idx, sub_obj_js)
 
         return self.submissions[new_idx]
 

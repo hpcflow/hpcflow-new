@@ -39,14 +39,15 @@ from hpcflow.sdk.persistence.types import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, Dict, ClassVar, Final, Literal
+    from typing import Any, ClassVar, Final, Literal
     from typing_extensions import NotRequired, Self, TypeGuard
     from fsspec import AbstractFileSystem  # type: ignore
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
+    from .zarr import ZarrAttrsDict
     from ..app import BaseApp
     from ..typing import DataIndex, PathLike, ParamSource
-    from ..core.json_like import JSONed
+    from ..core.json_like import JSONed, JSONDocument
     from ..core.loop import IterableParam
     from ..core.parameters import ParameterValue
     from ..core.workflow import Workflow
@@ -74,6 +75,11 @@ PARAM_DATA_NOT_SET: Final[int] = 0
 
 def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamSource:
     return cast("ParamSource", dict(sorted({**source, **update}.items())))
+
+
+class File(TypedDict):
+    store_contents: bool
+    path: str
 
 
 class FileDescriptor(TypedDict):
@@ -554,7 +560,7 @@ class StoreParameter:
     is_pending: bool
     is_set: bool
     data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any
-    file: Dict | None
+    file: File | None
     source: ParamSource
 
     _encoders: ClassVar[dict[type, Callable]] = {}
@@ -683,7 +689,7 @@ class StoreParameter:
             return cls(
                 id_=id_,
                 data=None,
-                file=data["file"],
+                file=cast(File, data["file"]),
                 is_set=True,
                 source=source,
                 is_pending=False,
@@ -754,7 +760,7 @@ class StoreParameter:
             source=self.source,
         )
 
-    def set_file(self, value: Dict) -> Self:
+    def set_file(self, value: File) -> Self:
         """Return a copy, with file set."""
         if self.is_set:
             raise RuntimeError(f"Parameter ID {self.id_!r} is already set!")
@@ -903,7 +909,7 @@ class PersistentStore(
         app: BaseApp,
         *,
         template_js: TemplateMeta,
-        template_components_js: Dict,
+        template_components_js: dict[str, Any],
         wk_path: str,
         fs: AbstractFileSystem,
         name: str,
@@ -1207,7 +1213,7 @@ class PersistentStore(
             self._pending.commit_all()
 
     def add_template_components(
-        self, temp_comps: Mapping[str, Any], save: bool = True
+        self, temp_comps: Mapping[str, dict], save: bool = True
     ) -> None:
         all_tc = self.get_template_components()
         for name, dat in temp_comps.items():
@@ -1263,7 +1269,7 @@ class PersistentStore(
             self.save()
 
     @TimeIt.decorator
-    def add_submission(self, sub_idx: int, sub_js: Dict, save: bool = True):
+    def add_submission(self, sub_idx: int, sub_js: JSONDocument, save: bool = True):
         """Add a new submission."""
         self.logger.debug(f"Adding store submission.")
         self._pending.add_submissions[sub_idx] = sub_js
@@ -1447,7 +1453,7 @@ class PersistentStore(
         data: (
             ParameterValue | list | tuple | set | dict | int | float | str | None | Any
         ) = None,
-        file: Dict | None = None,
+        file: File | None = None,
         save: bool = True,
     ) -> int:
         self.logger.debug(f"Adding store parameter{f' (unset)' if not is_set else ''}.")
@@ -1472,7 +1478,7 @@ class PersistentStore(
         contents: str | None = None,
         filename: str | None = None,
         clean_up: bool = False,
-    ):
+    ) -> File:
         if filename is None:
             filename = Path(path).name
 
@@ -1493,7 +1499,7 @@ class PersistentStore(
         else:
             dst_path = Path(path)
 
-        file_param_dat = {
+        file_param_dat: File = {
             "store_contents": store_contents,
             "path": str(dst_path.relative_to(self.path)),
         }
@@ -1772,11 +1778,11 @@ class PersistentStore(
     @abstractmethod
     def _get_persistent_submissions(
         self, id_lst: Iterable[int] | None = None
-    ) -> dict[int, Any]:
+    ) -> dict[int, JSONDocument]:
         ...
 
     @TimeIt.decorator
-    def get_submissions(self) -> dict[int, Dict]:
+    def get_submissions(self) -> dict[int, JSONDocument]:
         """Retrieve all submissions, including pending."""
 
         subs = self._get_persistent_submissions()
@@ -1786,7 +1792,7 @@ class PersistentStore(
         return dict(sorted(subs.items()))
 
     @TimeIt.decorator
-    def get_submissions_by_ID(self, ids: Iterable[int]) -> dict[int, Dict]:
+    def get_submissions_by_ID(self, ids: Iterable[int]) -> dict[int, JSONDocument]:
         id_lst = list(ids)
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -2114,7 +2120,7 @@ class PersistentStore(
         ...
 
     @abstractmethod
-    def _append_submissions(self, subs: dict[int, Dict]) -> None:
+    def _append_submissions(self, subs: dict[int, JSONDocument]) -> None:
         ...
 
     @abstractmethod
@@ -2179,7 +2185,7 @@ class PersistentStore(
         ...
 
     @abstractmethod
-    def _update_js_metadata(self, js_meta: Dict) -> None:
+    def _update_js_metadata(self, js_meta: dict[int, dict[int, dict[str, Any]]]) -> None:
         ...
 
     @abstractmethod
@@ -2187,7 +2193,7 @@ class PersistentStore(
         ...
 
     @abstractmethod
-    def _update_template_components(self, tc: Dict) -> None:
+    def _update_template_components(self, tc: dict[str, Any]) -> None:
         ...
 
     @abstractmethod
@@ -2217,7 +2223,7 @@ class PersistentStore(
     @overload
     def using_resource(
         self, res_label: Literal["submissions"], action: str
-    ) -> AbstractContextManager[list[Dict]]:
+    ) -> AbstractContextManager[list[JSONDocument]]:
         ...
 
     @overload
@@ -2229,7 +2235,7 @@ class PersistentStore(
     @overload
     def using_resource(
         self, res_label: Literal["attrs"], action: str
-    ) -> AbstractContextManager[Dict]:
+    ) -> AbstractContextManager[ZarrAttrsDict]:
         ...
 
     @contextlib.contextmanager

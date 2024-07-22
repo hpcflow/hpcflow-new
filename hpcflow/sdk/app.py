@@ -61,7 +61,7 @@ from hpcflow.sdk.typing import PathLike
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
-    from typing import Dict, List, Literal
+    from typing import Dict, Literal
     from typing_extensions import NotRequired
     from rich.status import Status
     from .core.actions import (
@@ -312,7 +312,7 @@ class BaseApp(metaclass=Singleton):
         workflows_dir: str | None = None,
         demo_data_dir: str | None = None,
         demo_data_manifest_dir: str | None = None,
-        template_components: Dict | None = None,
+        template_components: dict[str, list[Dict]] | None = None,
         pytest_args=None,
         package_name=None,
         docs_import_conv=None,
@@ -909,11 +909,11 @@ class BaseApp(metaclass=Singleton):
     @classmethod
     def load_builtin_template_component_data(
         cls, package: ModuleType | str
-    ) -> dict[str, List | Dict]:
+    ) -> dict[str, list[Dict]]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
-        components: dict[str, List | Dict] = {}
+        components: dict[str, list[Dict]] = {}
         for comp_type in TEMPLATE_COMP_TYPES:
             with cls.__open_text_resource(package, f"{comp_type}.yaml") as fh:
                 SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")

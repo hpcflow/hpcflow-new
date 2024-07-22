@@ -24,9 +24,9 @@ _BasicJsonTypes: TypeAlias = "int | float | str | None"
 _WriteStructure: TypeAlias = (
     "list[JSONable] | tuple[JSONable, ...] | set[JSONable] | dict[str, JSONable]"
 )
-_ReadStructure: TypeAlias = "Sequence[JSONed] | Mapping[str, JSONed]"
+JSONDocument: TypeAlias = "Sequence[JSONed] | Mapping[str, JSONed]"
 JSONable: TypeAlias = "_WriteStructure | enum.Enum | BaseJSONLike | _BasicJsonTypes"
-JSONed: TypeAlias = "_ReadStructure | _BasicJsonTypes"
+JSONed: TypeAlias = "JSONDocument | _BasicJsonTypes"
 
 if TYPE_CHECKING:
     _JSONDeserState: TypeAlias = "dict[str, dict[str, JSONed]] | None"
@@ -619,7 +619,7 @@ class BaseJSONLike:
         shared_data: _JSONDeserState = None,
         exclude: set[str | None] | None = None,
         path=None,
-    ) -> tuple[Mapping[str, JSONed] | Sequence[JSONed], _JSONDeserState]:
+    ) -> tuple[JSONDocument, _JSONDeserState]:
         if dct is None:
             dct_value = {
                 k: v for k, v in self.to_dict().items() if k not in (exclude or [])

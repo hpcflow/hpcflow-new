@@ -25,7 +25,7 @@ from .errors import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, TypeVar
+    from typing import Any, TypeVar
     from typing_extensions import TypeAlias
     from ..typing import PathLike
     from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
@@ -83,7 +83,7 @@ class ConfigFile:
     @staticmethod
     def select_invocation(
         configs: dict[str, Any],
-        run_time_info: Dict,
+        run_time_info: dict[str, Any],
         path: PathLike,
         config_key: str | None = None,
     ) -> str:
@@ -218,7 +218,7 @@ class ConfigFile:
 
         return path.resolve()
 
-    def _dump(self, config_data: Dict, path: Path | None = None) -> str:
+    def _dump(self, config_data: ConfigDict, path: Path | None = None) -> str:
         """Dump the specified config data to the specified config file path.
 
         Parameters

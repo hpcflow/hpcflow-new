@@ -6,7 +6,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 
 from logging import Logger
-from typing import Any, Dict, List, Generic, TYPE_CHECKING
+from typing import Any, Dict, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.types import (
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .base import PersistentStore, FileDescriptor
     from ..app import BaseApp
     from ..typing import ParamSource
+    from ..core.json_like import JSONDocument
 
 
 class PendingChanges(
@@ -66,8 +67,8 @@ class PendingChanges(
         self.resource_map = resource_map
 
         self.add_tasks: dict[int, AnySTask] = {}
-        self.add_loops: dict[int, Dict] = {}
-        self.add_submissions: dict[int, Dict] = {}
+        self.add_loops: dict[int, dict[str, Any]] = {}
+        self.add_submissions: dict[int, JSONDocument] = {}
         self.add_elements: dict[int, AnySElement] = {}
         self.add_elem_iters: dict[int, AnySElementIter] = {}
         self.add_EARs: dict[int, AnySEAR] = {}
@@ -77,8 +78,8 @@ class PendingChanges(
         self.add_element_sets: dict[int, list[Mapping]] = {}
 
         self.add_elem_IDs: dict[int, list[int]] = {}
-        self.add_elem_iter_IDs: dict[int, List] = {}
-        self.add_elem_iter_EAR_IDs: dict[int, dict[int, List]] = {}
+        self.add_elem_iter_IDs: dict[int, list[int]] = {}
+        self.add_elem_iter_EAR_IDs: dict[int, dict[int, list[int]]] = {}
         self.add_submission_parts: dict[int, dict[str, list[int]]] = {}
 
         self.set_EARs_initialised: list[int] = []

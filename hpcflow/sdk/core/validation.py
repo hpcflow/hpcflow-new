@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Sequence
 from importlib import resources
-from typing import Generic, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 from valida import Schema as VSchema  # type: ignore
 
 T = TypeVar("T")
@@ -50,6 +50,9 @@ class Schema(Protocol):
 
     @property
     def rules(self) -> Sequence[Rule]:
+        ...
+
+    def add_schema(self, schema: Schema, root_path: Any = None) -> None:
         ...
 
 

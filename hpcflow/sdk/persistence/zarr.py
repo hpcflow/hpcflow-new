@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast, TYPE_CHECKING
+from typing import Any, TypedDict, cast, TYPE_CHECKING
 from typing_extensions import override
 import shutil
 import time
@@ -52,16 +52,30 @@ from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from fsspec import AbstractFileSystem  # type: ignore
-    from typing import ClassVar, Dict
-    from typing_extensions import Self, TypeAlias
+    from typing import ClassVar
+    from typing_extensions import NotRequired, Self, TypeAlias
     from zarr import Array, Group  # type: ignore
     from ..app import BaseApp
-    from ..core.json_like import JSONed
+    from ..core.json_like import JSONed, JSONDocument
     from ..typing import ParamSource
 
 
 ListAny: TypeAlias = "list[Any]"
 ZarrAttrs: TypeAlias = "dict[str, list[str]]"
+
+
+class ZarrAttrsDict(TypedDict):
+    name: str
+    ts_fmt: str
+    ts_name_fmt: str
+    creation_info: StoreCreationInfo
+    template: TemplateMeta
+    template_components: dict[str, Any]
+    num_added_tasks: int
+    tasks: list[dict[str, Any]]
+    loops: list[dict[str, Any]]
+    submissions: list[JSONDocument]
+    replaced_workflow: NotRequired[str]
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -379,7 +393,7 @@ class ZarrPersistentStore(
             if "replaced_workflow" in md:
                 self.logger.debug("removing temporarily renamed pre-existing workflow.")
                 self.remove_path(md["replaced_workflow"])
-                md["replaced_workflow"] = None
+                del md["replaced_workflow"]
 
     def reinstate_replaced_dir(self) -> None:
         with self.using_resource("attrs", "read") as md:
@@ -402,7 +416,7 @@ class ZarrPersistentStore(
         app: BaseApp,
         *,
         template_js: TemplateMeta,
-        template_components_js: Dict,
+        template_components_js: dict[str, Any],
         wk_path: str,
         fs: AbstractFileSystem,
         name: str,
@@ -413,7 +427,7 @@ class ZarrPersistentStore(
         compressor: str | None = "blosc",
         compressor_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        attrs = {
+        attrs: ZarrAttrsDict = {
             "name": name,
             "ts_fmt": ts_fmt,
             "ts_name_fmt": ts_name_fmt,
@@ -537,7 +551,7 @@ class ZarrPersistentStore(
                 )
                 attrs["template"]["loops"].append(loop["loop_template"])
 
-    def _append_submissions(self, subs: dict[int, Dict]):
+    def _append_submissions(self, subs: dict[int, JSONDocument]):
         with self.using_resource("attrs", action="update") as attrs:
             attrs["submissions"].extend(subs.values())
 
@@ -615,8 +629,9 @@ class ZarrPersistentStore(
     def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, sub_i_parts in sub_parts.items():
+                sub = cast(dict, attrs["submissions"][sub_idx])
                 for dt_str, parts_j in sub_i_parts.items():
-                    attrs["submissions"][sub_idx]["submission_parts"][dt_str] = parts_j
+                    sub["submission_parts"][dt_str] = parts_j
 
     def _update_loop_index(self, iter_ID: int, loop_idx: dict[str, int]):
         arr = self._get_iters_arr(mode="r+")
@@ -693,13 +708,13 @@ class ZarrPersistentStore(
             EAR_i = EAR_i.update(skip=True)
             arr[EAR_id] = EAR_i.encode(self.ts_fmt, attrs)
 
-    def _update_js_metadata(self, js_meta: Dict):
+    def _update_js_metadata(self, js_meta: dict[int, dict[int, dict[str, Any]]]):
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, all_js_md in js_meta.items():
+                sub = cast(
+                    "dict[str, list[dict[str, Any]]]", attrs["submissions"][sub_idx])
                 for js_idx, js_meta_i in all_js_md.items():
-                    attrs["submissions"][sub_idx]["jobscripts"][js_idx].update(
-                        **js_meta_i
-                    )
+                    sub["jobscripts"][js_idx].update(**js_meta_i)
 
     def _append_parameters(self, params: Sequence[StoreParameter]):
         """Add new persistent parameters."""
@@ -765,7 +780,7 @@ class ZarrPersistentStore(
         ]
         src_arr.set_coordinate_selection(param_ids, new_sources)
 
-    def _update_template_components(self, tc: Dict):
+    def _update_template_components(self, tc: dict[str, Any]):
         with self.using_resource("attrs", "update") as md:
             md["template_components"] = tc
 
@@ -968,7 +983,7 @@ class ZarrPersistentStore(
 
     def _get_persistent_template(self) -> dict[str, JSONed]:
         with self.using_resource("attrs", "read") as attrs:
-            return attrs["template"]
+            return cast("dict[str, JSONed]", attrs["template"])
 
     @TimeIt.decorator
     def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, ZarrStoreTask]:
@@ -1014,23 +1029,20 @@ class ZarrPersistentStore(
     @TimeIt.decorator
     def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None):
         self.logger.debug("loading persistent submissions from the zarr store")
+        ids = set(id_lst or ())
         with self.using_resource("attrs", "read") as attrs:
             subs_dat = copy.deepcopy(
                 {
                     idx: i
                     for idx, i in enumerate(attrs["submissions"])
-                    if id_lst is None or idx in id_lst
+                    if id_lst is None or idx in ids
                 }
             )
             # cast jobscript submit-times and jobscript `task_elements` keys:
-            for sub_idx, sub in subs_dat.items():
-                for js_idx, js in enumerate(sub["jobscripts"]):
+            for sub in subs_dat.values():
+                for js in cast("dict[str, list[dict[str, dict]]]", sub)["jobscripts"]:
                     for key in list(js["task_elements"].keys()):
-                        subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"][
-                            int(key)
-                        ] = subs_dat[sub_idx]["jobscripts"][js_idx]["task_elements"].pop(
-                            key
-                        )
+                        js["task_elements"][int(key)] = js["task_elements"].pop(key)
 
         return subs_dat
 
@@ -1193,48 +1205,43 @@ class ZarrPersistentStore(
             directory, the zip file will be created within this directory. Otherwise,
             this path is assumed to be the full file path to the new zip file.
         """
-        console = Console()
-        status = console.status(f"Zipping workflow {self.workflow.name!r}...")
-        status.start()
+        with Console().status(f"Zipping workflow {self.workflow.name!r}..."):
+            # TODO: this won't work for remote file systems
+            dst_path = Path(path).resolve()
+            if dst_path.is_dir():
+                dst_path = dst_path.joinpath(self.workflow.name).with_suffix(".zip")
 
-        # TODO: this won't work for remote file systems
-        dst_path = Path(path).resolve()
-        if dst_path.is_dir():
-            dst_path = dst_path.joinpath(self.workflow.name).with_suffix(".zip")
+            if not overwrite and dst_path.exists():
+                raise FileExistsError(
+                    f"File at path already exists: {dst_path!r}. Pass `overwrite=True` to "
+                    f"overwrite the existing file."
+                )
 
-        if not overwrite and dst_path.exists():
-            status.stop()
-            raise FileExistsError(
-                f"File at path already exists: {dst_path!r}. Pass `overwrite=True` to "
-                f"overwrite the existing file."
+            dst_path_s = str(dst_path)
+
+            src_zarr_store = self.zarr_store
+            zfs, _ = ask_pw_on_auth_exc(
+                ZipFileSystem,
+                fo=dst_path_s,
+                mode="w",
+                target_options={},
+                add_pw_to="target_options",
             )
+            dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
+            excludes = []
+            if not include_execute:
+                excludes.append("execute")
+            if not include_rechunk_backups:
+                excludes.append("runs.bak")
+                excludes.append("base.bak")
 
-        dst_path_s = str(dst_path)
-
-        src_zarr_store = self.zarr_store
-        zfs, _ = ask_pw_on_auth_exc(
-            ZipFileSystem,
-            fo=dst_path_s,
-            mode="w",
-            target_options={},
-            add_pw_to="target_options",
-        )
-        dst_zarr_store = zarr.storage.FSStore(url="", fs=zfs)
-        excludes = []
-        if not include_execute:
-            excludes.append("execute")
-        if not include_rechunk_backups:
-            excludes.append("runs.bak")
-            excludes.append("base.bak")
-
-        zarr.convenience.copy_store(
-            src_zarr_store,
-            dst_zarr_store,
-            excludes=excludes or None,
-            log=log,
-        )
-        del zfs  # ZipFileSystem remains open for instance lifetime
-        status.stop()
+            zarr.convenience.copy_store(
+                src_zarr_store,
+                dst_zarr_store,
+                excludes=excludes or None,
+                log=log,
+            )
+            del zfs  # ZipFileSystem remains open for instance lifetime
         return dst_path_s
 
     def unzip(self, path=".", log=None):
@@ -1251,8 +1258,7 @@ class ZarrPersistentStore(
         arr_name = arr.path.split("/")[-1]
 
         if status:
-            console = Console()
-            s = console.status("Rechunking...")
+            s = Console().status("Rechunking...")
             s.start()
         backup_time = None
 
@@ -1368,8 +1374,7 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
 
         """
 
-        console = Console()
-        with console.status(f"Unzipping workflow {self.workflow.name!r}..."):
+        with Console().status(f"Unzipping workflow {self.workflow.name!r}..."):
             # TODO: this won't work for remote file systems
             dst_path = Path(path).resolve()
             if dst_path.is_dir():

@@ -231,7 +231,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self) -> None:
         if isinstance(self.parameter, str):
-            self.parameter: Parameter = Parameter(typ=self.parameter)
+            self.parameter: Parameter = self.app.Parameter(typ=self.parameter)
 
     @property
     def name(self) -> str:
@@ -546,7 +546,7 @@ class SchemaOutput(SchemaParameter):
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
     ):
         if isinstance(parameter, str):
-            self.parameter: Parameter = Parameter(typ=parameter)
+            self.parameter: Parameter = self.app.Parameter(typ=parameter)
         else:
             self.parameter = parameter
         self.propagation_mode = propagation_mode
@@ -1314,7 +1314,7 @@ class InputValue(AbstractInputValue):
             try:
                 self.parameter = self.app.parameters.get(parameter)
             except ValueError:
-                self.parameter = Parameter(parameter)
+                self.parameter = self.app.Parameter(parameter)
         elif isinstance(parameter, SchemaInput):
             self.parameter = parameter.parameter
         else:

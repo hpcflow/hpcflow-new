@@ -5,7 +5,7 @@ import copy
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import cast, TYPE_CHECKING
+from typing import Mapping, Sequence, cast, TYPE_CHECKING
 from typing_extensions import override
 
 from fsspec import filesystem, AbstractFileSystem  # type: ignore
@@ -37,10 +37,10 @@ from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
-    from typing import Any, ClassVar, Dict
+    from typing import Any, ClassVar
     from typing_extensions import Self
     from ..app import BaseApp
-    from ..core.json_like import JSONed
+    from ..core.json_like import JSONed, JSONDocument
     from ..core.workflow import Workflow
     from ..typing import ParamSource
 
@@ -330,7 +330,7 @@ class JSONPersistentStore(
                 )
                 md["template"]["loops"].append(loop["loop_template"])
 
-    def _append_submissions(self, subs: dict[int, Dict]):
+    def _append_submissions(self, subs: dict[int, JSONDocument]):
         with self.using_resource("submissions", action="update") as subs_res:
             subs_res.extend(subs.values())
 
@@ -377,8 +377,10 @@ class JSONPersistentStore(
     def _append_submission_parts(self, sub_parts: dict[int, dict[str, list[int]]]):
         with self.using_resource("submissions", action="update") as subs_res:
             for sub_idx, sub_i_parts in sub_parts.items():
+                sub = subs_res[sub_idx]
+                assert isinstance(sub, dict)
                 for dt_str, parts_j in sub_i_parts.items():
-                    subs_res[sub_idx]["submission_parts"][dt_str] = parts_j
+                    sub["submission_parts"][dt_str] = parts_j
 
     def _update_loop_index(self, iter_ID: int, loop_idx: dict[str, int]):
         with self.using_resource("metadata", action="update") as md:
@@ -435,11 +437,13 @@ class JSONPersistentStore(
             assert "runs" in md
             md["runs"][EAR_id]["skip"] = True
 
-    def _update_js_metadata(self, js_meta: dict[int, Dict]):
+    def _update_js_metadata(self, js_meta: dict[int, dict[int, dict[str, Any]]]):
         with self.using_resource("submissions", action="update") as sub_res:
             for sub_idx, all_js_md in js_meta.items():
+                sub = cast("dict[str, list[dict[str, Any]]]", sub_res[sub_idx])
                 for js_idx, js_meta_i in all_js_md.items():
-                    sub_res[sub_idx]["jobscripts"][js_idx].update(**js_meta_i)
+                    sub_i = sub["jobscripts"][js_idx]
+                    sub_i.update(**js_meta_i)
 
     def _append_parameters(self, params: Sequence[StoreParameter]):
         with self.using_resource("parameters", "update") as params_u:
@@ -473,7 +477,7 @@ class JSONPersistentStore(
                 new_src_i = update_param_source_dict(param_i.source, src_i)
                 params["sources"][str(p_id)] = new_src_i
 
-    def _update_template_components(self, tc: Dict):
+    def _update_template_components(self, tc: dict[str, Any]):
         with self.using_resource("metadata", "update") as md:
             md["template_components"] = tc
 
@@ -600,7 +604,9 @@ class JSONPersistentStore(
             }
         return loop_dat
 
-    def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None):
+    def _get_persistent_submissions(
+        self, id_lst: Iterable[int] | None = None
+    ) -> dict[int, JSONDocument]:
         with self.using_resource("submissions", "read") as sub_res:
             subs_dat = copy.deepcopy(
                 {
@@ -612,6 +618,7 @@ class JSONPersistentStore(
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub in subs_dat.values():
                 js: dict[str, dict[str | int, Any]]
+                assert isinstance(sub, dict)
                 for js in sub["jobscripts"]:
                     te = js["task_elements"]
                     for key in list(te.keys()):
