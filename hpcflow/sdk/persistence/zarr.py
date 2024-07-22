@@ -712,7 +712,8 @@ class ZarrPersistentStore(
         with self.using_resource("attrs", action="update") as attrs:
             for sub_idx, all_js_md in js_meta.items():
                 sub = cast(
-                    "dict[str, list[dict[str, Any]]]", attrs["submissions"][sub_idx])
+                    "dict[str, list[dict[str, Any]]]", attrs["submissions"][sub_idx]
+                )
                 for js_idx, js_meta_i in all_js_md.items():
                     sub["jobscripts"][js_idx].update(**js_meta_i)
 

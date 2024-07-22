@@ -1424,7 +1424,8 @@ class Workflow:
                 subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
                     sub = self.app.Submission.from_json_like(
-                        {"index": idx, **cast(dict, sub_dat)})
+                        {"index": idx, **cast(dict, sub_dat)}
+                    )
                     sub.workflow = self
                     subs.append(sub)
                 self._submissions = subs
