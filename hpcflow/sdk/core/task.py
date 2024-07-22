@@ -50,8 +50,11 @@ if TYPE_CHECKING:
     from .actions import Action
     from .command_files import InputFile
     from .element import (
-        Element, ElementIteration, ElementFilter, ElementParameter,
-        _ElementPrefixedParameter as EPP
+        Element,
+        ElementIteration,
+        ElementFilter,
+        ElementParameter,
+        _ElementPrefixedParameter as EPP,
     )
     from .object_list import ParametersList, Resources
     from .parameters import (

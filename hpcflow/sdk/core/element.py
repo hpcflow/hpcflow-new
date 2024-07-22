@@ -1596,9 +1596,11 @@ class ElementParameter:
 @dataclass
 @hydrate
 class ElementFilter(JSONLike):
-    _child_objects: ClassVar[tuple[ChildObjectSpec, ]] = (
-        ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),
-    )
+    _child_objects: ClassVar[
+        tuple[
+            ChildObjectSpec,
+        ]
+    ] = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
 
     rules: list[Rule] = field(default_factory=list)
 
