@@ -1259,7 +1259,7 @@ class Jobscript(JSONLike):
             self.app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
             if all_EAR_states.issubset(not_run_states):
                 self.app.submission_logger.debug(
-                    f"All jobscript EARs are in a non-running state"
+                    "All jobscript EARs are in a non-running state"
                 )
                 out = {}
 

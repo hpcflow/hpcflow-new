@@ -174,7 +174,7 @@ class AppLog:
         fmt: str | None = None,
         max_bytes: int | None = None,
     ) -> logging.Handler:
-        fmt = fmt or f"%(asctime)s %(levelname)s %(name)s: %(message)s"
+        fmt = fmt or "%(asctime)s %(levelname)s %(name)s: %(message)s"
         level = level or AppLog.DEFAULT_LOG_FILE_LEVEL
         max_bytes = max_bytes or int(10e6)
 

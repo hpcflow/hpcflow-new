@@ -7,7 +7,6 @@ import socket
 import sys
 from pathlib import Path
 from typing import Any
-import warnings
 
 from rich.table import Table
 from rich.console import Console

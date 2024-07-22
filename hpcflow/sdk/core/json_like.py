@@ -221,31 +221,31 @@ class ChildObjectSpec:
 
     def __post_init__(self):
         if self.class_name is not None and self.class_obj is not None:
-            raise ValueError(f"Specify at most one of `class_name` and `class_obj`.")
+            raise ValueError("Specify at most one of `class_name` and `class_obj`.")
 
         if self.dict_key_attr:
             if not isinstance(self.dict_key_attr, str):
                 raise TypeError(
-                    f"`dict_key_attr` must be of type `str`, but has type "
+                    "`dict_key_attr` must be of type `str`, but has type "
                     f"{type(self.dict_key_attr)} with value {self.dict_key_attr}."
                 )  # TODO: test raise
         if self.dict_val_attr:
             if not self.dict_key_attr:
                 raise ValueError(
-                    f"If `dict_val_attr` is specified, `dict_key_attr` must be specified."
+                    "If `dict_val_attr` is specified, `dict_key_attr` must be specified."
                 )  # TODO: test raise
             if not isinstance(self.dict_val_attr, str):
                 raise TypeError(
-                    f"`dict_val_attr` must be of type `str`, but has type "
+                    "`dict_val_attr` must be of type `str`, but has type "
                     f"{type(self.dict_val_attr)} with value {self.dict_val_attr}."
                 )  # TODO: test raise
         if not self.is_multiple and self.dict_key_attr:
             raise ValueError(
-                f"If `dict_key_attr` is specified, `is_multiple` must be set to True."
+                "If `dict_key_attr` is specified, `is_multiple` must be set to True."
             )
         if not self.is_multiple and self.is_dict_values:
             raise ValueError(
-                f"If `is_dict_values` is specified, `is_multiple` must be set to True."
+                "If `is_dict_values` is specified, `is_multiple` must be set to True."
             )
         if self.is_dict_values_ensure_list and not self.is_dict_values:
             raise ValueError(
@@ -255,7 +255,7 @@ class ChildObjectSpec:
         if self.parent_ref:
             if not isinstance(self.parent_ref, str):
                 raise TypeError(
-                    f"`parent_ref` must be of type `str`, but has type "
+                    "`parent_ref` must be of type `str`, but has type "
                     f"{type(self.parent_ref)} with value {self.parent_ref}."
                 )  # TODO: test raise
 
@@ -633,8 +633,8 @@ class BaseJSONLike:
                 if chd.is_single_attribute:
                     if len(self._child_objects) > 1:
                         raise TypeError(
-                            f"If ChildObjectSpec has `is_single_attribute=True`, only one "
-                            f"ChildObjectSpec may be specified on the class."
+                            "If ChildObjectSpec has `is_single_attribute=True`, only one "
+                            "ChildObjectSpec may be specified on the class."
                         )
                     assert chd.json_like_name is not None
                     dct_value = dct_value[chd.json_like_name]

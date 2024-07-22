@@ -8,10 +8,7 @@ from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.core.parameters import InputSourceType
-from hpcflow.sdk.core.rule import Rule
-from hpcflow.sdk.core.task import WorkflowTask
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
-from hpcflow.sdk.core.workflow import Workflow, WorkflowTemplate
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
@@ -22,6 +19,7 @@ if TYPE_CHECKING:
     from ..typing import DataIndex, ParamSource
     from .parameters import SchemaInput, InputSource
     from .rule import Rule
+    from .task import WorkflowTask
     from .workflow import Workflow, WorkflowTemplate
 
 
@@ -75,7 +73,7 @@ class Loop(JSONLike):
 
         _task_insert_IDs: list[int] = []
         for task in tasks:
-            if isinstance(task, WorkflowTask):
+            if isinstance(task, self.app.WorkflowTask):
                 _task_insert_IDs.append(task.insert_ID)
             elif isinstance(task, int):
                 _task_insert_IDs.append(task)

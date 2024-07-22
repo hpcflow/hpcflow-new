@@ -21,7 +21,6 @@ from rich.panel import Panel
 from rich import print as rich_print
 from fsspec.registry import known_implementations as fsspec_protocols  # type: ignore
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
-from platformdirs import user_data_dir
 from hpcflow.sdk.core.utils import get_in_container, read_YAML_file, set_in_container
 
 from hpcflow.sdk.core.validation import get_schema, Schema
@@ -1008,7 +1007,7 @@ class Config:
 
     def reset(self) -> None:
         """Reset to the default configuration."""
-        self._logger.info(f"Resetting config file to defaults.")
+        self._logger.info("Resetting config file to defaults.")
         self._app.reset_config()
 
     def add_scheduler(self, scheduler: str, **defaults) -> None:
@@ -1137,7 +1136,7 @@ class Config:
         for i in files:
             self.import_from_file(file_path=i, make_new=True)
 
-        print(f"imports complete")
+        print("imports complete")
         # if current config is named "default", rename machine to DEFAULT_CONFIG:
         if self._config_key == "default":
             self.set("machine", "DEFAULT_MACHINE")

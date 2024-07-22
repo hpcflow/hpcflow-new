@@ -209,7 +209,7 @@ class PendingChanges(
     @TimeIt.decorator
     def commit_submission_parts(self) -> None:
         if self.add_submission_parts:
-            self.logger.debug(f"commit: adding pending submission parts")
+            self.logger.debug("commit: adding pending submission parts")
             self.store._append_submission_parts(self.add_submission_parts)
         self.clear_add_submission_parts()
 
@@ -241,7 +241,7 @@ class PendingChanges(
     def commit_element_sets(self) -> None:
         # TODO: could be batched up?
         for task_id, es_js in self.add_element_sets.items():
-            self.logger.debug(f"commit: adding pending element sets.")
+            self.logger.debug("commit: adding pending element sets.")
             self.store._append_element_sets(task_id, es_js)
         self.clear_add_element_sets()
 
@@ -404,14 +404,14 @@ class PendingChanges(
     def commit_files(self) -> None:
         """Add pending files to the files directory."""
         if self.add_files:
-            self.logger.debug(f"commit: adding pending files to the files directory.")
+            self.logger.debug("commit: adding pending files to the files directory.")
             self.store._append_files(self.add_files)
         self.clear_add_files()
 
     @TimeIt.decorator
     def commit_template_components(self) -> None:
         if self.add_template_components:
-            self.logger.debug(f"commit: adding template components.")
+            self.logger.debug("commit: adding template components.")
             self.store._update_template_components(self.store.get_template_components())
         self.clear_add_template_components()
 

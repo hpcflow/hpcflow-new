@@ -58,7 +58,7 @@ class SGEPosix(QueuedScheduler):
         "r": JobscriptElementState.running,
         "t": JobscriptElementState.running,
         "Rr": JobscriptElementState.running,
-        "Rt": JobscriptElementState.running,
+        # "Rt": JobscriptElementState.running,
         "s": JobscriptElementState.errored,
         "ts": JobscriptElementState.errored,
         "S": JobscriptElementState.errored,

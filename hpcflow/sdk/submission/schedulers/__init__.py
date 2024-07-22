@@ -40,10 +40,9 @@ class Scheduler(ABC, Generic[T]):
         return (self.__class__.__name__,)
 
     def __eq__(self, other) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
-        else:
-            return self.__dict__ == other.__dict__
+        return self.__dict__ == other.__dict__
 
     @abstractmethod
     def process_resources(

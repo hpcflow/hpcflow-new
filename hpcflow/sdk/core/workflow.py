@@ -2756,10 +2756,10 @@ class Workflow:
                 elem_idx = tuple(i.element.index for i in running)
                 raise ValueError(
                     f"Multiple elements are running (indices: {elem_idx!r}). Specify "
-                    f"which element index you want to abort."
+                    "which element index you want to abort."
                 )
             else:
-                raise RuntimeError(f"Multiple running runs.")
+                raise RuntimeError("Multiple running runs.")
 
         run = running[0]
         if not run.action.abortable:
@@ -2798,8 +2798,8 @@ class Workflow:
         all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.EAR_ID.flatten()]
         if not all_EAR_ID:
             print(
-                f"There are no pending element action runs, so a new submission was not "
-                f"added."
+                "There are no pending element action runs, so a new submission was not "
+                "added."
             )
             return None
 

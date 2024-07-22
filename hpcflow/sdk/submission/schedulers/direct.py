@@ -159,7 +159,7 @@ class DirectScheduler(Scheduler[DirectRef]):
         )
         js_proc_id = {i.pid: jobscripts[idx] for idx, i in enumerate(procs) if jobscripts}
         self._kill_processes(procs, timeout=3, on_terminate=callback)
-        self.app.submission_logger.info(f"jobscripts cancel command executed.")
+        self.app.submission_logger.info("jobscripts cancel command executed.")
 
     def is_jobscript_active(self, process_ID: int, process_cmdline: list[str]):
         """Query if a jobscript is running.

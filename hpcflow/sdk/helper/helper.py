@@ -157,7 +157,7 @@ def stop_helper(app: BaseApp, return_logger=False):
     logger = get_helper_logger(app)
     pid_info = get_helper_PID(app)
     if pid_info:
-        logger.info(f"Stopping helper.")
+        logger.info("Stopping helper.")
         pid, pid_file = pid_info
         kill_proc_tree(pid=pid)
         pid_file.unlink()
@@ -217,7 +217,7 @@ def helper_timeout(
         logger.info(f"Deleting PID file: {pid_file!r}.")
         pid_file.unlink()
 
-    logger.info(f"Stopping all watchers.")
+    logger.info("Stopping all watchers.")
     controller.stop()
     controller.join()
 

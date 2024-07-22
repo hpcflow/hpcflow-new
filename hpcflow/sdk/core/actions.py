@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Mapping
 import copy
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import json
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
         ElementOutputFiles,
     )
     from .environment import Environment
-    from .object_list import EnvironmentsList, ParametersList
+    from .object_list import ParametersList
     from .parameters import SchemaParameter, ParameterValue
     from .rule import Rule
     from .task import WorkflowTask
@@ -660,8 +660,8 @@ class ElementActionRun:
     def get_IFG_input_values(self) -> dict[str, Any]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get input file generator inputs from this EAR because the "
-                f"associated action is not expanded, meaning multiple IFGs might exists."
+                "Cannot get input file generator inputs from this EAR because the "
+                "associated action is not expanded, meaning multiple IFGs might exists."
             )
         input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
         inputs: dict[str, Any] = {}
@@ -680,8 +680,8 @@ class ElementActionRun:
         # TODO: can this return multiple files for a given FileSpec?
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser files from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser files from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
         out_files: dict[str, Path] = {}
         for file_spec in self.action.output_file_parsers[0].output_files:
@@ -693,8 +693,8 @@ class ElementActionRun:
     def get_OFP_inputs(self) -> dict[str, str | list[str] | dict[str, Any]]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser inputs from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser inputs from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
         inputs: dict[str, str | list[str] | dict[str, Any]] = {}
         for inp_typ in self.action.output_file_parsers[0].inputs or []:
@@ -708,8 +708,8 @@ class ElementActionRun:
     def get_OFP_outputs(self) -> dict[str, str | list[str]]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser outputs from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser outputs from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
         outputs = {}
         for out_typ in self.action.output_file_parsers[0].outputs or []:
@@ -1162,8 +1162,8 @@ class ActionEnvironment(JSONLike):
         else:
             if "name" not in environment:
                 raise ActionEnvironmentMissingNameError(
-                    f"The action-environment environment specification must include a string "
-                    f"`name` key, or be specified as string that is that name. Provided "
+                    "The action-environment environment specification must include a string "
+                    "`name` key, or be specified as string that is that name. Provided "
                     f"environment key was {environment!r}."
                 )
             self.environment = copy.deepcopy(environment)
@@ -1657,8 +1657,8 @@ class Action(JSONLike):
     def get_environment_spec(self) -> dict[str, Any]:
         if not self._from_expand:
             raise RuntimeError(
-                f"Cannot choose a single environment from this action because it is not "
-                f"expanded, meaning multiple action environments might exist."
+                "Cannot choose a single environment from this action because it is not "
+                "expanded, meaning multiple action environments might exist."
             )
         return self.environments[0].environment
 
@@ -2225,7 +2225,7 @@ class Action(JSONLike):
             parser.add_argument("--outputs-json")
             parser.add_argument("--outputs-hdf5")
             args = parser.parse_args()
-            
+
             """
         )
 

@@ -95,7 +95,6 @@ class WindowsPowerShell(Shell):
             $exc_sk = $LASTEXITCODE
 
             if ($exc_sk -eq 0) {{
-            
                 if ($skip -eq "1") {{
                     continue
                 }}
@@ -114,7 +113,7 @@ class WindowsPowerShell(Shell):
                     $exit_code = If ($exc_wc -ne 0) {{$exc_wc}} Else {{$exc_se}}
                 }}
             }}
-            else {{ 
+            else {{
                 $exit_code = $exc_sk
             }}
             $global:LASTEXITCODE = $null

@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any, ClassVar, Literal
     from typing_extensions import NotRequired, Self, TypeAlias
-    from numpy.typing import ArrayLike
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
@@ -1961,12 +1960,12 @@ class InputSource(JSONLike):
 
         if self.source_type is InputSourceType.TASK:
             if self.task_ref is None:
-                raise ValueError(f"Must specify `task_ref` if `source_type` is TASK.")
+                raise ValueError("Must specify `task_ref` if `source_type` is TASK.")
             if self.task_source_type is None:
                 self.task_source_type = TaskSourceType.OUTPUT
 
         if self.source_type is InputSourceType.IMPORT and self.import_ref is None:
-            raise ValueError(f"Must specify `import_ref` if `source_type` is IMPORT.")
+            raise ValueError("Must specify `import_ref` if `source_type` is IMPORT.")
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):

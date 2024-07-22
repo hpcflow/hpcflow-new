@@ -5,7 +5,7 @@ import copy
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Mapping, Sequence, cast, TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 from typing_extensions import override
 
 from fsspec import filesystem, AbstractFileSystem  # type: ignore
@@ -234,7 +234,7 @@ class JSONPersistentStore(
     @contextmanager
     def cached_load(self) -> Iterator[None]:
         """Context manager to cache the metadata."""
-        with self.using_resource("metadata", "read") as md:
+        with self.using_resource("metadata", "read"):
             yield
 
     def remove_replaced_dir(self) -> None:

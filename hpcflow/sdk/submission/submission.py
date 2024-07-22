@@ -300,7 +300,7 @@ class Submission(JSONLike):
 
     @property
     def abort_EARs_file_name(self) -> str:
-        return f"abort_EARs.txt"
+        return "abort_EARs.txt"
 
     @property
     def abort_EARs_file_path(self) -> Path:

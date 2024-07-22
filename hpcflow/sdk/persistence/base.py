@@ -1229,7 +1229,7 @@ class PersistentStore(
 
     def add_task(self, idx: int, task_template: Mapping, save: bool = True):
         """Add a new task to the workflow."""
-        self.logger.debug(f"Adding store task.")
+        self.logger.debug("Adding store task.")
         new_ID = self._get_num_total_added_tasks()
         self._pending.add_tasks[new_ID] = self._store_task_cls()(
             id_=new_ID,
@@ -1252,7 +1252,7 @@ class PersistentStore(
         save: bool = True,
     ):
         """Add a new loop to the workflow."""
-        self.logger.debug(f"Adding store loop.")
+        self.logger.debug("Adding store loop.")
         new_idx = self._get_num_total_loops()
         added_iters = [[list(k), v] for k, v in num_added_iterations.items()]
         self._pending.add_loops[new_idx] = {
@@ -1271,7 +1271,7 @@ class PersistentStore(
     @TimeIt.decorator
     def add_submission(self, sub_idx: int, sub_js: JSONDocument, save: bool = True):
         """Add a new submission."""
-        self.logger.debug(f"Adding store submission.")
+        self.logger.debug("Adding store submission.")
         self._pending.add_submissions[sub_idx] = sub_js
         if save:
             self.save()
@@ -1290,7 +1290,7 @@ class PersistentStore(
         save: bool = True,
     ) -> int:
         """Add a new element to a task."""
-        self.logger.debug(f"Adding store element.")
+        self.logger.debug("Adding store element.")
         new_ID = self._get_num_total_elements()
         new_elem_idx = self._get_task_total_num_elements(task_ID)
         self._pending.add_elements[new_ID] = self._store_elem_cls()(
@@ -1317,7 +1317,7 @@ class PersistentStore(
         save: bool = True,
     ) -> int:
         """Add a new iteration to an element."""
-        self.logger.debug(f"Adding store element-iteration.")
+        self.logger.debug("Adding store element-iteration.")
         new_ID = self._get_num_total_elem_iters()
         self._pending.add_elem_iters[new_ID] = self._store_iter_cls()(
             id_=new_ID,
@@ -1345,7 +1345,7 @@ class PersistentStore(
         save: bool = True,
     ) -> int:
         """Add a new EAR to an element iteration."""
-        self.logger.debug(f"Adding store EAR.")
+        self.logger.debug("Adding store EAR.")
         new_ID = self._get_num_total_EARs()
         self._pending.add_EARs[new_ID] = self._store_EAR_cls()(
             id_=new_ID,
@@ -1527,7 +1527,7 @@ class PersistentStore(
         clean_up: bool = False,
         save: bool = True,
     ):
-        self.logger.debug(f"Setting new file")
+        self.logger.debug("Setting new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
             is_input=is_input,
@@ -1553,7 +1553,7 @@ class PersistentStore(
         filename: str | None = None,
         save: bool = True,
     ):
-        self.logger.debug(f"Adding new file")
+        self.logger.debug("Adding new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
             is_input=is_input,

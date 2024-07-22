@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from datetime import timedelta
 from logging import Logger
 from pathlib import Path
@@ -138,7 +138,7 @@ class WorkflowMonitor:
         self.logger.info(f"Workflow modified: {event.src_path}")
 
     def update_workflow_paths(self, new_paths: list[dict[str, Path]]):
-        self.logger.info(f"Updating watched workflows.")
+        self.logger.info("Updating watched workflows.")
         self.stop()
         self.workflow_paths = new_paths
         self._monitor_workflow_paths()

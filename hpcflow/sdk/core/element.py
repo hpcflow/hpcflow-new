@@ -238,10 +238,7 @@ class ElementResources(JSONLike):
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
     def __eq__(self, other) -> bool:
-        if type(self) != type(other):
-            return False
-        else:
-            return self.__dict__ == other.__dict__
+        return isinstance(other, ElementResources) and self.__dict__ == other.__dict__
 
     def get_jobscript_hash(self) -> int:
         """Get hash from all arguments that distinguish jobscripts."""
@@ -747,7 +744,7 @@ class ElementIteration:
                     EAR_ID
                     for i in self.action_runs
                     for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                    if not EAR_ID in self.EAR_IDs_flat
+                    if EAR_ID not in self.EAR_IDs_flat
                 )
             )
         else:

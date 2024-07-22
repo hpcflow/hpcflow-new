@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from textwrap import dedent
 
@@ -76,14 +76,12 @@ class Executable(JSONLike):
         )
 
     def __eq__(self, other):
-        if (
-            type(self) == type(other)
+        return (
+            isinstance(other, Executable)
             and self.label == other.label
             and self.instances == other.instances
             and self.environment.name == other.environment.name
-        ):
-            return True
-        return False
+        )
 
     @property
     def environment(self):

@@ -100,7 +100,7 @@ class ObjectList(JSONLike, Generic[T]):
 
     def __contains__(self, item: T) -> bool:
         if self._objects:
-            if type(item) == type(self._get_item(self._objects[0])):
+            if type(item) is type(self._get_item(self._objects[0])):
                 return self._objects.__contains__(item)
         return False
 

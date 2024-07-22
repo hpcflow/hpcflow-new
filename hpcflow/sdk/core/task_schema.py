@@ -207,8 +207,6 @@ class TaskSchema(JSONLike):
         tab.add_column(justify="right")
         tab.add_column()
 
-        from rich.table import box
-
         tab_ins_outs: Table | None = None
         if "inputs" in include or "outputs" in include:
             tab_ins_outs = Table(
@@ -386,7 +384,7 @@ class TaskSchema(JSONLike):
 
         param_types = self.__parameters().list_attrs()
 
-        inputs_header_row = f"<tr><th>parameter</th><th>type</th><th>default</th></tr>"
+        inputs_header_row = "<tr><th>parameter</th><th>type</th><th>default</th></tr>"
         input_rows = ""
         for inp in self.inputs:
             def_str = "-"
@@ -414,11 +412,11 @@ class TaskSchema(JSONLike):
             )
         else:
             inputs_table = (
-                f'<span class="schema-note-no-inputs">This task schema has no input '
-                f"parameters.</span>"
+                '<span class="schema-note-no-inputs">This task schema has no input '
+                "parameters.</span>"
             )
 
-        outputs_header_row = f"<tr><th>parameter</th><th>type</th></tr>"
+        outputs_header_row = "<tr><th>parameter</th><th>type</th></tr>"
         output_rows = ""
         for out in self.outputs:
             param_str = _format_parameter_type(out.parameter)
@@ -433,8 +431,8 @@ class TaskSchema(JSONLike):
 
         else:
             outputs_table = (
-                f'<span class="schema-note-no-outputs">This task schema has no output '
-                f"parameters.</span>"
+                '<span class="schema-note-no-outputs">This task schema has no output '
+                "parameters.</span>"
             )
 
         action_rows = ""
@@ -545,8 +543,8 @@ class TaskSchema(JSONLike):
                     )
                 if cmd_idx < len(act.commands) - 1:
                     cmd_j_tab_rows += (
-                        f'<tr><td colspan="3" class="commands-table-bottom-spacer-cell">'
-                        f"</td></tr>"
+                        '<tr><td colspan="3" class="commands-table-bottom-spacer-cell">'
+                        "</td></tr>"
                     )
                 act_i_cmds_tab_rows += cmd_j_tab_rows
 
@@ -576,15 +574,15 @@ class TaskSchema(JSONLike):
         if action_rows:
             action_table = f'<table class="action-table hidden">{action_rows}</table>'
             action_show_hide = (
-                f'<span class="actions-show-hide-toggle">[<span class="action-show-text">'
-                f'show ↓</span><span class="action-hide-text hidden">hide ↑</span>]'
-                f"</span>"
+                '<span class="actions-show-hide-toggle">[<span class="action-show-text">'
+                'show ↓</span><span class="action-hide-text hidden">hide ↑</span>]'
+                "</span>"
             )
             act_heading_class = ' class="actions-heading"'
         else:
             action_table = (
-                f'<span class="schema-note-no-actions">'
-                f"This task schema has no actions.</span>"
+                '<span class="schema-note-no-actions">'
+                "This task schema has no actions.</span>"
             )
             action_show_hide = ""
             act_heading_class = ""

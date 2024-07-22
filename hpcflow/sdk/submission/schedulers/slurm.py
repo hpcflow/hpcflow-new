@@ -183,9 +183,9 @@ class SlurmPosix(QueuedScheduler):
         else:
             if resources.SLURM_is_parallel:
                 raise IncompatibleSLURMArgumentsError(
-                    f"Some specified SLURM-specific arguments (which indicate a parallel "
-                    f"job) conflict with the scheduler-agnostic arguments (which "
-                    f"indicate a serial job)."
+                    "Some specified SLURM-specific arguments (which indicate a parallel "
+                    "job) conflict with the scheduler-agnostic arguments (which "
+                    "indicate a serial job)."
                 )
             if not resources.SLURM_num_tasks:
                 resources.SLURM_num_tasks = 1

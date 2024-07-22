@@ -56,7 +56,7 @@ if TYPE_CHECKING:
         ElementParameter,
         _ElementPrefixedParameter as EPP,
     )
-    from .object_list import ParametersList, Resources
+    from .object_list import Resources
     from .parameters import (
         InputValue,
         InputSource,
@@ -2976,7 +2976,7 @@ class WorkflowTask:
                 if all_multi_len:
                     if len(data_i) != all_multi_len:
                         raise RuntimeError(
-                            f"Cannot merge group values of different lengths."
+                            "Cannot merge group values of different lengths."
                         )
                 else:
                     # keep track of group lengths, only merge equal-length groups;

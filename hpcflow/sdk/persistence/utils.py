@@ -1,6 +1,6 @@
 from __future__ import annotations
 from getpass import getpass
-from typing import TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 

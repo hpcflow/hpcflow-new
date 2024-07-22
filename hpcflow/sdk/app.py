@@ -1258,7 +1258,7 @@ class BaseApp(metaclass=Singleton):
         **overrides,
     ) -> None:
         """Reset the config file to defaults, and reload the config."""
-        self.logger.info(f"resetting config")
+        self.logger.info("resetting config")
         self._delete_config_file(config_dir=config_dir)
         self._config = None
         self._config_files = {}

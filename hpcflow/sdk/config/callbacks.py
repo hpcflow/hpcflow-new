@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from typing import Any, TypeVar
     from .config import Config
     from ..typing import PathLike
-    from ..submission.schedulers import QueuedScheduler
 
     T = TypeVar("T")
 
