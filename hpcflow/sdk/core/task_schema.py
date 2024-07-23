@@ -1,28 +1,46 @@
+from __future__ import annotations
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TypedDict, TYPE_CHECKING
 from html import escape
 
 from rich import print as rich_print
-from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
-from hpcflow.sdk import app
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
-from hpcflow.sdk.core.parameters import Parameter
-from .json_like import ChildObjectSpec, JSONLike
-from .parameters import NullDefault, ParameterPropagationMode, SchemaInput
-from .utils import check_valid_py_identifier
+from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.core.parameters import Parameter, ParameterPropagationMode
+from hpcflow.sdk.core.utils import check_valid_py_identifier
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+    from typing import Any, ClassVar
+    from typing_extensions import Self
+    from .actions import Action
+    from .command_files import FileSpec
+    from .object_list import ParametersList, TaskSchemasList
+    from .parameters import SchemaInput, SchemaOutput, SchemaParameter
+    from .task import TaskTemplate
+    from .workflow import Workflow
+    from ..app import BaseApp
+    from ..typing import ParamSource
+
+
+class ActParameterDependence(TypedDict):
+    input_file_writers: list[tuple[int, FileSpec]]
+    commands: list[tuple[int, int]]
 
 
 @dataclass
+@hydrate
 class TaskObjective(JSONLike):
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="name",
             is_single_attribute=True,
@@ -33,6 +51,10 @@ class TaskObjective(JSONLike):
 
     def __post_init__(self):
         self.name = check_valid_py_identifier(self.name)
+
+    @classmethod
+    def _parse_from_string(cls, string):
+        return string
 
 
 class TaskSchema(JSONLike):
@@ -58,11 +80,12 @@ class TaskSchema(JSONLike):
         of built-in task schemas). True by default.
     """
 
-    _validation_schema = "task_schema_spec_schema.yaml"
+    _validation_schema: ClassVar[str] = "task_schema_spec_schema.yaml"
+    app: ClassVar[BaseApp]
     _hash_value = None
     _validate_actions = True
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="objective", class_name="TaskObjective"),
         ChildObjectSpec(
             name="inputs",
@@ -81,24 +104,24 @@ class TaskSchema(JSONLike):
 
     def __init__(
         self,
-        objective: Union[app.TaskObjective, str],
-        actions: List[app.Action] = None,
-        method: Optional[str] = None,
-        implementation: Optional[str] = None,
-        inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
-        outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
-        version: Optional[str] = None,
-        parameter_class_modules: Optional[List[str]] = None,
-        web_doc: Optional[bool] = True,
-        environment_presets: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
-        _hash_value: Optional[str] = None,
+        objective: TaskObjective | str,
+        actions: list[Action] | None = None,
+        method: str | None = None,
+        implementation: str | None = None,
+        inputs: list[Parameter | SchemaInput] | None = None,
+        outputs: list[Parameter | SchemaParameter] | None = None,
+        version: str | None = None,
+        parameter_class_modules: list[str] | None = None,
+        web_doc: bool | None = True,
+        environment_presets: dict[str, dict[str, dict[str, Any]]] | None = None,
+        _hash_value: str | None = None,
     ):
-        self.objective = objective
+        self.objective = self.__coerce_objective(objective)
         self.actions = actions or []
         self.method = method
         self.implementation = implementation
-        self.inputs = inputs or []
-        self.outputs = outputs or []
+        self.inputs = self.__coerce_inputs(inputs or [])
+        self.outputs = self.__coerce_outputs(outputs or [])
         self.parameter_class_modules = parameter_class_modules or []
         self.web_doc = web_doc
         self.environment_presets = environment_presets
@@ -113,7 +136,7 @@ class TaskSchema(JSONLike):
         self._validate()
         self.actions = self._expand_actions()
         self.version = version
-        self._task_template = None  # assigned by parent Task
+        self._task_template: TaskTemplate | None = None  # assigned by parent Task
 
         self._update_parameter_value_classes()
 
@@ -137,19 +160,29 @@ class TaskSchema(JSONLike):
         #         else [],
         #     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.objective.name!r})"
 
-    def _get_info(self, include=None):
-        def _get_param_type_str(parameter) -> str:
+    @classmethod
+    def __parameters(cls) -> ParametersList:
+        # Workaround for a dumb mypy bug
+        return cls.app.parameters
+
+    @classmethod
+    def __task_schemas(cls) -> TaskSchemasList:
+        # Workaround for a dumb mypy bug
+        return cls.app.task_schemas
+
+    def _get_info(self, include: Sequence[str] = ()):
+        def _get_param_type_str(param: Parameter) -> str:
             type_fmt = "-"
-            if parameter._validation:
+            if param._validation:
                 try:
-                    type_fmt = parameter._validation.to_tree()[0]["type_fmt"]
+                    type_fmt = param._validation.to_tree()[0]["type_fmt"]
                 except Exception:
                     pass
-            elif parameter._value_class:
-                param_cls = parameter._value_class
+            elif param._value_class:
+                param_cls = param._value_class
                 cls_url = (
                     f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
                     f"{param_cls.__name__}"
@@ -157,9 +190,9 @@ class TaskSchema(JSONLike):
                 type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
             return type_fmt
 
-        def _format_parameter_type(param) -> str:
+        def _format_parameter_type(param: Parameter) -> str:
             param_typ_fmt = param.typ
-            if param.typ in self.app.parameters.list_attrs():
+            if param.typ in self.__parameters().list_attrs():
                 param_url = (
                     f"{self.app.docs_url}/reference/template_components/"
                     f"parameters.html#{param.url_slug}"
@@ -174,9 +207,7 @@ class TaskSchema(JSONLike):
         tab.add_column(justify="right")
         tab.add_column()
 
-        from rich.table import box
-
-        tab_ins_outs = None
+        tab_ins_outs: Table | None = None
         if "inputs" in include or "outputs" in include:
             tab_ins_outs = Table(
                 show_header=False,
@@ -191,6 +222,7 @@ class TaskSchema(JSONLike):
             tab_ins_outs.add_row()
 
         if "inputs" in include:
+            assert tab_ins_outs
             if self.inputs:
                 tab_ins_outs.add_row(
                     "",
@@ -201,7 +233,7 @@ class TaskSchema(JSONLike):
             for inp_idx, inp in enumerate(self.inputs):
                 def_str = "-"
                 if not inp.multiple:
-                    if inp.default_value is not NullDefault.NULL:
+                    if isinstance(inp.default_value, self.app.InputValue):
                         if inp.default_value.value is None:
                             def_str = "None"
                         else:
@@ -214,6 +246,7 @@ class TaskSchema(JSONLike):
                 )
 
         if "outputs" in include:
+            assert tab_ins_outs
             if "inputs" in include:
                 tab_ins_outs.add_row()  # for spacing
             else:
@@ -273,7 +306,7 @@ class TaskSchema(JSONLike):
                     cmd_str = "cmd" if cmd.command else "exe"
                     tab_cmds_i.add_row(
                         f"[italic]{cmd_str}:[/italic]",
-                        rich_esc(cmd.command or cmd.executable),
+                        rich_esc(cmd.command or cmd.executable or ""),
                     )
                     if cmd.stdout:
                         tab_cmds_i.add_row(
@@ -294,22 +327,20 @@ class TaskSchema(JSONLike):
         panel = Panel(tab, title=f"Task schema: {rich_esc(self.objective.name)!r}")
         return panel
 
-    def _show_info(self, include=None):
+    def _show_info(self, include=None) -> None:
         panel = self._get_info(include=include)
         rich_print(panel)
 
-    @property
-    def basic_info(self):
+    def basic_info(self) -> None:
         """Show inputs and outputs, formatted in a table."""
-        return self._show_info(include=("inputs", "outputs"))
+        self._show_info(include=("inputs", "outputs"))
 
-    @property
-    def info(self):
+    def info(self) -> None:
         """Show inputs, outputs, and actions, formatted in a table."""
-        return self._show_info()
+        self._show_info()
 
     def get_info_html(self) -> str:
-        def _format_parameter_type(param):
+        def _format_parameter_type(param: Parameter) -> str:
             param_typ_fmt = param.typ
             if param.typ in param_types:
                 param_url = (
@@ -319,7 +350,7 @@ class TaskSchema(JSONLike):
                 param_typ_fmt = f'<a href="{param_url}">{param_typ_fmt}</a>'
             return param_typ_fmt
 
-        def _get_param_type_str(param) -> str:
+        def _get_param_type_str(param: Parameter) -> str:
             type_fmt = "-"
             if param._validation:
                 try:
@@ -335,7 +366,9 @@ class TaskSchema(JSONLike):
                 type_fmt = f'<a href="{cls_url}">{param_cls.__name__}</a>'
             return type_fmt
 
-        def _prepare_script_data_format_table(script_data_grouped):
+        def _prepare_script_data_format_table(
+            script_data_grouped: dict[str, dict[str, dict[str, str]]]
+        ) -> str:
             out = ""
             rows = ""
             for fmt, params in script_data_grouped.items():
@@ -349,14 +382,14 @@ class TaskSchema(JSONLike):
 
             return out
 
-        param_types = self.app.parameters.list_attrs()
+        param_types = self.__parameters().list_attrs()
 
-        inputs_header_row = f"<tr><th>parameter</th><th>type</th><th>default</th></tr>"
+        inputs_header_row = "<tr><th>parameter</th><th>type</th><th>default</th></tr>"
         input_rows = ""
         for inp in self.inputs:
             def_str = "-"
             if not inp.multiple:
-                if inp.default_value is not NullDefault.NULL:
+                if isinstance(inp.default_value, self.app.InputValue):
                     if inp.default_value.value is None:
                         def_str = "None"
                     else:
@@ -379,11 +412,11 @@ class TaskSchema(JSONLike):
             )
         else:
             inputs_table = (
-                f'<span class="schema-note-no-inputs">This task schema has no input '
-                f"parameters.</span>"
+                '<span class="schema-note-no-inputs">This task schema has no input '
+                "parameters.</span>"
             )
 
-        outputs_header_row = f"<tr><th>parameter</th><th>type</th></tr>"
+        outputs_header_row = "<tr><th>parameter</th><th>type</th></tr>"
         output_rows = ""
         for out in self.outputs:
             param_str = _format_parameter_type(out.parameter)
@@ -398,8 +431,8 @@ class TaskSchema(JSONLike):
 
         else:
             outputs_table = (
-                f'<span class="schema-note-no-outputs">This task schema has no output '
-                f"parameters.</span>"
+                '<span class="schema-note-no-outputs">This task schema has no output '
+                "parameters.</span>"
             )
 
         action_rows = ""
@@ -478,7 +511,7 @@ class TaskSchema(JSONLike):
                 out_fp_rows += (
                     f"<tr>"
                     f'<td class="action-header-cell">output:</td>'
-                    f"<td><code>{out_fp.output.typ}</code></td>"
+                    f"<td><code>{out_fp.output.typ if out_fp.output else ''}</code></td>"
                     f"</tr>"
                     f"<tr>"
                     f'<td class="action-header-cell">output files:</td>'
@@ -495,7 +528,7 @@ class TaskSchema(JSONLike):
                     f'<td rowspan="{bool(cmd.stdout) + bool(cmd.stderr) + 1}">'
                     f'<span class="cmd-idx-numeral">{cmd_idx}</span></td>'
                     f'<td class="command-header-cell">{"cmd" if cmd.command else "exe"}:'
-                    f"</td><td><code><pre>{escape(cmd.command or cmd.executable)}</pre>"
+                    f"</td><td><code><pre>{escape(cmd.command or cmd.executable or '')}</pre>"
                     f"</code></td></tr>"
                 )
                 if cmd.stdout:
@@ -510,8 +543,8 @@ class TaskSchema(JSONLike):
                     )
                 if cmd_idx < len(act.commands) - 1:
                     cmd_j_tab_rows += (
-                        f'<tr><td colspan="3" class="commands-table-bottom-spacer-cell">'
-                        f"</td></tr>"
+                        '<tr><td colspan="3" class="commands-table-bottom-spacer-cell">'
+                        "</td></tr>"
                     )
                 act_i_cmds_tab_rows += cmd_j_tab_rows
 
@@ -541,28 +574,29 @@ class TaskSchema(JSONLike):
         if action_rows:
             action_table = f'<table class="action-table hidden">{action_rows}</table>'
             action_show_hide = (
-                f'<span class="actions-show-hide-toggle">[<span class="action-show-text">'
-                f'show ↓</span><span class="action-hide-text hidden">hide ↑</span>]'
-                f"</span>"
+                '<span class="actions-show-hide-toggle">[<span class="action-show-text">'
+                'show ↓</span><span class="action-hide-text hidden">hide ↑</span>]'
+                "</span>"
             )
             act_heading_class = ' class="actions-heading"'
         else:
             action_table = (
-                f'<span class="schema-note-no-actions">'
-                f"This task schema has no actions.</span>"
+                '<span class="schema-note-no-actions">'
+                "This task schema has no actions.</span>"
             )
             action_show_hide = ""
             act_heading_class = ""
-        out = (
+        return (
             f"<h5>Inputs</h5>{inputs_table}"
             f"<h5>Outputs</h5>{outputs_table}"
             # f"<h5>Examples</h5>examples here..." # TODO:
             f"<h5{act_heading_class}>Actions{action_show_hide}</h5>{action_table}"
         )
-        return out
 
     def __eq__(self, other):
-        if type(other) is not self.__class__:
+        if id(self) == id(other):
+            return True
+        if not isinstance(other, TaskSchema):
             return False
         if (
             self.objective == other.objective
@@ -577,7 +611,7 @@ class TaskSchema(JSONLike):
             return True
         return False
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._task_template = self._task_template
@@ -592,28 +626,44 @@ class TaskSchema(JSONLike):
         finally:
             cls._validate_actions = True
 
-    def _validate(self):
-        if isinstance(self.objective, str):
-            self.objective = self.app.TaskObjective(self.objective)
+    @classmethod
+    def __coerce_objective(cls, objective: TaskObjective | str) -> TaskObjective:
+        if isinstance(objective, str):
+            return cls.app.TaskObjective(objective)
+        else:
+            return objective
 
+    @classmethod
+    def __coerce_one_input(cls, i: Parameter | SchemaInput) -> SchemaInput:
+        return cls.app.SchemaInput(i) if isinstance(i, Parameter) else i
+
+    @classmethod
+    def __coerce_inputs(
+        cls, inputs: Iterable[Parameter | SchemaInput]
+    ) -> list[SchemaInput]:
+        """coerce Parameters to SchemaInputs"""
+        return [cls.__coerce_one_input(i) for i in inputs]
+
+    @classmethod
+    def __coerce_one_output(cls, o: Parameter | SchemaParameter) -> SchemaOutput:
+        return (
+            o
+            if isinstance(o, cls.app.SchemaOutput)
+            else cls.app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
+        )
+
+    @classmethod
+    def __coerce_outputs(
+        cls, outputs: Iterable[Parameter | SchemaParameter]
+    ) -> list[SchemaOutput]:
+        """coerce Parameters to SchemaOutputs"""
+        return [cls.__coerce_one_output(o) for o in outputs]
+
+    def _validate(self):
         if self.method:
             self.method = check_valid_py_identifier(self.method)
         if self.implementation:
             self.implementation = check_valid_py_identifier(self.implementation)
-
-        # coerce Parameters to SchemaInputs
-        for idx, i in enumerate(self.inputs):
-            if isinstance(
-                i, Parameter
-            ):  # TODO: doc. that we should use the sdk class for type checking!
-                self.inputs[idx] = self.app.SchemaInput(i)
-
-        # coerce Parameters to SchemaOutputs
-        for idx, i in enumerate(self.outputs):
-            if isinstance(i, Parameter):
-                self.outputs[idx] = self.app.SchemaOutput(i)
-            elif isinstance(i, SchemaInput):
-                self.outputs[idx] = self.app.SchemaOutput(i.parameter)
 
         # check action input/outputs
         if self._validate_actions:
@@ -689,7 +739,7 @@ class TaskSchema(JSONLike):
                     f"generated by any actions."
                 )
 
-    def _expand_actions(self):
+    def _expand_actions(self) -> list[Action]:
         """Create new actions for input file generators and output parsers in existing
         actions."""
         return [j for i in self.actions for j in i.expand()]
@@ -708,8 +758,10 @@ class TaskSchema(JSONLike):
         for out in self.outputs:
             out.parameter._set_value_class()
 
-    def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
-        new_refs = []
+    def make_persistent(
+        self, workflow: Workflow, source: ParamSource
+    ) -> list[int | list[int]]:
+        new_refs: list[int | list[int]] = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
                 if "default_value" in lab_info:
@@ -720,7 +772,7 @@ class TaskSchema(JSONLike):
         return new_refs
 
     @property
-    def name(self):
+    def name(self) -> str:
         out = (
             f"{self.objective.name}"
             f"{f'_{self.method}' if self.method else ''}"
@@ -729,15 +781,15 @@ class TaskSchema(JSONLike):
         return out
 
     @property
-    def input_types(self):
-        return tuple(j for i in self.inputs for j in i.all_labelled_types)
+    def input_types(self) -> list[str]:
+        return list(j for i in self.inputs for j in i.all_labelled_types)
 
     @property
-    def output_types(self):
-        return tuple(i.typ for i in self.outputs)
+    def output_types(self) -> list[str]:
+        return list(i.typ for i in self.outputs)
 
     @property
-    def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+    def provides_parameters(self) -> tuple[tuple[str, str], ...]:
         out = []
         for schema_inp in self.inputs:
             for labelled_info in schema_inp.labelled_info():
@@ -752,27 +804,31 @@ class TaskSchema(JSONLike):
         return tuple(out)
 
     @property
-    def task_template(self):
+    def task_template(self) -> TaskTemplate | None:
         return self._task_template
 
     @classmethod
-    def get_by_key(cls, key):
+    def get_by_key(cls, key) -> TaskSchema:
         """Get a config-loaded task schema from a key."""
-        return cls.app.task_schemas.get(key)
+        return cls.__task_schemas().get(key)
 
-    def get_parameter_dependence(self, parameter: app.SchemaParameter):
+    def get_parameter_dependence(
+        self, parameter: SchemaParameter
+    ) -> ActParameterDependence:
         """Find if/where a given parameter is used by the schema's actions."""
-        out = {"input_file_writers": [], "commands": []}
+        out: ActParameterDependence = {"input_file_writers": [], "commands": []}
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
-            for key in out:
-                out[key].extend((act_idx, i) for i in deps[key])
+            out["input_file_writers"].extend(
+                (act_idx, i) for i in deps["input_file_writers"]
+            )
+            out["commands"].extend((act_idx, i) for i in deps["commands"])
         return out
 
     def get_key(self):
         return (str(self.objective), self.method, self.implementation)
 
-    def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
+    def _get_single_label_lookup(self, prefix="") -> dict[str, str]:
         """Get a mapping between schema input types that have a single label (i.e.
         labelled but with `multiple=False`) and the non-labelled type string.
 
@@ -785,7 +841,7 @@ class TaskSchema(JSONLike):
         `{"inputs.p1[one]": "inputs.p1"}`.
 
         """
-        lookup = {}
+        lookup: dict[str, str] = {}
         if prefix and not prefix.endswith("."):
             prefix += "."
         for sch_inp in self.inputs:
@@ -795,10 +851,6 @@ class TaskSchema(JSONLike):
         return lookup
 
     @property
-    def multi_input_types(self) -> List[str]:
+    def multi_input_types(self) -> list[str]:
         """Get a list of input types that have multiple labels."""
-        out = []
-        for inp in self.inputs:
-            if inp.multiple:
-                out.append(inp.parameter.typ)
-        return out
+        return [inp.parameter.typ for inp in self.inputs if inp.multiple]

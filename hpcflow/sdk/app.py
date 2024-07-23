@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from contextlib import AbstractContextManager, nullcontext
+from datetime import datetime
 import enum
 import json
 import shutil
@@ -15,13 +16,12 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Dict, List, Optional, Type, Union, Tuple
+from typing import Any, TypeVar, Generic, TypedDict, cast, TYPE_CHECKING
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
 import requests
-from reretry import retry
-import rich
+from reretry import retry  # type: ignore
 from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.table import Table, box
@@ -29,26 +29,24 @@ from rich.text import Text
 from rich.padding import Padding
 from rich.panel import Panel
 from rich import print as rich_print
-from fsspec.core import url_to_fs
-from fsspec.implementations.local import LocalFileSystem
-
+from fsspec.core import url_to_fs  # type: ignore
+from fsspec.implementations.local import LocalFileSystem  # type: ignore
 
 from hpcflow import __version__
 from hpcflow.sdk.core.actions import EARStatus
-from hpcflow.sdk.core.errors import WorkflowNotFoundError
-from hpcflow.sdk.core.object_list import ObjectList
 from hpcflow.sdk.core.utils import (
     read_YAML_str,
     read_YAML_file,
     read_JSON_file,
     write_YAML_file,
     write_JSON_file,
+    parse_timestamp,
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
 from hpcflow.sdk.core import ALL_TEMPLATE_FORMATS
 from hpcflow.sdk.log import AppLog, TimeIt
-from hpcflow.sdk.persistence import DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
@@ -60,11 +58,130 @@ from hpcflow.sdk.submission.shells.os_version import (
 )
 from hpcflow.sdk.typing import PathLike
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Mapping
+    from types import ModuleType
+    from typing import Dict, Literal
+    from typing_extensions import NotRequired
+    from rich.status import Status
+    from .core.actions import (
+        ElementActionRun,
+        ElementAction,
+        ActionEnvironment,
+        Action,
+        ActionScope,
+        ActionScopeType,
+        ActionRule,
+    )
+    from .core.command_files import (
+        FileSpec,
+        FileNameSpec,
+        InputFileGenerator,
+        FileNameStem,
+        FileNameExt,
+        OutputFileParser,
+    )
+    from .core.commands import Command
+    from .core.element import (
+        ElementInputs,
+        ElementOutputs,
+        ElementInputFiles,
+        ElementOutputFiles,
+        ElementIteration,
+        Element,
+        ElementParameter,
+        ElementResources,
+        ElementFilter,
+        ElementGroup,
+    )
+    from .core.environment import NumCores, Environment, Executable, ExecutableInstance
+    from .core.loop import Loop, WorkflowLoop
+    from .core.object_list import (
+        CommandFilesList as CommandFilesList_,
+        EnvironmentsList as _EnvironmentsList,
+        ExecutablesList,
+        GroupList,
+        ParametersList as _ParametersList,
+        ResourceList,
+        TaskList,
+        TaskSchemasList as _TaskSchemasList,
+        TaskTemplateList,
+        WorkflowLoopList,
+        WorkflowTaskList,
+    )
+    from .core.parameters import (
+        SchemaParameter,
+        InputValue,
+        Parameter,
+        ParameterValue,
+        InputSource,
+        ResourceSpec,
+        SchemaOutput,
+        InputSourceType,
+        ValueSequence,
+        SchemaInput,
+    )
+    from .core.rule import Rule
+    from .core.run_dir_files import RunDirAppFiles
+    from .core.task import (
+        Task,
+        WorkflowTask,
+        Parameters,
+        TaskInputParameters,
+        TaskOutputParameters,
+        ElementPropagation,
+        ElementSet,
+        TaskSourceType,
+    )
+    from .core.task_schema import TaskSchema, TaskObjective
+    from .core.workflow import (
+        Workflow as _Workflow,
+        WorkflowTemplate as _WorkflowTemplate,
+    )
+    from .submission.jobscript import Jobscript
+    from .submission.submission import Submission
+    from .submission.schedulers import Scheduler, QueuedScheduler
+    from .submission.schedulers.direct import DirectPosix, DirectWindows
+    from .submission.schedulers.sge import SGEPosix
+    from .submission.schedulers.slurm import SlurmPosix
+    from .submission.shells.base import VersionInfo
+
 SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
+T = TypeVar("T")
 
-def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
+
+class KnownSubmission(TypedDict):
+    local_id: int
+    workflow_id: str
+    is_active: bool
+    sub_idx: int
+    submit_time: str
+    path: str
+    start_time: str
+    end_time: str
+
+
+class KnownSubmissionItem(TypedDict):
+    local_id: int
+    workflow_id: str
+    workflow_path: str
+    submit_time: str
+    submit_time_obj: NotRequired[datetime | None]
+    start_time: str
+    start_time_obj: datetime | None
+    end_time: str
+    end_time_obj: datetime | None
+    sub_idx: int
+    jobscripts: list[int]
+    active_jobscripts: dict[int, dict[int, JobscriptElementState]]
+    deleted: bool
+    unloadable: bool
+    submission: NotRequired[Submission]
+
+
+def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
     """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s
 
     References
@@ -105,7 +222,7 @@ def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
 
 
 def __getattr__(name):
-    """Allow access to core classes and API functions (useful for type annotations)."""
+    """Allow access to core classes and API functions."""
     try:
         return get_app_attribute(name)
     except AttributeError:
@@ -124,18 +241,18 @@ def get_app_attribute(name):
         raise AttributeError(f"module {app_obj.module!r} has no attribute {name!r}.")
 
 
-def get_app_module_all():
+def get_app_module_all() -> list[str]:
     return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
 
 
-def get_app_module_dir():
+def get_app_module_dir() -> Callable[[], list[str]]:
     return lambda: sorted(get_app_module_all())
 
 
-class Singleton(type):
-    _instances = {}
+class Singleton(type, Generic[T]):
+    _instances: dict[Singleton[T], Any] = {}
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls: Singleton[T], *args, **kwargs) -> T:
         SDK_logger.info(
             f"App metaclass __call__: "
             f"name={kwargs['name']!r}, version={kwargs['version']!r}."
@@ -145,12 +262,20 @@ class Singleton(type):
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
-    def get_instance(cls):
+    def get_instance(cls: Singleton[T]) -> T:
         """Retrieve the instance of the singleton class if initialised."""
         try:
             return cls._instances[cls]
         except KeyError:
             raise RuntimeError(f"{cls.__name__!r} object has not be instantiated!")
+
+
+class TemplateComponents(TypedDict):
+    parameters: NotRequired[_ParametersList]
+    command_files: NotRequired[CommandFilesList_]
+    environments: NotRequired[_EnvironmentsList]
+    task_schemas: NotRequired[_TaskSchemasList]
+    scripts: NotRequired[dict[str, Path]]
 
 
 class BaseApp(metaclass=Singleton):
@@ -172,21 +297,22 @@ class BaseApp(metaclass=Singleton):
     _known_subs_file_name = "known_submissions.txt"
     _known_subs_file_sep = "::"
     _submission_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
+    __load_pending = False
 
     def __init__(
         self,
-        name,
-        version,
+        name: str,
+        version: str,
         module,
-        description,
-        gh_org,
-        gh_repo,
+        description: str,
+        gh_org: str,
+        gh_repo: str,
         config_options,
-        scripts_dir,
-        workflows_dir: str = None,
-        demo_data_dir: str = None,
-        demo_data_manifest_dir: str = None,
-        template_components: Dict = None,
+        scripts_dir: str,
+        workflows_dir: str | None = None,
+        demo_data_dir: str | None = None,
+        demo_data_manifest_dir: str | None = None,
+        template_components: dict[str, list[Dict]] | None = None,
         pytest_args=None,
         package_name=None,
         docs_import_conv=None,
@@ -213,7 +339,7 @@ class BaseApp(metaclass=Singleton):
         self.cli = make_cli(self)
 
         self._log = AppLog(self)
-        self._run_time_info: RunTimeInfo = RunTimeInfo(
+        self._run_time_info = RunTimeInfo(
             self.name,
             self.package_name,
             self.version,
@@ -222,74 +348,421 @@ class BaseApp(metaclass=Singleton):
 
         self._builtin_template_components = template_components or {}
 
-        self._config = None  # assigned on first access to `config` property
-        self._config_files = {}  # assigned on config load, keys are string absolute paths
+        self._config: Config | None = (
+            None  # assigned on first access to `config` property
+        )
+        self._config_files: dict[
+            str, ConfigFile
+        ] = {}  # assigned on config load, keys are string absolute paths
 
         # Set by `_load_template_components`:
-        self._template_components = {}
-        self._parameters = None
-        self._command_files = None
-        self._environments = None
-        self._task_schemas = None
-        self._scripts = None
+        self._template_components: TemplateComponents = {}
+        self._parameters: _ParametersList | None = None
+        self._command_files: CommandFilesList_ | None = None
+        self._environments: _EnvironmentsList | None = None
+        self._task_schemas: _TaskSchemasList | None = None
+        self._scripts: dict[str, Path] | None = None
 
-        self._app_attr_cache = {}
+        self.__app_type_cache: dict[str, type] = {}
+        self.__app_func_cache: dict[str, Callable[..., Any]] = {}
 
         # assigned on first access to respective properties
-        self._user_data_dir = None
-        self._user_cache_dir = None
-        self._user_runtime_dir = None
-        self._user_data_hostname_dir = None
-        self._user_cache_hostname_dir = None
-        self._demo_data_cache_dir = None
+        self._user_data_dir: Path | None = None
+        self._user_cache_dir: Path | None = None
+        self._user_runtime_dir: Path | None = None
+        self._user_data_hostname_dir: Path | None = None
+        self._user_cache_hostname_dir: Path | None = None
+        self._demo_data_cache_dir: Path | None = None
+
+    @property
+    def ElementActionRun(self) -> type[ElementActionRun]:
+        return self._get_app_core_class("ElementActionRun")
+
+    @property
+    def ElementAction(self) -> type[ElementAction]:
+        return self._get_app_core_class("ElementAction")
+
+    @property
+    def ElementFilter(self) -> type[ElementFilter]:
+        return self._get_app_core_class("ElementFilter")
+
+    @property
+    def ElementGroup(self) -> type[ElementGroup]:
+        return self._get_app_core_class("ElementGroup")
+
+    @property
+    def Environment(self) -> type[Environment]:
+        return self._get_app_core_class("Environment")
+
+    @property
+    def Executable(self) -> type[Executable]:
+        return self._get_app_core_class("Executable")
+
+    @property
+    def ExecutableInstance(self) -> type[ExecutableInstance]:
+        return self._get_app_core_class("ExecutableInstance")
+
+    @property
+    def NumCores(self) -> type[NumCores]:
+        return self._get_app_core_class("NumCores")
+
+    @property
+    def ActionEnvironment(self) -> type[ActionEnvironment]:
+        return self._get_app_core_class("ActionEnvironment")
+
+    @property
+    def Action(self) -> type[Action]:
+        return self._get_app_core_class("Action")
+
+    @property
+    def ActionRule(self) -> type[ActionRule]:
+        return self._get_app_core_class("ActionRule")
+
+    @property
+    def ActionScope(self) -> type[ActionScope]:
+        return self._get_app_core_class("ActionScope")
+
+    @property
+    def ActionScopeType(self) -> type[ActionScopeType]:
+        return self._get_app_core_class("ActionScopeType")
+
+    @property
+    def FileSpec(self) -> type[FileSpec]:
+        return self._get_app_core_class("FileSpec")
+
+    @property
+    def FileNameSpec(self) -> type[FileNameSpec]:
+        return self._get_app_core_class("FileNameSpec")
+
+    @property
+    def FileNameStem(self) -> type[FileNameStem]:
+        return self._get_app_core_class("FileNameStem")
+
+    @property
+    def FileNameExt(self) -> type[FileNameExt]:
+        return self._get_app_core_class("FileNameExt")
+
+    @property
+    def OutputFileParser(self) -> type[OutputFileParser]:
+        return self._get_app_core_class("OutputFileParser")
+
+    @property
+    def InputSource(self) -> type[InputSource]:
+        return self._get_app_core_class("InputSource")
+
+    @property
+    def InputSourceType(self) -> type[InputSourceType]:
+        return self._get_app_core_class("InputSourceType")
+
+    @property
+    def ValueSequence(self) -> type[ValueSequence]:
+        return self._get_app_core_class("ValueSequence")
+
+    @property
+    def SchemaInput(self) -> type[SchemaInput]:
+        return self._get_app_core_class("SchemaInput")
+
+    @property
+    def InputFileGenerator(self) -> type[InputFileGenerator]:
+        return self._get_app_core_class("InputFileGenerator")
+
+    @property
+    def Command(self) -> type[Command]:
+        return self._get_app_core_class("Command")
+
+    @property
+    def ElementInputs(self) -> type[ElementInputs]:
+        return self._get_app_core_class("ElementInputs")
+
+    @property
+    def ElementOutputs(self) -> type[ElementOutputs]:
+        return self._get_app_core_class("ElementOutputs")
+
+    @property
+    def ElementInputFiles(self) -> type[ElementInputFiles]:
+        return self._get_app_core_class("ElementInputFiles")
+
+    @property
+    def ElementOutputFiles(self) -> type[ElementOutputFiles]:
+        return self._get_app_core_class("ElementOutputFiles")
+
+    @property
+    def ElementResources(self) -> type[ElementResources]:
+        return self._get_app_core_class("ElementResources")
+
+    @property
+    def ElementIteration(self) -> type[ElementIteration]:
+        return self._get_app_core_class("ElementIteration")
+
+    @property
+    def ElementSet(self) -> type[ElementSet]:
+        return self._get_app_core_class("ElementSet")
+
+    @property
+    def Element(self) -> type[Element]:
+        return self._get_app_core_class("Element")
+
+    @property
+    def ElementParameter(self) -> type[ElementParameter]:
+        return self._get_app_core_class("ElementParameter")
+
+    @property
+    def Loop(self) -> type[Loop]:
+        return self._get_app_core_class("Loop")
+
+    @property
+    def WorkflowLoop(self) -> type[WorkflowLoop]:
+        return self._get_app_core_class("WorkflowLoop")
+
+    @property
+    def CommandFilesList(self) -> type[CommandFilesList_]:
+        return self._get_app_core_class("CommandFilesList")
+
+    @property
+    def EnvironmentsList(self) -> type[_EnvironmentsList]:
+        return self._get_app_core_class("EnvironmentsList")
+
+    @property
+    def ExecutablesList(self) -> type[ExecutablesList]:
+        return self._get_app_core_class("ExecutablesList")
+
+    @property
+    def GroupList(self) -> type[GroupList]:
+        return self._get_app_core_class("GroupList")
+
+    @property
+    def ParametersList(self) -> type[_ParametersList]:
+        return self._get_app_core_class("ParametersList")
+
+    @property
+    def ResourceList(self) -> type[ResourceList]:
+        return self._get_app_core_class("ResourceList")
+
+    @property
+    def ResourceSpec(self) -> type[ResourceSpec]:
+        return self._get_app_core_class("ResourceSpec")
+
+    @property
+    def TaskList(self) -> type[TaskList]:
+        return self._get_app_core_class("TaskList")
+
+    @property
+    def TaskSchemasList(self) -> type[_TaskSchemasList]:
+        return self._get_app_core_class("TaskSchemasList")
+
+    @property
+    def TaskTemplateList(self) -> type[TaskTemplateList]:
+        return self._get_app_core_class("TaskTemplateList")
+
+    @property
+    def WorkflowLoopList(self) -> type[WorkflowLoopList]:
+        return self._get_app_core_class("WorkflowLoopList")
+
+    @property
+    def WorkflowTaskList(self) -> type[WorkflowTaskList]:
+        return self._get_app_core_class("WorkflowTaskList")
+
+    @property
+    def SchemaParameter(self) -> type[SchemaParameter]:
+        return self._get_app_core_class("SchemaParameter")
+
+    @property
+    def SchemaOutput(self) -> type[SchemaOutput]:
+        return self._get_app_core_class("SchemaOutput")
+
+    @property
+    def Rule(self) -> type[Rule]:
+        return self._get_app_core_class("Rule")
+
+    @property
+    def RunDirAppFiles(self) -> type[RunDirAppFiles]:
+        return self._get_app_core_class("RunDirAppFiles")
+
+    @property
+    def WorkflowTask(self) -> type[WorkflowTask]:
+        return self._get_app_core_class("WorkflowTask")
+
+    @property
+    def Parameters(self) -> type[Parameters]:
+        return self._get_app_core_class("Parameters")
+
+    @property
+    def Parameter(self) -> type[Parameter]:
+        return self._get_app_core_class("Parameter")
+
+    @property
+    def ParameterValue(self) -> type[ParameterValue]:
+        return self._get_app_core_class("ParameterValue")
+
+    @property
+    def InputValue(self) -> type[InputValue]:
+        return self._get_app_core_class("InputValue")
+
+    @property
+    def Task(self) -> type[Task]:
+        return self._get_app_core_class("Task")
+
+    @property
+    def TaskSchema(self) -> type[TaskSchema]:
+        return self._get_app_core_class("TaskSchema")
+
+    @property
+    def TaskSourceType(self) -> type[TaskSourceType]:
+        return self._get_app_core_class("TaskSourceType")
+
+    @property
+    def TaskObjective(self) -> type[TaskObjective]:
+        return self._get_app_core_class("TaskObjective")
+
+    @property
+    def TaskInputParameters(self) -> type[TaskInputParameters]:
+        return self._get_app_core_class("TaskInputParameters")
+
+    @property
+    def TaskOutputParameters(self) -> type[TaskOutputParameters]:
+        return self._get_app_core_class("TaskOutputParameters")
+
+    @property
+    def ElementPropagation(self) -> type[ElementPropagation]:
+        return self._get_app_core_class("ElementPropagation")
+
+    @property
+    def WorkflowTemplate(self) -> type[_WorkflowTemplate]:
+        return self._get_app_core_class("WorkflowTemplate")
+
+    @property
+    def Workflow(self) -> type[_Workflow]:
+        return self._get_app_core_class("Workflow")
+
+    @property
+    def Jobscript(self) -> type[Jobscript]:
+        return self._get_app_core_class("Jobscript")
+
+    @property
+    def Submission(self) -> type[Submission]:
+        return self._get_app_core_class("Submission")
+
+    @property
+    def DirectPosix(self) -> type[DirectPosix]:
+        return self._get_app_core_class("DirectPosix")
+
+    @property
+    def DirectWindows(self) -> type[DirectWindows]:
+        return self._get_app_core_class("DirectWindows")
+
+    @property
+    def SGEPosix(self) -> type[SGEPosix]:
+        return self._get_app_core_class("SGEPosix")
+
+    @property
+    def SlurmPosix(self) -> type[SlurmPosix]:
+        return self._get_app_core_class("SlurmPosix")
+
+    @property
+    def QueuedScheduler(self) -> type[QueuedScheduler]:
+        from .submission.schedulers import QueuedScheduler as QS
+
+        return QS
+
+    @property
+    def make_workflow(self) -> Callable[..., _Workflow]:
+        return self.__get_app_func("make_workflow")
+
+    @property
+    def make_demo_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("make_demo_workflow")
+
+    @property
+    def make_and_submit_workflow(self) -> Callable[..., tuple[int, ...]]:
+        return self.__get_app_func("make_and_submit_workflow")
+
+    @property
+    def make_and_submit_demo_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("make_and_submit_demo_workflow")
+
+    @property
+    def submit_workflow(self) -> Callable[..., Any]:
+        return self.__get_app_func("submit_workflow")
+
+    @property
+    def run_hpcflow_tests(self) -> Callable[..., int]:
+        return self.__get_app_func("run_hpcflow_tests")
+
+    @property
+    def run_tests(self) -> Callable[..., int]:
+        return self.__get_app_func("run_tests")
+
+    @property
+    def get_OS_info(self) -> Callable[..., Mapping[str, str]]:
+        return self.__get_app_func("get_OS_info")
+
+    @property
+    def get_shell_info(self) -> Callable[[str, bool], VersionInfo]:
+        return self.__get_app_func("get_shell_info")
+
+    @property
+    def get_known_submissions(self) -> Callable[..., list[KnownSubmissionItem]]:
+        return self.__get_app_func("get_known_submissions")
+
+    @property
+    def show(self) -> Callable[..., None]:
+        return self.__get_app_func("show")
+
+    @property
+    def show_legend(self) -> Callable[[], None]:
+        return self.__get_app_func("show_legend")
+
+    @property
+    def cancel(self) -> Callable[..., None]:
+        return self.__get_app_func("cancel")
 
     def __getattr__(self, name):
         if name in sdk_classes:
             return self._get_app_core_class(name)
         elif name in sdk_funcs:
-            return self._get_app_func(name)
+            return self.__get_app_func(name)
         else:
             raise AttributeError(f"module {__name__!r} has no attribute {name!r}.")
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.name!r}, version={self.version!r})"
 
-    def _get_app_core_class(self, name: str) -> Type:
-        if name not in self._app_attr_cache:
-            obj_mod = import_module(sdk_classes[name])
-            cls = getattr(obj_mod, name)
-            if issubclass(cls, enum.Enum):
-                sub_cls = cls
-            else:
-                dct = {}
-                if hasattr(cls, "_app_attr"):
-                    dct = {getattr(cls, "_app_attr"): self}
-                sub_cls = type(cls.__name__, (cls,), dct)
-                if cls.__doc__:
-                    sub_cls.__doc__ = cls.__doc__.format(app_name=self.name)
-            sub_cls.__module__ = self.module
-            self._app_attr_cache[name] = sub_cls
+    def _get_app_core_class(self, name: str) -> type:
+        if name in self.__app_type_cache:
+            return self.__app_type_cache[name]
+        obj_mod = import_module(sdk_classes[name])
+        cls = getattr(obj_mod, name)
+        if issubclass(cls, enum.Enum):
+            sub_cls = cls
+        else:
+            dct: dict[str, Any] = {}
+            if hasattr(cls, "_app_attr"):
+                dct = {getattr(cls, "_app_attr"): self}
+            sub_cls = type(cls.__name__, (cls,), dct)
+            if cls.__doc__:
+                sub_cls.__doc__ = cls.__doc__.format(app_name=self.name)
+        sub_cls.__module__ = self.module
+        self.__app_type_cache[name] = sub_cls
+        return sub_cls
 
-        return self._app_attr_cache[name]
+    def __get_app_func(self, name) -> Callable[..., Any]:
+        if name in self.__app_func_cache:
+            return self.__app_func_cache[name]
 
-    def _get_app_func(self, name) -> Callable:
-        if name not in self._app_attr_cache:
+        def wrap_func(func) -> Callable[..., Any]:
+            # this function avoids scope issues
+            return lambda *args, **kwargs: func(*args, **kwargs)
 
-            def wrap_func(func):
-                # this function avoids scope issues
-                return lambda *args, **kwargs: func(*args, **kwargs)
+        # retrieve the "private" function:
+        sdk_func = getattr(self, f"_{name}")
 
-            # retrieve the "private" function:
-            sdk_func = getattr(self, f"_{name}")
-
-            func = wrap_func(sdk_func)
-            func = wraps(sdk_func)(func)
-            if func.__doc__:
-                func.__doc__ = func.__doc__.format(app_name=self.name)
-            func.__module__ = self.module
-            self._app_attr_cache[name] = func
-
-        return self._app_attr_cache[name]
+        func = wrap_func(sdk_func)
+        func = wraps(sdk_func)(func)
+        if func.__doc__:
+            func.__doc__ = func.__doc__.format(app_name=self.name)
+        func.__module__ = self.module
+        self.__app_func_cache[name] = func
+        return func
 
     @property
     def run_time_info(self) -> RunTimeInfo:
@@ -308,10 +781,18 @@ class BaseApp(metaclass=Singleton):
         TimeIt.active = bool(value)
 
     @property
-    def template_components(self) -> Dict[str, ObjectList]:
+    def template_components(self) -> TemplateComponents:
         if not self.is_template_components_loaded:
+            if BaseApp.__load_pending:
+                return {}
+            BaseApp.__load_pending = True
             self._load_template_components()
+            BaseApp.__load_pending = False
         return self._template_components
+
+    @property
+    def _shared_data(self) -> Mapping[str, Any]:
+        return cast("Mapping[str, Any]", self.template_components)
 
     def _ensure_template_component(self, name) -> None:
         """Invoked by access to individual template components (e.g. parameters)"""
@@ -334,45 +815,47 @@ class BaseApp(metaclass=Singleton):
         self._load_template_components()
 
     @TimeIt.decorator
-    def _load_template_components(self, *include) -> None:
+    def _load_template_components(self, *include: str) -> None:
         """Combine any builtin template components with user-defined template components
         and initialise list objects."""
 
         if not include or "task_schemas" in include:
             # task schemas require all other template components to be loaded first
-            include = [
+            include = (
                 "parameters",
                 "command_files",
                 "environments",
                 "task_schemas",
                 "scripts",
-            ]
+            )
 
         self.logger.debug(f"Loading template components: {include!r}.")
 
-        self_tc = self._template_components
+        self_tc: Any = self._template_components
 
         if "parameters" in include:
-            params = self._builtin_template_components.get("parameters", [])
+            params: list[Any] = self._builtin_template_components.get("parameters", [])
             for path in self.config.parameter_sources:
                 params.extend(read_YAML_file(path))
-            self_tc["parameters"] = self.ParametersList.from_json_like(
-                params, shared_data=self_tc
-            )
-            self._parameters = self_tc["parameters"]
+            param_list = self.ParametersList.from_json_like(params, shared_data=self_tc)
+            self._template_components["parameters"] = param_list
+            self._parameters = param_list
 
         if "command_files" in include:
-            cmd_files = self._builtin_template_components.get("command_files", [])
+            cmd_files: list[Any] = self._builtin_template_components.get(
+                "command_files", []
+            )
             for path in self.config.command_file_sources:
                 cmd_files.extend(read_YAML_file(path))
-            self_tc["command_files"] = self.CommandFilesList.from_json_like(
-                cmd_files, shared_data=self_tc
-            )
-            self._command_files = self_tc["command_files"]
+            cf_list = self.CommandFilesList.from_json_like(cmd_files, shared_data=self_tc)
+            self._template_components["command_files"] = cf_list
+            self._command_files = cf_list
 
         if "environments" in include:
             envs = []
-            builtin_envs = self._builtin_template_components.get("environments", [])
+            builtin_envs: list[Any] = self._builtin_template_components.get(
+                "environments", []
+            )
             for path in self.config.environment_sources:
                 envs_i_lst = read_YAML_file(path)
                 for env_j in envs_i_lst:
@@ -382,71 +865,90 @@ class BaseApp(metaclass=Singleton):
                             builtin_envs.pop(b_idx)
                     envs.append(env_j)
             envs = builtin_envs + envs
-            self_tc["environments"] = self.EnvironmentsList.from_json_like(
-                envs, shared_data=self_tc
-            )
-            self._environments = self_tc["environments"]
+            env_list = self.EnvironmentsList.from_json_like(envs, shared_data=self_tc)
+            self._template_components["environments"] = env_list
+            self._environments = env_list
 
         if "task_schemas" in include:
-            schemas = self._builtin_template_components.get("task_schemas", [])
+            schemas: list[Any] = self._builtin_template_components.get("task_schemas", [])
             for path in self.config.task_schema_sources:
                 schemas.extend(read_YAML_file(path))
-            self_tc["task_schemas"] = self.TaskSchemasList.from_json_like(
-                schemas, shared_data=self_tc
-            )
-            self._task_schemas = self_tc["task_schemas"]
+            ts_list = self.TaskSchemasList.from_json_like(schemas, shared_data=self_tc)
+            self._template_components["task_schemas"] = ts_list
+            self._task_schemas = ts_list
 
         if "scripts" in include:
-            self_tc["scripts"] = self._load_scripts()
-            self._scripts = self_tc["scripts"]
+            scripts = self._load_scripts()
+            self._template_components["scripts"] = scripts
+            self._scripts = scripts
 
         self.logger.info(f"Template components loaded ({include!r}).")
 
+    @staticmethod
+    def __open_text_resource(package: ModuleType | str, resource: str):
+        try:
+            return resources.files(package).joinpath(resource).open("r")
+        except AttributeError:
+            # < python 3.9; `resource.open_text` deprecated since 3.11
+            return resources.open_text(package, resource)
+
+    @staticmethod
+    def __get_file_context(
+        package: ModuleType | str, src: str
+    ) -> AbstractContextManager[Path] | None:
+        try:
+            try:
+                return resources.as_file(resources.files(package).joinpath(src))
+                # raises ModuleNotFoundError
+            except AttributeError:
+                # < python 3.9
+                return resources.path(package, src)
+        except ModuleNotFoundError:
+            return None
+
     @classmethod
     def load_builtin_template_component_data(
-        cls, package
-    ) -> Dict[str, Union[List, Dict]]:
+        cls, package: ModuleType | str
+    ) -> dict[str, list[Dict]]:
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
-        components = {}
+        components: dict[str, list[Dict]] = {}
         for comp_type in TEMPLATE_COMP_TYPES:
-            resource = f"{comp_type}.yaml"
-            try:
-                fh = resources.files(package).joinpath(resource).open("rt")
-            except AttributeError:
-                # < python 3.9; `resource.open_text` deprecated since 3.11
-                fh = resources.open_text(package, resource)
-            SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
-            comp_dat = fh.read()
-            components[comp_type] = read_YAML_str(comp_dat)
-            fh.close()
+            with cls.__open_text_resource(package, f"{comp_type}.yaml") as fh:
+                SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
+                components[comp_type] = read_YAML_str(fh.read())
 
         return components
 
     @property
-    def parameters(self) -> get_app_attribute("ParametersList"):
+    def parameters(self) -> _ParametersList:
         self._ensure_template_component("parameters")
+        assert self._parameters is not None
         return self._parameters
 
     @property
-    def command_files(self) -> get_app_attribute("CommandFilesList"):
+    def command_files(self) -> CommandFilesList_:
         self._ensure_template_component("command_files")
+        assert self._command_files is not None
         return self._command_files
 
     @property
-    def envs(self) -> get_app_attribute("EnvironmentsList"):
+    def envs(self) -> _EnvironmentsList:
         self._ensure_template_component("environments")
+        assert self._environments is not None
         return self._environments
 
     @property
-    def scripts(self):
+    def scripts(self) -> dict[str, Path]:
         self._ensure_template_component("scripts")
+        assert self._scripts is not None
         return self._scripts
 
     @property
-    def task_schemas(self) -> get_app_attribute("TaskSchemasList"):
+    def task_schemas(self) -> _TaskSchemasList:
         self._ensure_template_component("task_schemas")
+        assert self._task_schemas is not None
         return self._task_schemas
 
     @property
@@ -490,10 +992,11 @@ class BaseApp(metaclass=Singleton):
     def config(self) -> Config:
         if not self.is_config_loaded:
             self.load_config()
+        assert self._config
         return self._config
 
     @property
-    def scheduler_lookup(self):
+    def scheduler_lookup(self) -> dict[tuple[str, str], type[Scheduler]]:
         return {
             ("direct", "posix"): self.DirectPosix,
             ("direct", "nt"): self.DirectWindows,
@@ -501,14 +1004,20 @@ class BaseApp(metaclass=Singleton):
             ("slurm", "posix"): self.SlurmPosix,
         }
 
-    def get_scheduler(self, scheduler_name, os_name, scheduler_args=None):
+    def get_scheduler(
+        self,
+        scheduler_name: str,
+        os_name: str,
+        scheduler_args: dict[str, Any] | None = None,
+    ) -> Scheduler:
         """Get an arbitrary scheduler object."""
-        scheduler_args = scheduler_args or {}
+        scheduler_kwargs = scheduler_args or {}
 
         os_name = os_name.lower()
         if os_name == "nt" and "_" in scheduler_name:
             # e.g. WSL on windows uses *_posix
             key = tuple(scheduler_name.split("_"))
+            assert len(key) == 2
         else:
             key = (scheduler_name.lower(), os_name)
 
@@ -518,9 +1027,9 @@ class BaseApp(metaclass=Singleton):
             raise ValueError(
                 f"Unsupported combination of scheduler and operation system: {key!r}"
             )
-        return scheduler_cls(**scheduler_args)
+        return scheduler_cls(**scheduler_kwargs)
 
-    def get_OS_supported_schedulers(self):
+    def get_OS_supported_schedulers(self) -> list[str]:
         """Retrieve a list of schedulers that are supported in principle by this operating
         system.
 
@@ -528,7 +1037,7 @@ class BaseApp(metaclass=Singleton):
         system.
 
         """
-        out = []
+        out: list[str] = []
         for k in self.scheduler_lookup:
             if os.name == "nt" and k == ("direct", "posix"):
                 # this is valid for WSL on Windows
@@ -654,25 +1163,25 @@ class BaseApp(metaclass=Singleton):
             )
         return self.user_cache_hostname_dir
 
-    def clear_user_runtime_dir(self):
+    def clear_user_runtime_dir(self) -> None:
         """Delete the contents of the user runtime directory."""
         if self.user_runtime_dir.exists():
             shutil.rmtree(self.user_runtime_dir)
             self._ensure_user_runtime_dir()
 
-    def clear_user_cache_dir(self):
+    def clear_user_cache_dir(self) -> None:
         """Delete the contents of the cache directory."""
         if self.user_cache_dir.exists():
             shutil.rmtree(self.user_cache_dir)
             self._ensure_user_cache_dir()
 
-    def clear_demo_data_cache_dir(self):
+    def clear_demo_data_cache_dir(self) -> None:
         """Delete the contents of the example data files cache directory."""
         if self.demo_data_cache_dir.exists():
             shutil.rmtree(self.demo_data_cache_dir)
             self._ensure_demo_data_cache_dir()
 
-    def clear_user_cache_hostname_dir(self):
+    def clear_user_cache_hostname_dir(self) -> None:
         """Delete the contents of the hostname-scoped cache directory."""
         if self.user_cache_hostname_dir.exists():
             shutil.rmtree(self.user_cache_hostname_dir)
@@ -722,11 +1231,11 @@ class BaseApp(metaclass=Singleton):
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_key, **overrides)
 
-    def unload_config(self):
+    def unload_config(self) -> None:
         self._config_files = {}
         self._config = None
 
-    def get_config_path(self, config_dir=None):
+    def get_config_path(self, config_dir=None) -> Path:
         """Return the full path to the config file, without loading the config."""
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
@@ -735,7 +1244,7 @@ class BaseApp(metaclass=Singleton):
         )
         return ConfigFile.get_config_file_path(config_dir)
 
-    def _delete_config_file(self, config_dir=None):
+    def _delete_config_file(self, config_dir=None) -> None:
         """Delete the config file."""
         config_path = self.get_config_path(config_dir=config_dir)
         self.logger.info(f"deleting config file: {str(config_path)!r}.")
@@ -749,7 +1258,7 @@ class BaseApp(metaclass=Singleton):
         **overrides,
     ) -> None:
         """Reset the config file to defaults, and reload the config."""
-        self.logger.info(f"resetting config")
+        self.logger.info("resetting config")
         self._delete_config_file(config_dir=config_dir)
         self._config = None
         self._config_files = {}
@@ -769,7 +1278,7 @@ class BaseApp(metaclass=Singleton):
         self._load_config(config_dir, config_key, **overrides)
 
     @TimeIt.decorator
-    def _load_scripts(self):
+    def _load_scripts(self) -> dict[str, Path]:
 
         # TODO: load custom directories / custom functions (via decorator)
         scripts_package = f"{self.package_name}.{self.scripts_dir}"
@@ -780,43 +1289,39 @@ class BaseApp(metaclass=Singleton):
             # < python 3.9; `resource.path` deprecated since 3.11
             ctx = resources.path(scripts_package, "")
 
-        scripts = {}
+        scripts: dict[str, Path] = {}
         with ctx as path:
             for dirpath, _, filenames in os.walk(path):
-                dirpath = Path(dirpath)
-                if dirpath.name == "__pycache__":
+                dirpath_ = Path(dirpath)
+                if dirpath_.name == "__pycache__":
                     continue
                 for filename in filenames:
                     if filename == "__init__.py":
                         continue
-                    val = dirpath.joinpath(filename)
+                    val = dirpath_.joinpath(filename)
                     key = str(val.relative_to(path).as_posix())
                     scripts[key] = Path(val)
 
         return scripts
 
-    def _get_demo_workflows(self) -> Dict[str, Path]:
+    def _get_demo_workflows(self) -> dict[str, Path]:
         """Get all builtin demo workflow template file paths."""
         templates = {}
         pkg = f"{self.package_name}.{self.workflows_dir}"
-        try:
-            files = resources.files(pkg).iterdir()
-        except AttributeError:
-            # python 3.8; `resources.contents` deprecated since 3.11
-            files = resources.contents(pkg)
-        for i in files:
-            if i.suffix in (".yaml", ".yml", ".json", ".jsonc"):
-                templates[i.stem] = i
+        for i in resources.files(pkg).iterdir():
+            p = Path(i.name)
+            if p.suffix in (".yaml", ".yml", ".json", ".jsonc"):
+                templates[p.stem] = p
         return templates
 
-    def list_demo_workflows(self) -> Tuple[str]:
+    def list_demo_workflows(self) -> tuple[str, ...]:
         """Return a list of demo workflow templates included in the app."""
         return tuple(sorted(self._get_demo_workflows().keys()))
 
     @contextmanager
     def get_demo_workflow_template_file(
         self, name: str, doc: bool = True, delete: bool = True
-    ) -> Path:
+    ) -> Iterator[Path]:
         """Context manager to get a (temporary) file path to an included demo workflow
         template.
 
@@ -842,12 +1347,12 @@ class BaseApp(metaclass=Singleton):
             # load the file, modify, then dump to temp location:
             if builtin_path.suffix in (".yaml", ".yml"):
                 # use round-trip loader to preserve comments:
-                data = read_YAML_file(builtin_path, typ="rt", variables=False)
+                data = read_YAML_file(builtin_path, typ="rt", variables={})
                 data.pop("doc", None)
                 write_YAML_file(data, path, typ="rt")
 
             elif builtin_path.suffix in (".json", ".jsonc"):
-                data = read_JSON_file(builtin_path, variables=False)
+                data = read_JSON_file(builtin_path, variables={})
                 data.pop("doc", None)
                 write_JSON_file(data, path)
 
@@ -857,7 +1362,7 @@ class BaseApp(metaclass=Singleton):
             path.unlink()
 
     def copy_demo_workflow(
-        self, name: str, dst: Optional[PathLike] = None, doc: bool = True
+        self, name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
         """Copy a builtin demo workflow to the specified location.
 
@@ -898,39 +1403,39 @@ class BaseApp(metaclass=Singleton):
 
             if syntax:
                 fmt = DEMO_WK_FORMATS[path.suffix]
-                contents = Syntax(contents, fmt)
-                console = Console()
-                console.print(contents)
+                Console().print(Syntax(contents, fmt))
             else:
                 print(contents)
 
-    def load_demo_workflow(self, name: str) -> get_app_attribute("WorkflowTemplate"):
+    def load_demo_workflow(self, name: str) -> _WorkflowTemplate:
         """Load a WorkflowTemplate object from a builtin demo template file."""
         with self.get_demo_workflow_template_file(name) as path:
             return self.WorkflowTemplate.from_file(path)
 
-    def template_components_from_json_like(self, json_like) -> None:
-        cls_lookup = {
-            "parameters": self.ParametersList,
-            "command_files": self.CommandFilesList,
-            "environments": self.EnvironmentsList,
-            "task_schemas": self.TaskSchemasList,
-        }
-        tc = {}
-        for k, v in cls_lookup.items():
-            tc_k = v.from_json_like(
-                json_like.get(k, {}),
-                shared_data=tc,
-                is_hashed=True,
-            )
-            tc[k] = tc_k
+    def template_components_from_json_like(
+        self, json_like: dict[str, dict]
+    ) -> TemplateComponents:
+        tc: TemplateComponents = {}
+        sd: Mapping[str, Any] = tc
+        tc["parameters"] = self.ParametersList.from_json_like(
+            json_like.get("parameters", {}), shared_data=sd, is_hashed=True
+        )
+        tc["command_files"] = self.CommandFilesList.from_json_like(
+            json_like.get("command_files", {}), shared_data=sd, is_hashed=True
+        )
+        tc["environments"] = self.EnvironmentsList.from_json_like(
+            json_like.get("environments", {}), shared_data=sd, is_hashed=True
+        )
+        tc["task_schemas"] = self.TaskSchemasList.from_json_like(
+            json_like.get("task_schemas", {}), shared_data=sd, is_hashed=True
+        )
         return tc
 
-    def get_parameter_task_schema_map(self) -> Dict[str, List[List]]:
+    def get_parameter_task_schema_map(self) -> dict[str, list[list[str]]]:
         """Get a dict mapping parameter types to task schemas that input/output each
         parameter."""
 
-        param_map = {}
+        param_map: dict[str, list[list[str]]] = {}
         for ts in self.task_schemas:
             for inp in ts.inputs:
                 if inp.parameter.typ not in param_map:
@@ -943,7 +1448,7 @@ class BaseApp(metaclass=Singleton):
 
         return param_map
 
-    def get_info(self) -> Dict[str, Any]:
+    def get_info(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
@@ -952,11 +1457,11 @@ class BaseApp(metaclass=Singleton):
         }
 
     @property
-    def known_subs_file_name(self):
+    def known_subs_file_name(self) -> str:
         return self._known_subs_file_name
 
     @property
-    def known_subs_file_path(self):
+    def known_subs_file_path(self) -> Path:
         return self.user_data_hostname_dir / self.known_subs_file_name
 
     def _format_known_submissions_line(
@@ -969,7 +1474,7 @@ class BaseApp(metaclass=Singleton):
         wk_path,
         start_time,
         end_time,
-    ):
+    ) -> str:
         line = [
             str(local_id),
             workflow_id,
@@ -982,7 +1487,7 @@ class BaseApp(metaclass=Singleton):
         ]
         return self._known_subs_file_sep.join(line) + "\n"
 
-    def _parse_known_submissions_line(self, line: str) -> Dict:
+    def _parse_known_submissions_line(self, line: str) -> KnownSubmission:
         (
             local_id,
             workflow_id,
@@ -993,7 +1498,7 @@ class BaseApp(metaclass=Singleton):
             start_time,
             end_time,
         ) = line.split(self._known_subs_file_sep, maxsplit=7)
-        item = {
+        return {
             "local_id": int(local_id),
             "workflow_id": workflow_id,
             "is_active": bool(int(is_active)),
@@ -1003,16 +1508,12 @@ class BaseApp(metaclass=Singleton):
             "start_time": start_time,
             "end_time": end_time.strip(),
         }
-        return item
 
     @TimeIt.decorator
-    def read_known_submissions_file(self) -> List[Dict]:
+    def read_known_submissions_file(self) -> list[KnownSubmission]:
         """Retrieve existing workflows that *might* be running."""
-        known = []
         with self.known_subs_file_path.open("rt", newline="\n") as fh:
-            for ln in fh.readlines():
-                known.append(self._parse_known_submissions_line(ln))
-        return known
+            return [self._parse_known_submissions_line(ln) for ln in fh.readlines()]
 
     def _add_to_known_submissions(
         self,
@@ -1070,9 +1571,9 @@ class BaseApp(metaclass=Singleton):
     @TimeIt.decorator
     def update_known_subs_file(
         self,
-        inactive_IDs: List[int],
-        start_times: Dict[int, str],
-        end_times: Dict[int, str],
+        inactive_IDs: list[int],
+        start_times: dict[int, str],
+        end_times: dict[int, str],
     ):
         """Update submission records in the known-submission file.
 
@@ -1106,7 +1607,7 @@ class BaseApp(metaclass=Singleton):
         removed_IDs = []  # which submissions we completely remove from the file
 
         new_lines = []
-        line_IDs = []
+        line_IDs: list[int] = []
         for ln_idx, line in enumerate(self.known_subs_file_path.read_text().split("\n")):
             if not line.strip():
                 continue
@@ -1179,7 +1680,7 @@ class BaseApp(metaclass=Singleton):
 
         return removed_IDs
 
-    def clear_known_submissions_file(self):
+    def clear_known_submissions_file(self) -> None:
         """Clear the known-submissions file of all submissions. This shouldn't be needed
         normally."""
         self.submission_logger.warning(
@@ -1190,19 +1691,19 @@ class BaseApp(metaclass=Singleton):
 
     def _make_workflow(
         self,
-        template_file_or_str: Union[PathLike, str],
-        is_string: Optional[bool] = False,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[bool] = True,
-    ) -> get_app_attribute("Workflow"):
+        template_file_or_str: PathLike | str,
+        is_string: bool = False,
+        template_format: Literal["json", "yaml"] | None = None,
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        status: bool = True,
+    ) -> _Workflow:
         """Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
 
@@ -1244,88 +1745,82 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("make_workflow called")
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Making persistent workflow...")
-            status.start()
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
+            Console().status("Making persistent workflow...") if status else nullcontext()
+        )
 
-        common = {
-            "path": path,
-            "name": name,
-            "overwrite": overwrite,
-            "store": store,
-            "ts_fmt": ts_fmt,
-            "ts_name_fmt": ts_name_fmt,
-            "store_kwargs": store_kwargs,
-            "variables": variables,
-            "status": status,
-        }
-
-        if not is_string:
-            wk = self.Workflow.from_file(
-                template_path=template_file_or_str,
-                template_format=template_format,
-                **common,
-            )
-
-        elif template_format == "json":
-            try:
-                wk = self.Workflow.from_JSON_string(
-                    JSON_str=template_file_or_str, **common
+        with status_context as status_:
+            if not is_string:
+                return self.Workflow.from_file(
+                    template_path=template_file_or_str,
+                    template_format=template_format,
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                    status=status_,
                 )
-            except Exception:
-                if status:
-                    status.stop()
-                raise
-
-        elif template_format == "yaml":
-            try:
-                wk = self.Workflow.from_YAML_string(
-                    YAML_str=template_file_or_str, **common
+            elif template_format == "json":
+                return self.Workflow.from_JSON_string(
+                    JSON_str=str(template_file_or_str),
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                    status=status_,
                 )
-            except Exception:
-                if status:
-                    status.stop()
-                raise
-
-        elif not template_format:
-            raise ValueError(
-                f"Must specify `template_format` if parsing a workflow template from a "
-                f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
-            )
-
-        else:
-            raise ValueError(
-                f"Template format {template_format!r} not understood. Available template "
-                f"formats are {ALL_TEMPLATE_FORMATS!r}."
-            )
-
-        if status:
-            status.stop()
-
-        return wk
+            elif template_format == "yaml":
+                return self.Workflow.from_YAML_string(
+                    YAML_str=str(template_file_or_str),
+                    path=str(path) if path else None,
+                    name=name,
+                    overwrite=overwrite,
+                    store=store,
+                    ts_fmt=ts_fmt,
+                    ts_name_fmt=ts_name_fmt,
+                    store_kwargs=store_kwargs,
+                    variables=variables,
+                )
+            elif not template_format:
+                raise ValueError(
+                    f"Must specify `template_format` if parsing a workflow template from a "
+                    f"string; available options are: {ALL_TEMPLATE_FORMATS!r}."
+                )
+            else:
+                raise ValueError(
+                    f"Template format {template_format!r} not understood. Available template "
+                    f"formats are {ALL_TEMPLATE_FORMATS!r}."
+                )
 
     def _make_and_submit_workflow(
         self,
-        template_file_or_str: Union[PathLike, str],
-        is_string: Optional[bool] = False,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-        cancel: Optional[bool] = False,
-        status: Optional[bool] = True,
-    ) -> Dict[int, int]:
+        template_file_or_str: PathLike | str,
+        is_string: bool = False,
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ):
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1417,17 +1912,17 @@ class BaseApp(metaclass=Singleton):
     def _make_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[bool] = True,
-    ) -> get_app_attribute("Workflow"):
+        template_format: Literal["json", "yaml"] | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        status: bool = True,
+    ) -> _Workflow:
         """Generate a new {app_name} workflow from a builtin demo workflow template.
 
         Parameters
@@ -1466,16 +1961,17 @@ class BaseApp(metaclass=Singleton):
 
         self.API_logger.info("make_demo_workflow called")
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Making persistent workflow...")
-            status.start()
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
+            Console().status("Making persistent workflow...") if status else nullcontext()
+        )
 
-        with self.get_demo_workflow_template_file(workflow_name) as template_path:
-            wk = self.Workflow.from_file(
+        with status_context as status_, self.get_demo_workflow_template_file(
+            workflow_name
+        ) as template_path:
+            return self.Workflow.from_file(
                 template_path=template_path,
                 template_format=template_format,
-                path=path,
+                path=str(path) if path else None,
                 name=name,
                 overwrite=overwrite,
                 store=store,
@@ -1483,32 +1979,29 @@ class BaseApp(metaclass=Singleton):
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
                 variables=variables,
-                status=status,
+                status=status_,
             )
-        if status:
-            status.stop()
-        return wk
 
     def _make_and_submit_demo_workflow(
         self,
         workflow_name: str,
-        template_format: Optional[str] = None,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-        cancel: Optional[bool] = False,
-        status: Optional[bool] = True,
-    ) -> Dict[int, int]:
+        template_format: str | None = None,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ):
         """Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1594,11 +2087,11 @@ class BaseApp(metaclass=Singleton):
     def _submit_workflow(
         self,
         workflow_path: PathLike,
-        JS_parallelism: Optional[bool] = None,
-        wait: Optional[bool] = False,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-    ) -> Dict[int, int]:
+        JS_parallelism: bool | None = None,
+        wait: bool = False,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+    ):
         """Submit an existing {app_name} workflow.
 
         Parameters
@@ -1615,13 +2108,17 @@ class BaseApp(metaclass=Singleton):
         """
 
         self.API_logger.info("submit_workflow called")
+        assert workflow_path is not None
         wk = self.Workflow(workflow_path)
-        return wk.submit(
-            JS_parallelism=JS_parallelism,
-            wait=wait,
-            return_idx=return_idx,
-            tasks=tasks,
-        )
+        if return_idx:
+            return wk.submit(
+                JS_parallelism=JS_parallelism,
+                wait=wait,
+                return_idx=True,
+                tasks=tasks,
+            )
+        wk.submit(JS_parallelism=JS_parallelism, wait=wait, tasks=tasks)
+        return None
 
     def _run_hpcflow_tests(self, *args):
         """Run hpcflow test suite. This function is only available from derived apps."""
@@ -1640,17 +2137,12 @@ class BaseApp(metaclass=Singleton):
                 f"{self.name} has not been built with testing dependencies."
             )
         test_args = (self.pytest_args or []) + list(args)
-        pkg = self.package_name
-        tests_dir = "tests"
-        try:
-            ctx_man = resources.as_file(resources.files(pkg).joinpath(tests_dir))
-        except AttributeError:
-            # < Python 3.9
-            ctx_man = resources.path(pkg, tests_dir)
+        ctx_man = self.__get_file_context(self.package_name, "tests")
+        assert ctx_man is not None
         with ctx_man as test_dir:
             return pytest.main([str(test_dir)] + test_args)
 
-    def _get_OS_info(self) -> Dict:
+    def _get_OS_info(self) -> dict[str, str]:
         """Get information about the operating system."""
         os_name = os.name
         if os_name == "posix":
@@ -1659,12 +2151,14 @@ class BaseApp(metaclass=Singleton):
             )
         elif os_name == "nt":
             return get_OS_info_windows()
+        else:
+            raise Exception(f"unsupported OS '{os_name}'")
 
     def _get_shell_info(
         self,
         shell_name: str,
-        exclude_os: Optional[bool] = False,
-    ) -> Dict:
+        exclude_os: bool = False,
+    ) -> VersionInfo:
         """Get information about a given shell and the operating system.
 
         Parameters
@@ -1686,8 +2180,8 @@ class BaseApp(metaclass=Singleton):
         max_recent: int = 3,
         no_update: bool = False,
         as_json: bool = False,
-        status: Optional[Any] = None,
-    ):
+        status: Any | None = None,
+    ) -> list[KnownSubmissionItem]:
         """Retrieve information about active and recently inactive finished {app_name}
         workflows.
 
@@ -1707,10 +2201,10 @@ class BaseApp(metaclass=Singleton):
 
         """
 
-        out = []
-        inactive_IDs = []
-        start_times = {}
-        end_times = {}
+        out: list[KnownSubmissionItem] = []
+        inactive_IDs: list[int] = []
+        start_times: dict[int, str] = {}
+        end_times: dict[int, str] = {}
 
         ts_fmt = self._submission_ts_fmt
 
@@ -1721,28 +2215,28 @@ class BaseApp(metaclass=Singleton):
         except FileNotFoundError:
             known_subs = []
 
-        active_jobscripts = {}  # keys are (workflow path, submission index)
-        loaded_workflows = {}  # keys are workflow path
+        # keys are (workflow path, submission index)
+        active_jobscripts: dict[
+            tuple[str, int], dict[int, dict[int, JobscriptElementState]]
+        ] = {}
+        loaded_workflows: dict[str, _Workflow] = {}  # keys are workflow path
 
         # loop in reverse so we process more-recent submissions first:
         for file_dat_i in known_subs[::-1]:
             submit_time_str = file_dat_i["submit_time"]
-            submit_time_obj = datetime.strptime(submit_time_str, ts_fmt)
-            submit_time_obj = submit_time_obj.replace(tzinfo=timezone.utc).astimezone()
+            submit_time_obj = parse_timestamp(submit_time_str, ts_fmt)
 
             start_time_str = file_dat_i["start_time"]
             start_time_obj = None
             if start_time_str:
-                start_time_obj = datetime.strptime(start_time_str, ts_fmt)
-                start_time_obj = start_time_obj.replace(tzinfo=timezone.utc).astimezone()
+                start_time_obj = parse_timestamp(start_time_str, ts_fmt)
 
             end_time_str = file_dat_i["end_time"]
             end_time_obj = None
             if end_time_str:
-                end_time_obj = datetime.strptime(end_time_str, ts_fmt)
-                end_time_obj = end_time_obj.replace(tzinfo=timezone.utc).astimezone()
+                end_time_obj = parse_timestamp(end_time_str, ts_fmt)
 
-            out_item = {
+            out_item: KnownSubmissionItem = {
                 "local_id": file_dat_i["local_id"],
                 "workflow_id": file_dat_i["workflow_id"],
                 "workflow_path": file_dat_i["path"],
@@ -1804,12 +2298,8 @@ class BaseApp(metaclass=Singleton):
                         sub = wk_i.submissions[file_dat_i["sub_idx"]]
 
                         all_jobscripts = sub._submission_parts[submit_time_str]
-                        out_item.update(
-                            {
-                                "jobscripts": all_jobscripts,
-                                "submission": sub,
-                            }
-                        )
+                        out_item["jobscripts"] = all_jobscripts
+                        out_item["submission"] = sub
                         if not out_item["start_time"]:
                             start_time_obj = sub.start_time
                             if start_time_obj:
@@ -1829,11 +2319,17 @@ class BaseApp(metaclass=Singleton):
                     if file_dat_i["is_active"]:
                         # check it really is active:
                         run_key = (file_dat_i["path"], file_dat_i["sub_idx"])
+                        act_i_js: dict[int, dict[int, JobscriptElementState]]
                         if run_key in active_jobscripts:
                             act_i_js = active_jobscripts[run_key]
                         else:
                             try:
-                                act_i_js = sub.get_active_jobscripts(as_json=as_json)
+                                if as_json:
+                                    act_i_js = cast(  # not actually used?
+                                        Any, sub.get_active_jobscripts(as_json=True)
+                                    )
+                                else:
+                                    act_i_js = sub.get_active_jobscripts()
                             except KeyboardInterrupt:
                                 raise
                             except Exception:
@@ -1872,10 +2368,14 @@ class BaseApp(metaclass=Singleton):
         out_access = [i for i in out_inactive if not (i["deleted"] or i["unloadable"])]
 
         # sort loadable inactive by end time or start time or submit time:
+        def_timestamp = datetime(0, 0, 0)
         out_access = sorted(
             out_access,
             key=lambda i: (
-                i["end_time_obj"] or i["start_time_obj"] or i["submit_time_obj"]
+                i["end_time_obj"]
+                or i["start_time_obj"]
+                or i.get("submit_time_obj")
+                or def_timestamp
             ),
             reverse=True,
         )
@@ -1892,7 +2392,7 @@ class BaseApp(metaclass=Singleton):
                 out[idx].pop("submit_time_obj")
         return out
 
-    def _show_legend(self):
+    def _show_legend(self) -> None:
         """ "Output a legend for the jobscript-element and EAR states that are displayed
         by the `show` command."""
 
@@ -1908,8 +2408,8 @@ class BaseApp(metaclass=Singleton):
         js_tab.add_column("Symbol")
         js_tab.add_column("State")
         js_tab.add_column("Description")
-        for state in JobscriptElementState.__members__.values():
-            js_tab.add_row(state.rich_repr, state.name, state.__doc__)
+        for jse_state in JobscriptElementState.__members__.values():
+            js_tab.add_row(jse_state.rich_repr, jse_state.name, jse_state.__doc__)
 
         act_notes = Panel(
             "\nThe [i]Actions[/i] column of the `show` command output displays either the "
@@ -1924,8 +2424,8 @@ class BaseApp(metaclass=Singleton):
         act_tab.add_column("Symbol")
         act_tab.add_column("State")
         act_tab.add_column("Description")
-        for state in EARStatus.__members__.values():
-            act_tab.add_row(state.rich_repr, state.name, state.__doc__)
+        for ear_state in EARStatus.__members__.values():
+            act_tab.add_row(ear_state.rich_repr, ear_state.name, ear_state.__doc__)
 
         group = Group(
             js_notes,
@@ -1999,167 +2499,162 @@ class BaseApp(metaclass=Singleton):
         ts_fmt_part = r"%H:%M:%S"
 
         console = Console()
-        status = console.status("Retrieving data...")
-        status.start()
-
-        try:
+        with console.status("Retrieving data...") as status:
             run_dat = self._get_known_submissions(
                 max_recent=max_recent,
                 no_update=no_update,
                 status=status,
             )
-        except (Exception, KeyboardInterrupt):
-            status.stop()
-            raise
-        else:
             if not run_dat:
-                status.stop()
                 return
 
-        status.update("Formatting...")
-        table = Table(box=box.SQUARE, expand=False)
-        for col_name in columns:
-            table.add_column(allowed_cols[col_name])
+            status.update("Formatting...")
+            table = Table(box=box.SQUARE, expand=False)
+            for col_name in columns:
+                table.add_column(allowed_cols[col_name])
 
-        row_pad = 1 if full else 0
+            row_pad = 1 if full else 0
 
-        for dat_i in run_dat:
-            deleted = dat_i["deleted"]
-            unloadable = dat_i["unloadable"]
-            no_access = deleted or unloadable
-            act_js = dat_i["active_jobscripts"]
-            style = "grey42" if (no_access or not act_js) else ""
-            style_wk_name = "grey42 strike" if deleted else style
-            style_it = "italic grey42" if (no_access or not act_js) else "italic"
+            for dat_i in run_dat:
+                deleted = dat_i["deleted"]
+                unloadable = dat_i["unloadable"]
+                no_access = deleted or unloadable
+                act_js = dat_i["active_jobscripts"]
+                style = "grey42" if (no_access or not act_js) else ""
+                style_wk_name = "grey42 strike" if deleted else style
+                style_it = "italic grey42" if (no_access or not act_js) else "italic"
 
-            all_cells = {}
-            if "status" in columns:
-                if act_js:
-                    act_js_states = set([j for i in act_js.values() for j in i.values()])
-                    status_text = "/".join(
-                        f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
-                    )
-                else:
-                    if deleted:
-                        txt = "deleted"
-                    elif unloadable:
-                        txt = "unloadable"
+                all_cells: dict[str, str | Text | Padding] = {}
+                if "status" in columns:
+                    if act_js:
+                        act_js_states = set(
+                            [j for i in act_js.values() for j in i.values()]
+                        )
+                        all_cells["status"] = "/".join(
+                            f"[{i.colour}]{i.symbol}[/{i.colour}]" for i in act_js_states
+                        )
                     else:
-                        txt = "inactive"
-                    status_text = Text(txt, style=style_it)
-                all_cells["status"] = status_text
+                        if deleted:
+                            txt = "deleted"
+                        elif unloadable:
+                            txt = "unloadable"
+                        else:
+                            txt = "inactive"
+                        all_cells["status"] = Text(txt, style=style_it)
 
-            if "id" in columns:
-                all_cells["id"] = Text(str(dat_i["local_id"]), style=style)
+                if "id" in columns:
+                    all_cells["id"] = Text(str(dat_i["local_id"]), style=style)
 
-            if "name" in columns:
-                all_cells["name"] = Text(
-                    Path(dat_i["workflow_path"]).name, style=style_wk_name
-                )
+                if "name" in columns:
+                    all_cells["name"] = Text(
+                        Path(dat_i["workflow_path"]).name, style=style_wk_name
+                    )
 
-            start_time, end_time = None, None
-            if not no_access:
-                start_time = dat_i["start_time_obj"]
-                end_time = dat_i["end_time_obj"]
-
-            if "actions" in columns:
+                start_time, end_time = None, None
                 if not no_access:
-                    task_tab = Table(box=None, show_header=False)
-                    task_tab.add_column()
-                    task_tab.add_column()
+                    start_time = cast(datetime, dat_i["start_time_obj"])
+                    end_time = cast(datetime, dat_i["end_time_obj"])
 
-                    for task_idx, elements in dat_i[
-                        "submission"
-                    ].EARs_by_elements.items():
-                        task = dat_i["submission"].workflow.tasks[task_idx]
+                if "actions" in columns:
+                    task_tab: str | Table
+                    if not no_access:
+                        task_tab = Table(box=None, show_header=False)
+                        task_tab.add_column()
+                        task_tab.add_column()
 
-                        # inner table for elements/actions:
-                        elem_tab_i = Table(box=None, show_header=False)
-                        elem_tab_i.add_column()
-                        for elem_idx, EARs in elements.items():
-                            elem_status = Text(f"{elem_idx} | ", style=style)
-                            for i in EARs:
-                                elem_status.append(i.status.symbol, style=i.status.colour)
-                            elem_tab_i.add_row(elem_status)
-                        task_tab.add_row(task.unique_name, elem_tab_i, style=style)
-                else:
-                    task_tab = ""
+                        for task_idx, elements in dat_i[
+                            "submission"
+                        ].EARs_by_elements.items():
+                            task = dat_i["submission"].workflow.tasks[task_idx]
 
-                all_cells["actions"] = Padding(task_tab, (0, 0, row_pad, 0))
+                            # inner table for elements/actions:
+                            elem_tab_i = Table(box=None, show_header=False)
+                            elem_tab_i.add_column()
+                            for elem_idx, EARs in elements.items():
+                                elem_status = Text(f"{elem_idx} | ", style=style)
+                                for i in EARs:
+                                    elem_status.append(
+                                        i.status.symbol, style=i.status.colour
+                                    )
+                                elem_tab_i.add_row(elem_status)
+                            task_tab.add_row(task.unique_name, elem_tab_i, style=style)
+                    else:
+                        task_tab = ""
 
-            if "actions_compact" in columns:
-                if not no_access:
-                    EAR_stat_count = defaultdict(int)
-                    for _, elements in dat_i["submission"].EARs_by_elements.items():
-                        for elem_idx, EARs in elements.items():
-                            for i in EARs:
-                                EAR_stat_count[i.status] += 1
-                    all_cells["actions_compact"] = " | ".join(
-                        f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"
-                        for k, v in EAR_stat_count.items()
+                    all_cells["actions"] = Padding(task_tab, (0, 0, row_pad, 0))
+
+                if "actions_compact" in columns:
+                    if not no_access:
+                        EAR_stat_count: dict[EARStatus, int] = defaultdict(int)
+                        sub = cast(Submission, dat_i["submission"])
+                        for elements in sub.EARs_by_elements.values():
+                            for EARs in elements.values():
+                                for i in EARs:
+                                    EAR_stat_count[i.status] += 1
+                        all_cells["actions_compact"] = " | ".join(
+                            f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"  # type: ignore
+                            for k, v in EAR_stat_count.items()
+                        )
+                    else:
+                        all_cells["actions_compact"] = ""
+
+                if "submit_time" in columns or "times" in columns:
+                    submit_time = parse_timestamp(
+                        dat_i["submit_time"], self._submission_ts_fmt
                     )
-                else:
-                    all_cells["actions_compact"] = ""
+                    submit_time_full = submit_time.strftime(ts_fmt)
 
-            if "submit_time" in columns or "times" in columns:
-                submit_time = (
-                    datetime.strptime(dat_i["submit_time"], self._submission_ts_fmt)
-                    .replace(tzinfo=timezone.utc)
-                    .astimezone()
-                )
-                submit_time_full = submit_time.strftime(ts_fmt)
+                if "start_time" in columns or "times" in columns:
+                    start_time_full = start_time.strftime(ts_fmt) if start_time else "-"
+                    start_time_part = start_time_full
+                    if start_time and start_time.date() == submit_time.date():
+                        start_time_part = start_time.strftime(ts_fmt_part)
 
-            if "start_time" in columns or "times" in columns:
-                start_time_full = start_time.strftime(ts_fmt) if start_time else "-"
-                start_time_part = start_time_full
-                if start_time and start_time.date() == submit_time.date():
-                    start_time_part = start_time.strftime(ts_fmt_part)
+                if "end_time" in columns or "times" in columns:
+                    end_time_full = end_time.strftime(ts_fmt) if end_time else "-"
+                    end_time_part = end_time_full
+                    if end_time and start_time and end_time.date() == start_time.date():
+                        end_time_part = end_time.strftime(ts_fmt_part)
 
-            if "end_time" in columns or "times" in columns:
-                end_time_full = end_time.strftime(ts_fmt) if end_time else "-"
-                end_time_part = end_time_full
-                if end_time and end_time.date() == start_time.date():
-                    end_time_part = end_time.strftime(ts_fmt_part)
+                if "submit_time" in columns:
+                    all_cells["submit_time"] = Padding(
+                        Text(submit_time_full, style=style), (0, 0, row_pad, 0)
+                    )
 
-            if "submit_time" in columns:
-                all_cells["submit_time"] = Padding(
-                    Text(submit_time_full, style=style), (0, 0, row_pad, 0)
-                )
+                if "start_time" in columns:
+                    all_cells["start_time"] = Padding(
+                        Text(start_time_part, style=style), (0, 0, row_pad, 0)
+                    )
 
-            if "start_time" in columns:
-                all_cells["start_time"] = Padding(
-                    Text(start_time_part, style=style), (0, 0, row_pad, 0)
-                )
+                if "end_time" in columns:
+                    all_cells["end_time"] = Padding(
+                        Text(end_time_part, style=style), (0, 0, row_pad, 0)
+                    )
 
-            if "end_time" in columns:
-                all_cells["end_time"] = Padding(
-                    Text(end_time_part, style=style), (0, 0, row_pad, 0)
-                )
+                if "times" in columns:
+                    # submit/start/end on separate lines:
+                    times_tab = Table(box=None, show_header=False)
+                    times_tab.add_column()
+                    times_tab.add_column(justify="right")
 
-            if "times" in columns:
-                # submit/start/end on separate lines:
-                times_tab = Table(box=None, show_header=False)
-                times_tab.add_column()
-                times_tab.add_column(justify="right")
-
-                times_tab.add_row(
-                    Text("sb.", style=style_it), Text(submit_time_full, style=style)
-                )
-
-                if start_time:
                     times_tab.add_row(
-                        Text("st.", style=style_it), Text(start_time_part, style=style)
-                    )
-                if end_time:
-                    times_tab.add_row(
-                        Text("en.", style=style_it), Text(end_time_part, style=style)
+                        Text("sb.", style=style_it), Text(submit_time_full, style=style)
                     )
 
-                all_cells["times"] = Padding(times_tab, (0, 0, row_pad, 0))
+                    if start_time:
+                        times_tab.add_row(
+                            Text("st.", style=style_it),
+                            Text(start_time_part, style=style),
+                        )
+                    if end_time:
+                        times_tab.add_row(
+                            Text("en.", style=style_it), Text(end_time_part, style=style)
+                        )
 
-            table.add_row(*[all_cells[i] for i in columns])
+                    all_cells["times"] = Padding(times_tab, (0, 0, row_pad, 0))
 
-        status.stop()
+                table.add_row(*[all_cells[i] for i in columns])
+
         if table.row_count:
             console.print(table)
 
@@ -2179,9 +2674,7 @@ class BaseApp(metaclass=Singleton):
 
         return path
 
-    def _resolve_workflow_reference(
-        self, workflow_ref, ref_type: Union[str, None]
-    ) -> Path:
+    def _resolve_workflow_reference(self, workflow_ref, ref_type: str | None) -> Path:
         path = None
         if ref_type == "path":
             path = Path(workflow_ref)
@@ -2223,7 +2716,7 @@ class BaseApp(metaclass=Singleton):
                 )
         return path.resolve()
 
-    def _cancel(self, workflow_ref: Union[int, str, PathLike], ref_is_path=None):
+    def _cancel(self, workflow_ref: int | str | PathLike, ref_is_path=None):
         """Cancel the execution of a workflow submission.
 
         Parameters
@@ -2303,7 +2796,7 @@ class BaseApp(metaclass=Singleton):
             self.config.append("environment_sources", str(env_source_file))
             self.config.save()
 
-    def get_demo_data_files_manifest(self) -> Dict[str, Union[None, str]]:
+    def get_demo_data_files_manifest(self) -> dict[str, Any]:
         """Get a dict whose keys are example data file names and whose values are the
         source files if the source file required unzipping or `None` otherwise.
 
@@ -2333,21 +2826,18 @@ class BaseApp(metaclass=Singleton):
                 f"{self.demo_data_manifest_dir!r}."
             )
             package = self.demo_data_manifest_dir
-            resource = "demo_data_manifest.json"
-            try:
-                fh = resources.files(package).joinpath(resource).open("rt")
-            except AttributeError:
-                # < python 3.9; `resource.open_text` deprecated since 3.11
-                fh = resources.open_text(package, resource)
-            manifest = json.load(fh)
-            fh.close()
+            if package is None:
+                self.logger.warning("no demo data dir defined")
+                return {}
+            with self.__open_text_resource(package, "demo_data_manifest.json") as fh:
+                manifest = json.load(fh)
         return manifest
 
-    def list_demo_data_files(self) -> Tuple[str]:
+    def list_demo_data_files(self) -> tuple[str, ...]:
         """List available example data files."""
         return tuple(self.get_demo_data_files_manifest().keys())
 
-    def _get_demo_data_file_source_path(self, file_name) -> Tuple[Path, bool, bool]:
+    def _get_demo_data_file_source_path(self, file_name: str) -> tuple[Path, bool, bool]:
         """Get the full path to an example data file on the local file system, whether
         the file must be unpacked, and whether the file should be deleted.
 
@@ -2398,7 +2888,7 @@ class BaseApp(metaclass=Singleton):
         if file_name not in manifest:
             raise ValueError(f"No such example data file {file_name!r}.")
 
-        spec = manifest[file_name]
+        spec: dict[str, str] = manifest[file_name]
         requires_unpack = bool(spec)
         src_fn = spec["in_zip"] if requires_unpack else file_name
 
@@ -2417,36 +2907,31 @@ class BaseApp(metaclass=Singleton):
             )
             # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
             package = self.demo_data_dir
-            resource_exists = True
-            delete = False
-            try:
-                ctx_man = resources.as_file(resources.files(package).joinpath(src_fn))
-                # raises ModuleNotFoundError
-            except AttributeError:
-                # < python 3.9
-                try:
-                    ctx_man = resources.path(package, src_fn)
-                except ModuleNotFoundError:
-                    resource_exists = False
-            except ModuleNotFoundError:
+            if not package:
                 resource_exists = False
+            else:
+                delete = False
+                ctx_man = self.__get_file_context(package, src_fn)
 
-            if resource_exists:
                 try:
-                    with ctx_man as path:
-                        out = path
+                    if ctx_man:
+                        with ctx_man as path:
+                            out = path
+                        resource_exists = True
+                    else:
+                        resource_exists = False
                 except (ModuleNotFoundError, FileNotFoundError):
                     # frozen app
                     resource_exists = False
 
-            if not resource_exists:
+            if not resource_exists and package is not None:
                 # example data not included (e.g. frozen, or installed via PyPI/conda), so
                 # set a default value for `config.demo_data_dir` (point to the package
                 # GitHub repo for the current tag):
-                path = "/".join(package.split("."))
-                url = self._get_github_url(sha=f"v{self.version}", path=path)
+                path_ = "/".join(package.split("."))
+                url = self._get_github_url(sha=f"v{self.version}", path=path_)
                 self.logger.info(
-                    f"path {path!r} does not exist as a package resource (example data "
+                    f"path {path_!r} does not exist as a package resource (example data "
                     f"was probably not included in the app), so non-persistently setting "
                     f"the config item `demo_data_dir` to the app's GitHub repo path: "
                     f"{url!r}."
@@ -2507,11 +2992,11 @@ class BaseApp(metaclass=Singleton):
     def cache_demo_data_file(self, file_name) -> Path:
         return self.get_demo_data_file_path(file_name)
 
-    def cache_all_demo_data_files(self) -> List[Path]:
+    def cache_all_demo_data_files(self) -> list[Path]:
         return [self.get_demo_data_file_path(i) for i in self.list_demo_data_files()]
 
     def copy_demo_data(
-        self, file_name: str, dst: Optional[PathLike] = None, doc: bool = True
+        self, file_name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
         """Copy a builtin demo data file to the specified location.
 

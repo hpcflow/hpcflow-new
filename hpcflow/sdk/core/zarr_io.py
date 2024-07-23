@@ -1,6 +1,7 @@
-from typing import Any, Dict, Union
+from __future__ import annotations
+from typing import Any
 
-import zarr
+import zarr  # type: ignore
 import numpy as np
 
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container
@@ -14,7 +15,7 @@ PRIMITIVES = (
 )
 
 
-def _zarr_encode(obj, zarr_group, path=None, encoded=None):
+def _zarr_encode(obj, zarr_group: zarr.Group, path=None, encoded=None):
     path = path or []
     encoded = encoded or []
 
@@ -67,7 +68,7 @@ def _zarr_encode(obj, zarr_group, path=None, encoded=None):
     return out, encoded
 
 
-def zarr_encode(data, zarr_group, is_pending_add, is_set):
+def zarr_encode(data, zarr_group: zarr.Group, is_pending_add, is_set):
     data, encoded = _zarr_encode(data, zarr_group)
     zarr_group.attrs["encoded"] = encoded
     zarr_group.attrs["data"] = data
@@ -84,8 +85,8 @@ def _zarr_encode_NEW(
     base_arr: zarr.Array,
     root_group: zarr.Group,
     arr_path: str,
-    path=None,
-    arr_lookup=None,
+    path: list | None = None,
+    arr_lookup: list | None = None,
 ):
     """
     Save arbitrarily-nested Python-primitive, `ZarrEncodable` and numpy array objects into
@@ -171,9 +172,9 @@ def _zarr_encode_NEW(
 
 
 def zarr_decode(
-    param_data: Union[None, Dict],
+    param_data: None | dict,
     arr_group: zarr.Group,
-    path=None,
+    path: list | None = None,
     dataset_copy=False,
 ):
     if param_data is None:

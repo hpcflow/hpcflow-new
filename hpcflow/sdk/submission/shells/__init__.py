@@ -1,5 +1,5 @@
+from __future__ import annotations
 import os
-from typing import Dict, Optional
 
 from hpcflow.sdk.core.errors import UnsupportedShellError
 
@@ -7,7 +7,7 @@ from .base import Shell
 from .bash import Bash, WSLBash
 from .powershell import WindowsPowerShell
 
-ALL_SHELLS = {
+ALL_SHELLS: dict[str, dict[str, type[Shell]]] = {
     "bash": {"posix": Bash},
     "powershell": {"nt": WindowsPowerShell},
     "wsl+bash": {"nt": WSLBash},
@@ -21,12 +21,12 @@ DEFAULT_SHELL_NAMES = {
 }
 
 
-def get_supported_shells(os_name: Optional[str] = None) -> Dict[str, Shell]:
-    os_name = os_name or os.name
-    return {k: v.get(os_name) for k, v in ALL_SHELLS.items() if v.get(os_name)}
+def get_supported_shells(os_name: str | None = None) -> dict[str, type[Shell]]:
+    os_name_ = os_name or os.name
+    return {k: v[os_name_] for k, v in ALL_SHELLS.items() if v.get(os_name_)}
 
 
-def get_shell(shell_name, os_name: Optional[str] = None, **kwargs) -> Shell:
+def get_shell(shell_name, os_name: str | None = None, **kwargs) -> Shell:
     # TODO: apply config default shell args?
 
     os_name = os_name or os.name

@@ -1,12 +1,19 @@
+from __future__ import annotations
 import re
+from typing import Any, ClassVar, TYPE_CHECKING
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
+
+if TYPE_CHECKING:
+    from ..app import BaseApp
+    from ..submission.shells.base import Shell
 
 
 class RunDirAppFiles:
     """A class to encapsulate the naming/recognition of app-created files within run
     directories."""
 
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
@@ -21,27 +28,33 @@ class RunDirAppFiles:
         return f"{cls.app.package_name}_std.txt"
 
     @staticmethod
-    def get_run_file_prefix(js_idx: int, js_action_idx: int):
+    def get_run_file_prefix(js_idx: int | str, js_action_idx: int | str) -> str:
         return f"js_{js_idx}_act_{js_action_idx}"
 
     @classmethod
-    def get_commands_file_name(cls, js_idx: int, js_action_idx: int, shell):
+    def get_commands_file_name(
+        cls, js_idx: int | str, js_action_idx: int | str, shell: Shell
+    ) -> str:
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
-    def get_run_param_dump_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_dump_file_prefix(
+        cls, js_idx: int | str, js_action_idx: int | str
+    ) -> str:
         """Get the prefix to a file in the run directory that the app will dump parameter
         data to."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_inputs"
 
     @classmethod
-    def get_run_param_load_file_prefix(cls, js_idx: int, js_action_idx: int):
+    def get_run_param_load_file_prefix(
+        cls, js_idx: int | str, js_action_idx: int | str
+    ) -> str:
         """Get the prefix to a file in the run directory that the app will load parameter
         data from."""
         return cls.get_run_file_prefix(js_idx, js_action_idx) + "_outputs"
 
     @classmethod
-    def take_snapshot(cls):
+    def take_snapshot(cls) -> dict[str, Any]:
         """Take a JSONLikeDirSnapShot, and process to ignore files created by the app.
 
         This includes command files that are invoked by jobscripts, the app log file, and

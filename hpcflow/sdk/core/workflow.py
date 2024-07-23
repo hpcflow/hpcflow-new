@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -10,16 +10,16 @@ import random
 import string
 from threading import Thread
 import time
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import TypedDict, overload, cast, TYPE_CHECKING
 from uuid import uuid4
 from warnings import warn
-from fsspec.implementations.local import LocalFileSystem
-from fsspec.implementations.zip import ZipFileSystem
+from fsspec.implementations.local import LocalFileSystem  # type: ignore
+from fsspec.implementations.zip import ZipFileSystem  # type: ignore
 import numpy as np
-from fsspec.core import url_to_fs
+from fsspec.core import url_to_fs  # type: ignore
 import rich.console
 
-from hpcflow.sdk import app
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
@@ -27,8 +27,9 @@ from hpcflow.sdk.core import (
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.persistence import store_cls_from_str, DEFAULT_STORE_FORMAT
-from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES, AnySEAR
+from hpcflow.sdk.persistence import store_cls_from_str
+from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
+from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc, infer_store
 from hpcflow.sdk.submission.jobscript import (
     generate_EAR_resource_map,
@@ -42,12 +43,12 @@ from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from .utils import (
-    nth_key,
     read_JSON_file,
     read_JSON_string,
     read_YAML_str,
     read_YAML_file,
     replace_items,
+    parse_timestamp,
 )
 from hpcflow.sdk.core.errors import (
     InvalidInputSourceTaskReference,
@@ -58,32 +59,141 @@ from hpcflow.sdk.core.errors import (
     WorkflowSubmissionFailure,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from contextlib import AbstractContextManager
+    from typing import Any, ClassVar, Literal, Protocol
+    from typing_extensions import NotRequired, Self, TypeAlias
+    from numpy.typing import NDArray
+    import psutil
+    from rich.status import Status
+    from ..app import BaseApp, TemplateComponents
+    from ..typing import DataIndex, ParamSource
+    from .actions import ElementActionRun
+    from .element import Element, ElementIteration
+    from .loop import Loop, WorkflowLoop
+    from .object_list import (
+        WorkflowTaskList,
+        WorkflowLoopList,
+        ResourceList,
+        ObjectList,
+        Resources,
+    )
+    from .parameters import InputSource
+    from .task import Task, WorkflowTask
+    from ..submission.submission import Submission
+    from ..submission.jobscript import (
+        Jobscript,
+        JobScriptDescriptor,
+        JobScriptCreationArguments,
+    )
+    from ..persistence.base import (
+        StoreElement,
+        StoreElementIter,
+        StoreTask,
+        StoreParameter,
+        StoreEAR,
+        TemplateMeta,
+    )
+
+    _TemplateComponents: TypeAlias = "dict[str, ObjectList[JSONLike]]"
+
+    class AbstractFileSystem(Protocol):
+        def exists(self, path: str) -> bool:
+            ...
+
+        def rename(self, from_: str, to: str, *, recursive: bool = False) -> None:
+            ...
+
+        def rm(self, path: str, *, recursive: bool = False) -> None:
+            ...
+
 
 class _DummyPersistentWorkflow:
     """An object to pass to ResourceSpec.make_persistent that pretends to be a
     Workflow object, so we can pretend to make template-level inputs/resources
     persistent before the workflow exists."""
 
-    def __init__(self):
-        self._parameters = []
-        self._sources = []
-        self._data_ref = []
+    def __init__(self) -> None:
+        self._parameters: list[Any] = []
+        self._sources: list[ParamSource] = []
+        self._data_ref: list[int] = []
 
-    def _add_parameter_data(self, data, source: Dict) -> int:
+    def _add_parameter_data(self, data: Any, source: ParamSource) -> int:
         self._parameters.append(data)
         self._sources.append(source)
         self._data_ref.append(len(self._data_ref))
         return self._data_ref[-1]
 
-    def get_parameter_data(self, data_idx):
+    def get_parameter_data(self, data_idx: int):
         return self._parameters[self._data_ref.index(data_idx)]
 
-    def make_persistent(self, workflow: app.Workflow):
+    def make_persistent(self, workflow: Workflow):
         for dat_i, source_i in zip(self._parameters, self._sources):
             workflow._add_parameter_data(dat_i, source_i)
 
 
+class CreationInfo(TypedDict):
+    app_info: dict[str, Any]
+    create_time: datetime
+    id: str
+
+
+class WorkflowTemplateTaskData(TypedDict):
+    schema: NotRequired[Any | list[Any]]
+    element_sets: NotRequired[list["WorkflowTemplateTaskData"]]
+    output_labels: NotRequired[list[str]]
+
+
 @dataclass
+class _Pathway:
+    id_: int
+    names: dict[str, int]
+    iter_ids: list[int] = field(default_factory=list)
+    data_idx: list[DataIndex] = field(default_factory=list)
+
+    @overload
+    def as_tuple(
+        self,
+        *,
+        ret_iter_IDs: Literal[False] = False,
+        ret_data_idx: Literal[False] = False,
+    ) -> tuple[int, dict[str, int]]:
+        ...
+
+    @overload
+    def as_tuple(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False
+    ) -> tuple[int, dict[str, int], tuple[int, ...]]:
+        ...
+
+    @overload
+    def as_tuple(
+        self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]
+    ) -> tuple[int, dict[str, int], tuple[dict[str, int], ...]]:
+        ...
+
+    @overload
+    def as_tuple(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]
+    ) -> tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]:
+        ...
+
+    def as_tuple(self, *, ret_iter_IDs=False, ret_data_idx=False):
+        if ret_iter_IDs:
+            if ret_data_idx:
+                return (self.id_, self.names, tuple(self.iter_ids), tuple(self.data_idx))
+            else:
+                return (self.id_, self.names, tuple(self.iter_ids))
+        else:
+            if ret_data_idx:
+                return (self.id_, self.names, tuple(self.data_idx))
+            else:
+                return (self.id_, self.names)
+
+
+@dataclass
+@hydrate
 class WorkflowTemplate(JSONLike):
     """Class to represent initial parametrisation of a {app_name} workflow, with limited
     validation logic.
@@ -106,6 +216,7 @@ class WorkflowTemplate(JSONLike):
         template-level resources are ignored.
     """
 
+    app: ClassVar[BaseApp]
     _app_attr = "app"
     _validation_schema = "workflow_spec_schema.yaml"
 
@@ -130,20 +241,21 @@ class WorkflowTemplate(JSONLike):
     )
 
     name: str
-    doc: Optional[Union[List[str], str]] = field(repr=False, default=None)
-    tasks: Optional[List[app.Task]] = field(default_factory=lambda: [])
-    loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
-    workflow: Optional[app.Workflow] = None
-    resources: Optional[Dict[str, Dict]] = None
-    environments: Optional[Dict[str, Dict[str, Any]]] = None
-    env_presets: Optional[Union[str, List[str]]] = None
-    source_file: Optional[str] = field(default=None, compare=False)
-    store_kwargs: Optional[Dict] = field(default_factory=lambda: {})
-    merge_resources: Optional[bool] = True
-    merge_envs: Optional[bool] = True
+    doc: list[str] | str | None = field(repr=False, default=None)
+    tasks: list[Task] = field(default_factory=list)
+    loops: list[Loop] = field(default_factory=list)
+    workflow: Workflow | None = None
+    resources: Resources = None
+    environments: dict[str, dict[str, Any]] | None = None
+    env_presets: str | list[str] | None = None
+    source_file: str | None = field(default=None, compare=False)
+    store_kwargs: dict[str, Any] = field(default_factory=dict)
+    merge_resources: bool = True
+    merge_envs: bool = True
 
-    def __post_init__(self):
-        self.resources = self.app.ResourceList.normalise(self.resources)
+    def __post_init__(self) -> None:
+        resources = self.app.ResourceList.normalise(self.resources)
+        self.resources = resources
         self._set_parent_refs()
 
         # merge template-level `resources` into task element set resources (this mutates
@@ -152,7 +264,7 @@ class WorkflowTemplate(JSONLike):
         if self.merge_resources:
             for task in self.tasks:
                 for element_set in task.element_sets:
-                    element_set.resources.merge_other(self.resources)
+                    element_set.resources.merge_other(resources)
             self.merge_resources = False
 
         if self.merge_envs:
@@ -161,8 +273,14 @@ class WorkflowTemplate(JSONLike):
         if self.doc and not isinstance(self.doc, list):
             self.doc = [self.doc]
 
-    def _merge_envs_into_task_resources(self):
+    def _get_resources_copy(self) -> ResourceList:
+        """
+        Get a deep copy of the list of resources.
+        """
+        assert isinstance(self.resources, self.app.ResourceList)
+        return copy.deepcopy(self.resources)
 
+    def _merge_envs_into_task_resources(self) -> None:
         self.merge_envs = False
 
         # disallow both `env_presets` and `environments` specifications:
@@ -205,6 +323,7 @@ class WorkflowTemplate(JSONLike):
                             es.environments = app_env_specs_i
 
                     elif self.env_presets:
+                        assert schema_presets is not None
                         # take only the first applicable preset:
                         app_presets_i = [
                             k for k in self.env_presets if k in schema_presets
@@ -243,62 +362,64 @@ class WorkflowTemplate(JSONLike):
 
     @classmethod
     @TimeIt.decorator
-    def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
+    def _from_data(cls, data: dict[str, Any]) -> WorkflowTemplate:
+        task_dat: WorkflowTemplateTaskData
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
             schema = task_dat.pop("schema")
-            schema = schema if isinstance(schema, list) else [schema]
+            schema_list: list = schema if isinstance(schema, list) else [schema]
             if "element_sets" in task_dat:
                 # just update the schema to a list:
-                data["tasks"][task_idx]["schema"] = schema
+                data["tasks"][task_idx]["schema"] = schema_list
             else:
                 # add a single element set, and update the schema to a list:
                 out_labels = task_dat.pop("output_labels", [])
                 data["tasks"][task_idx] = {
-                    "schema": schema,
+                    "schema": schema_list,
                     "element_sets": [task_dat],
                     "output_labels": out_labels,
                 }
 
         # extract out any template components:
+        # TODO: TypedDict for data
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
         if params_dat:
             parameters = cls.app.ParametersList.from_json_like(
-                params_dat, shared_data=cls.app.template_components
+                params_dat, shared_data=cls.app._shared_data
             )
             cls.app.parameters.add_objects(parameters, skip_duplicates=True)
 
         cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
             cmd_files = cls.app.CommandFilesList.from_json_like(
-                cmd_files_dat, shared_data=cls.app.template_components
+                cmd_files_dat, shared_data=cls.app._shared_data
             )
             cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
         envs_dat = tcs.pop("environments", [])
         if envs_dat:
             envs = cls.app.EnvironmentsList.from_json_like(
-                envs_dat, shared_data=cls.app.template_components
+                envs_dat, shared_data=cls.app._shared_data
             )
             cls.app.envs.add_objects(envs, skip_duplicates=True)
 
         ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
             task_schemas = cls.app.TaskSchemasList.from_json_like(
-                ts_dat, shared_data=cls.app.template_components
+                ts_dat, shared_data=cls.app._shared_data
             )
             cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=cls.app.template_components)
+        return cls.from_json_like(data, shared_data=cls.app._shared_data)
 
     @classmethod
     @TimeIt.decorator
     def from_YAML_string(
         cls,
         string: str,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.WorkflowTemplate:
+        variables: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         """Load from a YAML string.
 
         Parameters
@@ -311,14 +432,14 @@ class WorkflowTemplate(JSONLike):
         return cls._from_data(read_YAML_str(string, variables=variables))
 
     @classmethod
-    def _check_name(cls, data: Dict, path: PathLike) -> str:
+    def _check_name(cls, data: dict[str, Any], path: PathLike) -> None:
         """Check the workflow template data has a "name" key. If not, add a "name" key,
         using the file path stem.
 
         Note: this method mutates `data`.
 
         """
-        if "name" not in data:
+        if "name" not in data and path is not None:
             name = Path(path).stem
             cls.app.logger.info(
                 f"using file name stem ({name!r}) as the workflow template name."
@@ -330,8 +451,8 @@ class WorkflowTemplate(JSONLike):
     def from_YAML_file(
         cls,
         path: PathLike,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.WorkflowTemplate:
+        variables: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         """Load from a YAML file.
 
         Parameters
@@ -353,8 +474,8 @@ class WorkflowTemplate(JSONLike):
     def from_JSON_string(
         cls,
         string: str,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.WorkflowTemplate:
+        variables: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         """Load from a JSON string.
 
         Parameters
@@ -371,8 +492,8 @@ class WorkflowTemplate(JSONLike):
     def from_JSON_file(
         cls,
         path: PathLike,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.WorkflowTemplate:
+        variables: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         """Load from a JSON file.
 
         Parameters
@@ -393,9 +514,9 @@ class WorkflowTemplate(JSONLike):
     def from_file(
         cls,
         path: PathLike,
-        template_format: Optional[str] = None,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.WorkflowTemplate:
+        template_format: Literal["yaml", "json"] | None = None,
+        variables: dict[str, str] | None = None,
+    ) -> WorkflowTemplate:
         """Load from either a YAML or JSON file, depending on the file extension.
 
         Parameters
@@ -409,20 +530,21 @@ class WorkflowTemplate(JSONLike):
             String variables to substitute in the file given by `path`.
 
         """
-        path = Path(path)
+        path_ = Path(path or ".")
         fmt = template_format.lower() if template_format else None
-        if fmt == "yaml" or path.suffix in (".yaml", ".yml"):
-            return cls.from_YAML_file(path, variables=variables)
-        elif fmt == "json" or path.suffix in (".json", ".jsonc"):
-            return cls.from_JSON_file(path, variables=variables)
+        if fmt == "yaml" or path_.suffix in (".yaml", ".yml"):
+            return cls.from_YAML_file(path_, variables=variables)
+        elif fmt == "json" or path_.suffix in (".json", ".jsonc"):
+            return cls.from_JSON_file(path_, variables=variables)
         else:
             raise ValueError(
-                f"Unknown workflow template file extension {path.suffix!r}. Supported "
+                f"Unknown workflow template file extension {path_.suffix!r}. Supported "
                 f"template formats are {ALL_TEMPLATE_FORMATS!r}."
             )
 
-    def _add_empty_task(self, task: app.Task, new_index: int, insert_ID: int) -> None:
+    def _add_empty_task(self, task: Task, new_index: int, insert_ID: int) -> None:
         """Called by `Workflow._add_empty_task`."""
+        assert self.workflow
         new_task_name = self.workflow._get_new_task_unique_name(task, new_index)
 
         task._insert_ID = insert_ID
@@ -432,9 +554,10 @@ class WorkflowTemplate(JSONLike):
         task.workflow_template = self
         self.tasks.insert(new_index, task)
 
-    def _add_empty_loop(self, loop: app.Loop) -> None:
+    def _add_empty_loop(self, loop: Loop) -> None:
         """Called by `Workflow._add_empty_loop`."""
 
+        assert self.workflow
         if not loop.name:
             existing = [i.name for i in self.loops]
             new_idx = len(self.loops)
@@ -453,7 +576,9 @@ class WorkflowTemplate(JSONLike):
         self.loops.append(loop)
 
 
-def resolve_fsspec(path: PathLike, **kwargs) -> Tuple[Any, str, str]:
+def resolve_fsspec(
+    path: PathLike, **kwargs
+) -> tuple[AbstractFileSystem, str, str | None]:
     """
     Parameters
     ----------
@@ -462,41 +587,56 @@ def resolve_fsspec(path: PathLike, **kwargs) -> Tuple[Any, str, str]:
 
     """
 
-    path = str(path)
-    if path.endswith(".zip"):
+    path_s = str(path)
+    fs: AbstractFileSystem
+    if path_s.endswith(".zip"):
         # `url_to_fs` does not seem to work for zip combos e.g. `zip::ssh://`, so we
         # construct a `ZipFileSystem` ourselves and assume it is signified only by the
         # file extension:
         fs, pw = ask_pw_on_auth_exc(
             ZipFileSystem,
-            fo=path,
+            fo=path_s,
             mode="r",
             target_options=kwargs or {},
             add_pw_to="target_options",
         )
-        path = ""
+        path_s = ""
 
     else:
-        (fs, path), pw = ask_pw_on_auth_exc(url_to_fs, str(path), **kwargs)
-        path = str(Path(path).as_posix())
+        (fs, path_s), pw = ask_pw_on_auth_exc(url_to_fs, path_s, **kwargs)
+        path_s = str(Path(path_s).as_posix())
         if isinstance(fs, LocalFileSystem):
-            path = str(Path(path).resolve())
+            path_s = str(Path(path_s).resolve())
 
-    return fs, path, pw
+    return fs, path_s, pw
+
+
+@dataclass(frozen=True)
+class _IterationData:
+    id_: int
+    idx: int
+
+
+class _Pending(TypedDict):
+    template_components: dict[str, list[int]]
+    tasks: list[int]
+    loops: list[int]
+    submissions: list[int]
 
 
 class Workflow:
+    app: ClassVar[BaseApp]
     _app_attr = "app"
-    _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
-    _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
-    _input_files_dir_name = "input_files"
-    _exec_dir_name = "execute"
+    _default_ts_fmt: ClassVar[str] = r"%Y-%m-%d %H:%M:%S.%f"
+    _default_ts_name_fmt: ClassVar[str] = r"%Y-%m-%d_%H%M%S"
+    _input_files_dir_name: ClassVar[str] = "input_files"
+    _exec_dir_name: ClassVar[str] = "execute"
 
     def __init__(
         self,
-        workflow_ref: Union[str, Path, int],
-        store_fmt: Optional[str] = None,
-        fs_kwargs: Optional[Dict] = None,
+        workflow_ref: str | Path | int,
+        store_fmt: str | None = None,
+        fs_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -512,27 +652,29 @@ class Workflow:
 
         if isinstance(workflow_ref, int):
             path = self.app._get_workflow_path_from_local_ID(workflow_ref)
+        elif isinstance(workflow_ref, str):
+            path = Path(workflow_ref)
         else:
             path = workflow_ref
 
         self.app.logger.info(f"loading workflow from path: {path}")
         fs_path = str(path)
-        fs, path, _ = resolve_fsspec(fs_path or "", **(fs_kwargs or {}))
+        fs, path_s, _ = resolve_fsspec(path, **(fs_kwargs or {}))
         store_fmt = store_fmt or infer_store(fs_path, fs)
         store_cls = store_cls_from_str(store_fmt)
 
-        self.path = path
+        self.path = path_s
 
         # assigned on first access:
-        self._ts_fmt = None
-        self._ts_name_fmt = None
-        self._creation_info = None
-        self._name = None
-        self._template = None
-        self._template_components = None
-        self._tasks = None
-        self._loops = None
-        self._submissions = None
+        self._ts_fmt: str | None = None
+        self._ts_name_fmt: str | None = None
+        self._creation_info: CreationInfo | None = None
+        self._name: str | None = None
+        self._template: WorkflowTemplate | None = None
+        self._template_components: TemplateComponents | None = None
+        self._tasks: WorkflowTaskList | None = None
+        self._loops: WorkflowLoopList | None = None
+        self._submissions: list[Submission] | None = None
 
         self._store = store_cls(self.app, self, self.path, fs)
         self._in_batch_mode = False  # flag to track when processing batch updates
@@ -540,12 +682,12 @@ class Workflow:
         # store indices of updates during batch update, so we can revert on failure:
         self._pending = self._get_empty_pending()
 
-    def reload(self):
+    def reload(self) -> Self:
         """Reload the workflow from disk."""
         return self.__class__(self.url)
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The workflow name may be different from the template name, as it includes the
         creation date-timestamp if generated."""
         if not self._name:
@@ -553,37 +695,33 @@ class Workflow:
         return self._name
 
     @property
-    def url(self):
+    def url(self) -> str:
         """Get an fsspec URL for this workflow."""
-        if self._store.fs.protocol == "zip":
-            return self._store.fs.of.path
-        elif self._store.fs.protocol == "file":
-            return self.path
-        else:
-            raise NotImplementedError("Only (local) zip and local URLs provided for now.")
+        if self._store.fs:
+            if self._store.fs.protocol == "zip":
+                return self._store.fs.of.path
+            elif self._store.fs.protocol == "file":
+                return self.path
+        raise NotImplementedError("Only (local) zip and local URLs provided for now.")
 
     @property
-    def store_format(self):
+    def store_format(self) -> str:
         return self._store._name
-
-    @property
-    def num_tasks(self) -> int:
-        return len(self.tasks)
 
     @classmethod
     @TimeIt.decorator
     def from_template(
         cls,
         template: WorkflowTemplate,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        status: Optional[Any] = None,
-    ) -> app.Workflow:
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        status: Status | None = None,
+    ) -> Workflow:
         """Generate from a `WorkflowTemplate` object.
 
         Parameters
@@ -625,30 +763,28 @@ class Workflow:
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
             )
-            with wk._store.cached_load():
-                with wk.batch_update(is_workflow_creation=True):
-                    with wk._store.cache_ctx():
-                        for idx, task in enumerate(template.tasks):
-                            if status:
-                                status.update(
-                                    f"Adding task {idx + 1}/{len(template.tasks)} "
-                                    f"({task.name!r})..."
-                                )
-                            wk._add_task(task)
+            with wk._store.cached_load(), wk.batch_update(
+                is_workflow_creation=True
+            ), wk._store.cache_ctx():
+                for idx, task in enumerate(template.tasks):
+                    if status:
+                        status.update(
+                            f"Adding task {idx + 1}/{len(template.tasks)} "
+                            f"({task.name!r})..."
+                        )
+                    wk._add_task(task)
+                if status:
+                    status.update(f"Preparing to add {len(template.loops)} loops...")
+                if template.loops:
+                    # TODO: if loop with non-initialisable actions, will fail
+                    cache = LoopCache.build(workflow=wk, loops=template.loops)
+                    for idx, loop in enumerate(template.loops):
                         if status:
                             status.update(
-                                f"Preparing to add {len(template.loops)} loops..."
+                                f"Adding loop {idx + 1}/"
+                                f"{len(template.loops)} ({loop.name!r})"
                             )
-                        if template.loops:
-                            # TODO: if loop with non-initialisable actions, will fail
-                            cache = LoopCache.build(workflow=wk, loops=template.loops)
-                            for idx, loop in enumerate(template.loops):
-                                if status:
-                                    status.update(
-                                        f"Adding loop {idx + 1}/"
-                                        f"{len(template.loops)} ({loop.name!r})"
-                                    )
-                                wk._add_loop(loop, cache=cache, status=status)
+                        wk._add_loop(loop, cache=cache, status=status)
         except Exception:
             if status:
                 status.stop()
@@ -660,15 +796,15 @@ class Workflow:
     def from_YAML_file(
         cls,
         YAML_path: PathLike,
-        path: Optional[str] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.Workflow:
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+    ) -> Workflow:
         """Generate from a YAML file.
 
         Parameters
@@ -717,16 +853,16 @@ class Workflow:
     @classmethod
     def from_YAML_string(
         cls,
-        YAML_str: PathLike,
-        path: Optional[str] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-    ) -> app.Workflow:
+        YAML_str: str,
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+    ) -> Workflow:
         """Generate from a YAML string.
 
         Parameters
@@ -776,16 +912,16 @@ class Workflow:
     def from_JSON_file(
         cls,
         JSON_path: PathLike,
-        path: Optional[str] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[Any] = None,
-    ) -> app.Workflow:
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        status: Status | None = None,
+    ) -> Workflow:
         """Generate from a JSON file.
 
         Parameters
@@ -835,17 +971,17 @@ class Workflow:
     @classmethod
     def from_JSON_string(
         cls,
-        JSON_str: PathLike,
-        path: Optional[str] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[Any] = None,
-    ) -> app.Workflow:
+        JSON_str: str,
+        path: PathLike = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        status: Status | None = None,
+    ) -> Workflow:
         """Generate from a JSON string.
 
         Parameters
@@ -897,17 +1033,17 @@ class Workflow:
     def from_file(
         cls,
         template_path: PathLike,
-        template_format: Optional[str] = None,
-        path: Optional[str] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-        variables: Optional[Dict[str, str]] = None,
-        status: Optional[Any] = None,
-    ) -> app.Workflow:
+        template_format: Literal["json", "yaml"] | None = None,
+        path: str | None = None,
+        name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+        variables: dict[str, str] | None = None,
+        status: Status | None = None,
+    ) -> Workflow:
         """Generate from either a YAML or JSON file, depending on the file extension.
 
         Parameters
@@ -969,17 +1105,17 @@ class Workflow:
     def from_template_data(
         cls,
         template_name: str,
-        tasks: Optional[List[app.Task]] = None,
-        loops: Optional[List[app.Loop]] = None,
-        resources: Optional[Dict[str, Dict]] = None,
-        path: Optional[PathLike] = None,
-        workflow_name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        store_kwargs: Optional[Dict] = None,
-    ) -> app.Workflow:
+        tasks: list[Task] | None = None,
+        loops: list[Loop] | None = None,
+        resources: Resources = None,
+        path: PathLike | None = None,
+        workflow_name: str | None = None,
+        overwrite: bool = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+    ) -> Workflow:
         """Generate from the data associated with a WorkflowTemplate object.
 
         Parameters
@@ -1037,9 +1173,9 @@ class Workflow:
     @TimeIt.decorator
     def _add_empty_task(
         self,
-        task: app.Task,
-        new_index: Optional[int] = None,
-    ) -> app.WorkflowTask:
+        task: Task,
+        new_index: int | None = None,
+    ) -> WorkflowTask:
         if new_index is None:
             new_index = self.num_tasks
 
@@ -1059,32 +1195,37 @@ class Workflow:
 
         # update persistent store:
         task_js, temp_comps_js = task_c.to_json_like()
+        assert temp_comps_js is not None
         self._store.add_template_components(temp_comps_js)
-        self._store.add_task(new_index, task_js)
+        self._store.add_task(new_index, cast("Mapping", task_js))
 
         # update in-memory workflow template components:
-        temp_comps = self.app.template_components_from_json_like(temp_comps_js)
+        temp_comps = cast(
+            "_TemplateComponents",
+            self.app.template_components_from_json_like(temp_comps_js),
+        )
         for comp_type, comps in temp_comps.items():
+            ol = self.__template_components[comp_type]
             for comp in comps:
                 comp._set_hash()
-                if comp not in self.template_components[comp_type]:
-                    idx = self.template_components[comp_type].add_object(comp)
-                    self._pending["template_components"][comp_type].append(idx)
+                if comp not in ol:
+                    self._pending["template_components"][comp_type].append(
+                        ol.add_object(comp, skip_duplicates=False)
+                    )
 
         self._pending["tasks"].append(new_index)
         return self.tasks[new_index]
 
     @TimeIt.decorator
-    def _add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
+    def _add_task(self, task: Task, new_index: int | None = None) -> None:
         new_wk_task = self._add_empty_task(task=task, new_index=new_index)
         new_wk_task._add_elements(element_sets=task.element_sets)
 
-    def add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
-        with self._store.cached_load():
-            with self.batch_update():
-                self._add_task(task, new_index=new_index)
+    def add_task(self, task: Task, new_index: int | None = None) -> None:
+        with self._store.cached_load(), self.batch_update():
+            self._add_task(task, new_index=new_index)
 
-    def add_task_after(self, new_task: app.Task, task_ref: app.Task = None) -> None:
+    def add_task_after(self, new_task: Task, task_ref: Task | None = None) -> None:
         """Add a new task after the specified task.
 
         Parameters
@@ -1093,11 +1234,13 @@ class Workflow:
             If not given, the new task will be added at the end of the workflow.
 
         """
-        new_index = task_ref.index + 1 if task_ref else None
+        new_index = (
+            task_ref.index + 1 if task_ref and task_ref.index is not None else None
+        )
         self.add_task(new_task, new_index)
         # TODO: add new downstream elements?
 
-    def add_task_before(self, new_task: app.Task, task_ref: app.Task = None) -> None:
+    def add_task_before(self, new_task: Task, task_ref: Task | None = None) -> None:
         """Add a new task before the specified task.
 
         Parameters
@@ -1111,9 +1254,7 @@ class Workflow:
         # TODO: add new downstream elements?
 
     @TimeIt.decorator
-    def _add_empty_loop(
-        self, loop: app.Loop, cache: LoopCache
-    ) -> Tuple[app.WorkflowLoop, List[app.ElementIteration]]:
+    def _add_empty_loop(self, loop: Loop, cache: LoopCache) -> WorkflowLoop:
         """Add a new loop (zeroth iterations only) to the workflow."""
 
         new_index = self.num_loops
@@ -1146,7 +1287,7 @@ class Workflow:
 
         # update persistent store:
         self._store.add_loop(
-            loop_template=loop_js,
+            loop_template=cast("Mapping", loop_js),
             iterable_parameters=wk_loop.iterable_parameters,
             parents=wk_loop.parents,
             num_added_iterations=wk_loop.num_added_iterations,
@@ -1156,17 +1297,16 @@ class Workflow:
         self._pending["loops"].append(new_index)
 
         # update cache loop indices:
-        cache.update_loop_indices(new_loop_name=loop_c.name, iter_IDs=iter_IDs)
+        cache.update_loop_indices(new_loop_name=loop_c.name or "", iter_IDs=iter_IDs)
 
         return wk_loop
 
     @TimeIt.decorator
     def _add_loop(
-        self, loop: app.Loop, cache: Optional[Dict] = None, status: Optional[Any] = None
+        self, loop: Loop, cache: LoopCache | None = None, status: Status | None = None
     ) -> None:
-        if not cache:
-            cache = LoopCache.build(workflow=self, loops=[loop])
-        new_wk_loop = self._add_empty_loop(loop, cache)
+        cache_ = cache or LoopCache.build(workflow=self, loops=[loop])
+        new_wk_loop = self._add_empty_loop(loop, cache_)
         if loop.num_iterations is not None:
             # fixed number of iterations, so add remaining N > 0 iterations:
             if status:
@@ -1176,44 +1316,42 @@ class Workflow:
                     status.update(
                         f"{status_prev}: iteration {iter_idx + 2}/{loop.num_iterations}."
                     )
-                new_wk_loop.add_iteration(cache=cache)
+                new_wk_loop.add_iteration(cache=cache_)
 
-    def add_loop(self, loop: app.Loop) -> None:
+    def add_loop(self, loop: Loop) -> None:
         """Add a loop to a subset of workflow tasks."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._add_loop(loop)
+        with self._store.cached_load(), self.batch_update():
+            self._add_loop(loop)
 
     @property
-    def creation_info(self):
+    def creation_info(self) -> CreationInfo:
         if not self._creation_info:
             info = self._store.get_creation_info()
-            info["create_time"] = (
-                datetime.strptime(info["create_time"], self.ts_fmt)
-                .replace(tzinfo=timezone.utc)
-                .astimezone()
-            )
-            self._creation_info = info
+            self._creation_info = {
+                "app_info": info["app_info"],
+                "create_time": parse_timestamp(info["create_time"], self.ts_fmt),
+                "id": info["id"],
+            }
         return self._creation_info
 
     @property
-    def id_(self):
+    def id_(self) -> str:
         return self.creation_info["id"]
 
     @property
-    def ts_fmt(self):
+    def ts_fmt(self) -> str:
         if not self._ts_fmt:
             self._ts_fmt = self._store.get_ts_fmt()
         return self._ts_fmt
 
     @property
-    def ts_name_fmt(self):
+    def ts_name_fmt(self) -> str:
         if not self._ts_name_fmt:
             self._ts_name_fmt = self._store.get_ts_name_fmt()
         return self._ts_name_fmt
 
     @property
-    def template_components(self) -> Dict:
+    def template_components(self) -> TemplateComponents:
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
@@ -1221,17 +1359,21 @@ class Workflow:
         return self._template_components
 
     @property
-    def template(self) -> app.WorkflowTemplate:
+    def __template_components(self) -> _TemplateComponents:
+        return cast("_TemplateComponents", self.template_components)
+
+    @property
+    def template(self) -> WorkflowTemplate:
         if self._template is None:
             with self._store.cached_load():
                 temp_js = self._store.get_template()
 
                 # TODO: insert_ID and id_ are the same thing:
-                for task in temp_js["tasks"]:
+                for task in cast("list[dict]", temp_js["tasks"]):
                     task.pop("id_", None)
 
                 template = self.app.WorkflowTemplate.from_json_like(
-                    temp_js, self.template_components
+                    temp_js, cast(dict, self.template_components)
                 )
                 template.workflow = self
             self._template = template
@@ -1239,53 +1381,51 @@ class Workflow:
         return self._template
 
     @property
-    def tasks(self) -> app.WorkflowTaskList:
+    def tasks(self) -> WorkflowTaskList:
         if self._tasks is None:
             with self._store.cached_load():
-                all_tasks = self._store.get_tasks()
-                wk_tasks = []
-                for i in all_tasks:
-                    wk_task = self.app.WorkflowTask(
+                all_tasks: Iterable[StoreTask] = self._store.get_tasks()
+                self._tasks = self.app.WorkflowTaskList(
+                    self.app.WorkflowTask(
                         workflow=self,
                         template=self.template.tasks[i.index],
                         index=i.index,
                         element_IDs=i.element_IDs,
                     )
-                    wk_tasks.append(wk_task)
-                self._tasks = self.app.WorkflowTaskList(wk_tasks)
+                    for i in all_tasks
+                )
 
         return self._tasks
 
     @property
-    def loops(self) -> app.WorkflowLoopList:
+    def loops(self) -> WorkflowLoopList:
         if self._loops is None:
             with self._store.cached_load():
-                wk_loops = []
-                for idx, loop_dat in self._store.get_loops().items():
-                    num_add_iters = {
-                        tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
-                    }
-                    wk_loop = self.app.WorkflowLoop(
+                self._loops = self.app.WorkflowLoopList(
+                    self.app.WorkflowLoop(
                         index=idx,
                         workflow=self,
                         template=self.template.loops[idx],
                         parents=loop_dat["parents"],
-                        num_added_iterations=num_add_iters,
+                        num_added_iterations={
+                            tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
+                        },
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
-                    wk_loops.append(wk_loop)
-                self._loops = self.app.WorkflowLoopList(wk_loops)
+                    for idx, loop_dat in self._store.get_loops().items()
+                )
         return self._loops
 
     @property
-    def submissions(self) -> List[app.Submission]:
+    def submissions(self) -> list[Submission]:
         if self._submissions is None:
             self.app.persistence_logger.debug("loading workflow submissions")
             with self._store.cached_load():
-                subs = []
+                subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
-                    sub_js = {"index": idx, **sub_dat}
-                    sub = self.app.Submission.from_json_like(sub_js)
+                    sub = self.app.Submission.from_json_like(
+                        {"index": idx, **cast(dict, sub_dat)}
+                    )
                     sub.workflow = self
                     subs.append(sub)
                 self._submissions = subs
@@ -1296,208 +1436,203 @@ class Workflow:
         return self._store._get_num_total_added_tasks()
 
     @TimeIt.decorator
-    def get_store_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
+    def get_store_EARs(self, id_lst: Iterable[int]) -> Sequence[StoreEAR]:
         return self._store.get_EARs(id_lst)
 
     @TimeIt.decorator
     def get_store_element_iterations(
         self, id_lst: Iterable[int]
-    ) -> List[AnySElementIter]:
+    ) -> Sequence[StoreElementIter]:
         return self._store.get_element_iterations(id_lst)
 
     @TimeIt.decorator
-    def get_store_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
+    def get_store_elements(self, id_lst: Iterable[int]) -> Sequence[StoreElement]:
         return self._store.get_elements(id_lst)
 
     @TimeIt.decorator
-    def get_store_tasks(self, id_lst: Iterable[int]) -> List[AnySTask]:
+    def get_store_tasks(self, id_lst: Iterable[int]) -> Sequence[StoreTask]:
         return self._store.get_tasks_by_IDs(id_lst)
 
-    def get_element_iteration_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> List[int]:
+    def get_element_iteration_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> list[int]:
         return [i.elem_iter_ID for i in self.get_store_EARs(id_lst)]
 
-    def get_element_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> List[int]:
+    def get_element_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> list[int]:
         iter_IDs = self.get_element_iteration_IDs_from_EAR_IDs(id_lst)
         return [i.element_ID for i in self.get_store_element_iterations(iter_IDs)]
 
-    def get_task_IDs_from_element_IDs(self, id_lst: Iterable[int]) -> List[int]:
+    def get_task_IDs_from_element_IDs(self, id_lst: Iterable[int]) -> list[int]:
         return [i.task_ID for i in self.get_store_elements(id_lst)]
 
-    def get_EAR_IDs_of_tasks(self, id_lst: int) -> List[int]:
+    def get_EAR_IDs_of_tasks(self, id_lst: Iterable[int]) -> list[int]:
         """Get EAR IDs belonging to multiple tasks"""
         return [i.id_ for i in self.get_EARs_of_tasks(id_lst)]
 
-    def get_EARs_of_tasks(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
+    def get_EARs_of_tasks(self, id_lst: Iterable[int]) -> list[ElementActionRun]:
         """Get EARs belonging to multiple tasks"""
-        EARs = []
+        EARs: list[ElementActionRun] = []
         for i in id_lst:
-            task = self.tasks.get(insert_ID=i)
-            for elem in task.elements[:]:
+            for elem in self.tasks.get(insert_ID=i).elements[:]:
                 for iter_ in elem.iterations:
-                    for run in iter_.action_runs:
-                        EARs.append(run)
+                    EARs.extend(iter_.action_runs)
         return EARs
 
     def get_element_iterations_of_tasks(
         self, id_lst: Iterable[int]
-    ) -> List[app.ElementIteration]:
+    ) -> list[ElementIteration]:
         """Get element iterations belonging to multiple tasks"""
-        iters = []
+        iters: list[ElementIteration] = []
         for i in id_lst:
-            task = self.tasks.get(insert_ID=i)
-            for elem in task.elements[:]:
-                for iter_i in elem.iterations:
-                    iters.append(iter_i)
+            for elem in self.tasks.get(insert_ID=i).elements[:]:
+                iters.extend(elem.iterations)
         return iters
 
+    @dataclass
+    class _IndexPath1:
+        elem_idx: int
+        task_idx: int
+
     @TimeIt.decorator
-    def get_elements_from_IDs(self, id_lst: Iterable[int]) -> List[app.Element]:
+    def get_elements_from_IDs(self, id_lst: Iterable[int]) -> list[Element]:
         """Return element objects from a list of IDs."""
 
-        store_elems = self._store.get_elements(id_lst)
+        store_elems = self.get_store_elements(id_lst)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
+        index_paths: list[Workflow._IndexPath1] = []
+        for elem, task in zip(store_elems, store_tasks):
+            elem_idx = task.element_IDs.index(elem.id_)
+            index_paths.append(Workflow._IndexPath1(elem_idx, task.index))
+            element_idx_by_task[task.index].add(elem_idx)
 
-        element_idx_by_task = defaultdict(set)
-        index_paths = []
-        for el, tk in zip(store_elems, store_tasks):
-            elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(
-                {
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
-            )
-            element_idx_by_task[tk.index].add(elem_idx)
+        elements_by_task = {
+            task_idx: {idx: self.tasks[task_idx].elements[idx] for idx in elem_idxes}
+            for task_idx, elem_idxes in element_idx_by_task.items()
+        }
 
-        elements_by_task = {}
-        for task_idx, elem_idx in element_idx_by_task.items():
-            task = self.tasks[task_idx]
-            elements_by_task[task_idx] = dict(
-                zip(elem_idx, task.elements[list(elem_idx)])
-            )
+        return [
+            elements_by_task[idx_dat.task_idx][idx_dat.elem_idx]
+            for idx_dat in index_paths
+        ]
 
-        objs = []
-        for idx_dat in index_paths:
-            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
-            objs.append(elem)
-
-        return objs
+    @dataclass
+    class _IndexPath2:
+        iter_idx: int
+        elem_idx: int
+        task_idx: int
 
     @TimeIt.decorator
     def get_element_iterations_from_IDs(
         self, id_lst: Iterable[int]
-    ) -> List[app.ElementIteration]:
+    ) -> list[ElementIteration]:
         """Return element iteration objects from a list of IDs."""
 
-        store_iters = self._store.get_element_iterations(id_lst)
+        store_iters = self.get_store_element_iterations(id_lst)
+        store_elems = self.get_store_elements(i.element_ID for i in store_iters)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
-        elem_IDs = [i.element_ID for i in store_iters]
-        store_elems = self._store.get_elements(elem_IDs)
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
 
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
+        index_paths: list[Workflow._IndexPath2] = []
+        for itr, elem, task in zip(store_iters, store_elems, store_tasks):
+            iter_idx = elem.iteration_IDs.index(itr.id_)
+            elem_idx = task.element_IDs.index(elem.id_)
+            index_paths.append(Workflow._IndexPath2(iter_idx, elem_idx, task.index))
+            element_idx_by_task[task.index].add(elem_idx)
 
-        element_idx_by_task = defaultdict(set)
+        elements_by_task = {
+            task_idx: {idx: self.tasks[task_idx].elements[idx] for idx in elem_idx}
+            for task_idx, elem_idx in element_idx_by_task.items()
+        }
 
-        index_paths = []
-        for it, el, tk in zip(store_iters, store_elems, store_tasks):
-            iter_idx = el.iteration_IDs.index(it.id_)
-            elem_idx = tk.element_IDs.index(el.id_)
-            index_paths.append(
-                {
-                    "iter_idx": iter_idx,
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
-            )
-            element_idx_by_task[tk.index].add(elem_idx)
+        return [
+            elements_by_task[idx_dat.task_idx][idx_dat.elem_idx].iterations[
+                idx_dat.iter_idx
+            ]
+            for idx_dat in index_paths
+        ]
 
-        elements_by_task = {}
-        for task_idx, elem_idx in element_idx_by_task.items():
-            task = self.tasks[task_idx]
-            elements_by_task[task_idx] = dict(
-                zip(elem_idx, task.elements[list(elem_idx)])
-            )
+    @dataclass
+    class _IndexPath3:
+        run_idx: int
+        action_idx: int
+        iter_idx: int
+        elem_idx: int
+        task_idx: int
 
-        objs = []
-        for idx_dat in index_paths:
-            elem = elements_by_task[idx_dat["task_idx"]][idx_dat["elem_idx"]]
-            iter_ = elem.iterations[idx_dat["iter_idx"]]
-            objs.append(iter_)
+    @overload
+    def get_EARs_from_IDs(self, ids: Iterable[int]) -> list[ElementActionRun]:
+        ...
 
-        return objs
+    @overload
+    def get_EARs_from_IDs(self, ids: int) -> ElementActionRun:
+        ...
 
     @TimeIt.decorator
-    def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
+    def get_EARs_from_IDs(
+        self, ids: Iterable[int] | int
+    ) -> list[ElementActionRun] | ElementActionRun:
         """Return element action run objects from a list of IDs."""
+        id_lst = [ids] if isinstance(ids, int) else list(ids)
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
-        store_EARs = self._store.get_EARs(id_lst)
-
-        elem_iter_IDs = [i.elem_iter_ID for i in store_EARs]
-        store_iters = self._store.get_element_iterations(elem_iter_IDs)
-
-        elem_IDs = [i.element_ID for i in store_iters]
-        store_elems = self._store.get_elements(elem_IDs)
-
-        task_IDs = [i.task_ID for i in store_elems]
-        store_tasks = self._store.get_tasks_by_IDs(task_IDs)
+        store_EARs = self.get_store_EARs(id_lst)
+        store_iters = self.get_store_element_iterations(
+            i.elem_iter_ID for i in store_EARs
+        )
+        store_elems = self.get_store_elements(i.element_ID for i in store_iters)
+        store_tasks = self.get_store_tasks(i.task_ID for i in store_elems)
 
         # to allow for bulk retrieval of elements/iterations
-        element_idx_by_task = defaultdict(set)
-        iter_idx_by_task_elem = defaultdict(lambda: defaultdict(set))
+        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
+        iter_idx_by_task_elem: dict[int, dict[int, set[int]]] = defaultdict(
+            lambda: defaultdict(set)
+        )
 
-        index_paths = []
+        index_paths: list[Workflow._IndexPath3] = []
         for rn, it, el, tk in zip(store_EARs, store_iters, store_elems, store_tasks):
             act_idx = rn.action_idx
-            run_idx = it.EAR_IDs[act_idx].index(rn.id_)
+            run_idx = it.EAR_IDs[act_idx].index(rn.id_) if it.EAR_IDs is not None else -1
             iter_idx = el.iteration_IDs.index(it.id_)
             elem_idx = tk.element_IDs.index(el.id_)
             index_paths.append(
-                {
-                    "run_idx": run_idx,
-                    "action_idx": act_idx,
-                    "iter_idx": iter_idx,
-                    "elem_idx": elem_idx,
-                    "task_idx": tk.index,
-                }
+                Workflow._IndexPath3(run_idx, act_idx, iter_idx, elem_idx, tk.index)
             )
             element_idx_by_task[tk.index].add(elem_idx)
             iter_idx_by_task_elem[tk.index][elem_idx].add(iter_idx)
 
         # retrieve elements/iterations:
-        iters_by_task_elem = defaultdict(lambda: defaultdict(dict))
-        for task_idx, elem_idx in element_idx_by_task.items():
-            elements = self.tasks[task_idx].elements[list(elem_idx)]
-            for elem_i in elements:
-                elem_i_iters_idx = iter_idx_by_task_elem[task_idx][elem_i.index]
-                elem_iters = [elem_i.iterations[j] for j in elem_i_iters_idx]
-                iters_by_task_elem[task_idx][elem_i.index].update(
-                    dict(zip(elem_i_iters_idx, elem_iters))
-                )
+        iters_by_task_elem = {
+            task_idx: {
+                elem_i.index: {
+                    iter_idx: elem_i.iterations[iter_idx]
+                    for iter_idx in iter_idx_by_task_elem[task_idx][elem_i.index]
+                }
+                for elem_i in self.tasks[task_idx].elements[list(elem_idxes)]
+            }
+            for task_idx, elem_idxes in element_idx_by_task.items()
+        }
 
-        objs = []
-        for idx_dat in index_paths:
-            iter_ = iters_by_task_elem[idx_dat["task_idx"]][idx_dat["elem_idx"]][
-                idx_dat["iter_idx"]
-            ]
-            run = iter_.actions[idx_dat["action_idx"]].runs[idx_dat["run_idx"]]
-            objs.append(run)
-
-        return objs
+        result = [
+            iters_by_task_elem[path.task_idx][path.elem_idx][path.iter_idx]
+            .actions[path.action_idx]
+            .runs[path.run_idx]
+            for path in index_paths
+        ]
+        if isinstance(ids, int):
+            return result[0]
+        return result
 
     @TimeIt.decorator
-    def get_all_elements(self) -> List[app.Element]:
+    def get_all_elements(self) -> list[Element]:
         return self.get_elements_from_IDs(range(self.num_elements))
 
     @TimeIt.decorator
-    def get_all_element_iterations(self) -> List[app.ElementIteration]:
+    def get_all_element_iterations(self) -> list[ElementIteration]:
         return self.get_element_iterations_from_IDs(range(self.num_element_iterations))
 
     @TimeIt.decorator
-    def get_all_EARs(self) -> List[app.ElementActionRun]:
+    def get_all_EARs(self) -> list[ElementActionRun]:
         return self.get_EARs_from_IDs(range(self.num_EARs))
 
     @contextmanager
@@ -1564,7 +1699,7 @@ class Workflow:
                 self._in_batch_mode = False
 
     @classmethod
-    def temporary_rename(cls, path: str, fs) -> List[str]:
+    def temporary_rename(cls, path: str, fs: AbstractFileSystem) -> str:
         """Rename an existing same-path workflow (directory) so we can restore it if
         workflow creation fails.
 
@@ -1572,10 +1707,10 @@ class Workflow:
         paths may be created, where only the final path should be considered the
         successfully renamed workflow. Other paths will be deleted."""
 
-        all_replaced = []
+        all_replaced: list[str] = []
 
         @cls.app.perm_error_retry()
-        def _temp_rename(path: str, fs) -> str:
+        def _temp_rename(path: str, fs: AbstractFileSystem) -> str:
             temp_ext = "".join(random.choices(string.ascii_letters, k=10))
             replaced = str(Path(f"{path}.{temp_ext}").as_posix())
             cls.app.persistence_logger.debug(
@@ -1590,7 +1725,7 @@ class Workflow:
             return replaced
 
         @cls.app.perm_error_retry()
-        def _remove_path(path: str, fs) -> None:
+        def _remove_path(path: str, fs: AbstractFileSystem) -> None:
             cls.app.persistence_logger.debug(f"temporary_rename: _remove_path: {path!r}.")
             while fs.exists(path):
                 fs.rm(path, recursive=True)
@@ -1607,16 +1742,17 @@ class Workflow:
     @TimeIt.decorator
     def _write_empty_workflow(
         cls,
-        template: app.WorkflowTemplate,
-        path: Optional[PathLike] = None,
-        name: Optional[str] = None,
-        overwrite: Optional[bool] = False,
-        store: Optional[str] = DEFAULT_STORE_FORMAT,
-        ts_fmt: Optional[str] = None,
-        ts_name_fmt: Optional[str] = None,
-        fs_kwargs: Optional[Dict] = None,
-        store_kwargs: Optional[Dict] = None,
-    ) -> app.Workflow:
+        template: WorkflowTemplate,
+        *,
+        path: PathLike | None = None,
+        name: str | None = None,
+        overwrite: bool | None = False,
+        store: str = DEFAULT_STORE_FORMAT,
+        ts_fmt: str | None = None,
+        ts_name_fmt: str | None = None,
+        fs_kwargs: dict[str, Any] | None = None,
+        store_kwargs: dict[str, Any] | None = None,
+    ) -> Workflow:
         """
         Parameters
         ----------
@@ -1652,19 +1788,16 @@ class Workflow:
                 )
 
         # make template-level inputs/resources think they are persistent:
-        wk_dummy = _DummyPersistentWorkflow()
-        param_src = {"type": "workflow_resources"}
-        for res_i in copy.deepcopy(template.resources):
+        wk_dummy = cast(Workflow, _DummyPersistentWorkflow())
+        param_src: ParamSource = {"type": "workflow_resources"}
+        for res_i in template._get_resources_copy():
             res_i.make_persistent(wk_dummy, param_src)
 
-        template_js, template_sh = template.to_json_like(exclude=["tasks", "loops"])
-        template_js["tasks"] = []
-        template_js["loops"] = []
-
-        creation_info = {
-            "app_info": cls.app.get_info(),
-            "create_time": ts_utc.strftime(ts_fmt),
-            "id": str(uuid4()),
+        template_js_, template_sh = template.to_json_like(exclude={"tasks", "loops"})
+        template_js: TemplateMeta = {
+            **cast("TemplateMeta", template_js_),  # Trust me, bro!
+            "tasks": [],
+            "loops": [],
         }
 
         store_kwargs = store_kwargs if store_kwargs else template.store_kwargs
@@ -1672,12 +1805,16 @@ class Workflow:
         store_cls.write_empty_workflow(
             app=cls.app,
             template_js=template_js,
-            template_components_js=template_sh,
+            template_components_js=template_sh or {},
             wk_path=wk_path,
             fs=fs,
             name=name,
             replaced_wk=replaced_wk,
-            creation_info=creation_info,
+            creation_info={
+                "app_info": cls.app.get_info(),
+                "create_time": ts_utc.strftime(ts_fmt),
+                "id": str(uuid4()),
+            },
             ts_fmt=ts_fmt,
             ts_name_fmt=ts_name_fmt,
             **store_kwargs,
@@ -1687,7 +1824,7 @@ class Workflow:
         wk = cls(fs_path, store_fmt=store, fs_kwargs=fs_kwargs)
 
         # actually make template inputs/resources persistent, now the workflow exists:
-        wk_dummy.make_persistent(wk)
+        cast(_DummyPersistentWorkflow, wk_dummy).make_persistent(wk)
 
         if template.source_file:
             wk.artifacts_path.mkdir(exist_ok=False)
@@ -1698,11 +1835,11 @@ class Workflow:
 
     def zip(
         self,
-        path=".",
-        log=None,
-        overwrite=False,
-        include_execute=False,
-        include_rechunk_backups=False,
+        path: str = ".",
+        log: str | None = None,
+        overwrite: bool = False,
+        include_execute: bool = False,
+        include_rechunk_backups: bool = False,
     ) -> str:
         """
         Parameters
@@ -1720,7 +1857,7 @@ class Workflow:
             include_rechunk_backups=include_rechunk_backups,
         )
 
-    def unzip(self, path=".", log=None) -> str:
+    def unzip(self, path: str = ".", log: str | None = None) -> str:
         """
         Parameters
         ----------
@@ -1731,35 +1868,33 @@ class Workflow:
         """
         return self._store.unzip(path=path, log=log)
 
-    def copy(self, path=None) -> str:
+    def copy(self, path: str | Path = ".") -> Path:
         """Copy the workflow to a new path and return the copied workflow path."""
         return self._store.copy(path)
 
-    def delete(self):
+    def delete(self) -> None:
         self._store.delete()
 
-    def _delete_no_confirm(self):
+    def _delete_no_confirm(self) -> None:
         self._store.delete_no_confirm()
 
-    def get_parameters(
-        self, id_lst: Iterable[int], **kwargs: Dict
-    ) -> List[AnySParameter]:
+    def get_parameters(self, id_lst: Iterable[int], **kwargs) -> Sequence[StoreParameter]:
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
+    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[ParamSource]:
         return self._store.get_parameter_sources(id_lst)
 
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
+    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
         return self._store.get_parameter_set_statuses(id_lst)
 
     @TimeIt.decorator
-    def get_parameter(self, index: int, **kwargs: Dict) -> AnySParameter:
+    def get_parameter(self, index: int, **kwargs) -> StoreParameter:
         return self.get_parameters([index], **kwargs)[0]
 
     @TimeIt.decorator
-    def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
+    def get_parameter_data(self, index: int, **kwargs) -> Any:
         param = self.get_parameter(index, **kwargs)
         if param.data is not None:
             return param.data
@@ -1767,7 +1902,7 @@ class Workflow:
             return param.file
 
     @TimeIt.decorator
-    def get_parameter_source(self, index: int) -> Dict:
+    def get_parameter_source(self, index: int) -> ParamSource:
         return self.get_parameter_sources([index])[0]
 
     @TimeIt.decorator
@@ -1775,52 +1910,56 @@ class Workflow:
         return self.get_parameter_set_statuses([index])[0]
 
     @TimeIt.decorator
-    def get_all_parameters(self, **kwargs: Dict) -> List[AnySParameter]:
+    def get_all_parameters(self, **kwargs) -> list[StoreParameter]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_all_parameter_sources(self, **kwargs: Dict) -> List[Dict]:
+    def get_all_parameter_sources(self, **kwargs) -> list[ParamSource]:
         """Retrieve all store parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameter_sources(id_lst, **kwargs)
 
     @TimeIt.decorator
-    def get_all_parameter_data(self, **kwargs: Dict) -> Dict[int, Any]:
+    def get_all_parameter_data(self, **kwargs) -> dict[int, Any]:
         """Retrieve all workflow parameter data."""
-        params = self.get_all_parameters(**kwargs)
-        return {i.id_: (i.data if i.data is not None else i.file) for i in params}
+        return {
+            i.id_: (i.data if i.data is not None else i.file)
+            for i in self.get_all_parameters(**kwargs)
+        }
 
-    def check_parameters_exist(
-        self, id_lst: Union[int, List[int]]
-    ) -> Union[bool, List[bool]]:
-        is_multi = True
+    @overload
+    def check_parameters_exist(self, id_lst: int) -> bool:
+        ...
+
+    @overload
+    def check_parameters_exist(self, id_lst: list[int]) -> list[bool]:
+        ...
+
+    def check_parameters_exist(self, id_lst: int | list[int]) -> bool | list[bool]:
         if isinstance(id_lst, int):
-            is_multi = False
-            id_lst = [id_lst]
-        exists = self._store.check_parameters_exist(id_lst)
-        if not is_multi:
-            exists = exists[0]
-        return exists
+            return self._store.check_parameters_exist([id_lst])[0]
+        return self._store.check_parameters_exist(id_lst)
 
-    def _add_unset_parameter_data(self, source: Dict) -> int:
+    def _add_unset_parameter_data(self, source: ParamSource) -> int:
         # TODO: use this for unset files as well
         return self._store.add_unset_parameter(source)
 
-    def _add_parameter_data(self, data, source: Dict) -> int:
+    def _add_parameter_data(self, data, source: ParamSource) -> int:
         return self._store.add_set_parameter(data, source)
 
     def _add_file(
         self,
+        *,
         store_contents: bool,
         is_input: bool,
-        source: Dict,
+        source: ParamSource,
         path=None,
         contents=None,
-        filename: str = None,
+        filename: str,
     ) -> int:
         return self._store.add_file(
             store_contents=store_contents,
@@ -1833,16 +1972,16 @@ class Workflow:
 
     def _set_file(
         self,
-        param_id: int,
+        param_id: int | list[int] | None,
         store_contents: bool,
         is_input: bool,
-        path=None,
+        path: Path | str,
         contents=None,
-        filename: str = None,
+        filename: str | None = None,
         clean_up: bool = False,
-    ) -> int:
+    ) -> None:
         self._store.set_file(
-            param_id=param_id,
+            param_id=cast(int, param_id),
             store_contents=store_contents,
             is_input=is_input,
             path=path,
@@ -1851,9 +1990,19 @@ class Workflow:
             clean_up=clean_up,
         )
 
+    @overload
+    def get_task_unique_names(
+        self, map_to_insert_ID: Literal[False] = False
+    ) -> list[str]:
+        ...
+
+    @overload
+    def get_task_unique_names(self, map_to_insert_ID: Literal[True]) -> dict[str, int]:
+        ...
+
     def get_task_unique_names(
         self, map_to_insert_ID: bool = False
-    ) -> Union[List[str], Dict[str, int]]:
+    ) -> list[str] | dict[str, int]:
         """Return the unique names of all workflow tasks.
 
         Parameters
@@ -1870,14 +2019,14 @@ class Workflow:
         else:
             return names
 
-    def _get_new_task_unique_name(self, new_task: app.Task, new_index: int) -> str:
+    def _get_new_task_unique_name(self, new_task: Task, new_index: int) -> str:
         task_templates = list(self.template.tasks)
         task_templates.insert(new_index, new_task)
         uniq_names = self.app.Task.get_task_unique_names(task_templates)
 
         return uniq_names[new_index]
 
-    def _get_empty_pending(self) -> Dict:
+    def _get_empty_pending(self) -> _Pending:
         return {
             "template_components": {k: [] for k in TEMPLATE_COMP_TYPES},
             "tasks": [],  # list of int
@@ -1907,7 +2056,9 @@ class Workflow:
         for comp_type, comp_indices in self._pending["template_components"].items():
             for comp_idx in comp_indices[::-1]:
                 # iterate in reverse so the index references are correct
-                self.template_components[comp_type]._remove_object(comp_idx)
+                tc = self.__template_components[comp_type]
+                assert hasattr(tc, "_remove_object")
+                tc._remove_object(comp_idx)
 
         for loop_idx in self._pending["loops"][::-1]:
             # iterate in reverse so the index references are correct
@@ -1916,29 +2067,30 @@ class Workflow:
 
         for sub_idx in self._pending["submissions"][::-1]:
             # iterate in reverse so the index references are correct
+            assert self._submissions is not None
             self._submissions.pop(sub_idx)
 
         self._reset_pending()
 
     @property
-    def num_tasks(self):
+    def num_tasks(self) -> int:
         return self._store._get_num_total_tasks()
 
     @property
-    def num_submissions(self):
+    def num_submissions(self) -> int:
         return self._store._get_num_total_submissions()
 
     @property
-    def num_elements(self):
+    def num_elements(self) -> int:
         return self._store._get_num_total_elements()
 
     @property
-    def num_element_iterations(self):
+    def num_element_iterations(self) -> int:
         return self._store._get_num_total_elem_iters()
 
     @property
     @TimeIt.decorator
-    def num_EARs(self):
+    def num_EARs(self) -> int:
         return self._store._get_num_total_EARs()
 
     @property
@@ -1946,32 +2098,32 @@ class Workflow:
         return self._store._get_num_total_loops()
 
     @property
-    def artifacts_path(self):
+    def artifacts_path(self) -> Path:
         # TODO: allow customisation of artifacts path at submission and resources level
         return Path(self.path) / "artifacts"
 
     @property
-    def input_files_path(self):
+    def input_files_path(self) -> Path:
         return self.artifacts_path / self._input_files_dir_name
 
     @property
-    def submissions_path(self):
+    def submissions_path(self) -> Path:
         return self.artifacts_path / "submissions"
 
     @property
-    def task_artifacts_path(self):
+    def task_artifacts_path(self) -> Path:
         return self.artifacts_path / "tasks"
 
     @property
-    def execution_path(self):
+    def execution_path(self) -> Path:
         return Path(self.path) / self._exec_dir_name
 
     @TimeIt.decorator
     def get_task_elements(
         self,
-        task: app.Task,
-        idx_lst: Optional[List[int]] = None,
-    ) -> List[app.Element]:
+        task: WorkflowTask,
+        idx_lst: list[int] | None = None,
+    ) -> list[Element]:
         return [
             self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
@@ -1979,16 +2131,14 @@ class Workflow:
 
     def set_EAR_submission_index(self, EAR_ID: int, sub_idx: int) -> None:
         """Set the submission index of an EAR."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_submission_index(EAR_ID, sub_idx)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_submission_index(EAR_ID, sub_idx)
 
     def set_EAR_start(self, EAR_ID: int) -> None:
         """Set the start time on an EAR."""
         self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_start(EAR_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_start(EAR_ID)
 
     def set_EAR_end(
         self,
@@ -2007,7 +2157,7 @@ class Workflow:
             f"Setting end for EAR ID {EAR_ID!r} with exit code {exit_code!r}."
         )
         with self._store.cached_load():
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+            EAR = self.get_EARs_from_IDs(EAR_ID)
             with self.batch_update():
                 success = exit_code == 0  # TODO  more sophisticated success heuristics
                 if EAR.action.abortable and exit_code == ABORT_EXIT_CODE:
@@ -2023,10 +2173,9 @@ class Workflow:
                     param_id = EAR.data_idx[f"input_files.{inp_file.label}"]
 
                     file_paths = inp_file.value()
-                    if not isinstance(file_paths, list):
-                        file_paths = [file_paths]
-
-                    for path_i in file_paths:
+                    for path_i in (
+                        file_paths if isinstance(file_paths, list) else [file_paths]
+                    ):
                         self._set_file(
                             param_id=param_id,
                             store_contents=True,  # TODO: make optional according to IFG
@@ -2042,22 +2191,18 @@ class Workflow:
                     self.app.logger.debug(
                         f"Saving file: {save_file_j.label!r} for EAR ID " f"{EAR_ID!r}."
                     )
-                    try:
-                        param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
-                    except KeyError:
-                        # We might be saving a file that is not a defined
-                        # "output file"; this will avoid saving a reference in the
-                        # parameter data:
-                        param_id = None
+                    # We might be saving a file that is not a defined
+                    # "output file"; this will avoid saving a reference in the
+                    # parameter data in that case
+                    param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                     file_paths = save_file_j.value()
                     self.app.logger.debug(f"Saving output file paths: {file_paths!r}")
-                    if not isinstance(file_paths, list):
-                        file_paths = [file_paths]
-
-                    for path_i in file_paths:
+                    for path_i in (
+                        file_paths if isinstance(file_paths, list) else [file_paths]
+                    ):
                         self._set_file(
-                            param_id=param_id,
+                            param_id=param_id_j,
                             store_contents=True,
                             is_input=False,
                             path=Path(path_i).resolve(),
@@ -2065,29 +2210,25 @@ class Workflow:
                         )
 
                 for OFP_i in EAR.action.output_file_parsers:
-                    for save_file_j in OFP_i.save_files:
+                    for save_file_j in OFP_i._save_files:
                         self.app.logger.debug(
                             f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
                             f"{EAR_ID!r}."
                         )
-                        try:
-                            param_id = EAR.data_idx[f"output_files.{save_file_j.label}"]
-                        except KeyError:
-                            # We might be saving a file that is not a defined
-                            # "output file"; this will avoid saving a reference in the
-                            # parameter data:
-                            param_id = None
+                        # We might be saving a file that is not a defined
+                        # "output file"; this will avoid saving a reference in the
+                        # parameter data in that case
+                        param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                         file_paths = save_file_j.value()
                         self.app.logger.debug(
                             f"Saving EAR output file paths: {file_paths!r}"
                         )
-                        if not isinstance(file_paths, list):
-                            file_paths = [file_paths]
-
-                        for path_i in file_paths:
+                        for path_i in (
+                            file_paths if isinstance(file_paths, list) else [file_paths]
+                        ):
                             self._set_file(
-                                param_id=param_id,
+                                param_id=param_id_j,
                                 store_contents=True,  # TODO: make optional according to OFP
                                 is_input=False,
                                 path=Path(path_i).resolve(),
@@ -2109,22 +2250,20 @@ class Workflow:
     def set_EAR_skip(self, EAR_ID: int) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
         termination condition being met."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EAR_skip(EAR_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EAR_skip(EAR_ID)
 
-    def get_EAR_skipped(self, EAR_ID: int) -> None:
+    def get_EAR_skipped(self, EAR_ID: int) -> bool:
         """Check if an EAR is to be skipped."""
         with self._store.cached_load():
             return self._store.get_EAR_skipped(EAR_ID)
 
     @TimeIt.decorator
     def set_parameter_value(
-        self, param_id: int, value: Any, commit: bool = False
+        self, param_id: int | list[int], value: Any, commit: bool = False
     ) -> None:
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_parameter_value(param_id, value)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_parameter_value(cast(int, param_id), value)
 
         if commit:
             # force commit now:
@@ -2132,24 +2271,51 @@ class Workflow:
 
     def set_EARs_initialised(self, iter_ID: int):
         """Set `ElementIteration.EARs_initialised` to True for the specified iteration."""
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.set_EARs_initialised(iter_ID)
+        with self._store.cached_load(), self.batch_update():
+            self._store.set_EARs_initialised(iter_ID)
 
-    def elements(self) -> Iterator[app.Element]:
+    def elements(self) -> Iterator[Element]:
         for task in self.tasks:
             for element in task.elements[:]:
                 yield element
 
-    @TimeIt.decorator
-    def get_iteration_task_pathway(self, ret_iter_IDs=False, ret_data_idx=False):
-        pathway = []
-        for task in self.tasks:
-            pathway.append((task.insert_ID, {}))
+    @overload
+    def get_iteration_task_pathway(
+        self,
+        *,
+        ret_iter_IDs: Literal[False] = False,
+        ret_data_idx: Literal[False] = False,
+    ) -> list[tuple[int, dict[str, int]]]:
+        ...
 
-        added_loop_names = set()
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[False] = False, ret_data_idx: Literal[True]
+    ) -> list[tuple[int, dict[str, int], tuple[dict[str, int], ...]]]:
+        ...
+
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[False] = False
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...]]]:
+        ...
+
+    @overload
+    def get_iteration_task_pathway(
+        self, *, ret_iter_IDs: Literal[True], ret_data_idx: Literal[True]
+    ) -> list[tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]]:
+        ...
+
+    @TimeIt.decorator
+    def get_iteration_task_pathway(
+        self, ret_iter_IDs: bool = False, ret_data_idx: bool = False
+    ) -> list[tuple]:
+        pathway: list[_Pathway] = []
+        for task in self.tasks:
+            pathway.append(_Pathway(task.insert_ID, {}))
+
+        added_loop_names: set[str] = set()
         for _ in range(self.num_loops):
-            to_add = None
             for loop in self.loops:
                 if loop.name in added_loop_names:
                     continue
@@ -2157,42 +2323,36 @@ class Workflow:
                     # add a loop only once their parents have been added:
                     to_add = loop
                     break
-
-            if to_add is None:
+            else:
                 raise RuntimeError(
                     "Failed to find a loop whose parents have already been added to the "
                     "iteration task pathway."
                 )
 
             iIDs = to_add.task_insert_IDs
-            relevant_idx = [idx for idx, i in enumerate(pathway) if i[0] in iIDs]
+            relevant_idx = [
+                idx for idx, path_i in enumerate(pathway) if path_i.id_ in iIDs
+            ]
 
             for num_add_k, num_add in to_add.num_added_iterations.items():
-                parent_loop_idx = {
-                    to_add.parents[idx]: i for idx, i in enumerate(num_add_k)
-                }
-
-                repl = []
-                repl_idx = []
+                parent_loop_idx = list(zip(to_add.parents, num_add_k))
+                replacement: list[_Pathway] = []
+                repl_idx: list[int] = []
                 for i in range(num_add):
-                    for p_idx, p in enumerate(pathway):
-                        skip = False
-                        if p[0] not in iIDs:
+                    for p_idx, path_j in enumerate(pathway):
+                        if path_j.id_ not in iIDs:
                             continue
-                        for k, v in parent_loop_idx.items():
-                            if p[1][k] != v:
-                                skip = True
-                                break
-                        if skip:
-                            continue
-                        p = copy.deepcopy(p)
-                        p[1].update({to_add.name: i})
-                        repl_idx.append(p_idx)
-                        repl.append(p)
+                        if all(path_j.names[k] == v for k, v in parent_loop_idx):
+                            path = copy.deepcopy(path_j)
+                            path.names[to_add.name] = i
+                            repl_idx.append(p_idx)
+                            replacement.append(path)
 
-                if repl:
+                if replacement:
                     repl_start, repl_stop = min(repl_idx), max(repl_idx)
-                    pathway = replace_items(pathway, repl_start, repl_stop + 1, repl)
+                    pathway = replace_items(
+                        pathway, repl_start, repl_stop + 1, replacement
+                    )
 
             added_loop_names.add(to_add.name)
 
@@ -2203,30 +2363,43 @@ class Workflow:
 
         if ret_iter_IDs or ret_data_idx:
             all_iters = self.get_all_element_iterations()
-            for idx, i in enumerate(pathway):
-                i_iters = []
+            for path_i in pathway:
+                i_iters: list[ElementIteration] = []
                 for iter_j in all_iters:
-                    if iter_j.task.insert_ID == i[0] and iter_j.loop_idx == i[1]:
+                    if (
+                        iter_j.task.insert_ID == path_i.id_
+                        and iter_j.loop_idx == path_i.names
+                    ):
                         i_iters.append(iter_j)
-                new = list(i)
                 if ret_iter_IDs:
-                    new += [tuple([j.id_ for j in i_iters])]
+                    path_i.iter_ids.extend(j.id_ for j in i_iters)
                 if ret_data_idx:
-                    new += [tuple(j.get_data_idx() for j in i_iters)]
-                pathway[idx] = tuple(new)
+                    path_i.data_idx.extend(j.get_data_idx() for j in i_iters)
 
-        return pathway
+        if ret_iter_IDs:
+            if ret_data_idx:
+                return [
+                    path_i.as_tuple(ret_iter_IDs=True, ret_data_idx=True)
+                    for path_i in pathway
+                ]
+            else:
+                return [path_i.as_tuple(ret_iter_IDs=True) for path_i in pathway]
+        else:
+            if ret_data_idx:
+                return [path_i.as_tuple(ret_data_idx=True) for path_i in pathway]
+            else:
+                return [path_i.as_tuple() for path_i in pathway]
 
     @TimeIt.decorator
     def _submit(
         self,
-        status: Optional[Any] = None,
-        ignore_errors: Optional[bool] = False,
-        JS_parallelism: Optional[bool] = None,
-        print_stdout: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        tasks: Optional[List[int]] = None,
-    ) -> Tuple[List[Exception], Dict[int, int]]:
+        status: Status | None = None,
+        ignore_errors: bool = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool = False,
+        add_to_known: bool = True,
+        tasks: list[int] | None = None,
+    ) -> tuple[list[SubmissionFailure], dict[int, list[int]]]:
         """Submit outstanding EARs for execution."""
 
         # generate a new submission if there are no pending submissions:
@@ -2236,8 +2409,6 @@ class Workflow:
                 status.update("Adding new submission...")
             new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
             if not new_sub:
-                if status:
-                    status.stop()
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 
@@ -2252,8 +2423,8 @@ class Workflow:
         self._store._pending.commit_all()
 
         # submit all pending submissions:
-        exceptions = []
-        submitted_js = {}
+        exceptions: list[SubmissionFailure] = []
+        submitted_js: dict[int, list[int]] = {}
         for sub in pending:
             try:
                 if status:
@@ -2270,18 +2441,51 @@ class Workflow:
 
         return exceptions, submitted_js
 
+    @overload
     def submit(
         self,
-        ignore_errors: Optional[bool] = False,
-        JS_parallelism: Optional[bool] = None,
-        print_stdout: Optional[bool] = False,
-        wait: Optional[bool] = False,
-        add_to_known: Optional[bool] = True,
-        return_idx: Optional[bool] = False,
-        tasks: Optional[List[int]] = None,
-        cancel: Optional[bool] = False,
-        status: Optional[bool] = True,
-    ) -> Dict[int, int]:
+        *,
+        ignore_errors: bool = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: Literal[True],
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, list[int]]:
+        ...
+
+    @overload
+    def submit(
+        self,
+        *,
+        ignore_errors: bool = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: Literal[False] = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ) -> None:
+        ...
+
+    def submit(
+        self,
+        *,
+        ignore_errors: bool = False,
+        JS_parallelism: bool | None = None,
+        print_stdout: bool = False,
+        wait: bool = False,
+        add_to_known: bool = True,
+        return_idx: bool = False,
+        tasks: list[int] | None = None,
+        cancel: bool = False,
+        status: bool = True,
+    ) -> dict[int, list[int]] | None:
         """Submit the workflow for execution.
 
         Parameters
@@ -2313,41 +2517,29 @@ class Workflow:
             If True, display a live status to track submission progress.
         """
 
-        if status:
-            console = rich.console.Console()
-            status = console.status("Submitting workflow...")
-            status.start()
-
-        with self._store.cached_load():
+        # Type hint for mypy
+        status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
+            rich.console.Console().status("Submitting workflow...")
+            if status
+            else nullcontext()
+        )
+        with status_context as status_, self._store.cached_load():
             if not self._store.is_submittable:
-                if status:
-                    status.stop()
                 raise NotImplementedError("The workflow is not submittable.")
-            with self.batch_update():
-                # commit updates before raising exception:
-                try:
-                    with self._store.cache_ctx():
-                        exceptions, submitted_js = self._submit(
-                            ignore_errors=ignore_errors,
-                            JS_parallelism=JS_parallelism,
-                            print_stdout=print_stdout,
-                            status=status,
-                            add_to_known=add_to_known,
-                            tasks=tasks,
-                        )
-                except Exception:
-                    if status:
-                        status.stop()
-                    raise
+            # commit updates before raising exception:
+            with self.batch_update(), self._store.cache_ctx():
+                exceptions, submitted_js = self._submit(
+                    ignore_errors=ignore_errors,
+                    JS_parallelism=JS_parallelism,
+                    print_stdout=print_stdout,
+                    status=status_,
+                    add_to_known=add_to_known,
+                    tasks=tasks,
+                )
 
         if exceptions:
-            msg = "\n" + "\n\n".join([i.message for i in exceptions])
-            if status:
-                status.stop()
+            msg = "\n" + "\n\n".join(i.message for i in exceptions)
             raise WorkflowSubmissionFailure(msg)
-
-        if status:
-            status.stop()
 
         if cancel:
             self.cancel()
@@ -2357,45 +2549,56 @@ class Workflow:
 
         if return_idx:
             return submitted_js
+        return None
 
-    def wait(self, sub_js: Optional[Dict] = None):
+    @staticmethod
+    def __wait_for_direct_jobscripts(jobscripts: list[Jobscript]):
+        """Wait for the passed direct (i.e. non-scheduled) jobscripts to finish."""
+
+        def callback(proc: psutil.Process) -> None:
+            js = js_pids[proc.pid]
+            assert hasattr(proc, "returncode")
+            # TODO sometimes proc.returncode is None; maybe because multiple wait
+            # calls?
+            print(
+                f"Jobscript {js.index} from submission {js.submission.index} "
+                f"finished with exit code {proc.returncode}."
+            )
+
+        js_pids = {js.process_ID: js for js in jobscripts}
+        process_refs = [
+            (js.process_ID, js.submit_cmdline)
+            for js in jobscripts
+            if js.process_ID and js.submit_cmdline
+        ]
+        DirectScheduler.wait_for_jobscripts(process_refs, callback=callback)
+
+    def __wait_for_scheduled_jobscripts(self, jobscripts: list[Jobscript]):
+        """Wait for the passed scheduled jobscripts to finish."""
+        schedulers = self.app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
+        threads: list[Thread] = []
+        for js_indices, sched in schedulers.items():
+            jobscripts_gen = (
+                self.submissions[sub_idx].jobscripts[js_idx]
+                for sub_idx, js_idx in js_indices
+            )
+            job_IDs = [
+                i.scheduler_job_ID
+                for i in jobscripts_gen
+                if i.scheduler_job_ID is not None
+            ]
+            threads.append(Thread(target=sched.wait_for_jobscripts, args=(job_IDs,)))
+
+        for i in threads:
+            i.start()
+
+        for i in threads:
+            i.join()
+
+    def wait(self, sub_js: dict[int, list[int]] | None = None):
         """Wait for the completion of specified/all submitted jobscripts."""
 
         # TODO: think about how this might work with remote workflow submission (via SSH)
-
-        def wait_for_direct_jobscripts(jobscripts: List[app.Jobscript]):
-            """Wait for the passed direct (i.e. non-scheduled) jobscripts to finish."""
-
-            def callback(proc):
-                js = js_pids[proc.pid]
-                # TODO sometimes proc.returncode is None; maybe because multiple wait
-                # calls?
-                print(
-                    f"Jobscript {js.index} from submission {js.submission.index} "
-                    f"finished with exit code {proc.returncode}."
-                )
-
-            js_pids = {i.process_ID: i for i in jobscripts}
-            process_refs = [(i.process_ID, i.submit_cmdline) for i in jobscripts]
-            DirectScheduler.wait_for_jobscripts(js_refs=process_refs, callback=callback)
-
-        def wait_for_scheduled_jobscripts(jobscripts: List[app.Jobscript]):
-            """Wait for the passed scheduled jobscripts to finish."""
-            schedulers = app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
-            threads = []
-            for js_indices, sched in schedulers.items():
-                jobscripts = [
-                    self.submissions[sub_idx].jobscripts[js_idx]
-                    for sub_idx, js_idx in js_indices
-                ]
-                job_IDs = [i.scheduler_job_ID for i in jobscripts]
-                threads.append(Thread(target=sched.wait_for_jobscripts, args=(job_IDs,)))
-
-            for i in threads:
-                i.start()
-
-            for i in threads:
-                i.join()
 
         # TODO: add a log file to the submission dir where we can log stuff (e.g starting
         # a thread...)
@@ -2404,11 +2607,10 @@ class Workflow:
             # find any active jobscripts first:
             sub_js = defaultdict(list)
             for sub in self.submissions:
-                for js_idx in sub.get_active_jobscripts():
-                    sub_js[sub.index].append(js_idx)
+                sub_js[sub.index].extend(sub.get_active_jobscripts())
 
-        js_direct = []
-        js_sched = []
+        js_direct: list[Jobscript] = []
+        js_sched: list[Jobscript] = []
         for sub_idx, all_js_idx in sub_js.items():
             for js_idx in all_js_idx:
                 try:
@@ -2435,8 +2637,10 @@ class Workflow:
             return
 
         try:
-            t_direct = Thread(target=wait_for_direct_jobscripts, args=(js_direct,))
-            t_sched = Thread(target=wait_for_scheduled_jobscripts, args=(js_sched,))
+            t_direct = Thread(target=self.__wait_for_direct_jobscripts, args=(js_direct,))
+            t_sched = Thread(
+                target=self.__wait_for_scheduled_jobscripts, args=(js_sched,)
+            )
             t_direct.start()
             t_sched.start()
 
@@ -2455,16 +2659,16 @@ class Workflow:
     def get_running_elements(
         self,
         submission_idx: int = -1,
-        task_idx: Optional[int] = None,
-        task_insert_ID: Optional[int] = None,
-    ) -> List[app.Element]:
+        task_idx: int | None = None,
+        task_insert_ID: int | None = None,
+    ) -> list[Element]:
         """Retrieve elements that are running according to the scheduler."""
 
         if task_idx is not None and task_insert_ID is not None:
             raise ValueError("Specify at most one of `task_insert_ID` and `task_idx`.")
 
         # keys are task_insert_IDs, values are element indices:
-        active_elems = defaultdict(set)
+        active_elems: dict[int, set[int]] = defaultdict(set)
         sub = self.submissions[submission_idx]
         for js_idx, states in sub.get_active_jobscripts().items():
             js = sub.jobscripts[js_idx]
@@ -2476,14 +2680,14 @@ class Workflow:
                         active_elems[task_iID].add(elem_idx)
 
         # retrieve Element objects:
-        out = []
-        for task_iID, elem_idx in active_elems.items():
+        out: list[Element] = []
+        for task_iID, elem_idxes in active_elems.items():
             if task_insert_ID is not None and task_iID != task_insert_ID:
                 continue
             task = self.tasks.get(insert_ID=task_iID)
             if task_idx is not None and task_idx != task.index:
                 continue
-            for idx_i in elem_idx:
+            for idx_i in elem_idxes:
                 out.append(task.elements[idx_i])
 
         return out
@@ -2491,10 +2695,10 @@ class Workflow:
     def get_running_runs(
         self,
         submission_idx: int = -1,
-        task_idx: Optional[int] = None,
-        task_insert_ID: Optional[int] = None,
-        element_idx: int = None,
-    ) -> List[app.ElementActionRun]:
+        task_idx: int | None = None,
+        task_insert_ID: int | None = None,
+        element_idx: int | None = None,
+    ) -> list[ElementActionRun]:
         """Retrieve runs that are running according to the scheduler."""
 
         elems = self.get_running_elements(
@@ -2522,9 +2726,9 @@ class Workflow:
     def abort_run(
         self,
         submission_idx: int = -1,
-        task_idx: Optional[int] = None,
-        task_insert_ID: Optional[int] = None,
-        element_idx: int = None,
+        task_idx: int | None = None,
+        task_insert_ID: int | None = None,
+        element_idx: int | None = None,
     ):
         """Abort the currently running action-run of the specified task/element.
 
@@ -2552,10 +2756,10 @@ class Workflow:
                 elem_idx = tuple(i.element.index for i in running)
                 raise ValueError(
                     f"Multiple elements are running (indices: {elem_idx!r}). Specify "
-                    f"which element index you want to abort."
+                    "which element index you want to abort."
                 )
             else:
-                raise RuntimeError(f"Multiple running runs.")
+                raise RuntimeError("Multiple running runs.")
 
         run = running[0]
         if not run.action.abortable:
@@ -2572,19 +2776,19 @@ class Workflow:
             sub.cancel()
 
     def add_submission(
-        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
-    ) -> app.Submission:
-        with self._store.cached_load():
-            with self.batch_update():
-                return self._add_submission(tasks, JS_parallelism)
+        self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
+    ) -> Submission | None:
+        # JS_parallelism=None means guess
+        with self._store.cached_load(), self.batch_update():
+            return self._add_submission(tasks, JS_parallelism)
 
     @TimeIt.decorator
     def _add_submission(
-        self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
-    ) -> app.Submission:
+        self, tasks: list[int] | None = None, JS_parallelism: bool | None = None
+    ) -> Submission | None:
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
-        sub_obj = self.app.Submission(
+        sub_obj: Submission = self.app.Submission(
             index=new_idx,
             workflow=self,
             jobscripts=self.resolve_jobscripts(tasks),
@@ -2594,29 +2798,26 @@ class Workflow:
         all_EAR_ID = [i for js in sub_obj.jobscripts for i in js.EAR_ID.flatten()]
         if not all_EAR_ID:
             print(
-                f"There are no pending element action runs, so a new submission was not "
-                f"added."
+                "There are no pending element action runs, so a new submission was not "
+                "added."
             )
-            return
+            return None
 
-        with self._store.cached_load():
-            with self.batch_update():
-                for i in all_EAR_ID:
-                    self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
+        with self._store.cached_load(), self.batch_update():
+            for i in all_EAR_ID:
+                self._store.set_EAR_submission_index(EAR_ID=i, sub_idx=new_idx)
 
         sub_obj_js, _ = sub_obj.to_json_like()
+        assert self._submissions is not None
         self._submissions.append(sub_obj)
         self._pending["submissions"].append(new_idx)
-        with self._store.cached_load():
-            with self.batch_update():
-                self._store.add_submission(new_idx, sub_obj_js)
+        with self._store.cached_load(), self.batch_update():
+            self._store.add_submission(new_idx, sub_obj_js)
 
         return self.submissions[new_idx]
 
     @TimeIt.decorator
-    def resolve_jobscripts(
-        self, tasks: Optional[List[int]] = None
-    ) -> List[app.Jobscript]:
+    def resolve_jobscripts(self, tasks: list[int] | None = None) -> list[Jobscript]:
         js, element_deps = self._resolve_singular_jobscripts(tasks)
         js_deps = resolve_jobscript_dependencies(js, element_deps)
 
@@ -2625,15 +2826,33 @@ class Workflow:
                 js[js_idx]["dependencies"] = js_deps[js_idx]
 
         js = merge_jobscripts_across_tasks(js)
-        js = jobscripts_to_list(js)
-        js_objs = [self.app.Jobscript(**i) for i in js]
+        js_objs = [self.app.Jobscript(**i) for i in jobscripts_to_list(js)]
 
         return js_objs
 
+    def __EAR_obj_map(
+        self,
+        js_desc: JobScriptDescriptor,
+        jsca: JobScriptCreationArguments,
+        task: WorkflowTask,
+        task_actions: Sequence[tuple[int, int, int]],
+        EAR_map: NDArray,
+    ) -> dict[int, ElementActionRun]:
+        all_EAR_IDs: list[int] = []
+        for js_elem_idx, (elem_idx, act_indices) in enumerate(
+            js_desc["elements"].items()
+        ):
+            for act_idx in act_indices:
+                EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
+                all_EAR_IDs.append(EAR_ID_i)
+                js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
+                jsca["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
+        return dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+
     @TimeIt.decorator
     def _resolve_singular_jobscripts(
-        self, tasks: Optional[List[int]] = None
-    ) -> Tuple[Dict[int, Dict], Dict]:
+        self, tasks: list[int] | None = None
+    ) -> tuple[dict[int, JobScriptCreationArguments], dict[int, dict[int, list[int]]]]:
         """
         We arrange EARs into `EARs` and `elements` so we can quickly look up membership
         by EAR idx in the `EARs` dict.
@@ -2653,8 +2872,8 @@ class Workflow:
             # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
             self.get_all_parameter_sources()
 
-        submission_jobscripts = {}
-        all_element_deps = {}
+        submission_jobscripts: dict[int, JobScriptCreationArguments] = {}
+        all_element_deps: dict[int, dict[int, list[int]]] = {}
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
             task = self.tasks.get(insert_ID=task_iID)
@@ -2666,7 +2885,7 @@ class Workflow:
             for js_dat in jobscripts:
                 # (insert ID, action_idx, index into task_loop_idx):
                 task_actions = [
-                    [task.insert_ID, i, 0]
+                    (task.insert_ID, i, 0)
                     for i in sorted(
                         set(
                             act_idx_i
@@ -2689,7 +2908,7 @@ class Workflow:
 
                 new_js_idx = len(submission_jobscripts)
 
-                js_i = {
+                js_i: JobScriptCreationArguments = {
                     "task_insert_IDs": [task.insert_ID],
                     "task_loop_idx": [loop_idx_i],
                     "task_actions": task_actions,  # map jobscript actions to task actions
@@ -2700,40 +2919,32 @@ class Workflow:
                     "dependencies": {},
                 }
 
-                all_EAR_IDs = []
-                for js_elem_idx, (elem_idx, act_indices) in enumerate(
-                    js_dat["elements"].items()
-                ):
-                    for act_idx in act_indices:
-                        EAR_ID_i = EAR_map[act_idx, elem_idx].item()
-                        all_EAR_IDs.append(EAR_ID_i)
-                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
-                        js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
-
-                all_EAR_objs = dict(zip(all_EAR_IDs, self.get_EARs_from_IDs(all_EAR_IDs)))
+                all_EAR_objs = self.__EAR_obj_map(
+                    js_dat, js_i, task, task_actions, EAR_map
+                )
 
                 for js_elem_idx, (elem_idx, act_indices) in enumerate(
                     js_dat["elements"].items()
                 ):
-                    all_EAR_IDs = []
+                    all_EAR_IDs: list[int] = []
                     for act_idx in act_indices:
-                        EAR_ID_i = EAR_map[act_idx, elem_idx].item()
+                        EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
                         all_EAR_IDs.append(EAR_ID_i)
-                        js_act_idx = task_actions.index([task.insert_ID, act_idx, 0])
+                        js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
                         js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:
-                    EAR_objs = [all_EAR_objs[k] for k in all_EAR_IDs]
-                    EAR_deps = [i.get_EAR_dependencies() for i in EAR_objs]
-                    EAR_deps_flat = [j for i in EAR_deps for j in i]
+                    EAR_deps = (
+                        all_EAR_objs[k].get_EAR_dependencies() for k in all_EAR_IDs
+                    )
+                    EAR_deps_flat = (j for i in EAR_deps for j in i)
                     EAR_deps_EAR_idx = [
                         i for i in EAR_deps_flat if i not in js_i["EAR_ID"]
                     ]
                     if EAR_deps_EAR_idx:
-                        if new_js_idx not in all_element_deps:
-                            all_element_deps[new_js_idx] = {}
-
-                        all_element_deps[new_js_idx][js_elem_idx] = EAR_deps_EAR_idx
+                        all_element_deps.setdefault(new_js_idx, {})[
+                            js_elem_idx
+                        ] = EAR_deps_EAR_idx
 
                 submission_jobscripts[new_js_idx] = js_i
 
@@ -2755,7 +2966,7 @@ class Workflow:
             )
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
             self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
-            EAR = self.get_EARs_from_IDs([EAR_ID])[0]
+            EAR = self.get_EARs_from_IDs(EAR_ID)
             self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
@@ -2812,11 +3023,10 @@ class Workflow:
     ) -> Any:
         """Process the shell stdout/stderr stream according to the associated Command
         object."""
-        with self._store.cached_load():
-            with self.batch_update():
-                EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-                command = EAR.action.commands[cmd_idx]
-                return command.process_std_stream(name, value, stderr)
+        with self._store.cached_load(), self.batch_update():
+            EAR = self.get_EARs_from_IDs(EAR_ID)
+            command = EAR.action.commands[cmd_idx]
+            return command.process_std_stream(name, value, stderr)
 
     def save_parameter(
         self,
@@ -2826,13 +3036,12 @@ class Workflow:
     ):
         self.app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
         self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
-        with self._store.cached_load():
-            with self.batch_update():
-                EAR = self.get_EARs_from_IDs([EAR_ID])[0]
-                param_id = EAR.data_idx[name]
-                self.set_parameter_value(param_id, value)
+        with self._store.cached_load(), self.batch_update():
+            EAR = self.get_EARs_from_IDs(EAR_ID)
+            param_id = EAR.data_idx[name]
+            self.set_parameter_value(param_id, value)
 
-    def show_all_EAR_statuses(self):
+    def show_all_EAR_statuses(self) -> None:
         print(
             f"{'task':8s} {'element':8s} {'iteration':8s} {'action':8s} "
             f"{'run':8s} {'sub.':8s} {'exitcode':8s} {'success':8s} {'skip':8s}"
@@ -2857,7 +3066,7 @@ class Workflow:
                             )
 
     def _resolve_input_source_task_reference(
-        self, input_source: app.InputSource, new_task_name: str
+        self, input_source: InputSource, new_task_name: str
     ) -> None:
         """Normalise the input source task reference and convert a source to a local type
         if required."""
@@ -2892,49 +3101,53 @@ class Workflow:
                         f"or inaccessible task: {input_source.task_ref!r}."
                     )
 
-    def get_all_submission_run_IDs(self) -> List[int]:
+    def get_all_submission_run_IDs(self) -> Iterable[int]:
         self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
-        id_lst = []
         for sub in self.submissions:
-            id_lst.extend(list(sub.all_EAR_IDs))
-        return id_lst
+            yield from sub.all_EAR_IDs
 
-    def check_loop_termination(self, loop_name: str, run_ID: int) -> bool:
+    def check_loop_termination(self, loop_name: str, run_ID: int) -> None:
         """Check if a loop should terminate, given the specified completed run, and if so,
         set downstream iteration runs to be skipped."""
         loop = self.loops.get(loop_name)
-        elem_iter = self.get_EARs_from_IDs([run_ID])[0].element_iteration
+        elem_iter = self.get_EARs_from_IDs(run_ID).element_iteration
         if loop.test_termination(elem_iter):
-            to_skip = []  # run IDs of downstream iterations that can be skipped
+            to_skip: list[
+                int
+            ] = []  # run IDs of downstream iterations that can be skipped
             elem_id = elem_iter.element.id_
             loop_map = self.get_loop_map()  # over all jobscripts
             for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():
                 if iter_idx > elem_iter.index:
-                    to_skip.extend([i[0] for i in iter_dat])
+                    to_skip.extend(i.id_ for i in iter_dat)
             self.app.logger.info(
                 f"Loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
             )
             for run_ID in to_skip:
                 self.set_EAR_skip(run_ID)
 
-    def get_loop_map(self, id_lst: Optional[List[int]] = None):
+    def get_loop_map(
+        self, id_lst: Iterable[int] | None = None
+    ) -> Mapping[str, Mapping[int, Mapping[int, list[_IterationData]]]]:
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
             id_lst = self.get_all_submission_run_IDs()
-        loop_map = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        runs = self.get_EARs_from_IDs(id_lst)
-        for i in runs:
-            for loop_name, iter_idx in i.element_iteration.loop_idx.items():
-                act_idx = i.element_action.action_idx
-                loop_map[loop_name][i.element.id_][iter_idx].append((i.id_, act_idx))
+        loop_map: dict[str, dict[int, dict[int, list[_IterationData]]]] = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(list))
+        )
+        for EAR in self.get_EARs_from_IDs(id_lst):
+            for loop_name, iter_idx in EAR.element_iteration.loop_idx.items():
+                act_idx = EAR.element_action.action_idx
+                loop_map[loop_name][EAR.element.id_][iter_idx].append(
+                    _IterationData(EAR.id_, act_idx)
+                )
         return loop_map
 
     def get_iteration_final_run_IDs(
         self,
-        loop_map: Optional[Dict] = None,
-        id_lst: Optional[List[int]] = None,
-    ) -> Dict[str, List[int]]:
+        id_lst: Iterable[int] | None = None,
+    ) -> dict[str, list[int]]:
         """Retrieve the run IDs of those runs that correspond to the final action within
         a named loop iteration.
 
@@ -2944,31 +3157,29 @@ class Workflow:
         """
         self.app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
 
-        loop_map = loop_map or self.get_loop_map(id_lst)
+        loop_map = self.get_loop_map(id_lst)
 
         # find final EARs for each loop:
-        final_runs = defaultdict(list)
+        final_runs: dict[str, list[int]] = defaultdict(list)
         for loop_name, dat in loop_map.items():
-            for _, elem_dat in dat.items():
-                for _, iter_dat in elem_dat.items():
-                    # sort by largest action index first, so we get save only the final EAR
-                    final = sorted(iter_dat, key=lambda x: x[1], reverse=True)[0]
-                    final_runs[loop_name].append(final[0])
+            for elem_dat in dat.values():
+                for iter_dat in elem_dat.values():
+                    final_runs[loop_name].append(max(iter_dat, key=lambda x: x.idx).id_)
         return dict(final_runs)
 
     def rechunk_runs(
         self,
-        chunk_size: Optional[int] = None,
-        backup: Optional[bool] = True,
-        status: Optional[bool] = True,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
     ):
         self._store.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
 
     def rechunk_parameter_base(
         self,
-        chunk_size: Optional[int] = None,
-        backup: Optional[bool] = True,
-        status: Optional[bool] = True,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
     ):
         self._store.rechunk_parameter_base(
             chunk_size=chunk_size, backup=backup, status=status
@@ -2976,9 +3187,9 @@ class Workflow:
 
     def rechunk(
         self,
-        chunk_size: Optional[int] = None,
-        backup: Optional[bool] = True,
-        status: Optional[bool] = True,
+        chunk_size: int | None = None,
+        backup: bool = True,
+        status: bool = True,
     ):
         """Rechunk metadata/runs and parameters/base arrays."""
         self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)

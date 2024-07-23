@@ -1,6 +1,8 @@
-from pathlib import Path
+from __future__ import annotations
+from collections.abc import Sequence
 import re
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING
+from typing_extensions import override
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -8,12 +10,20 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
-from hpcflow.sdk.submission.schedulers import Scheduler
+from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
-from hpcflow.sdk.submission.shells.base import Shell
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping
+    from typing import Any, ClassVar
+    from ...app import BaseApp
+    from ...config.config import SchedulerConfigDescriptor
+    from ...core.element import ElementResources
+    from ..jobscript import Jobscript
+    from ..shells.base import Shell
 
 
-class SGEPosix(Scheduler):
+class SGEPosix(QueuedScheduler):
     """
 
     Notes
@@ -27,17 +37,18 @@ class SGEPosix(Scheduler):
 
     """
 
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
-    DEFAULT_SHEBANG_ARGS = ""
-    DEFAULT_SUBMIT_CMD = "qsub"
-    DEFAULT_SHOW_CMD = ["qstat"]
-    DEFAULT_DEL_CMD = "qdel"
-    DEFAULT_JS_CMD = "#$"
-    DEFAULT_ARRAY_SWITCH = "-t"
-    DEFAULT_ARRAY_ITEM_VAR = "SGE_TASK_ID"
-    DEFAULT_CWD_SWITCH = "-cwd"
-    DEFAULT_LOGIN_NODES_CMD = ["qconf", "-sh"]
+    DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
+    DEFAULT_SUBMIT_CMD: ClassVar[str] = "qsub"
+    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = "qstat"
+    DEFAULT_DEL_CMD: ClassVar[str] = "qdel"
+    DEFAULT_JS_CMD: ClassVar[str] = "#$"
+    DEFAULT_ARRAY_SWITCH: ClassVar[str] = "-t"
+    DEFAULT_ARRAY_ITEM_VAR: ClassVar[str] = "SGE_TASK_ID"
+    DEFAULT_CWD_SWITCH: ClassVar[str] = "-cwd"
+    DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str]] = ("qconf", "-sh")
 
     # maps scheduler states:
     state_lookup = {
@@ -47,7 +58,7 @@ class SGEPosix(Scheduler):
         "r": JobscriptElementState.running,
         "t": JobscriptElementState.running,
         "Rr": JobscriptElementState.running,
-        "Rt": JobscriptElementState.running,
+        # "Rt": JobscriptElementState.running,
         "s": JobscriptElementState.errored,
         "ts": JobscriptElementState.errored,
         "S": JobscriptElementState.errored,
@@ -68,13 +79,16 @@ class SGEPosix(Scheduler):
         "dT": JobscriptElementState.cancelled,
     }
 
-    def __init__(self, cwd_switch=None, *args, **kwargs):
+    def __init__(self, cwd_switch: str | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cwd_switch = cwd_switch or self.DEFAULT_CWD_SWITCH
 
     @classmethod
+    @override
     @TimeIt.decorator
-    def process_resources(cls, resources, scheduler_config: Dict) -> None:
+    def process_resources(
+        cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
+    ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
         Note: this mutates `resources`.
@@ -91,7 +105,7 @@ class SGEPosix(Scheduler):
         if resources.SGE_parallel_env is not None:
             # check user-specified `parallel_env` is valid and compatible with
             # `num_cores`:
-            if resources.num_cores > 1:
+            if resources.num_cores and resources.num_cores > 1:
                 raise ValueError(
                     f"An SGE parallel environment should not be specified if `num_cores` "
                     f"is 1 (`SGE_parallel_env` was specified as "
@@ -114,69 +128,66 @@ class SGEPosix(Scheduler):
                 )
         else:
             # find the first compatible PE:
-            pe_match = -1  # pe_name might be `None`
             for pe_name, pe_info in para_envs.items():
                 if cls.is_num_cores_supported(resources.num_cores, pe_info["num_cores"]):
-                    pe_match = pe_name
+                    resources.SGE_parallel_env = pe_name
                     break
-            if pe_match != -1:
-                resources.SGE_parallel_env = pe_name
             else:
                 raise NoCompatibleSGEPEError(
                     f"No compatible SGE parallel environment could be found for the "
                     f"specified `num_cores` ({resources.num_cores!r})."
                 )
 
-    def get_login_nodes(self):
+    def get_login_nodes(self) -> list[str]:
         """Return a list of hostnames of login/administrative nodes as reported by the
         scheduler."""
-        stdout, stderr = run_cmd(self.login_nodes_cmd)
+        get_login = self.login_nodes_cmd
+        assert isinstance(get_login, Sequence) and len(get_login) >= 1
+        stdout, stderr = run_cmd(get_login)
         if stderr:
             print(stderr)
-        nodes = stdout.strip().split("\n")
-        return nodes
+        return stdout.strip().split("\n")
 
-    def format_core_request_lines(self, resources):
-        lns = []
-        if resources.num_cores > 1:
-            lns.append(
-                f"{self.js_cmd} -pe {resources.SGE_parallel_env} {resources.num_cores}"
-            )
+    def _format_core_request_lines(self, resources: ElementResources) -> Iterator[str]:
+        if resources.num_cores and resources.num_cores > 1:
+            yield f"{self.js_cmd} -pe {resources.SGE_parallel_env} {resources.num_cores}"
         if resources.max_array_items:
-            lns.append(f"{self.js_cmd} -tc {resources.max_array_items}")
-        return lns
+            yield f"{self.js_cmd} -tc {resources.max_array_items}"
 
-    def format_array_request(self, num_elements):
+    def _format_array_request(self, num_elements: int) -> str:
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx):
+    def _format_std_stream_file_option_lines(
+        self, is_array: bool, sub_idx: int
+    ) -> Iterator[str]:
         # note: we can't modify the file names
-        base = f"./artifacts/submissions/{sub_idx}"
-        return [
-            f"{self.js_cmd} -o {base}",
-            f"{self.js_cmd} -e {base}",
-        ]
+        yield f"{self.js_cmd} -o ./artifacts/submissions/{sub_idx}"
+        yield f"{self.js_cmd} -e ./artifacts/submissions/{sub_idx}"
 
-    def format_options(self, resources, num_elements, is_array, sub_idx):
-        opts = []
+    @override
+    def format_options(
+        self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
+    ) -> str:
+        opts: list[str] = []
         opts.append(self.format_switch(self.cwd_switch))
-        opts.extend(self.format_core_request_lines(resources))
+        opts.extend(self._format_core_request_lines(resources))
         if is_array:
-            opts.append(self.format_array_request(num_elements))
+            opts.append(self._format_array_request(num_elements))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
+        opts.extend(self._format_std_stream_file_option_lines(is_array, sub_idx))
 
         for opt_k, opt_v in self.options.items():
-            if isinstance(opt_v, list):
+            if opt_v is None:
+                opts.append(f"{self.js_cmd} {opt_k}")
+            elif isinstance(opt_v, list):
                 for i in opt_v:
                     opts.append(f"{self.js_cmd} {opt_k} {i}")
             elif opt_v:
                 opts.append(f"{self.js_cmd} {opt_k} {opt_v}")
-            elif opt_v is None:
-                opts.append(f"{self.js_cmd} {opt_k}")
 
         return "\n".join(opts) + "\n"
 
+    @override
     @TimeIt.decorator
     def get_version_info(self):
         vers_cmd = self.show_cmd + ["-help"]
@@ -185,22 +196,22 @@ class SGEPosix(Scheduler):
             print(stderr)
         version_str = stdout.split("\n")[0].strip()
         name, version = version_str.split()
-        out = {
+        return {
             "scheduler_name": name,
             "scheduler_version": version,
         }
-        return out
 
+    @override
     def get_submit_command(
         self,
         shell: Shell,
         js_path: str,
-        deps: List[Tuple],
-    ) -> List[str]:
+        deps: dict[Any, tuple[Any, ...]],
+    ) -> list[str]:
         cmd = [self.submit_cmd, "-terse"]
 
-        dep_job_IDs = []
-        dep_job_IDs_arr = []
+        dep_job_IDs: list[str] = []
+        dep_job_IDs_arr: list[str] = []
         for job_ID, is_array_dep in deps.values():
             if is_array_dep:  # array dependency
                 dep_job_IDs_arr.append(str(job_ID))
@@ -227,10 +238,10 @@ class SGEPosix(Scheduler):
             raise RuntimeError(f"Could not parse Job ID from scheduler output {stdout!r}")
         return job_ID
 
-    def get_job_statuses(self):
+    def get_job_statuses(self) -> dict[str, dict[int | None, JobscriptElementState]]:
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
-        cmd = self.show_cmd + ["-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
+        cmd = [*self.show_cmd, "-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
         stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
         if stderr:
             raise ValueError(
@@ -238,40 +249,39 @@ class SGEPosix(Scheduler):
                 f"{stderr}"
             )
         elif not stdout:
-            info = {}
-        else:
-            info = {}
-            lines = stdout.split("\n")
-            # assuming a job name with spaces means we can't split on spaces to get
-            # anywhere beyond the job name, so get the column index of the state heading
-            # and assume the state is always left-aligned with the heading:
-            state_idx = lines[0].index("state")
-            task_id_idx = lines[0].index("ja-task-ID")
-            for ln in lines[2:]:
-                if not ln:
-                    continue
-                ln_s = ln.split()
-                base_job_ID = ln_s[0]
+            return {}
 
-                # states can be one or two chars (for our limited purposes):
-                state_str = ln[state_idx : state_idx + 2].strip()
-                state = self.state_lookup[state_str]
+        info: dict[str, dict[int | None, JobscriptElementState]] = {}
+        lines = stdout.split("\n")
+        # assuming a job name with spaces means we can't split on spaces to get
+        # anywhere beyond the job name, so get the column index of the state heading
+        # and assume the state is always left-aligned with the heading:
+        state_idx = lines[0].index("state")
+        task_id_idx = lines[0].index("ja-task-ID")
+        for ln in lines[2:]:
+            if not ln:
+                continue
+            ln_s = ln.split()
+            base_job_ID = ln_s[0]
 
-                arr_idx = ln[task_id_idx:].strip()
-                if arr_idx:
-                    arr_idx = int(arr_idx) - 1  # zero-index
-                else:
-                    arr_idx = None
+            # states can be one or two chars (for our limited purposes):
+            state_str = ln[state_idx : state_idx + 2].strip()
+            state = self.state_lookup[state_str]
 
-                if base_job_ID not in info:
-                    info[base_job_ID] = {}
+            arr_idx_s = ln[task_id_idx:].strip()
+            arr_idx = (
+                int(arr_idx_s) - 1  # We are using zero-indexed info
+                if arr_idx_s
+                else None
+            )
 
-                info[base_job_ID][arr_idx] = state
+            info.setdefault(base_job_ID, {})[arr_idx] = state
         return info
 
+    @override
     def get_job_state_info(
-        self, js_refs: List[str] = None
-    ) -> Dict[str, Dict[int, JobscriptElementState]]:
+        self, *, js_refs: list[str] | None = None, num_js_elements: int = 0
+    ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """Query the scheduler to get the states of all of this user's jobs, optionally
         filtering by specified job IDs.
 
@@ -281,10 +291,16 @@ class SGEPosix(Scheduler):
         """
         info = self.get_job_statuses()
         if js_refs:
-            info = {k: v for k, v in info.items() if k in js_refs}
+            return {k: v for k, v in info.items() if k in js_refs}
         return info
 
-    def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+    @override
+    def cancel_jobs(
+        self,
+        js_refs: list[str],
+        jobscripts: list[Jobscript] | None = None,
+        num_js_elements: int = 0,  # Ignored!
+    ):
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

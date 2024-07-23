@@ -1,5 +1,8 @@
+from __future__ import annotations
 import os
-from typing import Iterable, List
+from collections.abc import Iterable
+from typing import TypedDict
+from typing_extensions import NotRequired
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
@@ -29,14 +32,14 @@ class InvalidIdentifier(ValueError):
 class MissingInputs(Exception):
     # TODO: add links to doc pages for common user-exceptions?
 
-    def __init__(self, message, missing_inputs) -> None:
-        self.missing_inputs = missing_inputs
+    def __init__(self, message: str, missing_inputs: Iterable[str]) -> None:
+        self.missing_inputs = tuple(missing_inputs)
         super().__init__(message)
 
 
 class UnrequiredInputSources(ValueError):
-    def __init__(self, message, unrequired_sources) -> None:
-        self.unrequired_sources = unrequired_sources
+    def __init__(self, message: str, unrequired_sources: Iterable[str]) -> None:
+        self.unrequired_sources = frozenset(unrequired_sources)
         for src in unrequired_sources:
             if src.startswith("inputs."):
                 # reminder about how to specify input sources:
@@ -50,8 +53,8 @@ class UnrequiredInputSources(ValueError):
 
 
 class ExtraInputs(Exception):
-    def __init__(self, message, extra_inputs) -> None:
-        self.extra_inputs = extra_inputs
+    def __init__(self, message: str, extra_inputs: set[str]) -> None:
+        self.extra_inputs = frozenset(extra_inputs)
         super().__init__(message)
 
 
@@ -178,22 +181,33 @@ class LoopTaskSubsetError(ValueError):
 class SchedulerVersionsFailure(RuntimeError):
     """We couldn't get the scheduler and or shell versions."""
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
+
+
+class JobscriptSubmissionFailureArgs(TypedDict):
+    submit_cmd: list[str]
+    js_idx: int
+    js_path: str
+    stdout: NotRequired[str]
+    stderr: NotRequired[str]
+    subprocess_exc: NotRequired[Exception]
+    job_ID_parse_exc: NotRequired[Exception]
 
 
 class JobscriptSubmissionFailure(RuntimeError):
     def __init__(
         self,
-        message,
-        submit_cmd,
-        js_idx,
-        js_path,
-        stdout,
-        stderr,
-        subprocess_exc,
-        job_ID_parse_exc,
+        message: str,
+        *,
+        submit_cmd: list[str],
+        js_idx: int,
+        js_path: str,
+        stdout: str | None = None,
+        stderr: str | None = None,
+        subprocess_exc: Exception | None = None,
+        job_ID_parse_exc: Exception | None = None,
     ) -> None:
         self.message = message
         self.submit_cmd = submit_cmd
@@ -207,7 +221,7 @@ class JobscriptSubmissionFailure(RuntimeError):
 
 
 class SubmissionFailure(RuntimeError):
-    def __init__(self, message) -> None:
+    def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
 
@@ -223,7 +237,7 @@ class ResourceValidationError(ValueError):
 class UnsupportedOSError(ResourceValidationError):
     """This machine is not of the requested OS."""
 
-    def __init__(self, os_name) -> None:
+    def __init__(self, os_name: str) -> None:
         message = (
             f"OS {os_name!r} is not compatible with this machine/instance with OS: "
             f"{os.name!r}."
@@ -235,14 +249,15 @@ class UnsupportedOSError(ResourceValidationError):
 class UnsupportedShellError(ResourceValidationError):
     """We don't support this shell on this OS."""
 
-    def __init__(self, shell, supported) -> None:
+    def __init__(self, shell: str, supported: Iterable[str]) -> None:
+        sup = set(supported)
         message = (
             f"Shell {shell!r} is not supported on this machine/instance. Supported "
-            f"shells are: {supported!r}."
+            f"shells are: {sup!r}."
         )
         super().__init__(message)
         self.shell = shell
-        self.supported = supported
+        self.supported = frozenset(sup)
 
 
 class UnsupportedSchedulerError(ResourceValidationError):
@@ -253,7 +268,12 @@ class UnsupportedSchedulerError(ResourceValidationError):
 
     """
 
-    def __init__(self, scheduler, supported=None, available=None) -> None:
+    def __init__(
+        self,
+        scheduler: str,
+        supported: Iterable[str] | None = None,
+        available: Iterable[str] | None = None,
+    ) -> None:
         if supported is not None:
             message = (
                 f"Scheduler {scheduler!r} is not supported on this machine/instance. "
@@ -267,8 +287,8 @@ class UnsupportedSchedulerError(ResourceValidationError):
             )
         super().__init__(message)
         self.scheduler = scheduler
-        self.supported = supported
-        self.available = available
+        self.supported = tuple(supported) if supported is not None else None
+        self.available = tuple(available) if available is not None else None
 
 
 class UnknownSGEPEError(ResourceValidationError):
@@ -366,13 +386,13 @@ class NoCLIFormatMethodError(AttributeError):
 
 
 class ContainerKeyError(KeyError):
-    def __init__(self, path: List[str]) -> None:
+    def __init__(self, path: list[str]) -> None:
         self.path = path
         super().__init__()
 
 
 class MayNeedObjectError(Exception):
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
         super().__init__()
 

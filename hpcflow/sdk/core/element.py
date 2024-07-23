@@ -2,15 +2,12 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import cast, overload, TYPE_CHECKING
 
-from valida.conditions import ConditionLike
-from valida.rules import Rule
-
-from hpcflow.sdk import app
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
@@ -20,25 +17,40 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Mapping
+    from typing import Any, ClassVar, Literal
+    from ..app import BaseApp
+    from ..typing import DataIndex, ParamSource
+    from .actions import Action, ElementAction, ElementActionRun
+    from .object_list import ResourceList
+    from .parameters import InputSource, ParameterPath, InputValue, ResourceSpec
+    from .rule import Rule
+    from .task import WorkflowTask, ElementSet
+    from .workflow import Workflow
+
 
 class _ElementPrefixedParameter:
-    _app_attr = "_app"
+    _app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "_app"
 
     def __init__(
         self,
         prefix: str,
-        element_iteration: Optional[app.Element] = None,
-        element_action: Optional[app.ElementAction] = None,
-        element_action_run: Optional[app.ElementActionRun] = None,
+        element_iteration: ElementIteration | None = None,
+        element_action: ElementAction | None = None,
+        element_action_run: ElementActionRun | None = None,
     ) -> None:
         self._prefix = prefix
         self._element_iteration = element_iteration
         self._element_action = element_action
         self._element_action_run = element_action_run
 
-        self._prefixed_names_unlabelled = None  # assigned on first access
+        self._prefixed_names_unlabelled: dict[
+            str, list[str]
+        ] | None = None  # assigned on first access
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> ElementParameter | dict[str, ElementParameter]:
         if name not in self.prefixed_names_unlabelled:
             raise ValueError(
                 f"No {self._prefix} named {name!r}. Available {self._prefix} are: "
@@ -48,47 +60,47 @@ class _ElementPrefixedParameter:
         labels = self.prefixed_names_unlabelled.get(name)
         if labels:
             # is multiple; return a dict of `ElementParameter`s
-            out = {}
-            for label_i in labels:
-                path_i = f"{self._prefix}.{name}[{label_i}]"
-                out[label_i] = self._app.ElementParameter(
-                    path=path_i,
+            return {
+                label_i: self._app.ElementParameter(
+                    path=f"{self._prefix}.{name}[{label_i}]",
                     task=self._task,
                     parent=self._parent,
                     element=self._element_iteration_obj,
                 )
-
+                for label_i in labels
+            }
         else:
             # could be labelled still, but with `multiple=False`
-            path_i = f"{self._prefix}.{name}"
-            out = self._app.ElementParameter(
-                path=path_i,
+            return self._app.ElementParameter(
+                path=f"{self._prefix}.{name}",
                 task=self._task,
                 parent=self._parent,
                 element=self._element_iteration_obj,
             )
-        return out
 
-    def __dir__(self):
-        return super().__dir__() + self.prefixed_names_unlabelled
-
-    @property
-    def _parent(self):
-        return self._element_iteration or self._element_action or self._element_action_run
+    def __dir__(self) -> Iterator[str]:
+        yield from super().__dir__()
+        yield from self.prefixed_names_unlabelled
 
     @property
-    def _element_iteration_obj(self):
-        if self._element_iteration:
-            return self._element_iteration
-        else:
-            return self._parent.element_iteration
+    def _parent(self) -> ElementIteration | ElementActionRun | ElementAction:
+        p = self._element_iteration or self._element_action or self._element_action_run
+        assert p is not None
+        return p
 
     @property
-    def _task(self):
+    def _element_iteration_obj(self) -> ElementIteration:
+        p = self._parent
+        if isinstance(p, ElementIteration):
+            return p
+        return p.element_iteration
+
+    @property
+    def _task(self) -> WorkflowTask:
         return self._parent.task
 
     @property
-    def prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
+    def prefixed_names_unlabelled(self) -> dict[str, list[str]]:
         """Get a mapping between inputs types and associated labels.
 
         If the schema input for a given input type has `multiple=False` (even if a label
@@ -100,13 +112,13 @@ class _ElementPrefixedParameter:
         return self._prefixed_names_unlabelled
 
     @property
-    def prefixed_names_unlabelled_str(self):
+    def prefixed_names_unlabelled_str(self) -> str:
         return ", ".join(i for i in self.prefixed_names_unlabelled)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # If there are one or more labels present, then replace with a single name
         # indicating there could be multiple (using a `*` prefix):
-        names = []
+        names: list[str] = []
         for unlabelled, labels in self.prefixed_names_unlabelled.items():
             name_i = unlabelled
             if labels:
@@ -115,23 +127,22 @@ class _ElementPrefixedParameter:
         names_str = ", ".join(i for i in names)
         return f"{self.__class__.__name__}({names_str})"
 
-    def _get_prefixed_names(self):
+    def _get_prefixed_names(self) -> list[str]:
         return sorted(self._parent.get_parameter_names(self._prefix))
 
-    def _get_prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
+    def _get_prefixed_names_unlabelled(self) -> dict[str, list[str]]:
         names = self._get_prefixed_names()
-        all_names = {}
+        all_names: dict[str, list[str]] = {}
         for i in list(names):
             if "[" in i:
                 unlab_i, label_i = split_param_label(i)
-                if unlab_i not in all_names:
-                    all_names[unlab_i] = []
-                all_names[unlab_i].append(label_i)
+                if unlab_i is not None and label_i is not None:
+                    all_names.setdefault(unlab_i, []).append(label_i)
             else:
                 all_names[i] = []
         return all_names
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[ElementParameter | dict[str, ElementParameter]]:
         for name in self.prefixed_names_unlabelled:
             yield getattr(self, name)
 
@@ -139,9 +150,9 @@ class _ElementPrefixedParameter:
 class ElementInputs(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[app.ElementIteration] = None,
-        element_action: Optional[app.ElementAction] = None,
-        element_action_run: Optional[app.ElementActionRun] = None,
+        element_iteration: ElementIteration | None = None,
+        element_action: ElementAction | None = None,
+        element_action_run: ElementActionRun | None = None,
     ) -> None:
         super().__init__("inputs", element_iteration, element_action, element_action_run)
 
@@ -149,9 +160,9 @@ class ElementInputs(_ElementPrefixedParameter):
 class ElementOutputs(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[app.ElementIteration] = None,
-        element_action: Optional[app.ElementAction] = None,
-        element_action_run: Optional[app.ElementActionRun] = None,
+        element_iteration: ElementIteration | None = None,
+        element_action: ElementAction | None = None,
+        element_action_run: ElementActionRun | None = None,
     ) -> None:
         super().__init__("outputs", element_iteration, element_action, element_action_run)
 
@@ -159,9 +170,9 @@ class ElementOutputs(_ElementPrefixedParameter):
 class ElementInputFiles(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[app.ElementIteration] = None,
-        element_action: Optional[app.ElementAction] = None,
-        element_action_run: Optional[app.ElementActionRun] = None,
+        element_iteration: ElementIteration | None = None,
+        element_action: ElementAction | None = None,
+        element_action_run: ElementActionRun | None = None,
     ) -> None:
         super().__init__(
             "input_files", element_iteration, element_action, element_action_run
@@ -171,9 +182,9 @@ class ElementInputFiles(_ElementPrefixedParameter):
 class ElementOutputFiles(_ElementPrefixedParameter):
     def __init__(
         self,
-        element_iteration: Optional[app.ElementIteration] = None,
-        element_action: Optional[app.ElementAction] = None,
-        element_action_run: Optional[app.ElementActionRun] = None,
+        element_iteration: ElementIteration | None = None,
+        element_action: ElementAction | None = None,
+        element_action_run: ElementActionRun | None = None,
     ) -> None:
         super().__init__(
             "output_files", element_iteration, element_action, element_action_run
@@ -181,35 +192,38 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 
 @dataclass
+@hydrate
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 
-    scratch: Optional[str] = None
-    parallel_mode: Optional[ParallelMode] = None
-    num_cores: Optional[int] = None
-    num_cores_per_node: Optional[int] = None
-    num_threads: Optional[int] = None
-    num_nodes: Optional[int] = None
-    scheduler: Optional[str] = None
-    shell: Optional[str] = None
-    use_job_array: Optional[bool] = None
-    max_array_items: Optional[int] = None
-    time_limit: Optional[str] = None
+    app: ClassVar[BaseApp]
 
-    scheduler_args: Optional[Dict] = None
-    shell_args: Optional[Dict] = None
-    os_name: Optional[str] = None
-    environments: Optional[Dict] = None
+    scratch: str | None = None
+    parallel_mode: ParallelMode | None = None
+    num_cores: int | None = None
+    num_cores_per_node: int | None = None
+    num_threads: int | None = None
+    num_nodes: int | None = None
+    scheduler: str | None = None
+    shell: str | None = None
+    use_job_array: bool | None = None
+    max_array_items: int | None = None
+    time_limit: str | None = None
+
+    scheduler_args: dict[str, Any] = field(default_factory=dict)
+    shell_args: dict[str, Any] = field(default_factory=dict)
+    os_name: str | None = None
+    environments: dict[str, dict[str, Any]] | None = None
 
     # SGE scheduler specific:
-    SGE_parallel_env: str = None
+    SGE_parallel_env: str | None = None
 
     # SLURM scheduler specific:
-    SLURM_partition: str = None
-    SLURM_num_tasks: str = None
-    SLURM_num_tasks_per_node: str = None
-    SLURM_num_nodes: str = None
-    SLURM_num_cpus_per_task: str = None
+    SLURM_partition: str | None = None
+    SLURM_num_tasks: int | None = None
+    SLURM_num_tasks_per_node: int | None = None
+    SLURM_num_nodes: int | None = None
+    SLURM_num_cpus_per_task: int | None = None
 
     def __post_init__(self):
         if (
@@ -223,38 +237,30 @@ class ElementResources(JSONLike):
         if self.parallel_mode:
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
-        self.scheduler_args = self.scheduler_args or {}
-        self.shell_args = self.shell_args or {}
-
     def __eq__(self, other) -> bool:
-        if type(self) != type(other):
-            return False
-        else:
-            return self.__dict__ == other.__dict__
+        return isinstance(other, ElementResources) and self.__dict__ == other.__dict__
 
-    def get_jobscript_hash(self):
+    def get_jobscript_hash(self) -> int:
         """Get hash from all arguments that distinguish jobscripts."""
 
-        def _hash_dict(d):
+        def _hash_dict(d: dict) -> int:
             if not d:
                 return -1
             keys, vals = zip(*d.items())
             return hash(tuple((keys, vals)))
 
-        exclude = ("time_limit",)
+        exclude = {"time_limit"}
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
 
         scheduler_args = dct["scheduler_args"]
         shell_args = dct["shell_args"]
         envs = dct["environments"]
 
-        if isinstance(scheduler_args, dict):
-            if "options" in scheduler_args:
-                dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
-            dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
+        if "options" in scheduler_args:
+            dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
+        dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
 
-        if isinstance(shell_args, dict):
-            dct["shell_args"] = _hash_dict(shell_args)
+        dct["shell_args"] = _hash_dict(shell_args)
 
         if isinstance(envs, dict):
             for k, v in envs.items():
@@ -266,7 +272,7 @@ class ElementResources(JSONLike):
     @property
     def is_parallel(self) -> bool:
         """Returns True if any scheduler-agnostic arguments indicate a parallel job."""
-        return (
+        return bool(
             (self.num_cores and self.num_cores != 1)
             or (self.num_cores_per_node and self.num_cores_per_node != 1)
             or (self.num_nodes and self.num_nodes != 1)
@@ -276,7 +282,7 @@ class ElementResources(JSONLike):
     @property
     def SLURM_is_parallel(self) -> bool:
         """Returns True if any SLURM-specific arguments indicate a parallel job."""
-        return (
+        return bool(
             (self.SLURM_num_tasks and self.SLURM_num_tasks != 1)
             or (self.SLURM_num_tasks_per_node and self.SLURM_num_tasks_per_node != 1)
             or (self.SLURM_num_nodes and self.SLURM_num_nodes != 1)
@@ -284,21 +290,21 @@ class ElementResources(JSONLike):
         )
 
     @staticmethod
-    def get_env_instance_filterable_attributes() -> Tuple[str]:
+    def get_env_instance_filterable_attributes() -> tuple[str, ...]:
         """Get a tuple of resource attributes that are used to filter environment
         executable instances at submit- and run-time."""
         return ("num_cores",)  # TODO: filter on `parallel_mode` later
 
     @staticmethod
-    def get_default_os_name():
+    def get_default_os_name() -> str:
         return os.name
 
     @classmethod
-    def get_default_shell(cls):
+    def get_default_shell(cls) -> str:
         return cls.app.config.default_shell
 
     @classmethod
-    def get_default_scheduler(cls, os_name, shell_name):
+    def get_default_scheduler(cls, os_name, shell_name) -> str:
         if os_name == "nt" and "wsl" in shell_name:
             # provide a "*_posix" default scheduler on windows if shell is WSL:
             return "direct_posix"
@@ -353,20 +359,21 @@ class ElementResources(JSONLike):
 
 
 class ElementIteration:
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
         id_: int,
         is_pending: bool,
         index: int,
-        element: app.Element,
-        data_idx: Dict,
+        element: Element,
+        data_idx: DataIndex,
         EARs_initialised: bool,
-        EAR_IDs: Dict[int, int],
-        EARs: Union[List[Dict], None],
-        schema_parameters: List[str],
-        loop_idx: Dict,
+        EAR_IDs: dict[int, list[int]],
+        EARs: dict[int, dict[Mapping[str, Any], Any]] | None,
+        schema_parameters: list[str],
+        loop_idx: dict[str, int],
     ):
         self._id = id_
         self._is_pending = is_pending
@@ -380,11 +387,11 @@ class ElementIteration:
         self._EAR_IDs = EAR_IDs
 
         # assigned on first access of corresponding properties:
-        self._inputs = None
-        self._outputs = None
-        self._input_files = None
-        self._output_files = None
-        self._action_objs = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
+        self._action_objs: dict[int, ElementAction] | None = None
 
     def __repr__(self):
         return (
@@ -395,21 +402,21 @@ class ElementIteration:
         )
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> DataIndex:
         """The overall element iteration data index, before resolution of EARs."""
         return self._data_idx
 
     @property
-    def EARs_initialised(self):
+    def EARs_initialised(self) -> bool:
         """Whether or not the EARs have been initialised."""
         return self._EARs_initialised
 
     @property
-    def element(self):
+    def element(self) -> Element:
         return self._element
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self._index
 
     @property
@@ -421,73 +428,74 @@ class ElementIteration:
         return self._is_pending
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element.task
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow:
         return self.element.workflow
 
     @property
-    def loop_idx(self) -> Dict[str, int]:
+    def loop_idx(self) -> dict[str, int]:
         return self._loop_idx
 
     @property
-    def schema_parameters(self) -> List[str]:
+    def schema_parameters(self) -> list[str]:
         return self._schema_parameters
 
     @property
-    def EAR_IDs(self) -> Dict[int, int]:
+    def EAR_IDs(self) -> dict[int, list[int]]:
         return self._EAR_IDs
 
     @property
-    def EAR_IDs_flat(self):
+    def EAR_IDs_flat(self) -> list[int]:
         return [j for i in self.EAR_IDs.values() for j in i]
 
     @property
-    def actions(self) -> Dict[app.ElementAction]:
+    def actions(self) -> dict[int, ElementAction]:
         if self._action_objs is None:
-            self._action_objs = {
-                act_idx: self.app.ElementAction(
-                    element_iteration=self,
-                    action_idx=act_idx,
-                    runs=runs,
-                )
+            self._action_objs = ao = {
+                act_idx: self.app.ElementAction(self, act_idx, runs)
                 for act_idx, runs in (self._EARs or {}).items()
             }
+            return ao
         return self._action_objs
 
     @property
-    def action_runs(self) -> List[app.ElementActionRun]:
+    def action_runs(self) -> list[ElementActionRun]:
         """Get a list of element action runs, where only the final run is taken for each
         element action."""
         return [i.runs[-1] for i in self.actions.values()]
 
     @property
-    def inputs(self) -> app.ElementInputs:
+    def inputs(self) -> ElementInputs:
         if not self._inputs:
-            self._inputs = self.app.ElementInputs(element_iteration=self)
+            self._inputs = ins = self.app.ElementInputs(element_iteration=self)
+            return ins
         return self._inputs
 
     @property
-    def outputs(self) -> app.ElementOutputs:
+    def outputs(self) -> ElementOutputs:
         if not self._outputs:
-            self._outputs = self.app.ElementOutputs(element_iteration=self)
+            self._outputs = outs = self.app.ElementOutputs(element_iteration=self)
+            return outs
         return self._outputs
 
     @property
-    def input_files(self) -> app.ElementInputFiles:
+    def input_files(self) -> ElementInputFiles:
         if not self._input_files:
-            self._input_files = self.app.ElementInputFiles(element_iteration=self)
+            self._input_files = eif = self.app.ElementInputFiles(element_iteration=self)
+            return eif
         return self._input_files
 
     @property
-    def output_files(self) -> app.ElementOutputFiles:
+    def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = self.app.ElementOutputFiles(element_iteration=self)
+            self._output_files = eof = self.app.ElementOutputFiles(element_iteration=self)
+            return eof
         return self._output_files
 
-    def get_parameter_names(self, prefix: str) -> List[str]:
+    def get_parameter_names(self, prefix: str) -> list[str]:
         """Get parameter types associated with a given prefix.
 
         For example, with the prefix "inputs", this would return `['p1', 'p2']` for a task
@@ -516,10 +524,10 @@ class ElementIteration:
     @TimeIt.decorator
     def get_data_idx(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
-    ) -> Dict[str, int]:
+    ) -> DataIndex:
         """
         Parameters
         ----------
@@ -552,16 +560,87 @@ class ElementIteration:
 
         return copy.deepcopy(data_idx)
 
+    def __get_parameter_sources(
+        self, data_idx: DataIndex, filter_type: str | None, use_task_index: bool
+    ) -> Mapping[str, ParamSource | list[ParamSource]]:
+        # the value associated with `repeats.*` is the repeats index, not a parameter ID:
+        for k in list(data_idx.keys()):
+            if k.startswith("repeats."):
+                data_idx.pop(k)
+
+        out: Mapping[str, ParamSource | list[ParamSource]] = dict_values_process_flat(
+            data_idx,
+            callable=self.workflow.get_parameter_sources,
+        )
+
+        if use_task_index:
+            for k, v in out.items():
+                assert isinstance(v, dict)
+                insert_ID = v.pop("task_insert_ID", None)
+                if insert_ID is not None:
+                    # Modify the contents of out
+                    v["task_idx"] = self.workflow.tasks.get(insert_ID=insert_ID).index
+
+        if not filter_type:
+            return out
+
+        # Filter to just the elements that have the right type property
+        filtered = (
+            (k, self.__filter_param_source_by_type(v, filter_type))
+            for k, v in out.items()
+        )
+        return {k: v for k, v in filtered if v is not None}
+
+    @staticmethod
+    def __filter_param_source_by_type(
+        value: ParamSource | list[ParamSource], filter_type: str
+    ) -> ParamSource | list[ParamSource] | None:
+        if isinstance(value, list):
+            sources = [src for src in value if src["type"] == filter_type]
+            if sources:
+                return sources
+        else:
+            if value["type"] == filter_type:
+                return value
+        return None
+
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None,
+        *,
+        action_idx: int | None,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]:
+        ...
+
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        action_idx: int | None = None,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> Mapping[str, ParamSource | list[ParamSource]]:
+        ...
+
     @TimeIt.decorator
     def get_parameter_sources(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        *,
+        action_idx: int | None = None,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
-    ) -> Dict[str, Union[str, Dict[str, Any]]]:
+    ) -> dict[str, str] | Mapping[str, ParamSource | list[ParamSource]]:
         """
         Parameters
         ----------
@@ -570,79 +649,40 @@ class ElementIteration:
             ID.
         """
         data_idx = self.get_data_idx(path, action_idx, run_idx)
+        out = self.__get_parameter_sources(data_idx, typ or "", use_task_index)
+        if not as_strings:
+            return out
 
-        # the value associated with `repeats.*` is the repeats index, not a parameter ID:
-        for k in list(data_idx.keys()):
-            if k.startswith("repeats."):
-                data_idx.pop(k)
-
-        out = dict_values_process_flat(
-            data_idx,
-            callable=self.workflow.get_parameter_sources,
-        )
-        task_key = "task_insert_ID"
-
-        if use_task_index:
-            task_key = "task_idx"
-            out_task_idx = {}
-            for k, v in out.items():
-                insert_ID = v.pop("task_insert_ID", None)
-                if insert_ID is not None:
-                    v[task_key] = self.workflow.tasks.get(insert_ID=insert_ID).index
-                out_task_idx[k] = v
-            out = out_task_idx
-
-        if typ:
-            out_ = {}
-            for k, v in out.items():
-                is_multi = False
-                if isinstance(v, list):
-                    is_multi = True
-                else:
-                    v = [v]
-
-                sources_k = []
-                for src_i in v:
-                    if src_i["type"] == typ:
-                        if not is_multi:
-                            sources_k = src_i
-                            break
-                        else:
-                            sources_k.append(src_i)
-
-                if sources_k:
-                    out_[k] = sources_k
-
-            out = out_
-
-        if as_strings:
-            # format as a dict with compact string values
-            self_task_val = (
-                self.task.index if task_key == "task_idx" else self.task.insert_ID
-            )
-            out_strs = {}
-            for k, v in out.items():
-                if v["type"] == "local_input":
-                    if v[task_key] == self_task_val:
+        # format as a dict with compact string values
+        out_strs: dict[str, str] = {}
+        for k, v in out.items():
+            assert isinstance(v, dict)
+            if v["type"] == "local_input":
+                if use_task_index:
+                    if v["task_idx"] == self.task.index:
                         out_strs[k] = "local"
                     else:
-                        out_strs[k] = f"task.{v[task_key]}.input"
-                elif v["type"] == "default_input":
-                    out_strs == "default"
+                        out_strs[k] = f"task.{v['task_idx']}.input"
                 else:
-                    out_strs[k] = (
-                        f"task.{v[task_key]}.element.{v['element_idx']}."
-                        f"action.{v['action_idx']}.run.{v['run_idx']}"
-                    )
-            out = out_strs
-
-        return out
+                    if v["task_insert_ID"] == self.task.insert_ID:
+                        out_strs[k] = "local"
+                    else:
+                        out_strs[k] = f"task.{v['task_insert_ID']}.input"
+            elif v["type"] == "default_input":
+                out_strs == "default"
+            else:
+                idx = v["task_idx"] if use_task_index else v["task_insert_ID"]
+                out_strs[k] = (
+                    f"task.{idx}.element.{v['element_idx']}."
+                    f"action.{v['action_idx']}.run.{v['run_idx']}"
+                )
+        return out_strs
 
     @TimeIt.decorator
     def get(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
@@ -675,21 +715,36 @@ class ElementIteration:
             default=default,
         )
 
+    @overload
+    def get_EAR_dependencies(
+        self,
+        as_objects: Literal[False] = False,
+    ) -> list[int]:
+        ...
+
+    @overload
+    def get_EAR_dependencies(
+        self,
+        as_objects: Literal[True],
+    ) -> list[ElementActionRun]:
+        ...
+
     @TimeIt.decorator
     def get_EAR_dependencies(
         self,
-        as_objects: Optional[bool] = False,
-    ) -> List[Union[int, app.ElementActionRun]]:
+        as_objects: bool = False,
+    ) -> list[int] | list[ElementActionRun]:
         """Get EARs that this element iteration depends on (excluding EARs of this element
         iteration)."""
         # TODO: test this includes EARs of upstream iterations of this iteration's element
+        out: list[int]
         if self.action_runs:
             out = sorted(
                 set(
                     EAR_ID
                     for i in self.action_runs
                     for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                    if not EAR_ID in self.EAR_IDs_flat
+                    if EAR_ID not in self.EAR_IDs_flat
                 )
             )
         else:
@@ -698,50 +753,72 @@ class ElementIteration:
             # upstream tasks:
             out = []
             for src in self.get_parameter_sources(typ="EAR_output").values():
-                if not isinstance(src, list):
-                    src = [src]
-                for src_i in src:
+                for src_i in src if isinstance(src, list) else [src]:
                     EAR_ID_i = src_i["EAR_ID"]
                     out.append(EAR_ID_i)
             out = sorted(set(out))
 
         if as_objects:
-            out = self.workflow.get_EARs_from_IDs(out)
+            return self.workflow.get_EARs_from_IDs(out)
         return out
+
+    @overload
+    def get_element_iteration_dependencies(
+        self, as_objects: Literal[True]
+    ) -> list[ElementIteration]:
+        ...
+
+    @overload
+    def get_element_iteration_dependencies(
+        self, as_objects: Literal[False] = False
+    ) -> list[int]:
+        ...
 
     @TimeIt.decorator
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementIteration]]:
+    ) -> list[int] | list[ElementIteration]:
         """Get element iterations that this element iteration depends on."""
         # TODO: test this includes previous iterations of this iteration's element
         EAR_IDs = self.get_EAR_dependencies(as_objects=False)
         out = sorted(set(self.workflow.get_element_iteration_IDs_from_EAR_IDs(EAR_IDs)))
         if as_objects:
-            out = self.workflow.get_element_iterations_from_IDs(out)
+            return self.workflow.get_element_iterations_from_IDs(out)
         return out
+
+    @overload
+    def get_element_dependencies(
+        self,
+        as_objects: Literal[False] = False,
+    ) -> list[int]:
+        ...
+
+    @overload
+    def get_element_dependencies(
+        self,
+        as_objects: Literal[True],
+    ) -> list[Element]:
+        ...
 
     @TimeIt.decorator
     def get_element_dependencies(
         self,
-        as_objects: Optional[bool] = False,
-    ) -> List[Union[int, app.Element]]:
+        as_objects: bool = False,
+    ) -> list[int] | list[Element]:
         """Get elements that this element iteration depends on."""
         # TODO: this will be used in viz.
         EAR_IDs = self.get_EAR_dependencies(as_objects=False)
         out = sorted(set(self.workflow.get_element_IDs_from_EAR_IDs(EAR_IDs)))
         if as_objects:
-            out = self.workflow.get_elements_from_IDs(out)
+            return self.workflow.get_elements_from_IDs(out)
         return out
 
-    def get_input_dependencies(self) -> Dict[str, Dict]:
+    def get_input_dependencies(self) -> dict[str, ParamSource]:
         """Get locally defined inputs/sequences/defaults from other tasks that this
         element iteration depends on."""
-        out = {}
+        out: dict[str, ParamSource] = {}
         for k, v in self.get_parameter_sources().items():
-            if not isinstance(v, list):
-                v = [v]
-            for v_i in v:
+            for v_i in v if isinstance(v, list) else [v]:
                 if (
                     v_i["type"] in ["local_input", "default_input"]
                     and v_i["task_insert_ID"] != self.task.insert_ID
@@ -750,9 +827,17 @@ class ElementIteration:
 
         return out
 
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
+
     def get_task_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get tasks (insert ID or WorkflowTask objects) that this element iteration
         depends on.
 
@@ -768,18 +853,26 @@ class ElementIteration:
         out = sorted(set(out))
 
         if as_objects:
-            out = [self.workflow.tasks.get(insert_ID=i) for i in out]
+            return [self.workflow.tasks.get(insert_ID=i) for i in out]
 
         return out
+
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
 
     @TimeIt.decorator
     def get_dependent_EARs(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementActionRun]]:
+    ) -> list[int] | list[ElementActionRun]:
         """Get EARs of downstream iterations and tasks that depend on this element
         iteration."""
         # TODO: test this includes EARs of downstream iterations of this iteration's element
-        deps = []
+        deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:
             for elem in task.elements[:]:
                 for iter_ in elem.iterations:
@@ -793,18 +886,30 @@ class ElementIteration:
                                 deps.append(run.id_)
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_EARs_from_IDs(deps)
+            return self.workflow.get_EARs_from_IDs(deps)
 
         return deps
+
+    @overload
+    def get_dependent_element_iterations(
+        self, as_objects: Literal[True]
+    ) -> list[ElementIteration]:
+        ...
+
+    @overload
+    def get_dependent_element_iterations(
+        self, as_objects: Literal[False] = False
+    ) -> list[int]:
+        ...
 
     @TimeIt.decorator
     def get_dependent_element_iterations(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementIteration]]:
+    ) -> list[int] | list[ElementIteration]:
         """Get elements iterations of downstream iterations and tasks that depend on this
         element iteration."""
         # TODO: test this includes downstream iterations of this iteration's element?
-        deps = []
+        deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:
             for elem in task.elements[:]:
                 for iter_i in elem.iterations:
@@ -817,17 +922,31 @@ class ElementIteration:
                             deps.append(iter_i.id_)
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_element_iterations_from_IDs(deps)
+            return self.workflow.get_element_iterations_from_IDs(deps)
 
         return deps
+
+    @overload
+    def get_dependent_elements(
+        self,
+        as_objects: Literal[True],
+    ) -> list[Element]:
+        ...
+
+    @overload
+    def get_dependent_elements(
+        self,
+        as_objects: Literal[False] = False,
+    ) -> list[int]:
+        ...
 
     @TimeIt.decorator
     def get_dependent_elements(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.Element]]:
+    ) -> list[int] | list[Element]:
         """Get elements of downstream tasks that depend on this element iteration."""
-        deps = []
+        deps: list[int] = []
         for task in self.task.downstream_tasks:
             for element in task.elements[:]:
                 for iter_i in element.iterations:
@@ -839,16 +958,30 @@ class ElementIteration:
 
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_elements_from_IDs(deps)
+            return self.workflow.get_elements_from_IDs(deps)
 
         return deps
+
+    @overload
+    def get_dependent_tasks(
+        self,
+        as_objects: Literal[True],
+    ) -> list[WorkflowTask]:
+        ...
+
+    @overload
+    def get_dependent_tasks(
+        self,
+        as_objects: Literal[False] = False,
+    ) -> list[int]:
+        ...
 
     def get_dependent_tasks(
         self,
         as_objects: bool = False,
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get downstream tasks that depend on this element iteration."""
-        deps = []
+        deps: list[int] = []
         for task in self.task.downstream_tasks:
             for element in task.elements[:]:
                 for iter_i in element.iterations:
@@ -859,19 +992,22 @@ class ElementIteration:
                             deps.append(task.insert_ID)
         deps = sorted(deps)
         if as_objects:
-            deps = [self.workflow.tasks.get(insert_ID=i) for i in deps]
+            return [self.workflow.tasks.get(insert_ID=i) for i in deps]
 
         return deps
 
-    def get_template_resources(self) -> Dict:
+    def get_template_resources(self) -> dict[str, Any]:
         """Get template-level resources."""
-        out = {}
-        for res_i in self.workflow.template.resources:
-            out[res_i.scope.to_string()] = res_i._get_value()
-        return out
+        res = self.workflow.template.resources
+        if res is None:
+            return {}
+        assert isinstance(res, ResourceList)
+        return {res_i.normalised_resources_path: res_i._get_value() for res_i in res}
 
     @TimeIt.decorator
-    def get_resources(self, action: app.Action, set_defaults: bool = False) -> Dict:
+    def get_resources(
+        self, action: Action, set_defaults: bool = False
+    ) -> Mapping[str, Any]:
         """Resolve specific resources for the specified action of this iteration,
         considering all applicable scopes.
 
@@ -892,35 +1028,34 @@ class ElementIteration:
         # question is perhaps "what would the resources be if this action were to become
         # an EAR?" which would then allow us to test a resources-based action rule.
 
-        resource_specs = copy.deepcopy(self.get("resources"))
+        # FIXME: Use a TypedDict?
+        resource_specs: dict[str, dict[str, dict[str, Any]]] = copy.deepcopy(
+            self.get("resources")
+        )
 
         env_spec = action.get_environment_spec()
-        env_name = env_spec["name"]
+        env_name: str = env_spec["name"]
 
         # set default env specifiers, if none set:
-        if "any" not in resource_specs:
-            resource_specs["any"] = {}
-        if "environments" not in resource_specs["any"]:
+        if "environments" not in resource_specs.setdefault("any", {}):
             resource_specs["any"]["environments"] = {env_name: copy.deepcopy(env_spec)}
 
-        for scope, dat in resource_specs.items():
+        for dat in resource_specs.values():
             if "environments" in dat:
                 # keep only relevant user-provided environment specifiers:
-                resource_specs[scope]["environments"] = {
+                dat["environments"] = {
                     k: v for k, v in dat["environments"].items() if k == env_name
                 }
                 # merge user-provided specifiers into action specifiers:
-                resource_specs[scope]["environments"][env_name] = {
-                    **resource_specs[scope]["environments"].get(env_name, {}),
-                    **copy.deepcopy(env_spec),
-                }
+                dat["environments"].setdefault(env_name, {}).update(
+                    copy.deepcopy(env_spec)
+                )
 
-        resources = {}
-        for scope in action.get_possible_scopes()[::-1]:
+        resources: dict[str, Any] = {}
+        for scope_v in action.get_possible_scopes()[::-1]:
             # loop in reverse so higher-specificity scopes take precedence:
-            scope_s = scope.to_string()
-            scope_res = resource_specs.get(scope_s, {})
-            resources.update({k: v for k, v in scope_res.items() if v is not None})
+            scope_res = resource_specs.get(scope_v.to_string(), {})
+            resources.update((k, v) for k, v in scope_res.items() if v is not None)
 
         if set_defaults:
             # used in e.g. `Rule.test` if testing resource rules on element iterations:
@@ -936,13 +1071,14 @@ class ElementIteration:
         return resources
 
     def get_resources_obj(
-        self, action: app.Action, set_defaults: bool = False
-    ) -> app.ElementResources:
+        self, action: Action, set_defaults: bool = False
+    ) -> ElementResources:
         return self.app.ElementResources(**self.get_resources(action, set_defaults))
 
 
 class Element:
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     # TODO: use slots
     # TODO:
@@ -953,13 +1089,13 @@ class Element:
         self,
         id_: int,
         is_pending: bool,
-        task: app.WorkflowTask,
+        task: WorkflowTask,
         index: int,
         es_idx: int,
-        seq_idx: Dict[str, int],
-        src_idx: Dict[str, int],
-        iteration_IDs: List[int],
-        iterations: List[Dict],
+        seq_idx: dict[str, int],
+        src_idx: dict[str, int],
+        iteration_IDs: list[int],
+        iterations: list[dict[str, Any]],
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -973,7 +1109,7 @@ class Element:
         self._iterations = iterations
 
         # assigned on first access:
-        self._iteration_objs = None
+        self._iteration_objs: list[ElementIteration] | None = None
 
     def __repr__(self):
         return (
@@ -991,7 +1127,7 @@ class Element:
         return self._is_pending
 
     @property
-    def task(self) -> app.WorkflowTask:
+    def task(self) -> WorkflowTask:
         return self._task
 
     @property
@@ -1008,35 +1144,35 @@ class Element:
         return self._es_idx
 
     @property
-    def element_set(self):
+    def element_set(self) -> ElementSet:
         return self.task.template.element_sets[self.element_set_idx]
 
     @property
-    def sequence_idx(self) -> Dict[str, int]:
+    def sequence_idx(self) -> dict[str, int]:
         return self._seq_idx
 
     @property
-    def input_source_idx(self) -> Dict[str, int]:
+    def input_source_idx(self) -> dict[str, int]:
         return self._src_idx
 
     @property
-    def input_sources(self) -> Dict[str, app.InputSource]:
+    def input_sources(self) -> dict[str, InputSource]:
         return {
             k: self.element_set.input_sources[k.split("inputs.")[1]][v]
             for k, v in self.input_source_idx.items()
         }
 
     @property
-    def workflow(self) -> app.Workflow:
+    def workflow(self) -> Workflow:
         return self.task.workflow
 
     @property
-    def iteration_IDs(self) -> List[int]:
+    def iteration_IDs(self) -> list[int]:
         return self._iteration_IDs
 
     @property
     @TimeIt.decorator
-    def iterations(self) -> Dict[app.ElementAction]:
+    def iterations(self) -> list[ElementIteration]:
         # TODO: fix this
         if self._iteration_objs is None:
             self._iteration_objs = [
@@ -1050,39 +1186,39 @@ class Element:
         return self._iteration_objs
 
     @property
-    def dir_name(self):
+    def dir_name(self) -> str:
         return f"e_{self.index}"
 
     @property
-    def latest_iteration(self):
+    def latest_iteration(self) -> ElementIteration:
         return self.iterations[-1]
 
     @property
-    def inputs(self) -> app.ElementInputs:
+    def inputs(self) -> ElementInputs:
         return self.latest_iteration.inputs
 
     @property
-    def outputs(self) -> app.ElementOutputs:
+    def outputs(self) -> ElementOutputs:
         return self.latest_iteration.outputs
 
     @property
-    def input_files(self) -> app.ElementInputFiles:
+    def input_files(self) -> ElementInputFiles:
         return self.latest_iteration.input_files
 
     @property
-    def output_files(self) -> app.ElementOutputFiles:
+    def output_files(self) -> ElementOutputFiles:
         return self.latest_iteration.output_files
 
     @property
-    def schema_parameters(self) -> List[str]:
+    def schema_parameters(self) -> list[str]:
         return self.latest_iteration.schema_parameters
 
     @property
-    def actions(self) -> Dict[app.ElementAction]:
+    def actions(self) -> dict[int, ElementAction]:
         return self.latest_iteration.actions
 
     @property
-    def action_runs(self) -> List[app.ElementActionRun]:
+    def action_runs(self) -> list[ElementActionRun]:
         """Get a list of element action runs from the latest iteration, where only the
         final run is taken for each element action."""
         return self.latest_iteration.action_runs
@@ -1090,17 +1226,17 @@ class Element:
     def init_loop_index(self, loop_name: str):
         pass
 
-    def to_element_set_data(self):
+    def to_element_set_data(self) -> tuple[list[InputValue], list[ResourceSpec]]:
         """Generate lists of workflow-bound InputValues and ResourceList."""
-        inputs = []
-        resources = []
+        inputs: list[InputValue] = []
+        resources: list[ResourceSpec] = []
         for k, v in self.get_data_idx().items():
             k_s = k.split(".")
 
             if k_s[0] == "inputs":
                 inp_val = self.app.InputValue(
                     parameter=k_s[1],
-                    path=k_s[2:] or None,
+                    path=cast(str, k_s[2:]) or None,
                     value=None,
                 )
                 inp_val._value_group_idx = v
@@ -1123,14 +1259,19 @@ class Element:
                 f"No sequence with path {sequence_path!r} in this element's originating "
                 f"element set."
             )
-        return seq.values[self.sequence_idx[sequence_path]]
+        values = seq.values
+        if values is None:
+            raise ValueError(
+                f"Sequence with path {sequence_path!r} has no defined values."
+            )
+        return values[self.sequence_idx[sequence_path]]
 
     def get_data_idx(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
-    ) -> Dict[str, int]:
+    ) -> DataIndex:
         """Get the data index of the most recent element iteration.
 
         Parameters
@@ -1144,15 +1285,42 @@ class Element:
             run_idx=run_idx,
         )
 
+    @overload
     def get_parameter_sources(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        *,
+        action_idx: int | None = None,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> Mapping[str, ParamSource | list[ParamSource]]:
+        ...
+
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        action_idx: int | None = None,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]:
+        ...
+
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        action_idx: int | None = None,
+        run_idx: int = -1,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
-    ) -> Dict[str, Union[str, Dict[str, Any]]]:
+    ) -> dict[str, str] | Mapping[str, ParamSource | list[ParamSource]]:
         """ "Get the parameter sources of the most recent element iteration.
 
         Parameters
@@ -1161,19 +1329,27 @@ class Element:
             If True, use the task index within the workflow, rather than the task insert
             ID.
         """
+        if as_strings:
+            return self.latest_iteration.get_parameter_sources(
+                path=path,
+                action_idx=action_idx,
+                run_idx=run_idx,
+                typ=typ,
+                as_strings=True,
+                use_task_index=use_task_index,
+            )
         return self.latest_iteration.get_parameter_sources(
             path=path,
             action_idx=action_idx,
             run_idx=run_idx,
             typ=typ,
-            as_strings=as_strings,
             use_task_index=use_task_index,
         )
 
     def get(
         self,
-        path: str = None,
-        action_idx: int = None,
+        path: str | None = None,
+        action_idx: int | None = None,
         run_idx: int = -1,
         default: Any = None,
         raise_on_missing: bool = False,
@@ -1189,71 +1365,159 @@ class Element:
             raise_on_unset=raise_on_unset,
         )
 
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
+
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
     def get_EAR_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementActionRun]]:
+    ) -> list[int] | list[ElementActionRun]:
         """Get EARs that the most recent iteration of this element depends on."""
-        return self.latest_iteration.get_EAR_dependencies(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_EAR_dependencies(as_objects=True)
+        return self.latest_iteration.get_EAR_dependencies()
+
+    @overload
+    def get_element_iteration_dependencies(
+        self, as_objects: Literal[True]
+    ) -> list[ElementIteration]:
+        ...
+
+    @overload
+    def get_element_iteration_dependencies(
+        self, as_objects: bool = False
+    ) -> list[int] | list[ElementIteration]:
+        ...
 
     def get_element_iteration_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementIteration]]:
+    ) -> list[int] | list[ElementIteration]:
         """Get element iterations that the most recent iteration of this element depends
         on."""
-        return self.latest_iteration.get_element_iteration_dependencies(
-            as_objects=as_objects
-        )
+        if as_objects:
+            return self.latest_iteration.get_element_iteration_dependencies(
+                as_objects=True
+            )
+        return self.latest_iteration.get_element_iteration_dependencies()
+
+    @overload
+    def get_element_dependencies(self, as_objects: Literal[True]) -> list[Element]:
+        ...
+
+    @overload
+    def get_element_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     def get_element_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.Element]]:
+    ) -> list[int] | list[Element]:
         """Get elements that the most recent iteration of this element depends on."""
-        return self.latest_iteration.get_element_dependencies(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_element_dependencies(as_objects=True)
+        return self.latest_iteration.get_element_dependencies()
 
-    def get_input_dependencies(self) -> Dict[str, Dict]:
+    def get_input_dependencies(self) -> dict[str, ParamSource]:
         """Get locally defined inputs/sequences/defaults from other tasks that this
         the most recent iteration of this element depends on."""
         return self.latest_iteration.get_input_dependencies()
 
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
+
+    @overload
+    def get_task_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
     def get_task_dependencies(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get tasks (insert ID or WorkflowTask objects) that the most recent iteration of
         this element depends on.
 
         Dependencies may come from either elements from upstream tasks, or from locally
         defined inputs/sequences/defaults from upstream tasks."""
-        return self.latest_iteration.get_task_dependencies(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_task_dependencies(as_objects=True)
+        return self.latest_iteration.get_task_dependencies()
+
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
+
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     def get_dependent_EARs(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementActionRun]]:
+    ) -> list[int] | list[ElementActionRun]:
         """Get EARs that depend on the most recent iteration of this element."""
-        return self.latest_iteration.get_dependent_EARs(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_dependent_EARs(as_objects=True)
+        return self.latest_iteration.get_dependent_EARs()
+
+    @overload
+    def get_dependent_element_iterations(
+        self, as_objects: Literal[True]
+    ) -> list[ElementIteration]:
+        ...
+
+    @overload
+    def get_dependent_element_iterations(
+        self, as_objects: Literal[False] = False
+    ) -> list[int]:
+        ...
 
     def get_dependent_element_iterations(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.ElementIteration]]:
+    ) -> list[int] | list[ElementIteration]:
         """Get element iterations that depend on the most recent iteration of this
         element."""
-        return self.latest_iteration.get_dependent_element_iterations(
-            as_objects=as_objects
-        )
+        if as_objects:
+            return self.latest_iteration.get_dependent_element_iterations(as_objects=True)
+        return self.latest_iteration.get_dependent_element_iterations()
+
+    @overload
+    def get_dependent_elements(self, as_objects: Literal[True]) -> list[Element]:
+        ...
+
+    @overload
+    def get_dependent_elements(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     def get_dependent_elements(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.Element]]:
+    ) -> list[int] | list[Element]:
         """Get elements that depend on the most recent iteration of this element."""
-        return self.latest_iteration.get_dependent_elements(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_dependent_elements(as_objects=True)
+        return self.latest_iteration.get_dependent_elements()
+
+    @overload
+    def get_dependent_tasks(self, as_objects: Literal[True]) -> list[WorkflowTask]:
+        ...
+
+    @overload
+    def get_dependent_tasks(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
 
     def get_dependent_tasks(
         self, as_objects: bool = False
-    ) -> List[Union[int, app.WorkflowTask]]:
+    ) -> list[int] | list[WorkflowTask]:
         """Get tasks that depend on the most recent iteration of this element."""
-        return self.latest_iteration.get_dependent_tasks(as_objects=as_objects)
+        if as_objects:
+            return self.latest_iteration.get_dependent_tasks(as_objects=True)
+        return self.latest_iteration.get_dependent_tasks()
 
     @TimeIt.decorator
-    def get_dependent_elements_recursively(self, task_insert_ID=None):
+    def get_dependent_elements_recursively(
+        self, task_insert_ID: int | None = None
+    ) -> list[Element]:
         """Get downstream elements that depend on this element, including recursive
         dependencies.
 
@@ -1268,14 +1532,14 @@ class Element:
 
         """
 
-        def get_deps(element):
+        def get_deps(element: Element) -> set[int]:
             deps = element.iterations[0].get_dependent_elements(as_objects=False)
             deps_objs = self.workflow.get_elements_from_IDs(deps)
             return set(deps).union(
-                [dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)]
+                dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)
             )
 
-        all_deps = get_deps(self)
+        all_deps: Iterable[int] = get_deps(self)
 
         if task_insert_ID is not None:
             elem_ID_subset = self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs
@@ -1284,17 +1548,19 @@ class Element:
         return self.workflow.get_elements_from_IDs(sorted(all_deps))
 
 
-@dataclass
+@dataclass(repr=False, eq=False)
+@hydrate
 class ElementParameter:
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
-    task: app.WorkflowTask
+    task: WorkflowTask
     path: str
-    parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
-    element: Element
+    parent: Element | ElementAction | ElementActionRun | ElementIteration
+    element: Element | ElementIteration
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> DataIndex:
         return self.parent.get_data_idx(path=self.path)
 
     @property
@@ -1307,17 +1573,17 @@ class ElementParameter:
     def __eq__(self, __o: object) -> bool:
         if not isinstance(__o, self.__class__):
             return False
-        if self.task == __o.task and self.path == __o.path:
-            return True
+        return self.task == __o.task and self.path == __o.path
 
     @property
-    def data_idx_is_set(self):
+    def data_idx_is_set(self) -> dict[str, bool]:
         return {
-            k: self.task.workflow.is_parameter_set(v) for k, v in self.data_idx.items()
+            k: self.task.workflow.is_parameter_set(cast(int, v))
+            for k, v in self.data_idx.items()
         }
 
     @property
-    def is_set(self):
+    def is_set(self) -> bool:
         return all(self.data_idx_is_set.values())
 
     def get_size(self, **store_kwargs):
@@ -1325,15 +1591,18 @@ class ElementParameter:
 
 
 @dataclass
+@hydrate
 class ElementFilter(JSONLike):
-    _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
+    _child_objects: ClassVar[
+        tuple[
+            ChildObjectSpec,
+        ]
+    ] = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
 
-    rules: List[app.Rule] = field(default_factory=list)
+    rules: list[Rule] = field(default_factory=list)
 
-    def filter(
-        self, element_iters: List[app.ElementIteration]
-    ) -> List[app.ElementIteration]:
-        out = []
+    def filter(self, element_iters: list[ElementIteration]) -> list[ElementIteration]:
+        out: list[ElementIteration] = []
         for i in element_iters:
             if all(rule_j.test(i) for rule_j in self.rules):
                 out.append(i)
@@ -1343,8 +1612,8 @@ class ElementFilter(JSONLike):
 @dataclass
 class ElementGroup(JSONLike):
     name: str
-    where: Optional[ElementFilter] = None
-    group_by_distinct: Optional[app.ParameterPath] = None
+    where: ElementFilter | None = None
+    group_by_distinct: ParameterPath | None = None
 
     def __post_init__(self):
         self.name = check_valid_py_identifier(self.name)
@@ -1353,4 +1622,4 @@ class ElementGroup(JSONLike):
 @dataclass
 class ElementRepeats:
     number: int
-    where: Optional[ElementFilter] = None
+    where: ElementFilter | None = None

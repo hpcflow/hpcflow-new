@@ -1,73 +1,59 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Any
+from typing import TYPE_CHECKING
 
 from textwrap import dedent
 
-from hpcflow.sdk import app
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import DuplicateExecutableError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ExecutablesList
 from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_items
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import ClassVar
+    from ..app import BaseApp
 
 
 @dataclass
 class NumCores(JSONLike):
     start: int
     stop: int
-    step: int = None
+    step: int = 1
 
-    def __post_init__(self):
-        if self.step is None:
-            self.step = 1
-
-    def __contains__(self, x):
-        if x in range(self.start, self.stop + 1, self.step):
-            return True
-        else:
-            return False
-
-    def __eq__(self, other):
-        if (
-            type(self) == type(other)
-            and self.start == other.start
-            and self.stop == other.stop
-            and self.step == other.step
-        ):
-            return True
-        return False
+    def __contains__(self, x) -> bool:
+        return x in range(self.start, self.stop + 1, self.step)
 
 
 @dataclass
+@hydrate
 class ExecutableInstance(JSONLike):
-    parallel_mode: str
-    num_cores: Any
+    app: ClassVar[BaseApp]
+    parallel_mode: str | None
+    num_cores: NumCores
     command: str
 
-    def __post_init__(self):
-        if not isinstance(self.num_cores, dict):
-            self.num_cores = {"start": self.num_cores, "stop": self.num_cores}
-        if not isinstance(self.num_cores, NumCores):
-            self.num_cores = self.app.NumCores(**self.num_cores)
-
-    def __eq__(self, other):
-        if (
-            type(self) == type(other)
-            and self.parallel_mode == other.parallel_mode
-            and self.num_cores == other.num_cores
-            and self.command == other.command
-        ):
-            return True
-        return False
+    def __init__(
+        self, parallel_mode: str | None, num_cores: NumCores | int | dict, command: str
+    ):
+        self.parallel_mode = parallel_mode
+        self.command = command
+        if isinstance(num_cores, NumCores):
+            self.num_cores = num_cores
+        elif isinstance(num_cores, int):
+            self.num_cores = NumCores(num_cores, num_cores)
+        else:
+            self.num_cores = NumCores(**num_cores)
 
     @classmethod
-    def from_spec(cls, spec):
+    def from_spec(cls, spec) -> ExecutableInstance:
         return cls(**spec)
 
 
 class Executable(JSONLike):
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="instances",
             class_name="ExecutableInstance",
@@ -75,11 +61,11 @@ class Executable(JSONLike):
         ),
     )
 
-    def __init__(self, label: str, instances: List[app.ExecutableInstance]):
+    def __init__(self, label: str, instances: list[ExecutableInstance]):
         self.label = check_valid_py_identifier(label)
         self.instances = instances
 
-        self._executables_list = None  # assigned by parent
+        self._executables_list: ExecutablesList | None = None  # assigned by parent
 
     def __repr__(self):
         return (
@@ -90,21 +76,21 @@ class Executable(JSONLike):
         )
 
     def __eq__(self, other):
-        if (
-            type(self) == type(other)
+        return (
+            isinstance(other, Executable)
             and self.label == other.label
             and self.instances == other.instances
             and self.environment.name == other.environment.name
-        ):
-            return True
-        return False
+        )
 
     @property
     def environment(self):
         return self._executables_list.environment
 
-    def filter_instances(self, parallel_mode=None, num_cores=None):
-        out = []
+    def filter_instances(
+        self, parallel_mode: str | None = None, num_cores: int | None = None
+    ) -> list[ExecutableInstance]:
+        out: list[ExecutableInstance] = []
         for i in self.instances:
             if parallel_mode is None or i.parallel_mode == parallel_mode:
                 if num_cores is None or num_cores in i.num_cores:
@@ -113,9 +99,9 @@ class Executable(JSONLike):
 
 
 class Environment(JSONLike):
-    _hash_value = None
-    _validation_schema = "environments_spec_schema.yaml"
-    _child_objects = (
+    app: ClassVar[BaseApp]
+    _validation_schema: ClassVar[str] = "environments_spec_schema.yaml"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="executables",
             class_name="ExecutablesList",
@@ -124,10 +110,14 @@ class Environment(JSONLike):
     )
 
     def __init__(
-        self, name, setup=None, specifiers=None, executables=None, _hash_value=None
+        self,
+        name: str,
+        setup: Sequence[str] | None = None,
+        specifiers: dict | None = None,
+        executables: ExecutablesList | Sequence[Executable] | None = None,
+        _hash_value: str | None = None,
     ):
         self.name = name
-        self.setup = setup
         self.specifiers = specifiers or {}
         self.executables = (
             executables
@@ -135,25 +125,24 @@ class Environment(JSONLike):
             else self.app.ExecutablesList(executables or [])
         )
         self._hash_value = _hash_value
-        if self.setup:
-            if isinstance(self.setup, str):
-                self.setup = tuple(
-                    i.strip() for i in dedent(self.setup).strip().split("\n")
-                )
-            elif not isinstance(self.setup, tuple):
-                self.setup = tuple(self.setup)
+        self.setup: tuple[str, ...] | None
+        if setup:
+            if isinstance(setup, str):
+                self.setup = tuple(i.strip() for i in dedent(setup).strip().split("\n"))
+            else:
+                self.setup = tuple(setup)
+        else:
+            self.setup = None
         self._set_parent_refs()
         self._validate()
 
-    def __eq__(self, other):
-        if (
-            type(self) == type(other)
+    def __eq__(self, other) -> bool:
+        return (
+            isinstance(other, Environment)
             and self.setup == other.setup
             and self.executables == other.executables
             and self.specifiers == other.specifiers
-        ):
-            return True
-        return False
+        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.name!r})"

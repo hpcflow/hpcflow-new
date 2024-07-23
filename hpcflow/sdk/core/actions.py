@@ -1,19 +1,17 @@
 from __future__ import annotations
+from collections.abc import Mapping
 import copy
 from dataclasses import dataclass
 from datetime import datetime
-import enum
+from enum import Enum
 import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from valida.conditions import ConditionLike
+from typing import cast, final, overload, TypedDict, TYPE_CHECKING
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
-from hpcflow.sdk import app
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
@@ -24,6 +22,7 @@ from hpcflow.sdk.core.errors import (
     UnsupportedScriptDataFormat,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.utils import (
     JSONLikeDirSnapShot,
     split_param_label,
@@ -32,11 +31,44 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import Any, ClassVar, Literal
+    from typing_extensions import NotRequired, Self
+    from valida.conditions import ConditionLike  # type: ignore
+
+    from ..app import BaseApp
+    from ..typing import DataIndex, ParamSource
+    from ..submission.jobscript import Jobscript
+    from .commands import Command
+    from .command_files import InputFileGenerator, OutputFileParser, FileSpec
+    from .element import (
+        Element,
+        ElementIteration,
+        ElementInputs,
+        ElementOutputs,
+        ElementResources,
+        ElementInputFiles,
+        ElementOutputFiles,
+    )
+    from .environment import Environment
+    from .object_list import ParametersList
+    from .parameters import SchemaParameter, ParameterValue
+    from .rule import Rule
+    from .task import WorkflowTask
+    from .task_schema import TaskSchema
+    from .workflow import Workflow
+
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
-class ActionScopeType(enum.Enum):
+class ParameterDependence(TypedDict):
+    input_file_writers: list[FileSpec]
+    commands: list[int]
+
+
+class ActionScopeType(Enum):
     ANY = 0
     MAIN = 1
     PROCESSING = 2
@@ -53,16 +85,20 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
 }
 
 
-class EARStatus(enum.Enum):
-    """Enumeration of all possible EAR statuses, and their associated status colour."""
+@dataclass(frozen=True)
+class _EARStatus:
+    """
+    Model of the state of an EARStatus.
+    """
 
-    def __new__(cls, value, symbol, colour, doc=None):
-        member = object.__new__(cls)
-        member._value_ = value
-        member.colour = colour
-        member.symbol = symbol
-        member.__doc__ = doc
-        return member
+    _value: int
+    colour: str
+    symbol: str
+    __doc__: str = ""
+
+
+class EARStatus(_EARStatus, Enum):
+    """Enumeration of all possible EAR statuses, and their associated status colour."""
 
     pending = (
         0,
@@ -116,42 +152,49 @@ class EARStatus(enum.Enum):
         "Probably failed.",
     )
 
+    @property
+    def value(self) -> int:
+        return self._value
+
     @classmethod
-    def get_non_running_submitted_states(cls):
+    def get_non_running_submitted_states(cls) -> frozenset[EARStatus]:
         """Return the set of all non-running states, excluding those before submission."""
-        return {
-            cls.skipped,
-            cls.aborted,
-            cls.success,
-            cls.error,
-        }
+        return frozenset(
+            {
+                cls.skipped,
+                cls.aborted,
+                cls.success,
+                cls.error,
+            }
+        )
 
     @property
-    def rich_repr(self):
+    def rich_repr(self) -> str:
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
 class ElementActionRun:
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
         id_: int,
         is_pending: bool,
-        element_action,
+        element_action: ElementAction,
         index: int,
-        data_idx: Dict,
-        commands_idx: List[int],
-        start_time: Union[datetime, None],
-        end_time: Union[datetime, None],
-        snapshot_start: Union[Dict, None],
-        snapshot_end: Union[Dict, None],
-        submission_idx: Union[int, None],
-        success: Union[bool, None],
+        data_idx: DataIndex,
+        commands_idx: list[int],
+        start_time: datetime | None,
+        end_time: datetime | None,
+        snapshot_start: dict[str, Any] | None,
+        snapshot_end: dict[str, Any] | None,
+        submission_idx: int | None,
+        success: bool | None,
         skip: bool,
-        exit_code: Union[int, None],
-        metadata: Dict,
-        run_hostname: Union[str, None],
+        exit_code: int | None,
+        metadata: dict[str, Any],
+        run_hostname: str | None,
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -171,16 +214,16 @@ class ElementActionRun:
         self._run_hostname = run_hostname
 
         # assigned on first access of corresponding properties:
-        self._inputs = None
-        self._outputs = None
-        self._resources = None
-        self._input_files = None
-        self._output_files = None
-        self._ss_start_obj = None
-        self._ss_end_obj = None
-        self._ss_diff_obj = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._resources: ElementResources | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
+        self._ss_start_obj: JSONLikeDirSnapShot | None = None
+        self._ss_end_obj: JSONLikeDirSnapShot | None = None
+        self._ss_diff_obj: DirectorySnapshotDiff | None = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             f"id={self.id_!r}, index={self.index!r}, "
@@ -196,68 +239,68 @@ class ElementActionRun:
         return self._is_pending
 
     @property
-    def element_action(self):
+    def element_action(self) -> ElementAction:
         return self._element_action
 
     @property
-    def index(self):
+    def index(self) -> int:
         """Run index."""
         return self._index
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self.element_action.action
 
     @property
-    def element_iteration(self):
+    def element_iteration(self) -> ElementIteration:
         return self.element_action.element_iteration
 
     @property
-    def element(self):
+    def element(self) -> Element:
         return self.element_iteration.element
 
     @property
-    def workflow(self):
+    def workflow(self) -> Workflow:
         return self.element_iteration.workflow
 
     @property
-    def data_idx(self):
+    def data_idx(self) -> DataIndex:
         return self._data_idx
 
     @property
-    def commands_idx(self):
+    def commands_idx(self) -> list[int]:
         return self._commands_idx
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict[str, Any]:
         return self._metadata
 
     @property
-    def run_hostname(self):
+    def run_hostname(self) -> str | None:
         return self._run_hostname
 
     @property
-    def start_time(self):
+    def start_time(self) -> datetime | None:
         return self._start_time
 
     @property
-    def end_time(self):
+    def end_time(self) -> datetime | None:
         return self._end_time
 
     @property
-    def submission_idx(self):
+    def submission_idx(self) -> int | None:
         return self._submission_idx
 
     @property
-    def success(self):
+    def success(self) -> bool | None:
         return self._success
 
     @property
-    def skip(self):
+    def skip(self) -> bool:
         return self._skip
 
     @property
-    def snapshot_start(self):
+    def snapshot_start(self) -> JSONLikeDirSnapShot | None:
         if self._ss_start_obj is None and self._snapshot_start:
             self._ss_start_obj = JSONLikeDirSnapShot(
                 root_path=".",
@@ -266,31 +309,31 @@ class ElementActionRun:
         return self._ss_start_obj
 
     @property
-    def snapshot_end(self):
+    def snapshot_end(self) -> JSONLikeDirSnapShot | None:
         if self._ss_end_obj is None and self._snapshot_end:
             self._ss_end_obj = JSONLikeDirSnapShot(root_path=".", **self._snapshot_end)
         return self._ss_end_obj
 
     @property
-    def dir_diff(self) -> DirectorySnapshotDiff:
+    def dir_diff(self) -> DirectorySnapshotDiff | None:
         """Get the changes to the EAR working directory due to the execution of this
         EAR."""
-        if self._ss_diff_obj is None and self.snapshot_end:
-            self._ss_diff_obj = DirectorySnapshotDiff(
-                self.snapshot_start, self.snapshot_end
-            )
+        ss = self.snapshot_start
+        se = self.snapshot_end
+        if self._ss_diff_obj is None and ss and se:
+            self._ss_diff_obj = DirectorySnapshotDiff(ss, se)
         return self._ss_diff_obj
 
     @property
-    def exit_code(self):
+    def exit_code(self) -> int | None:
         return self._exit_code
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element_action.task
 
     @property
-    def status(self):
+    def status(self) -> EARStatus:
         """Return the state of this EAR."""
 
         if self.skip:
@@ -321,7 +364,7 @@ class ElementActionRun:
 
         return EARStatus.pending
 
-    def get_parameter_names(self, prefix: str) -> List[str]:
+    def get_parameter_names(self, prefix: str) -> list[str]:
         """Get parameter types associated with a given prefix.
 
         For inputs, labels are ignored. See `Action.get_parameter_names` for more
@@ -335,37 +378,69 @@ class ElementActionRun:
         """
         return self.action.get_parameter_names(prefix)
 
-    def get_data_idx(self, path: str = None):
+    def get_data_idx(self, path: str | None = None) -> DataIndex:
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
         )
 
+    @overload
+    def get_parameter_sources(
+        self,
+        *,
+        path: str | None = None,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> dict[str, dict[str, Any]]:
+        ...
+
+    @overload
+    def get_parameter_sources(
+        self,
+        *,
+        path: str | None = None,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]:
+        ...
+
     @TimeIt.decorator
     def get_parameter_sources(
         self,
-        path: str = None,
-        typ: str = None,
+        *,
+        path: str | None = None,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        if as_strings:
+            return self.element_iteration.get_parameter_sources(
+                path,
+                action_idx=self.element_action.action_idx,
+                run_idx=self.index,
+                typ=typ,
+                as_strings=True,
+                use_task_index=use_task_index,
+            )
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
             run_idx=self.index,
             typ=typ,
-            as_strings=as_strings,
+            as_strings=False,
             use_task_index=use_task_index,
         )
 
     def get(
         self,
-        path: str = None,
-        default: Any = None,
+        path: str | None = None,
+        default: Any | None = None,
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
-    ):
+    ) -> Any:
         return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
@@ -375,16 +450,24 @@ class ElementActionRun:
             raise_on_unset=raise_on_unset,
         )
 
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_EAR_dependencies(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
+
     @TimeIt.decorator
-    def get_EAR_dependencies(self, as_objects=False):
+    def get_EAR_dependencies(
+        self, as_objects=False
+    ) -> list[ElementActionRun] | list[int]:
         """Get EARs that this EAR depends on."""
 
-        out = []
+        out: list[int] = []
         for src in self.get_parameter_sources(typ="EAR_output").values():
-            if not isinstance(src, list):
-                src = [src]
-            for src_i in src:
-                EAR_ID_i = src_i["EAR_ID"]
+            for src_i in src if isinstance(src, list) else [src]:
+                EAR_ID_i: int = src_i["EAR_ID"]
                 if EAR_ID_i != self.id_:
                     # don't record a self dependency!
                     out.append(EAR_ID_i)
@@ -392,34 +475,39 @@ class ElementActionRun:
         out = sorted(out)
 
         if as_objects:
-            out = self.workflow.get_EARs_from_IDs(out)
+            return self.workflow.get_EARs_from_IDs(out)
 
         return out
 
-    def get_input_dependencies(self):
+    def get_input_dependencies(self) -> dict[str, dict[str, Any]]:
         """Get information about locally defined input, sequence, and schema-default
         values that this EAR depends on. Note this does not get values from this EAR's
         task/schema, because the aim of this method is to help determine which upstream
         tasks this EAR depends on."""
 
-        out = {}
+        out: dict[str, dict[str, Any]] = {}
+        wanted_types = ("local_input", "default_input")
         for k, v in self.get_parameter_sources().items():
-            if not isinstance(v, list):
-                v = [v]
-            for v_i in v:
+            for v_i in v if isinstance(v, list) else [v]:
                 if (
-                    v_i["type"] in ["local_input", "default_input"]
+                    v_i["type"] in wanted_types
                     and v_i["task_insert_ID"] != self.task.insert_ID
                 ):
                     out[k] = v_i
 
         return out
 
-    def get_dependent_EARs(
-        self, as_objects=False
-    ) -> List[Union[int, app.ElementActionRun]]:
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> list[int]:
+        ...
+
+    @overload
+    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
+        ...
+
+    def get_dependent_EARs(self, as_objects=False) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
-        deps = []
+        deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:
             for elem in task.elements[:]:
                 for iter_ in elem.iterations:
@@ -430,74 +518,79 @@ class ElementActionRun:
                                 deps.append(run.id_)
         deps = sorted(deps)
         if as_objects:
-            deps = self.workflow.get_EARs_from_IDs(deps)
+            return self.workflow.get_EARs_from_IDs(deps)
 
         return deps
 
     @property
-    def inputs(self):
+    def inputs(self) -> ElementInputs:
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action_run=self)
         return self._inputs
 
     @property
-    def outputs(self):
+    def outputs(self) -> ElementOutputs:
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action_run=self)
         return self._outputs
 
     @property
     @TimeIt.decorator
-    def resources(self):
+    def resources(self) -> ElementResources:
         if not self._resources:
             self._resources = self.app.ElementResources(**self.get_resources())
         return self._resources
 
     @property
-    def input_files(self):
+    def input_files(self) -> ElementInputFiles:
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action_run=self)
         return self._input_files
 
     @property
-    def output_files(self):
+    def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
     @property
-    def env_spec(self) -> Dict[str, Any]:
-        return self.resources.environments[self.action.get_environment_name()]
+    def env_spec(self) -> dict[str, Any]:
+        envs = self.resources.environments
+        if envs is None:
+            return {}
+        return envs[self.action.get_environment_name()]
 
     @TimeIt.decorator
-    def get_resources(self):
+    def get_resources(self) -> Mapping[str, Any]:
         """Resolve specific resources for this EAR, considering all applicable scopes and
         template-level resources."""
         return self.element_iteration.get_resources(self.action)
 
-    def get_environment_spec(self) -> str:
+    def get_environment_spec(self) -> dict[str, Any]:
         return self.action.get_environment_spec()
 
-    def get_environment(self) -> app.Environment:
+    def get_environment(self) -> Environment:
         return self.action.get_environment()
 
-    def get_all_previous_iteration_runs(self, include_self: bool = True):
+    def get_all_previous_iteration_runs(
+        self, include_self: bool = True
+    ) -> list[ElementActionRun]:
         """Get a list of run over all iterations that correspond to this run, optionally
         including this run."""
         self_iter = self.element_iteration
         self_elem = self_iter.element
         self_act_idx = self.element_action.action_idx
         max_idx = self_iter.index + 1 if include_self else self_iter.index
-        all_runs = []
+        all_runs: list[ElementActionRun] = []
         for iter_i in self_elem.iterations[:max_idx]:
             all_runs.append(iter_i.actions[self_act_idx].runs[-1])
         return all_runs
 
     def get_input_values(
         self,
-        inputs: Optional[Union[List[str], Dict[str, Dict]]] = None,
+        inputs: Sequence[str] | dict[str, dict] | None = None,
         label_dict: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get a dict of (optionally a subset of) inputs values for this run.
 
         Parameters
@@ -517,12 +610,14 @@ class ElementActionRun:
         if not inputs:
             inputs = self.get_parameter_names("inputs")
 
-        out = {}
+        out: dict[str, dict[str, Any]] = {}
         for inp_name in inputs:
             path_i, label_i = split_param_label(inp_name)
 
             try:
-                all_iters = inputs[inp_name]["all_iterations"]
+                all_iters = (
+                    isinstance(inputs, dict) and inputs[inp_name]["all_iterations"]
+                )
             except (TypeError, KeyError):
                 all_iters = False
 
@@ -539,7 +634,7 @@ class ElementActionRun:
                 val_i = self.get(f"inputs.{inp_name}")
 
             key = inp_name
-            if label_dict and label_i:
+            if label_dict and label_i and path_i:
                 key = path_i  # exclude label from key
 
             if "." in key:
@@ -547,9 +642,7 @@ class ElementActionRun:
                 key = key.split(".")[-1]
 
             if label_dict and label_i:
-                if key not in out:
-                    out[key] = {}
-                out[key][label_i] = val_i
+                out.setdefault(key, {})[label_i] = val_i
             else:
                 out[key] = val_i
 
@@ -558,21 +651,22 @@ class ElementActionRun:
 
         return out
 
-    def get_input_values_direct(self, label_dict: bool = True):
+    def get_input_values_direct(self, label_dict: bool = True) -> dict[str, Any]:
         """Get a dict of input values that are to be passed directly to a Python script
         function."""
         inputs = self.action.script_data_in_grouped.get("direct", {})
         return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
-    def get_IFG_input_values(self) -> Dict[str, Any]:
+    def get_IFG_input_values(self) -> dict[str, Any]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get input file generator inputs from this EAR because the "
-                f"associated action is not expanded, meaning multiple IFGs might exists."
+                "Cannot get input file generator inputs from this EAR because the "
+                "associated action is not expanded, meaning multiple IFGs might exists."
             )
         input_types = [i.typ for i in self.action.input_file_generators[0].inputs]
-        inputs = {}
+        inputs: dict[str, Any] = {}
         for i in self.inputs:
+            assert not isinstance(i, dict)
             typ = i.path[len("inputs.") :]
             if typ in input_types:
                 inputs[typ] = i.value
@@ -582,25 +676,27 @@ class ElementActionRun:
 
         return inputs
 
-    def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
+    def get_OFP_output_files(self) -> dict[str, Path]:
         # TODO: can this return multiple files for a given FileSpec?
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser files from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser files from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
-        out_files = {}
+        out_files: dict[str, Path] = {}
         for file_spec in self.action.output_file_parsers[0].output_files:
-            out_files[file_spec.label] = Path(file_spec.name.value())
+            name = file_spec.name.value()
+            assert isinstance(name, str)
+            out_files[file_spec.label] = Path(name)
         return out_files
 
-    def get_OFP_inputs(self) -> Dict[str, Union[str, List[str]]]:
+    def get_OFP_inputs(self) -> dict[str, str | list[str] | dict[str, Any]]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser inputs from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser inputs from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
-        inputs = {}
+        inputs: dict[str, str | list[str] | dict[str, Any]] = {}
         for inp_typ in self.action.output_file_parsers[0].inputs or []:
             inputs[inp_typ] = self.get(f"inputs.{inp_typ}")
 
@@ -609,28 +705,33 @@ class ElementActionRun:
 
         return inputs
 
-    def get_OFP_outputs(self) -> Dict[str, Union[str, List[str]]]:
+    def get_OFP_outputs(self) -> dict[str, str | list[str]]:
         if not self.action._from_expand:
             raise RuntimeError(
-                f"Cannot get output file parser outputs from this from EAR because the "
-                f"associated action is not expanded, meaning multiple OFPs might exist."
+                "Cannot get output file parser outputs from this from EAR because the "
+                "associated action is not expanded, meaning multiple OFPs might exist."
             )
         outputs = {}
         for out_typ in self.action.output_file_parsers[0].outputs or []:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
+    @staticmethod
+    def __cast_param_value(v: Any) -> ParameterValue:
+        # UGLY but could be worse
+        return v
+
     def write_source(self, js_idx: int, js_act_idx: int):
-        import h5py
+        import h5py  # type: ignore
 
         for fmt, ins in self.action.script_data_in_grouped.items():
             if fmt == "json":
                 in_vals = self.get_input_values(inputs=ins, label_dict=False)
                 dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
-                in_vals_processed = {}
+                in_vals_processed: dict[str, Any] = {}
                 for k, v in in_vals.items():
                     try:
-                        v = v.prepare_JSON_dump()
+                        v = self.__cast_param_value(v).prepare_JSON_dump()
                     except (AttributeError, NotImplementedError):
                         pass
                     in_vals_processed[k] = v
@@ -643,8 +744,7 @@ class ElementActionRun:
                 dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
-                        grp_k = f.create_group(k)
-                        v.dump_to_HDF5_group(grp_k)
+                        self.__cast_param_value(v).dump_to_HDF5_group(f.create_group(k))
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -660,19 +760,19 @@ class ElementActionRun:
         data output formats (HDF5, JSON, etc)."""
         import h5py
 
+        parameters: ParametersList = self.app.parameters
+
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
                 load_path = self.action.get_param_load_file_path_JSON(js_idx, js_act_idx)
                 with load_path.open(mode="rt") as f:
                     file_data = json.load(f)
                     for param_name, param_dat in file_data.items():
-                        param_id = self.data_idx[f"outputs.{param_name}"]
-                        param_cls = self.app.parameters.get(param_name)._value_class
-                        try:
+                        param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
+                        param_cls = parameters.get(param_name)._force_value_class()
+                        if param_cls is not None:
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
                             continue
-                        except (AttributeError, NotImplementedError):
-                            pass
                         # try to save as a primitive:
                         self.workflow.set_parameter_value(
                             param_id=param_id, value=param_dat
@@ -682,13 +782,22 @@ class ElementActionRun:
                 load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(load_path, mode="r") as f:
                     for param_name, h5_grp in f.items():
-                        param_id = self.data_idx[f"outputs.{param_name}"]
-                        param_cls = self.app.parameters.get(param_name)._value_class
-                        param_cls.save_from_HDF5_group(h5_grp, param_id, self.workflow)
+                        param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
+                        param_cls = parameters.get(param_name)._force_value_class()
+                        if param_cls is not None:
+                            param_cls.save_from_HDF5_group(
+                                h5_grp, param_id, self.workflow
+                            )
+                        else:
+                            # Unlike with JSON, we've no fallback so we warn
+                            self.app.logger.warn(
+                                "parameter %s could not be saved; serializer not found",
+                                param_name,
+                            )
 
     def compose_commands(
-        self, jobscript: app.Jobscript, JS_action_idx: int
-    ) -> Tuple[str, List[str], List[int]]:
+        self, jobscript: Jobscript, JS_action_idx: int
+    ) -> tuple[str, dict[int, list[tuple[str, ...]]]]:
         """
         Returns
         -------
@@ -719,7 +828,9 @@ class ElementActionRun:
         if env.setup:
             command_lns += list(env.setup)
 
-        shell_vars = {}  # keys are cmd_idx, each value is a list of tuples
+        shell_vars: dict[
+            int, list[tuple[str, ...]]
+        ] = {}  # keys are cmd_idx, each value is a list of tuples
         for cmd_idx, command in enumerate(self.action.commands):
             if cmd_idx in self.commands_idx:
                 # only execute commands that have no rules, or all valid rules:
@@ -735,20 +846,26 @@ class ElementActionRun:
 
 
 class ElementAction:
+    app: ClassVar[BaseApp]
     _app_attr = "app"
 
-    def __init__(self, element_iteration, action_idx, runs):
+    def __init__(
+        self,
+        element_iteration: ElementIteration,
+        action_idx: int,
+        runs: dict[Mapping[str, Any], Any],
+    ):
         self._element_iteration = element_iteration
         self._action_idx = action_idx
         self._runs = runs
 
         # assigned on first access of corresponding properties:
-        self._run_objs = None
-        self._inputs = None
-        self._outputs = None
-        self._resources = None
-        self._input_files = None
-        self._output_files = None
+        self._run_objs: list[ElementActionRun] | None = None
+        self._inputs: ElementInputs | None = None
+        self._outputs: ElementOutputs | None = None
+        self._resources: ElementResources | None = None
+        self._input_files: ElementInputFiles | None = None
+        self._output_files: ElementOutputFiles | None = None
 
     def __repr__(self):
         return (
@@ -760,19 +877,19 @@ class ElementAction:
         )
 
     @property
-    def element_iteration(self):
+    def element_iteration(self) -> ElementIteration:
         return self._element_iteration
 
     @property
-    def element(self):
+    def element(self) -> Element:
         return self.element_iteration.element
 
     @property
-    def num_runs(self):
+    def num_runs(self) -> int:
         return len(self._runs)
 
     @property
-    def runs(self):
+    def runs(self) -> list[ElementActionRun]:
         if self._run_objs is None:
             self._run_objs = [
                 self.app.ElementActionRun(
@@ -789,70 +906,104 @@ class ElementAction:
         return self._run_objs
 
     @property
-    def task(self):
+    def task(self) -> WorkflowTask:
         return self.element_iteration.task
 
     @property
-    def action_idx(self):
+    def action_idx(self) -> int:
         return self._action_idx
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self.task.template.get_schema_action(self.action_idx)
 
     @property
-    def inputs(self):
+    def inputs(self) -> ElementInputs:
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action=self)
         return self._inputs
 
     @property
-    def outputs(self):
+    def outputs(self) -> ElementOutputs:
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action=self)
         return self._outputs
 
     @property
-    def input_files(self):
+    def input_files(self) -> ElementInputFiles:
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action=self)
         return self._input_files
 
     @property
-    def output_files(self):
+    def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action=self)
         return self._output_files
 
-    def get_data_idx(self, path: str = None, run_idx: int = -1):
+    def get_data_idx(self, path: str | None = None, run_idx: int = -1):
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
         )
 
+    @overload
     def get_parameter_sources(
         self,
-        path: str = None,
+        path: str | None = None,
+        *,
         run_idx: int = -1,
-        typ: str = None,
+        typ: str | None = None,
+        as_strings: Literal[False] = False,
+        use_task_index: bool = False,
+    ) -> dict[str, dict[str, Any]]:
+        ...
+
+    @overload
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        run_idx: int = -1,
+        typ: str | None = None,
+        as_strings: Literal[True],
+        use_task_index: bool = False,
+    ) -> dict[str, str]:
+        ...
+
+    def get_parameter_sources(
+        self,
+        path: str | None = None,
+        *,
+        run_idx: int = -1,
+        typ: str | None = None,
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        if as_strings:
+            return self.element_iteration.get_parameter_sources(
+                path,
+                action_idx=self.action_idx,
+                run_idx=run_idx,
+                typ=typ,
+                as_strings=True,
+                use_task_index=use_task_index,
+            )
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.action_idx,
             run_idx=run_idx,
             typ=typ,
-            as_strings=as_strings,
+            as_strings=False,
             use_task_index=use_task_index,
         )
 
     def get(
         self,
-        path: str = None,
+        path: str | None = None,
         run_idx: int = -1,
-        default: Any = None,
+        default: Any | None = None,
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ):
@@ -865,7 +1016,7 @@ class ElementAction:
             raise_on_unset=raise_on_unset,
         )
 
-    def get_parameter_names(self, prefix: str) -> List[str]:
+    def get_parameter_names(self, prefix: str) -> list[str]:
         """Get parameter types associated with a given prefix.
 
         For inputs, labels are ignored. See `Action.get_parameter_names` for more
@@ -880,10 +1031,13 @@ class ElementAction:
         return self.action.get_parameter_names(prefix)
 
 
+@final
 class ActionScope(JSONLike):
     """Class to represent the identification of a subset of task schema actions by a
     filtering process.
     """
+
+    app: ClassVar[BaseApp]
 
     _child_objects = (
         ChildObjectSpec(
@@ -894,11 +1048,12 @@ class ActionScope(JSONLike):
         ),
     )
 
-    def __init__(self, typ: Union[app.ActionScopeType, str], **kwargs):
+    def __init__(self, typ: ActionScopeType | str, **kwargs):
         if isinstance(typ, str):
-            typ = getattr(self.app.ActionScopeType, typ.upper())
+            self.typ = self.app.ActionScopeType[typ.upper()]
+        else:
+            self.typ = typ
 
-        self.typ = typ
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         bad_keys = set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]
@@ -908,113 +1063,134 @@ class ActionScope(JSONLike):
                 f"{self.typ.name}: {bad_keys}."
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         kwargs_str = ""
         if self.kwargs:
             kwargs_str = ", ".join(f"{k}={v!r}" for k, v in self.kwargs.items())
         return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, ActionScope):
             return False
         if self.typ is other.typ and self.kwargs == other.kwargs:
             return True
         return False
 
+    class _customdict(dict):
+        pass
+
     @classmethod
-    def _parse_from_string(cls, string):
-        typ_str, kwargs_str = re.search(ACTION_SCOPE_REGEX, string).groups()
-        kwargs = {}
+    def _parse_from_string(cls, string: str) -> dict[str, str]:
+        match = re.search(ACTION_SCOPE_REGEX, string)
+        if not match:
+            raise TypeError(f"unparseable ActionScope: '{string}'")
+        typ_str, kwargs_str = match.groups()
+        # The types of the above two variables are idiotic, but bug reports to fix it
+        # get closed because "it would break existing code that makes dumb assumptions"
+        kwargs: dict[str, str] = cls._customdict({"type": cast(str, typ_str)})
         if kwargs_str:
             for i in kwargs_str.split(","):
                 name, val = i.split("=")
                 kwargs[name.strip()] = val.strip()
-        return {"type": typ_str, **kwargs}
+        return kwargs
 
-    def to_string(self):
+    def to_string(self) -> str:
         kwargs_str = ""
         if self.kwargs:
             kwargs_str = "[" + ", ".join(f"{k}={v}" for k, v in self.kwargs.items()) + "]"
         return f"{self.typ.name.lower()}{kwargs_str}"
 
     @classmethod
-    def from_json_like(cls, json_like, shared_data=None):
-        if isinstance(json_like, str):
-            json_like = cls._parse_from_string(json_like)
-        else:
-            typ = json_like.pop("type")
-            json_like = {"type": typ, **json_like.pop("kwargs", {})}
-        return super().from_json_like(json_like, shared_data)
+    def _from_json_like(
+        cls,
+        json_like: Mapping[str, Any] | Sequence[Mapping[str, Any]],
+        shared_data: Mapping[str, Any],
+    ) -> Self:
+        if not isinstance(json_like, Mapping):
+            raise TypeError("only mappings are supported for becoming an ActionScope")
+        if not isinstance(json_like, cls._customdict):
+            json_like = {"type": json_like["type"], **json_like.get("kwargs", {})}
+        return super()._from_json_like(json_like, shared_data)
 
     @classmethod
-    def any(cls):
+    def any(cls) -> ActionScope:
         return cls(typ=ActionScopeType.ANY)
 
     @classmethod
-    def main(cls):
+    def main(cls) -> ActionScope:
         return cls(typ=ActionScopeType.MAIN)
 
     @classmethod
-    def processing(cls):
+    def processing(cls) -> ActionScope:
         return cls(typ=ActionScopeType.PROCESSING)
 
     @classmethod
-    def input_file_generator(cls, file=None):
+    def input_file_generator(cls, file=None) -> ActionScope:
         return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, file=file)
 
     @classmethod
-    def output_file_parser(cls, output=None):
+    def output_file_parser(cls, output=None) -> ActionScope:
         return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, output=output)
 
 
-@dataclass
+@dataclass()
+@hydrate
 class ActionEnvironment(JSONLike):
-    _app_attr = "app"
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="scope",
             class_name="ActionScope",
         ),
     )
 
-    environment: Union[str, Dict[str, Any]]
-    scope: Optional[app.ActionScope] = None
+    environment: dict[str, Any]
+    scope: ActionScope
 
-    def __post_init__(self):
-        if self.scope is None:
-            self.scope = self.app.ActionScope.any()
+    def __init__(
+        self, environment: str | dict[str, Any], scope: ActionScope | None = None
+    ):
+        if scope is None:
+            self.scope = ActionScope.any()
+        else:
+            self.scope = scope
 
-        orig_env = copy.deepcopy(self.environment)
-        if isinstance(self.environment, str):
-            self.environment = {"name": self.environment}
-
-        if "name" not in self.environment:
-            raise ActionEnvironmentMissingNameError(
-                f"The action-environment environment specification must include a string "
-                f"`name` key, or be specified as string that is that name. Provided "
-                f"environment key was {orig_env!r}."
-            )
+        if isinstance(environment, str):
+            self.environment = {"name": environment}
+        else:
+            if "name" not in environment:
+                raise ActionEnvironmentMissingNameError(
+                    "The action-environment environment specification must include a string "
+                    "`name` key, or be specified as string that is that name. Provided "
+                    f"environment key was {environment!r}."
+                )
+            self.environment = copy.deepcopy(environment)
 
 
 class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
-    _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
+        ChildObjectSpec(name="rule", class_name="Rule"),
+    )
 
     def __init__(
         self,
-        rule: Optional[app.Rule] = None,
-        check_exists: Optional[str] = None,
-        check_missing: Optional[str] = None,
-        path: Optional[str] = None,
-        condition: Optional[Union[Dict, ConditionLike]] = None,
-        cast: Optional[str] = None,
-        doc: Optional[str] = None,
+        rule: Rule | None = None,
+        check_exists: str | None = None,
+        check_missing: str | None = None,
+        path: str | None = None,
+        condition: dict[str, Any] | ConditionLike | None = None,
+        cast: str | None = None,
+        doc: str | None = None,
     ):
         if rule is None:
-            rule = app.Rule(
+            self.rule = self.app.Rule(
                 check_exists=check_exists,
                 check_missing=check_missing,
                 path=path,
@@ -1030,36 +1206,41 @@ class ActionRule(JSONLike):
                 f"{self.__class__.__name__} `rule` specified in addition to rule "
                 f"constructor arguments."
             )
+        else:
+            self.rule = rule
 
-        self.rule = rule
-        self.action = None  # assigned by parent action
-        self.command = None  # assigned by parent command
+        self.action: Action | None = None  # assigned by parent action
+        self.command: Command | None = None  # assigned by parent command
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if type(other) is not self.__class__:
             return False
-        if self.rule == other.rule:
-            return True
-        return False
+        return self.rule == other.rule
 
     @TimeIt.decorator
-    def test(self, element_iteration: app.ElementIteration) -> bool:
+    def test(self, element_iteration: ElementIteration) -> bool:
         return self.rule.test(element_like=element_iteration, action=self.action)
 
     @classmethod
-    def check_exists(cls, check_exists):
-        return cls(rule=app.Rule(check_exists=check_exists))
+    def check_exists(cls, check_exists) -> ActionRule:
+        return cls(rule=cls.app.Rule(check_exists=check_exists))
 
     @classmethod
-    def check_missing(cls, check_missing):
-        return cls(rule=app.Rule(check_missing=check_missing))
+    def check_missing(cls, check_missing) -> ActionRule:
+        return cls(rule=cls.app.Rule(check_missing=check_missing))
+
+
+class ScriptData(TypedDict, total=False):
+    format: str
+    all_iterations: NotRequired[bool]
 
 
 class Action(JSONLike):
     """"""
 
-    _app_attr = "app"
-    _child_objects = (
+    app: ClassVar[BaseApp]
+    _app_attr: ClassVar[str] = "app"
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="commands",
             class_name="Command",
@@ -1115,26 +1296,26 @@ class Action(JSONLike):
             shared_data_name="command_files",
         ),
     )
-    _script_data_formats = ("direct", "json", "hdf5")
+    _script_data_formats: ClassVar[tuple[str, ...]] = ("direct", "json", "hdf5")
 
     def __init__(
         self,
-        environments: Optional[List[app.ActionEnvironment]] = None,
-        commands: Optional[List[app.Command]] = None,
-        script: Optional[str] = None,
-        script_data_in: Optional[str] = None,
-        script_data_out: Optional[str] = None,
-        script_data_files_use_opt: Optional[bool] = False,
-        script_exe: Optional[str] = None,
-        script_pass_env_spec: Optional[bool] = False,
-        abortable: Optional[bool] = False,
-        input_file_generators: Optional[List[app.InputFileGenerator]] = None,
-        output_file_parsers: Optional[List[app.OutputFileParser]] = None,
-        input_files: Optional[List[app.FileSpec]] = None,
-        output_files: Optional[List[app.FileSpec]] = None,
-        rules: Optional[List[app.ActionRule]] = None,
-        save_files: Optional[List[str]] = None,
-        clean_up: Optional[List[str]] = None,
+        environments: list[ActionEnvironment] | None = None,
+        commands: list[Command] | None = None,
+        script: str | None = None,
+        script_data_in: str | Mapping[str, str | ScriptData] | None = None,
+        script_data_out: str | Mapping[str, str | ScriptData] | None = None,
+        script_data_files_use_opt: bool = False,
+        script_exe: str | None = None,
+        script_pass_env_spec: bool = False,
+        abortable: bool = False,
+        input_file_generators: list[InputFileGenerator] | None = None,
+        output_file_parsers: list[OutputFileParser] | None = None,
+        input_files: list[FileSpec] | None = None,
+        output_files: list[FileSpec] | None = None,
+        rules: list[ActionRule] | None = None,
+        save_files: list[FileSpec] | None = None,
+        clean_up: list[str] | None = None,
     ):
         """
         Parameters
@@ -1149,8 +1330,8 @@ class Action(JSONLike):
         """
         self.commands = commands or []
         self.script = script
-        self.script_data_in = script_data_in
-        self.script_data_out = script_data_out
+        self._script_data_in = script_data_in
+        self._script_data_out = script_data_out
         self.script_data_files_use_opt = (
             script_data_files_use_opt if not self.script_is_python else True
         )
@@ -1168,64 +1349,81 @@ class Action(JSONLike):
         self.save_files = save_files or []
         self.clean_up = clean_up or []
 
-        self._task_schema = None  # assigned by parent TaskSchema
+        self._task_schema: TaskSchema | None = None  # assigned by parent TaskSchema
         self._from_expand = False  # assigned on creation of new Action by `expand`
 
         self._set_parent_refs()
 
     def process_script_data_formats(self):
-        self.script_data_in = self._process_script_data_in(self.script_data_in)
-        self.script_data_out = self._process_script_data_out(self.script_data_out)
+        self.script_data_in = self.__process_script_data(self._script_data_in, "inputs")
+        self.script_data_out = self.__process_script_data(
+            self._script_data_out, "outputs"
+        )
 
-    def _process_script_data_format(
-        self, data_fmt: Union[str, Dict[str, Union[str, Dict[str, str]]]], prefix: str
-    ) -> Dict[str, str]:
-        if not data_fmt:
-            return {}
+    def __process_script_data_str(
+        self, data_fmt: str, param_names: list[str]
+    ) -> dict[str, ScriptData]:
+        # include all input parameters, using specified data format
+        data_fmt = data_fmt.lower()
+        return {k: {"format": data_fmt} for k in param_names}
 
+    def __process_script_data_dict(
+        self,
+        data_fmt: Mapping[str, str | ScriptData],
+        prefix: str,
+        param_names: list[str],
+    ) -> dict[str, ScriptData]:
         _all_other_sym = "*"
-        param_names = self.get_parameter_names(prefix)
-        if isinstance(data_fmt, str):
-            # include all input parameters, using specified data format
-            data_fmt = data_fmt.lower()
-            all_params = {k: {"format": data_fmt} for k in param_names}
-        else:
-            all_params = copy.copy(data_fmt)
-            for k, v in all_params.items():
-                # values might be strings, or dicts with "format" and potentially other
-                # kwargs:
-                try:
-                    fmt = v["format"]
-                except TypeError:
-                    fmt = v
-                    kwargs = {}
-                else:
-                    kwargs = {k2: v2 for k2, v2 in v.items() if k2 != "format"}
-                finally:
-                    all_params[k] = {"format": fmt.lower(), **kwargs}
+        all_params: dict[str, ScriptData] = {}
+        for k, v in data_fmt.items():
+            # values might be strings, or dicts with "format" and potentially other
+            # kwargs:
+            if isinstance(v, dict):
+                # Make sure format is first key
+                v2: ScriptData = {
+                    "format": v["format"],
+                }
+                all_params[k] = v2
+                v2.update(v)
+            else:
+                all_params[k] = {"format": v.lower()}
 
-            if prefix == "inputs":
-                # expand unlabelled-multiple inputs to multiple labelled inputs:
-                multi_types = self.task_schema.multi_input_types
-                multis = {}
-                for k in list(all_params.keys()):
-                    if k in multi_types:
-                        k_fmt = all_params.pop(k)
-                        for i in param_names:
-                            if i.startswith(k):
-                                multis[i] = copy.deepcopy(k_fmt)
+        if prefix == "inputs":
+            # expand unlabelled-multiple inputs to multiple labelled inputs:
+            multi_types = self.task_schema.multi_input_types
+            multis: dict[str, ScriptData] = {}
+            for k in list(all_params.keys()):
+                if k in multi_types:
+                    k_fmt = all_params.pop(k)
+                    for i in param_names:
+                        if i.startswith(k):
+                            multis[i] = copy.deepcopy(k_fmt)
+            if multis:
                 all_params = {
                     **multis,
                     **all_params,
                 }
 
-            if _all_other_sym in all_params:
-                # replace catch-all with all other input/output names:
-                other_fmt = all_params[_all_other_sym]
-                all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
-                other = set(param_names) - set(all_params.keys())
-                for i in other:
-                    all_params[i] = copy.deepcopy(other_fmt)
+        if _all_other_sym in all_params:
+            # replace catch-all with all other input/output names:
+            other_fmt = all_params[_all_other_sym]
+            all_params = {k: v for k, v in all_params.items() if k != _all_other_sym}
+            other = set(param_names) - set(all_params.keys())
+            for i in other:
+                all_params[i] = copy.deepcopy(other_fmt)
+        return all_params
+
+    def __process_script_data(
+        self, data_fmt: str | Mapping[str, str | ScriptData] | None, prefix: str
+    ) -> dict[str, ScriptData]:
+        if not data_fmt:
+            return {}
+
+        param_names = self.get_parameter_names(prefix)
+        if isinstance(data_fmt, str):
+            all_params = self.__process_script_data_str(data_fmt, param_names)
+        else:
+            all_params = self.__process_script_data_dict(data_fmt, prefix, param_names)
 
         # validation:
         allowed_keys = ("format", "all_iterations")
@@ -1253,23 +1451,13 @@ class Action(JSONLike):
 
         return all_params
 
-    def _process_script_data_in(
-        self, data_fmt: Union[str, Dict[str, str]]
-    ) -> Dict[str, str]:
-        return self._process_script_data_format(data_fmt, "inputs")
-
-    def _process_script_data_out(
-        self, data_fmt: Union[str, Dict[str, str]]
-    ) -> Dict[str, str]:
-        return self._process_script_data_format(data_fmt, "outputs")
-
     @property
-    def script_data_in_grouped(self) -> Dict[str, List[str]]:
+    def script_data_in_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get input parameter types by script data-in format."""
         return swap_nested_dict_keys(dct=self.script_data_in, inner_key="format")
 
     @property
-    def script_data_out_grouped(self) -> Dict[str, List[str]]:
+    def script_data_out_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get output parameter types by script data-out format."""
         return swap_nested_dict_keys(dct=self.script_data_out, inner_key="format")
 
@@ -1305,8 +1493,15 @@ class Action(JSONLike):
             snip_path = self.get_snippet_script_path(self.script)
             if snip_path:
                 return snip_path.suffix == ".py"
+        return False
 
-    def __deepcopy__(self, memo):
+    def to_dict(self):
+        d = super().to_dict()
+        d["script_data_in"] = d.pop("_script_data_in")
+        d["script_data_out"] = d.pop("_script_data_out")
+        return d
+
+    def __deepcopy__(self, memo) -> Self:
         kwargs = self.to_dict()
         _from_expand = kwargs.pop("_from_expand")
         _task_schema = kwargs.pop("_task_schema", None)
@@ -1316,17 +1511,18 @@ class Action(JSONLike):
         return obj
 
     @property
-    def task_schema(self):
+    def task_schema(self) -> TaskSchema:
+        assert self._task_schema is not None
         return self._task_schema
 
-    def _resolve_input_files(self, input_files):
+    def _resolve_input_files(self, input_files: list[FileSpec]) -> list[FileSpec]:
         in_files = input_files
         for i in self.input_file_generators:
             if i.input_file not in in_files:
                 in_files.append(i.input_file)
         return in_files
 
-    def _resolve_output_files(self, output_files):
+    def _resolve_output_files(self, output_files: list[FileSpec]) -> list[FileSpec]:
         out_files = output_files
         for i in self.output_file_parsers:
             for j in i.output_files:
@@ -1363,10 +1559,10 @@ class Action(JSONLike):
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 
-    def __eq__(self, other):
-        if type(other) is not self.__class__:
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Action):
             return False
-        if (
+        return (
             self.commands == other.commands
             and self.script == other.script
             and self.environments == other.environments
@@ -1374,37 +1570,38 @@ class Action(JSONLike):
             and self.input_file_generators == other.input_file_generators
             and self.output_file_parsers == other.output_file_parsers
             and self.rules == other.rules
-        ):
-            return True
-        return False
+        )
 
     @classmethod
-    def _json_like_constructor(cls, json_like):
+    def _json_like_constructor(cls, json_like) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
         _from_expand = json_like.pop("_from_expand", None)
         obj = cls(**json_like)
         obj._from_expand = _from_expand
         return obj
 
-    def get_parameter_dependence(self, parameter: app.SchemaParameter):
+    def get_parameter_dependence(self, parameter: SchemaParameter) -> ParameterDependence:
         """Find if/where a given parameter is used by the action."""
         writer_files = [
             i.input_file
             for i in self.input_file_generators
             if parameter.parameter in i.inputs
         ]  # names of input files whose generation requires this parameter
-        commands = []  # TODO: indices of commands in which this parameter appears
-        out = {"input_file_writers": writer_files, "commands": commands}
-        return out
+        commands: list[
+            int
+        ] = []  # TODO: indices of commands in which this parameter appears
+        return {"input_file_writers": writer_files, "commands": commands}
 
     def get_resolved_action_env(
         self,
-        relevant_scopes: Tuple[app.ActionScopeType],
-        input_file_generator: app.InputFileGenerator = None,
-        output_file_parser: app.OutputFileParser = None,
-        commands: List[app.Command] = None,
-    ):
-        possible = [i for i in self.environments if i.scope.typ in relevant_scopes]
+        relevant_scopes: tuple[ActionScopeType, ...],
+        input_file_generator: InputFileGenerator | None = None,
+        output_file_parser: OutputFileParser | None = None,
+        commands: list[Command] | None = None,
+    ) -> ActionEnvironment:
+        possible = [
+            i for i in self.environments if i.scope and i.scope.typ in relevant_scopes
+        ]
         if not possible:
             if input_file_generator:
                 msg = f"input file generator {input_file_generator.input_file.label!r}"
@@ -1425,8 +1622,8 @@ class Action(JSONLike):
         return possible_srt[0]
 
     def get_input_file_generator_action_env(
-        self, input_file_generator: app.InputFileGenerator
-    ):
+        self, input_file_generator: InputFileGenerator
+    ) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1436,7 +1633,9 @@ class Action(JSONLike):
             input_file_generator=input_file_generator,
         )
 
-    def get_output_file_parser_action_env(self, output_file_parser: app.OutputFileParser):
+    def get_output_file_parser_action_env(
+        self, output_file_parser: OutputFileParser
+    ) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
@@ -1446,7 +1645,7 @@ class Action(JSONLike):
             output_file_parser=output_file_parser,
         )
 
-    def get_commands_action_env(self):
+    def get_commands_action_env(self) -> ActionEnvironment:
         return self.get_resolved_action_env(
             relevant_scopes=(ActionScopeType.ANY, ActionScopeType.MAIN),
             commands=self.commands,
@@ -1455,50 +1654,58 @@ class Action(JSONLike):
     def get_environment_name(self) -> str:
         return self.get_environment_spec()["name"]
 
-    def get_environment_spec(self) -> Dict[str, Any]:
+    def get_environment_spec(self) -> dict[str, Any]:
         if not self._from_expand:
             raise RuntimeError(
-                f"Cannot choose a single environment from this action because it is not "
-                f"expanded, meaning multiple action environments might exist."
+                "Cannot choose a single environment from this action because it is not "
+                "expanded, meaning multiple action environments might exist."
             )
         return self.environments[0].environment
 
-    def get_environment(self) -> app.Environment:
+    def get_environment(self) -> Environment:
         return self.app.envs.get(**self.get_environment_spec())
 
     @staticmethod
-    def is_snippet_script(script: str) -> bool:
+    def is_snippet_script(script: str | None) -> bool:
         """Returns True if the provided script string represents a script snippets that is
         to be modified before execution (e.g. to receive and provide parameter data)."""
+        if script is None:
+            return False
         return script.startswith("<<script:")
+
+    _SCRIPT_NAME_RE: ClassVar = re.compile(r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>")
 
     @classmethod
     def get_script_name(cls, script: str) -> str:
         """Return the script name."""
         if cls.is_snippet_script(script):
-            pattern = r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
-            match_obj = re.match(pattern, script)
+            match_obj = re.match(cls._SCRIPT_NAME_RE, script)
+            if not match_obj:
+                raise ValueError("incomplete <<script:>>")
             return match_obj.group(1)
-        else:
-            # a script we can expect in the working directory:
-            return script
+        # a script we can expect in the working directory:
+        return script
+
+    _SCRIPT_RE: ClassVar = re.compile(r"\<\<script:(.*:?)\>\>")
+    _ENV_RE: ClassVar = re.compile(r"\<\<env:(.*?)\>\>")
 
     @classmethod
     def get_snippet_script_str(
-        cls, script, env_spec: Optional[Dict[str, Any]] = None
+        cls, script, env_spec: dict[str, Any] | None = None
     ) -> str:
         if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
                 f"<<script:path/to/app/data/script.py>>), but received {script}"
             )
-        pattern = r"\<\<script:(.*:?)\>\>"
-        match_obj = re.match(pattern, script)
-        out = match_obj.group(1)
+        match_obj = re.match(cls._SCRIPT_RE, script)
+        if not match_obj:
+            raise ValueError("incomplete <<script:>>")
+        out = cast(str, match_obj.group(1))
 
         if env_spec:
             out = re.sub(
-                pattern=r"\<\<env:(.*?)\>\>",
+                pattern=cls._ENV_RE,
                 repl=lambda match_obj: env_spec[match_obj.group(1)],
                 string=out,
             )
@@ -1506,38 +1713,43 @@ class Action(JSONLike):
 
     @classmethod
     def get_snippet_script_path(
-        cls, script_path, env_spec: Optional[Dict[str, Any]] = None
-    ) -> Path:
+        cls, script_path: str | None, env_spec: dict[str, Any] | None = None
+    ) -> Path | None:
         if not cls.is_snippet_script(script_path):
-            return False
+            return None
 
         path = cls.get_snippet_script_str(script_path, env_spec)
-        if path in cls.app.scripts:
-            path = cls.app.scripts.get(path)
-
-        return Path(path)
+        return Path(cls.app.scripts.get(path, path))
 
     @staticmethod
-    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
+    def get_param_dump_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
         return RunDirAppFiles.get_run_param_dump_file_prefix(js_idx, js_act_idx)
 
     @staticmethod
-    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
+    def get_param_load_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
         return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
 
-    def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
+    def get_param_dump_file_path_JSON(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_dump_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+    def get_param_dump_file_path_HDF5(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
 
-    def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
+    def get_param_load_file_path_JSON(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
 
-    def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
+    def get_param_load_file_path_HDF5(
+        self, js_idx: int | str, js_act_idx: int | str
+    ) -> Path:
         return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
-    def expand(self):
+    def expand(self) -> list[Action]:
         if self._from_expand:
             # already expanded
             return [self]
@@ -1559,7 +1771,7 @@ class Action(JSONLike):
             # used/produced.
 
             inp_files = []
-            inp_acts = []
+            inp_acts: list[Action] = []
             for ifg in self.input_file_generators:
                 exe = "<<executable:python_script>>"
                 args = [
@@ -1576,7 +1788,9 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(
+                            executable=exe, arguments=args, variables=variables
+                        )
                     ],
                     input_file_generators=[ifg],
                     environments=[self.get_input_file_generator_action_env(ifg)],
@@ -1592,7 +1806,7 @@ class Action(JSONLike):
                 inp_acts.append(act_i)
 
             out_files = []
-            out_acts = []
+            out_acts: list[Action] = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
                 args = [
@@ -1609,7 +1823,9 @@ class Action(JSONLike):
                     variables = {}
                 act_i = self.app.Action(
                     commands=[
-                        app.Command(executable=exe, arguments=args, variables=variables)
+                        self.app.Command(
+                            executable=exe, arguments=args, variables=variables
+                        )
                     ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
@@ -1640,7 +1856,7 @@ class Action(JSONLike):
                     # WK_PATH could have a space in it:
                     args.extend(["--wk-path", '"$WK_PATH"', "--run-id", "$EAR_ID"])
 
-                fn_args = {"js_idx": r"${JS_IDX}", "js_act_idx": r"${JS_act_idx}"}
+                fn_args = {"js_idx": "${JS_IDX}", "js_act_idx": "${JS_act_idx}"}
 
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
@@ -1684,12 +1900,13 @@ class Action(JSONLike):
             )
             main_act._task_schema = self.task_schema
             main_act._from_expand = True
+            main_act.process_script_data_formats()
 
             cmd_acts = inp_acts + [main_act] + out_acts
 
             return cmd_acts
 
-    def get_command_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
+    def get_command_input_types(self, sub_parameters: bool = False) -> tuple[str, ...]:
         """Get parameter types from commands.
 
         Parameters
@@ -1716,7 +1933,7 @@ class Action(JSONLike):
             # TODO: consider stdin?
         return tuple(set(params))
 
-    def get_command_input_file_labels(self) -> Tuple[str]:
+    def get_command_input_file_labels(self) -> tuple[str, ...]:
         """Get input files types from commands."""
         files = []
         vars_regex = r"\<\<file:(.*?)\>\>"
@@ -1729,7 +1946,7 @@ class Action(JSONLike):
             # TODO: consider stdin?
         return tuple(set(files))
 
-    def get_command_output_types(self) -> Tuple[str]:
+    def get_command_output_types(self) -> tuple[str, ...]:
         """Get parameter types from command stdout and stderr arguments."""
         params = []
         for command in self.commands:
@@ -1741,7 +1958,7 @@ class Action(JSONLike):
 
         return tuple(set(params))
 
-    def get_input_types(self, sub_parameters: bool = False) -> Tuple[str]:
+    def get_input_types(self, sub_parameters: bool = False) -> tuple[str, ...]:
         """Get the input types that are consumed by commands and input file generators of
         this action.
 
@@ -1752,22 +1969,21 @@ class Action(JSONLike):
             inputs will be returned untouched. If False (default), only return the root
             parameter type and disregard the sub-parameter part.
         """
-        is_script = (
+        if (
             self.script
             and not self.input_file_generators
             and not self.output_file_parsers
-        )
-        if is_script:
+        ):
             params = self.task_schema.input_types
         else:
             params = list(self.get_command_input_types(sub_parameters))
-            for i in self.input_file_generators:
-                params.extend([j.typ for j in i.inputs])
-            for i in self.output_file_parsers:
-                params.extend([j for j in i.inputs or []])
+            for ifg in self.input_file_generators:
+                params.extend(j.typ for j in ifg.inputs)
+            for ofp in self.output_file_parsers:
+                params.extend(ofp.inputs or [])
         return tuple(set(params))
 
-    def get_output_types(self) -> Tuple[str]:
+    def get_output_types(self) -> tuple[str, ...]:
         """Get the output types that are produced by command standard outputs and errors,
         and by output file parsers of this action."""
         is_script = (
@@ -1785,22 +2001,22 @@ class Action(JSONLike):
                 params.extend([j for j in i.outputs or []])
         return tuple(set(params))
 
-    def get_input_file_labels(self):
+    def get_input_file_labels(self) -> tuple[str, ...]:
         return tuple(i.label for i in self.input_files)
 
-    def get_output_file_labels(self):
+    def get_output_file_labels(self) -> tuple[str, ...]:
         return tuple(i.label for i in self.output_files)
 
     @TimeIt.decorator
     def generate_data_index(
         self,
-        act_idx,
-        EAR_ID,
-        schema_data_idx,
-        all_data_idx,
-        workflow,
-        param_source,
-    ) -> List[int]:
+        act_idx: int,
+        EAR_ID: int,
+        schema_data_idx: DataIndex,
+        all_data_idx: dict[tuple[int, int], DataIndex],
+        workflow: Workflow,
+        param_source: ParamSource,
+    ) -> list[int | list[int]]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.
 
@@ -1827,7 +2043,7 @@ class Action(JSONLike):
             for k, v in schema_data_idx.items()
             if ("resources" in k or "repeats" in k)
         }
-        param_src_update = []
+        param_src_update: list[int | list[int]] = []
         for key in keys:
             sub_param_idx = {}
             if (
@@ -1838,7 +2054,7 @@ class Action(JSONLike):
             ):
                 # look for an index in previous data indices (where for inputs we look
                 # for *output* parameters of the same name):
-                k_idx = None
+                k_idx: int | list[int] | None = None
                 for prev_data_idx in all_data_idx.values():
                     if key.startswith("inputs"):
                         k_param = key.split("inputs.")[1]
@@ -1893,11 +2109,12 @@ class Action(JSONLike):
 
         return param_src_update
 
-    def get_possible_scopes(self) -> Tuple[app.ActionScope]:
+    def get_possible_scopes(self) -> tuple[ActionScope, ...]:
         """Get the action scopes that are inclusive of this action, ordered by decreasing
         specificity."""
 
         scope = self.get_precise_scope()
+        scopes: tuple[ActionScope, ...]
 
         if self.input_file_generators:
             scopes = (
@@ -1918,7 +2135,7 @@ class Action(JSONLike):
 
         return scopes
 
-    def get_precise_scope(self) -> app.ActionScope:
+    def get_precise_scope(self) -> ActionScope:
         if not self._from_expand:
             raise RuntimeError(
                 "Precise scope cannot be unambiguously defined until the Action has been "
@@ -1939,9 +2156,7 @@ class Action(JSONLike):
         else:
             return self.app.ActionScope.main()
 
-    def is_input_type_required(
-        self, typ: str, provided_files: List[app.FileSpec]
-    ) -> bool:
+    def is_input_type_required(self, typ: str, provided_files: list[FileSpec]) -> bool:
         # TODO: for now assume a script takes all inputs
         if (
             self.script
@@ -1965,9 +2180,10 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
+        return False
 
     @TimeIt.decorator
-    def test_rules(self, element_iter) -> Tuple[bool, List[int]]:
+    def test_rules(self, element_iter) -> tuple[bool, list[int]]:
         """Test all rules against the specified element iteration."""
         rules_valid = [rule.test(element_iteration=element_iter) for rule in self.rules]
         action_valid = all(rules_valid)
@@ -1979,7 +2195,7 @@ class Action(JSONLike):
                 commands_idx.append(cmd_idx)
         return action_valid, commands_idx
 
-    def get_required_executables(self) -> Tuple[str]:
+    def get_required_executables(self) -> tuple[str, ...]:
         """Return executable labels required by this action."""
         exec_labs = []
         for command in self.commands:
@@ -2009,7 +2225,7 @@ class Action(JSONLike):
             parser.add_argument("--outputs-json")
             parser.add_argument("--outputs-hdf5")
             args = parser.parse_args()
-            
+
             """
         )
 
@@ -2126,7 +2342,7 @@ class Action(JSONLike):
 
         return out
 
-    def get_parameter_names(self, prefix: str) -> List[str]:
+    def get_parameter_names(self, prefix: str) -> list[str]:
         """Get parameter types associated with a given prefix.
 
         For example, with the prefix "inputs", this would return `['p1', 'p2']` for an

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from importlib import import_module
 import logging
 import os
@@ -5,7 +6,7 @@ import platform
 import socket
 import sys
 from pathlib import Path
-import warnings
+from typing import Any
 
 from rich.table import Table
 from rich.console import Console
@@ -28,10 +29,14 @@ class RunTimeInfo:
         be equal to the virtual environment directory.
     """
 
-    def __init__(self, name, package_name, version, logger):
-        is_frozen = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+    def __init__(
+        self, name: str, package_name: str, version: str, logger: logging.Logger
+    ) -> None:
+        is_frozen: bool = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
         bundle_dir = (
-            sys._MEIPASS if is_frozen else os.path.dirname(os.path.abspath(__file__))
+            sys._MEIPASS
+            if is_frozen and hasattr(sys, "_MEIPASS")
+            else os.path.dirname(os.path.abspath(__file__))
         )
 
         self.name = name.split(".")[0]  # if name is given as __name__ # TODO: what?
@@ -53,10 +58,11 @@ class RunTimeInfo:
             self.python_executable_path = Path(sys.executable)
 
             try:
-                get_ipython
-                self.in_ipython = True
+                get_ipython  # type: ignore
             except NameError:
                 pass
+            else:
+                self.in_ipython = True
 
             if hasattr(sys, "ps1"):
                 self.is_interactive = True
@@ -71,7 +77,7 @@ class RunTimeInfo:
         self.conda_prefix = os.environ.get("CONDA_PREFIX")
 
         try:
-            self.venv_path = self._set_venv_path()
+            self.venv_path: str | list[str] | None = self._set_venv_path()
         except ValueError:
             self.venv_path = None
 
@@ -96,7 +102,7 @@ class RunTimeInfo:
         #     )
         #     warnings.warn(msg)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         out = {
             "name": self.name,
             "package_name": self.package_name,
@@ -138,16 +144,16 @@ class RunTimeInfo:
             )
         return out
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         out = f"{self.__class__.__name__}("
         out += ", ".join(f"{k}={v!r}" for k, v in self.to_dict().items())
         return out
 
-    def _set_venv_path(self):
-        out = []
-        if self.is_venv:
+    def _set_venv_path(self) -> str | list[str]:
+        out: list[str] = []
+        if self.sys_prefix is not None:
             out.append(self.sys_prefix)
-        elif self.is_conda_venv:
+        elif self.conda_prefix is not None:
             out.append(self.conda_prefix)
         if not out:
             raise ValueError("Not running in a virtual environment!")
@@ -162,7 +168,7 @@ class RunTimeInfo:
     def get_deactivate_env_command(self):
         pass
 
-    def show(self):
+    def show(self) -> None:
         tab = Table(show_header=False, box=None)
         tab.add_column()
         tab.add_column()
@@ -173,7 +179,7 @@ class RunTimeInfo:
         console.print(tab)
 
     @property
-    def executable_path(self):
+    def executable_path(self) -> Path | None:
         """Get the path that the user invoked to launch the frozen app, if the app is
         frozen.
 
@@ -181,11 +187,10 @@ class RunTimeInfo:
         whereas `executable_path_resolved` returns the actual frozen app path.
 
         """
-        if self.is_frozen:
-            return Path(sys.argv[0])
+        return Path(sys.argv[0]) if self.is_frozen else None
 
     @property
-    def resolved_executable_path(self):
+    def resolved_executable_path(self) -> Path | None:
         """Get the resolved path to the frozen app that the user launched, if the app is
         frozen.
 
@@ -197,11 +202,10 @@ class RunTimeInfo:
         [1] https://pyinstaller.org/en/stable/runtime-information.html#using-sys-executable-and-sys-argv-0
 
         """
-        if self.is_frozen:
-            return Path(sys.executable)
+        return Path(sys.executable) if self.is_frozen else None
 
     @property
-    def executable_name(self):
+    def executable_name(self) -> str | None:
         """Get the name of the frozen app executable, if the app is frozen.
 
         If the user launches the app via a symbolic link, then this returns the name of
@@ -209,31 +213,30 @@ class RunTimeInfo:
         name.
 
         """
-        if self.is_frozen:
-            return self.executable_path.name
+        p = self.executable_path
+        return None if p is None else p.name
 
     @property
-    def resolved_executable_name(self):
+    def resolved_executable_name(self) -> str | None:
         """Get the resolved name of the frozen app executable, if the app is frozen."""
-        if self.is_frozen:
-            return self.resolved_executable_path.name
+        p = self.resolved_executable_path
+        return None if p is None else p.name
 
     @property
-    def script_path(self) -> Path:
+    def script_path(self) -> Path | None:
         """Get the path to the Python script used to invoked this instance of the app, if
         the app is not frozen."""
-        if not self.is_frozen:
-            return Path(sys.argv[0])
+        return None if self.is_frozen else Path(sys.argv[0])
 
     @property
-    def resolved_script_path(self) -> Path:
+    def resolved_script_path(self) -> Path | None:
         """Get the resolved path to the Python script used to invoked this instance of the
         app, if the app is not frozen."""
-        if not self.is_frozen:
-            return self.script_path.resolve()
+        p = self.script_path
+        return None if p is None else p.resolve()
 
     @property
-    def invocation_command(self):
+    def invocation_command(self) -> tuple[str, ...]:
         """Get the command that was used to invoke this instance of the app."""
         if self.is_frozen:
             # (this also works if we are running tests using the frozen app)

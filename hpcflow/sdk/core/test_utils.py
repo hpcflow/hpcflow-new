@@ -1,13 +1,34 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
+from hpcflow.sdk.typing import hydrate
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
+    from typing_extensions import TypeAlias
+    from .actions import Action
+    from .element import ElementGroup
+    from .loop import Loop
+    from .object_list import Resources
+    from .parameters import InputSource
+    from .task import Task
+    from .task_schema import TaskSchema
+    from .workflow import Workflow, WorkflowTemplate
+    from ..typing import PathLike
+# mypy: disable-error-code="no-untyped-def"
+
+Strs: TypeAlias = "str | tuple[str, ...]"
 
 
-def make_schemas(ins_outs, ret_list=False):
-    out = []
+def make_schemas(
+    *ins_outs: tuple[dict[str, Any], tuple[str, ...]]
+    | tuple[dict[str, Any], tuple[str, ...], str]
+) -> list[TaskSchema]:
+    out: list[TaskSchema] = []
     for idx, info in enumerate(ins_outs):
         if len(info) == 2:
             (ins_i, outs_i) = info
@@ -48,28 +69,26 @@ def make_schemas(ins_outs, ret_list=False):
                 objective=obj,
                 actions=[act_i],
                 inputs=[hf.SchemaInput(k, default_value=v) for k, v in ins_i.items()],
-                outputs=[hf.SchemaOutput(k) for k in outs_i],
+                outputs=[hf.SchemaOutput(hf.Parameter(k)) for k in outs_i],
             )
         )
-    if len(ins_outs) == 1 and not ret_list:
-        out = out[0]
     return out
 
 
-def make_parameters(num):
+def make_parameters(num: int):
     return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
 def make_actions(
-    ins_outs: List[Tuple[Union[Tuple, str], str]],
-    env="env1",
-) -> List[hf.Action]:
+    ins_outs: list[tuple[Strs, str] | tuple[Strs, str, str]],
+    env: str = "env1",
+) -> list[Action]:
     act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
         if len(ins_outs_i) == 2:
             ins, out = ins_outs_i
-            err = None
+            err: str | None = None
         else:
             ins, out, err = ins_outs_i
         if not isinstance(ins, tuple):
@@ -90,26 +109,31 @@ def make_actions(
 
 
 def make_tasks(
-    schemas_spec,
-    local_inputs=None,
-    local_sequences=None,
-    local_resources=None,
-    nesting_orders=None,
-    input_sources=None,
-    groups=None,
-):
+    schemas_spec: Iterable[
+        tuple[dict[str, Any], tuple[str, ...]]
+        | tuple[dict[str, Any], tuple[str, ...], str]
+    ],
+    local_inputs: dict[int, Iterable[str]] | None = None,
+    local_sequences: (
+        dict[int, Iterable[tuple[str, int, int | float | None]]] | None
+    ) = None,
+    local_resources: dict[int, dict[str, dict]] | None = None,
+    nesting_orders: dict[int, dict[str, float]] | None = None,
+    input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
+    groups: dict[int, Iterable[ElementGroup]] | None = None,
+) -> list[Task]:
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
     nesting_orders = nesting_orders or {}
     input_sources = input_sources or {}
     groups = groups or {}
-    schemas = make_schemas(schemas_spec, ret_list=True)
-    tasks = []
+    schemas = make_schemas(*schemas_spec)
+    tasks: list[Task] = []
     for s_idx, s in enumerate(schemas):
         inputs = [
             hf.InputValue(hf.Parameter(i), value=int(i[1:]) * 100)
-            for i in local_inputs.get(s_idx, [])
+            for i in local_inputs.get(s_idx, ())
         ]
         seqs = [
             hf.ValueSequence(
@@ -117,7 +141,7 @@ def make_tasks(
                 values=[(int(i[0].split(".")[1][1:]) * 100) + j for j in range(i[1])],
                 nesting_order=i[2],
             )
-            for i in local_sequences.get(s_idx, [])
+            for i in local_sequences.get(s_idx, ())
         ]
         res = {k: v for k, v in local_resources.get(s_idx, {}).items()}
         task = hf.Task(
@@ -127,27 +151,32 @@ def make_tasks(
             resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
             input_sources=input_sources.get(s_idx, None),
-            groups=groups.get(s_idx),
+            groups=list(groups.get(s_idx, [])),
         )
         tasks.append(task)
     return tasks
 
 
 def make_workflow(
-    schemas_spec,
-    path,
-    local_inputs=None,
-    local_sequences=None,
-    local_resources=None,
-    nesting_orders=None,
-    input_sources=None,
-    resources=None,
-    loops=None,
-    groups=None,
-    name="w1",
-    overwrite=False,
-    store="zarr",
-):
+    schemas_spec: Iterable[
+        tuple[dict[str, Any], tuple[str, ...]]
+        | tuple[dict[str, Any], tuple[str, ...], str]
+    ],
+    path: PathLike,
+    local_inputs: dict[int, Iterable[str]] | None = None,
+    local_sequences: (
+        dict[int, Iterable[tuple[str, int, int | float | None]]] | None
+    ) = None,
+    local_resources: dict[int, dict[str, dict]] | None = None,
+    nesting_orders: dict[int, dict[str, float]] | None = None,
+    input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
+    resources: Resources = None,
+    loops: list[Loop] | None = None,
+    groups: dict[int, Iterable[ElementGroup]] | None = None,
+    name: str = "w1",
+    overwrite: bool = False,
+    store: str = "zarr",
+) -> Workflow:
     tasks = make_tasks(
         schemas_spec,
         local_inputs=local_inputs,
@@ -157,13 +186,12 @@ def make_workflow(
         input_sources=input_sources,
         groups=groups,
     )
-    template = {
+    template: Mapping[str, Any] = {
         "name": name,
         "tasks": tasks,
         "resources": resources,
+        **({"loops": loops} if loops else {}),
     }
-    if loops:
-        template["loops"] = loops
     wk = hf.Workflow.from_template(
         hf.WorkflowTemplate(**template),
         path=path,
@@ -174,7 +202,9 @@ def make_workflow(
     return wk
 
 
-def make_test_data_YAML_workflow(workflow_name, path, **kwargs):
+def make_test_data_YAML_workflow(
+    workflow_name: str, path: PathLike, **kwargs
+) -> Workflow:
     """Generate a workflow whose template file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -187,7 +217,9 @@ def make_test_data_YAML_workflow(workflow_name, path, **kwargs):
         return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
 
 
-def make_test_data_YAML_workflow_template(workflow_name, **kwargs):
+def make_test_data_YAML_workflow_template(
+    workflow_name: str, **kwargs
+) -> WorkflowTemplate:
     """Generate a workflow template whose file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
     try:
@@ -201,10 +233,11 @@ def make_test_data_YAML_workflow_template(workflow_name, **kwargs):
 
 
 @dataclass
+@hydrate
 class P1_sub_parameter_cls(ParameterValue):
-    _typ = "p1_sub"
+    _typ: ClassVar[str] = "p1_sub"
 
-    e: int
+    e: int = 0
 
     def CLI_format(self) -> str:
         return str(self.e)
@@ -213,7 +246,7 @@ class P1_sub_parameter_cls(ParameterValue):
     def twice_e(self):
         return self.e * 2
 
-    def prepare_JSON_dump(self) -> Dict:
+    def prepare_JSON_dump(self) -> dict[str, Any]:
         return {"e": self.e}
 
     def dump_to_HDF5_group(self, group):
@@ -221,20 +254,25 @@ class P1_sub_parameter_cls(ParameterValue):
 
 
 @dataclass
+@hydrate
 class P1_sub_parameter_cls_2(ParameterValue):
-    _typ = "p1_sub_2"
+    _typ: ClassVar[str] = "p1_sub_2"
 
-    f: int
+    f: int = 0
 
 
 @dataclass
+@hydrate
 class P1_parameter_cls(ParameterValue):
-    _typ = "p1c"
-    _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
+    _typ: ClassVar[str] = "p1c"
+    _sub_parameters: ClassVar[dict[str, str]] = {
+        "sub_param": "p1_sub",
+        "sub_param_2": "p1_sub_2",
+    }
 
-    a: int
-    d: Optional[int] = None
-    sub_param: Optional[P1_sub_parameter_cls] = None
+    a: int = 0
+    d: int | None = None
+    sub_param: P1_sub_parameter_cls | None = None
 
     def __post_init__(self):
         if self.sub_param is not None and not isinstance(
@@ -266,20 +304,18 @@ class P1_parameter_cls(ParameterValue):
 
     @staticmethod
     def CLI_format_group(*objs) -> str:
-        pass
+        return ""
 
     @staticmethod
     def sum(*objs, **kwargs) -> str:
         return str(sum(i.a for i in objs))
 
-    def custom_CLI_format(
-        self, add: Optional[str] = None, sub: Optional[str] = None
-    ) -> str:
-        add = 4 if add is None else int(add)
-        sub = 0 if sub is None else int(sub)
-        return str(self.a + add - sub)
+    def custom_CLI_format(self, add: str | None = None, sub: str | None = None) -> str:
+        add_i = 4 if add is None else int(add)
+        sub_i = 0 if sub is None else int(sub)
+        return str(self.a + add_i - sub_i)
 
-    def custom_CLI_format_prep(self, reps: Optional[str] = None) -> List[int]:
+    def custom_CLI_format_prep(self, reps: str | None = None) -> list[int]:
         """Used for testing custom object CLI formatting.
 
         For example, with a command like this:
@@ -287,11 +323,11 @@ class P1_parameter_cls(ParameterValue):
         `<<join[delim=","](parameter:p1c.custom_CLI_format_prep(reps=4))>>`.
 
         """
-        reps = 1 if reps is None else int(reps)
-        return [self.a] * reps
+        reps_int = 1 if reps is None else int(reps)
+        return [self.a] * reps_int
 
     @classmethod
-    def CLI_parse(cls, a_str: str, double: Optional[str] = "", e: Optional[str] = None):
+    def CLI_parse(cls, a_str: str, double: str = "", e: str | None = None):
         a = int(a_str)
         if double.lower() == "true":
             a *= 2
@@ -301,7 +337,7 @@ class P1_parameter_cls(ParameterValue):
             sub_param = None
         return cls(a=a, sub_param=sub_param)
 
-    def prepare_JSON_dump(self) -> Dict:
+    def prepare_JSON_dump(self) -> dict[str, Any]:
         sub_param_js = self.sub_param.prepare_JSON_dump() if self.sub_param else None
         return {"a": self.a, "d": self.d, "sub_param": sub_param_js}
 
@@ -314,7 +350,7 @@ class P1_parameter_cls(ParameterValue):
             self.sub_param.dump_to_HDF5_group(sub_group)
 
     @classmethod
-    def save_from_JSON(cls, data, param_id: int, workflow):
+    def save_from_JSON(cls, data, param_id: int | list[int], workflow: Workflow):
         obj = cls(**data)  # TODO: pass sub-param
         workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)
 
