@@ -20,7 +20,9 @@ class FileSpec(JSONLike):
     _validation_schema = "files_spec_schema.yaml"
     _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
 
+    #: Label for this file specification.
     label: str
+    #: The name of the file.
     name: str
     _hash_value: Optional[str] = field(default=None, repr=False)
 
@@ -86,6 +88,7 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
+    #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
     def value(self, directory=None):
@@ -94,6 +97,7 @@ class FileNameStem(JSONLike):
 
 @dataclass
 class FileNameExt(JSONLike):
+    #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
     def value(self, directory=None):
@@ -129,10 +133,12 @@ class InputFileGenerator(JSONLike):
 
     input_file: app.FileSpec
     inputs: List[app.Parameter]
+    #: The script that generates the inputs.
     script: str = None
     environment: app.Environment = None
     script_pass_env_spec: Optional[bool] = False
     abortable: Optional[bool] = False
+    #: User-specified rules for whether to run the generator.
     rules: Optional[List[app.ActionRule]] = None
 
     def __post_init__(self):

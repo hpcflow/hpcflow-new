@@ -65,7 +65,7 @@ DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "
 
 
 def rate_limit_safe_url_to_fs(app, *args, logger=None, **kwargs):
-    """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s
+    R"""Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
 
     References
     ----------

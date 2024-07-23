@@ -978,7 +978,9 @@ class ActionEnvironment(JSONLike):
         ),
     )
 
+    #: The environment document.
     environment: Union[str, Dict[str, Any]]
+    #: The scope.
     scope: Optional[app.ActionScope] = None
 
     def __post_init__(self):
