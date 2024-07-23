@@ -399,7 +399,7 @@ class SlurmPosix(QueuedScheduler):
             dep_cmd.append(dep_i_str)
 
         if dep_cmd:
-            cmd.append(f"--dependency")
+            cmd.append("--dependency")
             cmd.append(",".join(dep_cmd))
 
         cmd.append(js_path)
@@ -520,7 +520,7 @@ class SlurmPosix(QueuedScheduler):
             # non-existant job ID is specified; for multiple non-existant jobs, no
             # error is produced;
             self.app.submission_logger.info(
-                f"A specified job ID is non-existant; refreshing known job IDs..."
+                "A specified job ID is non-existant; refreshing known job IDs..."
             )
             time.sleep(self.INTER_STATE_QUERY_DELAY)
             js_refs = self._get_job_valid_IDs(js_refs)
