@@ -705,6 +705,9 @@ class ElementActionRun:
         return self.get_input_values(inputs=inputs, label_dict=label_dict)
 
     def get_IFG_input_values(self) -> Dict[str, Any]:
+        """
+        Get a dict of input values that are to be passed via an input file generator.
+        """
         if not self.action._from_expand:
             raise RuntimeError(
                 f"Cannot get input file generator inputs from this EAR because the "
@@ -723,6 +726,10 @@ class ElementActionRun:
         return inputs
 
     def get_OFP_output_files(self) -> Dict[str, Union[str, List[str]]]:
+        """
+        Get a dict of output files that are going to be parsed to generate one or more
+        outputs.
+        """
         # TODO: can this return multiple files for a given FileSpec?
         if not self.action._from_expand:
             raise RuntimeError(
@@ -735,6 +742,9 @@ class ElementActionRun:
         return out_files
 
     def get_OFP_inputs(self) -> Dict[str, Union[str, List[str]]]:
+        """
+        Get a dict of input values that are to be passed to output file parsers.
+        """
         if not self.action._from_expand:
             raise RuntimeError(
                 f"Cannot get output file parser inputs from this from EAR because the "
@@ -750,6 +760,9 @@ class ElementActionRun:
         return inputs
 
     def get_OFP_outputs(self) -> Dict[str, Union[str, List[str]]]:
+        """
+        Get the outputs obtained by parsing an output file.
+        """
         if not self.action._from_expand:
             raise RuntimeError(
                 f"Cannot get output file parser outputs from this from EAR because the "
@@ -761,6 +774,9 @@ class ElementActionRun:
         return outputs
 
     def write_source(self, js_idx: int, js_act_idx: int):
+        """
+        Write values to files in standard formats.
+        """
         import h5py
 
         for fmt, ins in self.action.script_data_in_grouped.items():
@@ -830,10 +846,13 @@ class ElementActionRun:
         self, jobscript: app.Jobscript, JS_action_idx: int
     ) -> Tuple[str, List[str], List[int]]:
         """
+        Write the EAR's enactment to disk in preparation for submission.
+
         Returns
         -------
-        commands
-        shell_vars
+        commands:
+            List of argument words for the command that enacts the EAR.
+        shell_vars:
             Dict whose keys are command indices, and whose values are lists of tuples,
             where each tuple contains: (parameter name, shell variable name,
             "stdout"/"stderr").
@@ -875,6 +894,19 @@ class ElementActionRun:
 
 
 class ElementAction:
+    """
+    An abstract representation of an element's action at a particular iteration and
+    the runs that enact that element iteration.
+
+    Parameters
+    ----------
+    element_iteration:
+        The iteration
+    action_idx:
+        The action index.
+    runs:
+        The list of run indices.
+    """
     _app_attr = "app"
 
     def __init__(self, element_iteration, action_idx, runs):
@@ -901,18 +933,30 @@ class ElementAction:
 
     @property
     def element_iteration(self):
+        """
+        The iteration for this action.
+        """
         return self._element_iteration
 
     @property
     def element(self):
+        """
+        The element for this action.
+        """
         return self.element_iteration.element
 
     @property
     def num_runs(self):
+        """
+        The number of runs associated with this action.
+        """
         return len(self._runs)
 
     @property
     def runs(self):
+        """
+        The EARs that this action is enacted by.
+        """
         if self._run_objs is None:
             self._run_objs = [
                 self.app.ElementActionRun(
@@ -930,41 +974,65 @@ class ElementAction:
 
     @property
     def task(self):
+        """
+        The task that this action is an instance of.
+        """
         return self.element_iteration.task
 
     @property
     def action_idx(self):
+        """
+        The index of the action.
+        """
         return self._action_idx
 
     @property
     def action(self):
+        """
+        The abstract task that this is a concrete model of.
+        """
         return self.task.template.get_schema_action(self.action_idx)
 
     @property
     def inputs(self):
+        """
+        The inputs to this action.
+        """
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action=self)
         return self._inputs
 
     @property
     def outputs(self):
+        """
+        The outputs from this action.
+        """
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action=self)
         return self._outputs
 
     @property
     def input_files(self):
+        """
+        The input files to this action.
+        """
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action=self)
         return self._input_files
 
     @property
     def output_files(self):
+        """
+        The output files from this action.
+        """
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action=self)
         return self._output_files
 
     def get_data_idx(self, path: str = None, run_idx: int = -1):
+        """
+        Get the data index for some path/run.
+        """
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.action_idx,
@@ -979,6 +1047,9 @@ class ElementAction:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        """
+        Get information about where parameters originated.
+        """
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.action_idx,
@@ -996,6 +1067,9 @@ class ElementAction:
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ):
+        """
+        Get the value of a parameter.
+        """
         return self.element_iteration.get(
             path=path,
             action_idx=self.action_idx,
@@ -1008,8 +1082,8 @@ class ElementAction:
     def get_parameter_names(self, prefix: str) -> List[str]:
         """Get parameter types associated with a given prefix.
 
-        For inputs, labels are ignored. See `Action.get_parameter_names` for more
-        information.
+        For inputs, labels are ignored.
+        See :py:meth:`.Action.get_parameter_names` for more information.
 
         Parameters
         ----------
@@ -1088,27 +1162,45 @@ class ActionScope(JSONLike):
 
     @classmethod
     def any(cls):
+        """
+        Any scope.
+        """
         return cls(typ=ActionScopeType.ANY)
 
     @classmethod
     def main(cls):
+        """
+        The main scope.
+        """
         return cls(typ=ActionScopeType.MAIN)
 
     @classmethod
     def processing(cls):
+        """
+        The processing scope.
+        """
         return cls(typ=ActionScopeType.PROCESSING)
 
     @classmethod
     def input_file_generator(cls, file=None):
+        """
+        The scope of an input file generator.
+        """
         return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, file=file)
 
     @classmethod
     def output_file_parser(cls, output=None):
+        """
+        The scope of an output file parser.
+        """
         return cls(typ=ActionScopeType.OUTPUT_FILE_PARSER, output=output)
 
 
 @dataclass
 class ActionEnvironment(JSONLike):
+    """
+    The environment that an action is enacted within.
+    """
     _app_attr = "app"
 
     _child_objects = (
@@ -1140,8 +1232,27 @@ class ActionEnvironment(JSONLike):
 
 
 class ActionRule(JSONLike):
-    """Class to represent a rule/condition that must be True if an action is to be
-    included."""
+    """
+    Class to represent a rule/condition that must be True if an action is to be
+    included.
+
+    Parameters
+    ----------
+    rule: Rule
+        The rule to apply.
+    check_exists: str
+        A special rule that is enabled if this named attribute is present.
+    check_missing: str
+        A special rule that is enabled if this named attribute is absent.
+    path: str
+        Where to find the attribute to check.
+    condition: dict | ConditionLike
+        A more complex condition to apply.
+    cast: str
+        The name of a class to cast the attribute to before checking.
+    doc: str
+        Documentation for this rule, if any.
+    """
 
     _child_objects = (ChildObjectSpec(name="rule", class_name="Rule"),)
 
@@ -1198,7 +1309,10 @@ class ActionRule(JSONLike):
 
 
 class Action(JSONLike):
-    """"""
+    """
+    An atomic component of a workflow that will be enacted within an iteration
+    structure.
+    """
 
     _app_attr = "app"
     _child_objects = (
