@@ -145,6 +145,18 @@ class ObjectList(JSONLike):
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
     def add_object(self, obj, index=-1, skip_duplicates=False):
+        """
+        Add an object to this object list.
+
+        :param obj:
+            The object to add.
+        :param index:
+            Where to add it. Omit to append.
+        :param skip_duplicates:
+            If true, don't add the object if it is already in the list.
+        :return:
+            The index of the added object, or ``None`` if the object was not added.
+        """
         if skip_duplicates and obj in self:
             return
 
@@ -265,6 +277,9 @@ class DotAccessObjectList(ObjectList):
         return index
 
     def add_objects(self, objs, index=-1, skip_duplicates=False):
+        """
+        Add multiple objects to the list.
+        """
         for obj in objs:
             index = self.add_object(obj, index, skip_duplicates)
             if index is not None:
@@ -273,6 +288,9 @@ class DotAccessObjectList(ObjectList):
 
 
 class AppDataList(DotAccessObjectList):
+    """
+    An application-aware object list.
+    """
     _app_attr = "_app"
 
     def to_dict(self):
@@ -471,6 +489,10 @@ class CommandFilesList(AppDataList):
 
 
 class WorkflowTaskList(DotAccessObjectList):
+    """
+    A list-like container for workflow tasks with dot-notation access by unique name.
+    """
+
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
@@ -491,6 +513,9 @@ class WorkflowTaskList(DotAccessObjectList):
 
 
 class WorkflowLoopList(DotAccessObjectList):
+    """
+    A list-like container for workflow loops with dot-notation access by name.
+    """
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
@@ -499,6 +524,10 @@ class WorkflowLoopList(DotAccessObjectList):
 
 
 class ResourceList(ObjectList):
+    """
+    A list-like container for resources.
+    Each contained resource must have a unique scope.
+    """
     _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(
@@ -534,10 +563,16 @@ class ResourceList(ObjectList):
 
     @property
     def element_set(self):
+        """
+        The parent element set, if a child of an element set.
+        """
         return self._element_set
 
     @property
     def workflow_template(self):
+        """
+        The parent workflow template, if a child of a workflow template.
+        """
         return self._workflow_template
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
@@ -581,6 +616,9 @@ class ResourceList(ObjectList):
         return resources
 
     def get_scopes(self):
+        """
+        Get the scopes of the contained resources.
+        """
         return tuple(i.scope for i in self._objects)
 
     def merge_other(self, other):
@@ -603,6 +641,10 @@ class ResourceList(ObjectList):
 
 
 def index(obj_lst, obj):
+    """
+    Get the index of the object in the list.
+    The item is checked for by object identity, not equality.
+    """
     for idx, i in enumerate(obj_lst._objects):
         if obj is i:
             return idx

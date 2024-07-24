@@ -131,12 +131,18 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
+    #: The file to generate.
     input_file: app.FileSpec
+    #: The input parameters to the generator.
     inputs: List[app.Parameter]
     #: The script that generates the inputs.
     script: str = None
+    #: The environment in which to run the generator.
     environment: app.Environment = None
+    #: Whether to pass in the environment.
     script_pass_env_spec: Optional[bool] = False
+    #: Whether the generator can be stopped early.
+    #: Quick-running scripts tend to not need this. 
     abortable: Optional[bool] = False
     #: User-specified rules for whether to run the generator.
     rules: Optional[List[app.ActionRule]] = None
@@ -196,9 +202,10 @@ class InputFileGenerator(JSONLike):
         return out
 
     def write_source(self, action, env_spec: Dict[str, Any]):
-
-        # write the script if it is specified as a snippet script, otherwise we assume
-        # the script already exists in the working directory:
+        """
+        Write the script if it is specified as a snippet script, otherwise we assume
+        the script already exists in the working directory.
+        """
         snip_path = action.get_snippet_script_path(self.script, env_spec)
         if snip_path:
             source_str = self.compose_source(snip_path)

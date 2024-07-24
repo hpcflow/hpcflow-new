@@ -1,3 +1,7 @@
+"""
+Serialization and deserialization mechanism intended to map between a complex
+graph of objects and either JSON or YAML.
+"""
 from __future__ import annotations
 
 import copy
@@ -10,7 +14,7 @@ from .utils import classproperty, get_md5_hash
 from .validation import get_schema
 from .errors import ToJSONLikeChildReferenceError
 
-
+#: Primitive types supported by the serialization mechanism.
 PRIMITIVES = (
     int,
     float,
@@ -22,6 +26,10 @@ _SDK_logger = get_SDK_logger(__name__)
 
 
 def to_json_like(obj, shared_data=None, parent_refs=None, path=None):
+    """
+    Convert the object to a JSON-like basic value tree.
+    Such trees are trivial to serialize as JSON or YAML.
+    """
     path = path or []
 
     if len(path) > 50:
@@ -81,30 +89,49 @@ def to_json_like(obj, shared_data=None, parent_refs=None, path=None):
 
 @dataclass
 class ChildObjectSpec:
+    """
+    Used to describe what the child structure of an class is so that the generic
+    deserializer can build the structure.
+    """
+    #: The name of the attribute.
     name: str
+    #: The name of the class (or class of members of a list) used to deserialize the
+    #: attribute.
     class_name: Optional[str] = None
+    #: The class (or class of members of a list) used to deserialize the
+    #: attribute.
     class_obj: Optional[
         Type
     ] = None  # TODO: no need for class_obj/class_name if shared data?
+    #: The name of the key used in the JSON document, if different from the attribute
+    #: name.
     json_like_name: Optional[str] = None
+    #: If true, the attribute is really a list of instances.
     is_multiple: Optional[bool] = False
     dict_key_attr: Optional[str] = None
     dict_val_attr: Optional[str] = None
+    #: If set, the attribute of the child object that contains a reference to its parent.
     parent_ref: Optional[
         str
     ] = None  # TODO: do parent refs make sense when from shared? Prob not.
+    #: If true, the object is not represented as a dict of attr name-values, but just a value.
     is_single_attribute: Optional[
         bool
-    ] = False  # if True, obj is not represented as a dict of attr name-values, but just a value.
+    ] = False
+    #: If true, the object is an enum member and should use special serialization rules.
     is_enum: Optional[
         bool
-    ] = False  # if true, we don't invoke to/from_json_like on the data/Enum
+    ] = False
+    #: If true, the child object is a dict, whose values are of the specified class.
+    #: The dict structure will remain.
     is_dict_values: Optional[
         bool
-    ] = False  # if True, the child object is a dict, whose values are of the specified class. The dict structure will remain.
+    ] = False
+    #: If true, values that are not lists are cast to lists and multiple child objects
+    #: are instantiated for each dict value.
     is_dict_values_ensure_list: Optional[
         bool
-    ] = False  # if True, values that are not lists are cast to lists and multiple child objects are instantiated for each dict value
+    ] = False
 
     shared_data_name: Optional[str] = None
     shared_data_primary_key: Optional[str] = None
@@ -155,6 +182,8 @@ class ChildObjectSpec:
 
 class BaseJSONLike:
     """
+    An object that has a serialization as JSON or YAML.
+
     Parameters
     ----------
     _class_namespace : namespace
@@ -200,6 +229,9 @@ class BaseJSONLike:
         json_like: Union[Dict, List],
         shared_data: Optional[Dict[str, ObjectList]] = None,
     ):
+        """
+        Make an instance of this class from JSON (or YAML) data.
+        """
         def _from_json_like_item(child_obj_spec, json_like_i):
             if not (
                 child_obj_spec.class_name
@@ -403,12 +435,20 @@ class BaseJSONLike:
         return get_md5_hash(json_like)
 
     def to_dict(self):
+        """
+        Serialize this object as a dictionary.
+        """
         if hasattr(self, "__dict__"):
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
+        """
+        Serialize this object as an object structure that can be trivially converted
+        to JSON. Note that YAML can also be produced from the result of this method;
+        it just requires a different final serialization step.
+        """
         if dct is None:
             dct = {k: v for k, v in self.to_dict().items() if k not in (exclude or [])}
 
@@ -475,6 +515,9 @@ class JSONLike(BaseJSONLike):
         return getattr(cls, cls._app_attr)
 
     def to_dict(self):
+        """
+        Serialize this object as a dictionary.
+        """
         out = super().to_dict()
 
         # remove parent references:
