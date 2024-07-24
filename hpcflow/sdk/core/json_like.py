@@ -125,8 +125,12 @@ class ChildObjectSpec:
     #: If true, values that are not lists are cast to lists and multiple child objects
     #: are instantiated for each dict value.
     is_dict_values_ensure_list: Optional[bool] = False
-
+    #: What key to look values up under in the shared data cache.
+    #: If unspecified, the shared data cache is ignored.
     shared_data_name: Optional[str] = None
+    #: What attribute provides the value of the key into the shared data cache.
+    #: If unspecified, a hash of the object dictionary is used.
+    #: Ignored if :py:attr:`~.shared_data_name` is unspecified.
     shared_data_primary_key: Optional[str] = None
     # shared_data_secondary_keys: Optional[Tuple[str]] = None # TODO: what's the point?
 
@@ -224,6 +228,17 @@ class BaseJSONLike:
     ):
         """
         Make an instance of this class from JSON (or YAML) data.
+
+        Parameters
+        ----------
+        json_like:
+            The data to deserialise.
+        shared_data:
+            Shared context data.
+
+        Returns
+        -------
+            The deserialised object.
         """
 
         def _from_json_like_item(child_obj_spec, json_like_i):

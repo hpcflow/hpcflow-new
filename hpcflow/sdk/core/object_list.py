@@ -148,13 +148,17 @@ class ObjectList(JSONLike):
         """
         Add an object to this object list.
 
-        :param obj:
+        Parameters
+        ----------
+        obj:
             The object to add.
-        :param index:
+        index:
             Where to add it. Omit to append.
-        :param skip_duplicates:
+        skip_duplicates:
             If true, don't add the object if it is already in the list.
-        :return:
+
+        Returns
+        -------
             The index of the added object, or ``None`` if the object was not added.
         """
         if skip_duplicates and obj in self:
@@ -300,11 +304,20 @@ class AppDataList(DotAccessObjectList):
     @classmethod
     def from_json_like(cls, json_like, shared_data=None, is_hashed: bool = False):
         """
+        Make an instance of this class from JSON (or YAML) data.
+
         Parameters
         ----------
-        is_hashed
+        json_like:
+            The data to deserialise.
+        shared_data:
+            Shared context data.
+        is_hashed:
             If True, accept a dict whose keys are hashes of the dict values.
 
+        Returns
+        -------
+            The deserialised object.
         """
         if is_hashed:
             json_like = [
