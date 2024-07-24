@@ -187,6 +187,7 @@ class ElementActionRun:
     run_hostname: str
         Where to run the EAR (if not locally).
     """
+
     _app_attr = "app"
 
     def __init__(
@@ -610,13 +611,13 @@ class ElementActionRun:
 
     def get_environment_spec(self) -> str:
         """
-        What environment to run in? 
+        What environment to run in?
         """
         return self.action.get_environment_spec()
 
     def get_environment(self) -> app.Environment:
         """
-        What environment to run in? 
+        What environment to run in?
         """
         return self.action.get_environment()
 
