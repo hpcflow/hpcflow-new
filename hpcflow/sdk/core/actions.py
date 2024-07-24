@@ -64,30 +64,36 @@ class EARStatus(enum.Enum):
         member.__doc__ = doc
         return member
 
+    #: Not yet associated with a submission.
     pending = (
         0,
         ".",
         "grey46",
         "Not yet associated with a submission.",
     )
+    #: Associated with a prepared submission that is not yet submitted.
     prepared = (
         1,
         ".",
         "grey46",
         "Associated with a prepared submission that is not yet submitted.",
     )
+    #: Submitted for execution.
     submitted = (
         2,
         ".",
         "grey46",
         "Submitted for execution.",
     )
+    #: Executing now.
     running = (
         3,
         "●",
         "dodger_blue1",
         "Executing now.",
     )
+    #: Not attempted due to a failure of an upstream action on which this depends,
+    #: or a loop termination condition being satisfied.
     skipped = (
         4,
         "s",
@@ -97,18 +103,21 @@ class EARStatus(enum.Enum):
             "or a loop termination condition being satisfied."
         ),
     )
+    #: Aborted by the user; downstream actions will be attempted.
     aborted = (
         5,
         "A",
         "deep_pink4",
         "Aborted by the user; downstream actions will be attempted.",
     )
+    #: Probably exited successfully.
     success = (
         6,
         "■",
         "green3",
         "Probably exited successfully.",
     )
+    #: Probably failed.
     error = (
         7,
         "E",
@@ -128,10 +137,56 @@ class EARStatus(enum.Enum):
 
     @property
     def rich_repr(self):
+        """
+        The rich representation of the value.
+        """
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
 class ElementActionRun:
+    """
+    The Element Action Run (EAR) is an atomic unit of an enacted workflow, representing
+    one unit of work (e.g., particular submitted job to run a program) within that
+    overall workflow. With looping over, say, parameter spaces, there may be many EARs
+    per element.
+
+    Parameters
+    ----------
+    id_: int
+        The ID of the EAR.
+    is_pending: bool
+        Whether this EAR is pending.
+    element_action:
+        The particular element action that this is a run of.
+    index: int:
+        The index of the run within the collection of runs.
+    data_idx: dict
+        Used for looking up input data to the EAR.
+    commands_idx: list[int]
+        Indices of commands to apply.
+    start_time: datetime
+        Time of start of run, if the run has ever been started.
+    end_time: datetime
+        Time of end of run, if the run has ever ended.
+    snapshot_start: dict
+        Parameters for taking a snapshot of the data directory before the run.
+        If unspecified, no snapshot will be taken.
+    snapshot_end: dict
+        Parameters for taking a snapshot of the data directory after the run.
+        If unspecified, no snapshot will be taken.
+    submission_idx: int
+        What submission was this (if it has been submitted)?
+    success: bool
+        Whether this EAR succeeded (if it has run).
+    skip: bool
+        Whether this EAR was skipped.
+    exit_code: int
+        The exit code, if known.
+    metadata: dict
+        Metadata about the EAR.
+    run_hostname: str
+        Where to run the EAR (if not locally).
+    """
     _app_attr = "app"
 
     def __init__(
@@ -189,14 +244,23 @@ class ElementActionRun:
 
     @property
     def id_(self) -> int:
+        """
+        The ID of the EAR.
+        """
         return self._id
 
     @property
     def is_pending(self) -> bool:
+        """
+        Whether this EAR is pending.
+        """
         return self._is_pending
 
     @property
     def element_action(self):
+        """
+        The particular element action that this is a run of.
+        """
         return self._element_action
 
     @property
@@ -206,58 +270,100 @@ class ElementActionRun:
 
     @property
     def action(self):
+        """
+        The action this is a run of.
+        """
         return self.element_action.action
 
     @property
     def element_iteration(self):
+        """
+        The iteration information of this run.
+        """
         return self.element_action.element_iteration
 
     @property
     def element(self):
+        """
+        The element this is a run of.
+        """
         return self.element_iteration.element
 
     @property
     def workflow(self):
+        """
+        The workflow this is a run of.
+        """
         return self.element_iteration.workflow
 
     @property
     def data_idx(self):
+        """
+        Used for looking up input data to the EAR.
+        """
         return self._data_idx
 
     @property
     def commands_idx(self):
+        """
+        Indices of commands to apply.
+        """
         return self._commands_idx
 
     @property
     def metadata(self):
+        """
+        Metadata about the EAR.
+        """
         return self._metadata
 
     @property
     def run_hostname(self):
+        """
+        Where to run the EAR, if known/specified.
+        """
         return self._run_hostname
 
     @property
     def start_time(self):
+        """
+        When the EAR started.
+        """
         return self._start_time
 
     @property
     def end_time(self):
+        """
+        When the EAR finished.
+        """
         return self._end_time
 
     @property
     def submission_idx(self):
+        """
+        What actual submission index was this?
+        """
         return self._submission_idx
 
     @property
     def success(self):
+        """
+        Did the EAR succeed?
+        """
         return self._success
 
     @property
     def skip(self):
+        """
+        Was the EAR skipped?
+        """
         return self._skip
 
     @property
     def snapshot_start(self):
+        """
+        The snapshot of the data directory at the start of the run.
+        """
         if self._ss_start_obj is None and self._snapshot_start:
             self._ss_start_obj = JSONLikeDirSnapShot(
                 root_path=".",
@@ -267,6 +373,9 @@ class ElementActionRun:
 
     @property
     def snapshot_end(self):
+        """
+        The snapshot of the data directory at the end of the run.
+        """
         if self._ss_end_obj is None and self._snapshot_end:
             self._ss_end_obj = JSONLikeDirSnapShot(root_path=".", **self._snapshot_end)
         return self._ss_end_obj
@@ -283,10 +392,16 @@ class ElementActionRun:
 
     @property
     def exit_code(self):
+        """
+        The exit code of the underlying program run by the EAR, if known.
+        """
         return self._exit_code
 
     @property
     def task(self):
+        """
+        The task that this EAR is part of the implementation of.
+        """
         return self.element_action.task
 
     @property
@@ -436,12 +551,18 @@ class ElementActionRun:
 
     @property
     def inputs(self):
+        """
+        The inputs to this EAR.
+        """
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_action_run=self)
         return self._inputs
 
     @property
     def outputs(self):
+        """
+        The outputs from this EAR.
+        """
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_action_run=self)
         return self._outputs
@@ -449,24 +570,36 @@ class ElementActionRun:
     @property
     @TimeIt.decorator
     def resources(self):
+        """
+        The resources to use with (or used by) this EAR.
+        """
         if not self._resources:
             self._resources = self.app.ElementResources(**self.get_resources())
         return self._resources
 
     @property
     def input_files(self):
+        """
+        The input files to the controlled program.
+        """
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_action_run=self)
         return self._input_files
 
     @property
     def output_files(self):
+        """
+        The output files from the controlled program.
+        """
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
     @property
     def env_spec(self) -> Dict[str, Any]:
+        """
+        Environment details.
+        """
         return self.resources.environments[self.action.get_environment_name()]
 
     @TimeIt.decorator
@@ -476,9 +609,15 @@ class ElementActionRun:
         return self.element_iteration.get_resources(self.action)
 
     def get_environment_spec(self) -> str:
+        """
+        What environment to run in? 
+        """
         return self.action.get_environment_spec()
 
     def get_environment(self) -> app.Environment:
+        """
+        What environment to run in? 
+        """
         return self.action.get_environment()
 
     def get_all_previous_iteration_runs(self, include_self: bool = True):
@@ -502,13 +641,13 @@ class ElementActionRun:
 
         Parameters
         ----------
-        inputs
+        inputs:
             If specified, a list of input parameter types to include, or a dict whose keys
             are input parameter types to include. For schema inputs that have
             `multiple=True`, the input type should be labelled. If a dict is passed, and
             the key "all_iterations` is present and `True`, the return for that input
             will be structured to include values for all previous iterations.
-        label_dict
+        label_dict:
             If True, arrange the values of schema inputs with multiple=True as a dict
             whose keys are the labels. If False, labels will be included in the top level
             keys.
