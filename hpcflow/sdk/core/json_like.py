@@ -93,6 +93,7 @@ class ChildObjectSpec:
     Used to describe what the child structure of an class is so that the generic
     deserializer can build the structure.
     """
+
     #: The name of the attribute.
     name: str
     #: The name of the class (or class of members of a list) used to deserialize the
@@ -115,23 +116,15 @@ class ChildObjectSpec:
         str
     ] = None  # TODO: do parent refs make sense when from shared? Prob not.
     #: If true, the object is not represented as a dict of attr name-values, but just a value.
-    is_single_attribute: Optional[
-        bool
-    ] = False
+    is_single_attribute: Optional[bool] = False
     #: If true, the object is an enum member and should use special serialization rules.
-    is_enum: Optional[
-        bool
-    ] = False
+    is_enum: Optional[bool] = False
     #: If true, the child object is a dict, whose values are of the specified class.
     #: The dict structure will remain.
-    is_dict_values: Optional[
-        bool
-    ] = False
+    is_dict_values: Optional[bool] = False
     #: If true, values that are not lists are cast to lists and multiple child objects
     #: are instantiated for each dict value.
-    is_dict_values_ensure_list: Optional[
-        bool
-    ] = False
+    is_dict_values_ensure_list: Optional[bool] = False
 
     shared_data_name: Optional[str] = None
     shared_data_primary_key: Optional[str] = None
@@ -232,6 +225,7 @@ class BaseJSONLike:
         """
         Make an instance of this class from JSON (or YAML) data.
         """
+
         def _from_json_like_item(child_obj_spec, json_like_i):
             if not (
                 child_obj_spec.class_name

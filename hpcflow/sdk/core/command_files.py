@@ -142,7 +142,7 @@ class InputFileGenerator(JSONLike):
     #: Whether to pass in the environment.
     script_pass_env_spec: Optional[bool] = False
     #: Whether the generator can be stopped early.
-    #: Quick-running scripts tend to not need this. 
+    #: Quick-running scripts tend to not need this.
     abortable: Optional[bool] = False
     #: User-specified rules for whether to run the generator.
     rules: Optional[List[app.ActionRule]] = None

@@ -291,6 +291,7 @@ class AppDataList(DotAccessObjectList):
     """
     An application-aware object list.
     """
+
     _app_attr = "_app"
 
     def to_dict(self):
@@ -516,6 +517,7 @@ class WorkflowLoopList(DotAccessObjectList):
     """
     A list-like container for workflow loops with dot-notation access by name.
     """
+
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
@@ -528,6 +530,7 @@ class ResourceList(ObjectList):
     A list-like container for resources.
     Each contained resource must have a unique scope.
     """
+
     _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(
