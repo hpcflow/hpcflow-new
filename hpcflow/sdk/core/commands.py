@@ -18,6 +18,7 @@ class Command(JSONLike):
     """
     A command that may be run within a workflow action.
     """
+
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(
@@ -280,6 +281,7 @@ class Command(JSONLike):
         stderr:
             If true, this is handling the stderr stream. If false, the stdout stream.
         """
+
         def _parse_list(lst_str: str, item_type: str = "str", delim: str = " "):
             return [parse_types[item_type](i) for i in lst_str.split(delim)]
 

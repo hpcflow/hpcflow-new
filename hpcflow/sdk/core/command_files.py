@@ -18,6 +18,7 @@ class FileSpec(JSONLike):
     """
     A specification of a file handled by a workflow.
     """
+
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
@@ -76,6 +77,7 @@ class FileNameSpec(JSONLike):
     is_regex: bool
         If true, the name is used as a regex to search for actual files.
     """
+
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
@@ -122,6 +124,7 @@ class FileNameStem(JSONLike):
     """
     The stem of a file name.
     """
+
     #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
@@ -137,6 +140,7 @@ class FileNameExt(JSONLike):
     """
     The extension of a file name.
     """
+
     #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
@@ -152,6 +156,7 @@ class InputFileGenerator(JSONLike):
     """
     Represents a script that is run to generate input files for an action.
     """
+
     _app_attr = "app"
 
     _child_objects = (
@@ -617,6 +622,7 @@ class InputFile(_FileContentsSpecifier):
     store_contents: bool
         Are the file's contents to be cached in the workflow persistent store?
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="file",
@@ -677,7 +683,7 @@ class InputFile(_FileContentsSpecifier):
     @property
     def normalised_path(self):
         """
-        Full workflow value path to the file. Note that this is not the same as the path in the filesystem. 
+        Full workflow value path to the file. Note that this is not the same as the path in the filesystem.
         """
         return f"input_files.{self.normalised_files_path}"
 
@@ -686,6 +692,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
     """
     The source of code for use in an input file generator.
     """
+
     def __init__(
         self,
         generator: app.InputFileGenerator,
@@ -701,6 +708,7 @@ class OutputFileParserSource(_FileContentsSpecifier):
     """
     The source of code for use in an output file parser.
     """
+
     def __init__(
         self,
         parser: app.OutputFileParser,
