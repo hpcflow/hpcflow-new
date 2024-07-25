@@ -1818,7 +1818,7 @@ class Action(JSONLike):
         cls, script, env_spec: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Get the substituted script snippet path as a string. 
+        Get the substituted script snippet path as a string.
         """
         if not cls.is_snippet_script(script):
             raise ValueError(
@@ -1842,7 +1842,7 @@ class Action(JSONLike):
         cls, script_path, env_spec: Optional[Dict[str, Any]] = None
     ) -> Path:
         """
-        Get the substituted script snippet path, or False if there is no snippet. 
+        Get the substituted script snippet path, or False if there is no snippet.
         """
         if not cls.is_snippet_script(script_path):
             return False
@@ -2330,7 +2330,7 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
-        
+
         # Appears to be not required
         return False
 
