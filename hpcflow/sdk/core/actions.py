@@ -1314,6 +1314,45 @@ class Action(JSONLike):
     """
     An atomic component of a workflow that will be enacted within an iteration
     structure.
+
+    Parameters
+    ----------
+    environments: list[ActionEnvironment]
+        The environments in which this action can run.
+    commands: list[Command]
+        The commands to be run by this action.
+    script: str
+        The name of the Python script to run.
+    script_data_in: str
+        Information about data input to the script.
+    script_data_out: str
+        Information about data output from the script.
+    script_data_files_use_opt: bool
+        If True, script data input and output file paths will be passed to the script
+        execution command line with an option like `--input-json` or `--output-hdf5`
+        etc. If False, the file paths will be passed on their own. For Python scripts,
+        options are always passed, and this parameter is overwritten to be True,
+        regardless of its initial value.
+    script_exe: str
+        The executable to use to run the script.
+    script_pass_env_spec: bool
+        Whether to pass the environment details to the script.
+    abortable: bool
+        Whether this action can be aborted.
+    input_file_generators: list[InputFileGenerator]
+        Any applicable input file generators.
+    output_file_parsers: list[OutputFileParser]
+        Any applicable output file parsers.
+    input_files: list[FileSpec]
+        The input files to the action's commands.
+    output_files: list[FileSpec]
+        The output files from the action's commands.
+    rules: list[ActionRule]
+        How to determine whether to run the action.
+    save_files: list[str]
+        The names of files to be explicitly saved after each step.
+    clean_up: list[str]
+        The names of files to be deleted after each step.
     """
 
     _app_attr = "app"
@@ -1394,36 +1433,45 @@ class Action(JSONLike):
         save_files: Optional[List[str]] = None,
         clean_up: Optional[List[str]] = None,
     ):
-        """
-        Parameters
-        ----------
-        script_data_files_use_opt
-            If True, script data input and output file paths will be passed to the script
-            execution command line with an option like `--input-json` or `--output-hdf5`
-            etc. If False, the file paths will be passed on their own. For Python scripts,
-            options are always passed, and this parameter is overwritten to be True,
-            regardless of its initial value.
-
-        """
+        #: The commands to be run by this action.
         self.commands = commands or []
+        #: The name of the Python script to run.
         self.script = script
+        #: Information about data input to the script.
         self.script_data_in = script_data_in
+        #: Information about data output from the script.
         self.script_data_out = script_data_out
+        #: If True, script data input and output file paths will be passed to the script
+        #: execution command line with an option like `--input-json` or `--output-hdf5`
+        #: etc. If False, the file paths will be passed on their own. For Python scripts,
+        #: options are always passed, and this parameter is overwritten to be True,
+        #: regardless of its initial value.
         self.script_data_files_use_opt = (
             script_data_files_use_opt if not self.script_is_python else True
         )
+        #: The executable to use to run the script.
         self.script_exe = script_exe.lower() if script_exe else None
+        #: Whether to pass the environment details to the script.
         self.script_pass_env_spec = script_pass_env_spec
+        #: The environments in which this action can run.
         self.environments = environments or [
             self.app.ActionEnvironment(environment="null_env")
         ]
+        #: Whether this action can be aborted.
         self.abortable = abortable
+        #: Any applicable input file generators.
         self.input_file_generators = input_file_generators or []
+        #: Any applicable output file parsers.
         self.output_file_parsers = output_file_parsers or []
+        #: The input files to the action's commands.
         self.input_files = self._resolve_input_files(input_files or [])
+        #: The output files from the action's commands.
         self.output_files = self._resolve_output_files(output_files or [])
+        #: How to determine whether to run the action.
         self.rules = rules or []
+        #: The names of files to be explicitly saved after each step.
         self.save_files = save_files or []
+        #: The names of files to be deleted after each step.
         self.clean_up = clean_up or []
 
         self._task_schema = None  # assigned by parent TaskSchema
@@ -1432,6 +1480,9 @@ class Action(JSONLike):
         self._set_parent_refs()
 
     def process_script_data_formats(self):
+        """
+        Convert script data information into standard form.
+        """
         self.script_data_in = self._process_script_data_in(self.script_data_in)
         self.script_data_out = self._process_script_data_out(self.script_data_out)
 
@@ -1575,6 +1626,9 @@ class Action(JSONLike):
 
     @property
     def task_schema(self):
+        """
+        The task schema that this action came from.
+        """
         return self._task_schema
 
     def _resolve_input_files(self, input_files):
@@ -1655,7 +1709,7 @@ class Action(JSONLike):
         out = {"input_file_writers": writer_files, "commands": commands}
         return out
 
-    def get_resolved_action_env(
+    def _get_resolved_action_env(
         self,
         relevant_scopes: Tuple[app.ActionScopeType],
         input_file_generator: app.InputFileGenerator = None,
@@ -1685,7 +1739,10 @@ class Action(JSONLike):
     def get_input_file_generator_action_env(
         self, input_file_generator: app.InputFileGenerator
     ):
-        return self.get_resolved_action_env(
+        """
+        Get the actual environment to use for an input file generator.
+        """
+        return self._get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
                 ActionScopeType.PROCESSING,
@@ -1695,7 +1752,10 @@ class Action(JSONLike):
         )
 
     def get_output_file_parser_action_env(self, output_file_parser: app.OutputFileParser):
-        return self.get_resolved_action_env(
+        """
+        Get the actual environment to use for an output file parser.
+        """
+        return self._get_resolved_action_env(
             relevant_scopes=(
                 ActionScopeType.ANY,
                 ActionScopeType.PROCESSING,
@@ -1705,15 +1765,24 @@ class Action(JSONLike):
         )
 
     def get_commands_action_env(self):
-        return self.get_resolved_action_env(
+        """
+        Get the actual environment to use for the action commands.
+        """
+        return self._get_resolved_action_env(
             relevant_scopes=(ActionScopeType.ANY, ActionScopeType.MAIN),
             commands=self.commands,
         )
 
     def get_environment_name(self) -> str:
+        """
+        Get the name of the primary environment.
+        """
         return self.get_environment_spec()["name"]
 
     def get_environment_spec(self) -> Dict[str, Any]:
+        """
+        Get the specification for the primary envionment, assuming it has been expanded.
+        """
         if not self._from_expand:
             raise RuntimeError(
                 f"Cannot choose a single environment from this action because it is not "
@@ -1722,6 +1791,9 @@ class Action(JSONLike):
         return self.environments[0].environment
 
     def get_environment(self) -> app.Environment:
+        """
+        Get the primary environment.
+        """
         return self.app.envs.get(**self.get_environment_spec())
 
     @staticmethod
@@ -1745,6 +1817,9 @@ class Action(JSONLike):
     def get_snippet_script_str(
         cls, script, env_spec: Optional[Dict[str, Any]] = None
     ) -> str:
+        """
+        Get the substituted script snippet path as a string. 
+        """
         if not cls.is_snippet_script(script):
             raise ValueError(
                 f"Must be an app-data script name (e.g. "
@@ -1766,6 +1841,9 @@ class Action(JSONLike):
     def get_snippet_script_path(
         cls, script_path, env_spec: Optional[Dict[str, Any]] = None
     ) -> Path:
+        """
+        Get the substituted script snippet path, or False if there is no snippet. 
+        """
         if not cls.is_snippet_script(script_path):
             return False
 
@@ -1776,26 +1854,42 @@ class Action(JSONLike):
         return Path(path)
 
     @staticmethod
-    def get_param_dump_file_stem(js_idx: int, js_act_idx: int):
+    def __get_param_dump_file_stem(js_idx: int, js_act_idx: int):
         return RunDirAppFiles.get_run_param_dump_file_prefix(js_idx, js_act_idx)
 
     @staticmethod
-    def get_param_load_file_stem(js_idx: int, js_act_idx: int):
+    def __get_param_load_file_stem(js_idx: int, js_act_idx: int):
         return RunDirAppFiles.get_run_param_load_file_prefix(js_idx, js_act_idx)
 
     def get_param_dump_file_path_JSON(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
+        """
+        Get the path of the JSON dump file.
+        """
+        return Path(self.__get_param_dump_file_stem(js_idx, js_act_idx) + ".json")
 
     def get_param_dump_file_path_HDF5(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
+        """
+        Get the path of the HDF56 dump file.
+        """
+        return Path(self.__get_param_dump_file_stem(js_idx, js_act_idx) + ".h5")
 
     def get_param_load_file_path_JSON(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".json")
+        """
+        Get the path of the JSON load file.
+        """
+        return Path(self.__get_param_load_file_stem(js_idx, js_act_idx) + ".json")
 
     def get_param_load_file_path_HDF5(self, js_idx: int, js_act_idx: int):
-        return Path(self.get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
+        """
+        Get the path of the HDF5 load file.
+        """
+        return Path(self.__get_param_load_file_stem(js_idx, js_act_idx) + ".h5")
 
     def expand(self):
+        """
+        Expand this action into a list of actions if necessary.
+        This converts input file generators and output file parsers into their own actions.
+        """
         if self._from_expand:
             # already expanded
             return [self]
@@ -1952,7 +2046,7 @@ class Action(JSONLike):
 
         Parameters
         ----------
-        sub_parameters
+        sub_parameters:
             If True, sub-parameters (i.e. dot-delimited parameter types) will be returned
             untouched. If False (default), only return the root parameter type and
             disregard the sub-parameter part.
@@ -2005,7 +2099,7 @@ class Action(JSONLike):
 
         Parameters
         ----------
-        sub_parameters
+        sub_parameters:
             If True, sub-parameters (i.e. dot-delimited parameter types) in command line
             inputs will be returned untouched. If False (default), only return the root
             parameter type and disregard the sub-parameter part.
@@ -2044,9 +2138,15 @@ class Action(JSONLike):
         return tuple(set(params))
 
     def get_input_file_labels(self):
+        """
+        Get the labels from the input files.
+        """
         return tuple(i.label for i in self.input_files)
 
     def get_output_file_labels(self):
+        """
+        Get the labels from the output files.
+        """
         return tuple(i.label for i in self.output_files)
 
     @TimeIt.decorator
@@ -2177,6 +2277,10 @@ class Action(JSONLike):
         return scopes
 
     def get_precise_scope(self) -> app.ActionScope:
+        """
+        Get the exact scope of this action.
+        The action must have been expanded prior to calling this.
+        """
         if not self._from_expand:
             raise RuntimeError(
                 "Precise scope cannot be unambiguously defined until the Action has been "
@@ -2200,6 +2304,9 @@ class Action(JSONLike):
     def is_input_type_required(
         self, typ: str, provided_files: List[app.FileSpec]
     ) -> bool:
+        """
+        Determine if the given input type is required by this action.
+        """
         # TODO: for now assume a script takes all inputs
         if (
             self.script
@@ -2223,6 +2330,9 @@ class Action(JSONLike):
         for OFP in self.output_file_parsers:
             if typ in (OFP.inputs or []):
                 return True
+        
+        # Appears to be not required
+        return False
 
     @TimeIt.decorator
     def test_rules(self, element_iter) -> Tuple[bool, List[int]]:
