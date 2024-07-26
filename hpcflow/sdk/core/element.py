@@ -101,6 +101,9 @@ class _ElementPrefixedParameter:
 
     @property
     def prefixed_names_unlabelled_str(self):
+        """
+        Get a description of the prefixed names.
+        """
         return ", ".join(i for i in self.prefixed_names_unlabelled)
 
     def __repr__(self):
@@ -137,6 +140,18 @@ class _ElementPrefixedParameter:
 
 
 class ElementInputs(_ElementPrefixedParameter):
+    """
+    The inputs to an element.
+
+    Parameters
+    ----------
+    element_iteration: ElementIteration
+        Which iteration does this refer to?
+    element_action: ElementAction
+        Which action does this refer to?
+    element_action_run: ElementActionRun
+        Which EAR does this refer to?
+    """
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -147,6 +162,18 @@ class ElementInputs(_ElementPrefixedParameter):
 
 
 class ElementOutputs(_ElementPrefixedParameter):
+    """
+    The outputs from an element.
+
+    Parameters
+    ----------
+    element_iteration: ElementIteration
+        Which iteration does this refer to?
+    element_action: ElementAction
+        Which action does this refer to?
+    element_action_run: ElementActionRun
+        Which EAR does this refer to?
+    """
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -157,6 +184,18 @@ class ElementOutputs(_ElementPrefixedParameter):
 
 
 class ElementInputFiles(_ElementPrefixedParameter):
+    """
+    The input files to an element.
+
+    Parameters
+    ----------
+    element_iteration: ElementIteration
+        Which iteration does this refer to?
+    element_action: ElementAction
+        Which action does this refer to?
+    element_action_run: ElementActionRun
+        Which EAR does this refer to?
+    """
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -169,6 +208,18 @@ class ElementInputFiles(_ElementPrefixedParameter):
 
 
 class ElementOutputFiles(_ElementPrefixedParameter):
+    """
+    The output files from an element.
+
+    Parameters
+    ----------
+    element_iteration: ElementIteration
+        Which iteration does this refer to?
+    element_action: ElementAction
+        Which action does this refer to?
+    element_action_run: ElementActionRun
+        Which EAR does this refer to?
+    """
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -182,33 +233,107 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 
 @dataclass
 class ElementResources(JSONLike):
+    """
+    The resources an element requires.
+
+    Note
+    ----
+    It is common to leave most of these unspecified.
+    Many of them have complex interactions with each other.
+
+    Parameters
+    ----------
+    scratch: str
+        Which scratch space to use.
+    parallel_mode: ParallelMode
+        Which parallel mode to use.
+    num_cores: int
+        How many cores to request.
+    num_cores_per_node: int
+        How many cores per compute node to request.
+    num_threads: int
+        How many threads to request.
+    num_nodes: int
+        How many compute nodes to request.
+    scheduler: str
+        Which scheduler to use.
+    shell: str
+        Which system shell to use.
+    use_job_array: bool
+        Whether to use array jobs.
+    max_array_items: int
+        If using array jobs, up to how many items should be in the job array.
+    time_limit: str
+        How long to run for.
+    scheduler_args: dict[str, Any]
+        Additional arguments to pass to the scheduler.
+    shell_args: dict[str, Any]
+        Additional arguments to pass to the shell.
+    os_name: str
+        Which OS to use.
+    environments: dict
+        Which execution environments to use.
+    SGE_parallel_env: str
+        Which SGE parallel environment to request.
+    SLURM_partition: str
+        Which SLURM partition to request.
+    SLURM_num_tasks: str
+        How many SLURM tasks to request.
+    SLURM_num_tasks_per_node: str
+        How many SLURM tasks per compute node to request.
+    SLURM_num_nodes: str
+        How many compute nodes to request.
+    SLURM_num_cpus_per_task: str
+        How many CPU cores to ask for per SLURM task.
+    """
     # TODO: how to specify e.g. high-memory requirement?
 
+    #: Which scratch space to use.
     scratch: Optional[str] = None
+    #: Which parallel mode to use.
     parallel_mode: Optional[ParallelMode] = None
+    #: How many cores to request.
     num_cores: Optional[int] = None
+    #: How many cores per compute node to request.
     num_cores_per_node: Optional[int] = None
+    #: How many threads to request.
     num_threads: Optional[int] = None
+    #: How many compute nodes to request.
     num_nodes: Optional[int] = None
-    scheduler: Optional[str] = None
-    shell: Optional[str] = None
-    use_job_array: Optional[bool] = None
-    max_array_items: Optional[int] = None
-    time_limit: Optional[str] = None
 
+    #: Which scheduler to use.
+    scheduler: Optional[str] = None
+    #: Which system shell to use.
+    shell: Optional[str] = None
+    #: Whether to use array jobs.
+    use_job_array: Optional[bool] = None
+    #: If using array jobs, up to how many items should be in the job array.
+    max_array_items: Optional[int] = None
+    #: How long to run for.
+    time_limit: Optional[str] = None
+    #: Additional arguments to pass to the scheduler.
     scheduler_args: Optional[Dict] = None
+    #: Additional arguments to pass to the shell.
     shell_args: Optional[Dict] = None
+    #: Which OS to use.
     os_name: Optional[str] = None
+    #: Which execution environments to use.
     environments: Optional[Dict] = None
 
     # SGE scheduler specific:
+    #: Which SGE parallel environment to request.
     SGE_parallel_env: str = None
 
     # SLURM scheduler specific:
+    #: Which SLURM partition to request.
     SLURM_partition: str = None
+    #: How many SLURM tasks to request.
     SLURM_num_tasks: str = None
+    #: How many SLURM tasks per compute node to request.
     SLURM_num_tasks_per_node: str = None
+    #: How many compute nodes to request.
     SLURM_num_nodes: str = None
+    #: How many CPU cores to ask for per SLURM task.
     SLURM_num_cpus_per_task: str = None
 
     def __post_init__(self):
@@ -291,20 +416,32 @@ class ElementResources(JSONLike):
 
     @staticmethod
     def get_default_os_name():
+        """
+        Get the default value for OS name.
+        """
         return os.name
 
     @classmethod
     def get_default_shell(cls):
+        """
+        Get the default value for name.
+        """
         return cls.app.config.default_shell
 
     @classmethod
     def get_default_scheduler(cls, os_name, shell_name):
+        """
+        Get the default value for scheduler.
+        """
         if os_name == "nt" and "wsl" in shell_name:
             # provide a "*_posix" default scheduler on windows if shell is WSL:
             return "direct_posix"
         return cls.app.config.default_scheduler
 
     def set_defaults(self):
+        """
+        Set defaults for unspecified values that need defaults.
+        """
         if self.os_name is None:
             self.os_name = self.get_default_os_name()
         if self.shell is None:
@@ -353,6 +490,32 @@ class ElementResources(JSONLike):
 
 
 class ElementIteration:
+    """
+    A particular iteration of an element.
+
+    Parameters
+    ----------
+    id_: int
+        The ID of this iteration.
+    is_pending: bool
+        Whether this iteration is pending execution.
+    index: int
+        The index of this iteration in its parent element.
+    element: Element
+        The element this is an iteration of.
+    data_idx: dict
+        The overall element iteration data index, before resolution of EARs.
+    EARs_initialised: bool
+        Whether EARs have been set up for the iteration. 
+    EAR_IDs: dict[int, int]
+        Mapping from iteration number to EAR ID, where known.
+    EARs: list[dict]
+        Data about EARs.
+    schema_parameters: list[str]
+        Parameters from the schema.
+    loop_idx: dict[str, int]
+        Indexing information from the loop.
+    """
     _app_attr = "app"
 
     def __init__(
@@ -406,46 +569,79 @@ class ElementIteration:
 
     @property
     def element(self):
+        """
+        The element this is an iteration of.
+        """
         return self._element
 
     @property
     def index(self):
+        """
+        The index of this iteration in its parent element.
+        """
         return self._index
 
     @property
     def id_(self) -> int:
+        """
+        The ID of this iteration.
+        """
         return self._id
 
     @property
     def is_pending(self) -> bool:
+        """
+        Whether this iteration is pending execution.
+        """
         return self._is_pending
 
     @property
     def task(self):
+        """
+        The task this is an iteration of an element for.
+        """
         return self.element.task
 
     @property
     def workflow(self):
+        """
+        The workflow this is a part of.
+        """
         return self.element.workflow
 
     @property
     def loop_idx(self) -> Dict[str, int]:
+        """
+        Indexing information from the loop.
+        """
         return self._loop_idx
 
     @property
     def schema_parameters(self) -> List[str]:
+        """
+        Parameters from the schema.
+        """
         return self._schema_parameters
 
     @property
     def EAR_IDs(self) -> Dict[int, int]:
+        """
+        Mapping from iteration number to EAR ID, where known.
+        """
         return self._EAR_IDs
 
     @property
     def EAR_IDs_flat(self):
+        """
+        The EAR IDs.
+        """
         return [j for i in self.EAR_IDs.values() for j in i]
 
     @property
     def actions(self) -> Dict[app.ElementAction]:
+        """
+        The actions of this iteration.
+        """
         if self._action_objs is None:
             self._action_objs = {
                 act_idx: self.app.ElementAction(
@@ -459,30 +655,44 @@ class ElementIteration:
 
     @property
     def action_runs(self) -> List[app.ElementActionRun]:
-        """Get a list of element action runs, where only the final run is taken for each
-        element action."""
+        """
+        A list of element action runs, where only the final run is taken for each
+        element action.
+        """
         return [i.runs[-1] for i in self.actions.values()]
 
     @property
     def inputs(self) -> app.ElementInputs:
+        """
+        The inputs to this element.
+        """
         if not self._inputs:
             self._inputs = self.app.ElementInputs(element_iteration=self)
         return self._inputs
 
     @property
     def outputs(self) -> app.ElementOutputs:
+        """
+        The outputs from this element.
+        """
         if not self._outputs:
             self._outputs = self.app.ElementOutputs(element_iteration=self)
         return self._outputs
 
     @property
     def input_files(self) -> app.ElementInputFiles:
+        """
+        The input files to this element.
+        """
         if not self._input_files:
             self._input_files = self.app.ElementInputFiles(element_iteration=self)
         return self._input_files
 
     @property
     def output_files(self) -> app.ElementOutputFiles:
+        """
+        The output files from this element.
+        """
         if not self._output_files:
             self._output_files = self.app.ElementOutputFiles(element_iteration=self)
         return self._output_files
@@ -521,10 +731,16 @@ class ElementIteration:
         run_idx: int = -1,
     ) -> Dict[str, int]:
         """
+        Get the data index.
+
         Parameters
         ----------
-        action_idx
+        path:
+            If specified, filters the data indices to the ones relevant to this path.
+        action_idx:
             The index of the action within the schema.
+        run_idx:
+            The index of the run within the action.
         """
 
         if not self.actions:
@@ -563,6 +779,8 @@ class ElementIteration:
         use_task_index: bool = False,
     ) -> Dict[str, Union[str, Dict[str, Any]]]:
         """
+        Get the origin of parameters.
+
         Parameters
         ----------
         use_task_index
@@ -938,10 +1156,38 @@ class ElementIteration:
     def get_resources_obj(
         self, action: app.Action, set_defaults: bool = False
     ) -> app.ElementResources:
+        """
+        Get the resources for an action (see :py:meth:`get_resources`)
+        as a searchable model.
+        """
         return self.app.ElementResources(**self.get_resources(action, set_defaults))
 
 
 class Element:
+    """
+    A basic component of a workflow. Elements are enactments of tasks.
+
+    Parameters
+    ----------
+    id_: int
+        The ID of this element.
+    is_pending: bool
+        Whether this element is pending execution.
+    task: WorkflowTask
+        The task this is part of the enactment of.
+    index: int
+        The index of this element.
+    es_idx: int
+        The index within the task of the element set containing this element.
+    seq_idx: dict[str, int]
+        The sequence index IDs.
+    src_idx: dict[str, int]
+        The input source indices.
+    iteration_IDs: list[int]
+        The known IDs of iterations,
+    iterations: list[dict]
+        Data for creating iteration objects.
+    """
     _app_attr = "app"
 
     # TODO: use slots
@@ -984,14 +1230,23 @@ class Element:
 
     @property
     def id_(self) -> int:
+        """
+        The ID of this element.
+        """
         return self._id
 
     @property
     def is_pending(self) -> bool:
+        """
+        Whether this element is pending execution.
+        """
         return self._is_pending
 
     @property
     def task(self) -> app.WorkflowTask:
+        """
+        The task this is part of the enactment of.
+        """
         return self._task
 
     @property
@@ -1005,10 +1260,16 @@ class Element:
 
     @property
     def element_set_idx(self) -> int:
+        """
+        The index within the task of the element set containing this element.
+        """
         return self._es_idx
 
     @property
     def element_set(self):
+        """
+        The element set containing this element.
+        """
         return self.task.template.element_sets[self.element_set_idx]
 
     @property
@@ -1017,10 +1278,14 @@ class Element:
 
     @property
     def input_source_idx(self) -> Dict[str, int]:
+
         return self._src_idx
 
     @property
     def input_sources(self) -> Dict[str, app.InputSource]:
+        """
+        The sources of the inputs to this element.
+        """
         return {
             k: self.element_set.input_sources[k.split("inputs.")[1]][v]
             for k, v in self.input_source_idx.items()
@@ -1028,15 +1293,24 @@ class Element:
 
     @property
     def workflow(self) -> app.Workflow:
+        """
+        The workflow containing this element.
+        """
         return self.task.workflow
 
     @property
     def iteration_IDs(self) -> List[int]:
+        """
+        The IDs of the iterations of this element.
+        """
         return self._iteration_IDs
 
     @property
     @TimeIt.decorator
-    def iterations(self) -> Dict[app.ElementAction]:
+    def iterations(self) -> List[app.ElementIteration]:
+        """
+        The iterations of this element.
+        """
         # TODO: fix this
         if self._iteration_objs is None:
             self._iteration_objs = [
@@ -1051,43 +1325,72 @@ class Element:
 
     @property
     def dir_name(self):
+        """
+        The name of the directory for containing temporary files for this element.
+        """
         return f"e_{self.index}"
 
     @property
     def latest_iteration(self):
+        """
+        The most recent iteration of this element.
+        """
         return self.iterations[-1]
 
     @property
     def inputs(self) -> app.ElementInputs:
+        """
+        The inputs to this element (or its most recent iteration).
+        """
         return self.latest_iteration.inputs
 
     @property
     def outputs(self) -> app.ElementOutputs:
+        """
+        The outputs from this element (or its most recent iteration).
+        """
         return self.latest_iteration.outputs
 
     @property
     def input_files(self) -> app.ElementInputFiles:
+        """
+        The input files to this element (or its most recent iteration).
+        """
         return self.latest_iteration.input_files
 
     @property
     def output_files(self) -> app.ElementOutputFiles:
+        """
+        The output files from this element (or its most recent iteration).
+        """
         return self.latest_iteration.output_files
 
     @property
     def schema_parameters(self) -> List[str]:
+        """
+        The schema-defined parameters to this element (or its most recent iteration).
+        """
         return self.latest_iteration.schema_parameters
 
     @property
     def actions(self) -> Dict[app.ElementAction]:
+        """
+        The actions of this element (or its most recent iteration).
+        """
         return self.latest_iteration.actions
 
     @property
     def action_runs(self) -> List[app.ElementActionRun]:
-        """Get a list of element action runs from the latest iteration, where only the
-        final run is taken for each element action."""
+        """
+        A list of element action runs from the latest iteration, where only the
+        final run is taken for each element action.
+        """
         return self.latest_iteration.action_runs
 
     def init_loop_index(self, loop_name: str):
+        """
+        Initialise the loop index if necessary.
+        """
         pass
 
     def to_element_set_data(self):
@@ -1117,6 +1420,9 @@ class Element:
         return inputs, resources
 
     def get_sequence_value(self, sequence_path: str) -> Any:
+        """
+        Get the value of a sequence that applies.
+        """
         seq = self.element_set.get_sequence_from_path(sequence_path)
         if not seq:
             raise ValueError(
@@ -1286,19 +1592,43 @@ class Element:
 
 @dataclass
 class ElementParameter:
+    """
+    A parameter to an :py:class:`.Element`.
+
+    Parameters
+    ----------
+    task: WorkflowTask
+        The task that this is part of.
+    path: str
+        The path to this parameter.
+    parent: Element | ElementAction | ElementActionRun | Parameters
+        The entity that owns this parameter.
+    element: Element
+        The element that this is a parameter of.
+    """
     _app_attr = "app"
 
+    #: The task that this is part of.
     task: app.WorkflowTask
+    #: The path to this parameter.
     path: str
+    #: The entity that owns this parameter.
     parent: Union[Element, app.ElementAction, app.ElementActionRun, app.Parameters]
+    #: The element that this is a parameter of.
     element: Element
 
     @property
     def data_idx(self):
+        """
+        The data indices associated with this parameter.
+        """
         return self.parent.get_data_idx(path=self.path)
 
     @property
     def value(self) -> Any:
+        """
+        The value of this parameter.
+        """
         return self.parent.get(path=self.path)
 
     def __repr__(self) -> str:
@@ -1312,27 +1642,48 @@ class ElementParameter:
 
     @property
     def data_idx_is_set(self):
+        """
+        The associated data indices for which this is set.
+        """
         return {
             k: self.task.workflow.is_parameter_set(v) for k, v in self.data_idx.items()
         }
 
     @property
     def is_set(self):
+        """
+        Whether this parameter is set.
+        """
         return all(self.data_idx_is_set.values())
 
     def get_size(self, **store_kwargs):
+        """
+        Get the size of the parameter. 
+        """
         raise NotImplementedError
 
 
 @dataclass
 class ElementFilter(JSONLike):
+    """
+    A filter for iterations.
+
+    Parameters
+    ----------
+    rules: list[Rule]
+        The filtering rules to use.
+    """
     _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
 
+    #: The filtering rules to use.
     rules: List[app.Rule] = field(default_factory=list)
 
     def filter(
         self, element_iters: List[app.ElementIteration]
     ) -> List[app.ElementIteration]:
+        """
+        Apply the filter rules to select a subsequence of iterations.
+        """
         out = []
         for i in element_iters:
             if all(rule_j.test(i) for rule_j in self.rules):
@@ -1342,8 +1693,23 @@ class ElementFilter(JSONLike):
 
 @dataclass
 class ElementGroup(JSONLike):
+    """
+    A grouping rule for element iterations.
+
+    Parameters
+    ----------
+    name:
+        The name of the grouping rule.
+    where:
+        A filtering rule to select which iterations to use in the group.
+    group_by_distinct:
+        If specified, the name of the property to group iterations by.
+    """
+    #: The name of the grouping rule.
     name: str
+    #: A filtering rule to select which iterations to use in the group.
     where: Optional[ElementFilter] = None
+    #: If specified, the name of the property to group iterations by.
     group_by_distinct: Optional[app.ParameterPath] = None
 
     def __post_init__(self):
@@ -1352,5 +1718,17 @@ class ElementGroup(JSONLike):
 
 @dataclass
 class ElementRepeats:
+    """
+    A repetition rule.
+
+    Parameters
+    ----------
+    number:
+        The number of times to repeat.
+    where:
+        A filtering rule for what to repeat.
+    """
+    #: The number of times to repeat.
     number: int
+    #: A filtering rule for what to repeat.
     where: Optional[ElementFilter] = None

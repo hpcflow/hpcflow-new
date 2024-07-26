@@ -10,8 +10,8 @@ from hpcflow.sdk.core.cache import DependencyCache
 
 @dataclass
 class LoopCache:
-    """Class to store a cache for use in :py:meth:`Workflow.add_empty_loop` and
-    :py:meth:`WorkflowLoop.add_iterations`. Use :py:meth:`build` to get a new instance.
+    """Class to store a cache for use in :py:meth:`.Workflow.add_empty_loop` and
+    :py:meth:`.WorkflowLoop.add_iterations`. Use :py:meth:`build` to get a new instance.
 
     Parameters
     ----------
