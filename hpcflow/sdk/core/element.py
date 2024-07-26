@@ -152,6 +152,7 @@ class ElementInputs(_ElementPrefixedParameter):
     element_action_run: ElementActionRun
         Which EAR does this refer to?
     """
+
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -174,6 +175,7 @@ class ElementOutputs(_ElementPrefixedParameter):
     element_action_run: ElementActionRun
         Which EAR does this refer to?
     """
+
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -196,6 +198,7 @@ class ElementInputFiles(_ElementPrefixedParameter):
     element_action_run: ElementActionRun
         Which EAR does this refer to?
     """
+
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -220,6 +223,7 @@ class ElementOutputFiles(_ElementPrefixedParameter):
     element_action_run: ElementActionRun
         Which EAR does this refer to?
     """
+
     def __init__(
         self,
         element_iteration: Optional[app.ElementIteration] = None,
@@ -286,6 +290,7 @@ class ElementResources(JSONLike):
     SLURM_num_cpus_per_task: str
         How many CPU cores to ask for per SLURM task.
     """
+
     # TODO: how to specify e.g. high-memory requirement?
 
     #: Which scratch space to use.
@@ -506,7 +511,7 @@ class ElementIteration:
     data_idx: dict
         The overall element iteration data index, before resolution of EARs.
     EARs_initialised: bool
-        Whether EARs have been set up for the iteration. 
+        Whether EARs have been set up for the iteration.
     EAR_IDs: dict[int, int]
         Mapping from iteration number to EAR ID, where known.
     EARs: list[dict]
@@ -516,6 +521,7 @@ class ElementIteration:
     loop_idx: dict[str, int]
         Indexing information from the loop.
     """
+
     _app_attr = "app"
 
     def __init__(
@@ -1188,6 +1194,7 @@ class Element:
     iterations: list[dict]
         Data for creating iteration objects.
     """
+
     _app_attr = "app"
 
     # TODO: use slots
@@ -1606,6 +1613,7 @@ class ElementParameter:
     element: Element
         The element that this is a parameter of.
     """
+
     _app_attr = "app"
 
     #: The task that this is part of.
@@ -1658,7 +1666,7 @@ class ElementParameter:
 
     def get_size(self, **store_kwargs):
         """
-        Get the size of the parameter. 
+        Get the size of the parameter.
         """
         raise NotImplementedError
 
@@ -1673,6 +1681,7 @@ class ElementFilter(JSONLike):
     rules: list[Rule]
         The filtering rules to use.
     """
+
     _child_objects = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
 
     #: The filtering rules to use.
@@ -1705,6 +1714,7 @@ class ElementGroup(JSONLike):
     group_by_distinct:
         If specified, the name of the property to group iterations by.
     """
+
     #: The name of the grouping rule.
     name: str
     #: A filtering rule to select which iterations to use in the group.
@@ -1728,6 +1738,7 @@ class ElementRepeats:
     where:
         A filtering rule for what to repeat.
     """
+
     #: The number of times to repeat.
     number: int
     #: A filtering rule for what to repeat.
