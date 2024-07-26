@@ -89,7 +89,8 @@ class _ElementPrefixedParameter:
 
     @property
     def prefixed_names_unlabelled(self) -> Dict[str, List[str]]:
-        """Get a mapping between inputs types and associated labels.
+        """
+        A mapping between input types and associated labels.
 
         If the schema input for a given input type has `multiple=False` (even if a label
         is defined), the values for that input type will be an empty list.
@@ -102,7 +103,7 @@ class _ElementPrefixedParameter:
     @property
     def prefixed_names_unlabelled_str(self):
         """
-        Get a description of the prefixed names.
+        A description of the prefixed names.
         """
         return ", ".join(i for i in self.prefixed_names_unlabelled)
 
@@ -500,7 +501,7 @@ class ElementIteration:
 
     Parameters
     ----------
-    id_: int
+    id_ : int
         The ID of this iteration.
     is_pending: bool
         Whether this iteration is pending execution.
@@ -1175,7 +1176,7 @@ class Element:
 
     Parameters
     ----------
-    id_: int
+    id_ : int
         The ID of this element.
     is_pending: bool
         Whether this element is pending execution.
