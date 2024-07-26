@@ -187,6 +187,7 @@ class JobscriptSubmissionFailure(RuntimeError):
     """
     A job script could not be submitted to the scheduler.
     """
+
     def __init__(
         self,
         message,

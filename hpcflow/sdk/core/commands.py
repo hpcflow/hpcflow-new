@@ -38,6 +38,7 @@ class Command(JSONLike):
     rules: list[ActionRule]
         Rules that state whether this command is eligible to run.
     """
+
     # TODO: What is the difference between command and executable?
 
     _app_attr = "app"

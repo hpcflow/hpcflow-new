@@ -17,6 +17,7 @@ class NumCores(JSONLike):
     """
     A range of cores supported by an executable instance.
     """
+
     #: The minimum number of cores supported.
     start: int
     #: The maximum number of cores supported:
@@ -59,6 +60,7 @@ class ExecutableInstance(JSONLike):
     command:
         The actual command to use for this executable instance.
     """
+
     #: What parallel mode is supported by this executable instance.
     parallel_mode: str
     #: The number of cores supported by this executable instance.
@@ -98,6 +100,7 @@ class Executable(JSONLike):
     instances: list[ExecutableInstance]
         The concrete instances of the application that may be present.
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="instances",
@@ -180,6 +183,7 @@ class Environment(JSONLike):
     executables: list[Executable]
         List of abstract executables in the environment.
     """
+
     _hash_value = None
     _validation_schema = "environments_spec_schema.yaml"
     _child_objects = (
