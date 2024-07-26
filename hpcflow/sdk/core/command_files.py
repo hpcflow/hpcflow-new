@@ -155,6 +155,24 @@ class FileNameExt(JSONLike):
 class InputFileGenerator(JSONLike):
     """
     Represents a script that is run to generate input files for an action.
+
+    Parameters
+    ----------
+    input_file:
+        The file to generate.
+    inputs: list[Parameter]
+        The input parameters to the generator.
+    script:
+        The script that generates the input.
+    environment:
+        The environment in which to run the generator.
+    script_pass_env_spec:
+        Whether to pass in the environment.
+    abortable:
+        Whether the generator can be stopped early.
+        Quick-running scripts tend to not need this.
+    rules: Optional[List[app.ActionRule]] = None
+        User-specified rules for whether to run the generator.
     """
 
     _app_attr = "app"
@@ -271,11 +289,31 @@ class OutputFileParser(JSONLike):
 
     Parameters
     ----------
-    output:
+    output_files: list[FileSpec]
+        The output files that this parser will parse.
+    output: Parameter
         The singular output parsed by this parser. Not to be confused with `outputs` (plural).
-    outputs:
+    script: str
+        The name of the file containing the output file parser source.
+    environment:
+        The environment to use to run the parser.
+    inputs:
+        The other inputs to the parser.
+    outputs: list[str]
         Optional multiple outputs from the upstream actions of the schema that are
         required to parametrise this parser.
+    options:
+        Miscellaneous options.
+    script_pass_env_spec:
+        Whether to pass the environment specifier to the script.
+    abortable:
+        Whether this script can be aborted.
+    save_files:
+        The files that should be saved to the persistent store for the workflow.
+    clean_files:
+        The files that should be immediately removed.
+    rules:
+        Rules for whether to enable this parser.
     """
 
     _child_objects = (

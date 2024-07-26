@@ -184,6 +184,9 @@ class SchedulerVersionsFailure(RuntimeError):
 
 
 class JobscriptSubmissionFailure(RuntimeError):
+    """
+    A job script could not be submitted to the scheduler.
+    """
     def __init__(
         self,
         message,
@@ -272,31 +275,45 @@ class UnsupportedSchedulerError(ResourceValidationError):
 
 
 class UnknownSGEPEError(ResourceValidationError):
-    pass
+    """
+    Miscellaneous error from SGE parallel environment.
+    """
 
 
 class IncompatibleSGEPEError(ResourceValidationError):
-    pass
+    """
+    The SGE parallel environment selected is incompatible.
+    """
 
 
 class NoCompatibleSGEPEError(ResourceValidationError):
-    pass
+    """
+    No SGE parallel environment is compatible with request.
+    """
 
 
 class IncompatibleParallelModeError(ResourceValidationError):
-    pass
+    """
+    The parallel mode is incompatible.
+    """
 
 
 class UnknownSLURMPartitionError(ResourceValidationError):
-    pass
+    """
+    The requested SLURM partition isn't known.
+    """
 
 
 class IncompatibleSLURMPartitionError(ResourceValidationError):
-    pass
+    """
+    The requested SLURM partition is incompatible.
+    """
 
 
 class IncompatibleSLURMArgumentsError(ResourceValidationError):
-    pass
+    """
+    The SLURM arguments are incompatible with each other.
+    """
 
 
 class _MissingStoreItemError(ValueError):
@@ -354,15 +371,21 @@ class MissingParameterData(_MissingStoreItemError):
 
 
 class NotSubmitMachineError(RuntimeError):
-    pass
+    """
+    The requested machine can't be submitted to.
+    """
 
 
 class RunNotAbortableError(ValueError):
-    pass
+    """
+    Cannot abort the run.
+    """
 
 
 class NoCLIFormatMethodError(AttributeError):
-    pass
+    """
+    Some CLI class lacks a format method
+    """
 
 
 class ContainerKeyError(KeyError):
@@ -378,31 +401,45 @@ class MayNeedObjectError(Exception):
 
 
 class NoAvailableElementSetsError(Exception):
-    pass
+    """
+    No element set is available.
+    """
 
 
 class OutputFileParserNoOutputError(ValueError):
-    pass
+    """
+    There was no output for the output file parser to parse.
+    """
 
 
 class SubmissionEnvironmentError(ValueError):
-    """Raised when submitting a workflow on a machine without a compatible environment."""
+    """
+    Raised when submitting a workflow on a machine without a compatible environment.
+    """
 
 
 class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
-    pass
+    """
+    The environment does not have the requested executable at all.
+    """
 
 
 class MissingEnvironmentExecutableInstanceError(SubmissionEnvironmentError):
-    pass
+    """
+    The environment does not have a suitable instance of the requested executable.
+    """
 
 
 class MissingEnvironmentError(SubmissionEnvironmentError):
-    pass
+    """
+    There is no environment with that name.
+    """
 
 
 class UnsupportedScriptDataFormat(ValueError):
-    pass
+    """
+    That format of script data is not supported.
+    """
 
 
 class UnknownScriptDataParameter(ValueError):
@@ -414,7 +451,9 @@ class UnknownScriptDataKey(ValueError):
 
 
 class MissingVariableSubstitutionError(KeyError):
-    pass
+    """
+    No definition available of a variable being substituted.
+    """
 
 
 class EnvironmentPresetUnknownEnvironmentError(ValueError):

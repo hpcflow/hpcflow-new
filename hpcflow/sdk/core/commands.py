@@ -17,7 +17,28 @@ from hpcflow.sdk.core.parameters import ParameterValue
 class Command(JSONLike):
     """
     A command that may be run within a workflow action.
+
+    Parameters
+    ----------
+    command: str
+        The actual command.
+    executable: str
+        The executable to run,
+        from the set of executable managed by the environment.
+    arguments: list[str]
+        The arguments to pass in.
+    variables: dict[str, str]
+        Values that may be substituted when preparing the arguments.
+    stdout: str
+        The name of a file to write standard output to.
+    stderr: str
+        The name of a file to write standard error to.
+    stdin: str
+        The name of a file to read standard input from.
+    rules: list[ActionRule]
+        Rules that state whether this command is eligible to run.
     """
+    # TODO: What is the difference between command and executable?
 
     _app_attr = "app"
     _child_objects = (
@@ -30,8 +51,10 @@ class Command(JSONLike):
     )
 
     #: The actual command.
+    #: Overrides :py:attr:`executable`.
     command: Optional[str] = None
-    #: The executable to run.
+    #: The executable to run,
+    #: from the set of executable managed by the environment.
     executable: Optional[str] = None
     #: The arguments to pass in.
     arguments: Optional[List[str]] = None

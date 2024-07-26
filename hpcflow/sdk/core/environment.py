@@ -14,8 +14,14 @@ from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_item
 
 @dataclass
 class NumCores(JSONLike):
+    """
+    A range of cores supported by an executable instance.
+    """
+    #: The minimum number of cores supported.
     start: int
+    #: The maximum number of cores supported:
     stop: int
+    #: The step in the number of cores supported. Normally 1.
     step: int = None
 
     def __post_init__(self):
@@ -41,8 +47,23 @@ class NumCores(JSONLike):
 
 @dataclass
 class ExecutableInstance(JSONLike):
+    """
+    A particular instance of an executable that can support some mode of operation.
+
+    Parameters
+    ----------
+    parallel_mode:
+        What parallel mode is supported by this executable instance.
+    num_cores: NumCores | int | dict[str, int]
+        The number of cores supported by this executable instance.
+    command:
+        The actual command to use for this executable instance.
+    """
+    #: What parallel mode is supported by this executable instance.
     parallel_mode: str
+    #: The number of cores supported by this executable instance.
     num_cores: Any
+    #: The actual command to use for this executable instance.
     command: str
 
     def __post_init__(self):
@@ -67,6 +88,16 @@ class ExecutableInstance(JSONLike):
 
 
 class Executable(JSONLike):
+    """
+    A program managed by the environment.
+
+    Parameters
+    ----------
+    label:
+        The abstract name of the program.
+    instances: list[ExecutableInstance]
+        The concrete instances of the application that may be present.
+    """
     _child_objects = (
         ChildObjectSpec(
             name="instances",
@@ -76,7 +107,9 @@ class Executable(JSONLike):
     )
 
     def __init__(self, label: str, instances: List[app.ExecutableInstance]):
+        #: The abstract name of the program.
         self.label = check_valid_py_identifier(label)
+        #: The concrete instances of the application that may be present.
         self.instances = instances
 
         self._executables_list = None  # assigned by parent
@@ -101,9 +134,28 @@ class Executable(JSONLike):
 
     @property
     def environment(self):
+        """
+        The environment that the executable is going to run in.
+        """
         return self._executables_list.environment
 
     def filter_instances(self, parallel_mode=None, num_cores=None):
+        """
+        Select the instances of the executable that are compatible with the given
+        requirements.
+
+        Parameters
+        ----------
+        parallel_mode: str
+            If given, the parallel mode to require.
+        num_cores:  int
+            If given, the number of cores desired.
+
+        Returns
+        -------
+        list[ExecutableInstance]:
+            The known executable instances that match the requirements.
+        """
         out = []
         for i in self.instances:
             if parallel_mode is None or i.parallel_mode == parallel_mode:
@@ -113,6 +165,21 @@ class Executable(JSONLike):
 
 
 class Environment(JSONLike):
+    """
+    An execution environment that contains a number of executables.
+
+    Parameters
+    ----------
+    name: str
+        The name of the environment.
+    setup: list[str]
+        Commands to run to enter the environment.
+    specifiers: dict[str, str]
+        Dictionary of attributes that may be used to supply addional key/value pairs to
+        look up an environment by.
+    executables: list[Executable]
+        List of abstract executables in the environment.
+    """
     _hash_value = None
     _validation_schema = "environments_spec_schema.yaml"
     _child_objects = (
@@ -126,9 +193,14 @@ class Environment(JSONLike):
     def __init__(
         self, name, setup=None, specifiers=None, executables=None, _hash_value=None
     ):
+        #: The name of the environment.
         self.name = name
+        #: Commands to run to enter the environment.
         self.setup = setup
+        #: Dictionary of attributes that may be used to supply addional key/value pairs
+        #: to look up an environment by.
         self.specifiers = specifiers or {}
+        #: List of abstract executables in the environment.
         self.executables = (
             executables
             if isinstance(executables, ExecutablesList)
