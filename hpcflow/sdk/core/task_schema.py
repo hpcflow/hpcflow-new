@@ -29,6 +29,7 @@ class TaskObjective(JSONLike):
         ),
     )
 
+    #: The name of the objective.
     name: str
 
     def __post_init__(self):
@@ -309,6 +310,9 @@ class TaskSchema(JSONLike):
         return self._show_info()
 
     def get_info_html(self) -> str:
+        """
+        Describe the task schema as an HTML document.
+        """
         def _format_parameter_type(param):
             param_typ_fmt = param.typ
             if param.typ in param_types:
@@ -586,6 +590,9 @@ class TaskSchema(JSONLike):
     @classmethod
     @contextmanager
     def ignore_invalid_actions(cls):
+        """
+        A context manager within which invalid actions will be ignored.
+        """
         try:
             cls._validate_actions = False
             yield
@@ -721,6 +728,9 @@ class TaskSchema(JSONLike):
 
     @property
     def name(self):
+        """
+        The name of this schema.
+        """
         out = (
             f"{self.objective.name}"
             f"{f'_{self.method}' if self.method else ''}"
@@ -730,14 +740,23 @@ class TaskSchema(JSONLike):
 
     @property
     def input_types(self):
+        """
+        The input types to the schema.
+        """
         return tuple(j for i in self.inputs for j in i.all_labelled_types)
 
     @property
     def output_types(self):
+        """
+        The output types from the schema.
+        """
         return tuple(i.typ for i in self.outputs)
 
     @property
     def provides_parameters(self) -> Tuple[Tuple[str, str]]:
+        """
+        The parameters that this schema provides.
+        """
         out = []
         for schema_inp in self.inputs:
             for labelled_info in schema_inp.labelled_info():
@@ -753,6 +772,9 @@ class TaskSchema(JSONLike):
 
     @property
     def task_template(self):
+        """
+        The template that this schema is contained in.
+        """
         return self._task_template
 
     @classmethod
@@ -770,6 +792,9 @@ class TaskSchema(JSONLike):
         return out
 
     def get_key(self):
+        """
+        Get the hashable value that represents this schema.
+        """
         return (str(self.objective), self.method, self.implementation)
 
     def _get_single_label_lookup(self, prefix="") -> Dict[str, str]:
