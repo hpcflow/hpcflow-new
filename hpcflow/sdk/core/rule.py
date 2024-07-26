@@ -13,7 +13,7 @@ from hpcflow.sdk.log import TimeIt
 class Rule(JSONLike):
     """
     Class to represent a testable condition on an element iteration or run.
-    
+
     Exactly one of ``check_exists``, ``check_missing`` and ``condition`` must be provided.
 
     Parameters

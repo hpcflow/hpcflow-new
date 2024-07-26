@@ -313,6 +313,7 @@ class TaskSchema(JSONLike):
         """
         Describe the task schema as an HTML document.
         """
+
         def _format_parameter_type(param):
             param_typ_fmt = param.typ
             if param.typ in param_types:
