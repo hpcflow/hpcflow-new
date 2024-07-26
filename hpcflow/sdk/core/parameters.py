@@ -52,6 +52,7 @@ class ParameterValue:
     """
     The value of a parameter.
     """
+
     _typ = None
     _sub_parameters = {}
 
@@ -129,6 +130,7 @@ class Parameter(JSONLike):
     _validation:
         Validation schema.
     """
+
     _validation_schema = "parameters_spec_schema.yaml"
     _child_objects = (
         ChildObjectSpec(
@@ -208,6 +210,7 @@ class SubParameter:
     """
     A parameter that is a component of another parameter.
     """
+
     #: How to find this within the containing paraneter.
     address: Address
     #: The containing main parameter.
@@ -224,6 +227,7 @@ class SchemaParameter(JSONLike):
     parameter: Parameter
         The parameter.
     """
+
     _app_attr = "app"
 
     _child_objects = (
@@ -261,6 +265,7 @@ class NullDefault(enum.Enum):
     """
     Sentinel value used to distinguish an explicit null.
     """
+
     NULL = 0
 
 
@@ -602,6 +607,7 @@ class ValueSequence(JSONLike):
     value_class_method: str
         Name of a method used to generate sequence values. Not normally used directly.
     """
+
     def __init__(
         self,
         path: str,
@@ -1306,6 +1312,7 @@ class ValuePerturbation(AbstractInputValue):
     """
     A perturbation applied to a value.
     """
+
     #: The name of this perturbation.
     name: str
     #: The path to the value(s) to perturb.
@@ -2015,6 +2022,7 @@ class InputSource(JSONLike):
     where: Rule | list[Rule] | ElementFilter
         Filtering rules.
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="source_type",
