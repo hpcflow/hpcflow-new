@@ -48,6 +48,7 @@ class Loop(JSONLike):
     termination:
         Stopping criterion, expressed as a rule.
     """
+
     _app_attr = "app"
     _child_objects = (ChildObjectSpec(name="termination", class_name="Rule"),)
 
@@ -191,7 +192,7 @@ class Loop(JSONLike):
 class WorkflowLoop:
     """
     Class to represent a :py:class:`.Loop` that is bound to a ::py:class:`.Workflow`.
-    
+
     Parameters
     ----------
     index: int
@@ -205,7 +206,7 @@ class WorkflowLoop:
     iterable_parameters:
         Description of what parameters are being iterated over.
     parents: list[str]
-        The paths to the parent entities of this loop. 
+        The paths to the parent entities of this loop.
     """
 
     _app_attr = "app"

@@ -175,7 +175,7 @@ class DotAccessObjectList(ObjectList):
     """
     Provide dot-notation access via an access attribute for the case where the access
     attribute uniquely identifies a single object.
-    
+
     Parameters
     ----------
     _objects:
