@@ -90,20 +90,32 @@ class WorkflowTemplate(JSONLike):
 
     Parameters
     ----------
-    name
+    name:
         A string name for the workflow. By default this name will be used in combination
         with a date-time stamp when generating a persistent workflow from the template.
-    tasks
+    tasks: list[Task]
         A list of Task objects to include in the workflow.
-    loops
+    loops: list[Loop]
         A list of Loop objects to include in the workflow.
-    resources
+    workflow:
+        The associated concrete workflow.
+    resources: dict[str, dict] | list[ResourceSpec] | ResourceList
         Template-level resources to apply to all tasks as default values. This can be a
         dict that maps action scopes to resources (e.g. `{{"any": {{"num_cores": 2}}}}`)
         or a list of `ResourceSpec` objects, or a `ResourceList` object.
-    merge_resources
+    environments:
+        The execution environments to use.
+    env_presets:
+        The environment presets to use.
+    source_file:
+        The file this was derived from.
+    store_kwargs:
+        Additional arguments to pass to the persistent data store constructor.
+    merge_resources:
         If True, merge template-level `resources` into element set resources. If False,
         template-level resources are ignored.
+    merge_envs:
+        Whether to merge the environemtns into task resources.
     """
 
     _app_attr = "app"
@@ -455,6 +467,8 @@ class WorkflowTemplate(JSONLike):
 
 def resolve_fsspec(path: PathLike, **kwargs) -> Tuple[Any, str, str]:
     """
+    Decide how to handle a particular virtual path.
+
     Parameters
     ----------
     kwargs
@@ -486,6 +500,22 @@ def resolve_fsspec(path: PathLike, **kwargs) -> Tuple[Any, str, str]:
 
 
 class Workflow:
+    """
+    A concrete workflow.
+
+    Parameters
+    ----------
+    workflow_ref:
+        Either the path to a persistent workflow, or an integer that will interpreted
+        as the local ID of a workflow submission, as reported by the app `show`
+        command.
+    store_fmt:
+        The format of persistent store to use. Used to select the store manager class.
+    fs_kwargs:
+        Additional arguments to pass when resolving a virtual workflow reference.
+    kwargs:
+        For compatibility during pre-stable development phase.
+    """
     _app_attr = "app"
     _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
     _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
@@ -499,17 +529,6 @@ class Workflow:
         fs_kwargs: Optional[Dict] = None,
         **kwargs,
     ):
-        """
-        Parameters
-        ----------
-        workflow_ref
-            Either the path to a persistent workflow, or an integer that will interpreted
-            as the local ID of a workflow submission, as reported by the app `show`
-            command.
-        kwargs
-            For compatibility during pre-stable development phase.
-        """
-
         if isinstance(workflow_ref, int):
             path = self.app._get_workflow_path_from_local_ID(workflow_ref)
         else:
@@ -546,15 +565,19 @@ class Workflow:
 
     @property
     def name(self):
-        """The workflow name may be different from the template name, as it includes the
-        creation date-timestamp if generated."""
+        """
+        The name of the workflow.
+
+        The workflow name may be different from the template name, as it includes the
+        creation date-timestamp if generated.
+        """
         if not self._name:
             self._name = self._store.get_name()
         return self._name
 
     @property
     def url(self):
-        """Get an fsspec URL for this workflow."""
+        """An fsspec URL for this workflow."""
         if self._store.fs.protocol == "zip":
             return self._store.fs.of.path
         elif self._store.fs.protocol == "file":
@@ -564,10 +587,16 @@ class Workflow:
 
     @property
     def store_format(self):
+        """
+        The format of the workflow's persistent store.
+        """
         return self._store._name
 
     @property
     def num_tasks(self) -> int:
+        """
+        The number of tasks in the workflow.
+        """
         return len(self.tasks)
 
     @classmethod
@@ -588,28 +617,28 @@ class Workflow:
 
         Parameters
         ----------
-        template
+        template:
             The WorkflowTemplate object to make persistent.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         if status:
@@ -673,30 +702,30 @@ class Workflow:
 
         Parameters
         ----------
-        YAML_path
+        YAML_path:
             The path to a workflow template in the YAML file format.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
-        variables
+        variables:
             String variables to substitute in the file given by `YAML_path`.
         """
         template = cls.app.WorkflowTemplate.from_YAML_file(
@@ -731,30 +760,30 @@ class Workflow:
 
         Parameters
         ----------
-        YAML_str
+        YAML_str:
             The YAML string containing a workflow template parametrisation.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
-        variables
+        variables:
             String variables to substitute in the string `YAML_str`.
         """
         template = cls.app.WorkflowTemplate.from_YAML_string(
@@ -790,30 +819,30 @@ class Workflow:
 
         Parameters
         ----------
-        JSON_path
+        JSON_path:
             The path to a workflow template in the JSON file format.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
-        variables
+        variables:
             String variables to substitute in the file given by `JSON_path`.
         """
         template = cls.app.WorkflowTemplate.from_JSON_file(
@@ -850,30 +879,30 @@ class Workflow:
 
         Parameters
         ----------
-        JSON_str
+        JSON_str:
             The JSON string containing a workflow template parametrisation.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
-        variables
+        variables:
             String variables to substitute in the string `JSON_str`.
         """
         template = cls.app.WorkflowTemplate.from_JSON_string(
@@ -912,34 +941,34 @@ class Workflow:
 
         Parameters
         ----------
-        template_path
+        template_path:
             The path to a template file in YAML or JSON format, and with a ".yml",
             ".yaml", or ".json" extension.
-        template_format
+        template_format:
             If specified, one of "json" or "yaml". This forces parsing from a particular
             format regardless of the file extension.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        name
+        name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified the `WorkflowTemplate` name will be used,
             in combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
-        variables
+        variables:
             String variables to substitute in the file given by `template_path`.
         """
         try:
@@ -984,37 +1013,37 @@ class Workflow:
 
         Parameters
         ----------
-        template_name
+        template_name:
             Name of the new workflow template, from which the new workflow will be
             generated.
-        tasks
+        tasks:
             List of Task objects to add to the new workflow.
-        loops
+        loops:
             List of Loop objects to add to the new workflow.
-        resources
+        resources:
             Mapping of action scopes to resource requirements, to be applied to all
             element sets in the workflow. `resources` specified in an element set take
             precedence of those defined here for the whole workflow.
-        path
+        path:
             The directory in which the workflow will be generated. The current directory
             if not specified.
-        workflow_name
+        workflow_name:
             The name of the workflow. If specified, the workflow directory will be `path`
             joined with `name`. If not specified `template_name` will be used, in
             combination with a date-timestamp.
-        overwrite
+        overwrite:
             If True and the workflow directory (`path` + `name`) already exists, the
             existing directory will be overwritten.
-        store
+        store:
             The persistent store to use for this workflow.
-        ts_fmt
+        ts_fmt:
             The datetime format to use for storing datetimes. Datetimes are always stored
             in UTC (because Numpy does not store time zone info), so this should not
             include a time zone name.
-        ts_name_fmt
+        ts_name_fmt:
             The datetime format to use when generating the workflow name, where it
             includes a timestamp.
-        store_kwargs
+        store_kwargs:
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
         template = cls.app.WorkflowTemplate(
@@ -1080,6 +1109,9 @@ class Workflow:
         new_wk_task._add_elements(element_sets=task.element_sets)
 
     def add_task(self, task: app.Task, new_index: Optional[int] = None) -> None:
+        """
+        Add a task to this workflow.
+        """
         with self._store.cached_load():
             with self.batch_update():
                 self._add_task(task, new_index=new_index)
@@ -1186,6 +1218,9 @@ class Workflow:
 
     @property
     def creation_info(self):
+        """
+        The creation descriptor for the workflow.
+        """
         if not self._creation_info:
             info = self._store.get_creation_info()
             info["create_time"] = (
@@ -1198,22 +1233,34 @@ class Workflow:
 
     @property
     def id_(self):
+        """
+        The ID of this workflow.
+        """
         return self.creation_info["id"]
 
     @property
     def ts_fmt(self):
+        """
+        The timestamp format.
+        """
         if not self._ts_fmt:
             self._ts_fmt = self._store.get_ts_fmt()
         return self._ts_fmt
 
     @property
     def ts_name_fmt(self):
+        """
+        The timestamp format for names.
+        """
         if not self._ts_name_fmt:
             self._ts_name_fmt = self._store.get_ts_name_fmt()
         return self._ts_name_fmt
 
     @property
     def template_components(self) -> Dict:
+        """
+        The template components used for this workflow.
+        """
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
@@ -1222,6 +1269,9 @@ class Workflow:
 
     @property
     def template(self) -> app.WorkflowTemplate:
+        """
+        The template that this workflow was made from.
+        """
         if self._template is None:
             with self._store.cached_load():
                 temp_js = self._store.get_template()
@@ -1240,6 +1290,9 @@ class Workflow:
 
     @property
     def tasks(self) -> app.WorkflowTaskList:
+        """
+        The tasks in this workflow.
+        """
         if self._tasks is None:
             with self._store.cached_load():
                 all_tasks = self._store.get_tasks()
@@ -1258,6 +1311,9 @@ class Workflow:
 
     @property
     def loops(self) -> app.WorkflowLoopList:
+        """
+        The loops in this workflow.
+        """
         if self._loops is None:
             with self._store.cached_load():
                 wk_loops = []
@@ -1279,6 +1335,9 @@ class Workflow:
 
     @property
     def submissions(self) -> List[app.Submission]:
+        """
+        The job submissions done by this workflow.
+        """
         if self._submissions is None:
             self.app.persistence_logger.debug("loading workflow submissions")
             with self._store.cached_load():
@@ -1293,42 +1352,66 @@ class Workflow:
 
     @property
     def num_added_tasks(self) -> int:
+        """
+        The total number of added tasks.
+        """
         return self._store._get_num_total_added_tasks()
 
     @TimeIt.decorator
     def get_store_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
+        """
+        Get the persistent element action runs.
+        """
         return self._store.get_EARs(id_lst)
 
     @TimeIt.decorator
     def get_store_element_iterations(
         self, id_lst: Iterable[int]
     ) -> List[AnySElementIter]:
+        """
+        Get the persistent element iterations.
+        """
         return self._store.get_element_iterations(id_lst)
 
     @TimeIt.decorator
     def get_store_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
+        """
+        Get the persistent elements.
+        """
         return self._store.get_elements(id_lst)
 
     @TimeIt.decorator
     def get_store_tasks(self, id_lst: Iterable[int]) -> List[AnySTask]:
+        """
+        Get the persistent tasks.
+        """
         return self._store.get_tasks_by_IDs(id_lst)
 
     def get_element_iteration_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> List[int]:
+        """
+        Get the element iteration IDs of EARs.
+        """
         return [i.elem_iter_ID for i in self.get_store_EARs(id_lst)]
 
     def get_element_IDs_from_EAR_IDs(self, id_lst: Iterable[int]) -> List[int]:
+        """
+        Get the element IDs of EARs.
+        """
         iter_IDs = self.get_element_iteration_IDs_from_EAR_IDs(id_lst)
         return [i.element_ID for i in self.get_store_element_iterations(iter_IDs)]
 
     def get_task_IDs_from_element_IDs(self, id_lst: Iterable[int]) -> List[int]:
+        """
+        Get the task IDs of elements.
+        """
         return [i.task_ID for i in self.get_store_elements(id_lst)]
 
     def get_EAR_IDs_of_tasks(self, id_lst: int) -> List[int]:
-        """Get EAR IDs belonging to multiple tasks"""
+        """Get EAR IDs belonging to multiple tasks."""
         return [i.id_ for i in self.get_EARs_of_tasks(id_lst)]
 
     def get_EARs_of_tasks(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
-        """Get EARs belonging to multiple tasks"""
+        """Get EARs belonging to multiple task.s"""
         EARs = []
         for i in id_lst:
             task = self.tasks.get(insert_ID=i)
@@ -1341,7 +1424,7 @@ class Workflow:
     def get_element_iterations_of_tasks(
         self, id_lst: Iterable[int]
     ) -> List[app.ElementIteration]:
-        """Get element iterations belonging to multiple tasks"""
+        """Get element iterations belonging to multiple tasks."""
         iters = []
         for i in id_lst:
             task = self.tasks.get(insert_ID=i)
@@ -1431,7 +1514,7 @@ class Workflow:
 
     @TimeIt.decorator
     def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
-        """Return element action run objects from a list of IDs."""
+        """Get element action run objects from a list of IDs."""
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
         store_EARs = self._store.get_EARs(id_lst)
@@ -1490,14 +1573,23 @@ class Workflow:
 
     @TimeIt.decorator
     def get_all_elements(self) -> List[app.Element]:
+        """
+        Get all elements in the workflow.
+        """
         return self.get_elements_from_IDs(range(self.num_elements))
 
     @TimeIt.decorator
     def get_all_element_iterations(self) -> List[app.ElementIteration]:
+        """
+        Get all iterations in the workflow.
+        """
         return self.get_element_iterations_from_IDs(range(self.num_element_iterations))
 
     @TimeIt.decorator
     def get_all_EARs(self) -> List[app.ElementActionRun]:
+        """
+        Get all runs in the workflow.
+        """
         return self.get_EARs_from_IDs(range(self.num_EARs))
 
     @contextmanager
@@ -1736,6 +1828,9 @@ class Workflow:
         return self._store.copy(path)
 
     def delete(self):
+        """
+        Delete the persistent data.
+        """
         self._store.delete()
 
     def _delete_no_confirm(self):
@@ -1744,22 +1839,37 @@ class Workflow:
     def get_parameters(
         self, id_lst: Iterable[int], **kwargs: Dict
     ) -> List[AnySParameter]:
+        """
+        Get parameters known to the workflow.
+        """
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
+        """
+        Get parameter sources known to the workflow.
+        """
         return self._store.get_parameter_sources(id_lst)
 
     @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
+        """
+        Get whether some parameters are set.
+        """
         return self._store.get_parameter_set_statuses(id_lst)
 
     @TimeIt.decorator
     def get_parameter(self, index: int, **kwargs: Dict) -> AnySParameter:
+        """
+        Get a single parameter.
+        """
         return self.get_parameters([index], **kwargs)[0]
 
     @TimeIt.decorator
     def get_parameter_data(self, index: int, **kwargs: Dict) -> Any:
+        """
+        Get the data relating to a parameter.
+        """
         param = self.get_parameter(index, **kwargs)
         if param.data is not None:
             return param.data
@@ -1768,22 +1878,28 @@ class Workflow:
 
     @TimeIt.decorator
     def get_parameter_source(self, index: int) -> Dict:
+        """
+        Get the source of a particular parameter.
+        """
         return self.get_parameter_sources([index])[0]
 
     @TimeIt.decorator
     def is_parameter_set(self, index: int) -> bool:
+        """
+        Test if a particular parameter is set.
+        """
         return self.get_parameter_set_statuses([index])[0]
 
     @TimeIt.decorator
     def get_all_parameters(self, **kwargs: Dict) -> List[AnySParameter]:
-        """Retrieve all store parameters."""
+        """Retrieve all persistent parameters."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameters(id_lst, **kwargs)
 
     @TimeIt.decorator
     def get_all_parameter_sources(self, **kwargs: Dict) -> List[Dict]:
-        """Retrieve all store parameters."""
+        """Retrieve all persistent parameters sources."""
         num_params = self._store._get_num_total_parameters()
         id_lst = list(range(num_params))
         return self._store.get_parameter_sources(id_lst, **kwargs)
@@ -1797,6 +1913,9 @@ class Workflow:
     def check_parameters_exist(
         self, id_lst: Union[int, List[int]]
     ) -> Union[bool, List[bool]]:
+        """
+        Check if parameters exist.
+        """
         is_multi = True
         if isinstance(id_lst, int):
             is_multi = False
@@ -1858,7 +1977,7 @@ class Workflow:
 
         Parameters
         ----------
-        map_to_insert_ID : bool, optional
+        map_to_insert_ID : bool
             If True, return a dict whose values are task insert IDs, otherwise return a
             list.
 
@@ -1922,48 +2041,81 @@ class Workflow:
 
     @property
     def num_tasks(self):
+        """
+        The total number of tasks.
+        """
         return self._store._get_num_total_tasks()
 
     @property
     def num_submissions(self):
+        """
+        The total number of job submissions.
+        """
         return self._store._get_num_total_submissions()
 
     @property
     def num_elements(self):
+        """
+        The total number of elements.
+        """
         return self._store._get_num_total_elements()
 
     @property
     def num_element_iterations(self):
+        """
+        The total number of element iterations.
+        """
         return self._store._get_num_total_elem_iters()
 
     @property
     @TimeIt.decorator
     def num_EARs(self):
+        """
+        The total number of element action runs.
+        """
         return self._store._get_num_total_EARs()
 
     @property
     def num_loops(self) -> int:
+        """
+        The total number of loops.
+        """
         return self._store._get_num_total_loops()
 
     @property
     def artifacts_path(self):
+        """
+        Path to artifacts of the workflow (temporary files, etc).
+        """
         # TODO: allow customisation of artifacts path at submission and resources level
         return Path(self.path) / "artifacts"
 
     @property
     def input_files_path(self):
+        """
+        Path to input files for the workflow.
+        """
         return self.artifacts_path / self._input_files_dir_name
 
     @property
     def submissions_path(self):
+        """
+        Path to submission data for ths workflow.
+        """
         return self.artifacts_path / "submissions"
 
     @property
     def task_artifacts_path(self):
+        """
+        Path to artifacts of tasks.
+        """
         return self.artifacts_path / "tasks"
 
     @property
     def execution_path(self):
+        """
+        Path to working directory path for executing.
+        """
         return Path(self.path) / self._exec_dir_name
 
     @TimeIt.decorator
@@ -1972,6 +2124,9 @@ class Workflow:
         task: app.Task,
         idx_lst: Optional[List[int]] = None,
     ) -> List[app.Element]:
+        """
+        Get the elements of a task.
+        """
         return [
             self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
@@ -2122,6 +2277,9 @@ class Workflow:
     def set_parameter_value(
         self, param_id: int, value: Any, commit: bool = False
     ) -> None:
+        """
+        Set the value of a parameter.
+        """
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_parameter_value(param_id, value)
@@ -2137,12 +2295,19 @@ class Workflow:
                 self._store.set_EARs_initialised(iter_ID)
 
     def elements(self) -> Iterator[app.Element]:
+        """
+        Get the elements of the workflow's tasks.
+        """
         for task in self.tasks:
             for element in task.elements[:]:
                 yield element
 
     @TimeIt.decorator
     def get_iteration_task_pathway(self, ret_iter_IDs=False, ret_data_idx=False):
+        """
+        Get the iteration task pathway.
+        """
+        # FIXME: I don't understand this concept, alas.
         pathway = []
         for task in self.tasks:
             pathway.append((task.insert_ID, {}))
@@ -2574,6 +2739,9 @@ class Workflow:
     def add_submission(
         self, tasks: Optional[List[int]] = None, JS_parallelism: Optional[bool] = None
     ) -> app.Submission:
+        """
+        Add a job submission to this workflow.
+        """
         with self._store.cached_load():
             with self.batch_update():
                 return self._add_submission(tasks, JS_parallelism)
@@ -2617,6 +2785,9 @@ class Workflow:
     def resolve_jobscripts(
         self, tasks: Optional[List[int]] = None
     ) -> List[app.Jobscript]:
+        """
+        Resolve this workflow to a set of job scripts to run.
+        """
         js, element_deps = self._resolve_singular_jobscripts(tasks)
         js_deps = resolve_jobscript_dependencies(js, element_deps)
 
@@ -2824,6 +2995,9 @@ class Workflow:
         value: Any,
         EAR_ID: int,
     ):
+        """
+        Save a parameter where an EAR can find it.
+        """
         self.app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
         self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
         with self._store.cached_load():
@@ -2893,6 +3067,9 @@ class Workflow:
                     )
 
     def get_all_submission_run_IDs(self) -> List[int]:
+        """
+        Get the run IDs of all submissions.
+        """
         self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
         id_lst = []
         for sub in self.submissions:
@@ -2918,6 +3095,9 @@ class Workflow:
                 self.set_EAR_skip(run_ID)
 
     def get_loop_map(self, id_lst: Optional[List[int]] = None):
+        """
+        Get a description of what is going on with looping.
+        """
         # TODO: test this works across multiple jobscripts
         self.app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
@@ -2962,6 +3142,9 @@ class Workflow:
         backup: Optional[bool] = True,
         status: Optional[bool] = True,
     ):
+        """
+        Reorganise the stored data chunks for EARs to be more efficient.
+        """
         self._store.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
 
     def rechunk_parameter_base(
@@ -2970,6 +3153,9 @@ class Workflow:
         backup: Optional[bool] = True,
         status: Optional[bool] = True,
     ):
+        """
+        Reorganise the stored data chunks for parameterss to be more efficient.
+        """
         self._store.rechunk_parameter_base(
             chunk_size=chunk_size, backup=backup, status=status
         )
@@ -2980,7 +3166,9 @@ class Workflow:
         backup: Optional[bool] = True,
         status: Optional[bool] = True,
     ):
-        """Rechunk metadata/runs and parameters/base arrays."""
+        """
+        Rechunk metadata/runs and parameters/base arrays, making them more efficient.
+        """
         self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
         self.rechunk_parameter_base(chunk_size=chunk_size, backup=backup, status=status)
 
