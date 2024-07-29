@@ -516,6 +516,7 @@ class Workflow:
     kwargs:
         For compatibility during pre-stable development phase.
     """
+
     _app_attr = "app"
     _default_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
     _default_ts_name_fmt = r"%Y-%m-%d_%H%M%S"
