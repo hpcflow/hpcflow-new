@@ -83,7 +83,7 @@ class InputStatus:
 
 class ElementSet(JSONLike):
     """Class to represent a parameterisation of a new set of elements.
-    
+
     Parameters
     ----------
     inputs: list[InputValue]
@@ -573,7 +573,7 @@ class ElementSet(JSONLike):
 class OutputLabel(JSONLike):
     """
     Schema input labels that should be applied to a subset of task outputs.
-    
+
     Parameters
     ----------
     parameter:
@@ -1458,7 +1458,7 @@ class Task(JSONLike):
         self, name: str, where: app.ElementFilter, group_by_distinct: app.ParameterPath
     ):
         """
-        Add an element group to this task. 
+        Add an element group to this task.
         """
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
@@ -3092,6 +3092,7 @@ class Elements:
     task:
         The task this will be the elements of.
     """
+
     __slots__ = ("_task",)
 
     def __init__(self, task: app.WorkflowTask):
@@ -3171,6 +3172,7 @@ class Parameters:
     default:
         A default value to use when the parameter is absent.
     """
+
     _app_attr = "_app"
 
     task: app.WorkflowTask
