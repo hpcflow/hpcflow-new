@@ -116,7 +116,7 @@ class StoreResource(ABC):
 class JSONFileStoreResource(StoreResource):
     """
     For caching reads and writes to a JSON file.
-    
+
     Parameters
     ----------
     app: App
@@ -157,7 +157,7 @@ class JSONFileStoreResource(StoreResource):
 class ZarrAttrsStoreResource(StoreResource):
     """
     For caching reads and writes to Zarr attributes on groups and arrays.
-    
+
     Parameters
     ----------
     app: App

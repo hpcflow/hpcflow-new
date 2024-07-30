@@ -8,6 +8,7 @@ class NullScheduler:
     """
     Abstract base class for schedulers.
     """
+
     DEFAULT_SHELL_ARGS = ""
     DEFAULT_SHEBANG_ARGS = ""
 
@@ -77,6 +78,7 @@ class Scheduler(NullScheduler):
     array_item_var: str
         The variable for array items, if overridden from default.
     """
+
     DEFAULT_LOGIN_NODES_CMD = None
     DEFAULT_LOGIN_NODE_MATCH = "*login*"
 

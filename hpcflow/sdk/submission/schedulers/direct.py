@@ -17,6 +17,7 @@ class DirectScheduler(NullScheduler):
     The correct subclass (:py:class:`DirectPosix` or :py:class:`DirectWindows`) should
     be used to create actual instances.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -116,6 +117,7 @@ class DirectScheduler(NullScheduler):
         """
         Cancel some jobs.
         """
+
         def callback(proc):
             try:
                 js = js_proc_id[proc.pid]
@@ -160,6 +162,7 @@ class DirectPosix(DirectScheduler):
     """
     A direct scheduler for POSIX systems.
     """
+
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
 
@@ -171,6 +174,7 @@ class DirectWindows(DirectScheduler):
     """
     A direct scheduler for Windows.
     """
+
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "powershell.exe"
 
