@@ -108,6 +108,7 @@ class StoreTask:
     task_template:
         Description of the template for the task.
     """
+
     id_: int
     index: int
     is_pending: bool
@@ -377,7 +378,7 @@ class StoreEAR:
     metadata:
         Metadata concerning e.g. the state of the EAR.
     run_hostname:
-        Where this EAR was submitted to run, if known. 
+        Where this EAR was submitted to run, if known.
     """
 
     id_: int
@@ -526,6 +527,7 @@ class StoreParameter:
     source:
         Description of where this parameter originated.
     """
+
     id_: int
     is_pending: bool
     is_set: bool
@@ -753,6 +755,7 @@ class PersistentStore(ABC):
     fs: fsspec.AbstractFileSystem
         Optionally, information about how to access the store.
     """
+
     _store_task_cls = StoreTask
     _store_elem_cls = StoreElement
     _store_iter_cls = StoreElementIter
