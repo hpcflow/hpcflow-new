@@ -141,17 +141,29 @@ class WorkflowTemplate(JSONLike):
         ),
     )
 
+    #: A string name for the workflow.
     name: str
+    #: Documentation information.
     doc: Optional[Union[List[str], str]] = field(repr=False, default=None)
+    #: A list of Task objects to include in the workflow.
     tasks: Optional[List[app.Task]] = field(default_factory=lambda: [])
+    #: A list of Loop objects to include in the workflow.
     loops: Optional[List[app.Loop]] = field(default_factory=lambda: [])
+    #: The associated concrete workflow.
     workflow: Optional[app.Workflow] = None
+    #: Template-level resources to apply to all tasks as default values.
     resources: Optional[Dict[str, Dict]] = None
+    #: The execution environments to use.
     environments: Optional[Dict[str, Dict[str, Any]]] = None
+    #: The environment presets to use.
     env_presets: Optional[Union[str, List[str]]] = None
+    #: The file this was derived from.
     source_file: Optional[str] = field(default=None, compare=False)
+    #: Additional arguments to pass to the persistent data store constructor.
     store_kwargs: Optional[Dict] = field(default_factory=lambda: {})
+    #: Whether to merge template-level `resources` into element set resources.
     merge_resources: Optional[bool] = True
+    #: Whether to merge the environemtns into task resources.
     merge_envs: Optional[bool] = True
 
     def __post_init__(self):
@@ -1798,6 +1810,8 @@ class Workflow:
         include_rechunk_backups=False,
     ) -> str:
         """
+        Convert the workflow to a zipped form.
+
         Parameters
         ----------
         path:
@@ -1815,6 +1829,8 @@ class Workflow:
 
     def unzip(self, path=".", log=None) -> str:
         """
+        Convert the workflow to an unzipped form.
+
         Parameters
         ----------
         path:
@@ -3008,6 +3024,10 @@ class Workflow:
                 self.set_parameter_value(param_id, value)
 
     def show_all_EAR_statuses(self):
+        """
+        Print a description of the status of every element action run in
+        the workflow.
+        """
         print(
             f"{'task':8s} {'element':8s} {'iteration':8s} {'action':8s} "
             f"{'run':8s} {'sub.':8s} {'exitcode':8s} {'success':8s} {'skip':8s}"

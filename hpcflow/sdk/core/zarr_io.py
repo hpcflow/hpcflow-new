@@ -68,6 +68,9 @@ def _zarr_encode(obj, zarr_group, path=None, encoded=None):
 
 
 def zarr_encode(data, zarr_group, is_pending_add, is_set):
+    """
+    Encode data into a zarr group.
+    """
     data, encoded = _zarr_encode(data, zarr_group)
     zarr_group.attrs["encoded"] = encoded
     zarr_group.attrs["data"] = data
@@ -176,6 +179,9 @@ def zarr_decode(
     path=None,
     dataset_copy=False,
 ):
+    """
+    Decode data from a zarr group.
+    """
     if param_data is None:
         return None
 
@@ -204,19 +210,31 @@ def zarr_decode(
 
 
 class ZarrEncodable:
+    """
+    Base class of data that can be converted to and from zarr form. 
+    """
     _typ = None
 
     def to_dict(self):
+        """
+        Convert this object to a dict.
+        """
         if hasattr(self, "__dict__"):
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
 
     def to_zarr(self, zarr_group):
+        """
+        Save this object into the given zarr group.
+        """
         data = self.to_dict()
         zarr_encode(data, zarr_group)
 
     @classmethod
     def from_zarr(cls, zarr_group, dataset_copy=False):
+        """
+        Read an instance of this class from the given zarr group.
+        """
         data = zarr_decode(zarr_group, dataset_copy=dataset_copy)
         return cls(**data)

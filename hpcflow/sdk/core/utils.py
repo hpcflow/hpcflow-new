@@ -45,12 +45,18 @@ def load_config(func):
 
 
 def make_workflow_id():
+    """
+    Generate a random ID for a workflow.
+    """
     length = 12
     chars = string.ascii_letters + "0123456789"
     return "".join(random.choices(chars, k=length))
 
 
 def get_time_stamp():
+    """
+    Get the current time in standard string form.
+    """
     return datetime.now(timezone.utc).astimezone().strftime("%Y.%m.%d_%H:%M:%S_%z")
 
 
@@ -181,6 +187,11 @@ def swap_nested_dict_keys(dct, inner_key):
 
 
 def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
+    """
+    Follow a path (sequence of indices of appropriate type) into a container to obtain
+    a "leaf" value. Containers can be lists, tuples, dicts,
+    or any class (with `getattr()`) if ``allow_getattr`` is True.
+    """
     cur_data = cont
     err_msg = (
         "Data at path {path_comps!r} is not a sequence, but is of type "
@@ -221,6 +232,11 @@ def get_in_container(cont, path, cast_indices=False, allow_getattr=False):
 
 
 def set_in_container(cont, path, value, ensure_path=False, cast_indices=False):
+    """
+    Follow a path (sequence of indices of appropriate type) into a container to update
+    a "leaf" value. Containers can be lists, tuples or dicts.
+    The "branch" holding the leaf to update must be modifiable.
+    """
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
@@ -315,6 +331,9 @@ def search_dir_files_by_regex(pattern, group=0, directory=".") -> List[str]:
 
 
 class classproperty(object):
+    """
+    Simple class property decorator.
+    """
     def __init__(self, f):
         self.f = f
 
@@ -323,6 +342,10 @@ class classproperty(object):
 
 
 class PrettyPrinter(object):
+    """
+    A class that produces a nice readable version of itself with ``str()``.
+    Intended to be subclassed.
+    """
     def __str__(self):
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
@@ -331,6 +354,10 @@ class PrettyPrinter(object):
 
 
 class Singleton(type):
+    """
+    Metaclass that enforces that only one instance can exist of the classes to which it
+    is applied.
+    """
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -347,6 +374,10 @@ class Singleton(type):
 
 
 def capitalise_first_letter(chars):
+    """
+    Convert the first character of a string to upper case (if that makes sense).
+    The rest of the string is unchanged.
+    """
     return chars[0].upper() + chars[1:]
 
 
@@ -374,6 +405,18 @@ def check_in_object_list(spec_name, spec_pos=1, obj_list_pos=2):
 
 @TimeIt.decorator
 def substitute_string_vars(string, variables: Dict[str, str] = None):
+    """
+    Scan ``string`` and substitute sequences like ``<<var:ABC>>`` with the value
+    looked up in the supplied dictionary (with ``ABC`` as the key).
+
+    Default values for the substitution can be supplied like:
+    ``<<var:ABC[default=XYZ]>>``
+
+    Examples
+    --------
+    >>> substitute_string_vars("abc <<var:def>> ghi", {"def": "123"})
+    "abc 123 def"
+    """
     variables = variables or {}
 
     def var_repl(match_obj):
@@ -410,7 +453,7 @@ def substitute_string_vars(string, variables: Dict[str, str] = None):
 
 @TimeIt.decorator
 def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
-    """Load a YAML string."""
+    """Load a YAML string. This will produce basic objects."""
     if variables is not False and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
@@ -419,30 +462,35 @@ def read_YAML_str(yaml_str, typ="safe", variables: Dict[str, str] = None):
 
 @TimeIt.decorator
 def read_YAML_file(path: PathLike, typ="safe", variables: Dict[str, str] = None):
+    """Load a YAML file. This will produce basic objects."""
     with fsspec.open(path, "rt") as f:
         yaml_str = f.read()
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
 
 
 def write_YAML_file(obj, path: PathLike, typ="safe"):
+    """Write a basic object to a YAML file."""
     yaml = YAML(typ=typ)
     with Path(path).open("wt") as fp:
         yaml.dump(obj, fp)
 
 
 def read_JSON_string(json_str: str, variables: Dict[str, str] = None):
+    """Load a JSON string. This will produce basic objects."""
     if variables is not False and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 
 
 def read_JSON_file(path, variables: Dict[str, str] = None):
+    """Load a JSON file. This will produce basic objects."""
     with fsspec.open(path, "rt") as f:
         json_str = f.read()
     return read_JSON_string(json_str, variables=variables)
 
 
 def write_JSON_file(obj, path: PathLike):
+    """Write a basic object to a JSON file."""
     with Path(path).open("wt") as fp:
         json.dump(obj, fp)
 
@@ -486,6 +534,13 @@ def get_item_repeat_index(lst, distinguish_singular=False, item_callable=None):
 
 
 def get_process_stamp():
+    """
+    Return a globally unique string identifying this process.
+
+    Note
+    ----
+    This should only be called once per process.
+    """
     return "{} {} {}".format(
         datetime.now(),
         socket.gethostname(),
@@ -494,11 +549,18 @@ def get_process_stamp():
 
 
 def remove_ansi_escape_sequences(string):
+    """
+    Strip ANSI terminal escape codes from a string.
+    """
     ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
     return ansi_escape.sub("", string)
 
 
 def get_md5_hash(obj):
+    """
+    Compute the MD5 hash of an object.
+    This is the hash of the JSON of the object (with sorted keys) as a hex string.
+    """
     json_str = json.dumps(obj, sort_keys=True)
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
@@ -562,6 +624,9 @@ def ensure_in(item, lst) -> int:
 
 
 def list_to_dict(lst, exclude=None):
+    """
+    Convert a list of dicts to a dict of lists.
+    """
     # TODD: test
     exclude = exclude or []
     dct = {k: [] for k in lst[0].keys() if k not in exclude}
@@ -617,7 +682,7 @@ def flatten(lst):
     """Flatten an arbitrarily (but of uniform depth) nested list and return shape
     information to enable un-flattening.
 
-    Un-flattening can be performed with the `reshape` function.
+    Un-flattening can be performed with the :py:func:`reshape` function.
 
     lst
         List to be flattened. Each element must contain all lists or otherwise all items
@@ -657,6 +722,9 @@ def flatten(lst):
 
 
 def reshape(lst, lens):
+    """
+    Reverse the destructuring of the :py:func:`flatten` function.
+    """
     def _reshape(lst, lens):
         lens_acc = [0] + list(accumulate(lens))
         lst_rs = [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]
@@ -874,10 +942,16 @@ def dict_values_process_flat(d, callable):
 
 
 def nth_key(dct, n):
+    """
+    Given a dict in some order, get the n'th key of that dict.
+    """
     it = iter(dct)
     next(islice(it, n, n), None)
     return next(it)
 
 
 def nth_value(dct, n):
+    """
+    Given a dict in some order, get the n'th value of that dict.
+    """
     return dct[nth_key(dct, n)]
