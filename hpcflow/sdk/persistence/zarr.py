@@ -135,6 +135,7 @@ class ZarrStoreTask(StoreTask):
     """
     Represents a task in a Zarr persistent store.
     """
+
     def encode(self) -> Tuple[int, np.ndarray, Dict]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
@@ -153,6 +154,7 @@ class ZarrStoreElement(StoreElement):
     """
     Represents an element in a Zarr persistent store.
     """
+
     def encode(self, attrs: Dict) -> List:
         """Prepare store elements data for the persistent store.
 
@@ -189,6 +191,7 @@ class ZarrStoreElementIter(StoreElementIter):
     """
     Represents an element iteration in a Zarr persistent store.
     """
+
     def encode(self, attrs: Dict) -> List:
         """Prepare store element iteration data for the persistent store.
 
@@ -228,6 +231,7 @@ class ZarrStoreEAR(StoreEAR):
     """
     Represents an element action run in a Zarr persistent store.
     """
+
     def encode(self, attrs: Dict, ts_fmt: str) -> Tuple[List, Tuple[np.datetime64]]:
         """Prepare store EAR data for the persistent store.
 
@@ -283,6 +287,7 @@ class ZarrStoreParameter(StoreParameter):
     """
     Represents a parameter in a Zarr persistent store.
     """
+
     _encoders = {  # keys are types
         np.ndarray: _encode_numpy_array,
         np.ma.core.MaskedArray: _encode_masked_array,
@@ -319,6 +324,7 @@ class ZarrPersistentStore(PersistentStore):
     """
     A persistent store implemented using Zarr.
     """
+
     _name = "zarr"
     _features = PersistentStoreFeatures(
         create=True,
@@ -1362,7 +1368,7 @@ class ZarrPersistentStore(PersistentStore):
 class ZarrZipPersistentStore(ZarrPersistentStore):
     """A store designed mainly as an archive format that can be uploaded to data
     repositories such as Zenodo.
-    
+
     Note
     ----
     Archive format persistent stores cannot be updated without being unzipped first.
