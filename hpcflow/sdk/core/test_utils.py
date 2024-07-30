@@ -224,6 +224,7 @@ class P1_sub_parameter_cls(ParameterValue):
     """
     Parameter value handler: ``p1_sub``
     """
+
     _typ = "p1_sub"
 
     e: int
@@ -247,6 +248,7 @@ class P1_sub_parameter_cls_2(ParameterValue):
     """
     Parameter value handler: ``p1_sub_2``
     """
+
     _typ = "p1_sub_2"
 
     f: int
@@ -261,6 +263,7 @@ class P1_parameter_cls(ParameterValue):
     ----
     This is a composite value handler.
     """
+
     _typ = "p1c"
     _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 

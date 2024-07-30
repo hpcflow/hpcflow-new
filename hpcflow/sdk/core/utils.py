@@ -334,6 +334,7 @@ class classproperty(object):
     """
     Simple class property decorator.
     """
+
     def __init__(self, f):
         self.f = f
 
@@ -346,6 +347,7 @@ class PrettyPrinter(object):
     A class that produces a nice readable version of itself with ``str()``.
     Intended to be subclassed.
     """
+
     def __str__(self):
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
@@ -358,6 +360,7 @@ class Singleton(type):
     Metaclass that enforces that only one instance can exist of the classes to which it
     is applied.
     """
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -725,6 +728,7 @@ def reshape(lst, lens):
     """
     Reverse the destructuring of the :py:func:`flatten` function.
     """
+
     def _reshape(lst, lens):
         lens_acc = [0] + list(accumulate(lens))
         lst_rs = [lst[lens_acc[idx] : lens_acc[idx + 1]] for idx in range(len(lens))]

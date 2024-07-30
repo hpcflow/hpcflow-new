@@ -211,8 +211,9 @@ def zarr_decode(
 
 class ZarrEncodable:
     """
-    Base class of data that can be converted to and from zarr form. 
+    Base class of data that can be converted to and from zarr form.
     """
+
     _typ = None
 
     def to_dict(self):
