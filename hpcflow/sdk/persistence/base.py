@@ -1,4 +1,6 @@
-# Store* classes represent the element-metadata in the store, in a store-agnostic way
+"""
+Store* classes represent the element-metadata in the store, in a store-agnostic way.
+"""
 from __future__ import annotations
 from abc import ABC
 
@@ -50,27 +52,31 @@ PARAM_DATA_NOT_SET = 0
 
 
 def update_param_source_dict(source, update):
+    """
+    Combine two dicts into a new dict that is ordered on its keys.
+    """
     return dict(sorted({**source, **update}.items()))
 
 
 @dataclass
 class PersistentStoreFeatures:
-    """Class to represent the features provided by a persistent store.
+    """
+    Represents the features provided by a persistent store.
 
     Parameters
     ----------
-    create
+    create:
         If True, a new workflow can be created using this store.
-    edit
+    edit:
         If True, the workflow can be modified.
-    jobscript_parallelism
+    jobscript_parallelism:
         If True, the store supports workflows running multiple independent jobscripts
         simultaneously.
-    EAR_parallelism
+    EAR_parallelism:
         If True, the store supports workflows running multiple EARs simultaneously.
-    schedulers
+    schedulers:
         If True, the store supports submitting workflows to a scheduler
-    submission
+    submission:
         If True, the store supports submission. If False, the store can be considered to
         be an archive, which would need transforming to another store type before
         submission.
@@ -86,6 +92,22 @@ class PersistentStoreFeatures:
 
 @dataclass
 class StoreTask:
+    """
+    Represents a task in a persistent store.
+
+    Parameters
+    ----------
+    id_:
+        The ID of the task.
+    index:
+        The index of the task within its workflow.
+    is_pending:
+        Whether the task has changes not yet persisted.
+    element_IDs:
+        The IDs of elements in the task.
+    task_template:
+        Description of the template for the task.
+    """
     id_: int
     index: int
     is_pending: bool
@@ -124,11 +146,25 @@ class StoreTask:
 @dataclass
 class StoreElement:
     """
+    Represents an element in a persistent store.
+
     Parameters
     ----------
-    index
+    id_:
+        The ID of the element.
+    is_pending:
+        Whether the element has changes not yet persisted.
+    index:
         Index of the element within its parent task.
-    iteration_IDs
+    es_idx:
+        Index of the element set containing this element.
+    seq_idx:
+        Value sequence index map.
+    src_idx:
+        Data source index map.
+    task_ID:
+        ID of the task that contains this element.
+    iteration_IDs:
         IDs of element-iterations that belong to this element.
     """
 
@@ -185,15 +221,25 @@ class StoreElement:
 @dataclass
 class StoreElementIter:
     """
+    Represents an element iteration in a persistent store.
+
     Parameters
     ----------
-    data_idx
+    id_:
+        The ID of this element iteration.
+    is_pending:
+        Whether the element iteration has changes not yet persisted.
+    element_ID:
+        Which element is an iteration for.
+    EAR_IDs:
+        Maps task schema action indices to EARs by ID.
+    data_idx:
         Overall data index for the element-iteration, which maps parameter names to
         parameter data indices.
-    EAR_IDs
-        Maps task schema action indices to EARs by ID.
-    schema_parameters
+    schema_parameters:
         List of parameters defined by the associated task schema.
+    loop_idx:
+        What loops are being handled here and where they're up to.
     """
 
     id_: int
@@ -296,14 +342,42 @@ class StoreElementIter:
 @dataclass
 class StoreEAR:
     """
+    Represents an element action run in a persistent store.
+
     Parameters
     ----------
-    data_idx
-        Maps parameter names within this EAR to parameter data indices.
-    metadata
-        Metadata concerning e.g. the state of the EAR.
-    action_idx
+    id_:
+        The ID of this element action run.
+    is_pending:
+        Whether the element action run has changes not yet persisted.
+    elem_iter_ID:
+        What element iteration owns this EAR.
+    action_idx:
         The task schema action associated with this EAR.
+    commands_idx:
+        The indices of the commands in the EAR.
+    data_idx:
+        Maps parameter names within this EAR to parameter data indices.
+    submission_idx:
+        Which submission was this EAR, if known.
+    skip:
+        Whether to skip this EAR.
+    success:
+        Whether this EAR was successful, if known.
+    start_time:
+        When this EAR started, if known.
+    end_time:
+        When this EAR finished, if known.
+    snapshot_start:
+        Snapshot of files at EAR start, if recorded.
+    snapshot_end:
+        Snapshot of files at EAR end, if recorded.
+    exit_code:
+        The exit code of the underlying executable, if known.
+    metadata:
+        Metadata concerning e.g. the state of the EAR.
+    run_hostname:
+        Where this EAR was submitted to run, if known. 
     """
 
     id_: int
@@ -434,6 +508,24 @@ class StoreEAR:
 
 @dataclass
 class StoreParameter:
+    """
+    Represents a parameter in a persistent store.
+
+    Parameters
+    ----------
+    id_:
+        The ID of this parameter.
+    is_pending:
+        Whether the parameter has changes not yet persisted.
+    is_set:
+        Whether the parameter is set.
+    data:
+        Description of the value of the parameter.
+    file:
+        Description of the file this parameter represents.
+    source:
+        Description of where this parameter originated.
+    """
     id_: int
     is_pending: bool
     is_set: bool
@@ -647,6 +739,20 @@ class StoreParameter:
 
 
 class PersistentStore(ABC):
+    """
+    An abstract class representing a persistent workflow store.
+
+    Parameters
+    ----------
+    app: App
+        The main hpcflow core.
+    workflow: Workflow
+        The workflow being persisted.
+    path: pathlib.Path
+        Where to hold the store.
+    fs: fsspec.AbstractFileSystem
+        Optionally, information about how to access the store.
+    """
     _store_task_cls = StoreTask
     _store_elem_cls = StoreElement
     _store_iter_cls = StoreElementIter
@@ -672,14 +778,23 @@ class PersistentStore(ABC):
 
     @property
     def logger(self):
+        """
+        The logger to use.
+        """
         return self.app.persistence_logger
 
     @property
     def ts_fmt(self) -> str:
+        """
+        The format for timestamps.
+        """
         return self.workflow.ts_fmt
 
     @property
     def has_pending(self):
+        """
+        Whether there are any pending changes.
+        """
         return bool(self._pending)
 
     @property
@@ -689,6 +804,9 @@ class PersistentStore(ABC):
 
     @property
     def use_cache(self):
+        """
+        Whether to use a cache.
+        """
         return self._use_cache
 
     @property
@@ -914,6 +1032,9 @@ class PersistentStore(ABC):
             self._pending.commit_all()
 
     def add_template_components(self, temp_comps: Dict, save: bool = True) -> None:
+        """
+        Add template components to the workflow.
+        """
         all_tc = self.get_template_components()
         for name, dat in temp_comps.items():
             if name in all_tc:
@@ -976,6 +1097,9 @@ class PersistentStore(ABC):
             self.save()
 
     def add_element_set(self, task_id: int, es_js: Dict, save: bool = True):
+        """
+        Add an element set to a task.
+        """
         self._pending.add_element_sets[task_id].append(es_js)
         if save:
             self.save()
@@ -1058,6 +1182,9 @@ class PersistentStore(ABC):
     def add_submission_part(
         self, sub_idx: int, dt_str: str, submitted_js_idx: List[int], save: bool = True
     ):
+        """
+        Add a submission part.
+        """
         self._pending.add_submission_parts[sub_idx][dt_str] = submitted_js_idx
         if save:
             self.save()
@@ -1066,11 +1193,17 @@ class PersistentStore(ABC):
     def set_EAR_submission_index(
         self, EAR_ID: int, sub_idx: int, save: bool = True
     ) -> None:
+        """
+        Set the submission index for an element action run.
+        """
         self._pending.set_EAR_submission_indices[EAR_ID] = sub_idx
         if save:
             self.save()
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
+        """
+        Mark an element action run as started.
+        """
         dt = datetime.utcnow()
         ss_js = self.app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
@@ -1082,6 +1215,9 @@ class PersistentStore(ABC):
     def set_EAR_end(
         self, EAR_ID: int, exit_code: int, success: bool, save: bool = True
     ) -> datetime:
+        """
+        Mark an element action run as finished.
+        """
         # TODO: save output files
         dt = datetime.utcnow()
         ss_js = self.app.RunDirAppFiles.take_snapshot()
@@ -1091,11 +1227,17 @@ class PersistentStore(ABC):
         return dt
 
     def set_EAR_skip(self, EAR_ID: int, save: bool = True) -> None:
+        """
+        Mark an element action run as skipped.
+        """
         self._pending.set_EAR_skips.append(EAR_ID)
         if save:
             self.save()
 
     def set_EARs_initialised(self, iter_ID: int, save: bool = True) -> None:
+        """
+        Mark an element action run as initialised.
+        """
         self._pending.set_EARs_initialised.append(iter_ID)
         if save:
             self.save()
@@ -1116,6 +1258,9 @@ class PersistentStore(ABC):
         process_ID: Optional[int] = None,
         save: bool = True,
     ):
+        """
+        Set the metadata for a job script.
+        """
         if version_info:
             self._pending.set_js_metadata[sub_idx][js_idx]["version_info"] = version_info
         if submit_time:
@@ -1229,6 +1374,9 @@ class PersistentStore(ABC):
         clean_up: bool = False,
         save: bool = True,
     ):
+        """
+        Set details of a file, including whether it is associated with a parameter.
+        """
         self.logger.debug(f"Setting new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
@@ -1255,6 +1403,9 @@ class PersistentStore(ABC):
         filename: str = None,
         save: bool = True,
     ):
+        """
+        Add a file that will be associated with a parameter.
+        """
         self.logger.debug(f"Adding new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
@@ -1291,14 +1442,23 @@ class PersistentStore(ABC):
                         fp.write(dat["contents"])
 
     def add_set_parameter(self, data: Any, source: Dict, save: bool = True) -> int:
+        """
+        Add a parameter that is set to a value.
+        """
         return self._add_parameter(data=data, is_set=True, source=source, save=save)
 
     def add_unset_parameter(self, source: Dict, save: bool = True) -> int:
+        """
+        Add a parameter that is not set to any value.
+        """
         return self._add_parameter(data=None, is_set=False, source=source, save=save)
 
     def set_parameter_value(
         self, param_id: int, value: Any, is_file: bool = False, save: bool = True
     ):
+        """
+        Set the value of a parameter.
+        """
         self.logger.debug(
             f"Setting store parameter ID {param_id} value with type: {type(value)!r})."
         )
@@ -1310,6 +1470,9 @@ class PersistentStore(ABC):
     def update_param_source(
         self, param_sources: Dict[int, Dict], save: bool = True
     ) -> None:
+        """
+        Set the source of a parameter.
+        """
         self.logger.debug(f"Updating parameter sources with {param_sources!r}.")
         self._pending.update_param_sources.update(param_sources)
         if save:
@@ -1318,6 +1481,9 @@ class PersistentStore(ABC):
     def update_loop_num_iters(
         self, index: int, num_added_iters: int, save: bool = True
     ) -> None:
+        """
+        Add iterations to a loop.
+        """
         self.logger.debug(
             f"Updating loop {index!r} num added iterations to {num_added_iters!r}."
         )
@@ -1333,6 +1499,9 @@ class PersistentStore(ABC):
         parents: List[str],
         save: bool = True,
     ) -> None:
+        """
+        Set the parents of a loop.
+        """
         self.logger.debug(
             f"Updating loop {index!r} parents to {parents!r}, and num added iterations "
             f"to {num_added_iters}."
@@ -1355,6 +1524,9 @@ class PersistentStore(ABC):
         return tc
 
     def get_template(self) -> Dict:
+        """
+        Get the workflow template.
+        """
         return self._get_persistent_template()
 
     def _get_task_id_to_idx_map(self) -> Dict[int, int]:
@@ -1362,6 +1534,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_task(self, task_idx: int) -> AnySTask:
+        """
+        Get a task.
+        """
         return self.get_tasks()[task_idx]
 
     def _process_retrieved_tasks(self, tasks: List[AnySTask]) -> List[AnySTask]:
@@ -1394,6 +1569,9 @@ class PersistentStore(ABC):
         return loops_new
 
     def get_tasks_by_IDs(self, id_lst: Iterable[int]) -> List[AnySTask]:
+        """
+        Get tasks with the given IDs.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_tasks)
@@ -1461,6 +1639,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_submissions_by_ID(self, id_lst: Iterable[int]) -> Dict[int, Dict]:
+        """
+        Get submissions with the given IDs.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_submissions)
@@ -1477,6 +1658,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_elements(self, id_lst: Iterable[int]) -> List[AnySElement]:
+        """
+        Get elements with the given IDs.
+        """
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1504,6 +1688,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_element_iterations(self, id_lst: Iterable[int]) -> List[AnySElementIter]:
+        """
+        Get element iterations with the given IDs.
+        """
         self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1540,6 +1727,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_EARs(self, id_lst: Iterable[int]) -> List[AnySEAR]:
+        """
+        Get element action runs with the given IDs.
+        """
         self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
 
         # separate pending and persistent IDs:
@@ -1634,11 +1824,17 @@ class PersistentStore(ABC):
         **kwargs: Dict,
     ) -> List[AnySParameter]:
         """
+        Get parameters with the given IDs.
+
         Parameters
         ----------
-        kwargs :
-            dataset_copy : bool
-                For Zarr stores only. If True, copy arrays as NumPy arrays.
+        id_lst:
+            The IDs of the parameters to get.
+
+        Keyword Arguments
+        -----------------
+        dataset_copy: bool
+            For Zarr stores only. If True, copy arrays as NumPy arrays.
         """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -1656,6 +1852,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> List[bool]:
+        """
+        Get whether the parameters with the given IDs are set.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1670,6 +1869,9 @@ class PersistentStore(ABC):
 
     @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> List[Dict]:
+        """
+        Get the sources of the parameters with the given IDs.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -1698,7 +1900,8 @@ class PersistentStore(ABC):
         task_id,
         idx_lst: Optional[Iterable[int]] = None,
     ) -> List[Dict]:
-        """Get element data by an indices within a given task.
+        """
+        Get element data by an indices within a given task.
 
         Element iterations and EARs belonging to the elements are included.
 

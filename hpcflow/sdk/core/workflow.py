@@ -2279,8 +2279,10 @@ class Workflow:
                 self._store.set_EAR_end(EAR_ID, exit_code, success)
 
     def set_EAR_skip(self, EAR_ID: int) -> None:
-        """Record that an EAR is to be skipped due to an upstream failure or loop
-        termination condition being met."""
+        """
+        Record that an EAR is to be skipped due to an upstream failure or loop
+        termination condition being met.
+        """
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_EAR_skip(EAR_ID)
@@ -2306,7 +2308,10 @@ class Workflow:
             self._store._pending.commit_all()
 
     def set_EARs_initialised(self, iter_ID: int):
-        """Set `ElementIteration.EARs_initialised` to True for the specified iteration."""
+        """
+        Set :py:attr:`~.ElementIteration.EARs_initialised` to True for the specified
+        iteration.
+        """
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_EARs_initialised(iter_ID)
