@@ -37,16 +37,24 @@ class SlurmPosix(Scheduler):
 
     _app_attr = "app"
 
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
+    #: Default args for shebang line.
     DEFAULT_SHEBANG_ARGS = ""
+    #: Default submission command.
     DEFAULT_SUBMIT_CMD = "sbatch"
+    #: Default command to show the queue state.
     DEFAULT_SHOW_CMD = ["squeue", "--me"]
+    #: Default cancel command.
     DEFAULT_DEL_CMD = "scancel"
+    #: Default job control directive prefix.
     DEFAULT_JS_CMD = "#SBATCH"
+    #: Default prefix to enable array processing.
     DEFAULT_ARRAY_SWITCH = "--array"
+    #: Default shell variable with array ID.
     DEFAULT_ARRAY_ITEM_VAR = "SLURM_ARRAY_TASK_ID"
 
-    # maps scheduler states:
+    #: Maps scheduler state codes to :py:class:`JobscriptElementState` values.
     state_lookup = {
         "PENDING": JobscriptElementState.pending,
         "RUNNING": JobscriptElementState.running,
@@ -393,6 +401,13 @@ class SlurmPosix(Scheduler):
         js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
+        """
+        Get the command to use to submit a job to the scheduler.
+
+        Returns
+        -------
+        List of argument words.
+        """
         cmd = [self.submit_cmd, "--parsable"]
 
         dep_cmd = []
@@ -534,6 +549,9 @@ class SlurmPosix(Scheduler):
         return info
 
     def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        """
+        Cancel submitted jobs.
+        """
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
