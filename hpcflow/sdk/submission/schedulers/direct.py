@@ -11,6 +11,12 @@ from hpcflow.sdk.submission.shells.base import Shell
 
 
 class DirectScheduler(NullScheduler):
+    """
+    A direct scheduler, that just runs jobs immediately as direct subprocesses.
+
+    The correct subclass (:py:class:`DirectPosix` or :py:class:`DirectWindows`) should
+    be used to create actual instances.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -29,6 +35,9 @@ class DirectScheduler(NullScheduler):
         js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
+        """
+        Get the concrete submission command.
+        """
         return shell.get_direct_submit_command(js_path)
 
     @staticmethod
@@ -104,6 +113,9 @@ class DirectScheduler(NullScheduler):
         js_refs: List[Tuple[int, List[str]]],
         jobscripts: List = None,
     ):
+        """
+        Cancel some jobs.
+        """
         def callback(proc):
             try:
                 js = js_proc_id[proc.pid]
@@ -145,6 +157,9 @@ class DirectScheduler(NullScheduler):
 
 
 class DirectPosix(DirectScheduler):
+    """
+    A direct scheduler for POSIX systems.
+    """
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
 
@@ -153,6 +168,9 @@ class DirectPosix(DirectScheduler):
 
 
 class DirectWindows(DirectScheduler):
+    """
+    A direct scheduler for Windows.
+    """
     _app_attr = "app"
     DEFAULT_SHELL_EXECUTABLE = "powershell.exe"
 

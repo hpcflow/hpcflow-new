@@ -15,6 +15,12 @@ from hpcflow.sdk.submission.shells.base import Shell
 
 class SGEPosix(Scheduler):
     """
+    A scheduler that uses SGE.
+
+    Parameters
+    ----------
+    cwd_switch: str
+        Override of default switch to use to set the current working directory.
 
     Notes
     -----
@@ -136,7 +142,7 @@ class SGEPosix(Scheduler):
         nodes = stdout.strip().split("\n")
         return nodes
 
-    def format_core_request_lines(self, resources):
+    def _format_core_request_lines(self, resources):
         lns = []
         if resources.num_cores > 1:
             lns.append(
@@ -146,10 +152,10 @@ class SGEPosix(Scheduler):
             lns.append(f"{self.js_cmd} -tc {resources.max_array_items}")
         return lns
 
-    def format_array_request(self, num_elements):
+    def _format_array_request(self, num_elements):
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx):
+    def _format_std_stream_file_option_lines(self, is_array, sub_idx):
         # note: we can't modify the file names
         base = f"./artifacts/submissions/{sub_idx}"
         return [
@@ -158,13 +164,16 @@ class SGEPosix(Scheduler):
         ]
 
     def format_options(self, resources, num_elements, is_array, sub_idx):
+        """
+        Format the options to the jobscript command.
+        """
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
-        opts.extend(self.format_core_request_lines(resources))
+        opts.extend(self._format_core_request_lines(resources))
         if is_array:
-            opts.append(self.format_array_request(num_elements))
+            opts.append(self._format_array_request(num_elements))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
+        opts.extend(self._format_std_stream_file_option_lines(is_array, sub_idx))
 
         for opt_k, opt_v in self.options.items():
             if isinstance(opt_v, list):

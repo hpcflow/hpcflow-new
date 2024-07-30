@@ -829,6 +829,9 @@ class ZarrPersistentStore(PersistentStore):
 
     @property
     def zarr_store(self) -> zarr.storage.Store:
+        """
+        The underlying store object.
+        """
         if self._zarr_store is None:
             self._zarr_store = self._get_zarr_store(self.path, self.fs)
         return self._zarr_store
