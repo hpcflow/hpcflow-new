@@ -1817,6 +1817,9 @@ class PersistentStore(ABC):
         return self._get_cached_persistent_items(id_lst, self.parameter_cache)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
+        """
+        Whether the element action run with the given ID was skipped.
+        """
         self.logger.debug(f"PersistentStore.get_EAR_skipped: EAR_ID={EAR_ID!r}")
         return self.get_EARs([EAR_ID])[0].skip
 
