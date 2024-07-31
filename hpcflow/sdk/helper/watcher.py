@@ -5,6 +5,9 @@ from watchdog.events import FileSystemEventHandler, PatternMatchingEventHandler
 
 
 class MonitorController:
+    """
+    Controller for tracking watch files.
+    """
     def __init__(self, workflow_dirs_file_path, watch_interval, logger):
 
         if isinstance(watch_interval, timedelta):
@@ -46,6 +49,9 @@ class MonitorController:
 
     @staticmethod
     def parse_watch_workflows_file(path, logger):
+        """
+        Parse the file describing what workflows to watch.
+        """
         # TODO: and parse element IDs as well; and record which are set/unset.
         with Path(path).open("rt") as fp:
             lns = fp.readlines()
@@ -69,20 +75,32 @@ class MonitorController:
         return wks
 
     def on_modified(self, event):
+        """
+        Callback when files are modified.
+        """
         self.logger.info(f"Watch file modified: {event.src_path}")
         wks = self.parse_watch_workflows_file(event.src_path, logger=self.logger)
         self.workflow_monitor.update_workflow_paths(wks)
 
     def join(self):
+        """
+        Join the worker thread.
+        """
         self.observer.join()
 
     def stop(self):
+        """
+        Stop this monitor.
+        """
         self.observer.stop()
         self.observer.join()  # wait for it to stop!
         self.workflow_monitor.stop()
 
 
 class WorkflowMonitor:
+    """
+    Workflow monitor.
+    """
     def __init__(self, workflow_paths, watch_interval, logger):
 
         if isinstance(watch_interval, timedelta):
@@ -106,15 +124,24 @@ class WorkflowMonitor:
         self.observer.start()
 
     def on_modified(self, event):
+        """
+        Triggered on a workflow being modified.
+        """
         self.logger.info(f"Workflow modified: {event.src_path}")
 
     def update_workflow_paths(self, new_paths):
+        """
+        Change the set of paths to monitored workflows.
+        """
         self.logger.info(f"Updating watched workflows.")
         self.stop()
         self.workflow_paths = new_paths
         self._monitor_workflow_paths()
 
     def stop(self):
+        """
+        Stop this monitor.
+        """
         if self.observer:
             self.observer.stop()
             self.observer.join()  # wait for it to stop!

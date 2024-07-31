@@ -43,12 +43,14 @@ from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
+#: Option: ``--string``
 string_option = click.option(
     "--string",
     is_flag=True,
     default=False,
     help="Determines if passing a file path or a string.",
 )
+#: Option: ``--ref-type``
 workflow_ref_type_opt = click.option(
     "--ref-type",
     "-r",
@@ -58,6 +60,9 @@ workflow_ref_type_opt = click.option(
 
 
 def parse_jobscript_wait_spec(jobscripts: str) -> Dict[int, List[int]]:
+    """
+    Parse a jobscript wait specification.
+    """
     sub_js_idx_dct = {}
     for sub_i in jobscripts.split(";"):
         sub_idx_str, js_idx_lst_str = sub_i.split(":")
