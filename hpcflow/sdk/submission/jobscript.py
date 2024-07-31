@@ -1623,7 +1623,7 @@ class Jobscript(JSONLike):
                             run = runs[run_ID]
 
                             # set run start
-                            wk.set_EAR_start(EAR_ID=run_ID, port_number=port)
+                            wk.set_EAR_start(run=run, port_number=port)
 
                             # retrieve inputs:
                             func_kwargs = run.get_input_values_direct()
