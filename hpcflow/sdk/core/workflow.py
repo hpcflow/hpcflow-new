@@ -3337,15 +3337,18 @@ class Workflow:
                             prefix="i",
                         )
                     )
-                path_args.append(f"i_{e_idx}")
+                path_args.append(f"i_{i_idx}")
 
             if r_idx != R_FILL:
                 path_args.append(f"r_{r_idx}")
 
             if path_args:
                 run_dir = exec_path.joinpath(*path_args)
+            elif e_depth == 1:
+                run_dir = exec_path
             else:
                 run_dir = None
+
             dirs.append(run_dir)
 
         return dirs
