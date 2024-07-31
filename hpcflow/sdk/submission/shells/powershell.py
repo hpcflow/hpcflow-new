@@ -11,12 +11,18 @@ class WindowsPowerShell(Shell):
 
     # TODO: add snippets that can be used in demo task schemas?
 
+    #: Default for executable name.
     DEFAULT_EXE = "powershell.exe"
 
+    #: File extension for jobscripts.
     JS_EXT = ".ps1"
+    #: Basic indent.
     JS_INDENT = "    "
+    #: Indent for environment setup.
     JS_ENV_SETUP_INDENT = 2 * JS_INDENT
+    #: Template for the jobscript shebang line.
     JS_SHEBANG = ""
+    #: Template for the common part of the jobscript header.
     JS_HEADER = dedent(
         """\
         function {workflow_app_alias} {{
@@ -60,6 +66,7 @@ class WindowsPowerShell(Shell):
         $ELEM_RUN_DIR_FILE = JoinMultiPath $WK_PATH artifacts submissions $SUB_IDX {element_run_dirs_file_path}
     """
     )
+    #: Template for the jobscript header when directly executed.
     JS_DIRECT_HEADER = dedent(
         """\
         {shebang}
@@ -68,6 +75,7 @@ class WindowsPowerShell(Shell):
         {wait_command}
     """
     )
+    #: Template for the jobscript body.
     JS_MAIN = dedent(
         """\
         $elem_EAR_IDs = get_nth_line $EAR_ID_FILE $JS_elem_idx
@@ -117,6 +125,7 @@ class WindowsPowerShell(Shell):
         }}
     """
     )
+    #: Template for the element processing loop in a jobscript.
     JS_ELEMENT_LOOP = dedent(
         """\
         for ($JS_elem_idx = 0; $JS_elem_idx -lt {num_elements}; $JS_elem_idx += 1) {{
@@ -172,6 +181,9 @@ class WindowsPowerShell(Shell):
         return app_invoc_exe
 
     def format_stream_assignment(self, shell_var_name, command):
+        """
+        Produce code to assign the output of the command to a shell variable.
+        """
         return f"${shell_var_name} = {command}"
 
     def format_save_parameter(
@@ -183,6 +195,9 @@ class WindowsPowerShell(Shell):
         cmd_idx: int,
         stderr: bool,
     ):
+        """
+        Produce code to save a parameter's value into the workflow persistent store.
+        """
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
@@ -195,6 +210,9 @@ class WindowsPowerShell(Shell):
         )
 
     def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+        """
+        Produce code to check the looping status of part of a workflow.
+        """
         return (
             f"{workflow_app_alias} "
             f"internal workflow $WK_PATH check-loop "

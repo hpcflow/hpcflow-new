@@ -11,14 +11,22 @@ from hpcflow.sdk.submission.shells.os_version import (
 
 
 class Bash(Shell):
-    """Class to represent using bash on a POSIX OS to generate and submit a jobscript."""
+    """
+    Class to represent using bash on a POSIX OS to generate and submit a jobscript.
+    """
 
+    #: Default for executable name.
     DEFAULT_EXE = "/bin/bash"
 
+    #: File extension for jobscripts.
     JS_EXT = ".sh"
+    #: Basic indent.
     JS_INDENT = "  "
+    #: Indent for environment setup.
     JS_ENV_SETUP_INDENT = 2 * JS_INDENT
+    #: Template for the jobscript shebang line.
     JS_SHEBANG = """#!{shebang_executable} {shebang_args}"""
+    #: Template for the common part of the jobscript header.
     JS_HEADER = dedent(
         """\
         {workflow_app_alias} () {{
@@ -39,6 +47,7 @@ class Bash(Shell):
         ELEM_RUN_DIR_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{element_run_dirs_file_path}"
     """
     )
+    #: Template for the jobscript header when scheduled.
     JS_SCHEDULER_HEADER = dedent(
         """\
         {shebang}
@@ -47,6 +56,7 @@ class Bash(Shell):
         {header}
     """
     )
+    #: Template for the jobscript header when directly executed.
     JS_DIRECT_HEADER = dedent(
         """\
         {shebang}
@@ -55,6 +65,7 @@ class Bash(Shell):
         {wait_command}
     """
     )
+    #: Template for the jobscript body.
     JS_MAIN = dedent(
         """\
         elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
@@ -103,6 +114,7 @@ class Bash(Shell):
         done
     """
     )
+    #: Template for the element processing loop in a jobscript.
     JS_ELEMENT_LOOP = dedent(
         """\
         for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
@@ -112,6 +124,7 @@ class Bash(Shell):
         cd "$WK_PATH"
     """
     )
+    #: Template for the array handling code in a jobscript.
     JS_ELEMENT_ARRAY = dedent(
         """\
         JS_elem_idx=$(({scheduler_array_item_var} - 1))
@@ -125,6 +138,9 @@ class Bash(Shell):
 
     @property
     def linux_release_file(self):
+        """
+        The name of the file describing the Linux version.
+        """
         return self.os_args["linux_release_file"]
 
     def _get_OS_info_POSIX(self):
@@ -169,6 +185,9 @@ class Bash(Shell):
         return app_invoc_exe
 
     def format_stream_assignment(self, shell_var_name, command):
+        """
+        Produce code to assign the output of the command to a shell variable.
+        """
         return f"{shell_var_name}=`{command}`"
 
     def format_save_parameter(
@@ -180,6 +199,9 @@ class Bash(Shell):
         cmd_idx: int,
         stderr: bool,
     ):
+        """
+        Produce code to save a parameter's value into the workflow persistent store.
+        """
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
@@ -192,6 +214,9 @@ class Bash(Shell):
         )
 
     def format_loop_check(self, workflow_app_alias: str, loop_name: str, run_ID: int):
+        """
+        Produce code to check the looping status of part of a workflow.
+        """
         return (
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" check-loop '
@@ -248,6 +273,9 @@ class Bash(Shell):
 
 
 class WSLBash(Bash):
+    """
+    A variant of bash that handles running under WSL on Windows.
+    """
     DEFAULT_WSL_EXE = "wsl"
 
     JS_HEADER = Bash.JS_HEADER.replace(
