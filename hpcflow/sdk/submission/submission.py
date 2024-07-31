@@ -73,6 +73,7 @@ class Submission(JSONLike):
     environments: EnvironmentsList
         The execution environments to use.
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",

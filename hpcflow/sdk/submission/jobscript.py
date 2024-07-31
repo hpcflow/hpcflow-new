@@ -355,6 +355,7 @@ class Jobscript(JSONLike):
     running: bool
         Whether the jobscript is currently running.
     """
+
     _app_attr = "app"
     _EAR_files_delimiter = ":"
     _workflow_app_alias = "wkflow_app"
@@ -477,7 +478,7 @@ class Jobscript(JSONLike):
     @property
     def task_actions(self):
         """
-        The IDs of actions of each task in this jobscript. 
+        The IDs of actions of each task in this jobscript.
         """
         return self._task_actions
 
@@ -506,7 +507,7 @@ class Jobscript(JSONLike):
     @TimeIt.decorator
     def all_EARs(self) -> List:
         """
-        Description of EAR information for this jobscript. 
+        Description of EAR information for this jobscript.
         """
         if not self._all_EARs:
             self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)

@@ -276,6 +276,7 @@ class WSLBash(Bash):
     """
     A variant of bash that handles running under WSL on Windows.
     """
+
     DEFAULT_WSL_EXE = "wsl"
 
     JS_HEADER = Bash.JS_HEADER.replace(
