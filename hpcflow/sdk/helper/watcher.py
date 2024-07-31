@@ -8,6 +8,7 @@ class MonitorController:
     """
     Controller for tracking watch files.
     """
+
     def __init__(self, workflow_dirs_file_path, watch_interval, logger):
 
         if isinstance(watch_interval, timedelta):
@@ -101,6 +102,7 @@ class WorkflowMonitor:
     """
     Workflow monitor.
     """
+
     def __init__(self, workflow_paths, watch_interval, logger):
 
         if isinstance(watch_interval, timedelta):

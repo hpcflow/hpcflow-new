@@ -31,6 +31,7 @@ class TimeIt:
         """
         Decorator for a method that is to have its execution time monitored.
         """
+
         @wraps(func)
         def wrapper(*args, **kwargs):
 
@@ -100,6 +101,7 @@ class TimeIt:
         """
         Produce a human-readable summary of method execution time statistics.
         """
+
         def _format_nodes(node, depth=0, depth_final=None):
             if depth_final is None:
                 depth_final = []
@@ -148,6 +150,7 @@ class AppLog:
     """
     Application log control.
     """
+
     DEFAULT_LOG_CONSOLE_LEVEL = "WARNING"
     DEFAULT_LOG_FILE_LEVEL = "INFO"
 
@@ -156,7 +159,7 @@ class AppLog:
         #: The base logger for the application.
         self.logger = logging.getLogger(app.package_name)
         self.logger.setLevel(logging.DEBUG)
-        #: The handler for directing logging messages to the console. 
+        #: The handler for directing logging messages to the console.
         self.console_handler = self._add_console_logger(
             level=log_console_level or AppLog.DEFAULT_LOG_CONSOLE_LEVEL
         )
