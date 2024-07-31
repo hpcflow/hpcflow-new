@@ -61,6 +61,7 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
+#: The default configuration descriptor.
 DEFAULT_CONFIG = {
     "invocation": {"environment_setup": None, "match": {}},
     "config": {
@@ -82,12 +83,17 @@ DEFAULT_CONFIG = {
 class ConfigOptions:
     """Application-level options for configuration"""
 
+    #: The default directory.
     default_directory: Union[Path, str]
+    #: The environment variable containing the directory name.
     directory_env_var: str
+    #: The default configuration.
     default_config: Optional[Dict] = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
+    #: Any extra schemas to apply.
     extra_schemas: Optional[List[Schema]] = field(default_factory=lambda: [])
+    #: Default directory of known configurations.
     default_known_configs_dir: Optional[str] = None
 
     def __post_init__(self):
@@ -96,7 +102,9 @@ class ConfigOptions:
         self._configurable_keys = cfg_keys
 
     def init_schemas(self):
-        # Get allowed configurable keys from config schemas:
+        """
+        Get allowed configurable keys from config schemas.
+        """
         cfg_schemas = [get_schema("config_schema.yaml")] + self.extra_schemas
         cfg_keys = []
         for cfg_schema in cfg_schemas:
@@ -130,6 +138,8 @@ class ConfigOptions:
 class Config:
     """Application configuration as defined in one or more config files.
 
+    This class supports indexing into the collection of properties via Python dot notation.
+
     Notes
     -----
     On modifying/setting existing values, modifications are not automatically copied
@@ -142,6 +152,24 @@ class Config:
     `shells` is used for specifying the default arguments that should be used when
     initialising the `Shell` object.
 
+    Parameters
+    ----------
+    app:
+        The main hpcflow application instance.
+    config_file:
+        The configuration file that contains this config.
+    options:
+        Configuration options to be applied.
+    logger:
+        Where to log messages relating to configuration.
+    config_key:
+        The name of the configuration within the configuration file.
+    uid: int
+        User ID.
+    callbacks: dict
+        Overrides for the callback system.
+    variables: dict[str, str]
+        Variables to substitute when processing the configuration.
     """
 
     def __init__(
@@ -517,7 +545,16 @@ class Config:
                 print(f"value is already: {callback_val!r}")
 
     def set(self, path: str, value, is_json=False, quiet=False):
-        """Set the value of a configuration item."""
+        """
+        Set the value of a configuration item.
+
+        Parameters
+        ----------
+        path:
+            Which configuration item to set.
+        value:
+            What to set it to.
+        """
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
         if is_json:
@@ -542,7 +579,18 @@ class Config:
         self._set(name, root, quiet=quiet)
 
     def unset(self, name):
-        """Unset the value of a configuration item."""
+        """
+        Unset the value of a configuration item.
+
+        Parameters
+        ----------
+        name: str
+            The name of the configuration item.
+
+        Notes
+        -----
+            Only top level configuration items may be unset.
+        """
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         if name in self._unset_keys or not self._file.is_item_set(self._config_key, name):
@@ -564,6 +612,14 @@ class Config:
         ret_parts=False,
         default=None,
     ):
+        """
+        Get the value of a configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        """
         parts = path.split(".")
         root = deepcopy(self._get(parts[0], callback=callback))
         try:
@@ -582,7 +638,16 @@ class Config:
         return tuple(ret)
 
     def append(self, path, value, is_json=False):
-        """Append a value to a list-like configuration item."""
+        """
+        Append a value to a list-like configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        value:
+            The value to append.
+        """
         if is_json:
             value = self._parse_JSON(path, value)
 
@@ -612,7 +677,16 @@ class Config:
         self._set(parts[0], root)
 
     def prepend(self, path, value, is_json=False):
-        """Prepend a value to a list-like configuration item."""
+        """
+        Prepend a value to a list-like configuration item.
+        
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        value:
+            The value to prepend.
+        """
         if is_json:
             value = self._parse_JSON(path, value)
 
@@ -638,7 +712,16 @@ class Config:
         self._set(parts[0], root)
 
     def pop(self, path, index):
-        """Remove a value from a specified index of a list-like configuration item."""
+        """
+        Remove a value from a specified index of a list-like configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        index: int
+            Where to remove the value from. 0 for the first item, -1 for the last.
+        """
 
         existing, root, parts = self.get(
             path,
@@ -674,8 +757,10 @@ class Config:
 
         Parameters
         ----------
-        path
+        path: str
             A dot-delimited string of the nested path to update.
+        value: dict
+            A dictionary to merge in.
         """
 
         if is_json:
@@ -739,12 +824,18 @@ class Config:
         self._app.reset_config()
 
     def add_scheduler(self, scheduler, **defaults):
+        """
+        Add a scheduler.
+        """
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
             return
         self.update(f"schedulers.{scheduler}.defaults", defaults)
 
     def add_shell(self, shell, **defaults):
+        """
+        Add a shell.
+        """
         if shell in self.get("shells"):
             return
         if shell.lower() == "wsl":
@@ -763,13 +854,13 @@ class Config:
 
         Parameters
         ----------
-        file_path
+        file_path:
             Local or remote path to a config import YAML file which may have top-level
             keys "invocation" and "config".
-        rename
+        rename:
             If True, the current config will be renamed to the stem of the file specified
             in `file_path`. Ignored if `make_new` is True.
-        make_new
+        make_new:
             If True, add the config items as a new config, rather than modifying the
             current config. The name of the new config will be the stem of the file
             specified in `file_path`.
