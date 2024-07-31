@@ -16,6 +16,7 @@ from rich.console import Console
 from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd
 from reretry import retry
 
+from hpcflow.sdk.core import RUN_DIR_ARR_DTYPE, RUN_DIR_ARR_FILL
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
     MissingStoreEARError,
@@ -330,6 +331,7 @@ class ZarrPersistentStore(PersistentStore):
     _elem_arr_name = "elements"
     _iter_arr_name = "iters"
     _EAR_arr_name = "runs"
+    _run_dir_arr_name = "run_dirs"
     _time_res = "us"  # microseconds; must not be smaller than micro!
 
     _res_map = CommitResourceMap(commit_template_components=("attrs",))
@@ -457,6 +459,16 @@ class ZarrPersistentStore(PersistentStore):
             compressor=cmp,
         )
         EARs_arr.attrs.update({"parameter_paths": []})
+
+        # array for storing indices that can be used to reproduce run directory paths:
+        run_dir_arr = md.create_dataset(
+            name=cls._run_dir_arr_name,
+            shape=0,
+            chunks=10_000,
+            dtype=RUN_DIR_ARR_DTYPE,
+            fill_value=RUN_DIR_ARR_FILL,
+            write_empty_chunks=False,
+        )
 
         parameter_data = root.create_group(name=cls._param_grp_name)
         parameter_data.create_dataset(
@@ -608,6 +620,14 @@ class ZarrPersistentStore(PersistentStore):
 
         if attrs != attrs_orig:
             arr.attrs.put(attrs)
+
+        # add more rows to run dirs array:
+        dirs_arr = self._get_dirs_arr(mode="r+")
+        dirs_arr.resize(arr.size)
+
+    def _set_run_dirs(self, run_dir_arr, run_idx):
+        dirs_arr = self._get_dirs_arr(mode="r+")
+        dirs_arr[run_idx] = run_dir_arr
 
     @TimeIt.decorator
     def _update_EAR_submission_data(self, sub_data: Dict[int, Tuple[int, int]]):
@@ -865,6 +885,9 @@ class ZarrPersistentStore(PersistentStore):
 
     def _get_EARs_arr(self, mode: str = "r") -> zarr.Array:
         return self._get_metadata_group(mode=mode).get(self._EAR_arr_name)
+
+    def _get_dirs_arr(self, mode: str = "r") -> zarr.Array:
+        return self._get_metadata_group(mode=mode).get(self._run_dir_arr_name)
 
     @classmethod
     def make_test_store_from_spec(

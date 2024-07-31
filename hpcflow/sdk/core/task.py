@@ -1495,14 +1495,15 @@ class WorkflowTask:
             try:
                 key_ = key.split("inputs.")[1]
             except IndexError:
-                pass
+                key_ = None
             try:
                 # TODO: wouldn't need to do this if we raise when an ValueSequence is
                 # provided for a parameter whose inputs sources do not include the local
                 # value.
-                source_idx[key] = [
-                    element_set.input_sources[key_].index(loc_inp_src)
-                ] * len(dat_ref)
+                if key_:
+                    source_idx[key] = [
+                        element_set.input_sources[key_].index(loc_inp_src)
+                    ] * len(dat_ref)
             except ValueError:
                 pass
 

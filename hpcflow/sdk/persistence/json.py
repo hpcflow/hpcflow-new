@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from fsspec import filesystem
+import numpy as np
+from hpcflow.sdk.core import RUN_DIR_ARR_DTYPE, RUN_DIR_ARR_FILL
 from hpcflow.sdk.core.errors import (
     MissingParameterData,
     MissingStoreEARError,
@@ -147,6 +149,7 @@ class JSONPersistentStore(PersistentStore):
             "runs": [],
             "num_added_tasks": 0,
             "loops": [],
+            "run_dirs": [],
         }
         if replaced_wk:
             metadata["replaced_workflow"] = replaced_wk
@@ -234,6 +237,14 @@ class JSONPersistentStore(PersistentStore):
     def _append_EARs(self, EARs: List[StoreEAR]):
         with self.using_resource("metadata", action="update") as md:
             md["runs"].extend(i.encode(self.ts_fmt) for i in EARs)
+            md["run_dirs"].extend([None] * len(EARs))
+
+    def _set_run_dirs(self, run_dir_arr, run_idx):
+        with self.using_resource("metadata", action="update") as md:
+            dirs_lst = md["run_dirs"]
+            for idx in run_idx:
+                dirs_lst[idx] = run_dir_arr[idx].item()
+            md["run_dirs"] = dirs_lst
 
     def _update_EAR_submission_data(self, sub_data: Dict[int, Tuple[int, int]]):
         with self.using_resource("metadata", action="update") as md:
@@ -551,3 +562,12 @@ class JSONPersistentStore(PersistentStore):
     def get_name(self):
         with self.using_resource("metadata", action="read") as md:
             return md["name"]
+
+    def _get_dirs_arr(self):
+        with self.using_resource("metadata", action="read") as md:
+            dirs_lst = md["run_dirs"]
+            dirs_arr = np.zeros(len(dirs_lst), dtype=RUN_DIR_ARR_DTYPE)
+            dirs_arr[:] = RUN_DIR_ARR_FILL
+            for idx, i in enumerate(dirs_lst):
+                if i is not None:
+                    dirs_arr[idx] = i

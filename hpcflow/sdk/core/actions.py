@@ -495,13 +495,7 @@ class ElementActionRun:
         return self.action.env_spec_to_hashable(self.env_spec)
 
     def get_directory(self) -> Path:
-        task_dir_name = self.task.get_dir_name(loop_idx=self.element_iteration.loop_idx)
-        elem_dir_name = self.element.dir_name
-        run_dir_name = f"r_{self.index}"
-        run_dir = Path(
-            self.workflow.execution_path, task_dir_name, elem_dir_name, run_dir_name
-        )
-        return run_dir
+        return self.workflow.get_run_directories(run_ids=[self.id_])[0]
 
     def get_app_log_path(self) -> Path:
         return Submission.get_app_log_file_path(
@@ -746,6 +740,8 @@ class ElementActionRun:
         art_name, snip_path = self.action.get_script_artifact_name(
             env_spec=self.env_spec,
             act_idx=self.element_action.action_idx,
+            include_suffix=True,
+            specs_suffix_delim=".",
         )
         return art_name
 
@@ -837,7 +833,12 @@ class ElementActionRun:
             jobscript.shell.format_source_functions_file(app_name, commands) + commands
         )
 
-        cmd_file_name = f"{self.id_}{jobscript.shell.JS_EXT}"
+        if jobscript.resources.combine_scripts:
+            stem = f"js_{jobscript.index}"  # TODO: refactor
+        else:
+            stem = self.id_
+
+        cmd_file_name = f"{stem}{jobscript.shell.JS_EXT}"
         cmd_file_path = jobscript.submission.commands_path / cmd_file_name
         with cmd_file_path.open("wt", newline="\n") as fp:
             fp.write(commands)
@@ -1643,7 +1644,12 @@ class Action(JSONLike):
             return script
 
     def get_script_artifact_name(
-        self, env_spec: Dict, act_idx: int, ret_specifiers=False
+        self,
+        env_spec: Dict,
+        act_idx: int,
+        ret_specifiers=False,
+        include_suffix: Optional[bool] = True,
+        specs_suffix_delim: Optional[str] = ".",
     ) -> Union[Tuple[str, Path], Tuple[str, Path, Dict]]:
         """Return the script name that is used when writing the script to the artifacts
         directory within the workflow.
@@ -1661,9 +1667,12 @@ class Action(JSONLike):
         )
         specs_suffix = "__".join(f"{k}_{v}" for k, v in specifiers.items())
         if specs_suffix:
-            specs_suffix = f".{specs_suffix}"
+            specs_suffix = f"{specs_suffix_delim}{specs_suffix}"
 
-        name = f"{self.task_schema.name}_act_{act_idx}{specs_suffix}{snip_path.suffix}"
+        name = f"{self.task_schema.name}_act_{act_idx}{specs_suffix}"
+        if include_suffix:
+            name += snip_path.suffix
+
         if ret_specifiers:
             return name, snip_path, specifiers
         else:

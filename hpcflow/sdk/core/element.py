@@ -21,6 +21,7 @@ from hpcflow.sdk.core.utils import (
 )
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import get_shell
+from hpcflow.sdk.utils.hashing import get_hash
 
 
 class _ElementPrefixedParameter:
@@ -198,6 +199,7 @@ class ElementResources(JSONLike):
     max_array_items: Optional[int] = None
     write_app_logs: Optional[bool] = False
     combine_jobscript_std: Optional[bool] = field(default_factory=lambda: os.name != "nt")
+    combine_scripts: Optional[bool] = None
     time_limit: Optional[str] = None
 
     scheduler_args: Optional[Dict] = field(default_factory=dict)
@@ -253,27 +255,16 @@ class ElementResources(JSONLike):
     def get_jobscript_hash(self):
         """Get hash from all arguments that distinguish jobscripts."""
 
-        def _hash_dict(d):
-            if not d:
-                return -1
-            keys, vals = zip(*d.items())
-            return hash(tuple((keys, vals)))
+        exclude = ["time_limit"]
+        if not self.combine_scripts:
+            # usually environment selection need not distinguish jobscripts because
+            # environments become effective/active within the command files, but if we
+            # are combining scripts, then the environments must be the same:
+            exclude.append("environments")
 
-        exclude = ("time_limit", "environments")
         dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
 
-        scheduler_args = dct["scheduler_args"]
-        shell_args = dct["shell_args"]
-
-        if isinstance(scheduler_args, dict):
-            if "options" in scheduler_args:
-                dct["scheduler_args"]["options"] = _hash_dict(scheduler_args["options"])
-            dct["scheduler_args"] = _hash_dict(dct["scheduler_args"])
-
-        if isinstance(shell_args, dict):
-            dct["shell_args"] = _hash_dict(shell_args)
-
-        return _hash_dict(dct)
+        return get_hash(dct)
 
     @property
     def is_parallel(self) -> bool:
@@ -967,6 +958,10 @@ class ElementIteration:
                 resources["scheduler"] = self.app.ElementResources.get_default_scheduler(
                     resources["os_name"], resources["shell"]
                 )
+
+        # unset inapplicable items:
+        if "combine_scripts" in resources and not action.script_is_python_snippet:
+            del resources["combine_scripts"]
 
         return resources
 

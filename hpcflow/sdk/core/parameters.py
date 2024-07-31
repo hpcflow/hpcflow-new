@@ -1362,6 +1362,7 @@ class ResourceSpec(JSONLike):
         "max_array_items",
         "write_app_logs",
         "combine_jobscript_std",
+        "combine_scripts",
         "time_limit",
         "scheduler_args",
         "shell_args",
@@ -1399,6 +1400,7 @@ class ResourceSpec(JSONLike):
         max_array_items: Optional[int] = None,
         write_app_logs: Optional[bool] = None,
         combine_jobscript_std: Optional[bool] = None,
+        combine_scripts: Optional[bool] = None,
         time_limit: Optional[Union[str, timedelta]] = None,
         scheduler_args: Optional[Dict] = None,
         shell_args: Optional[Dict] = None,
@@ -1437,6 +1439,7 @@ class ResourceSpec(JSONLike):
         self._max_array_items = max_array_items
         self._write_app_logs = write_app_logs
         self._combine_jobscript_std = combine_jobscript_std
+        self._combine_scripts = combine_scripts
         self._time_limit = time_limit
         self._scheduler_args = scheduler_args
         self._shell_args = shell_args
@@ -1567,6 +1570,7 @@ class ResourceSpec(JSONLike):
             self._max_array_items = None
             self._write_app_logs = None
             self._combine_jobscript_std = None
+            self._combine_scripts = None
             self._time_limit = None
             self._scheduler_args = None
             self._shell_args = None
@@ -1662,6 +1666,10 @@ class ResourceSpec(JSONLike):
     @property
     def combine_jobscript_std(self):
         return self._get_value("combine_jobscript_std")
+
+    @property
+    def combine_scripts(self):
+        return self._get_value("combine_scripts")
 
     @property
     def time_limit(self):

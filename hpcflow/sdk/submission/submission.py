@@ -7,8 +7,10 @@ import os
 import shutil
 from pathlib import Path
 from textwrap import indent
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import warnings
+
+import numpy as np
 
 from hpcflow.sdk import app
 from hpcflow.sdk.core.element import ElementResources
@@ -23,6 +25,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
+from hpcflow.sdk.core import RUN_DIR_ARR_DTYPE
 from hpcflow.sdk.log import TimeIt
 
 
@@ -410,49 +413,113 @@ class Submission(JSONLike):
         return out
 
     @TimeIt.decorator
-    def _write_scripts(self) -> Dict[int, int]:
+    def _write_scripts(
+        self, cache, status: Optional[Any] = None
+    ) -> Tuple[Dict[int, int], np.NDarray]:
         """Write to disk all action scripts associated with this submission."""
+        # TODO: rename this method
+
+        # TODO: need to check is_snippet_script is exclusive? i.e. only `script` and no
+        # `commands` in the action?
+        # TODO: scripts must have the same exe and the same environment as well?
+        # TODO: env_spec should be included in jobscript hash if combine_scripts=True ?
+
         actions_by_schema = defaultdict(lambda: defaultdict(set))
+        combined_env_specs = {}
+
+        # task insert IDs and action indices for each combined_scripts jobscript:
+        combined_actions = {}
+
         cmd_hashes = defaultdict(set)
-
+        num_runs_tot = sum(len(js.all_EAR_IDs) for js in self.jobscripts)
+        run_indices = np.ones((num_runs_tot, 9), dtype=int) * -1
+        run_inp_files = defaultdict(
+            list
+        )  # keys are `run_idx`, values are Paths to copy to run dir
         run_cmd_file_names = {}
-        for js_idx, js_runs in enumerate(self.all_EARs_by_jobscript):
-            js = self.jobscripts[js_idx]
-            for run in js_runs:
-                if run.is_snippet_script:
-                    actions_by_schema[run.action.task_schema.name][
-                        run.element_action.action_idx
-                    ].add(run.env_spec_hashable)
+        run_idx = 0
 
-                if run.action.commands:
-                    hash_i = run.get_commands_file_hash()
-                    # TODO: could further reduce number of files in the case the data
-                    # indices hash is the same: if commands objects are the same and
-                    # environment objects are the same, then the files will be the same,
-                    # even if runs come from different task schemas/actions...
-                    if hash_i not in cmd_hashes:
-                        try:
-                            run.try_write_commands(
-                                environments=self.environments,
-                                jobscript=js,
-                            )
-                        except OutputFileParserNoOutputError:
-                            # no commands to write, might be used just for saving files
-                            run_cmd_file_names[run.id_] = None
-                    cmd_hashes[hash_i].add(run.id_)
-                else:
+        if status:
+            status.update(f"Adding new submission: processing run 1/{num_runs_tot}.")
+
+        all_runs = cache.runs
+
+        for js in self.jobscripts:
+            js_idx = js.index
+            js_run_0 = all_runs[0]
+
+            if js.resources.combine_scripts:
+                # this will be one or more snippet scripts that needs to be combined into
+                # one script for the whole jobscript
+
+                # need to write one script + one commands file for the whole jobscript
+
+                # env_spec will be the same for all runs of this jobscript:
+                combined_env_specs[js_idx] = js_run_0.env_spec
+                combined_actions[js_idx] = [
+                    [j[0:2] for j in i.task_actions] for i in js.blocks
+                ]
+
+            for idx, run_id in enumerate(js.all_EAR_IDs):
+                run = all_runs[run_id]
+
+                run_indices[run_idx] = [
+                    run.task.insert_ID,
+                    run.element.id_,
+                    run.element_iteration.id_,
+                    run.id_,
+                    run.element.index,
+                    run.element_iteration.index,
+                    run.element_action.action_idx,
+                    run.index,
+                    int(run.action.requires_dir),
+                ]
+                run_idx += 1
+
+                if status and run_idx % 10 == 0:
+                    status.update(
+                        f"Adding new submission: processing run {run_idx}/{num_runs_tot}."
+                    )
+
+                if js.resources.combine_scripts:
+                    if idx == 0:
+                        run.try_write_commands(
+                            environments=self.environments,
+                            jobscript=js,
+                            raise_on_unset=True,
+                        )
                     run_cmd_file_names[run.id_] = None
 
-                if run.action.requires_dir:
-                    # ensure a working directory exists (it might have been created by a
-                    # previous submission):
-                    run_dir = run.get_directory()
-                    run_dir.mkdir(exist_ok=True, parents=True)
+                else:
+                    if run.is_snippet_script:
+                        actions_by_schema[run.action.task_schema.name][
+                            run.element_action.action_idx
+                        ].add(run.env_spec_hashable)
 
-                    # copy (TODO: optionally symlink) any input files:
+                    if run.action.commands:
+                        hash_i = run.get_commands_file_hash()
+                        # TODO: could further reduce number of files in the case the data
+                        # indices hash is the same: if commands objects are the same and
+                        # environment objects are the same, then the files will be the
+                        # same, even if runs come from different task schemas/actions...
+                        if hash_i not in cmd_hashes:
+                            try:
+                                run.try_write_commands(
+                                    environments=self.environments,
+                                    jobscript=js,
+                                )
+                            except OutputFileParserNoOutputError:
+                                # no commands to write, might be used just for saving
+                                # files
+                                run_cmd_file_names[run.id_] = None
+                        cmd_hashes[hash_i].add(run.id_)
+                    else:
+                        run_cmd_file_names[run.id_] = None
+
+                if run.action.requires_dir:
                     for name, path in run.get("input_files", {}).items():
                         if path:
-                            shutil.copy(path, run_dir)
+                            run_inp_files[run_idx].append(path)
 
         for run_ids in cmd_hashes.values():
             run_ids_srt = sorted(run_ids)
@@ -462,7 +529,11 @@ class Submission(JSONLike):
                 if run_id_i not in run_cmd_file_names:
                     run_cmd_file_names[run_id_i] = root_id
 
+        if status:
+            status.update("Adding new submission: writing scripts...")
+
         seen = {}
+        combined_script_data = defaultdict(lambda: defaultdict(list))
         for task in self.workflow.tasks:
             for schema in task.template.schemas:
                 if schema.name in actions_by_schema:
@@ -501,7 +572,156 @@ class Submission(JSONLike):
                                         fp.write(source_str)
                                     seen[script_hash] = script_path
 
-        return run_cmd_file_names
+        # combined script stuff
+        for js_idx, act_IDs in combined_actions.items():
+            for block_idx, act_IDs_i in enumerate(act_IDs):
+                for task_iID, act_idx in act_IDs_i:
+                    task = self.workflow.tasks.get(insert_ID=task_iID)
+                    schema = task.template.schemas[0]  # TODO: multiple schemas
+                    action = schema.actions[act_idx]
+                    func_name, snip_path = action.get_script_artifact_name(
+                        env_spec=combined_env_specs[js_idx],
+                        act_idx=act_idx,
+                        ret_specifiers=False,
+                        include_suffix=False,
+                        specs_suffix_delim="_",  # can't use "." in function name
+                    )
+                    combined_script_data[js_idx][block_idx].append(
+                        (func_name, snip_path, action.requires_dir)
+                    )
+
+        for js_idx, action_scripts in combined_script_data.items():
+            js = self.jobscripts[js_idx]
+
+            script_str, script_indices, num_elems, num_acts = js.compose_combined_script(
+                [i for _, i in sorted(action_scripts.items())]
+            )
+            js.write_script_indices_file(script_indices, num_elems, num_acts)
+
+            script_path = self.scripts_path / f"js_{js_idx}.py"  # TODO: refactor name
+            with script_path.open("wt", newline="\n") as fp:
+                fp.write(script_str)
+
+        return run_cmd_file_names, run_indices, run_inp_files
+
+    @TimeIt.decorator
+    def _calculate_run_dir_indices(
+        self,
+        run_indices: np.ndarray,
+        cache,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+        # get the multiplicities of all tasks, elements, iterations, and runs:
+        wk_num_tasks = self.workflow.num_tasks
+        task_num_elems = {}
+        elem_num_iters = {}
+        iter_num_acts = {}
+        iter_acts_num_runs = {}
+        for task in self.workflow.tasks:
+            elem_IDs = task.element_IDs
+            task_num_elems[task.insert_ID] = len(elem_IDs)
+            for elem_ID in elem_IDs:
+                iter_IDs = cache.elements[elem_ID].iteration_IDs
+                elem_num_iters[elem_ID] = len(iter_IDs)
+                for iter_ID in iter_IDs:
+                    run_IDs = cache.iterations[iter_ID].EAR_IDs
+                    if run_IDs:  # the schema might have no actions
+                        iter_num_acts[iter_ID] = len(run_IDs)
+                        for act_idx, act_run_IDs in run_IDs.items():
+                            iter_acts_num_runs[(iter_ID, act_idx)] = len(act_run_IDs)
+                    else:
+                        iter_num_acts[iter_ID] = 0
+
+        max_u8 = np.iinfo(np.uint8).max
+        max_u32 = np.iinfo(np.uint32).max
+        MAX_ELEMS_PER_DIR = 1000  # TODO: configurable (add `workflow_defaults` to Config)
+        MAX_ITERS_PER_DIR = 1000
+        requires_dir_idx = np.where(run_indices[:, -1] == 1)[0]
+        run_dir_arr = np.empty(requires_dir_idx.size, dtype=RUN_DIR_ARR_DTYPE)
+        run_ids = np.empty(requires_dir_idx.size, dtype=int)
+
+        elem_depths = {}
+        iter_depths = {}
+        for idx in range(requires_dir_idx.size):
+            row = run_indices[requires_dir_idx[idx]]
+            t_iID, e_id, i_id, r_id, e_idx, i_idx, a_idx, r_idx = row[:-1]
+            run_ids[idx] = r_id
+
+            num_elems_i = task_num_elems[t_iID]
+            num_iters_i = elem_num_iters[e_id]
+            num_acts_i = iter_num_acts[i_id]  # see TODO below
+            num_runs_i = iter_acts_num_runs[(i_id, a_idx)]
+
+            e_depth = 1
+            if num_elems_i == 1:
+                e_idx = max_u32
+            elif num_elems_i > MAX_ELEMS_PER_DIR:
+                e_depth = elem_depths.get(t_iID)
+                if e_depth is None:
+                    e_depth = int(
+                        np.ceil(np.log(num_elems_i) / np.log(MAX_ELEMS_PER_DIR))
+                    )
+                    elem_depths[t_iID] = e_depth
+
+            # TODO: i_idx should be either MAX or the iteration ID, which will index into
+            # a separate array to get the formatted loop indices e.g.
+            # ("outer_loop_0_inner_loop_9")
+            i_depth = 1
+            if num_iters_i == 1:
+                i_idx = max_u32
+            elif num_iters_i > MAX_ITERS_PER_DIR:
+                i_depth = iter_depths.get(e_id)
+                if i_depth is None:
+                    i_depth = int(
+                        np.ceil(np.log(num_iters_i) / np.log(MAX_ITERS_PER_DIR))
+                    )
+                    iter_depths[e_id] = i_depth
+
+            a_idx = max_u8  # TODO: for now, always exclude action index dir
+
+            if num_runs_i == 1:
+                r_idx = max_u8
+
+            if wk_num_tasks == 1:
+                t_iID = max_u8
+
+            run_dir_arr[idx] = (t_iID, e_idx, i_idx, a_idx, r_idx, e_depth, i_depth)
+
+        return run_dir_arr, run_ids
+
+    @TimeIt.decorator
+    def _write_execute_dirs(
+        self,
+        run_indices: np.NDArray,
+        run_inp_files: Dict[int, List[Path]],
+        cache: Any,
+        status: Optional[Any] = None,
+    ):
+
+        if status:
+            status.update("Adding new submission: resolving execution directories...")
+
+        run_dir_arr, run_idx = self._calculate_run_dir_indices(run_indices, cache)
+
+        # set run dirs in persistent array:
+        if run_idx.size:
+            self.workflow._store.set_run_dirs(run_dir_arr, run_idx)
+
+        # retrieve run directories as paths. array is not yet commited, so pass in
+        # directly:
+        run_dirs = self.workflow.get_run_directories(dir_indices_arr=run_dir_arr)
+
+        # make directories
+        for idx, run_dir in enumerate(run_dirs):
+            run_dir.mkdir(parents=True, exist_ok=True)
+            inp_files_i = run_inp_files.get(run_idx[idx])
+            if inp_files_i:
+                # copy (TODO: optionally symlink) any input files:
+                for path_i in inp_files_i:
+                    shutil.copy(path_i, run_dir)
+
+        if status:
+            status.update("Adding new submission: making execution directories...")
 
     @staticmethod
     def get_unique_schedulers_of_jobscripts(

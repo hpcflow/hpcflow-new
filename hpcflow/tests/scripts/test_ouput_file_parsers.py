@@ -49,7 +49,9 @@ def test_output_file_parser_parses_file(null_config, tmp_path):
     time.sleep(10)
 
     # check the command successfully generated the output file:
-    out_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{out_file.name.name}"
+    run_0 = wk.get_all_EARs()[0]
+    exec_path = run_0.get_directory()
+    out_file_path = exec_path.joinpath(out_file.name.name)
     out_file_contents = out_file_path.read_text()
     assert out_file_contents.strip() == str(p2_val_expected)
 
@@ -310,7 +312,9 @@ def test_env_specifier_in_output_file_parser_script_path(new_null_config, tmp_pa
     time.sleep(10)
 
     # check the command successfully generated the output file:
-    out_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{out_file.name.name}"
+    run_0 = wk.get_all_EARs()[0]
+    exec_path = run_0.get_directory()
+    out_file_path = exec_path.joinpath(out_file.name.name)
     out_file_contents = out_file_path.read_text()
     assert out_file_contents.strip() == str(p2_val_expected)
 
@@ -357,7 +361,9 @@ def test_no_script_no_output_saves_files(null_config, tmp_path):
     time.sleep(10)
 
     # check the output file is saved to artifacts:
-    out_file_path = wk.task_artifacts_path / f"task_0_t1/e_0/r_0/{out_file.name.name}"
+    run_0 = wk.get_all_EARs()[0]
+    exec_path = run_0.get_directory()
+    out_file_path = exec_path.joinpath(out_file.name.name)
     out_file_contents = out_file_path.read_text()
     assert out_file_contents.strip() == str(p2_val_expected)
 

@@ -63,6 +63,7 @@ class PendingChanges:
         self.set_EAR_skips: Dict[int, int] = None
         self.set_EAR_starts: Dict[int, Tuple[datetime, Dict], str] = None
         self.set_EAR_ends: Dict[int, Tuple[datetime, Dict, int, bool]] = None
+        self.set_run_dirs: List[Tuple] = None
 
         self.set_js_metadata: Dict[int, Dict[int, Any]] = None
 
@@ -97,6 +98,7 @@ class PendingChanges:
             or bool(self.set_EAR_starts)
             or bool(self.set_EAR_ends)
             or bool(self.set_EAR_skips)
+            or bool(self.set_run_dirs)
             or bool(self.set_js_metadata)
             or bool(self.set_parameters)
             or bool(self.update_param_sources)
@@ -294,6 +296,12 @@ class PendingChanges:
         self.clear_add_EARs()
 
     @TimeIt.decorator
+    def commit_set_run_dirs(self) -> None:
+        for run_dir_arr, run_idx in self.set_run_dirs:
+            self.store._set_run_dirs(run_dir_arr, run_idx)
+        self.clear_set_run_dirs()
+
+    @TimeIt.decorator
     def commit_EARs_initialised(self) -> None:
         if self.set_EARs_initialised:
             iter_ids = self.set_EARs_initialised
@@ -462,6 +470,9 @@ class PendingChanges:
     def clear_add_EARs(self):
         self.add_EARs = {}
 
+    def clear_set_run_dirs(self):
+        self.set_run_dirs = []
+
     def clear_add_elem_IDs(self):
         self.add_elem_IDs = defaultdict(list)
 
@@ -531,6 +542,7 @@ class PendingChanges:
         self.clear_add_element_sets()
         self.clear_add_elem_iters()
         self.clear_add_EARs()
+        self.clear_set_run_dirs()
 
         self.clear_set_EARs_initialised()
         self.clear_add_elem_IDs()
@@ -589,6 +601,7 @@ class CommitResourceMap:
     commit_loop_indices: Optional[Tuple[str]] = tuple()
     commit_loop_num_iters: Optional[Tuple[str]] = tuple()
     commit_loop_parents: Optional[Tuple[str]] = tuple()
+    commit_set_run_dirs: Optional[Tuple[str]] = tuple()
 
     def __post_init__(self):
         self.groups = self.group_by_resource()

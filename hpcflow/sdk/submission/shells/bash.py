@@ -54,9 +54,13 @@ class Bash(Shell):
         export {app_caps}_WK_PATH_ARG=$WK_PATH_ARG
         export {app_caps}_SUB_IDX={sub_idx}
         export {app_caps}_SUB_SCRIPTS_DIR=$SUB_SCRIPTS_DIR
+        export {app_caps}_SUB_TMP_DIR=$SUB_TMP_DIR
+        export {app_caps}_SUB_LOG_DIR=$SUB_LOG_DIR
+        export {app_caps}_SUB_STD_DIR=$SUB_STD_DIR
         export {app_caps}_LOG_PATH="$SUB_LOG_DIR/js_${{JS_IDX}}.log"
         export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
         export {app_caps}_JS_IDX={js_idx}
+        export {app_caps}_RUN_ID_FILE=EAR_ID_FILE
     """
     )
     JS_SCHEDULER_HEADER = dedent(
@@ -79,6 +83,10 @@ class Bash(Shell):
     JS_RUN_CMD = (
         '{workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-run '
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
+    )
+    JS_RUN_CMD_COMBINED = (
+        '{workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-combined-runs '
+        "$SUB_IDX $JS_IDX\n"
     )
     JS_RUN = dedent(
         """\

@@ -10,13 +10,14 @@ import zmq
 class Executor:
     _app_attr = "app"
 
-    def __init__(self, cmd, env):
+    def __init__(self, cmd, env, package_name):
 
         # TODO: make zmq_server optional (but required if action is abortable, or if
         #       `script_data_in`/`out`` is "zeromq")
 
         self.cmd = cmd
         self.env = env
+        self.package_name = package_name
 
         # initialise a global ZeroMQ context for use in all threads:
         zmq.Context()
@@ -123,7 +124,8 @@ class Executor:
                 return
 
     async def _subprocess_runner(self):
-        env = {**self.env, "HPCFLOW_RUN_PORT": str(self.port_number)}
+        app_caps = self.package_name.upper()
+        env = {**self.env, f"{app_caps}_RUN_PORT": str(self.port_number)}
         try:
             process = await asyncio.create_subprocess_exec(*self.cmd, env=env)
             self.app.logger.info(f"_subprocess_runner: started subprocess: {process=!r}.")

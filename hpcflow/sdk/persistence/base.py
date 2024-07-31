@@ -15,6 +15,8 @@ import socket
 import time
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, TypeVar, Union
 
+import numpy as np
+
 from hpcflow.sdk.core.utils import (
     flatten,
     get_in_container,
@@ -1069,6 +1071,13 @@ class PersistentStore(ABC):
             self.save()
         return new_ID
 
+    @TimeIt.decorator
+    def set_run_dirs(self, run_dir_indices, run_idx, save: bool = True):
+        self.logger.debug(f"Setting {run_idx.size} run directory indices.")
+        self._pending.set_run_dirs.append((run_dir_indices, run_idx))
+        if save:
+            self.save()
+
     def add_submission_part(
         self, sub_idx: int, dt_str: str, submitted_js_idx: List[int], save: bool = True
     ):
@@ -1839,3 +1848,6 @@ class PersistentStore(ABC):
             self.fs.rm(self.path, recursive=True)
 
         return _delete_no_confirm()
+
+    def get_dirs_arr(self) -> np.ndarray:
+        return self._get_dirs_arr()[:]

@@ -27,6 +27,7 @@ from hpcflow.sdk.config.errors import ConfigNonConfigurableError
 from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
+    RUN_DIR_ARR_FILL,
     SKIPPED_EXIT_CODE,
     NO_COMMANDS_EXIT_CODE,
 )
@@ -2276,7 +2277,11 @@ class Workflow:
         if not pending:
             if status:
                 status.update("Adding new submission...")
-            new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
+            new_sub = self._add_submission(
+                tasks=tasks,
+                JS_parallelism=JS_parallelism,
+                status=status,
+            )
             if not new_sub:
                 if status:
                     status.stop()
@@ -2646,6 +2651,7 @@ class Workflow:
         tasks: Optional[List[int]] = None,
         JS_parallelism: Optional[bool] = None,
         force_array: Optional[bool] = False,
+        status: Optional[Any] = None,
     ) -> app.Submission:
         """Add a new submission.
 
@@ -2657,12 +2663,19 @@ class Workflow:
         """
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
+        if status:
+            status.update("Adding new submission: resolving jobscripts...")
+
+        cache = ObjectCache.build(self, elements=True, iterations=True, runs=True)
+
         sub_obj = self.app.Submission(
             index=new_idx,
             workflow=self,
-            jobscripts=self.resolve_jobscripts(tasks, force_array),
+            jobscripts=self.resolve_jobscripts(cache, tasks, force_array),
             JS_parallelism=JS_parallelism,
         )
+        if status:
+            status.update("Adding new submission: setting environments...")
         sub_obj._set_environments()
         all_EAR_ID = sub_obj.all_EAR_IDs
         if not all_EAR_ID:
@@ -2671,6 +2684,9 @@ class Workflow:
                 f"added."
             )
             return
+
+        if status:
+            status.update("Adding new submission: making artifact directories...")
 
         # TODO: a submission should only be "submitted" once shouldn't it?
         # no; there could be an IO error (e.g. internet connectivity), so might
@@ -2686,8 +2702,16 @@ class Workflow:
         if sub_obj.needs_app_log_dir:
             sub_obj.app_log_path.mkdir(exist_ok=True)
 
+        if status:
+            status.update("Adding new submission: writing scripts and command files...")
+
         # write scripts and command files where possible to the submission directory:
-        cmd_file_IDs = sub_obj._write_scripts()
+        cmd_file_IDs, run_indices, run_inp_files = sub_obj._write_scripts(cache, status)
+
+        sub_obj._write_execute_dirs(run_indices, run_inp_files, cache, status)
+
+        if status:
+            status.update("Adding new submission: updating the store...")
 
         with self._store.cached_load():
             with self.batch_update():
@@ -2710,6 +2734,7 @@ class Workflow:
     @TimeIt.decorator
     def resolve_jobscripts(
         self,
+        cache,
         tasks: Optional[List[int]] = None,
         force_array: Optional[bool] = False,
     ) -> List[app.Jobscript]:
@@ -2723,7 +2748,6 @@ class Workflow:
 
         """
         with self.app.config.cached_config():
-            cache = ObjectCache.build(self, elements=True, iterations=True, runs=True)
             js, element_deps = self._resolve_singular_jobscripts(
                 cache, tasks, force_array
             )
@@ -2880,8 +2904,8 @@ class Workflow:
     ) -> None:
         """Execute commands of a run via a subprocess."""
 
-        # CD to submission tmp dir to ensure std streams and exceptions have somewhere sensible
-        # to go:
+        # CD to submission tmp dir to ensure std streams and exceptions have somewhere
+        # sensible to go:
         os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
 
         sub_str_path = Submission.get_app_std_path(self.submissions_path, submission_idx)
@@ -2926,6 +2950,9 @@ class Workflow:
                         f"{k}={v}" for k, v in run.element_iteration.loop_idx.items()
                     )
                     app_caps = self.app.package_name.upper()
+
+                    # TODO: make these optionally set (more difficult to set in combine_script,
+                    # so have the option to turn off) [default ON]
                     add_env = {
                         f"{app_caps}_RUN_ID": str(run_ID),
                         f"{app_caps}_RUN_IDX": str(run.index),
@@ -2947,7 +2974,7 @@ class Workflow:
                             script_dir = Path.cwd()
                             script_name = run.action.script
 
-                        script_name_no_ext = str(Path(script_name).stem)
+                        script_name_no_ext = Path(script_name).stem
                         add_env.update(
                             {
                                 f"{app_caps}_RUN_SCRIPT_NAME": script_name,
@@ -2969,7 +2996,7 @@ class Workflow:
                         if k.startswith(app_caps):
                             self.app.submission_logger.debug(f"{k} = {v}")
 
-                    exe = self.app.Executor(cmd, env)
+                    exe = self.app.Executor(cmd, env, self.app.package_name)
                     port = exe.start_zmq_server()  # start the server so we know the port
 
                     try:
@@ -2991,30 +3018,7 @@ class Workflow:
             elif not has_commands:
                 ret_code = NO_COMMANDS_EXIT_CODE
             else:
-                # check if we need to terminate a loop if this is the last action of the
-                # loop iteration for this element:
-                elem_iter = run.element_iteration
-                task = elem_iter.task
-                check_loops = []
-                for loop_name in elem_iter.loop_idx:
-                    self.app.logger.info(
-                        f"checking loop termination of loop {loop_name!r}."
-                    )
-                    loop = self.loops.get(loop_name)
-                    if (
-                        loop.template.termination
-                        and task.insert_ID == loop.task_insert_IDs[-1]
-                        and run.element_action.action_idx == max(elem_iter.actions)
-                    ):
-                        check_loops.append(loop_name)
-                        # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
-                        # TODO: test with condition actions
-                        if loop.test_termination(elem_iter):
-                            self.app.logger.info(
-                                f"loop {loop_name!r} termination condition met for run "
-                                f"ID {run.id_!r}."
-                            )
-                            loop.skip_downstream_iterations(elem_iter)
+                self._check_loop_termination(run)
 
             # set run end:
             self.set_EAR_end(
@@ -3022,6 +3026,72 @@ class Workflow:
                 run=run,
                 exit_code=ret_code,
             )
+
+    def _check_loop_termination(self, run):
+        """Check if we need to terminate a loop if this is the last action of the loop
+        iteration for this element."""
+
+        elem_iter = run.element_iteration
+        task = elem_iter.task
+        check_loops = []
+        for loop_name in elem_iter.loop_idx:
+            self.app.logger.info(f"checking loop termination of loop {loop_name!r}.")
+            loop = self.loops.get(loop_name)
+            if (
+                loop.template.termination
+                and task.insert_ID == loop.task_insert_IDs[-1]
+                and run.element_action.action_idx == max(elem_iter.actions)
+            ):
+                check_loops.append(loop_name)
+                # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
+                # TODO: test with condition actions
+                if loop.test_termination(elem_iter):
+                    self.app.logger.info(
+                        f"loop {loop_name!r} termination condition met for run "
+                        f"ID {run.id_!r}."
+                    )
+                    loop.skip_downstream_iterations(elem_iter)
+
+    @load_workflow_config
+    def execute_combined_runs(self, submission_idx: int, jobscript_idx: int) -> None:
+        """Execute a combined script (multiple runs) via a subprocess."""
+
+        # CD to submission tmp dir to ensure std streams and exceptions have somewhere
+        # sensible to go:
+        os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
+
+        sub = self.submissions[submission_idx]
+        js = sub.jobscripts[jobscript_idx]
+
+        app_caps = self.app.package_name.upper()
+        script_dir = Path(os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"])
+        script_name = f"js_{jobscript_idx}.py"  # TODO: refactor script name
+        script_path = script_dir / script_name
+
+        add_env = {
+            f"{app_caps}_RUN_SCRIPT_NAME": script_name,
+            f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_path.stem,
+            f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
+            f"{app_caps}_RUN_SCRIPT_PATH": str(script_path),
+            f"{app_caps}_SCRIPT_INDICES_FILE": str(js.combined_script_indices_file_path),
+        }
+        env = {**dict(os.environ), **add_env}
+
+        # TODO: refactor cmd file name:
+        cmd_file_path = sub.commands_path / f"js_{jobscript_idx}{js.shell.JS_EXT}"
+        cmd = js.shell.get_command_file_launch_command(str(cmd_file_path))
+
+        self.app.submission_logger.debug(
+            f"Executing combined runs via subprocess with command {cmd!r}, and "
+            f"environment variables as below."
+        )
+        for k, v in env.items():
+            if k.startswith(app_caps):
+                self.app.submission_logger.debug(f"{k} = {v}")
+
+        exe = self.app.Executor(cmd, env, self.app.package_name)
+        exe.start_zmq_server()  # start the server
+        exe.run()  # this also shuts down the server
 
     def ensure_commands_file(
         self,
@@ -3187,6 +3257,98 @@ class Workflow:
         """Rechunk metadata/runs and parameters/base arrays."""
         self.rechunk_runs(chunk_size=chunk_size, backup=backup, status=status)
         self.rechunk_parameter_base(chunk_size=chunk_size, backup=backup, status=status)
+
+    @TimeIt.decorator
+    def get_run_directories(
+        self,
+        run_ids: Optional[List[int]] = None,
+        dir_indices_arr: Optional[np.ndarray] = None,
+    ) -> List[Union[Path, None]]:
+        """"""
+
+        @TimeIt.decorator
+        def _get_depth_dirs(
+            item_idx, max_per_dir, max_depth, depth_idx_cache, prefix
+        ) -> List[str]:
+            dirs = []
+            max_avail_items = max_per_dir**max_depth
+            for depth_i in range(1, max_depth):
+                tot_items_per_level = int(max_avail_items / max_per_dir**depth_i)
+                key = (max_avail_items, tot_items_per_level)
+                depth_idx = depth_idx_cache.get(key)
+                if depth_idx is None:
+                    depth_idx = np.repeat(
+                        np.arange(max_avail_items / tot_items_per_level, dtype=int),
+                        tot_items_per_level,
+                    )
+                    depth_idx_cache[key] = depth_idx
+                idx_i = depth_idx[item_idx]
+                start_idx = idx_i * tot_items_per_level
+                end_idx = start_idx + tot_items_per_level - 1
+                dirs.append(f"{prefix}_{start_idx}-{end_idx}")
+            return dirs
+
+        if dir_indices_arr is None:  # TODO: document behaviour!
+            dir_indices_arr = self._store.get_dirs_arr()
+            if run_ids is not None:
+                dir_indices_arr = dir_indices_arr[run_ids]
+
+        MAX_ELEMS_PER_DIR = 1000  # TODO: configurable (add `workflow_defaults` to Config)
+        MAX_ITERS_PER_DIR = 1000
+
+        exec_path = self.execution_path
+
+        # a fill value means no sub directory should be created
+        T_FILL, E_FILL, I_FILL, A_FILL, R_FILL, _, _ = RUN_DIR_ARR_FILL
+
+        depth_idx_cache = {}  # keys are (max_avail, tot_elems_per_dir_level)
+
+        # format run directories:
+        dirs = []
+        for dir_data in dir_indices_arr:
+
+            t_iID, e_idx, i_idx, _, r_idx, e_depth, i_depth = dir_data
+            path_args = []
+
+            if t_iID != T_FILL:
+                path_args.append(f"t_{t_iID}")
+
+            if e_idx != E_FILL:
+                if e_depth > 1:
+                    path_args.extend(
+                        _get_depth_dirs(
+                            item_idx=e_idx,
+                            max_per_dir=MAX_ELEMS_PER_DIR,
+                            max_depth=e_depth,
+                            depth_idx_cache=depth_idx_cache,
+                            prefix="e",
+                        )
+                    )
+                path_args.append(f"e_{e_idx}")
+
+            if i_idx != I_FILL:
+                if i_depth > 1:
+                    path_args.extend(
+                        _get_depth_dirs(
+                            item_idx=i_idx,
+                            max_per_dir=MAX_ITERS_PER_DIR,
+                            max_depth=i_depth,
+                            depth_idx_cache=depth_idx_cache,
+                            prefix="i",
+                        )
+                    )
+                path_args.append(f"i_{e_idx}")
+
+            if r_idx != R_FILL:
+                path_args.append(f"r_{r_idx}")
+
+            if path_args:
+                run_dir = exec_path.joinpath(*path_args)
+            else:
+                run_dir = None
+            dirs.append(run_dir)
+
+        return dirs
 
 
 @dataclass

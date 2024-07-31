@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
-from textwrap import indent
+from textwrap import dedent, indent
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -482,9 +482,7 @@ class JobscriptBlock(JSONLike):
     @property
     @TimeIt.decorator
     def all_EARs(self) -> List:
-        if not self._all_EARs:
-            self._all_EARs = [i for i in self.jobscript.all_EARs if i.id_ in self.EAR_ID]
-        return self._all_EARs
+        return [i for i in self.jobscript.all_EARs if i.id_ in self.EAR_ID]
 
     def to_dict(self):
         dct = super().to_dict()
@@ -630,15 +628,14 @@ class Jobscript(JSONLike):
 
     @property
     def all_EAR_IDs(self) -> NDArray:
-        all_EAR_IDs = np.concatenate([i.EAR_ID.flatten() for i in self.blocks])
-        return all_EAR_IDs
+        """Return all run IDs of this jobscripts (across all blocks), removing missing
+        run IDs (i.e. -1 values)"""
+        return np.concatenate([i.EAR_ID[i.EAR_ID >= 0] for i in self.blocks])
 
     @property
     @TimeIt.decorator
     def all_EARs(self) -> List:
-        if not self._all_EARs:
-            self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
-        return self._all_EARs
+        return self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
 
     @property
     def resources(self):
@@ -790,6 +787,10 @@ class Jobscript(JSONLike):
         return f"js_{self.index}_EAR_IDs.txt"
 
     @property
+    def combined_script_indices_file_name(self):
+        return f"js_{self.index}_script_indices.txt"
+
+    @property
     def direct_std_out_err_file_name(self):
         """For direct execution stdout and stderr combined."""
         return f"js_{self.index}_std.log"
@@ -819,6 +820,10 @@ class Jobscript(JSONLike):
     @property
     def EAR_ID_file_path(self):
         return self.submission.path / self.EAR_ID_file_name
+
+    @property
+    def combined_script_indices_file_path(self):
+        return self.submission.path / self.combined_script_indices_file_name
 
     @property
     def jobscript_path(self):
@@ -1024,88 +1029,99 @@ class Jobscript(JSONLike):
             )
 
         out = header
-        run_cmd = shell.JS_RUN_CMD.format(workflow_app_alias=self.workflow_app_alias)
 
-        if self.resources.write_app_logs:
-            run_log_enable_disable = shell.JS_RUN_LOG_PATH_ENABLE.format(
-                run_log_file_name=self.submission.get_app_log_file_name(
-                    run_ID=shell.format_env_var_get(f"{app_caps}_RUN_ID")
-                )
+        if self.resources.combine_scripts:
+            run_cmd = shell.JS_RUN_CMD_COMBINED.format(
+                workflow_app_alias=self.workflow_app_alias
             )
+            out += run_cmd + "\n"
         else:
-            run_log_enable_disable = shell.JS_RUN_LOG_PATH_DISABLE
+            run_cmd = shell.JS_RUN_CMD.format(workflow_app_alias=self.workflow_app_alias)
 
-        block_run = shell.JS_RUN.format(
-            EAR_files_delimiter=self._EAR_files_delimiter,
-            app_caps=app_caps,
-            run_cmd=run_cmd,
-            sub_tmp_dir=self.submission.tmp_path,
-            run_log_enable_disable=run_log_enable_disable,
-        )
-        if len(self.blocks) == 1:
-            # forgo element and action loops if not necessary:
-            block = self.blocks[0]
-            if block.num_actions > 1:
+            if self.resources.write_app_logs:
+                run_log_enable_disable = shell.JS_RUN_LOG_PATH_ENABLE.format(
+                    run_log_file_name=self.submission.get_app_log_file_name(
+                        run_ID=shell.format_env_var_get(f"{app_caps}_RUN_ID")
+                    )
+                )
+            else:
+                run_log_enable_disable = shell.JS_RUN_LOG_PATH_DISABLE
+
+            block_run = shell.JS_RUN.format(
+                EAR_files_delimiter=self._EAR_files_delimiter,
+                app_caps=app_caps,
+                run_cmd=run_cmd,
+                sub_tmp_dir=self.submission.tmp_path,
+                run_log_enable_disable=run_log_enable_disable,
+            )
+            if len(self.blocks) == 1:
+                # forgo element and action loops if not necessary:
+                block = self.blocks[0]
+                if block.num_actions > 1:
+                    block_act = shell.JS_ACT_MULTI.format(
+                        num_actions=block.num_actions,
+                        run_block=indent(block_run, shell.JS_INDENT),
+                    )
+                else:
+                    block_act = shell.JS_ACT_SINGLE.format(run_block=block_run)
+
+                main = shell.JS_MAIN.format(
+                    action=block_act,
+                    app_caps=app_caps,
+                    block_start_elem_idx=0,
+                )
+
+                out += shell.JS_BLOCK_HEADER.format(app_caps=app_caps)
+                if self.is_array:
+                    out += shell.JS_ELEMENT_MULTI_ARRAY.format(
+                        scheduler_command=scheduler.js_cmd,
+                        scheduler_array_switch=scheduler.array_switch,
+                        scheduler_array_item_var=scheduler.array_item_var,
+                        num_elements=block.num_elements,
+                        main=main,
+                    )
+                elif block.num_elements == 1:
+                    out += shell.JS_ELEMENT_SINGLE.format(
+                        block_start_elem_idx=0,
+                        main=main,
+                    )
+                else:
+                    out += shell.JS_ELEMENT_MULTI_LOOP.format(
+                        block_start_elem_idx=0,
+                        num_elements=block.num_elements,
+                        main=indent(main, shell.JS_INDENT),
+                    )
+
+            else:
+                # use a shell loop for blocks, so always write the inner element and action
+                # loops:
                 block_act = shell.JS_ACT_MULTI.format(
-                    num_actions=block.num_actions,
+                    num_actions=shell.format_array_get_item("num_actions", "$block_idx"),
                     run_block=indent(block_run, shell.JS_INDENT),
                 )
-            else:
-                block_act = shell.JS_ACT_SINGLE.format(run_block=block_run)
-
-            main = shell.JS_MAIN.format(
-                action=block_act,
-                app_caps=app_caps,
-                block_start_elem_idx=0,
-            )
-
-            out += shell.JS_BLOCK_HEADER.format(app_caps=app_caps)
-            if self.is_array:
-                out += shell.JS_ELEMENT_MULTI_ARRAY.format(
-                    scheduler_command=scheduler.js_cmd,
-                    scheduler_array_switch=scheduler.array_switch,
-                    scheduler_array_item_var=scheduler.array_item_var,
-                    num_elements=block.num_elements,
-                    main=main,
+                main = shell.JS_MAIN.format(
+                    action=block_act,
+                    app_caps=app_caps,
+                    block_start_elem_idx="$block_start_elem_idx",
                 )
-            elif block.num_elements == 1:
-                out += shell.JS_ELEMENT_SINGLE.format(
-                    block_start_elem_idx=0,
-                    main=main,
-                )
-            else:
-                out += shell.JS_ELEMENT_MULTI_LOOP.format(
-                    block_start_elem_idx=0,
-                    num_elements=block.num_elements,
+
+                # only non-array jobscripts will have multiple blocks:
+                element_loop = shell.JS_ELEMENT_MULTI_LOOP.format(
+                    block_start_elem_idx="$block_start_elem_idx",
+                    num_elements=shell.format_array_get_item(
+                        "num_elements", "$block_idx"
+                    ),
                     main=indent(main, shell.JS_INDENT),
                 )
-
-        else:
-            # use a shell loop for blocks, so always write the inner element and action
-            # loops:
-            block_act = shell.JS_ACT_MULTI.format(
-                num_actions=shell.format_array_get_item("num_actions", "$block_idx"),
-                run_block=indent(block_run, shell.JS_INDENT),
-            )
-            main = shell.JS_MAIN.format(
-                action=block_act,
-                app_caps=app_caps,
-                block_start_elem_idx="$block_start_elem_idx",
-            )
-
-            # only non-array jobscripts will have multiple blocks:
-            element_loop = shell.JS_ELEMENT_MULTI_LOOP.format(
-                block_start_elem_idx="$block_start_elem_idx",
-                num_elements=shell.format_array_get_item("num_elements", "$block_idx"),
-                main=indent(main, shell.JS_INDENT),
-            )
-            out += shell.JS_BLOCK_LOOP.format(
-                num_elements=shell.format_array([i.num_elements for i in self.blocks]),
-                num_actions=shell.format_array([i.num_actions for i in self.blocks]),
-                num_blocks=len(self.blocks),
-                app_caps=app_caps,
-                element_loop=indent(element_loop, shell.JS_INDENT),
-            )
+                out += shell.JS_BLOCK_LOOP.format(
+                    num_elements=shell.format_array(
+                        [i.num_elements for i in self.blocks]
+                    ),
+                    num_actions=shell.format_array([i.num_actions for i in self.blocks]),
+                    num_blocks=len(self.blocks),
+                    app_caps=app_caps,
+                    element_loop=indent(element_loop, shell.JS_INDENT),
+                )
 
         out += shell.JS_FOOTER
 
@@ -1454,3 +1470,244 @@ class Jobscript(JSONLike):
 
         self.app.submission_logger.info(f"Jobscript is {'in' if not out else ''}active.")
         return out
+
+    def compose_combined_script(
+        self, action_scripts: List[List[Tuple[str, Path, bool]]]
+    ) -> Tuple[str, List[List[int]]]:
+
+        # use an index array for action scripts:
+        script_names = []
+        requires_dir = []
+        script_data = {}
+        script_indices = []
+        for i in action_scripts:
+            indices_i = []
+            for name_j, path_j, req_dir_i in i:
+                if name_j in script_data:
+                    idx = script_data[name_j][0]
+                else:
+                    idx = len(script_names)
+                    script_names.append(name_j)
+                    requires_dir.append(req_dir_i)
+                    script_data[name_j] = (idx, path_j)
+                indices_i.append(idx)
+            script_indices.append(indices_i)
+
+        if not self.resources.combine_scripts:
+            raise TypeError(
+                f"Jobscript {self.index} is not a `combine_scripts` jobscript."
+            )
+
+        tab_indent = "    "
+
+        scrip_funcs = []
+        for act_name, (_, snip_path) in script_data.items():
+            main_func_name = snip_path.stem
+            with snip_path.open("rt") as fp:
+                script_str = fp.read()
+            scrip_funcs.append(
+                dedent(
+                    """\
+                def {act_name}(*args, **kwargs):
+                {script_str}
+                    return {main_func_name}(*args, **kwargs)
+                """
+                ).format(
+                    act_name=act_name,
+                    script_str=indent(script_str, tab_indent),
+                    main_func_name=main_func_name,
+                )
+            )
+
+        app_caps = self.app.package_name.upper()
+        if self.resources.write_app_logs:
+            sub_log_path = f'os.environ["{app_caps}_LOG_PATH"]'
+        else:
+            sub_log_path = '""'
+
+        py_imports = dedent(
+            """\
+            import os
+            from pathlib import Path
+            import traceback
+
+            import {app_module} as app
+            
+            log_path = {log_path}
+            wk_path = os.getenv("{app_caps}_WK_PATH")
+            """
+        ).format(
+            app_module=self.app.module,
+            app_caps=app_caps,
+            log_path=sub_log_path,
+        )
+
+        py_main_block_workflow_load = dedent(
+            """\
+                app.load_config(
+                    log_file_path=log_path,
+                    config_dir=r"{cfg_dir}",
+                    config_key=r"{cfg_invoc_key}",
+                )
+                wk = app.Workflow(wk_path)                
+            """
+        ).format(
+            cfg_dir=self.app.config.config_directory,
+            cfg_invoc_key=self.app.config.config_key,
+            app_caps=app_caps,
+        )
+
+        scrip_funcs = "\n".join(scrip_funcs)
+        script_names_str = "[" + ", ".join(f"{i}" for i in script_names) + "]"
+        main = dedent(
+            """\
+            {py_imports}
+
+            {py_main_block_workflow_load}
+
+            with open(os.environ["{app_caps}_RUN_ID_FILE"], mode="r") as fp:
+                lns = fp.read().strip().split("\\n")
+                run_IDs = [[int(i) for i in ln.split("{run_ID_delim}")] for ln in lns]
+
+            with open(os.environ["{app_caps}_SCRIPT_INDICES_FILE"], mode="r") as fp:
+                lns = fp.read().strip().split("\\n")
+                section_idx = -1
+                script_indices = []
+                for ln in lns:
+                    if ln.startswith("#"):
+                        section_idx += 1
+                        continue
+                    ln_parsed = [int(i) for i in ln.split("{script_idx_delim}")]
+                    if section_idx == 0:
+                        num_elements = ln_parsed
+                    elif section_idx == 1:
+                        num_actions = ln_parsed
+                    else:
+                        script_indices.append(ln_parsed)
+
+            port = int(os.environ["{app_caps}_RUN_PORT"])
+            action_scripts = {script_names}
+            requires_dir = {requires_dir!r}
+
+            block_start_elem_idx = 0
+            for block_idx in range({num_blocks}):
+                
+                os.environ["{app_caps}_BLOCK_IDX"] = str(block_idx)
+
+                for block_elem_idx in range(num_elements[block_idx]):
+                    
+                    js_elem_idx = block_start_elem_idx + block_elem_idx
+                    os.environ["{app_caps}_BLOCK_ELEM_IDX"] = str(block_elem_idx)
+                    os.environ["{app_caps}_JS_ELEM_IDX"] = str(js_elem_idx)
+
+                    for block_act_idx in range(num_actions[block_idx]):
+                                            
+                        run_ID = run_IDs[js_elem_idx][block_act_idx]
+                        if run_ID == -1:
+                            continue
+
+                        os.environ["{app_caps}_BLOCK_ACT_IDX"] = str(block_act_idx)
+                        os.environ["{app_caps}_RUN_ID"] = str(run_ID)
+                    
+                        std_path = Path(os.environ["{app_caps}_SUB_STD_DIR"], f"{{run_ID}}.txt")
+                        with app.redirect_std_to_file(std_path):
+                        
+                            if {write_app_logs!r}:
+                                app.config.log_path = Path(
+                                    os.environ["{app_caps}_SUB_LOG_DIR"],
+                                    f"{run_log_name}",
+                                )
+
+                            run = wk.get_EARs_from_IDs([run_ID])[0]                        
+
+                            # set run start
+                            wk.set_EAR_start(EAR_ID=run_ID, port_number=port)
+
+                            # retrieve inputs:
+                            func_kwargs = run.get_input_values_direct()
+                            
+                            script_idx = script_indices[block_idx][block_act_idx]
+                            req_dir = requires_dir[script_idx]
+                            func = action_scripts[script_idx]
+
+                            if req_dir:
+                                run_dir = run.get_directory()
+                                os.chdir(run_dir)
+
+                        try:
+                            outputs = func(**func_kwargs)
+                        except Exception:
+                            print(f"Exception caught during execution of script function {{func.__name__}}.")
+                            traceback.print_exc()
+                            ret_code = 1
+                        else:
+                            ret_code = 0
+
+                        with app.redirect_std_to_file(std_path):
+                            # set run end
+                            wk.set_EAR_end(
+                                block_act_key=({js_idx}, block_idx, block_act_idx),
+                                run=run,
+                                exit_code=ret_code,
+                            )
+
+                            # save outputs
+                            for name_i, out_i in outputs.items():
+                                wk.set_parameter_value(
+                                    param_id=run.data_idx[f"outputs.{{name_i}}"],
+                                    value=out_i,
+                                )
+
+                            wk._check_loop_termination(run)
+
+                            if req_dir:
+                                os.chdir(os.environ["{app_caps}_SUB_TMP_DIR"])
+
+                            if {write_app_logs!r}:                                
+                                app.config.log_path = {sub_log_path}
+
+                block_start_elem_idx += num_elements[block_idx]
+
+        """
+        ).format(
+            py_imports=py_imports,
+            py_main_block_workflow_load=py_main_block_workflow_load,
+            app_caps=self.app.package_name.upper(),
+            script_idx_delim=",",  # TODO
+            script_names=script_names_str,
+            requires_dir=requires_dir,
+            num_blocks=len(self.blocks),
+            run_ID_delim=self._EAR_files_delimiter,
+            run_log_name=self.submission.get_app_log_file_name(run_ID="{run_ID}"),
+            js_idx=self.index,
+            write_app_logs=self.resources.write_app_logs,
+            sub_log_path=sub_log_path,
+        )
+
+        script = dedent(
+            """\
+            {scrip_funcs}
+            if __name__ == "__main__":
+            {main}
+        """
+        ).format(scrip_funcs=scrip_funcs, main=indent(main, tab_indent))
+
+        num_elems = [i.num_elements for i in self.blocks]
+        num_acts = [len(i) for i in action_scripts]
+
+        return script, script_indices, num_elems, num_acts
+
+    def write_script_indices_file(
+        self, indices: List[List[int]], num_elems: List[int], num_acts: List[int]
+    ) -> None:
+        """Write a text file containing the action script index for each block and action
+        in a `combined_scripts` script."""
+        delim = ","  # TODO
+        with self.combined_script_indices_file_path.open("wt") as fp:
+            fp.write("# number of elements per block:\n")
+            fp.write(delim.join(str(i) for i in num_elems) + "\n")
+            fp.write("# number of actions per block:\n")
+            fp.write(delim.join(str(i) for i in num_acts) + "\n")
+            fp.write("# script indices:\n")
+            for block in indices:
+                fp.write(delim.join(str(i) for i in block) + "\n")

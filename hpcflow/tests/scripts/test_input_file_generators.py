@@ -46,7 +46,9 @@ def test_input_file_generator_creates_file(null_config, tmp_path):
     time.sleep(10)
 
     # check the input file is written
-    inp_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{inp_file.name.name}"
+    run_0 = wk.get_all_EARs()[0]
+    exec_path = run_0.get_directory()
+    inp_file_path = exec_path.joinpath(inp_file.name.name)
     inp_file_contents = inp_file_path.read_text()
     assert inp_file_contents.strip() == str(p1_val)
 
@@ -282,7 +284,9 @@ def test_env_specifier_in_input_file_generator_script_path(new_null_config, tmp_
     time.sleep(10)
 
     # check the input file is written
-    inp_file_path = wk.execution_path / f"task_0_t1/e_0/r_0/{inp_file.name.name}"
+    run_0 = wk.get_all_EARs()[0]
+    exec_path = run_0.get_directory()
+    inp_file_path = exec_path.joinpath(inp_file.name.name)
     inp_file_contents = inp_file_path.read_text()
     assert inp_file_contents.strip() == str(p1_val)
 

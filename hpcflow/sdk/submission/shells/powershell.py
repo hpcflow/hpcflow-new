@@ -66,9 +66,13 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_WK_PATH_ARG = $WK_PATH_ARG
         $env:{app_caps}_SUB_IDX = {sub_idx}
         $env:{app_caps}_SUB_SCRIPTS_DIR = $SUB_SCRIPTS_DIR
+        $env:{app_caps}_SUB_TMP_DIR = $SUB_TMP_DIR
+        $env:{app_caps}_SUB_LOG_DIR = $SUB_LOG_DIR
+        $env:{app_caps}_SUB_STD_DIR = $SUB_STD_DIR                
         $env:{app_caps}_LOG_PATH = Join-Path $SUB_LOG_DIR "js_$JS_IDX.log"
         $env:{app_caps}_JS_FUNCS_PATH = $JS_FUNCS_PATH
         $env:{app_caps}_JS_IDX = {js_idx}
+        $env:{app_caps}_RUN_ID_FILE = $EAR_ID_FILE
     """
     )
     JS_DIRECT_HEADER = dedent(
@@ -83,6 +87,10 @@ class WindowsPowerShell(Shell):
     JS_RUN_CMD = (
         "{workflow_app_alias} internal workflow $WK_PATH execute-run "
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
+    )
+    JS_RUN_CMD_COMBINED = (
+        "{workflow_app_alias} internal workflow $WK_PATH execute-combined-runs "
+        "$SUB_IDX $JS_IDX\n"
     )
     JS_RUN = dedent(
         """\
