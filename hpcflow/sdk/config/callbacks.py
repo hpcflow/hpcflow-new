@@ -140,7 +140,7 @@ def callback_scheduler_set_up(config, schedulers):
 
 def callback_supported_shells(config, shell_name):
     """
-    Callback that tests if a shell names is supported on this OS. 
+    Callback that tests if a shell names is supported on this OS.
     """
     supported = get_supported_shells(os.name)
     if shell_name not in supported:

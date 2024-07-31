@@ -9,6 +9,7 @@ class ConfigUnknownItemError(ConfigError):
     """
     Raised when the configuration contains an unknown item.
     """
+
     def __init__(self, name, message=None):
         self.message = message or (
             f"Specified name {name!r} is not a valid meta-data or configurable "
@@ -21,6 +22,7 @@ class ConfigUnknownOverrideError(ConfigError):
     """
     Raised when the configuration override contains an unknown item.
     """
+
     def __init__(self, name, message=None):
         self.message = message or (
             f"Specified configuration override {name!r} is not a valid configurable item."
@@ -32,6 +34,7 @@ class ConfigNonConfigurableError(ConfigError):
     """
     Raised when the configuration contains an item that can't be configured.
     """
+
     def __init__(self, name, message=None):
         self.message = message or (f"Specified name {name!r} is not a configurable item.")
         super().__init__(self.message)
@@ -41,6 +44,7 @@ class ConfigItemAlreadyUnsetError(ConfigError):
     """
     Raised when the configuration tries to unset an unset item.
     """
+
     def __init__(self, name, message=None):
         self.message = message or f"Configuration item {name!r} is already not set."
         super().__init__(self.message)
@@ -50,6 +54,7 @@ class ConfigFileValidationError(ConfigError):
     """
     Raised when the configuration file fails validation.
     """
+
     pass
 
 
@@ -57,6 +62,7 @@ class ConfigItemCallbackError(ConfigError):
     """
     Raised when a configuration callback errors.
     """
+
     def __init__(self, name, callback, err, message=None):
         self.message = message or (
             f"Callback function {callback.__name__!r} for configuration item {name!r} "
@@ -80,6 +86,7 @@ class ConfigFileInvocationUnknownMatchKey(ConfigError):
     """
     Raised when the configuration contains an invalid match key.
     """
+
     def __init__(self, match_key, message=None):
         self.message = message or (
             f"Specified match key ({match_key!r}) is not a valid run time info "

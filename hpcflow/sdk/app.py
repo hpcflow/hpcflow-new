@@ -142,6 +142,7 @@ class Singleton(type):
     """
     Metaclass that enforces that only one instance of a class can be made.
     """
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -695,7 +696,7 @@ class BaseApp(metaclass=Singleton):
     def user_data_hostname_dir(self) -> Path:
         """
         The directory for holding user data.
-        
+
         We segregate by hostname to account for the case where multiple machines might
         use the same shared file system.
         """

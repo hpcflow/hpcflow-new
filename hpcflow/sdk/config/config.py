@@ -679,7 +679,7 @@ class Config:
     def prepend(self, path, value, is_json=False):
         """
         Prepend a value to a list-like configuration item.
-        
+
         Parameters
         ----------
         path: str

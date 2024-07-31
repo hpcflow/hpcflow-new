@@ -49,6 +49,7 @@ class SubmissionStatus(enum.Enum):
     """
     The overall status of a submission.
     """
+
     #: Not yet submitted.
     PENDING = 0
     #: All jobscripts submitted successfully.

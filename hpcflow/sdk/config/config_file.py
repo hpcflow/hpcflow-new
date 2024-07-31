@@ -28,7 +28,7 @@ from .errors import (
 class ConfigFile:
     """
     Configuration file.
-    
+
     Parameters
     ----------
     directory:
