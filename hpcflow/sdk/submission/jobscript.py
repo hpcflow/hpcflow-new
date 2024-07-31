@@ -1532,7 +1532,7 @@ class Jobscript(JSONLike):
             import traceback
 
             import {app_module} as app
-            
+
             log_path = {log_path}
             wk_path = os.getenv("{app_caps}_WK_PATH")
             """
@@ -1549,7 +1549,7 @@ class Jobscript(JSONLike):
                     config_dir=r"{cfg_dir}",
                     config_key=r"{cfg_invoc_key}",
                 )
-                wk = app.Workflow(wk_path)                
+                wk = app.Workflow(wk_path)
             """
         ).format(
             cfg_dir=self.app.config.config_directory,
@@ -1569,6 +1569,8 @@ class Jobscript(JSONLike):
                 lns = fp.read().strip().split("\\n")
                 run_IDs = [[int(i) for i in ln.split("{run_ID_delim}")] for ln in lns]
 
+            run_IDs_flat = [j for i in run_IDs for j in i]
+            runs = wk.get_EARs_from_IDs(run_IDs_flat, as_dict=True)
             with open(os.environ["{app_caps}_SCRIPT_INDICES_FILE"], mode="r") as fp:
                 lns = fp.read().strip().split("\\n")
                 section_idx = -1
@@ -1591,41 +1593,41 @@ class Jobscript(JSONLike):
 
             block_start_elem_idx = 0
             for block_idx in range({num_blocks}):
-                
+
                 os.environ["{app_caps}_BLOCK_IDX"] = str(block_idx)
 
                 for block_elem_idx in range(num_elements[block_idx]):
-                    
+
                     js_elem_idx = block_start_elem_idx + block_elem_idx
                     os.environ["{app_caps}_BLOCK_ELEM_IDX"] = str(block_elem_idx)
                     os.environ["{app_caps}_JS_ELEM_IDX"] = str(js_elem_idx)
 
                     for block_act_idx in range(num_actions[block_idx]):
-                                            
+
                         run_ID = run_IDs[js_elem_idx][block_act_idx]
                         if run_ID == -1:
                             continue
 
                         os.environ["{app_caps}_BLOCK_ACT_IDX"] = str(block_act_idx)
                         os.environ["{app_caps}_RUN_ID"] = str(run_ID)
-                    
+
                         std_path = Path(os.environ["{app_caps}_SUB_STD_DIR"], f"{{run_ID}}.txt")
                         with app.redirect_std_to_file(std_path):
-                        
+
                             if {write_app_logs!r}:
                                 app.config.log_path = Path(
                                     os.environ["{app_caps}_SUB_LOG_DIR"],
                                     f"{run_log_name}",
                                 )
 
-                            run = wk.get_EARs_from_IDs([run_ID])[0]                        
+                            run = runs[run_ID]
 
                             # set run start
                             wk.set_EAR_start(EAR_ID=run_ID, port_number=port)
 
                             # retrieve inputs:
                             func_kwargs = run.get_input_values_direct()
-                            
+
                             script_idx = script_indices[block_idx][block_act_idx]
                             req_dir = requires_dir[script_idx]
                             func = action_scripts[script_idx]
@@ -1663,11 +1665,10 @@ class Jobscript(JSONLike):
                             if req_dir:
                                 os.chdir(os.environ["{app_caps}_SUB_TMP_DIR"])
 
-                            if {write_app_logs!r}:                                
+                            if {write_app_logs!r}:
                                 app.config.log_path = {sub_log_path}
 
                 block_start_elem_idx += num_elements[block_idx]
-
         """
         ).format(
             py_imports=py_imports,

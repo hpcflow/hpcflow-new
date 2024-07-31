@@ -1478,7 +1478,9 @@ class Workflow:
         return objs
 
     @TimeIt.decorator
-    def get_EARs_from_IDs(self, id_lst: Iterable[int]) -> List[app.ElementActionRun]:
+    def get_EARs_from_IDs(
+        self, id_lst: Iterable[int], as_dict: Optional[bool] = False
+    ) -> List[app.ElementActionRun]:
         """Return element action run objects from a list of IDs."""
         self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
@@ -1526,13 +1528,16 @@ class Workflow:
                     dict(zip(elem_i_iters_idx, elem_iters))
                 )
 
-        objs = []
+        objs = {} if as_dict else []
         for idx_dat in index_paths:
             iter_ = iters_by_task_elem[idx_dat["task_idx"]][idx_dat["elem_idx"]][
                 idx_dat["iter_idx"]
             ]
             run = iter_.actions[idx_dat["action_idx"]].runs[idx_dat["run_idx"]]
-            objs.append(run)
+            if as_dict:
+                objs[run.id_] = run
+            else:
+                objs.append(run)
 
         return objs
 
@@ -2025,12 +2030,12 @@ class Workflow:
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
-    def set_EAR_start(self, EAR_ID: int, port_number: int) -> None:
+    def set_EAR_start(self, run: app.ElementActionRun, port_number: int) -> None:
         """Set the start time on an EAR."""
-        self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
+        self.app.logger.debug(f"Setting start for EAR ID {run.id_!r}")
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_start(EAR_ID, port_number)
+                self._store.set_EAR_start(run.id_, port_number, run.action.requires_dir)
 
     def set_EAR_end(
         self,
@@ -2147,7 +2152,9 @@ class Workflow:
                             EAR_dep_ID, SkipReason.UPSTREAM_FAILURE.value
                         )
 
-                self._store.set_EAR_end(run.id_, exit_code, success)
+                self._store.set_EAR_end(
+                    run.id_, exit_code, success, run.action.requires_dir
+                )
 
     def set_EAR_skip(self, EAR_ID: int, skip_reason: SkipReason) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
@@ -3000,7 +3007,7 @@ class Workflow:
                     port = exe.start_zmq_server()  # start the server so we know the port
 
                     try:
-                        self.set_EAR_start(EAR_ID=run_ID, port_number=port)
+                        self.set_EAR_start(run=run, port_number=port)
                     except:
                         self.app.submission_logger.error(f"Failed to set run start.")
                         exe.stop_zmq_server()

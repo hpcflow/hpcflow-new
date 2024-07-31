@@ -43,8 +43,4 @@ class RunDirAppFiles:
         snapshot.take(root_path or ".")
         ss_js = snapshot.to_json_like(use_strings=True)
         ss_js.pop("root_path")  # always the current working directory of the run
-        for k in list(ss_js["data"].keys()):
-            if re.match(cls.CMD_FILES_RE_PATTERN, k):
-                ss_js["data"].pop(k)
-
         return ss_js

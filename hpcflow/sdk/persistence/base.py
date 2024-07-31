@@ -1093,9 +1093,11 @@ class PersistentStore(ABC):
         if save:
             self.save()
 
-    def set_EAR_start(self, EAR_ID: int, port_number: int, save: bool = True) -> datetime:
+    def set_EAR_start(
+        self, EAR_ID: int, port_number: int, snapshot: bool, save: bool = True
+    ) -> datetime:
         dt = datetime.utcnow()
-        ss_js = self.app.RunDirAppFiles.take_snapshot()
+        ss_js = self.app.RunDirAppFiles.take_snapshot() if snapshot else None
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname, port_number)
         if save:
@@ -1103,11 +1105,16 @@ class PersistentStore(ABC):
         return dt
 
     def set_EAR_end(
-        self, EAR_ID: int, exit_code: int, success: bool, save: bool = True
+        self,
+        EAR_ID: int,
+        exit_code: int,
+        success: bool,
+        snapshot: bool,
+        save: bool = True,
     ) -> datetime:
         # TODO: save output files
         dt = datetime.utcnow()
-        ss_js = self.app.RunDirAppFiles.take_snapshot()
+        ss_js = self.app.RunDirAppFiles.take_snapshot() if snapshot else None
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
         if save:
             self.save()
