@@ -341,6 +341,7 @@ def make_workflow_to_run_command(
     name="w1",
     overwrite=False,
     store="zarr",
+    requires_dir=False,
 ):
     """Generate a single-task single-action workflow that runs the specified command,
     optionally generating some outputs."""
@@ -354,7 +355,7 @@ def make_workflow_to_run_command(
     schema = hf.TaskSchema(
         objective="run_command",
         outputs=[hf.SchemaOutput(i) for i in outputs],
-        actions=[hf.Action(commands=commands)],
+        actions=[hf.Action(commands=commands, requires_dir=requires_dir)],
     )
     template = {
         "name": name,

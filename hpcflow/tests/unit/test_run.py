@@ -88,6 +88,7 @@ def test_run_dir_diff_new_file(null_config, tmp_path):
         command = "touch new_file.txt"
     wk = make_workflow_to_run_command(
         command=command,
+        requires_dir=True,
         path=tmp_path,
         name="w2",
         overwrite=True,
