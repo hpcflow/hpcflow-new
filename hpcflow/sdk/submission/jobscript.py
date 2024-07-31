@@ -320,10 +320,10 @@ class Jobscript(JSONLike):
         The task insertion IDs.
     task_actions: list[tuple]
         The actions of the tasks.
-        ``[ [task insert ID, action_idx, index into task_loop_idx] for each JS_ACTION_IDX ]``
+        ``task insert ID, action_idx, index into task_loop_idx`` for each ``JS_ACTION_IDX``
     task_elements: dict[int, list[int]]
         The elements of the tasks.
-        ``{JS_ELEMENT_IDX: [TASK_ELEMENT_IDX for each TASK_INSERT_ID] }``
+        Maps ``JS_ELEMENT_IDX`` to list of ``TASK_ELEMENT_IDX`` for each ``TASK_INSERT_ID``
     EAR_ID: NDArray
         Element action run information.
     resources: ElementResources
