@@ -1591,6 +1591,7 @@ class Jobscript(JSONLike):
 
             port = int(os.environ["{app_caps}_RUN_PORT"])
             action_scripts = {script_names}
+            requires_dir = {requires_dir!r}
             run_dirs = wk.get_run_directories()
             block_start_elem_idx = 0
             for block_idx in range({num_blocks}):
