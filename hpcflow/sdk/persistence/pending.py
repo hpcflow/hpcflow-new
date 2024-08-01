@@ -67,7 +67,7 @@ class PendingChanges:
 
         self.set_js_metadata: Dict[int, Dict[int, Any]] = None
 
-        self.set_parameters: Dict[int, AnySParameter] = None
+        self.set_parameters: Dict[int, Any] = None
 
         self.update_param_sources: Dict[int, Dict] = None
         self.update_loop_indices: Dict[int, Dict[str, int]] = None

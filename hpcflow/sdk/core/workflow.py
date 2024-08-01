@@ -2030,12 +2030,23 @@ class Workflow:
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
-    def set_EAR_start(self, run: app.ElementActionRun, port_number: int) -> None:
+    def set_EAR_start(
+        self, run_id: int, run_dir: Union[Path, None], port_number: int
+    ) -> None:
         """Set the start time on an EAR."""
-        self.app.logger.debug(f"Setting start for EAR ID {run.id_!r}")
+        self.app.logger.debug(f"Setting start for EAR ID {run_id!r}")
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_EAR_start(run.id_, port_number, run.action.requires_dir)
+                self._store.set_EAR_start(run_id, run_dir, port_number)
+
+    def set_multi_run_starts(
+        self, run_ids: List[int], run_dirs: List[Union[Path, None]], port_number: int
+    ) -> None:
+        """Set the start time on multiple runs."""
+        self.app.logger.debug(f"Setting start for multiple run IDs {run_ids!r}")
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_multi_run_starts(run_ids, run_dirs, port_number)
 
     def set_EAR_end(
         self,
@@ -2156,6 +2167,140 @@ class Workflow:
                     run.id_, exit_code, success, run.action.requires_dir
                 )
 
+    def set_multi_run_ends(
+        self,
+        runs: Dict[Tuple[int, int, int], List[Tuple[app.ElementActionRun, int]]],
+        run_dirs: List[Union[Path, None]],
+    ) -> None:
+        """Set end times and exit codes on multiple runs.
+
+        If the exit code is non-zero, also set all downstream dependent runs to be
+        skipped. Also save any generated input/output files."""
+
+        self.app.logger.debug(f"Setting end for multiple run IDs.")
+        with self._store.cached_load():
+            with self.batch_update():
+                run_ids = []
+                exit_codes = []
+                successes = []
+                for block_act_key, run_dat in runs.items():
+                    for run, exit_code in run_dat:
+                        success = (
+                            exit_code == 0
+                        )  # TODO  more sophisticated success heuristics
+                        if run.action.abortable and exit_code == ABORT_EXIT_CODE:
+                            # the point of aborting an EAR is to continue with the workflow:
+                            success = True
+
+                        for IFG_i in run.action.input_file_generators:
+                            inp_file = IFG_i.input_file
+                            self.app.logger.debug(
+                                f"Saving EAR input file: {inp_file.label!r} for EAR ID "
+                                f"{run.id_!r}."
+                            )
+                            param_id = run.data_idx[f"input_files.{inp_file.label}"]
+
+                            file_paths = inp_file.value()
+                            if not isinstance(file_paths, list):
+                                file_paths = [file_paths]
+
+                            for path_i in file_paths:
+                                self._set_file(
+                                    param_id=param_id,
+                                    store_contents=True,  # TODO: make optional according to IFG
+                                    is_input=False,
+                                    path=resolve_path(path_i),
+                                )
+
+                        if run.action.script_data_out_has_files:
+                            run._param_save(block_act_key)
+
+                        # Save action-level files: (TODO: refactor with below for OFPs)
+                        for save_file_j in run.action.save_files:
+                            self.app.logger.debug(
+                                f"Saving file: {save_file_j.label!r} for EAR ID "
+                                f"{run.id_!r}."
+                            )
+                            try:
+                                param_id = run.data_idx[
+                                    f"output_files.{save_file_j.label}"
+                                ]
+                            except KeyError:
+                                # We might be saving a file that is not a defined
+                                # "output file"; this will avoid saving a reference in the
+                                # parameter data:
+                                param_id = None
+
+                            file_paths = save_file_j.value()
+                            self.app.logger.debug(
+                                f"Saving output file paths: {file_paths!r}"
+                            )
+                            if not isinstance(file_paths, list):
+                                file_paths = [file_paths]
+
+                            for path_i in file_paths:
+                                self._set_file(
+                                    param_id=param_id,
+                                    store_contents=True,
+                                    is_input=False,
+                                    path=Path(path_i).resolve(),
+                                    clean_up=(save_file_j in run.action.clean_up),
+                                )
+
+                        for OFP_i in run.action.output_file_parsers:
+                            for save_file_j in OFP_i.save_files:
+                                self.app.logger.debug(
+                                    f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
+                                    f"{run.id_!r}."
+                                )
+                                try:
+                                    param_id = run.data_idx[
+                                        f"output_files.{save_file_j.label}"
+                                    ]
+                                except KeyError:
+                                    # We might be saving a file that is not a defined
+                                    # "output file"; this will avoid saving a reference in the
+                                    # parameter data:
+                                    param_id = None
+
+                                file_paths = save_file_j.value()
+                                self.app.logger.debug(
+                                    f"Saving EAR output file paths: {file_paths!r}"
+                                )
+                                if not isinstance(file_paths, list):
+                                    file_paths = [file_paths]
+
+                                for path_i in file_paths:
+                                    self._set_file(
+                                        param_id=param_id,
+                                        store_contents=True,  # TODO: make optional according to OFP
+                                        is_input=False,
+                                        path=Path(path_i).resolve(),
+                                        clean_up=(save_file_j in OFP_i.clean_up),
+                                    )
+
+                        if (
+                            not success
+                            and run.skip_reason is not SkipReason.LOOP_TERMINATION
+                        ):
+                            # loop termination skips are already propagated
+                            for EAR_dep_ID in run.get_dependent_EARs(as_objects=False):
+                                # TODO: this needs to be recursive?
+                                self.app.logger.debug(
+                                    f"Setting EAR ID {EAR_dep_ID!r} to skip because it depends on"
+                                    f" EAR ID {run.id_!r}, which exited with a non-zero exit code:"
+                                    f" {exit_code!r}."
+                                )
+                                self._store.set_EAR_skip(
+                                    EAR_dep_ID, SkipReason.UPSTREAM_FAILURE.value
+                                )  # TODO: batch up
+
+                        run_ids.append(run.id_)
+                        exit_codes.append(exit_code)
+                        successes.append(success)
+
+                self._store.set_multi_run_ends(run_ids, run_dirs, exit_codes, successes)
+
     def set_EAR_skip(self, EAR_ID: int, skip_reason: SkipReason) -> None:
         """Record that an EAR is to be skipped due to an upstream failure or loop
         termination condition being met."""
@@ -2175,6 +2320,16 @@ class Workflow:
         with self._store.cached_load():
             with self.batch_update():
                 self._store.set_parameter_value(param_id, value)
+
+        if commit:
+            # force commit now:
+            self._store._pending.commit_all()
+
+    @TimeIt.decorator
+    def set_parameter_values(self, values: Dict[int, Any], commit: bool = False) -> None:
+        with self._store.cached_load():
+            with self.batch_update():
+                self._store.set_parameter_values(values)
 
         if commit:
             # force commit now:
@@ -2924,6 +3079,7 @@ class Workflow:
 
             js_idx = block_act_key[0]
             run = self.get_EARs_from_IDs([run_ID])[0]
+            run_dir = None
             if run.action.requires_dir:
                 run_dir = run.get_directory()
                 self.app.submission_logger.debug(
@@ -3007,7 +3163,7 @@ class Workflow:
                     port = exe.start_zmq_server()  # start the server so we know the port
 
                     try:
-                        self.set_EAR_start(run=run, port_number=port)
+                        self.set_EAR_start(run_ID, run_dir, port)
                     except:
                         self.app.submission_logger.error(f"Failed to set run start.")
                         exe.stop_zmq_server()

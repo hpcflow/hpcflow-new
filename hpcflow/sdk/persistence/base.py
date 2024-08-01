@@ -1094,12 +1094,31 @@ class PersistentStore(ABC):
             self.save()
 
     def set_EAR_start(
-        self, EAR_ID: int, port_number: int, snapshot: bool, save: bool = True
+        self, EAR_ID: int, run_dir: Union[Path, None], port_number: int, save: bool = True
     ) -> datetime:
         dt = datetime.utcnow()
-        ss_js = self.app.RunDirAppFiles.take_snapshot() if snapshot else None
+        ss_js = self.app.RunDirAppFiles.take_snapshot() if run_dir else None
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname, port_number)
+        if save:
+            self.save()
+        return dt
+
+    def set_multi_run_starts(
+        self,
+        run_ids: List[int],
+        run_dirs: List[Union[Path, None]],
+        port_number: int,
+        save: bool = True,
+    ) -> datetime:
+        dt = datetime.utcnow()
+        run_hostname = socket.gethostname()
+        run_start_data = {}
+        for id_i, dir_i in zip(run_ids, run_dirs):
+            ss_js_i = self.app.RunDirAppFiles.take_snapshot(dir_i) if dir_i else None
+            run_start_data[id_i] = (dt, ss_js_i, run_hostname, port_number)
+
+        self._pending.set_EAR_starts.update(run_start_data)
         if save:
             self.save()
         return dt
@@ -1116,6 +1135,25 @@ class PersistentStore(ABC):
         dt = datetime.utcnow()
         ss_js = self.app.RunDirAppFiles.take_snapshot() if snapshot else None
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
+        if save:
+            self.save()
+        return dt
+
+    def set_multi_run_ends(
+        self,
+        run_ids: List[int],
+        run_dirs: List[Union[Path, None]],
+        exit_codes: List[int],
+        successes: List[bool],
+        save: bool = True,
+    ) -> datetime:
+        dt = datetime.utcnow()
+        run_end_data = {}
+        for id_i, dir_i, ex_i, sc_i in zip(run_ids, run_dirs, exit_codes, successes):
+            ss_js_i = self.app.RunDirAppFiles.take_snapshot(dir_i) if dir_i else None
+            run_end_data[id_i] = (dt, ss_js_i, ex_i, sc_i)
+
+        self._pending.set_EAR_ends.update(run_end_data)
         if save:
             self.save()
         return dt
@@ -1333,6 +1371,14 @@ class PersistentStore(ABC):
             f"Setting store parameter ID {param_id} value with type: {type(value)!r})."
         )
         self._pending.set_parameters[param_id] = (value, is_file)
+        if save:
+            self.save()
+
+    def set_parameter_values(self, values: Dict[int, Any], save: bool = True):
+        """Set multiple non-file parameter values by parameter IDs."""
+        param_ids = values.keys()
+        self.logger.debug(f"Setting multiple store parameter IDs {param_ids!r}.")
+        self._pending.set_parameters.update({k: (v, False) for k, v in values.items()})
         if save:
             self.save()
 

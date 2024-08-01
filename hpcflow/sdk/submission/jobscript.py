@@ -1528,8 +1528,10 @@ class Jobscript(JSONLike):
         py_imports = dedent(
             """\
             import os
+            from collections import defaultdict
             from pathlib import Path
             import traceback
+            import time
 
             import {app_module} as app
 
@@ -1589,26 +1591,45 @@ class Jobscript(JSONLike):
 
             port = int(os.environ["{app_caps}_RUN_PORT"])
             action_scripts = {script_names}
-            requires_dir = {requires_dir!r}
-
+            run_dirs = wk.get_run_directories()
             block_start_elem_idx = 0
             for block_idx in range({num_blocks}):
 
                 os.environ["{app_caps}_BLOCK_IDX"] = str(block_idx)
 
-                for block_elem_idx in range(num_elements[block_idx]):
+                block_run_IDs = [
+                    run_IDs[block_start_elem_idx + i]
+                    for i in range(num_elements[block_idx])
+                ]
 
-                    js_elem_idx = block_start_elem_idx + block_elem_idx
-                    os.environ["{app_caps}_BLOCK_ELEM_IDX"] = str(block_elem_idx)
-                    os.environ["{app_caps}_JS_ELEM_IDX"] = str(js_elem_idx)
+                for block_act_idx in range(num_actions[block_idx]):
+                
+                    os.environ["{app_caps}_BLOCK_ACT_IDX"] = str(block_act_idx)
 
-                    for block_act_idx in range(num_actions[block_idx]):
+                    block_act_run_IDs = [i[block_act_idx] for i in block_run_IDs]
 
-                        run_ID = run_IDs[js_elem_idx][block_act_idx]
+                    block_act_std_path = Path(
+                        os.environ["{app_caps}_SUB_STD_DIR"],
+                        f"blk_{{block_idx}}_blk_act_{{block_act_idx}}.txt",
+                    )
+                    with app.redirect_std_to_file(block_act_std_path):
+                        # set run starts for all runs of the block/action:
+                        block_act_run_dirs = [run_dirs[i] for i in block_act_run_IDs]
+
+                        wk.set_multi_run_starts(block_act_run_IDs, block_act_run_dirs, port)
+
+                    all_act_outputs = {{}}
+                    run_end_dat = defaultdict(list)
+                    for block_elem_idx in range(num_elements[block_idx]):
+
+                        js_elem_idx = block_start_elem_idx + block_elem_idx
+
+                        run_ID = block_act_run_IDs[block_elem_idx]                        
                         if run_ID == -1:
                             continue
 
-                        os.environ["{app_caps}_BLOCK_ACT_IDX"] = str(block_act_idx)
+                        os.environ["{app_caps}_BLOCK_ELEM_IDX"] = str(block_elem_idx)
+                        os.environ["{app_caps}_JS_ELEM_IDX"] = str(js_elem_idx)                        
                         os.environ["{app_caps}_RUN_ID"] = str(run_ID)
 
                         std_path = Path(os.environ["{app_caps}_SUB_STD_DIR"], f"{{run_ID}}.txt")
@@ -1621,9 +1642,7 @@ class Jobscript(JSONLike):
                                 )
 
                             run = runs[run_ID]
-
-                            # set run start
-                            wk.set_EAR_start(run=run, port_number=port)
+                            run_dir = run_dirs[run_ID]
 
                             # retrieve inputs:
                             func_kwargs = run.get_input_values_direct()
@@ -1641,25 +1660,19 @@ class Jobscript(JSONLike):
                         except Exception:
                             print(f"Exception caught during execution of script function {{func.__name__}}.")
                             traceback.print_exc()
-                            ret_code = 1
+                            exit_code = 1
                         else:
-                            ret_code = 0
+                            exit_code = 0
 
                         with app.redirect_std_to_file(std_path):
                             # set run end
-                            wk.set_EAR_end(
-                                block_act_key=({js_idx}, block_idx, block_act_idx),
-                                run=run,
-                                exit_code=ret_code,
-                            )
+                            block_act_key=({js_idx}, block_idx, block_act_idx)
+                            run_end_dat[block_act_key].append((run, exit_code))
 
                             # save outputs
                             for name_i, out_i in outputs.items():
-                                wk.set_parameter_value(
-                                    param_id=run.data_idx[f"outputs.{{name_i}}"],
-                                    value=out_i,
-                                )
-
+                                p_id = run.data_idx[f"outputs.{{name_i}}"]
+                                all_act_outputs[p_id] = out_i
                             wk._check_loop_termination(run)
 
                             if req_dir:
@@ -1667,6 +1680,13 @@ class Jobscript(JSONLike):
 
                             if {write_app_logs!r}:
                                 app.config.log_path = {sub_log_path}
+
+                    with app.redirect_std_to_file(block_act_std_path):
+                    
+                        # save outputs of all elements of this action
+                        wk.set_parameter_values(all_act_outputs)
+                        # set run end for all elements of this action
+                        wk.set_multi_run_ends(run_end_dat, block_act_run_dirs)
 
                 block_start_elem_idx += num_elements[block_idx]
         """
