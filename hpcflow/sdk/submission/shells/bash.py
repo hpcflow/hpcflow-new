@@ -60,7 +60,7 @@ class Bash(Shell):
         export {app_caps}_LOG_PATH="$SUB_LOG_DIR/js_${{JS_IDX}}.log"
         export {app_caps}_JS_FUNCS_PATH=$JS_FUNCS_PATH
         export {app_caps}_JS_IDX={js_idx}
-        export {app_caps}_RUN_ID_FILE=EAR_ID_FILE
+        export {app_caps}_RUN_ID_FILE=$EAR_ID_FILE
     """
     )
     JS_SCHEDULER_HEADER = dedent(
