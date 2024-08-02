@@ -32,6 +32,9 @@ def is_jobscript_array(resources, num_elements, store):
             )
         return False
 
+    if resources.combine_scripts:
+        return False
+
     run_parallelism = store._features.EAR_parallelism
     if resources.use_job_array is None:
         if num_elements > 1 and run_parallelism:
@@ -1571,8 +1574,11 @@ class Jobscript(JSONLike):
                 lns = fp.read().strip().split("\\n")
                 run_IDs = [[int(i) for i in ln.split("{run_ID_delim}")] for ln in lns]
 
+            get_all_runs_tic = time.perf_counter()
             run_IDs_flat = [j for i in run_IDs for j in i]
             runs = wk.get_EARs_from_IDs(run_IDs_flat, as_dict=True)
+            get_all_runs_toc = time.perf_counter()
+
             with open(os.environ["{app_caps}_SCRIPT_INDICES_FILE"], mode="r") as fp:
                 lns = fp.read().strip().split("\\n")
                 section_idx = -1
@@ -1593,6 +1599,18 @@ class Jobscript(JSONLike):
             action_scripts = {script_names}
             requires_dir = {requires_dir!r}
             run_dirs = wk.get_run_directories()
+
+            get_ins_time_fp = open("get_inputs_times.txt", "wt")
+            func_time_fp = open("func_times.txt", "wt")
+            loop_time_fp = open("loop_check_times.txt", "wt")
+            run_time_fp = open("run_times.txt", "wt")
+            set_start_multi_times_fp = open("set_start_multi_times.txt", "wt")
+            set_end_multi_times_fp = open("set_end_multi_times.txt", "wt")
+            save_multi_times_fp = open("save_multi_times.txt", "wt")
+
+            get_all_runs_time = get_all_runs_toc - get_all_runs_tic
+            print(f"get_all_runs_time: {{get_all_runs_time:.4f}}")
+ 
             block_start_elem_idx = 0
             for block_idx in range({num_blocks}):
 
@@ -1617,7 +1635,11 @@ class Jobscript(JSONLike):
                         # set run starts for all runs of the block/action:
                         block_act_run_dirs = [run_dirs[i] for i in block_act_run_IDs]
 
+                        set_start_multi_tic = time.perf_counter()
                         wk.set_multi_run_starts(block_act_run_IDs, block_act_run_dirs, port)
+                        set_start_multi_toc = time.perf_counter()
+                        set_start_multi_time = set_start_multi_toc - set_start_multi_tic
+                        print(f"{{set_start_multi_time:.4f}}", file=set_start_multi_times_fp, flush=True)                    
 
                     all_act_outputs = {{}}
                     run_end_dat = defaultdict(list)
@@ -1625,6 +1647,7 @@ class Jobscript(JSONLike):
 
                         js_elem_idx = block_start_elem_idx + block_elem_idx
 
+                        run_tic = time.perf_counter()
                         run_ID = block_act_run_IDs[block_elem_idx]                        
                         if run_ID == -1:
                             continue
@@ -1646,18 +1669,21 @@ class Jobscript(JSONLike):
                             run_dir = run_dirs[run_ID]
 
                             # retrieve inputs:
+                            get_ins_tic = time.perf_counter()
                             func_kwargs = run.get_input_values_direct()
+                            get_ins_toc = time.perf_counter()
 
                             script_idx = script_indices[block_idx][block_act_idx]
                             req_dir = requires_dir[script_idx]
                             func = action_scripts[script_idx]
 
                             if req_dir:
-                                run_dir = run.get_directory()
                                 os.chdir(run_dir)
 
                         try:
+                            func_tic = time.perf_counter()
                             outputs = func(**func_kwargs)
+                            func_toc = time.perf_counter()
                         except Exception:
                             print(f"Exception caught during execution of script function {{func.__name__}}.")
                             traceback.print_exc()
@@ -1674,7 +1700,10 @@ class Jobscript(JSONLike):
                             for name_i, out_i in outputs.items():
                                 p_id = run.data_idx[f"outputs.{{name_i}}"]
                                 all_act_outputs[p_id] = out_i
+
+                            loop_tic = time.perf_counter()
                             wk._check_loop_termination(run)
+                            loop_toc = time.perf_counter()
 
                             if req_dir:
                                 os.chdir(os.environ["{app_caps}_SUB_TMP_DIR"])
@@ -1682,14 +1711,43 @@ class Jobscript(JSONLike):
                             if {write_app_logs!r}:
                                 app.config.log_path = {sub_log_path}
 
+                        run_toc = time.perf_counter()
+
+                        get_ins_time = get_ins_toc - get_ins_tic
+                        func_time = func_toc - func_tic
+                        loop_time = loop_toc - loop_tic
+                        run_time = run_toc - run_tic
+
+                        print(f"{{get_ins_time:.4f}}", file=get_ins_time_fp)
+                        print(f"{{func_time:.4f}}", file=func_time_fp)
+                        print(f"{{loop_time:.4f}}", file=loop_time_fp)
+                        print(f"{{run_time:.4f}}", file=run_time_fp)
+
                     with app.redirect_std_to_file(block_act_std_path):
                     
                         # save outputs of all elements of this action
+                        save_all_tic = time.perf_counter()                    
                         wk.set_parameter_values(all_act_outputs)
+                        save_all_toc = time.perf_counter()
+                        save_all_time_i = save_all_toc - save_all_tic
+                        print(f"{{save_all_time_i:.4f}}", file=save_multi_times_fp, flush=True)
+
                         # set run end for all elements of this action
+                        set_multi_end_tic = time.perf_counter()
                         wk.set_multi_run_ends(run_end_dat, block_act_run_dirs)
+                        set_multi_end_toc = time.perf_counter()
+                        set_multi_end_time = set_multi_end_toc - set_multi_end_tic
+                        print(f"{{set_multi_end_time:.4f}}", file=set_end_multi_times_fp, flush=True)
 
                 block_start_elem_idx += num_elements[block_idx]
+
+            get_ins_time_fp.close()
+            func_time_fp.close()
+            loop_time_fp.close()
+            run_time_fp.close()
+            set_start_multi_times_fp.close()
+            set_end_multi_times_fp.close()
+            save_multi_times_fp.close()
         """
         ).format(
             py_imports=py_imports,

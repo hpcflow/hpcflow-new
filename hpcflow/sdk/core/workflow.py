@@ -2329,7 +2329,8 @@ class Workflow:
     def set_parameter_values(self, values: Dict[int, Any], commit: bool = False) -> None:
         with self._store.cached_load():
             with self.batch_update():
-                self._store.set_parameter_values(values)
+                with self._store.cache_ctx():
+                    self._store.set_parameter_values(values)
 
         if commit:
             # force commit now:

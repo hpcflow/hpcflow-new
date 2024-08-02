@@ -346,7 +346,7 @@ class SlurmPosix(Scheduler):
     def format_options(self, resources, num_elements, is_array, sub_idx, js_idx):
         opts = []
         opts.extend(self.format_core_request_lines(resources))
-        if is_array and not resources.combine_scripts:
+        if is_array:
             opts.append(self.format_array_request(num_elements, resources))
 
         opts.extend(

@@ -163,7 +163,7 @@ class SGEPosix(Scheduler):
         opts = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self.format_core_request_lines(resources))
-        if is_array and not resources.combine_scripts:
+        if is_array:
             opts.append(self.format_array_request(num_elements))
 
         opts.extend(
