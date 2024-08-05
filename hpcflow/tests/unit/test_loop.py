@@ -5,6 +5,7 @@ from valida.conditions import Value
 
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.errors import LoopAlreadyExistsError, LoopTaskSubsetError
+from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.test_utils import P1_parameter_cls, make_workflow
 
 
@@ -1352,6 +1353,70 @@ def test_multi_task_loop_termination(null_config, tmp_path):
 
 
 @pytest.mark.integration
+def test_multi_task_loop_termination_task(null_config, tmp_path):
+    """Specify non-default task at which to check for termination."""
+    s1 = hf.TaskSchema(
+        objective="t1",
+        inputs=[hf.SchemaInput("p1")],
+        outputs=[hf.SchemaOutput("p2")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p1>> + 1))",
+                        stdout="<<int(parameter:p2)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    s2 = hf.TaskSchema(
+        objective="t2",
+        inputs=[hf.SchemaInput("p2")],
+        outputs=[hf.SchemaOutput("p1")],
+        actions=[
+            hf.Action(
+                commands=[
+                    hf.Command(
+                        command="echo $((<<parameter:p2>> + 1))",
+                        stdout="<<int(parameter:p1)>>",
+                    )
+                ]
+            )
+        ],
+    )
+    tasks = [
+        hf.Task(schema=s1, inputs={"p1": 0}),
+        hf.Task(schema=s2),
+    ]
+    wk = hf.Workflow.from_template_data(
+        tasks=tasks,
+        resources={"any": {"write_app_logs": True}},
+        loops=[
+            hf.Loop(
+                tasks=[0, 1],
+                num_iterations=3,
+                termination_task=0,  # default would be final task (1)
+                termination=hf.Rule(
+                    path="inputs.p1",
+                    condition={
+                        "value.greater_than": 3
+                    },  # should stop after first task of final iteration
+                ),
+            )
+        ],
+        path=tmp_path,
+        template_name="test_loops",
+    )
+    wk.submit(wait=True, add_to_known=False, status=False)
+    runs_t0 = [j for i in wk.tasks[0].elements[0].iterations for j in i.action_runs]
+    runs_t1 = [j for i in wk.tasks[1].elements[0].iterations for j in i.action_runs]
+
+    assert [i.skip for i in runs_t0] == [0, 0, 0]
+    assert [i.skip for i in runs_t1] == [0, 0, SkipReason.LOOP_TERMINATION.value]
+
+
+@pytest.mark.integration
 @pytest.mark.skip(reason="need to fix loop termination for multiple elements")
 def test_multi_task_loop_termination_multi_element(null_config, tmp_path):
     s1 = hf.TaskSchema(
@@ -1419,6 +1484,41 @@ def test_multi_task_loop_termination_multi_element(null_config, tmp_path):
                     assert iter_i.loop_skipped
                 else:
                     assert not any(skips)
+
+
+def test_loop_termination_task_default(null_config):
+    loop = hf.Loop(
+        tasks=[0, 1],
+        num_iterations=3,
+    )
+    assert loop.termination_task_insert_ID == 1
+
+
+def test_loop_termination_task_non_default_specified(null_config):
+    loop = hf.Loop(
+        tasks=[0, 1],
+        num_iterations=3,
+        termination_task=0,
+    )
+    assert loop.termination_task_insert_ID == 0
+
+
+def test_loop_termination_task_default_specified(null_config):
+    loop = hf.Loop(
+        tasks=[0, 1],
+        num_iterations=3,
+        termination_task=1,
+    )
+    assert loop.termination_task_insert_ID == 1
+
+
+def test_loop_termination_task_raise_on_bad_task(null_config):
+    with pytest.raises(ValueError):
+        hf.Loop(
+            tasks=[0, 1],
+            num_iterations=3,
+            termination_task=2,
+        )
 
 
 # TODO: test loop termination across jobscripts

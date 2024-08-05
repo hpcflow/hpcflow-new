@@ -3203,11 +3203,10 @@ class Workflow:
             loop = self.loops.get(loop_name)
             if (
                 loop.template.termination
-                and task.insert_ID == loop.task_insert_IDs[-1]
+                and task.insert_ID == loop.template.termination_task_insert_ID
                 and run.element_action.action_idx == max(elem_iter.actions)
             ):
                 check_loops.append(loop_name)
-                # TODO: (loop.template.termination_task.insert_ID == task.insert_ID)
                 # TODO: test with condition actions
                 if loop.test_termination(elem_iter):
                     self.app.logger.info(

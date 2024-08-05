@@ -43,6 +43,7 @@ class Loop(JSONLike):
         name: Optional[str] = None,
         non_iterable_parameters: Optional[List[str]] = None,
         termination: Optional[app.Rule] = None,
+        termination_task: Optional[Union[int, app.WorkflowTask]] = None,
     ) -> None:
         """
 
@@ -56,6 +57,8 @@ class Loop(JSONLike):
             Specify input parameters that should not iterate.
         termination
             Stopping criterion, expressed as a rule.
+        termination_task
+            Task at which to evaluate the termination condition.
 
         """
 
@@ -68,14 +71,34 @@ class Loop(JSONLike):
             else:
                 raise TypeError(
                     f"`tasks` must be a list whose elements are either task insert IDs "
-                    f"or WorkflowTask objects, but received the following: {tasks!r}."
+                    f"or `WorkflowTask` objects, but received the following: {tasks!r}."
                 )
+
+        if termination_task is None:
+            _term_task_iID = _task_insert_IDs[-1]  # terminate on final task by default
+        elif isinstance(termination_task, WorkflowTask):
+            _term_task_iID = termination_task.insert_ID
+        elif isinstance(task, int):
+            _term_task_iID = termination_task
+        else:
+            raise TypeError(
+                f"`termination_task` must be a task insert ID or a `WorkflowTask` "
+                f"object, but received the following: {termination_task!r}."
+            )
+
+        if _term_task_iID not in _task_insert_IDs:
+            raise ValueError(
+                f"If specified, `termination_task` (provided: {termination_task!r}) must "
+                f"refer to a task that is part of the loop. Available task insert IDs "
+                f"are: {_term_task_iID!r}."
+            )
 
         self._task_insert_IDs = _task_insert_IDs
         self._num_iterations = num_iterations
         self._name = check_valid_py_identifier(name) if name else name
         self._non_iterable_parameters = non_iterable_parameters or []
         self._termination = termination
+        self._termination_task_insert_ID = _term_task_iID
 
         self._workflow_template = None  # assigned by parent WorkflowTemplate
 
@@ -90,7 +113,15 @@ class Loop(JSONLike):
             insert_IDs = json_like.pop("task_insert_IDs")
         else:
             insert_IDs = json_like.pop("tasks")
-        obj = cls(tasks=insert_IDs, **json_like)
+
+        if "termination_task_insert_ID" in json_like:
+            tt_iID = json_like.pop("termination_task_insert_ID")
+        elif "termination_task" in json_like:
+            tt_iID = json_like.pop("termination_task")
+        else:
+            tt_iID = None
+
+        obj = cls(tasks=insert_IDs, termination_task=tt_iID, **json_like)
         return obj
 
     @property
@@ -113,6 +144,20 @@ class Loop(JSONLike):
     @property
     def termination(self):
         return self._termination
+
+    @property
+    def termination_task_insert_ID(self):
+        return self._termination_task_insert_ID
+
+    @property
+    def termination_task(self):
+        if not self.workflow_template:
+            raise RuntimeError(
+                "Workflow template must be assigned to retrieve task objects of the loop."
+            )
+        return self.workflow_template.workflow.tasks.get(
+            insert_ID=self.termination_task_insert_ID
+        )
 
     @property
     def workflow_template(self):
@@ -165,6 +210,7 @@ class Loop(JSONLike):
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
         kwargs["tasks"] = kwargs.pop("task_insert_IDs")
+        kwargs["termination_task"] = kwargs.pop("termination_task_insert_ID")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._workflow_template = self._workflow_template
         return obj
@@ -801,6 +847,7 @@ class WorkflowLoop:
             of `elem_iter`.
         """
         current_iter_idx = elem_iter.loop_idx[self.name]
+        current_task_iID = elem_iter.task.insert_ID
         self.app.logger.info(
             f"setting loop {self.name!r} iterations downstream of current iteration "
             f"index {current_iter_idx} to skip"
@@ -815,7 +862,10 @@ class WorkflowLoop:
         to_skip = []
         for elem in elements:
             for iter_i in elem.iterations:
-                if iter_i.loop_idx[self.name] > current_iter_idx:
+                if iter_i.loop_idx[self.name] > current_iter_idx or (
+                    iter_i.loop_idx[self.name] == current_iter_idx
+                    and iter_i.task.insert_ID > current_task_iID
+                ):
                     to_skip.extend(iter_i.EAR_IDs_flat)
         self.app.logger.info(f"runs {to_skip!r} will be set to skip")
         for run_ID in to_skip:
