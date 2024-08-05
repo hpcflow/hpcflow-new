@@ -1,3 +1,7 @@
+"""
+Persistence model based on writing Zarr arrays.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -132,6 +136,10 @@ def append_items_to_ragged_array(arr, items):
 
 @dataclass
 class ZarrStoreTask(StoreTask):
+    """
+    Represents a task in a Zarr persistent store.
+    """
+
     def encode(self) -> Tuple[int, np.ndarray, Dict]:
         """Prepare store task data for the persistent store."""
         wk_task = {"id_": self.id_, "element_IDs": np.array(self.element_IDs)}
@@ -147,6 +155,10 @@ class ZarrStoreTask(StoreTask):
 
 @dataclass
 class ZarrStoreElement(StoreElement):
+    """
+    Represents an element in a Zarr persistent store.
+    """
+
     def encode(self, attrs: Dict) -> List:
         """Prepare store elements data for the persistent store.
 
@@ -180,6 +192,10 @@ class ZarrStoreElement(StoreElement):
 
 @dataclass
 class ZarrStoreElementIter(StoreElementIter):
+    """
+    Represents an element iteration in a Zarr persistent store.
+    """
+
     def encode(self, attrs: Dict) -> List:
         """Prepare store element iteration data for the persistent store.
 
@@ -216,6 +232,10 @@ class ZarrStoreElementIter(StoreElementIter):
 
 @dataclass
 class ZarrStoreEAR(StoreEAR):
+    """
+    Represents an element action run in a Zarr persistent store.
+    """
+
     def encode(self, attrs: Dict, ts_fmt: str) -> Tuple[List, Tuple[np.datetime64]]:
         """Prepare store EAR data for the persistent store.
 
@@ -268,6 +288,10 @@ class ZarrStoreEAR(StoreEAR):
 
 @dataclass
 class ZarrStoreParameter(StoreParameter):
+    """
+    Represents a parameter in a Zarr persistent store.
+    """
+
     _encoders = {  # keys are types
         np.ndarray: _encode_numpy_array,
         np.ma.core.MaskedArray: _encode_masked_array,
@@ -301,6 +325,10 @@ class ZarrStoreParameter(StoreParameter):
 
 
 class ZarrPersistentStore(PersistentStore):
+    """
+    A persistent store implemented using Zarr.
+    """
+
     _name = "zarr"
     _features = PersistentStoreFeatures(
         create=True,
@@ -346,6 +374,9 @@ class ZarrPersistentStore(PersistentStore):
             yield attrs
 
     def remove_replaced_dir(self) -> None:
+        """
+        Remove the directory containing replaced workflow details.
+        """
         with self.using_resource("attrs", "update") as md:
             if "replaced_workflow" in md:
                 self.logger.debug("removing temporarily renamed pre-existing workflow.")
@@ -353,6 +384,9 @@ class ZarrPersistentStore(PersistentStore):
                 md["replaced_workflow"] = None
 
     def reinstate_replaced_dir(self) -> None:
+        """
+        Reinstate the directory containing replaced workflow details.
+        """
         with self.using_resource("attrs", "read") as md:
             if "replaced_workflow" in md:
                 self.logger.debug(
@@ -380,6 +414,9 @@ class ZarrPersistentStore(PersistentStore):
         compressor: Optional[Union[str, None]] = "blosc",
         compressor_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Write an empty persistent workflow.
+        """
         attrs = {
             "name": name,
             "ts_fmt": ts_fmt,
@@ -796,6 +833,9 @@ class ZarrPersistentStore(PersistentStore):
 
     @property
     def zarr_store(self) -> zarr.storage.Store:
+        """
+        The underlying store object.
+        """
         if self._zarr_store is None:
             self._zarr_store = self._get_zarr_store(self.path, self.fs)
         return self._zarr_store
@@ -1139,18 +1179,30 @@ class ZarrPersistentStore(PersistentStore):
         return list(range(len(base_arr)))
 
     def get_ts_fmt(self):
+        """
+        Get the format for timestamps.
+        """
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["ts_fmt"]
 
     def get_ts_name_fmt(self):
+        """
+        Get the format for timestamps to use in names.
+        """
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["ts_name_fmt"]
 
     def get_creation_info(self):
+        """
+        Get information about the creation of the workflow.
+        """
         with self.using_resource("attrs", action="read") as attrs:
             return copy.deepcopy(attrs["creation_info"])
 
     def get_name(self):
+        """
+        Get the name of the workflow.
+        """
         with self.using_resource("attrs", action="read") as attrs:
             return attrs["name"]
 
@@ -1163,6 +1215,8 @@ class ZarrPersistentStore(PersistentStore):
         include_rechunk_backups=False,
     ):
         """
+        Convert the persistent store to zipped form.
+
         Parameters
         ----------
         path:
@@ -1299,6 +1353,9 @@ class ZarrPersistentStore(PersistentStore):
         backup: Optional[bool] = True,
         status: Optional[bool] = True,
     ):
+        """
+        Rechunk the parameter data to be stored more efficiently.
+        """
         arr = self._get_parameter_base_array()
         return self._rechunk_arr(arr, chunk_size, backup, status)
 
@@ -1308,13 +1365,21 @@ class ZarrPersistentStore(PersistentStore):
         backup: Optional[bool] = True,
         status: Optional[bool] = True,
     ):
+        """
+        Rechunk the run data to be stored more efficiently.
+        """
         arr = self._get_EARs_arr()
         return self._rechunk_arr(arr, chunk_size, backup, status)
 
 
 class ZarrZipPersistentStore(ZarrPersistentStore):
     """A store designed mainly as an archive format that can be uploaded to data
-    repositories such as Zenodo."""
+    repositories such as Zenodo.
+
+    Note
+    ----
+    Archive format persistent stores cannot be updated without being unzipped first.
+    """
 
     _name = "zip"
     _features = PersistentStoreFeatures(
@@ -1333,6 +1398,8 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
 
     def unzip(self, path=".", log=None):
         """
+        Expand the persistent store.
+
         Parameters
         ----------
         path:

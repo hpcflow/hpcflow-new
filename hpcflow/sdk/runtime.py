@@ -1,3 +1,7 @@
+"""
+Information about the Python runtime.
+"""
+
 from importlib import import_module
 import logging
 import os
@@ -15,17 +19,16 @@ class RunTimeInfo:
     """Get useful run-time information, including the executable name used to
     invoke the CLI, in the case a PyInstaller-built executable was used.
 
-    Attributes
+    Parameters
     ----------
-    sys_prefix : str
-        From `sys.prefix`. If running in a virtual environment, this will point to the
-        environment directory. If not running in a virtual environment, this will point to
-        the Python installation root.
-    sys_base_prefix : str
-        From `sys.base_prefix`. This will be equal to `sys_prefix` (`sys.prefix`) if not
-        running within a virtual environment. However, if running within a virtual
-        environment, this will be the Python installation directory, and `sys_prefix` will
-        be equal to the virtual environment directory.
+    name:
+        Application name.
+    package_name:
+        Application package name.
+    version:
+        Application version.
+    logger:
+        Where to write logging versions.
     """
 
     def __init__(self, name, package_name, version, logger):
@@ -34,22 +37,35 @@ class RunTimeInfo:
             sys._MEIPASS if is_frozen else os.path.dirname(os.path.abspath(__file__))
         )
 
+        #: Application name.
         self.name = name.split(".")[0]  # if name is given as __name__ # TODO: what?
+        #: Application package name.
         self.package_name = package_name
+        #: Application version.
         self.version = version
+        #: Whether this is a frozen application.
         self.is_frozen = is_frozen
+        #: Working directory.
         self.working_dir = os.getcwd()
+        #: Where to write log messages.
         self.logger = logger
+        #: Host that this is running on.
         self.hostname = socket.gethostname()
 
+        #: Whether this application is inside iPython.
         self.in_ipython = False
+        #: Whether this application is being used interactively.
         self.is_interactive = False
+        #: Whether this application is being used in test mode.
         self.in_pytest = False  # set in `conftest.py`
+        #: Whether this application is being run from the CLI.
         self.from_CLI = False  # set in CLI
 
         if self.is_frozen:
+            #: The bundle directory, if frozen.
             self.bundle_dir = Path(bundle_dir)
         else:
+            #: The path to Python itself.
             self.python_executable_path = Path(sys.executable)
 
             try:
@@ -61,16 +77,30 @@ class RunTimeInfo:
             if hasattr(sys, "ps1"):
                 self.is_interactive = True
 
+        #: The Python version.
         self.python_version = platform.python_version()
+        #: Whether the application is in a virtual environment.
         self.is_venv = hasattr(sys, "real_prefix") or sys.base_prefix != sys.prefix
+        #: Whether the application is in a Conda virtual environment.
         self.is_conda_venv = "CONDA_PREFIX" in os.environ
 
+        #: From `sys.prefix`. If running in a virtual environment, this will point to the
+        #: environment directory. If not running in a virtual environment, this will
+        #: point to the Python installation root.
         self.sys_prefix = getattr(sys, "prefix", None)
+        #: From `sys.base_prefix`. This will be equal to `sys_prefix` (`sys.prefix`) if
+        #: not running within a virtual environment. However, if running within a virtual
+        #: environment, this will be the Python installation directory, and `sys_prefix`
+        #: will be equal to the virtual environment directory.
         self.sys_base_prefix = getattr(sys, "base_prefix", None)
+        #: The old base prefix, from `sys.real_prefix`. Compatibility version of
+        #: :py:attr:`sys_base_prefix`.
         self.sys_real_prefix = getattr(sys, "real_prefix", None)
+        #: The Conda prefix, if defined.
         self.conda_prefix = os.environ.get("CONDA_PREFIX")
 
         try:
+            #: The virtual environment path.
             self.venv_path = self._set_venv_path()
         except ValueError:
             self.venv_path = None
@@ -97,6 +127,9 @@ class RunTimeInfo:
         #     warnings.warn(msg)
 
     def to_dict(self):
+        """
+        Serialize this class as a dictionary.
+        """
         out = {
             "name": self.name,
             "package_name": self.package_name,
@@ -157,12 +190,21 @@ class RunTimeInfo:
             return out
 
     def get_activate_env_command(self):
+        """
+        Get the command to activate the virtual environment.
+        """
         pass
 
     def get_deactivate_env_command(self):
+        """
+        Get the command to deactivate the virtual environment.
+        """
         pass
 
     def show(self):
+        """
+        Display the information known by this class as a human-readable table.
+        """
         tab = Table(show_header=False, box=None)
         tab.add_column()
         tab.add_column()

@@ -1,3 +1,7 @@
+"""
+Schema management.
+"""
+
 from importlib import resources
 
 from valida import Schema

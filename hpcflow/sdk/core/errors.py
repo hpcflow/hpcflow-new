@@ -1,32 +1,59 @@
+"""
+Errors from the workflow system.
+"""
+
 import os
 from typing import Iterable, List
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
-    pass
+    """
+    An InputValue has the same sequence address twice.
+    """
 
 
 class TaskTemplateMultipleSchemaObjectives(ValueError):
-    pass
+    """
+    A TaskTemplate has multiple objectives.
+    """
 
 
 class TaskTemplateUnexpectedInput(ValueError):
-    pass
+    """
+    A TaskTemplate was given unexpected input.
+    """
 
 
 class TaskTemplateUnexpectedSequenceInput(ValueError):
-    pass
+    """
+    A TaskTemplate was given an unexpected sequence.
+    """
 
 
 class TaskTemplateMultipleInputValues(ValueError):
-    pass
+    """
+    A TaskTemplate had multiple input values bound over each other.
+    """
 
 
 class InvalidIdentifier(ValueError):
-    pass
+    """
+    A bad identifier name was given.
+    """
 
 
 class MissingInputs(Exception):
+    """
+    Inputs were missing.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    missing_inputs: list[str]
+        The missing inputs.
+    """
+
     # TODO: add links to doc pages for common user-exceptions?
 
     def __init__(self, message, missing_inputs) -> None:
@@ -35,6 +62,17 @@ class MissingInputs(Exception):
 
 
 class UnrequiredInputSources(ValueError):
+    """
+    Input sources were provided that were not required.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    unrequired_sources: list
+        The input sources that were not required.
+    """
+
     def __init__(self, message, unrequired_sources) -> None:
         self.unrequired_sources = unrequired_sources
         for src in unrequired_sources:
@@ -50,129 +88,199 @@ class UnrequiredInputSources(ValueError):
 
 
 class ExtraInputs(Exception):
+    """
+    Extra inputs were provided.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    extra_inputs: list
+        The extra inputs.
+    """
+
     def __init__(self, message, extra_inputs) -> None:
         self.extra_inputs = extra_inputs
         super().__init__(message)
 
 
 class UnavailableInputSource(ValueError):
-    pass
+    """
+    An input source was not available.
+    """
 
 
 class InapplicableInputSourceElementIters(ValueError):
-    pass
+    """
+    An input source element iteration was inapplicable."""
 
 
 class NoCoincidentInputSources(ValueError):
-    pass
+    """
+    Could not line up input sources to make an actual valid execution.
+    """
 
 
 class TaskTemplateInvalidNesting(ValueError):
-    pass
+    """
+    Invalid nesting in a task template.
+    """
 
 
 class TaskSchemaSpecValidationError(Exception):
-    pass
+    """
+    A task schema failed to validate.
+    """
 
 
 class WorkflowSpecValidationError(Exception):
-    pass
+    """
+    A workflow failed to validate.
+    """
 
 
 class InputSourceValidationError(Exception):
-    pass
+    """
+    An input source failed to validate.
+    """
 
 
 class EnvironmentSpecValidationError(Exception):
-    pass
+    """
+    An environment specification failed to validate.
+    """
 
 
 class ParameterSpecValidationError(Exception):
-    pass
+    """
+    A parameter specification failed to validate.
+    """
 
 
 class FileSpecValidationError(Exception):
-    pass
+    """
+    A file specification failed to validate.
+    """
 
 
 class DuplicateExecutableError(ValueError):
-    pass
+    """
+    The same executable was present twice in an executable environment.
+    """
 
 
 class MissingCompatibleActionEnvironment(Exception):
-    pass
+    """
+    Could not find a compatible action environment.
+    """
 
 
 class MissingActionEnvironment(Exception):
-    pass
+    """
+    Could not find an action environment.
+    """
 
 
 class ActionEnvironmentMissingNameError(Exception):
-    pass
+    """
+    An action environment was missing its name.
+    """
 
 
 class FromSpecMissingObjectError(Exception):
-    pass
+    """
+    Missing object when deserialising from specification.
+    """
 
 
 class TaskSchemaMissingParameterError(Exception):
-    pass
+    """
+    Parameter was missing from task schema.
+    """
 
 
 class ToJSONLikeChildReferenceError(Exception):
-    pass
+    """
+    Failed to generate or reference a child object when converting to JSON.
+    """
 
 
 class InvalidInputSourceTaskReference(Exception):
-    pass
+    """
+    Invalid input source in task reference.
+    """
 
 
 class WorkflowNotFoundError(Exception):
-    pass
+    """
+    Could not find the workflow.
+    """
 
 
 class MalformedWorkflowError(Exception):
-    pass
+    """
+    Workflow was a malformed document.
+    """
 
 
 class ValuesAlreadyPersistentError(Exception):
-    pass
+    """
+    Trying to make a value persistent that already is so.
+    """
 
 
 class MalformedParameterPathError(ValueError):
-    pass
+    """
+    The path to a parameter was ill-formed.
+    """
 
 
 class MalformedNestingOrderPath(ValueError):
-    pass
+    """
+    A nesting order path was ill-formed.
+    """
 
 
 class UnknownResourceSpecItemError(ValueError):
-    pass
+    """
+    A resource specification item was not found.
+    """
 
 
 class WorkflowParameterMissingError(AttributeError):
-    pass
+    """
+    A parameter to a workflow was missing.
+    """
 
 
 class WorkflowBatchUpdateFailedError(Exception):
-    pass
+    """
+    An update to a workflow failed.
+    """
 
 
 class WorkflowLimitsError(ValueError):
-    pass
+    """
+    Workflow hit limits.
+    """
 
 
 class UnsetParameterDataError(Exception):
-    pass
+    """
+    Tried to read from an unset parameter.
+    """
 
 
 class LoopAlreadyExistsError(Exception):
-    pass
+    """
+    A particular loop (or its name) already exists.
+    """
 
 
 class LoopTaskSubsetError(ValueError):
-    pass
+    """
+    Problem constructing a subset of a task for a loop.
+    """
 
 
 class SchedulerVersionsFailure(RuntimeError):
@@ -184,6 +292,10 @@ class SchedulerVersionsFailure(RuntimeError):
 
 
 class JobscriptSubmissionFailure(RuntimeError):
+    """
+    A job script could not be submitted to the scheduler.
+    """
+
     def __init__(
         self,
         message,
@@ -207,13 +319,19 @@ class JobscriptSubmissionFailure(RuntimeError):
 
 
 class SubmissionFailure(RuntimeError):
+    """
+    A job submission failed.
+    """
+
     def __init__(self, message) -> None:
         self.message = message
         super().__init__(message)
 
 
 class WorkflowSubmissionFailure(RuntimeError):
-    pass
+    """
+    A workflow submission failed.
+    """
 
 
 class ResourceValidationError(ValueError):
@@ -272,31 +390,45 @@ class UnsupportedSchedulerError(ResourceValidationError):
 
 
 class UnknownSGEPEError(ResourceValidationError):
-    pass
+    """
+    Miscellaneous error from SGE parallel environment.
+    """
 
 
 class IncompatibleSGEPEError(ResourceValidationError):
-    pass
+    """
+    The SGE parallel environment selected is incompatible.
+    """
 
 
 class NoCompatibleSGEPEError(ResourceValidationError):
-    pass
+    """
+    No SGE parallel environment is compatible with request.
+    """
 
 
 class IncompatibleParallelModeError(ResourceValidationError):
-    pass
+    """
+    The parallel mode is incompatible.
+    """
 
 
 class UnknownSLURMPartitionError(ResourceValidationError):
-    pass
+    """
+    The requested SLURM partition isn't known.
+    """
 
 
 class IncompatibleSLURMPartitionError(ResourceValidationError):
-    pass
+    """
+    The requested SLURM partition is incompatible.
+    """
 
 
 class IncompatibleSLURMArgumentsError(ResourceValidationError):
-    pass
+    """
+    The SLURM arguments are incompatible with each other.
+    """
 
 
 class _MissingStoreItemError(ValueError):
@@ -354,80 +486,132 @@ class MissingParameterData(_MissingStoreItemError):
 
 
 class NotSubmitMachineError(RuntimeError):
-    pass
+    """
+    The requested machine can't be submitted to.
+    """
 
 
 class RunNotAbortableError(ValueError):
-    pass
+    """
+    Cannot abort the run.
+    """
 
 
 class NoCLIFormatMethodError(AttributeError):
-    pass
+    """
+    Some CLI class lacks a format method
+    """
 
 
 class ContainerKeyError(KeyError):
+    """
+    A key could not be mapped in a container.
+
+    Parameters
+    ----------
+    path: list[str]
+        The path whose resolution failed.
+    """
+
     def __init__(self, path: List[str]) -> None:
         self.path = path
         super().__init__()
 
 
 class MayNeedObjectError(Exception):
+    """
+    An object is needed but not present.
+
+    Parameters
+    ----------
+    path: list[str]
+        The path whose resolution failed.
+    """
+
     def __init__(self, path):
         self.path = path
         super().__init__()
 
 
 class NoAvailableElementSetsError(Exception):
-    pass
+    """
+    No element set is available.
+    """
 
 
 class OutputFileParserNoOutputError(ValueError):
-    pass
+    """
+    There was no output for the output file parser to parse.
+    """
 
 
 class SubmissionEnvironmentError(ValueError):
-    """Raised when submitting a workflow on a machine without a compatible environment."""
+    """
+    Raised when submitting a workflow on a machine without a compatible environment.
+    """
 
 
 class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
-    pass
+    """
+    The environment does not have the requested executable at all.
+    """
 
 
 class MissingEnvironmentExecutableInstanceError(SubmissionEnvironmentError):
-    pass
+    """
+    The environment does not have a suitable instance of the requested executable.
+    """
 
 
 class MissingEnvironmentError(SubmissionEnvironmentError):
-    pass
+    """
+    There is no environment with that name.
+    """
 
 
 class UnsupportedScriptDataFormat(ValueError):
-    pass
+    """
+    That format of script data is not supported.
+    """
 
 
 class UnknownScriptDataParameter(ValueError):
-    pass
+    """
+    Unknown parameter in script data.
+    """
 
 
 class UnknownScriptDataKey(ValueError):
-    pass
+    """
+    Unknown key in script data.
+    """
 
 
 class MissingVariableSubstitutionError(KeyError):
-    pass
+    """
+    No definition available of a variable being substituted.
+    """
 
 
 class EnvironmentPresetUnknownEnvironmentError(ValueError):
-    pass
+    """
+    An environment preset could not be resolved to an execution environment.
+    """
 
 
 class UnknownEnvironmentPresetError(ValueError):
-    pass
+    """
+    An execution environment was unknown.
+    """
 
 
 class MultipleEnvironmentsError(ValueError):
-    pass
+    """
+    Multiple applicable execution environments exist.
+    """
 
 
 class MissingElementGroup(ValueError):
-    pass
+    """
+    An element group should exist but doesn't.
+    """

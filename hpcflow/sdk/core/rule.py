@@ -1,3 +1,7 @@
+"""
+Rules apply conditions to workflow elements or loops.
+"""
+
 from __future__ import annotations
 from typing import Dict, Optional, Union
 
@@ -11,7 +15,27 @@ from hpcflow.sdk.log import TimeIt
 
 
 class Rule(JSONLike):
-    """Class to represent a testable condition on an element iteration or run."""
+    """
+    Class to represent a testable condition on an element iteration or run.
+
+    Exactly one of ``check_exists``, ``check_missing`` and ``condition`` must be provided.
+
+    Parameters
+    ----------
+    check_exists: str
+        If set, check this attribute exists.
+    check_missing: str
+        If set, check this attribute does *not* exist.
+    path: str
+        Where to look up the attribute to check.
+        If not specified, determined by context.
+    condition: ConditionLike
+        A general condition to check (or kwargs used to generate one).
+    cast: str
+        If set, a cast to apply prior to running the general check.
+    doc: str
+        Optional descriptive text.
+    """
 
     def __init__(
         self,

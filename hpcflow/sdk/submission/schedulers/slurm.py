@@ -1,3 +1,7 @@
+"""
+An interface to SLURM.
+"""
+
 from pathlib import Path
 import subprocess
 import time
@@ -18,12 +22,24 @@ from hpcflow.sdk.submission.shells.base import Shell
 
 class SlurmPosix(Scheduler):
     """
+    A scheduler that uses SLURM.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
 
     Notes
     -----
     - runs in current working directory by default [2]
 
-    # TODO: consider getting memory usage like: https://stackoverflow.com/a/44143229/5042280
+    Todo
+    ----
+    - consider getting memory usage like: https://stackoverflow.com/a/44143229/5042280
 
     References
     ----------
@@ -34,16 +50,24 @@ class SlurmPosix(Scheduler):
 
     _app_attr = "app"
 
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
+    #: Default args for shebang line.
     DEFAULT_SHEBANG_ARGS = ""
+    #: Default submission command.
     DEFAULT_SUBMIT_CMD = "sbatch"
+    #: Default command to show the queue state.
     DEFAULT_SHOW_CMD = ["squeue", "--me"]
+    #: Default cancel command.
     DEFAULT_DEL_CMD = "scancel"
+    #: Default job control directive prefix.
     DEFAULT_JS_CMD = "#SBATCH"
+    #: Default prefix to enable array processing.
     DEFAULT_ARRAY_SWITCH = "--array"
+    #: Default shell variable with array ID.
     DEFAULT_ARRAY_ITEM_VAR = "SLURM_ARRAY_TASK_ID"
 
-    # maps scheduler states:
+    #: Maps scheduler state codes to :py:class:`JobscriptElementState` values.
     state_lookup = {
         "PENDING": JobscriptElementState.pending,
         "RUNNING": JobscriptElementState.running,
@@ -301,7 +325,7 @@ class SlurmPosix(Scheduler):
             if part_match:
                 resources.SLURM_partition = part_match
 
-    def format_core_request_lines(self, resources):
+    def _format_core_request_lines(self, resources):
         lns = []
         if resources.SLURM_partition:
             lns.append(f"{self.js_cmd} --partition {resources.SLURM_partition}")
@@ -324,13 +348,13 @@ class SlurmPosix(Scheduler):
 
         return lns
 
-    def format_array_request(self, num_elements, resources):
+    def _format_array_request(self, num_elements, resources):
         # TODO: Slurm docs start indices at zero, why are we starting at one?
         #   https://slurm.schedmd.com/sbatch.html#OPT_array
         max_str = f"%{resources.max_array_items}" if resources.max_array_items else ""
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}{max_str}"
 
-    def format_std_stream_file_option_lines(self, is_array, sub_idx):
+    def _format_std_stream_file_option_lines(self, is_array, sub_idx):
         base = r"%x_"
         if is_array:
             base += r"%A.%a"
@@ -344,12 +368,15 @@ class SlurmPosix(Scheduler):
         ]
 
     def format_options(self, resources, num_elements, is_array, sub_idx):
+        """
+        Format the options to the scheduler.
+        """
         opts = []
-        opts.extend(self.format_core_request_lines(resources))
+        opts.extend(self._format_core_request_lines(resources))
         if is_array:
-            opts.append(self.format_array_request(num_elements, resources))
+            opts.append(self._format_array_request(num_elements, resources))
 
-        opts.extend(self.format_std_stream_file_option_lines(is_array, sub_idx))
+        opts.extend(self._format_std_stream_file_option_lines(is_array, sub_idx))
 
         for opt_k, opt_v in self.options.items():
             if isinstance(opt_v, list):
@@ -387,6 +414,13 @@ class SlurmPosix(Scheduler):
         js_path: str,
         deps: List[Tuple],
     ) -> List[str]:
+        """
+        Get the command to use to submit a job to the scheduler.
+
+        Returns
+        -------
+        List of argument words.
+        """
         cmd = [self.submit_cmd, "--parsable"]
 
         dep_cmd = []
@@ -528,6 +562,9 @@ class SlurmPosix(Scheduler):
         return info
 
     def cancel_jobs(self, js_refs: List[str], jobscripts: List = None):
+        """
+        Cancel submitted jobs.
+        """
         cmd = [self.del_cmd] + js_refs
         self.app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

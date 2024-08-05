@@ -1,3 +1,7 @@
+"""
+Utilities for making data to use in testing.
+"""
+
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -7,6 +11,9 @@ from hpcflow.sdk.core.parameters import ParameterValue
 
 
 def make_schemas(ins_outs, ret_list=False):
+    """
+    Construct a collection of schemas.
+    """
     out = []
     for idx, info in enumerate(ins_outs):
         if len(info) == 2:
@@ -57,6 +64,9 @@ def make_schemas(ins_outs, ret_list=False):
 
 
 def make_parameters(num):
+    """
+    Construct a sequence of parameters.
+    """
     return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
@@ -64,6 +74,9 @@ def make_actions(
     ins_outs: List[Tuple[Union[Tuple, str], str]],
     env="env1",
 ) -> List[hf.Action]:
+    """
+    Construct a collection of actions.
+    """
     act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
@@ -98,6 +111,9 @@ def make_tasks(
     input_sources=None,
     groups=None,
 ):
+    """
+    Construct a sequence of tasks.
+    """
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
@@ -148,6 +164,9 @@ def make_workflow(
     overwrite=False,
     store="zarr",
 ):
+    """
+    Construct a workflow.
+    """
     tasks = make_tasks(
         schemas_spec,
         local_inputs=local_inputs,
@@ -202,6 +221,10 @@ def make_test_data_YAML_workflow_template(workflow_name, **kwargs):
 
 @dataclass
 class P1_sub_parameter_cls(ParameterValue):
+    """
+    Parameter value handler: ``p1_sub``
+    """
+
     _typ = "p1_sub"
 
     e: int
@@ -222,6 +245,10 @@ class P1_sub_parameter_cls(ParameterValue):
 
 @dataclass
 class P1_sub_parameter_cls_2(ParameterValue):
+    """
+    Parameter value handler: ``p1_sub_2``
+    """
+
     _typ = "p1_sub_2"
 
     f: int
@@ -229,6 +256,14 @@ class P1_sub_parameter_cls_2(ParameterValue):
 
 @dataclass
 class P1_parameter_cls(ParameterValue):
+    """
+    Parameter value handler: ``p1c``
+
+    Note
+    ----
+    This is a composite value handler.
+    """
+
     _typ = "p1c"
     _sub_parameters = {"sub_param": "p1_sub", "sub_param_2": "p1_sub_2"}
 
