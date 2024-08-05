@@ -54,7 +54,9 @@ def _process_demo_data_strings(app, value):
 
 class ParameterValue:
     """
-    The value of a parameter.
+    The value handler for a parameter.
+
+    Intended to be subclassed.
     """
 
     _typ = None
@@ -97,13 +99,22 @@ class ParameterValue:
 
 
 class ParameterPropagationMode(enum.Enum):
+    """
+    How a parameter is propagated.
+    """
+    #: Parameter is propagated implicitly.
     IMPLICIT = 0
+    #: Parameter is propagated explicitly.
     EXPLICIT = 1
+    #: Parameter is never propagated.
     NEVER = 2
 
 
 @dataclass
 class ParameterPath(JSONLike):
+    """
+    Path to a parameter.
+    """
     # TODO: unused?
     #: The path to the parameter.
     path: Sequence[Union[str, int, float]]
@@ -122,13 +133,15 @@ class Parameter(JSONLike):
     ----------
     typ:
         Type code.
+        Used to look up the :py:class:`ParameterValue` for this parameter,
+        if any.
     is_file:
         Whether this parameter represents a file.
     sub_parameters: list[SubParameter]
         Any parameters packed within this one.
-    _value_class: type
+    _value_class: type[ParameterValue]
         Class that provides the implementation of this parameter's values.
-        Not normally user-managed.
+        Not normally directly user-managed.
     _hash_value:
         Hash of this class. Not normally user-managed.
     _validation:
@@ -147,8 +160,12 @@ class Parameter(JSONLike):
         ),
     )
 
+    #: Type code. Used to look up the :py:class:`ParameterValue` for this parameter,
+    #: if any.
     typ: str
+    #: Whether this parameter represents a file.
     is_file: bool = False
+    #: Any parameters packed within this one.
     sub_parameters: List[app.SubParameter] = field(default_factory=lambda: [])
     _value_class: Any = None
     _hash_value: Optional[str] = field(default=None, repr=False)
@@ -585,6 +602,10 @@ class SchemaOutput(SchemaParameter):
 
 @dataclass
 class BuiltinSchemaParameter:
+    """
+    A parameter of a built-in schema.
+    """
+    # TODO: Is this used anywhere?
     # builtin inputs (resources,parameter_perturbations,method,implementation
     # builtin outputs (time, memory use, node/hostname etc)
     # - builtin parameters do not propagate to other tasks (since all tasks define the same

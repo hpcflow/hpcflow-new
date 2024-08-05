@@ -77,18 +77,27 @@ class PersistentStoreFeatures:
     EAR_parallelism:
         If True, the store supports workflows running multiple EARs simultaneously.
     schedulers:
-        If True, the store supports submitting workflows to a scheduler
+        If True, the store supports submitting workflows to a scheduler.
     submission:
         If True, the store supports submission. If False, the store can be considered to
         be an archive, which would need transforming to another store type before
         submission.
     """
 
+    #: Whether a new workflow can be created using this store.
     create: bool = False
+    #: Whether the workflow can be modified.
     edit: bool = False
+    #: Whetherthe store supports workflows running multiple independent jobscripts
+    #: simultaneously.
     jobscript_parallelism: bool = False
+    #: Whether the store supports workflows running multiple EARs simultaneously.
     EAR_parallelism: bool = False
+    #: Whether the store supports submitting workflows to a scheduler.
     schedulers: bool = False
+    #: Whether the store supports submission. If not, the store can be considered to
+    #: be an archive, which would need transforming to another store type before
+    #: submission.
     submission: bool = False
 
 
@@ -111,10 +120,15 @@ class StoreTask:
         Description of the template for the task.
     """
 
+    #: The ID of the task.
     id_: int
+    #: The index of the task within its workflow.
     index: int
+    #: Whether the task has changes not yet persisted.
     is_pending: bool
+    #: The IDs of elements in the task.
     element_IDs: List[int]
+    #: Description of the template for the task.
     task_template: Optional[Dict] = None
 
     def encode(self) -> Tuple[int, Dict, Dict]:
@@ -171,13 +185,21 @@ class StoreElement:
         IDs of element-iterations that belong to this element.
     """
 
+    #: The ID of the element.
     id_: int
+    #: Whether the element has changes not yet persisted.
     is_pending: bool
+    #: Index of the element within its parent task.
     index: int
+    #: Index of the element set containing this element.
     es_idx: int
+    #: Value sequence index map.
     seq_idx: Dict[str, int]
+    #: Data source index map.
     src_idx: Dict[str, int]
+    #: ID of the task that contains this element.
     task_ID: int
+    #: IDs of element-iterations that belong to this element.
     iteration_IDs: List[int]
 
     def encode(self) -> Dict:
@@ -234,6 +256,8 @@ class StoreElementIter:
         Whether the element iteration has changes not yet persisted.
     element_ID:
         Which element is an iteration for.
+    EARs_initialised:
+        Whether EARs have been initialised for this element iteration.
     EAR_IDs:
         Maps task schema action indices to EARs by ID.
     data_idx:
@@ -245,13 +269,22 @@ class StoreElementIter:
         What loops are being handled here and where they're up to.
     """
 
+    #: The ID of this element iteration.
     id_: int
+    #: Whether the element iteration has changes not yet persisted.
     is_pending: bool
+    #: Which element is an iteration for.
     element_ID: int
+    #: Whether EARs have been initialised for this element iteration.
     EARs_initialised: bool
+    #: Maps task schema action indices to EARs by ID.
     EAR_IDs: Dict[int, List[int]]
+    #: Overall data index for the element-iteration, which maps parameter names to
+    #: parameter data indices.
     data_idx: Dict[str, int]
+    #: List of parameters defined by the associated task schema.
     schema_parameters: List[str]
+    #: What loops are being handled here and where they're up to.
     loop_idx: Dict[str, int] = field(default_factory=dict)
 
     def encode(self) -> Dict:
@@ -362,7 +395,7 @@ class StoreEAR:
     data_idx:
         Maps parameter names within this EAR to parameter data indices.
     submission_idx:
-        Which submission was this EAR, if known.
+        Which submission contained this EAR, if known.
     skip:
         Whether to skip this EAR.
     success:
@@ -383,21 +416,37 @@ class StoreEAR:
         Where this EAR was submitted to run, if known.
     """
 
+    #: The ID of this element action run.
     id_: int
+    #: Whether the element action run has changes not yet persisted.
     is_pending: bool
+    #: What element iteration owns this EAR.
     elem_iter_ID: int
+    #: The task schema action associated with this EAR.
     action_idx: int
+    #: The indices of the commands in the EAR.
     commands_idx: List[int]
+    #: Maps parameter names within this EAR to parameter data indices.
     data_idx: Dict[str, int]
+    #: Which submission contained this EAR, if known.
     submission_idx: Optional[int] = None
+    #: Whether to skip this EAR.
     skip: Optional[bool] = False
+    #: Whether this EAR was successful, if known.
     success: Optional[bool] = None
+    #: When this EAR started, if known.
     start_time: Optional[datetime] = None
+    #: When this EAR finished, if known.
     end_time: Optional[datetime] = None
+    #: Snapshot of files at EAR start, if recorded.
     snapshot_start: Optional[Dict] = None
+    #: Snapshot of files at EAR end, if recorded.
     snapshot_end: Optional[Dict] = None
+    #: The exit code of the underlying executable, if known.
     exit_code: Optional[int] = None
+    #: Metadata concerning e.g. the state of the EAR.
     metadata: Dict[str, Any] = None
+    #: Where this EAR was submitted to run, if known.
     run_hostname: Optional[str] = None
 
     @staticmethod
@@ -530,11 +579,17 @@ class StoreParameter:
         Description of where this parameter originated.
     """
 
+    #: The ID of this parameter.
     id_: int
+    #: Whether the parameter has changes not yet persisted.
     is_pending: bool
+    #: Whether the parameter is set.
     is_set: bool
+    #: Description of the value of the parameter.
     data: Any
+    #: Description of the file this parameter represents.
     file: Dict
+    #: Description of where this parameter originated.
     source: Dict
 
     _encoders = {}

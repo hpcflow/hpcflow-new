@@ -21,10 +21,16 @@ class SGEPosix(Scheduler):
     """
     A scheduler that uses SGE.
 
-    Parameters
-    ----------
+    Keyword Args
+    ------------
     cwd_switch: str
         Override of default switch to use to set the current working directory.
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
 
     Notes
     -----

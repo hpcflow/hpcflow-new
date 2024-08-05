@@ -107,9 +107,9 @@ class ElementSet(JSONLike):
     nesting_order: dict[str, int]
         How to handle nesting of iterations.
     env_preset: str
-        Which environment preset to use. Don't use at same time as `environments`.
+        Which environment preset to use. Don't use at same time as ``environments``.
     environments: dict
-        Environment descriptors to use. Don't use at same time as `env_preset`.
+        Environment descriptors to use. Don't use at same time as ``env_preset``.
     sourceable_elem_iters: list[int]
         If specified, a list of global element iteration indices from which inputs for
         the new elements associated with this element set may be sourced. If not
@@ -119,8 +119,8 @@ class ElementSet(JSONLike):
         these sources to come from distinct element sub-sets. If False (default),
         only the intersection of element sub-sets for all parameters are included.
     merge_envs: bool
-        If True, merge `environments` into `resources` using the "any" scope. If
-        False, `environments` are ignored. This is required on first initialisation,
+        If True, merge ``environments`` into ``resources`` using the "any" scope. If
+        False, ``environments`` are ignored. This is required on first initialisation,
         but not on subsequent re-initialisation from a persistent workflow.
     """
 
@@ -885,6 +885,9 @@ class Task(JSONLike):
         }
 
     def set_sequence_parameters(self, element_set):
+        """
+        Set up parameters parsed by value sequences.
+        """
         # set ValueSequence Parameter objects:
         for seq in element_set.sequences:
             if seq.input_type:
@@ -967,6 +970,11 @@ class Task(JSONLike):
         return output_data_indices
 
     def prepare_element_resolution(self, element_set, input_data_indices):
+        """
+        Set up the resolution of details of elements
+        (especially multiplicities and how iterations are nested)
+        within an element set.
+        """
         multiplicities = []
         for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
@@ -1012,6 +1020,9 @@ class Task(JSONLike):
 
     @property
     def output_labels(self):
+        """
+        The labels on the outputs of the task.
+        """
         return self._output_labels
 
     @property

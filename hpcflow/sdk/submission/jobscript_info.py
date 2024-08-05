@@ -63,6 +63,6 @@ class JobscriptElementState(enum.Enum):
     @property
     def rich_repr(self):
         """
-        Rich representation of this enumeration elemebt.
+        Rich representation of this enumeration element.
         """
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"

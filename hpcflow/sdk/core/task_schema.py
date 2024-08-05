@@ -26,6 +26,13 @@ from .utils import check_valid_py_identifier
 
 @dataclass
 class TaskObjective(JSONLike):
+    """
+    A thing that a task is attempting to achieve.
+
+    Parameter:
+    name: str
+        The name of the objective. A valid Python identifier.
+    """
     _child_objects = (
         ChildObjectSpec(
             name="name",
@@ -33,7 +40,7 @@ class TaskObjective(JSONLike):
         ),
     )
 
-    #: The name of the objective.
+    #: The name of the objective. A valid Python identifier.
     name: str
 
     def __post_init__(self):
@@ -46,21 +53,28 @@ class TaskSchema(JSONLike):
 
     Parameters
     ----------
-    objective
+    objective:
         This is a string representing the objective of the task schema.
-    actions
+    actions:
         A list of Action objects whose commands are to be executed by the task.
-    method
+    method:
         An optional string to label the task schema by its method.
-    implementation
+    implementation:
         An optional string to label the task schema by its implementation.
-    inputs
+    inputs:
         A list of SchemaInput objects that define the inputs to the task.
-    outputs
+    outputs:
         A list of SchemaOutput objects that define the outputs of the task.
-    web_doc
+    version:
+        The version of this task schema.
+    parameter_class_modules:
+        Where to find implementations of parameter value handlers.
+    web_doc:
         True if this object should be included in the Sphinx documentation (in the case
         of built-in task schemas). True by default.
+    environment_presets:
+        Information about default execution environments. Can be overridden in specific
+        cases in the concrete tasks.
     """
 
     _validation_schema = "task_schema_spec_schema.yaml"
@@ -721,6 +735,10 @@ class TaskSchema(JSONLike):
             out.parameter._set_value_class()
 
     def make_persistent(self, workflow: app.Workflow, source: Dict) -> List[int]:
+        """
+        Convert this task schema to persistent form within the context of the given
+        workflow.
+        """
         new_refs = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():

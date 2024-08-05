@@ -281,8 +281,10 @@ class WSLBash(Bash):
     A variant of bash that handles running under WSL on Windows.
     """
 
+    #: Default name of the WSL interface executable.
     DEFAULT_WSL_EXE = "wsl"
 
+    #: Template for the common part of the jobscript header.
     JS_HEADER = Bash.JS_HEADER.replace(
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',

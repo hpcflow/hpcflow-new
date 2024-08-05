@@ -34,6 +34,10 @@ from hpcflow.sdk.persistence.base import update_param_source_dict
 
 
 class JSONPersistentStore(PersistentStore):
+    """
+    A store that writes JSON files for all its state serialization.
+    """
+
     _name = "json"
     _features = PersistentStoreFeatures(
         create=True,

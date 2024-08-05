@@ -24,6 +24,15 @@ class SlurmPosix(Scheduler):
     """
     A scheduler that uses SLURM.
 
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
+
     Notes
     -----
     - runs in current working directory by default [2]

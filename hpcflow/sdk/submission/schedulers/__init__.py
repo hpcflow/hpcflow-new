@@ -11,9 +11,20 @@ from typing import Any, List, Tuple
 class NullScheduler:
     """
     Abstract base class for schedulers.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the scheduler.
     """
 
+    #: Default value for arguments to the shell.
     DEFAULT_SHELL_ARGS = ""
+    #: Default value for arguments on the shebang line.
     DEFAULT_SHEBANG_ARGS = ""
 
     def __init__(
@@ -83,7 +94,9 @@ class Scheduler(NullScheduler):
         The variable for array items, if overridden from default.
     """
 
+    #: Default command for logging into nodes.
     DEFAULT_LOGIN_NODES_CMD = None
+    #: Default pattern for matching the names of login nodes.
     DEFAULT_LOGIN_NODE_MATCH = "*login*"
 
     def __init__(

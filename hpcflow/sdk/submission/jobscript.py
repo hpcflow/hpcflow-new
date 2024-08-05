@@ -717,7 +717,7 @@ class Jobscript(JSONLike):
 
     @property
     def shell(self):
-        """Retrieve the shell object for submission."""
+        """The shell for composing submission scripts."""
         if self._shell_obj is None:
             self._shell_obj = self._get_shell(
                 os_name=self.os_name,
@@ -729,7 +729,7 @@ class Jobscript(JSONLike):
 
     @property
     def scheduler(self):
-        """Retrieve the scheduler object for submission."""
+        """The scheduler that submissions go to from this jobscript."""
         if self._scheduler_obj is None:
             self._scheduler_obj = self.app.get_scheduler(
                 scheduler_name=self.scheduler_name,

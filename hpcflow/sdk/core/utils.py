@@ -745,14 +745,28 @@ def reshape(lst, lens):
 
 
 def is_fsspec_url(url: str) -> bool:
+    """
+    Test if a URL appears to be one that can be understood by fsspec.
+    """
     return bool(re.match(r"(?:[a-z0-9]+:{1,2})+\/\/", url))
 
 
 class JSONLikeDirSnapShot(DirectorySnapshot):
-    """Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON."""
+    """
+    Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON.
+    """
 
     def __init__(self, root_path=None, data=None):
-        """Create an empty snapshot or load from JSON-like data."""
+        """Create an empty snapshot or load from JSON-like data.
+        
+        Parameters
+        ----------
+        root_path: str
+            Where to take the snapshot based at.
+        data: dict
+            Serialised snapshot to reload from.
+            See :py:meth:`to_json_like`.
+        """
 
         self.root_path = root_path
         self._stat_info = {}

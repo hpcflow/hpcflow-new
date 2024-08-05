@@ -628,11 +628,15 @@ class PendingChanges:
 class CommitResourceMap:
     """
     Map of :py:class:`PendingChanges` commit method names to store resource labels,
-    representing the store resources required by each commit method, for a given
-    :py:class:`PersistentStore`.
+    representing the store resources required by each ``commit_*`` method, for a given
+    :py:class:`~.PersistentStore`.
 
     When :py:meth:`PendingChanges.commit_all` is called, the resources specified will be
-    opened in "update" mode, for each `commit_` method.
+    opened in "update" mode, for each ``commit_*`` method.
+
+    Notes
+    -----
+    Normally only of interest to implementations of persistent stores.
     """
 
     commit_tasks: Optional[Tuple[str]] = tuple()

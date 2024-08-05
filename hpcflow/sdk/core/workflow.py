@@ -3205,6 +3205,7 @@ class Workflow:
 
 @dataclass
 class WorkflowBlueprint:
-    """Pre-built workflow templates that are simpler to parametrise (e.g. fitting workflows)."""
+    """Pre-built workflow templates that are simpler to parameterise.
+    (For example, fitting workflows.)"""
 
     workflow_template: WorkflowTemplate

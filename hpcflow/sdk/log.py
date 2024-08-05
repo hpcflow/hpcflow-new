@@ -155,7 +155,9 @@ class AppLog:
     Application log control.
     """
 
+    #: Default logging level for the console.
     DEFAULT_LOG_CONSOLE_LEVEL = "WARNING"
+    #: Default logging level for log files.
     DEFAULT_LOG_FILE_LEVEL = "INFO"
 
     def __init__(self, app, log_console_level=None):
