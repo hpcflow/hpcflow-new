@@ -81,7 +81,6 @@ class Scheduler(NullScheduler):
     def wait_for_jobscripts(self, js_refs: List[Any]) -> None:
         while js_refs:
             info = self.get_job_state_info(js_refs)
-            print(info)
             if not info:
                 break
             js_refs = list(info.keys())
