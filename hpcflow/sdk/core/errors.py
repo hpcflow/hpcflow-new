@@ -576,11 +576,15 @@ class UnsupportedScriptDataFormat(ValueError):
 
 
 class UnknownScriptDataParameter(ValueError):
-    pass
+    """
+    Unknown parameter in script data.
+    """
 
 
 class UnknownScriptDataKey(ValueError):
-    pass
+    """
+    Unknown key in script data.
+    """
 
 
 class MissingVariableSubstitutionError(KeyError):

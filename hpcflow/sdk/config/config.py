@@ -848,6 +848,9 @@ class Config:
         self.update(f"shells.{shell}.defaults", defaults)
 
     def add_shell_WSL(self, **defaults):
+        """
+        Add shell with WSL prefix.
+        """
         if "WSL_executable" not in defaults:
             defaults["WSL_executable"] = "wsl.exe"
         self.add_shell("wsl", **defaults)

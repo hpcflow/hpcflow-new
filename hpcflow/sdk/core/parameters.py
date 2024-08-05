@@ -1879,31 +1879,55 @@ class ResourceSpec(JSONLike):
 
     @property
     def scratch(self):
-        # TODO: currently unused, except in tests
+        """
+        Which scratch space to use.
+
+        Todo
+        ----
+        Currently unused, except in tests.
+        """
         return self._get_value("scratch")
 
     @property
     def parallel_mode(self):
+        """
+        Which parallel mode to use.
+        """
         return self._get_value("parallel_mode")
 
     @property
     def num_cores(self):
+        """
+        How many cores to request.
+        """
         return self._get_value("num_cores")
 
     @property
     def num_cores_per_node(self):
+        """
+        How many cores per compute node to request.
+        """
         return self._get_value("num_cores_per_node")
 
     @property
     def num_nodes(self):
+        """
+        How many compute nodes to request.
+        """
         return self._get_value("num_nodes")
 
     @property
     def num_threads(self):
+        """
+        How many threads to request.
+        """
         return self._get_value("num_threads")
 
     @property
     def scheduler(self):
+        """
+        Which scheduler to use.
+        """
         return self._get_value("scheduler")
 
     @scheduler.setter
@@ -1914,6 +1938,9 @@ class ResourceSpec(JSONLike):
 
     @property
     def shell(self):
+        """
+        Which system shell to use.
+        """
         return self._get_value("shell")
 
     @shell.setter
@@ -1924,54 +1951,93 @@ class ResourceSpec(JSONLike):
 
     @property
     def use_job_array(self):
+        """
+        Whether to use array jobs.
+        """
         return self._get_value("use_job_array")
 
     @property
     def max_array_items(self):
+        """
+        If using array jobs, up to how many items should be in the job array.
+        """
         return self._get_value("max_array_items")
 
     @property
     def time_limit(self):
+        """
+        How long to run for.
+        """
         return self._get_value("time_limit")
 
     @property
     def scheduler_args(self):
+        """
+        Additional arguments to pass to the scheduler.
+        """
         return self._get_value("scheduler_args")
 
     @property
     def shell_args(self):
+        """
+        Additional arguments to pass to the shell.
+        """
         return self._get_value("shell_args")
 
     @property
     def os_name(self):
+        """
+        Which OS to use.
+        """
         return self._get_value("os_name")
 
     @property
     def environments(self):
+        """
+        Which execution environments to use.
+        """
         return self._get_value("environments")
 
     @property
     def SGE_parallel_env(self):
+        """
+        Which SGE parallel environment to request.
+        """
         return self._get_value("SGE_parallel_env")
 
     @property
     def SLURM_partition(self):
+        """
+        Which SLURM partition to request.
+        """
         return self._get_value("SLURM_partition")
 
     @property
     def SLURM_num_tasks(self):
+        """
+        How many SLURM tasks to request.
+        """
         return self._get_value("SLURM_num_tasks")
 
     @property
     def SLURM_num_tasks_per_node(self):
+        """
+        How many SLURM tasks per compute node to request.
+        """
         return self._get_value("SLURM_num_tasks_per_node")
 
     @property
     def SLURM_num_nodes(self):
+        """
+        How many compute nodes to request.
+        """
         return self._get_value("SLURM_num_nodes")
 
     @property
     def SLURM_num_cpus_per_task(self):
+        """
+        How many CPU cores to ask for per SLURM task.
+        """
         return self._get_value("SLURM_num_cpus_per_task")
 
     @os_name.setter
@@ -2018,15 +2084,28 @@ class ResourceSpec(JSONLike):
 
 
 class InputSourceType(enum.Enum):
+    """
+    The types if input sources.
+    """
+    #: Input source is an import.
     IMPORT = 0
+    #: Input source is local.
     LOCAL = 1
+    #: Input source is a default.
     DEFAULT = 2
+    #: Input source is a task.
     TASK = 3
 
 
 class TaskSourceType(enum.Enum):
+    """
+    The types of task-based input sources. 
+    """
+    #: Input source is a task input.
     INPUT = 0
+    #: Input source is a task output.
     OUTPUT = 1
+    #: Input source is unspecified.
     ANY = 2
 
 
