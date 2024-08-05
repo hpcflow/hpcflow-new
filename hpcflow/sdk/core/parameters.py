@@ -2087,6 +2087,7 @@ class InputSourceType(enum.Enum):
     """
     The types if input sources.
     """
+
     #: Input source is an import.
     IMPORT = 0
     #: Input source is local.
@@ -2099,8 +2100,9 @@ class InputSourceType(enum.Enum):
 
 class TaskSourceType(enum.Enum):
     """
-    The types of task-based input sources. 
+    The types of task-based input sources.
     """
+
     #: Input source is a task input.
     INPUT = 0
     #: Input source is a task output.
