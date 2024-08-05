@@ -1602,11 +1602,11 @@ class Jobscript(JSONLike):
 
             get_ins_time_fp = open("get_inputs_times.txt", "wt")
             func_time_fp = open("func_times.txt", "wt")
-            loop_time_fp = open("loop_check_times.txt", "wt")
             run_time_fp = open("run_times.txt", "wt")
             set_start_multi_times_fp = open("set_start_multi_times.txt", "wt")
             set_end_multi_times_fp = open("set_end_multi_times.txt", "wt")
             save_multi_times_fp = open("save_multi_times.txt", "wt")
+            loop_term_times_fp = open("loop_term_times.txt", "wt")
 
             get_all_runs_time = get_all_runs_toc - get_all_runs_tic
             print(f"get_all_runs_time: {{get_all_runs_time:.4f}}")
@@ -1634,6 +1634,7 @@ class Jobscript(JSONLike):
                     with app.redirect_std_to_file(block_act_std_path):
                         # set run starts for all runs of the block/action:
                         block_act_run_dirs = [run_dirs[i] for i in block_act_run_IDs]
+                        block_act_runs = [runs[i] for i in block_act_run_IDs]
 
                         set_start_multi_tic = time.perf_counter()
                         wk.set_multi_run_starts(block_act_run_IDs, block_act_run_dirs, port)
@@ -1701,10 +1702,6 @@ class Jobscript(JSONLike):
                                 p_id = run.data_idx[f"outputs.{{name_i}}"]
                                 all_act_outputs[p_id] = out_i
 
-                            loop_tic = time.perf_counter()
-                            wk._check_loop_termination(run)
-                            loop_toc = time.perf_counter()
-
                             if req_dir:
                                 os.chdir(os.environ["{app_caps}_SUB_TMP_DIR"])
 
@@ -1715,12 +1712,10 @@ class Jobscript(JSONLike):
 
                         get_ins_time = get_ins_toc - get_ins_tic
                         func_time = func_toc - func_tic
-                        loop_time = loop_toc - loop_tic
                         run_time = run_toc - run_tic
 
                         print(f"{{get_ins_time:.4f}}", file=get_ins_time_fp)
                         print(f"{{func_time:.4f}}", file=func_time_fp)
-                        print(f"{{loop_time:.4f}}", file=loop_time_fp)
                         print(f"{{run_time:.4f}}", file=run_time_fp)
 
                     with app.redirect_std_to_file(block_act_std_path):
@@ -1731,6 +1726,13 @@ class Jobscript(JSONLike):
                         save_all_toc = time.perf_counter()
                         save_all_time_i = save_all_toc - save_all_tic
                         print(f"{{save_all_time_i:.4f}}", file=save_multi_times_fp, flush=True)
+
+                        all_loop_term_tic = time.perf_counter()
+                        for run_i in block_act_runs:
+                            wk._check_loop_termination(run_i)
+                        all_loop_term_toc = time.perf_counter()
+                        all_loop_term_time_i = all_loop_term_toc - all_loop_term_tic
+                        print(f"{{all_loop_term_time_i:.4f}}", file=loop_term_times_fp, flush=True)
 
                         # set run end for all elements of this action
                         set_multi_end_tic = time.perf_counter()
@@ -1743,11 +1745,11 @@ class Jobscript(JSONLike):
 
             get_ins_time_fp.close()
             func_time_fp.close()
-            loop_time_fp.close()
             run_time_fp.close()
             set_start_multi_times_fp.close()
             set_end_multi_times_fp.close()
             save_multi_times_fp.close()
+            loop_term_times_fp.close()
         """
         ).format(
             py_imports=py_imports,
