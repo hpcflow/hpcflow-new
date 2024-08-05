@@ -20,11 +20,20 @@ from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_item
 class NumCores(JSONLike):
     """
     A range of cores supported by an executable instance.
+
+    Parameters
+    ----------
+    start:
+        The minimum number of cores supported.
+    stop:
+        The maximum number of cores supported.
+    step: int
+        The step in the number of cores supported. Defaults to 1.
     """
 
     #: The minimum number of cores supported.
     start: int
-    #: The maximum number of cores supported:
+    #: The maximum number of cores supported.
     stop: int
     #: The step in the number of cores supported. Normally 1.
     step: int = None

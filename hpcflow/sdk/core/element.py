@@ -1286,11 +1286,16 @@ class Element:
 
     @property
     def sequence_idx(self) -> Dict[str, int]:
+        """
+        The sequence index IDs.
+        """
         return self._seq_idx
 
     @property
     def input_source_idx(self) -> Dict[str, int]:
-
+        """
+        The input source indices.
+        """
         return self._src_idx
 
     @property

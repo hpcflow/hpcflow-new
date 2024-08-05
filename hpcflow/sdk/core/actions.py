@@ -43,13 +43,22 @@ ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
 class ActionScopeType(enum.Enum):
+    """
+    Types of action scope.
+    """
+    #: Scope that applies to anything.
     ANY = 0
+    #: Scope that only applies to main scripts.
     MAIN = 1
+    #: Scope that applies to processing steps.
     PROCESSING = 2
+    #: Scope that applies to input file generators.
     INPUT_FILE_GENERATOR = 3
+    #: Scope that applies to output file parsers.
     OUTPUT_FILE_PARSER = 4
 
 
+#: Keyword arguments permitted for particular scopes.
 ACTION_SCOPE_ALLOWED_KWARGS = {
     ActionScopeType.ANY.name: set(),
     ActionScopeType.MAIN.name: set(),
@@ -389,8 +398,9 @@ class ElementActionRun:
 
     @property
     def dir_diff(self) -> DirectorySnapshotDiff:
-        """Get the changes to the EAR working directory due to the execution of this
-        EAR."""
+        """
+        The changes to the EAR working directory due to the execution of this EAR.
+        """
         if self._ss_diff_obj is None and self.snapshot_end:
             self._ss_diff_obj = DirectorySnapshotDiff(
                 self.snapshot_start, self.snapshot_end
@@ -413,7 +423,9 @@ class ElementActionRun:
 
     @property
     def status(self):
-        """Return the state of this EAR."""
+        """
+        The state of this EAR.
+        """
 
         if self.skip:
             return EARStatus.skipped
@@ -458,6 +470,14 @@ class ElementActionRun:
         return self.action.get_parameter_names(prefix)
 
     def get_data_idx(self, path: str = None):
+        """
+        Get the data index of a value in the most recent iteration.
+
+        Parameters
+        ----------
+        path:
+            Path to the parameter.
+        """
         return self.element_iteration.get_data_idx(
             path,
             action_idx=self.element_action.action_idx,
@@ -472,6 +492,20 @@ class ElementActionRun:
         as_strings: bool = False,
         use_task_index: bool = False,
     ):
+        """
+        Get the source or sources of a parameter in the most recent iteration.
+
+        Parameters
+        ----------
+        path:
+            Path to the parameter.
+        typ:
+            The parameter type.
+        as_strings:
+            Whether to return the result as human-readable strings.
+        use_task_index:
+            Whether to use the task index.
+        """
         return self.element_iteration.get_parameter_sources(
             path,
             action_idx=self.element_action.action_idx,
@@ -488,6 +522,22 @@ class ElementActionRun:
         raise_on_missing: bool = False,
         raise_on_unset: bool = False,
     ):
+        """
+        Get a value (parameter, input, output, etc.) from the most recent iteration.
+
+        Parameters
+        ----------
+        path:
+            Path to the value.
+        default:
+            Default value to provide if value absent.
+        raise_on_missing:
+            Whether to raise an exception on an absent value.
+            If not, the default is returned.
+        raise_on_unset:
+            Whether to raise an exception on an explicitly unset value.
+            If not, the default is returned.
+        """
         return self.element_iteration.get(
             path=path,
             action_idx=self.element_action.action_idx,
@@ -1292,8 +1342,11 @@ class ActionRule(JSONLike):
                 f"constructor arguments."
             )
 
+        #: The rule to apply.
         self.rule = rule
+        #: The action that contains this rule.
         self.action = None  # assigned by parent action
+        #: The command that is guarded by this rule.
         self.command = None  # assigned by parent command
 
     def __eq__(self, other):
@@ -1305,14 +1358,38 @@ class ActionRule(JSONLike):
 
     @TimeIt.decorator
     def test(self, element_iteration: app.ElementIteration) -> bool:
+        """
+        Test if this rule holds for a particular iteration.
+
+        Parameter
+        ---------
+        element_iteration:
+            The iteration to apply this rule to.
+        """
         return self.rule.test(element_like=element_iteration, action=self.action)
 
     @classmethod
     def check_exists(cls, check_exists):
+        """
+        Make an action rule that checks if a named attribute is present.
+
+        Parameter
+        ---------
+        check_exists: str
+            The path to the attribute to check for.
+        """
         return cls(rule=app.Rule(check_exists=check_exists))
 
     @classmethod
     def check_missing(cls, check_missing):
+        """
+        Make an action rule that checks if a named attribute is absent.
+
+        Parameter
+        ---------
+        check_missing: str
+            The path to the attribute to check for.
+        """
         return cls(rule=app.Rule(check_missing=check_missing))
 
 

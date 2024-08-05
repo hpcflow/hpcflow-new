@@ -7,30 +7,52 @@ from typing import Iterable, List
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
-    pass
+    """
+    An InputValue has the same sequence address twice.
+    """
 
 
 class TaskTemplateMultipleSchemaObjectives(ValueError):
-    pass
+    """
+    A TaskTemplate has multiple objectives.
+    """
 
 
 class TaskTemplateUnexpectedInput(ValueError):
-    pass
+    """
+    A TaskTemplate was given unexpected input.
+    """
 
 
 class TaskTemplateUnexpectedSequenceInput(ValueError):
-    pass
+    """
+    A TaskTemplate was given an unexpected sequence.
+    """
 
 
 class TaskTemplateMultipleInputValues(ValueError):
-    pass
+    """
+    A TaskTemplate had multiple input values bound over each other.
+    """
 
 
 class InvalidIdentifier(ValueError):
-    pass
+    """
+    A bad identifier name was given.
+    """
 
 
 class MissingInputs(Exception):
+    """
+    Inputs were missing.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    missing_inputs: list[str]
+        The missing inputs.
+    """
     # TODO: add links to doc pages for common user-exceptions?
 
     def __init__(self, message, missing_inputs) -> None:
@@ -39,6 +61,16 @@ class MissingInputs(Exception):
 
 
 class UnrequiredInputSources(ValueError):
+    """
+    Input sources were provided that were not required.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    unrequired_sources: list
+        The input sources that were not required.
+    """
     def __init__(self, message, unrequired_sources) -> None:
         self.unrequired_sources = unrequired_sources
         for src in unrequired_sources:
@@ -54,129 +86,198 @@ class UnrequiredInputSources(ValueError):
 
 
 class ExtraInputs(Exception):
+    """
+    Extra inputs were provided.
+
+    Parameters
+    ----------
+    message: str
+        The message of the exception.
+    extra_inputs: list
+        The extra inputs.
+    """
     def __init__(self, message, extra_inputs) -> None:
         self.extra_inputs = extra_inputs
         super().__init__(message)
 
 
 class UnavailableInputSource(ValueError):
-    pass
+    """
+    An input source was not available.
+    """
 
 
 class InapplicableInputSourceElementIters(ValueError):
-    pass
+    """
+    An input source element iteration was inapplicable."""
 
 
 class NoCoincidentInputSources(ValueError):
-    pass
+    """
+    Could not line up input sources to make an actual valid execution.
+    """
 
 
 class TaskTemplateInvalidNesting(ValueError):
-    pass
+    """
+    Invalid nesting in a task template.
+    """
 
 
 class TaskSchemaSpecValidationError(Exception):
-    pass
+    """
+    A task schema failed to validate.
+    """
 
 
 class WorkflowSpecValidationError(Exception):
-    pass
+    """
+    A workflow failed to validate.
+    """
 
 
 class InputSourceValidationError(Exception):
-    pass
+    """
+    An input source failed to validate.
+    """
 
 
 class EnvironmentSpecValidationError(Exception):
-    pass
+    """
+    An environment specification failed to validate.
+    """
 
 
 class ParameterSpecValidationError(Exception):
-    pass
+    """
+    A parameter specification failed to validate.
+    """
 
 
 class FileSpecValidationError(Exception):
-    pass
+    """
+    A file specification failed to validate.
+    """
 
 
 class DuplicateExecutableError(ValueError):
-    pass
+    """
+    The same executable was present twice in an executable environment.
+    """
 
 
 class MissingCompatibleActionEnvironment(Exception):
-    pass
+    """
+    Could not find a compatible action environment.
+    """
 
 
 class MissingActionEnvironment(Exception):
-    pass
+    """
+    Could not find an action environment.
+    """
 
 
 class ActionEnvironmentMissingNameError(Exception):
-    pass
+    """
+    An action environment was missing its name.
+    """
 
 
 class FromSpecMissingObjectError(Exception):
-    pass
+    """
+    Missing object when deserialising from specification.
+    """
 
 
 class TaskSchemaMissingParameterError(Exception):
-    pass
+    """
+    Parameter was missing from task schema.
+    """
 
 
 class ToJSONLikeChildReferenceError(Exception):
-    pass
+    """
+    Failed to generate or reference a child object when converting to JSON.
+    """
 
 
 class InvalidInputSourceTaskReference(Exception):
-    pass
+    """
+    Invalid input source in task reference.
+    """
 
 
 class WorkflowNotFoundError(Exception):
-    pass
+    """
+    Could not find the workflow.
+    """
 
 
 class MalformedWorkflowError(Exception):
-    pass
+    """
+    Workflow was a malformed document.
+    """
 
 
 class ValuesAlreadyPersistentError(Exception):
-    pass
+    """
+    Trying to make a value persistent that already is so.
+    """
 
 
 class MalformedParameterPathError(ValueError):
-    pass
+    """
+    The path to a parameter was ill-formed.
+    """
 
 
 class MalformedNestingOrderPath(ValueError):
-    pass
+    """
+    A nesting order path was ill-formed.
+    """
 
 
 class UnknownResourceSpecItemError(ValueError):
-    pass
+    """
+    A resource specification item was not found.
+    """
 
 
 class WorkflowParameterMissingError(AttributeError):
-    pass
+    """
+    A parameter to a workflow was missing.
+    """
 
 
 class WorkflowBatchUpdateFailedError(Exception):
-    pass
+    """
+    An update to a workflow failed.
+    """
 
 
 class WorkflowLimitsError(ValueError):
-    pass
+    """
+    Workflow hit limits.
+    """
 
 
 class UnsetParameterDataError(Exception):
-    pass
+    """
+    Tried to read from an unset parameter.
+    """
 
 
 class LoopAlreadyExistsError(Exception):
-    pass
+    """
+    A particular loop (or its name) already exists.
+    """
 
 
 class LoopTaskSubsetError(ValueError):
-    pass
+    """
+    Problem constructing a subset of a task for a loop.
+    """
 
 
 class SchedulerVersionsFailure(RuntimeError):
@@ -215,13 +316,18 @@ class JobscriptSubmissionFailure(RuntimeError):
 
 
 class SubmissionFailure(RuntimeError):
+    """
+    A job submission failed.
+    """
     def __init__(self, message) -> None:
         self.message = message
         super().__init__(message)
 
 
 class WorkflowSubmissionFailure(RuntimeError):
-    pass
+    """
+    A workflow submission failed.
+    """
 
 
 class ResourceValidationError(ValueError):
@@ -394,12 +500,28 @@ class NoCLIFormatMethodError(AttributeError):
 
 
 class ContainerKeyError(KeyError):
+    """
+    A key could not be mapped in a container.
+    
+    Parameters
+    ----------
+    path: list[str]
+        The path whose resolution failed.
+    """
     def __init__(self, path: List[str]) -> None:
         self.path = path
         super().__init__()
 
 
 class MayNeedObjectError(Exception):
+    """
+    An object is needed but not present.
+
+    Parameters
+    ----------
+    path: list[str]
+        The path whose resolution failed.
+    """
     def __init__(self, path):
         self.path = path
         super().__init__()
@@ -462,16 +584,24 @@ class MissingVariableSubstitutionError(KeyError):
 
 
 class EnvironmentPresetUnknownEnvironmentError(ValueError):
-    pass
+    """
+    An environment preset could not be resolved to an execution environment.
+    """
 
 
 class UnknownEnvironmentPresetError(ValueError):
-    pass
+    """
+    An execution environment was unknown.
+    """
 
 
 class MultipleEnvironmentsError(ValueError):
-    pass
+    """
+    Multiple applicable execution environments exist.
+    """
 
 
 class MissingElementGroup(ValueError):
-    pass
+    """
+    An element group should exist but doesn't.
+    """

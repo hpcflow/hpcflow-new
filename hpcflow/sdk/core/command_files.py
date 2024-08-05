@@ -113,6 +113,15 @@ class FileNameSpec(JSONLike):
         return self.app.FileNameExt(self)
 
     def value(self, directory="."):
+        """
+        Get the template-resolved name of the file
+        (or files matched if the name is a regex pattern).
+
+        Parameters
+        ----------
+        directory: str
+            Where to resolve values with respect to.
+        """
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
@@ -134,7 +143,7 @@ class FileNameStem(JSONLike):
 
     def value(self, directory=None):
         """
-        Get the stem, possibly with directory specified
+        Get the stem, possibly with directory specified.
         """
         return Path(self.file_name.value(directory)).stem
 
@@ -725,7 +734,11 @@ class InputFile(_FileContentsSpecifier):
     @property
     def normalised_path(self):
         """
-        Full workflow value path to the file. Note that this is not the same as the path in the filesystem.
+        Full workflow value path to the file.
+        
+        Note
+        ----
+        This is not the same as the path in the filesystem.
         """
         return f"input_files.{self.normalised_files_path}"
 
@@ -733,6 +746,17 @@ class InputFile(_FileContentsSpecifier):
 class InputFileGeneratorSource(_FileContentsSpecifier):
     """
     The source of code for use in an input file generator.
+
+    Parameters
+    ----------
+    generator:
+        How to generate the file.
+    path:
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
     """
 
     def __init__(
@@ -749,6 +773,17 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
 class OutputFileParserSource(_FileContentsSpecifier):
     """
     The source of code for use in an output file parser.
+
+    Parameters
+    ----------
+    parser:
+        How to parse the file.
+    path:
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
     """
 
     def __init__(
