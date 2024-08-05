@@ -1,3 +1,7 @@
+"""
+Model of a command run in an action.
+"""
+
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path

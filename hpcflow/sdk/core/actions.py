@@ -1,3 +1,9 @@
+"""
+Actions are base components of elements.
+Element action runs (EARs) are the basic components of any enactment;
+they may be grouped together within a jobscript for efficiency.  
+"""
+
 from __future__ import annotations
 import copy
 from dataclasses import dataclass

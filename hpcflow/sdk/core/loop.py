@@ -1,3 +1,9 @@
+"""
+A looping construct for a workflow.
+There are multiple types of loop,
+notably looping over a set of values or until a condition holds.
+"""
+
 from __future__ import annotations
 
 import copy

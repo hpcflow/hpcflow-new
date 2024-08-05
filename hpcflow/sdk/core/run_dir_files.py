@@ -1,3 +1,7 @@
+"""
+Model of files in the run directory.
+"""
+
 import re
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 

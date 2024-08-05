@@ -1,3 +1,7 @@
+"""
+A collection of submissions to a scheduler, generated from a workflow.
+"""
+
 from __future__ import annotations
 from collections import defaultdict
 

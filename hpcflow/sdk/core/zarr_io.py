@@ -1,3 +1,7 @@
+"""
+Utilities for working with Zarr.
+"""
+
 from typing import Any, Dict, Union
 
 import zarr

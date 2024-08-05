@@ -1,3 +1,7 @@
+"""
+Dependency resolution cache.
+"""
+
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Set, Dict

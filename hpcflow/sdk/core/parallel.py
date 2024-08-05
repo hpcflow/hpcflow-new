@@ -1,3 +1,7 @@
+"""
+Parallel modes.
+"""
+
 import enum
 
 

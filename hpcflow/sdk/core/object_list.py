@@ -1,3 +1,7 @@
+"""
+General model of a searchable serializable list.
+"""
+
 import copy
 from types import SimpleNamespace
 

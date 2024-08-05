@@ -1,3 +1,7 @@
+"""
+Abstract task, prior to instantiation.
+"""
+
 from contextlib import contextmanager
 import copy
 from dataclasses import dataclass

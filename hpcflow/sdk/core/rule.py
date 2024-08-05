@@ -1,3 +1,7 @@
+"""
+Rules apply conditions to workflow elements or loops.
+"""
+
 from __future__ import annotations
 from typing import Dict, Optional, Union
 

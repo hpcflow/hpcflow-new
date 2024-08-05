@@ -1,3 +1,7 @@
+"""
+Miscellaneous utilities.
+"""
+
 import copy
 import enum
 from functools import wraps

@@ -1,3 +1,7 @@
+"""
+Errors from the workflow system.
+"""
+
 import os
 from typing import Iterable, List
 

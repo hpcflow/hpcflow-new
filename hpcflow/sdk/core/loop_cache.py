@@ -1,3 +1,7 @@
+"""
+Cache of loop statuses.
+"""
+
 from dataclasses import dataclass
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple

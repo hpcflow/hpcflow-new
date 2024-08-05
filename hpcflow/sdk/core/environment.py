@@ -1,3 +1,7 @@
+"""
+Model of an execution environment.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
