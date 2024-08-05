@@ -29,7 +29,8 @@ class TaskObjective(JSONLike):
     """
     A thing that a task is attempting to achieve.
 
-    Parameter:
+    Parameter
+    ---------
     name: str
         The name of the objective. A valid Python identifier.
     """
