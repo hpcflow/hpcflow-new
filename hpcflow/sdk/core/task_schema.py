@@ -33,6 +33,7 @@ class TaskObjective(JSONLike):
     name: str
         The name of the objective. A valid Python identifier.
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="name",

@@ -102,6 +102,7 @@ class ParameterPropagationMode(enum.Enum):
     """
     How a parameter is propagated.
     """
+
     #: Parameter is propagated implicitly.
     IMPLICIT = 0
     #: Parameter is propagated explicitly.
@@ -115,6 +116,7 @@ class ParameterPath(JSONLike):
     """
     Path to a parameter.
     """
+
     # TODO: unused?
     #: The path to the parameter.
     path: Sequence[Union[str, int, float]]
@@ -605,6 +607,7 @@ class BuiltinSchemaParameter:
     """
     A parameter of a built-in schema.
     """
+
     # TODO: Is this used anywhere?
     # builtin inputs (resources,parameter_perturbations,method,implementation
     # builtin outputs (time, memory use, node/hostname etc)

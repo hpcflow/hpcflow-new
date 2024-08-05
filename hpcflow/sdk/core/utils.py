@@ -758,7 +758,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
 
     def __init__(self, root_path=None, data=None):
         """Create an empty snapshot or load from JSON-like data.
-        
+
         Parameters
         ----------
         root_path: str
