@@ -46,6 +46,7 @@ class ActionScopeType(enum.Enum):
     """
     Types of action scope.
     """
+
     #: Scope that applies to anything.
     ANY = 0
     #: Scope that only applies to main scripts.

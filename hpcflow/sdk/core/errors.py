@@ -53,6 +53,7 @@ class MissingInputs(Exception):
     missing_inputs: list[str]
         The missing inputs.
     """
+
     # TODO: add links to doc pages for common user-exceptions?
 
     def __init__(self, message, missing_inputs) -> None:
@@ -71,6 +72,7 @@ class UnrequiredInputSources(ValueError):
     unrequired_sources: list
         The input sources that were not required.
     """
+
     def __init__(self, message, unrequired_sources) -> None:
         self.unrequired_sources = unrequired_sources
         for src in unrequired_sources:
@@ -96,6 +98,7 @@ class ExtraInputs(Exception):
     extra_inputs: list
         The extra inputs.
     """
+
     def __init__(self, message, extra_inputs) -> None:
         self.extra_inputs = extra_inputs
         super().__init__(message)
@@ -319,6 +322,7 @@ class SubmissionFailure(RuntimeError):
     """
     A job submission failed.
     """
+
     def __init__(self, message) -> None:
         self.message = message
         super().__init__(message)
@@ -502,12 +506,13 @@ class NoCLIFormatMethodError(AttributeError):
 class ContainerKeyError(KeyError):
     """
     A key could not be mapped in a container.
-    
+
     Parameters
     ----------
     path: list[str]
         The path whose resolution failed.
     """
+
     def __init__(self, path: List[str]) -> None:
         self.path = path
         super().__init__()
@@ -522,6 +527,7 @@ class MayNeedObjectError(Exception):
     path: list[str]
         The path whose resolution failed.
     """
+
     def __init__(self, path):
         self.path = path
         super().__init__()

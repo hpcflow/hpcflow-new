@@ -735,7 +735,7 @@ class InputFile(_FileContentsSpecifier):
     def normalised_path(self):
         """
         Full workflow value path to the file.
-        
+
         Note
         ----
         This is not the same as the path in the filesystem.
