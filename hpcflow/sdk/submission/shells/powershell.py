@@ -1,3 +1,7 @@
+"""
+Shell models based on Microsoft PowerShell.
+"""
+
 import subprocess
 from textwrap import dedent, indent
 from typing import Dict, List, Optional

@@ -1,3 +1,7 @@
+"""
+Models of data stores as resources.
+"""
+
 from abc import ABC, abstractmethod
 import copy
 import json

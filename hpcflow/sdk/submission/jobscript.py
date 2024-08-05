@@ -1,3 +1,7 @@
+"""
+Model of information submitted to a scheduler.
+"""
+
 from __future__ import annotations
 import copy
 

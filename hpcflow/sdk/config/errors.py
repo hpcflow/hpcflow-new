@@ -1,3 +1,8 @@
+"""
+Miscellaneous configuration-related errors.
+"""
+
+
 class ConfigError(Exception):
     """Raised when a valid configuration can not be associated with the current
     invocation."""

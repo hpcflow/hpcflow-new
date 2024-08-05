@@ -1,4 +1,6 @@
 """
+Base persistence models.
+
 Store* classes represent the element-metadata in the store, in a store-agnostic way.
 """
 from __future__ import annotations

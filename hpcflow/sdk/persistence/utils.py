@@ -1,3 +1,7 @@
+"""
+Miscellaneous persistence-related helpers.
+"""
+
 from getpass import getpass
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError

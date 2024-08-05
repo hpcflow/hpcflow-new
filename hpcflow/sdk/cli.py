@@ -1,3 +1,7 @@
+"""
+Command line interface implementation.
+"""
+
 import json
 import os
 from typing import Dict, List

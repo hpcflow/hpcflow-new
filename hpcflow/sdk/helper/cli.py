@@ -1,3 +1,7 @@
+"""
+Common Click command line options related to the helper.
+"""
+
 from datetime import timedelta
 
 import click

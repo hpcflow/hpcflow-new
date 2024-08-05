@@ -1,3 +1,7 @@
+"""
+Operating system information discovery helpers.
+"""
+
 import os
 import platform
 import re

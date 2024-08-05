@@ -1,3 +1,6 @@
+"""
+Common type aliases.
+"""
 from typing import Tuple, TypeVar
 from pathlib import Path
 

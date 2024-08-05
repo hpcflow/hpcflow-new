@@ -1,3 +1,7 @@
+"""
+Implementation of a helper process used to monitor jobs.
+"""
+
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import RotatingFileHandler

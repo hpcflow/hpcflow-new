@@ -1,3 +1,7 @@
+"""
+Jobscript state enumeration.
+"""
+
 import enum
 
 

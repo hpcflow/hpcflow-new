@@ -1,3 +1,7 @@
+"""
+An interface to SLURM.
+"""
+
 from pathlib import Path
 import subprocess
 import time

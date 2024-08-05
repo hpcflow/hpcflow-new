@@ -1,3 +1,7 @@
+"""
+Information about the Python runtime.
+"""
+
 from importlib import import_module
 import logging
 import os

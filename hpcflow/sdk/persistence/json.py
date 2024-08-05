@@ -1,3 +1,7 @@
+"""
+Persistence model based on writing JSON documents.
+"""
+
 from __future__ import annotations
 from contextlib import contextmanager
 import copy

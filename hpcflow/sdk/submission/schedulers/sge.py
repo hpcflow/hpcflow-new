@@ -1,3 +1,7 @@
+"""
+An interface to SGE.
+"""
+
 from pathlib import Path
 import re
 from typing import Dict, List, Tuple

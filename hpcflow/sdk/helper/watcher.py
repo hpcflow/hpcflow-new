@@ -1,3 +1,7 @@
+"""
+File-system watcher classes.
+"""
+
 from datetime import timedelta
 from pathlib import Path
 from watchdog.observers.polling import PollingObserver

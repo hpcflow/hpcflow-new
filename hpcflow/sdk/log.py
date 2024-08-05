@@ -1,3 +1,7 @@
+"""
+Interface to the standard logger, and performance logging utility.
+"""
+
 from functools import wraps
 import logging
 from pathlib import Path

@@ -1,3 +1,7 @@
+"""
+Persistence model based on writing Zarr arrays.
+"""
+
 from __future__ import annotations
 
 import copy

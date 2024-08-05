@@ -1,3 +1,7 @@
+"""
+A direct job "scheduler" that just runs immediate subprocesses.
+"""
+
 from pathlib import Path
 import shutil
 import signal

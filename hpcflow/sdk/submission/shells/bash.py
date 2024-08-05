@@ -1,3 +1,7 @@
+"""
+Shell models based on the Bourne-Again Shell.
+"""
+
 from pathlib import Path
 import subprocess
 from textwrap import dedent, indent

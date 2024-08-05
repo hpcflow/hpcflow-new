@@ -1,3 +1,7 @@
+"""
+Class to hold the state that is waiting to be committed to disk.
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
