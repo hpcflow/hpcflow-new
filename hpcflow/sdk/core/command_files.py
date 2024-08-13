@@ -484,10 +484,9 @@ class _FileContentsSpecifier(JSONLike):
         if self._value_group_idx is not None:
             data_ref = self._value_group_idx
             is_new = False
-            # FIXME: check_parameter_group_exists method doesn't exist anywhere!
-            if False and not workflow.check_parameter_group_exists(data_ref):
+            if not workflow.check_parameters_exist(data_ref):
                 raise RuntimeError(
-                    f"{self.__class__.__name__} has a parameter group index "
+                    f"{self.__class__.__name__} has a data reference "
                     f"({data_ref}), but does not exist in the workflow."
                 )
             # TODO: log if already persistent.
