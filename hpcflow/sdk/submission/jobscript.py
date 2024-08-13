@@ -27,6 +27,7 @@ from hpcflow.sdk.submission.shells import get_shell
 def generate_EAR_resource_map(
     task: app.WorkflowTask,
     loop_idx: Dict,
+    cache,
 ) -> Tuple[List[app.ElementResources], List[int], NDArray, NDArray]:
     """Generate an integer array whose rows represent actions and columns represent task
     elements and whose values index unique resources."""
@@ -39,16 +40,13 @@ def generate_EAR_resource_map(
     arr_shape = (task.num_actions, task.num_elements)
     resource_map = np.empty(arr_shape, dtype=int)
     EAR_ID_map = np.empty(arr_shape, dtype=int)
-    # EAR_idx_map = np.empty(
-    #     shape=arr_shape,
-    #     dtype=[("EAR_idx", np.int32), ("run_idx", np.int32), ("iteration_idx", np.int32)],
-    # )
     resource_map[:] = none_val
     EAR_ID_map[:] = none_val
-    # EAR_idx_map[:] = (none_val, none_val, none_val)  # TODO: add iteration_idx as well
 
-    for element in task.elements[:]:
-        for iter_i in element.iterations:
+    for elem_id in task.element_IDs:
+        element = cache.elements[elem_id]
+        for iter_ID_i in element.iteration_IDs:
+            iter_i = cache.iterations[iter_ID_i]
             if iter_i.loop_idx != loop_idx:
                 continue
             if iter_i.EARs_initialised:  # not strictly needed (actions will be empty)

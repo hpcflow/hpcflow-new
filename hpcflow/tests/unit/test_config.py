@@ -1,8 +1,13 @@
 import os
+import time
 import pytest
 
 from hpcflow.app import app as hf
-from hpcflow.sdk.config.errors import ConfigFileValidationError, ConfigItemCallbackError
+from hpcflow.sdk.config.errors import (
+    ConfigFileValidationError,
+    ConfigItemCallbackError,
+    ConfigReadOnlyError,
+)
 
 
 def test_reset_config(new_null_config):
@@ -67,3 +72,38 @@ def test_without_callbacks_ctx_manager(null_config):
 
     # unload the modified config so it's not reused by other tests
     hf.unload_config()
+
+
+@pytest.mark.xfail(reason="Might occasionally fail.")
+def test_cache_faster_than_no_cache(null_config):
+    n = 10_000
+    tic = time.perf_counter()
+    for _ in range(n):
+        _ = hf.config.machine
+    toc = time.perf_counter()
+    elapsed_no_cache = toc - tic
+
+    with hf.config.cached_config():
+        tic = time.perf_counter()
+        for _ in range(n):
+            _ = hf.config.machine
+        toc = time.perf_counter()
+    elapsed_cache = toc - tic
+
+    assert elapsed_cache < elapsed_no_cache
+
+
+def test_cache_read_only(new_null_config):
+    """Check we cannot modify the config when using the cache"""
+
+    # check we can set an item first:
+    hf.machine = "abc"
+    assert hf.machine == "abc"
+
+    with pytest.raises(ConfigReadOnlyError):
+        with hf.config.cached_config():
+            hf.config.set("machine", "123")
+
+    with pytest.raises(ConfigReadOnlyError):
+        with hf.config.cached_config():
+            hf.config.machine = "456"
