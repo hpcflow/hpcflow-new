@@ -10,7 +10,7 @@ from valida import Schema
 def get_schema(filename):
     """
     Get a valida `Schema` object from the embedded data directory.
-    
+
     Parameter
     ---------
     schema: str
