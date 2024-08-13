@@ -48,10 +48,10 @@ class Loop(JSONLike):
     num_iterations:
         Number of iterations to perform.
     name: str
-        Loop name, optional
-    non_iterable_parameters:
+        Loop name.
+    non_iterable_parameters: list[str]
         Specify input parameters that should not iterate.
-    termination:
+    termination: Rule
         Stopping criterion, expressed as a rule.
     """
 

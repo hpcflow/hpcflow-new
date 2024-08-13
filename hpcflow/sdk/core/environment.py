@@ -99,6 +99,9 @@ class ExecutableInstance(JSONLike):
 
     @classmethod
     def from_spec(cls, spec):
+        """
+        Construct an instance from a specification dictionary.
+        """
         return cls(**spec)
 
 

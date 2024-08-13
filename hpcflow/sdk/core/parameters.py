@@ -289,6 +289,8 @@ class NullDefault(enum.Enum):
     Sentinel value used to distinguish an explicit null.
     """
 
+    #: Special sentinel.
+    #: Used in situations where otherwise a JSON object or array would be.
     NULL = 0
 
 
@@ -1352,6 +1354,9 @@ class ValuePerturbation(AbstractInputValue):
 
     @classmethod
     def from_spec(cls, spec):
+        """
+        Construct an instance from a specification dictionary.
+        """
         return cls(**spec)
 
 
@@ -1626,6 +1631,7 @@ class ResourceSpec(JSONLike):
         How many CPU cores to ask for per SLURM task.
     """
 
+    #: The names of parameters that may be used when making an instance of this class.
     ALLOWED_PARAMETERS = {
         "scratch",
         "parallel_mode",
@@ -2286,20 +2292,26 @@ class InputSource(JSONLike):
 
     @classmethod
     def from_string(cls, str_defn):
+        """Parse a dot-delimited string definition of an InputSource.
+
+        Parameter
+        ---------
+        str_defn:
+            The string to parse.
+
+        Examples
+        --------
+            task.[task_ref].input
+            task.[task_ref].output
+            local
+            default
+            import.[import_ref]
+
+        """
         return cls(**cls._parse_from_string(str_defn))
 
     @classmethod
     def _parse_from_string(cls, str_defn):
-        """Parse a dot-delimited string definition of an InputSource.
-
-        Examples:
-            - task.[task_ref].input
-            - task.[task_ref].output
-            - local
-            - default
-            - import.[import_ref]
-
-        """
         parts = str_defn.split(".")
         source_type = cls._validate_source_type(parts[0])
         task_ref = None

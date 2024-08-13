@@ -308,24 +308,24 @@ class OutputFileParser(JSONLike):
         The singular output parsed by this parser. Not to be confused with `outputs` (plural).
     script: str
         The name of the file containing the output file parser source.
-    environment:
+    environment: Environment
         The environment to use to run the parser.
-    inputs:
+    inputs: list[str]
         The other inputs to the parser.
     outputs: list[str]
         Optional multiple outputs from the upstream actions of the schema that are
         required to parametrise this parser.
-    options:
+    options: dict
         Miscellaneous options.
-    script_pass_env_spec:
+    script_pass_env_spec: bool
         Whether to pass the environment specifier to the script.
-    abortable:
+    abortable: bool
         Whether this script can be aborted.
-    save_files:
+    save_files: list[str]
         The files that should be saved to the persistent store for the workflow.
-    clean_files:
+    clean_files: list[str]
         The files that should be immediately removed.
-    rules:
+    rules: list[ActionRule]
         Rules for whether to enable this parser.
     """
 
@@ -366,17 +366,32 @@ class OutputFileParser(JSONLike):
         ),
     )
 
+    #: The output files that this parser will parse.
     output_files: List[app.FileSpec]
+    #: The singular output parsed by this parser.
+    #: Not to be confused with :py:attr:`outputs` (plural).
     output: Optional[app.Parameter] = None
+    #: The name of the file containing the output file parser source.
     script: str = None
+    #: The environment to use to run the parser.
     environment: Environment = None
+    #: The other inputs to the parser.
     inputs: List[str] = None
+    #: Optional multiple outputs from the upstream actions of the schema that are
+    #: required to parametrise this parser.
+    #: Not to be confused with :py:attr:`output` (plural).
     outputs: List[str] = None
+    #: Miscellaneous options.
     options: Dict = None
+    #: Whether to pass the environment specifier to the script.
     script_pass_env_spec: Optional[bool] = False
+    #: Whether this script can be aborted.
     abortable: Optional[bool] = False
+    #: The files that should be saved to the persistent store for the workflow.
     save_files: Union[List[str], bool] = True
+    #: The files that should be immediately removed.
     clean_up: Optional[List[str]] = None
+    #: Rules for whether to enable this parser.
     rules: Optional[List[app.ActionRule]] = None
 
     def __post_init__(self):
@@ -778,7 +793,7 @@ class OutputFileParserSource(_FileContentsSpecifier):
     ----------
     parser:
         How to parse the file.
-    path:
+    path: Path
         Path to the file.
     contents:
         Contents of the file. Only used when recreating this object.

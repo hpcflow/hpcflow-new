@@ -3190,11 +3190,17 @@ class Parameters:
 
     _app_attr = "_app"
 
+    #: The task these are the parameters of.
     task: app.WorkflowTask
+    #: The path to the parameter or parameters.
     path: str
+    #: Whether to return element parameters.
     return_element_parameters: bool
+    #: Whether to raise an exception on a missing parameter.
     raise_on_missing: Optional[bool] = False
+    #: Whether to raise an exception on an unset parameter.
     raise_on_unset: Optional[bool] = False
+    #: A default value to use when the parameter is absent.
     default: Optional[Any] = None
 
     @TimeIt.decorator
@@ -3266,6 +3272,7 @@ class TaskInputParameters:
 
     _app_attr = "_app"
 
+    #: The task that this represents the input parameters of.
     task: app.WorkflowTask
 
     def __getattr__(self, name):
@@ -3300,6 +3307,7 @@ class TaskOutputParameters:
 
     _app_attr = "_app"
 
+    #: The task that this represents the output parameters of.
     task: app.WorkflowTask
 
     def __getattr__(self, name):
@@ -3338,8 +3346,11 @@ class ElementPropagation:
 
     _app_attr = "app"
 
+    #: The task this is propagating to.
     task: app.Task
+    #: The nesting order information.
     nesting_order: Optional[Dict] = None
+    #: The input source information.
     input_sources: Optional[Dict] = None
 
     @property
