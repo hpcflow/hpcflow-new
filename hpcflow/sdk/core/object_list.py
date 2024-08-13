@@ -405,7 +405,7 @@ class TaskSchemasList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[TaskSchema]
+    _objects: list[~hpcflow.app.TaskSchema]
         The task schemas in this list.
     """
 

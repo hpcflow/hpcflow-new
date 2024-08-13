@@ -26,18 +26,14 @@ Clone the git repo (see ssh links below), and then make sure that you switch to 
 
 This branch is protected, so create a feature branch before pushing to the repo.
 
-.. _hpcflow_clone:
-
-hpcflow
-.........
+Checking out hpcflow
+....................
 ::
 
    git clone git@github.com:hpcflow/hpcflow-new.git
 
-.. _matflow_clone:
-
-matflow
-........
+Checking out matflow
+....................
 ::
 
    git clone git@github.com:hpcflow/matflow-new.git
@@ -81,23 +77,15 @@ Open the virtual enviroment with::
 
    poetry shell
 
-.. _hpcflow_src:
+Working with hpcflow
+--------------------
 
-hpcflow
---------
-
-.. _hpcflow_cli:
-
-CLI
-....
 You can interact with the CLI by calling::
 
    python3 hpcflow/cli/cli.py --help
 
 
-.. _matflow_src:
-
-matflow
+Working with matflow
 --------
 
 link to local hpcflow
@@ -125,8 +113,6 @@ Then, you need to update your poetry environment accordingly, by first removing 
 and then re-running the dependency installation::
 
    poetry install
-
-.. _matflow_cli:
 
 CLI
 ...

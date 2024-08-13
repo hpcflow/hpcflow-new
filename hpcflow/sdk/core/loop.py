@@ -450,7 +450,7 @@ class WorkflowLoop:
         ----------
         index: int
             The index of the loop to create.
-        workflow: Workflow
+        workflow: ~hpcflow.app.Workflow
             The workflow that will contain the loop.
         template: Loop
             The template for the loop.
