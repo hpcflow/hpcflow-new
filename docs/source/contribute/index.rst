@@ -15,8 +15,7 @@ Recommended reads
 Installation for development
 ============================
 
-`Install poetry <https://python-poetry.org/docs/#installation>`_
-----------------------------------------------------------------
+`Install poetry <https://python-poetry.org/docs/#installation>`_ first.
 
 
 Clone repo
@@ -27,11 +26,15 @@ Clone the git repo (see ssh links below), and then make sure that you switch to 
 
 This branch is protected, so create a feature branch before pushing to the repo.
 
+.. _hpcflow_clone:
+
 hpcflow
 .........
 ::
 
    git clone git@github.com:hpcflow/hpcflow-new.git
+
+.. _matflow_clone:
 
 matflow
 ........
@@ -78,8 +81,13 @@ Open the virtual enviroment with::
 
    poetry shell
 
+.. _hpcflow_src:
+
 hpcflow
 --------
+
+.. _hpcflow_cli:
+
 CLI
 ....
 You can interact with the CLI by calling::
@@ -87,8 +95,11 @@ You can interact with the CLI by calling::
    python3 hpcflow/cli/cli.py --help
 
 
+.. _matflow_src:
+
 matflow
 --------
+
 link to local hpcflow
 ......................
 To be able to work with hpcflow and immediately see the changes reflected in matflow you need to reconfigure the hpcflow dependency to point to your local copy of hpcflow.
@@ -114,6 +125,8 @@ Then, you need to update your poetry environment accordingly, by first removing 
 and then re-running the dependency installation::
 
    poetry install
+
+.. _matflow_cli:
 
 CLI
 ...
