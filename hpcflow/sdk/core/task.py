@@ -90,19 +90,19 @@ class ElementSet(JSONLike):
 
     Parameters
     ----------
-    inputs: list[InputValue]
+    inputs: list[~hpcflow.app.InputValue]
         Inputs to the set of elements.
-    input_files: list[InputFile]
+    input_files: list[~hpcflow.app.InputFile]
         Input files to the set of elements.
-    sequences: list[ValueSequence]
+    sequences: list[~hpcflow.app.ValueSequence]
         Input value sequence to parameterise over.
-    resources: ResourceList
+    resources: ~hpcflow.app.ResourceList
         Resources to use for the set of elements.
     repeats: list[dict]
         Description of how to repeat the set of elements.
-    groups: list[ElementGroup]
+    groups: list[~hpcflow.app.ElementGroup]
         Groupings in the set of elements.
-    input_sources: dict[str, InputSource]
+    input_sources: dict[str, ~hpcflow.app.InputSource]
         Input source descriptors.
     nesting_order: dict[str, int]
         How to handle nesting of iterations.
@@ -584,7 +584,7 @@ class OutputLabel(JSONLike):
         Name of a parameter.
     label:
         Label to apply to the parameter.
-    where: ElementFilter
+    where: ~hpcflow.app.ElementFilter
         Optional filtering rule
     """
 
@@ -617,19 +617,19 @@ class Task(JSONLike):
 
     Parameters
     ----------
-    schema: TaskSchema | list[TaskSchema]
+    schema: ~hpcflow.app.TaskSchema | list[~hpcflow.app.TaskSchema]
         A (list of) `TaskSchema` object(s) and/or a (list of) strings that are task
         schema names that uniquely identify a task schema. If strings are provided,
         the `TaskSchema` object will be fetched from the known task schemas loaded by
         the app configuration.
     repeats: list[dict]
-    groups: list[ElementGroup]
+    groups: list[~hpcflow.app.ElementGroup]
     resources: dict
-    inputs: list[InputValue]
+    inputs: list[~hpcflow.app.InputValue]
         A list of `InputValue` objects.
-    input_files: list[InputFile]
-    sequences: list[ValueSequence]
-    input_sources: dict[str, InputSource]
+    input_files: list[~hpcflow.app.InputFile]
+    sequences: list[~hpcflow.app.ValueSequence]
+    input_sources: dict[str, ~hpcflow.app.InputSource]
     nesting_order: list
     env_preset: str
     environments: dict[str, dict]

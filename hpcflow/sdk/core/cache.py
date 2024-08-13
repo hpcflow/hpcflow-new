@@ -43,7 +43,7 @@ class DependencyCache:
 
         Parameters
         ----------
-        workflow: Workflow
+        workflow: ~hpcflow.app.Workflow
             The workflow to build the cache from.
         """
         num_iters = workflow.num_element_iterations

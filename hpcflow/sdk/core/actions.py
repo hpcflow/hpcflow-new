@@ -1297,7 +1297,7 @@ class ActionRule(JSONLike):
 
     Parameters
     ----------
-    rule: Rule
+    rule: ~hpcflow.app.Rule
         The rule to apply.
     check_exists: str
         A special rule that is enabled if this named attribute is present.
@@ -1403,7 +1403,7 @@ class Action(JSONLike):
     ----------
     environments: list[ActionEnvironment]
         The environments in which this action can run.
-    commands: list[Command]
+    commands: list[~hpcflow.app.Command]
         The commands to be run by this action.
     script: str
         The name of the Python script to run.
@@ -1413,7 +1413,7 @@ class Action(JSONLike):
         Information about data output from the script.
     script_data_files_use_opt: bool
         If True, script data input and output file paths will be passed to the script
-        execution command line with an option like `--input-json` or `--output-hdf5`
+        execution command line with an option like ``--input-json`` or ``--output-hdf5``
         etc. If False, the file paths will be passed on their own. For Python scripts,
         options are always passed, and this parameter is overwritten to be True,
         regardless of its initial value.
@@ -1423,13 +1423,13 @@ class Action(JSONLike):
         Whether to pass the environment details to the script.
     abortable: bool
         Whether this action can be aborted.
-    input_file_generators: list[InputFileGenerator]
+    input_file_generators: list[~hpcflow.app.InputFileGenerator]
         Any applicable input file generators.
-    output_file_parsers: list[OutputFileParser]
+    output_file_parsers: list[~hpcflow.app.OutputFileParser]
         Any applicable output file parsers.
-    input_files: list[FileSpec]
+    input_files: list[~hpcflow.app.FileSpec]
         The input files to the action's commands.
-    output_files: list[FileSpec]
+    output_files: list[~hpcflow.app.FileSpec]
         The output files from the action's commands.
     rules: list[ActionRule]
         How to determine whether to run the action.

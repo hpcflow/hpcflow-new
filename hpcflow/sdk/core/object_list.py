@@ -359,7 +359,7 @@ class TaskList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[Task]
+    _objects: list[~hpcflow.app.Task]
         The tasks in this list.
     """
 
@@ -382,7 +382,7 @@ class TaskTemplateList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[TaskTemplate]
+    _objects: list[~hpcflow.app.TaskTemplate]
         The task templates in this list.
     """
 
@@ -451,7 +451,7 @@ class EnvironmentsList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[Environment]
+    _objects: list[~hpcflow.app.Environment]
         The environments in this list.
     """
 
@@ -482,7 +482,7 @@ class ExecutablesList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[Executable]
+    _objects: list[~hpcflow.app.Executable]
         The executables in this list.
     """
 
@@ -513,7 +513,7 @@ class ParametersList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[Parameter]
+    _objects: list[~hpcflow.app.Parameter]
         The parameters in this list.
     """
 
@@ -557,7 +557,7 @@ class CommandFilesList(AppDataList):
 
     Parameters
     ----------
-    _objects: list[FileSpec]
+    _objects: list[~hpcflow.app.FileSpec]
         The files in this list.
     """
 
@@ -580,7 +580,7 @@ class WorkflowTaskList(DotAccessObjectList):
 
     Parameters
     ----------
-    _objects: list[WorkflowTask]
+    _objects: list[~hpcflow.app.WorkflowTask]
         The tasks in this list.
     """
 
@@ -609,7 +609,7 @@ class WorkflowLoopList(DotAccessObjectList):
 
     Parameters
     ----------
-    _objects: list[WorkflowLoop]
+    _objects: list[~hpcflow.app.WorkflowLoop]
         The loops in this list.
     """
 
@@ -627,7 +627,7 @@ class ResourceList(ObjectList):
 
     Parameters
     ----------
-    _objects: list[ResourceSpec]
+    _objects: list[~hpcflow.app.ResourceSpec]
         The resource descriptions in this list.
     """
 

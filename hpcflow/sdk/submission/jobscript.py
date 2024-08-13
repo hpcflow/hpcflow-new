@@ -328,9 +328,9 @@ class Jobscript(JSONLike):
     task_elements: dict[int, list[int]]
         The elements of the tasks.
         Maps ``JS_ELEMENT_IDX`` to list of ``TASK_ELEMENT_IDX`` for each ``TASK_INSERT_ID``
-    EAR_ID: NDArray
+    EAR_ID:
         Element action run information.
-    resources: ElementResources
+    resources: ~hpcflow.app.ElementResources
         Resources to use
     task_loop_idx: list[dict]
         Description of what loops are in play.

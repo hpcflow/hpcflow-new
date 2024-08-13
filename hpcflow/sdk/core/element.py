@@ -152,9 +152,9 @@ class ElementInputs(_ElementPrefixedParameter):
     ----------
     element_iteration: ElementIteration
         Which iteration does this refer to?
-    element_action: ElementAction
+    element_action: ~hpcflow.app.ElementAction
         Which action does this refer to?
-    element_action_run: ElementActionRun
+    element_action_run: ~hpcflow.app.ElementActionRun
         Which EAR does this refer to?
     """
 
@@ -175,9 +175,9 @@ class ElementOutputs(_ElementPrefixedParameter):
     ----------
     element_iteration: ElementIteration
         Which iteration does this refer to?
-    element_action: ElementAction
+    element_action: ~hpcflow.app.ElementAction
         Which action does this refer to?
-    element_action_run: ElementActionRun
+    element_action_run: ~hpcflow.app.ElementActionRun
         Which EAR does this refer to?
     """
 
@@ -198,9 +198,9 @@ class ElementInputFiles(_ElementPrefixedParameter):
     ----------
     element_iteration: ElementIteration
         Which iteration does this refer to?
-    element_action: ElementAction
+    element_action: ~hpcflow.app.ElementAction
         Which action does this refer to?
-    element_action_run: ElementActionRun
+    element_action_run: ~hpcflow.app.ElementActionRun
         Which EAR does this refer to?
     """
 
@@ -223,9 +223,9 @@ class ElementOutputFiles(_ElementPrefixedParameter):
     ----------
     element_iteration: ElementIteration
         Which iteration does this refer to?
-    element_action: ElementAction
+    element_action: ~hpcflow.app.ElementAction
         Which action does this refer to?
-    element_action_run: ElementActionRun
+    element_action_run: ~hpcflow.app.ElementActionRun
         Which EAR does this refer to?
     """
 
@@ -1184,7 +1184,7 @@ class Element:
         The ID of this element.
     is_pending: bool
         Whether this element is pending execution.
-    task: WorkflowTask
+    task: ~hpcflow.app.WorkflowTask
         The task this is part of the enactment of.
     index: int
         The index of this element.
@@ -1614,11 +1614,11 @@ class ElementParameter:
 
     Parameters
     ----------
-    task: WorkflowTask
+    task: ~hpcflow.app.WorkflowTask
         The task that this is part of.
     path: str
         The path to this parameter.
-    parent: Element | ElementAction | ElementActionRun | Parameters
+    parent: Element | ~hpcflow.app.ElementAction | ~hpcflow.app.ElementActionRun | ~hpcflow.app.Parameters
         The entity that owns this parameter.
     element: Element
         The element that this is a parameter of.
@@ -1688,7 +1688,7 @@ class ElementFilter(JSONLike):
 
     Parameters
     ----------
-    rules: list[Rule]
+    rules: list[~hpcflow.app.Rule]
         The filtering rules to use.
     """
 

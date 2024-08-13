@@ -805,7 +805,7 @@ class PersistentStore(ABC):
     ----------
     app: App
         The main hpcflow core.
-    workflow: Workflow
+    workflow: ~hpcflow.app.Workflow
         The workflow being persisted.
     path: pathlib.Path
         Where to hold the store.

@@ -97,13 +97,13 @@ class WorkflowTemplate(JSONLike):
     name:
         A string name for the workflow. By default this name will be used in combination
         with a date-time stamp when generating a persistent workflow from the template.
-    tasks: list[Task]
+    tasks: list[~hpcflow.app.Task]
         A list of Task objects to include in the workflow.
-    loops: list[Loop]
+    loops: list[~hpcflow.app.Loop]
         A list of Loop objects to include in the workflow.
     workflow:
         The associated concrete workflow.
-    resources: dict[str, dict] | list[ResourceSpec] | ResourceList
+    resources: dict[str, dict] | list[~hpcflow.app.ResourceSpec] | ~hpcflow.app.ResourceList
         Template-level resources to apply to all tasks as default values. This can be a
         dict that maps action scopes to resources (e.g. `{{"any": {{"num_cores": 2}}}}`)
         or a list of `ResourceSpec` objects, or a `ResourceList` object.
@@ -2313,8 +2313,8 @@ class Workflow:
 
     def set_EARs_initialised(self, iter_ID: int):
         """
-        Set :py:attr:`~.ElementIteration.EARs_initialised` to True for the specified
-        iteration.
+        Set :py:attr:`~hpcflow.app.ElementIteration.EARs_initialised` to True for the
+        specified iteration.
         """
         with self._store.cached_load():
             with self.batch_update():

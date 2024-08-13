@@ -2134,7 +2134,7 @@ class InputSource(JSONLike):
         Which element iterations does this apply to?
     path:
         Path to where this input goes.
-    where: Rule | list[Rule] | ElementFilter
+    where: ~hpcflow.app.Rule | list[~hpcflow.app.Rule] | ~hpcflow.app.ElementFilter
         Filtering rules.
     """
 

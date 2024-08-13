@@ -173,7 +173,7 @@ class InputFileGenerator(JSONLike):
     ----------
     input_file:
         The file to generate.
-    inputs: list[Parameter]
+    inputs: list[~hpcflow.app.Parameter]
         The input parameters to the generator.
     script:
         The script that generates the input.
@@ -184,7 +184,7 @@ class InputFileGenerator(JSONLike):
     abortable:
         Whether the generator can be stopped early.
         Quick-running scripts tend to not need this.
-    rules: Optional[List[app.ActionRule]] = None
+    rules: list[~hpcflow.app.ActionRule]
         User-specified rules for whether to run the generator.
     """
 
@@ -304,11 +304,11 @@ class OutputFileParser(JSONLike):
     ----------
     output_files: list[FileSpec]
         The output files that this parser will parse.
-    output: Parameter
+    output: ~hpcflow.app.Parameter
         The singular output parsed by this parser. Not to be confused with `outputs` (plural).
     script: str
         The name of the file containing the output file parser source.
-    environment: Environment
+    environment: ~hpcflow.app.Environment
         The environment to use to run the parser.
     inputs: list[str]
         The other inputs to the parser.
@@ -325,7 +325,7 @@ class OutputFileParser(JSONLike):
         The files that should be saved to the persistent store for the workflow.
     clean_files: list[str]
         The files that should be immediately removed.
-    rules: list[ActionRule]
+    rules: list[~hpcflow.app.ActionRule]
         Rules for whether to enable this parser.
     """
 

@@ -70,15 +70,15 @@ class Submission(JSONLike):
     ----------
     index: int
         The index of this submission.
-    jobscripts: list[Jobscript]
+    jobscripts: list[~hpcflow.app.Jobscript]
         The jobscripts in the submission.
-    workflow: Workflow
+    workflow: ~hpcflow.app.Workflow
         The workflow this is part of.
     submission_parts: dict
         Description of submission parts.
     JS_parallelism: bool
         Whether to exploit jobscript parallelism.
-    environments: EnvironmentsList
+    environments: ~hpcflow.app.EnvironmentsList
         The execution environments to use.
     """
 
@@ -436,6 +436,9 @@ class Submission(JSONLike):
 
         Uniqueness is determines only by the `Scheduler.unique_properties` tuple.
 
+        Parameters
+        ----------
+        jobscripts: list[~hpcflow.app.Jobscript]
         """
         js_idx = []
         schedulers = []

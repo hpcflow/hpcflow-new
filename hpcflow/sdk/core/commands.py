@@ -39,7 +39,7 @@ class Command(JSONLike):
         The name of a file to write standard error to.
     stdin: str
         The name of a file to read standard input from.
-    rules: list[ActionRule]
+    rules: list[~hpcflow.app.ActionRule]
         Rules that state whether this command is eligible to run.
     """
 

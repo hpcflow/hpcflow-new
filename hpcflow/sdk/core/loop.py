@@ -43,7 +43,7 @@ class Loop(JSONLike):
 
     Parameters
     ----------
-    tasks: list[int | WorkflowTask]
+    tasks: list[int | ~hpcflow.app.WorkflowTask]
         List of task insert IDs or workflow tasks.
     num_iterations:
         Number of iterations to perform.
@@ -51,7 +51,7 @@ class Loop(JSONLike):
         Loop name.
     non_iterable_parameters: list[str]
         Specify input parameters that should not iterate.
-    termination: Rule
+    termination: v~hpcflow.app.Rule
         Stopping criterion, expressed as a rule.
     """
 
@@ -197,13 +197,14 @@ class Loop(JSONLike):
 
 class WorkflowLoop:
     """
-    Class to represent a :py:class:`.Loop` that is bound to a ::py:class:`.Workflow`.
+    Class to represent a :py:class:`.Loop` that is bound to a
+    ::py:class:`~hpcflow.app.Workflow`.
 
     Parameters
     ----------
     index: int
         The index of this loop in the workflow.
-    workflow: Workflow
+    workflow: ~hpcflow.app.Workflow
         The workflow containing this loop.
     template: Loop
         The loop that this was generated from.
