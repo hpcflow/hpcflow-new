@@ -3191,13 +3191,14 @@ class Workflow:
                 exit_code=ret_code,
             )
 
-    def _check_loop_termination(self, run):
+    def _check_loop_termination(self, run) -> set[int]:
         """Check if we need to terminate a loop if this is the last action of the loop
         iteration for this element."""
 
         elem_iter = run.element_iteration
         task = elem_iter.task
         check_loops = []
+        to_skip = set()
         for loop_name in elem_iter.loop_idx:
             self.app.logger.info(f"checking loop termination of loop {loop_name!r}.")
             loop = self.loops.get(loop_name)
@@ -3213,7 +3214,8 @@ class Workflow:
                         f"loop {loop_name!r} termination condition met for run "
                         f"ID {run.id_!r}."
                     )
-                    loop.skip_downstream_iterations(elem_iter)
+                    to_skip.update(loop.skip_downstream_iterations(elem_iter))
+        return to_skip
 
     @load_workflow_config
     def execute_combined_runs(self, submission_idx: int, jobscript_idx: int) -> None:

@@ -836,7 +836,7 @@ class WorkflowLoop:
         return self.workflow.get_elements_from_IDs(self.get_element_IDs())
 
     @TimeIt.decorator
-    def skip_downstream_iterations(self, elem_iter):
+    def skip_downstream_iterations(self, elem_iter) -> list[int]:
         """
         Parameters
         ----------
@@ -870,3 +870,5 @@ class WorkflowLoop:
         self.app.logger.info(f"runs {to_skip!r} will be set to skip")
         for run_ID in to_skip:
             self.workflow.set_EAR_skip(run_ID, SkipReason.LOOP_TERMINATION)
+
+        return to_skip

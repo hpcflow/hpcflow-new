@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 from hpcflow.sdk import app
+from hpcflow.sdk.core import SKIPPED_EXIT_CODE
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.errors import JobscriptSubmissionFailure, NotSubmitMachineError
 
@@ -1577,6 +1578,7 @@ class Jobscript(JSONLike):
             get_all_runs_tic = time.perf_counter()
             run_IDs_flat = [j for i in run_IDs for j in i]
             runs = wk.get_EARs_from_IDs(run_IDs_flat, as_dict=True)
+            run_skips : dict[int, bool] = {{k: v.skip for k, v in runs.items()}}
             get_all_runs_toc = time.perf_counter()
 
             with open(os.environ["{app_caps}_SCRIPT_INDICES_FILE"], mode="r") as fp:
@@ -1636,22 +1638,39 @@ class Jobscript(JSONLike):
                         block_act_run_dirs = [run_dirs[i] for i in block_act_run_IDs]
                         block_act_runs = [runs[i] for i in block_act_run_IDs]
 
-                        set_start_multi_tic = time.perf_counter()
-                        wk.set_multi_run_starts(block_act_run_IDs, block_act_run_dirs, port)
-                        set_start_multi_toc = time.perf_counter()
-                        set_start_multi_time = set_start_multi_toc - set_start_multi_tic
-                        print(f"{{set_start_multi_time:.4f}}", file=set_start_multi_times_fp, flush=True)                    
+                        block_act_run_IDs_non_skipped = []
+                        block_act_run_dirs_non_skipped = []
+                        for i, j in zip(block_act_run_IDs, block_act_run_dirs):
+                            if not run_skips[i]:
+                                block_act_run_IDs_non_skipped.append(i)
+                                block_act_run_dirs_non_skipped.append(j)
+                                                     
+                        if block_act_run_IDs_non_skipped:
+                            set_start_multi_tic = time.perf_counter()
+                            wk.set_multi_run_starts(block_act_run_IDs_non_skipped, block_act_run_dirs_non_skipped, port)
+                            set_start_multi_toc = time.perf_counter()
+                            set_start_multi_time = set_start_multi_toc - set_start_multi_tic
+                            print(f"{{set_start_multi_time:.4f}}", file=set_start_multi_times_fp, flush=True)
 
                     all_act_outputs = {{}}
                     run_end_dat = defaultdict(list)
                     for block_elem_idx in range(num_elements[block_idx]):
 
                         js_elem_idx = block_start_elem_idx + block_elem_idx
-
-                        run_tic = time.perf_counter()
                         run_ID = block_act_run_IDs[block_elem_idx]                        
                         if run_ID == -1:
                             continue
+
+                        run = runs[run_ID]
+
+                        skip = run_skips[run_ID]
+                        if skip:
+                            # set run end
+                            block_act_key=({js_idx}, block_idx, block_act_idx)
+                            run_end_dat[block_act_key].append((run, {skipped_exit_code}))
+                            continue
+                            
+                        run_tic = time.perf_counter()
 
                         os.environ["{app_caps}_BLOCK_ELEM_IDX"] = str(block_elem_idx)
                         os.environ["{app_caps}_JS_ELEM_IDX"] = str(js_elem_idx)                        
@@ -1666,7 +1685,6 @@ class Jobscript(JSONLike):
                                     f"{run_log_name}",
                                 )
 
-                            run = runs[run_ID]
                             run_dir = run_dirs[run_ID]
 
                             # retrieve inputs:
@@ -1720,16 +1738,21 @@ class Jobscript(JSONLike):
 
                     with app.redirect_std_to_file(block_act_std_path):
                     
-                        # save outputs of all elements of this action
-                        save_all_tic = time.perf_counter()                    
-                        wk.set_parameter_values(all_act_outputs)
-                        save_all_toc = time.perf_counter()
-                        save_all_time_i = save_all_toc - save_all_tic
-                        print(f"{{save_all_time_i:.4f}}", file=save_multi_times_fp, flush=True)
+                        if all_act_outputs:
+                            # save outputs of all elements of this action
+                            save_all_tic = time.perf_counter()
+                            wk.set_parameter_values(all_act_outputs)
+                            save_all_toc = time.perf_counter()
+                            save_all_time_i = save_all_toc - save_all_tic
+                            print(f"{{save_all_time_i:.4f}}", file=save_multi_times_fp, flush=True)
 
                         all_loop_term_tic = time.perf_counter()
                         for run_i in block_act_runs:
-                            wk._check_loop_termination(run_i)
+                            if not run_skips[run_i.id_]:
+                                skipped_IDs_i = wk._check_loop_termination(run_i)
+                                for skip_ID in skipped_IDs_i:
+                                    run_skips[skip_ID] = True
+                        
                         all_loop_term_toc = time.perf_counter()
                         all_loop_term_time_i = all_loop_term_toc - all_loop_term_tic
                         print(f"{{all_loop_term_time_i:.4f}}", file=loop_term_times_fp, flush=True)
@@ -1764,6 +1787,7 @@ class Jobscript(JSONLike):
             js_idx=self.index,
             write_app_logs=self.resources.write_app_logs,
             sub_log_path=sub_log_path,
+            skipped_exit_code=SKIPPED_EXIT_CODE,
         )
 
         script = dedent(
