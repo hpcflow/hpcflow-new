@@ -114,7 +114,7 @@ class ChildObjectSpec:
     #: Requires that :attr:`is_multiple` be set as well.
     dict_key_attr: Optional[str] = None
     #: If set, the name of an attribute of the object to use as a dictionary value.
-    #: If not set but :attr:`dict_key_attr` is set, the whole object is the value. 
+    #: If not set but :attr:`dict_key_attr` is set, the whole object is the value.
     #: Requires that :attr:`dict_key_attr` be set as well.
     dict_val_attr: Optional[str] = None
     #: If set, the attribute of the child object that contains a reference to its parent.
