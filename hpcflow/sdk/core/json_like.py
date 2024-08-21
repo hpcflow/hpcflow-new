@@ -107,9 +107,15 @@ class ChildObjectSpec:
     #: The name of the key used in the JSON document, if different from the attribute
     #: name.
     json_like_name: Optional[str] = None
-    #: If true, the attribute is really a list of instances.
+    #: If true, the attribute is really a list of instances,
+    #: or a dictionary if :attr:`dict_key_attr` is set.
     is_multiple: Optional[bool] = False
+    #: If set, the name of an attribute of the object to use as a dictionary key.
+    #: Requires that :attr:`is_multiple` be set as well.
     dict_key_attr: Optional[str] = None
+    #: If set, the name of an attribute of the object to use as a dictionary value.
+    #: If not set but :attr:`dict_key_attr` is set, the whole object is the value. 
+    #: Requires that :attr:`dict_key_attr` be set as well.
     dict_val_attr: Optional[str] = None
     #: If set, the attribute of the child object that contains a reference to its parent.
     parent_ref: Optional[
