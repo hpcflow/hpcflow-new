@@ -48,12 +48,14 @@ from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
+#: Standard option
 string_option = click.option(
     "--string",
     is_flag=True,
     default=False,
     help="Determines if passing a file path or a string.",
 )
+#: Standard option
 workflow_ref_type_opt = click.option(
     "--ref-type",
     "-r",
