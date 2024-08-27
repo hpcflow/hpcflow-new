@@ -188,7 +188,7 @@ def add_doc_from_help(*args):
     """
     Attach the ``help`` field of each of its arguments as its ``__doc__``.
     Only necessary because the wrappers in Click don't do this for us.
- 
+
     :meta private:
     """
     for opt in args:
@@ -198,10 +198,30 @@ def add_doc_from_help(*args):
 
 
 add_doc_from_help(
-    format_option, path_option, name_option, overwrite_option, store_option,
-    ts_fmt_option, ts_name_fmt_option, variables_option, js_parallelism_option,
-    wait_option, add_to_known_opt, print_idx_opt, tasks_opt, cancel_opt,
-    submit_status_opt, make_status_opt, zip_path_opt, zip_overwrite_opt, zip_log_opt,
-    zip_include_execute_opt, zip_include_rechunk_backups_opt, unzip_path_opt,
-    unzip_log_opt, rechunk_backup_opt, rechunk_chunk_size_opt, rechunk_status_opt,
+    format_option,
+    path_option,
+    name_option,
+    overwrite_option,
+    store_option,
+    ts_fmt_option,
+    ts_name_fmt_option,
+    variables_option,
+    js_parallelism_option,
+    wait_option,
+    add_to_known_opt,
+    print_idx_opt,
+    tasks_opt,
+    cancel_opt,
+    submit_status_opt,
+    make_status_opt,
+    zip_path_opt,
+    zip_overwrite_opt,
+    zip_log_opt,
+    zip_include_execute_opt,
+    zip_include_rechunk_backups_opt,
+    unzip_path_opt,
+    unzip_log_opt,
+    rechunk_backup_opt,
+    rechunk_chunk_size_opt,
+    rechunk_status_opt,
 )
