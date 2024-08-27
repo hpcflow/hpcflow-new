@@ -486,6 +486,7 @@ class ExecutablesList(AppDataList):
         The executables in this list.
     """
 
+    #: The environment containing these executables.
     environment = None
     _child_objects = (
         ChildObjectSpec(

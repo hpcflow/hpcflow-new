@@ -2264,6 +2264,9 @@ class InputSource(JSONLike):
         return None
 
     def to_string(self):
+        """
+        Render this input source as a string.
+        """
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
             out += [str(self.task_ref), self.task_source_type.name.lower()]

@@ -3208,4 +3208,5 @@ class WorkflowBlueprint:
     """Pre-built workflow templates that are simpler to parameterise.
     (For example, fitting workflows.)"""
 
+    #: The template inside this blueprint.
     workflow_template: WorkflowTemplate

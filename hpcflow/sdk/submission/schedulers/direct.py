@@ -186,6 +186,7 @@ class DirectPosix(DirectScheduler):
     """
 
     _app_attr = "app"
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE = "/bin/bash"
 
     def __init__(self, *args, **kwargs):
@@ -205,6 +206,7 @@ class DirectWindows(DirectScheduler):
     """
 
     _app_attr = "app"
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE = "powershell.exe"
 
     def __init__(self, *args, **kwargs):

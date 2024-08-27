@@ -1206,6 +1206,9 @@ class ActionScope(JSONLike):
         return {"type": typ_str, **kwargs}
 
     def to_string(self):
+        """
+        Render this action scope as a string. 
+        """
         kwargs_str = ""
         if self.kwargs:
             kwargs_str = "[" + ", ".join(f"{k}={v}" for k, v in self.kwargs.items()) + "]"
