@@ -1207,7 +1207,7 @@ class ActionScope(JSONLike):
 
     def to_string(self):
         """
-        Render this action scope as a string. 
+        Render this action scope as a string.
         """
         kwargs_str = ""
         if self.kwargs:
