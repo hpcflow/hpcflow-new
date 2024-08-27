@@ -22,6 +22,7 @@ from .helper import (
     get_helper_PID,
     get_helper_uptime,
 )
+from ..cli_common import _add_doc_from_help
 
 #: Helper option: ``--timeout``
 timeout_option = click.option(
@@ -50,6 +51,7 @@ watch_interval_option = click.option(
         "seconds."
     ),
 )
+_add_doc_from_help(timeout_option, timeout_check_interval_option, watch_interval_option)
 
 
 def get_helper_CLI(app):

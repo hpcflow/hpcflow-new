@@ -42,7 +42,7 @@ from hpcflow.sdk.cli_common import (
     rechunk_backup_opt,
     rechunk_chunk_size_opt,
     rechunk_status_opt,
-    add_doc_from_help,
+    _add_doc_from_help,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
@@ -63,7 +63,7 @@ workflow_ref_type_opt = click.option(
 )
 
 
-add_doc_from_help(string_option, workflow_ref_type_opt)
+_add_doc_from_help(string_option, workflow_ref_type_opt)
 
 
 def parse_jobscript_wait_spec(jobscripts: str) -> Dict[int, List[int]]:

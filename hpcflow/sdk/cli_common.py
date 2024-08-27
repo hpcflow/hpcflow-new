@@ -184,20 +184,25 @@ rechunk_status_opt = click.option(
 )
 
 
-def add_doc_from_help(*args):
+def _add_doc_from_help(*args):
     """
     Attach the ``help`` field of each of its arguments as its ``__doc__``.
     Only necessary because the wrappers in Click don't do this for us.
 
     :meta private:
     """
+    # Yes, this is ugly!
+    from types import SimpleNamespace
     for opt in args:
-        help = getattr(opt, "help", None)
-        if help:
-            opt.__doc__ = help
+        ns = SimpleNamespace()
+        params = getattr(opt(ns), "__click_params__", [])
+        if params:
+            help = getattr(params[0], "help", "")
+            if help:
+                opt.__doc__ = help
 
 
-add_doc_from_help(
+_add_doc_from_help(
     format_option,
     path_option,
     name_option,
