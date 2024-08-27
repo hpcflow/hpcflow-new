@@ -55,11 +55,17 @@ class Rule(JSONLike):
         if isinstance(condition, dict):
             condition = ConditionLike.from_json_like(condition)
 
+        #: If set, this rule checks this attribute exists.
         self.check_exists = check_exists
+        #: If set, this rule checks this attribute does *not* exist.
         self.check_missing = check_missing
+        #: Where to look up the attribute to check (if not determined by context).
         self.path = path
+        #: A general condition for this rule to check.
         self.condition = condition
+        #: If set, a cast to apply prior to running the general check.
         self.cast = cast
+        #: Optional descriptive text.
         self.doc = doc
 
     def __repr__(self):

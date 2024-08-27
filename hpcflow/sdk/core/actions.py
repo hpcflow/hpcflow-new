@@ -1170,7 +1170,9 @@ class ActionScope(JSONLike):
         if isinstance(typ, str):
             typ = getattr(self.app.ActionScopeType, typ.upper())
 
+        #: Action scope type.
         self.typ = typ
+        #: Any provided extra keyword arguments.
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         bad_keys = set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]

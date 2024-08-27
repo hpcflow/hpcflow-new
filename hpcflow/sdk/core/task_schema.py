@@ -72,8 +72,8 @@ class TaskSchema(JSONLike):
     parameter_class_modules:
         Where to find implementations of parameter value handlers.
     web_doc:
-        True if this object should be included in the Sphinx documentation (in the case
-        of built-in task schemas). True by default.
+        True if this object should be included in the Sphinx documentation
+        (normally only relevant for built-in task schemas). True by default.
     environment_presets:
         Information about default execution environments. Can be overridden in specific
         cases in the concrete tasks.
@@ -114,14 +114,24 @@ class TaskSchema(JSONLike):
         environment_presets: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
         _hash_value: Optional[str] = None,
     ):
+        #: This is a string representing the objective of the task schema.
         self.objective = objective
+        #: A list of Action objects whose commands are to be executed by the task.
         self.actions = actions or []
+        #: An optional string to label the task schema by its method.
         self.method = method
+        #: An optional string to label the task schema by its implementation.
         self.implementation = implementation
+        #: A list of SchemaInput objects that define the inputs to the task.
         self.inputs = inputs or []
+        #: A list of SchemaOutput objects that define the outputs of the task.
         self.outputs = outputs or []
+        #: Where to find implementations of parameter value handlers.
         self.parameter_class_modules = parameter_class_modules or []
+        #: Whether this object should be included in the Sphinx documentation
+        #: (normally only relevant for built-in task schemas).
         self.web_doc = web_doc
+        #: Information about default execution environments.
         self.environment_presets = environment_presets
         self._hash_value = _hash_value
 
@@ -133,6 +143,7 @@ class TaskSchema(JSONLike):
 
         self._validate()
         self.actions = self._expand_actions()
+        #: The version of this task schema.
         self.version = version
         self._task_template = None  # assigned by parent Task
 

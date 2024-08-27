@@ -364,8 +364,12 @@ class SchemaInput(SchemaParameter):
             except ValueError:
                 parameter = self.app.Parameter(parameter)
 
+        #: The parameter (i.e. type) of this schema input.
         self.parameter = parameter
+        #: Whether to expect more than of these parameters defined in the workflow.
         self.multiple = multiple
+        #: Dict whose keys represent the string labels that distinguish multiple
+        #: parameters if `multiple` is `True`.
         self.labels = labels
 
         if self.labels is None:
@@ -1690,6 +1694,7 @@ class ResourceSpec(JSONLike):
         SLURM_num_nodes: Optional[str] = None,
         SLURM_num_cpus_per_task: Optional[str] = None,
     ):
+        #: Which scope does this apply to.
         self.scope = scope or self.app.ActionScope.any()
         if not isinstance(self.scope, self.app.ActionScope):
             self.scope = self.app.ActionScope.from_json_like(self.scope)
@@ -2124,6 +2129,7 @@ class InputSource(JSONLike):
     Parameters
     ----------
     source_type: InputSourceType
+        Type of the input source.
     import_ref:
         Where the input comes from when the type is `IMPORT`.
     task_ref:
@@ -2168,12 +2174,19 @@ class InputSource(JSONLike):
                     rules[idx] = app.Rule(**i)
             where = app.ElementFilter(rules=rules)
 
+        #: Type of the input source.
         self.source_type = self._validate_source_type(source_type)
+        #: Where the input comes from when the type is `IMPORT`.
         self.import_ref = import_ref
+        #: Which task is this an input for? Used when the type is `TASK`.
         self.task_ref = task_ref
+        #: Type of task source.
         self.task_source_type = self._validate_task_source_type(task_source_type)
+        #: Which element iterations does this apply to?
         self.element_iters = element_iters
+        #: Filtering rules.
         self.where = where
+        #: Path to where this input goes.
         self.path = path
 
         if self.source_type is InputSourceType.TASK:

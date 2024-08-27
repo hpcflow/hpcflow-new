@@ -161,6 +161,7 @@ class AppLog:
     DEFAULT_LOG_FILE_LEVEL = "INFO"
 
     def __init__(self, app, log_console_level=None):
+        #: The application context.
         self.app = app
         #: The base logger for the application.
         self.logger = logging.getLogger(app.package_name)

@@ -768,6 +768,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
             See :py:meth:`to_json_like`.
         """
 
+        #: Where to take the snapshot based at.
         self.root_path = root_path
         self._stat_info = {}
         self._inode_to_path = {}

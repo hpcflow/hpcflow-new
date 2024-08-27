@@ -95,7 +95,7 @@ class ElementSet(JSONLike):
     input_files: list[~hpcflow.app.InputFile]
         Input files to the set of elements.
     sequences: list[~hpcflow.app.ValueSequence]
-        Input value sequence to parameterise over.
+        Input value sequences to parameterise over.
     resources: ~hpcflow.app.ResourceList
         Resources to use for the set of elements.
     repeats: list[dict]
@@ -182,18 +182,34 @@ class ElementSet(JSONLike):
         allow_non_coincident_task_sources: Optional[bool] = False,
         merge_envs: Optional[bool] = True,
     ):
+        #: Inputs to the set of elements.
         self.inputs = inputs or []
+        #: Input files to the set of elements.
         self.input_files = input_files or []
+        #: Description of how to repeat the set of elements.
         self.repeats = repeats or []
+        #: Groupings in the set of elements.
         self.groups = groups or []
+        #: Resources to use for the set of elements.
         self.resources = self.app.ResourceList.normalise(resources)
+        #: Input value sequences to parameterise over.
         self.sequences = sequences or []
+        #: Input source descriptors.
         self.input_sources = input_sources or {}
+        #: How to handle nesting of iterations.
         self.nesting_order = nesting_order or {}
+        #: Which environment preset to use.
         self.env_preset = env_preset
+        #: Environment descriptors to use.
         self.environments = environments
+        #: List of global element iteration indices from which inputs for
+        #: the new elements associated with this element set may be sourced.
+        #: If ``None``, all iterations are valid.
         self.sourceable_elem_iters = sourceable_elem_iters
+        #: Whether to allow sources to come from distinct element sub-sets.
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
+        #: Whether to merge ``environments`` into ``resources`` using the "any" scope
+        #: on first initialisation.
         self.merge_envs = merge_envs
 
         self._validate()
@@ -736,6 +752,8 @@ class Task(JSONLike):
             sourceable_elem_iters=sourceable_elem_iters,
         )
         self._output_labels = output_labels or []
+        #: Whether to merge ``environments`` into ``resources`` using the "any" scope
+        #: on first initialisation.
         self.merge_envs = merge_envs
 
         # appended to when new element sets are added and reset on dump to disk:

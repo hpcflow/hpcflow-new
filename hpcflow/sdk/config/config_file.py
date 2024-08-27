@@ -44,7 +44,9 @@ class ConfigFile:
     """
 
     def __init__(self, directory, logger, config_options):
+        #: Where to log messages.
         self.logger = logger
+        #: The directory containing the configuration file.
         self.directory = self._resolve_config_dir(
             config_opt=config_options,
             logger=self.logger,

@@ -85,8 +85,11 @@ class FileNameSpec(JSONLike):
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
+        #: The name or pattern.
         self.name = name
+        #: Positional arguments to use when formatting the name.
         self.args = args
+        #: Whether the name is used as a regex to search for actual files.
         self.is_regex = is_regex
 
     def __eq__(self, other: object) -> bool:
@@ -706,6 +709,7 @@ class InputFile(_FileContentsSpecifier):
         extension: Optional[str] = "",
         store_contents: Optional[bool] = True,
     ):
+        #: What file is this?
         self.file = file
         if not isinstance(self.file, FileSpec):
             self.file = self.app.command_files.get(self.file.label)
@@ -781,6 +785,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
         contents: str = None,
         extension: str = "",
     ):
+        #: How to generate the file.
         self.generator = generator
         super().__init__(path, contents, extension)
 
@@ -808,5 +813,6 @@ class OutputFileParserSource(_FileContentsSpecifier):
         contents: str = None,
         extension: str = "",
     ):
+        #: How to parse the file.
         self.parser = parser
         super().__init__(path, contents, extension)
