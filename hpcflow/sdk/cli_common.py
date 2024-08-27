@@ -193,6 +193,7 @@ def _add_doc_from_help(*args):
     """
     # Yes, this is ugly!
     from types import SimpleNamespace
+
     for opt in args:
         ns = SimpleNamespace()
         params = getattr(opt(ns), "__click_params__", [])
