@@ -14,7 +14,6 @@ def sub_tasks_callback(ctx, param, value):
         return [int(i) for i in value.split(",")]
 
 
-#: Standard option: ``--format``
 format_option = click.option(
     "--format",
     type=click.Choice(ALL_TEMPLATE_FORMATS),
@@ -30,7 +29,6 @@ path_option = click.option(
     type=click.Path(exists=True),
     help="The directory path into which the new workflow will be generated.",
 )
-#: Standard option: ``--name``
 name_option = click.option(
     "--name",
     help=(
@@ -39,7 +37,6 @@ name_option = click.option(
         "will be used, in combination with a date-timestamp."
     ),
 )
-#: Standard option: ``--overwrite``
 overwrite_option = click.option(
     "--overwrite",
     is_flag=True,
@@ -49,14 +46,13 @@ overwrite_option = click.option(
         "the existing directory will be overwritten."
     ),
 )
-#: Standard option: ``--store``
 store_option = click.option(
     "--store",
     type=click.Choice(ALL_STORE_FORMATS),
     help="The persistent store type to use.",
     default=DEFAULT_STORE_FORMAT,
 )
-#: Standard option: ``--ts-fmt``
+
 ts_fmt_option = click.option(
     "--ts-fmt",
     help=(
@@ -65,7 +61,6 @@ ts_fmt_option = click.option(
         "should not include a time zone name."
     ),
 )
-#: Standard option: ``--ts-name-fmt``
 ts_name_fmt_option = click.option(
     "--ts-name-fmt",
     help=(
@@ -73,7 +68,7 @@ ts_name_fmt_option = click.option(
         "includes a timestamp."
     ),
 )
-#: Standard option: ``--var``
+
 variables_option = click.option(
     "-v",
     "--var",
@@ -85,7 +80,6 @@ variables_option = click.option(
         "string. Multiple variable values can be specified."
     ),
 )
-#: Standard option: ``--js-parallelism``
 js_parallelism_option = click.option(
     "--js-parallelism",
     help=(
@@ -96,27 +90,23 @@ js_parallelism_option = click.option(
     ),
     type=click.BOOL,
 )
-#: Standard option: ``--wait``
 wait_option = click.option(
     "--wait",
     help=("If True, this command will block until the workflow execution is complete."),
     is_flag=True,
     default=False,
 )
-#: Standard option: ``--add-to-known``
 add_to_known_opt = click.option(
     "--add-to-known/--no-add-to-known",
     default=True,
     help="If True, add this submission to the known-submissions file.",
 )
-#: Standard option: ``--print-idx``
 print_idx_opt = click.option(
     "--print-idx",
     help="If True, print the submitted jobscript indices for each submission index.",
     is_flag=True,
     default=False,
 )
-#: Standard option: ``--tasks``
 tasks_opt = click.option(
     "--tasks",
     help=(
@@ -125,26 +115,23 @@ tasks_opt = click.option(
     ),
     callback=sub_tasks_callback,
 )
-#: Standard option: ``--cancel``
 cancel_opt = click.option(
     "--cancel",
     help="Immediately cancel the submission. Useful for testing and benchmarking.",
     is_flag=True,
     default=False,
 )
-#: Standard option: ``--status`` (for submission)
 submit_status_opt = click.option(
     "--status/--no-status",
     help="If True, display a live status to track submission progress.",
     default=True,
 )
-#: Standard option: ``--format`` (for workflow creation)
 make_status_opt = click.option(
     "--status/--no-status",
     help="If True, display a live status to track workflow creation progress.",
     default=True,
 )
-#: Standard option: ``--path`` (for zip)
+
 zip_path_opt = click.option(
     "--path",
     default=".",
@@ -154,20 +141,16 @@ zip_path_opt = click.option(
         "path is assumed to be the full file path to the new zip file."
     ),
 )
-#: Standard option: ``--overwrite``
 zip_overwrite_opt = click.option(
     "--overwrite",
     is_flag=True,
     default=False,
     help="If set, any existing file will be overwritten.",
 )
-#: Standard option: ``--log`` (for zip)
 zip_log_opt = click.option("--log", help="Path to a log file to use during zipping.")
-#: Standard option: ``--include-execute``
 zip_include_execute_opt = click.option("--include-execute", is_flag=True)
-#: Standard option: ``--include-rechunk-backups``
 zip_include_rechunk_backups_opt = click.option("--include-rechunk-backups", is_flag=True)
-#: Standard option: ``--path`` (for unzip)
+
 unzip_path_opt = click.option(
     "--path",
     default=".",
@@ -177,15 +160,13 @@ unzip_path_opt = click.option(
         "Otherwise, this path will represent the new workflow directory path."
     ),
 )
-#: Standard option: ``--log`` (for unzip)
 unzip_log_opt = click.option("--log", help="Path to a log file to use during unzipping.")
-#: Standard option: ``--backup``
+
 rechunk_backup_opt = click.option(
     "--backup/--no-backup",
     default=True,
     help=("First copy a backup of the array to a directory ending in `.bak`."),
 )
-#: Standard option: ``--chunk-size``
 rechunk_chunk_size_opt = click.option(
     "--chunk-size",
     type=click.INT,
@@ -196,9 +177,31 @@ rechunk_chunk_size_opt = click.option(
         "array's shape)."
     ),
 )
-#: Standard option: ``--status`` (for rechunk)
 rechunk_status_opt = click.option(
     "--status/--no-status",
     default=True,
     help="If True, display a live status to track rechunking progress.",
+)
+
+
+def add_doc_from_help(*args):
+    """
+    Attach the ``help`` field of each of its arguments as its ``__doc__``.
+    Only necessary because the wrappers in Click don't do this for us.
+ 
+    :meta private:
+    """
+    for opt in args:
+        help = getattr(opt, "help", None)
+        if help:
+            opt.__doc__ = help
+
+
+add_doc_from_help(
+    format_option, path_option, name_option, overwrite_option, store_option,
+    ts_fmt_option, ts_name_fmt_option, variables_option, js_parallelism_option,
+    wait_option, add_to_known_opt, print_idx_opt, tasks_opt, cancel_opt,
+    submit_status_opt, make_status_opt, zip_path_opt, zip_overwrite_opt, zip_log_opt,
+    zip_include_execute_opt, zip_include_rechunk_backups_opt, unzip_path_opt,
+    unzip_log_opt, rechunk_backup_opt, rechunk_chunk_size_opt, rechunk_status_opt,
 )
