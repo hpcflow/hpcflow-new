@@ -711,6 +711,8 @@ class CommitResourceMap:
         groups = {}
         cur_res_group = None
         for fld in fields(self):
+            if not fld.name.startswith("commit_"):
+                continue
             res_labels = getattr(self, fld.name)
 
             if not cur_res_group:
