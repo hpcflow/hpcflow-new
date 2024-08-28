@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 import contextlib
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -687,15 +687,15 @@ class CommitResourceMap:
     commit_loop_num_iters: Optional[Tuple[str]] = tuple()
     #: Resources for :py:meth:`~.PendingChanges.commit_loop_parents`.
     commit_loop_parents: Optional[Tuple[str]] = tuple()
+    #: A dict whose keys are tuples of resource labels and whose values are lists
+    #: of :py:class:`PendingChanges` commit method names that require those resources.
+    #:
+    #: This grouping allows us to batch up commit methods by resource requirements,
+    #: which in turn means we can potentially minimise, e.g., the number of network
+    #: requests.
+    groups: Dict[Tuple[str], List[str]] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self):
-        #: A dict whose keys are tuples of resource labels and whose values are
-        #: lists of :py:class:`PendingChanges` commit method names that require those
-        #: resources.
-        #:
-        #: This grouping allows us to batch up commit methods by resource requirements,
-        #: which in turn means we can potentially minimise, e.g., the number of network
-        #: requests.
         self.groups = self._group_by_resource()
 
     def _group_by_resource(self) -> Dict[Tuple[str], List[str]]:
