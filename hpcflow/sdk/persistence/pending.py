@@ -639,35 +639,66 @@ class CommitResourceMap:
     Normally only of interest to implementations of persistent stores.
     """
 
+    #: Resources for :py:meth:`~.PendingChanges.commit_tasks`.
     commit_tasks: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_loops`.
     commit_loops: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_submissions`.
     commit_submissions: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_submission_parts`.
     commit_submission_parts: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_elem_IDs`.
     commit_elem_IDs: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_elements`.
     commit_elements: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_element_sets`.
     commit_element_sets: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_elem_iter_IDs`.
     commit_elem_iter_IDs: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_elem_iters`.
     commit_elem_iters: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_elem_iter_EAR_IDs`.
     commit_elem_iter_EAR_IDs: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EARs_initialised`.
     commit_EARs_initialised: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EARs`.
     commit_EARs: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EAR_submission_indices`.
     commit_EAR_submission_indices: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EAR_skips`.
     commit_EAR_skips: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EAR_starts`.
     commit_EAR_starts: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_EAR_ends`.
     commit_EAR_ends: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_js_metadata`.
     commit_js_metadata: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_parameters`.
     commit_parameters: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_files`.
     commit_files: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_template_components`.
     commit_template_components: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_param_sources`.
     commit_param_sources: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_loop_indices`.
     commit_loop_indices: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_loop_num_iters`.
     commit_loop_num_iters: Optional[Tuple[str]] = tuple()
+    #: Resources for :py:meth:`~.PendingChanges.commit_loop_parents`.
     commit_loop_parents: Optional[Tuple[str]] = tuple()
 
     def __post_init__(self):
-        self.groups = self.group_by_resource()
+        #: A dict whose keys are tuples of resource labels and whose values are
+        #: lists of :py:class:`PendingChanges` commit method names that require those
+        #: resources.
+        #:
+        #: This grouping allows us to batch up commit methods by resource requirements,
+        #: which in turn means we can potentially minimise, e.g., the number of network
+        #: requests.
+        self.groups = self._group_by_resource()
 
-    def group_by_resource(self) -> Dict[Tuple[str], List[str]]:
+    def _group_by_resource(self) -> Dict[Tuple[str], List[str]]:
         """
         Get a dict whose keys are tuples of resource labels and whose values are
         lists of :py:class:`PendingChanges` commit method names that require those
