@@ -890,7 +890,9 @@ class Jobscript(JSONLike):
             scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
         )
 
-        cfg_invocation = self._app.config._file.get_invocation(self._app.config._config_key)
+        cfg_invocation = self._app.config._file.get_invocation(
+            self._app.config._config_key
+        )
         env_setup = cfg_invocation["environment_setup"]
         if env_setup:
             env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
@@ -1253,7 +1255,9 @@ class Jobscript(JSONLike):
 
             not_run_states = EARStatus.get_non_running_submitted_states()
             all_EAR_states = set(i.status for i in self.all_EARs)
-            self._app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
+            self._app.submission_logger.debug(
+                f"Unique EAR states are: {all_EAR_states!r}"
+            )
             if all_EAR_states.issubset(not_run_states):
                 self._app.submission_logger.debug(
                     "All jobscript EARs are in a non-running state"

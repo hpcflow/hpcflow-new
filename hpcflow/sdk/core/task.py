@@ -1145,7 +1145,9 @@ class Task(JSONLike):
         for inputs_path, inp_status in self.get_input_statuses(element_set).items():
             # local specification takes precedence:
             if inputs_path in element_set.get_locally_defined_inputs():
-                available.setdefault(inputs_path, []).append(self._app.InputSource.local())
+                available.setdefault(inputs_path, []).append(
+                    self._app.InputSource.local()
+                )
 
             # search for task sources:
             for src_wk_task_i in source_tasks:
@@ -2284,7 +2286,9 @@ class WorkflowTask(AppAware):
                 action_runs[act_idx, EAR_ID] = run_0
                 count += 1
             else:
-                self._app.logger.info(f"Some action rules evaluated to false {log_common}")
+                self._app.logger.info(
+                    f"Some action rules evaluated to false {log_common}"
+                )
 
         # `generate_data_index` can modify data index for previous actions, so only assign
         # this at the end:

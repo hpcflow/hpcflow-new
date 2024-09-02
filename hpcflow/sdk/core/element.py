@@ -484,7 +484,9 @@ class ElementIteration(AppAware):
     @property
     def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = eof = self._app.ElementOutputFiles(element_iteration=self)
+            self._output_files = eof = self._app.ElementOutputFiles(
+                element_iteration=self
+            )
             return eof
         return self._output_files
 

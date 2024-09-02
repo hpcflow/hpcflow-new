@@ -1352,7 +1352,9 @@ class Workflow(AppAware):
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
-            self._template_components = self._app.template_components_from_json_like(tc_js)
+            self._template_components = self._app.template_components_from_json_like(
+                tc_js
+            )
         return self._template_components
 
     @property
@@ -1723,7 +1725,9 @@ class Workflow(AppAware):
 
         @cls._app.perm_error_retry()
         def _remove_path(path: str, fs: AbstractFileSystem) -> None:
-            cls._app.persistence_logger.debug(f"temporary_rename: _remove_path: {path!r}.")
+            cls._app.persistence_logger.debug(
+                f"temporary_rename: _remove_path: {path!r}."
+            )
             while fs.exists(path):
                 fs.rm(path, recursive=True)
                 time.sleep(0.5)

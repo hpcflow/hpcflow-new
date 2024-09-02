@@ -672,7 +672,9 @@ class ValueSequence(JSONLike):
             _, method = val_key.split("::")
             _values_method_args = json_like.pop(val_key)
             _values_method = f"_values_{method}"
-            _values_method_args = _process_demo_data_strings(cls._app, _values_method_args)
+            _values_method_args = _process_demo_data_strings(
+                cls._app, _values_method_args
+            )
             json_like["values"] = getattr(cls, _values_method)(**_values_method_args)
 
         obj = super().from_json_like(json_like, shared_data)
