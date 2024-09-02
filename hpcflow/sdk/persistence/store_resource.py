@@ -24,7 +24,7 @@ class StoreResource(ABC):
     """
 
     def __init__(self, app: BaseApp, name: str) -> None:
-        self.app = app
+        self._app = app
         self.name = name
         self.data: dict[str, Any] = {"read": None, "update": None}
         self.hash = None
@@ -34,7 +34,7 @@ class StoreResource(ABC):
 
     @property
     def logger(self) -> Logger:
-        return self.app.persistence_logger
+        return self._app.persistence_logger
 
     @abstractmethod
     def _load(self) -> Any:

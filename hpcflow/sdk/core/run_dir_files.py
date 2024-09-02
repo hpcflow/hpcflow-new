@@ -1,31 +1,28 @@
 from __future__ import annotations
 import re
-from typing import Any, ClassVar, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
 if TYPE_CHECKING:
-    from ..app import BaseApp
     from ..submission.shells.base import Shell
 
 
-class RunDirAppFiles:
+class RunDirAppFiles(AppAware):
     """A class to encapsulate the naming/recognition of app-created files within run
     directories."""
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
     @classmethod
     def get_log_file_name(cls):
         """File name for the app log file."""
-        return f"{cls.app.package_name}.log"
+        return f"{cls._app.package_name}.log"
 
     @classmethod
     def get_std_file_name(cls):
         """File name for stdout and stderr streams from the app."""
-        return f"{cls.app.package_name}_std.txt"
+        return f"{cls._app.package_name}_std.txt"
 
     @staticmethod
     def get_run_file_prefix(js_idx: int | str, js_action_idx: int | str) -> str:

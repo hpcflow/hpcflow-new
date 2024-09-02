@@ -12,7 +12,6 @@ from hpcflow.sdk.submission.shells.base import Shell
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from typing import Any, ClassVar
-    from ...app import BaseApp
     from ...config.config import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
 
@@ -20,8 +19,6 @@ DirectRef: TypeAlias = "tuple[int, list[str]]"
 
 
 class DirectScheduler(Scheduler[DirectRef]):
-    app: ClassVar[BaseApp]
-
     @classmethod
     @override
     def process_resources(
@@ -143,7 +140,7 @@ class DirectScheduler(Scheduler[DirectRef]):
                 js = js_proc_id[proc.pid]
             except KeyError:
                 # child process of one of the jobscripts
-                self.app.submission_logger.debug(
+                self._app.submission_logger.debug(
                     f"jobscript child process ({proc.pid}) killed"
                 )
                 return
@@ -154,12 +151,12 @@ class DirectScheduler(Scheduler[DirectRef]):
             )
 
         procs = self._get_jobscript_processes(js_refs)
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscript processes: {procs}."
         )
         js_proc_id = {i.pid: jobscripts[idx] for idx, i in enumerate(procs) if jobscripts}
         self._kill_processes(procs, timeout=3, on_terminate=callback)
-        self.app.submission_logger.info("jobscripts cancel command executed.")
+        self._app.submission_logger.info("jobscripts cancel command executed.")
 
     def is_jobscript_active(self, process_ID: int, process_cmdline: list[str]):
         """Query if a jobscript is running.
@@ -180,8 +177,6 @@ class DirectScheduler(Scheduler[DirectRef]):
 
 
 class DirectPosix(DirectScheduler):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
 
     def __init__(self, *args, **kwargs):
@@ -189,8 +184,6 @@ class DirectPosix(DirectScheduler):
 
 
 class DirectWindows(DirectScheduler):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "powershell.exe"
 
     def __init__(self, *args, **kwargs):

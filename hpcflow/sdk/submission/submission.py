@@ -24,9 +24,8 @@ from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
-    from typing import ClassVar, Literal
+    from typing import Literal
     from rich.status import Status
-    from ..app import BaseApp
     from .jobscript import Jobscript, JobscriptElementState
     from .schedulers import Scheduler
     from .shells import Shell
@@ -64,7 +63,6 @@ class SubmissionStatus(enum.Enum):
 
 
 class Submission(JSONLike):
-    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",
@@ -127,7 +125,7 @@ class Submission(JSONLike):
             spec_str = f" with specifiers {non_name_spec!r}" if non_name_spec else ""
             env_ref = f"{env_spec['name']!r}{spec_str}"
             try:
-                env_i = self.app.envs.get(**env_spec)
+                env_i = self._app.envs.get(**env_spec)
             except ObjectListMultipleMatchError:
                 raise MultipleEnvironmentsError(
                     f"Multiple environments {env_ref} are defined on this machine."
@@ -165,7 +163,7 @@ class Submission(JSONLike):
                         )
 
         # save env definitions to the environments attribute:
-        self._environments = self.app.EnvironmentsList(envs)
+        self._environments = self._app.EnvironmentsList(envs)
 
     @override
     def to_dict(self):
@@ -348,12 +346,12 @@ class Submission(JSONLike):
         # write a new temporary run-abort file:
         tmp_suffix = self.abort_EARs_file_path.suffix + ".tmp"
         tmp = self.abort_EARs_file_path.with_suffix(tmp_suffix)
-        self.app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
+        self._app.submission_logger.debug(f"Creating temporary run abort file: {tmp!r}.")
         with tmp.open(mode="wt", newline="\n") as fp:
             fp.write("\n".join(i for i in lines) + "\n")
 
         # atomic rename, overwriting original:
-        self.app.submission_logger.debug(
+        self._app.submission_logger.debug(
             "Replacing original run abort file with new temporary file."
         )
         os.replace(src=tmp, dst=self.abort_EARs_file_path)
@@ -541,14 +539,14 @@ class Submission(JSONLike):
                 continue
 
         if submitted_js_idx:
-            dt_str = current_timestamp().strftime(self.app._submission_ts_fmt)
+            dt_str = current_timestamp().strftime(self._app._submission_ts_fmt)
             self._append_submission_part(
                 submit_time=dt_str,
                 submitted_js_idx=submitted_js_idx,
             )
             # add a record of the submission part to the known-submissions file
             if add_to_known:
-                self.app._add_to_known_submissions(
+                self._app._add_to_known_submissions(
                     wk_path=self.workflow.path,
                     wk_id=self.workflow.id_,
                     sub_idx=self.index,

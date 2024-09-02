@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar, Literal
     from typing_extensions import Self, TypeAlias
     from zarr import Group  # type: ignore
-    from ..app import BaseApp
     from .actions import ActionScope
     from .command_files import FileSpec
     from .environment import Environment, Executable
@@ -354,9 +353,6 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
 
 
 class AppDataList(DotAccessObjectList[T], Generic[T]):
-    _app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "_app"
-
     def to_dict(self) -> dict[str, Any]:
         return {"_objects": super().to_dict()["_objects"]}
 
@@ -632,8 +628,6 @@ Resources: TypeAlias = (
 
 
 class ResourceList(ObjectList["ResourceSpec"]):
-    _app: ClassVar[BaseApp]
-    _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(
             name="_objects",

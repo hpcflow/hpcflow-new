@@ -16,7 +16,6 @@ from hpcflow.sdk.submission.schedulers.utils import run_cmd
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from typing import Any, ClassVar
-    from ...app import BaseApp
     from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
@@ -36,9 +35,6 @@ class SGEPosix(QueuedScheduler):
     [2] https://softpanorama.org/HPC/Grid_engine/Queues/queue_states.shtml
 
     """
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
     DEFAULT_SUBMIT_CMD: ClassVar[str] = "qsub"
@@ -242,7 +238,7 @@ class SGEPosix(QueuedScheduler):
         """Get information about all of this user's jobscripts that currently listed by
         the scheduler."""
         cmd = [*self.show_cmd, "-u", "$USER", "-g", "d"]  # "-g d": separate arrays items
-        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
+        stdout, stderr = run_cmd(cmd, logger=self._app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE jobs. Command was: {cmd!r}; stderr was: "
@@ -302,15 +298,15 @@ class SGEPosix(QueuedScheduler):
         num_js_elements: int = 0,  # Ignored!
     ):
         cmd = [self.del_cmd] + js_refs
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
+        stdout, stderr = run_cmd(cmd, logger=self._app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query SGE {self.__class__.__name__}. Command was: "
                 f"{cmd!r}; stderr was: {stderr}"
             )
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"jobscripts cancel command executed; stdout was: {stdout}."
         )

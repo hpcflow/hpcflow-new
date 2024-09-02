@@ -62,7 +62,7 @@ class PendingChanges(
         ],
         resource_map: CommitResourceMap,
     ):
-        self.app = app
+        self._app = app
         self.store = store
         self.resource_map = resource_map
 
@@ -135,7 +135,7 @@ class PendingChanges(
 
     @property
     def logger(self) -> Logger:
-        return self.app.persistence_logger
+        return self._app.persistence_logger
 
     @TimeIt.decorator
     def commit_all(self) -> None:

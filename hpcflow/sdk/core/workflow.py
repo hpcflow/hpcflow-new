@@ -24,6 +24,7 @@ from hpcflow.sdk.core import (
     ALL_TEMPLATE_FORMATS,
     ABORT_EXIT_CODE,
 )
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.actions import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
@@ -67,7 +68,7 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
-    from ..app import BaseApp, TemplateComponents
+    from ..app import TemplateComponents
     from ..typing import DataIndex, ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
@@ -216,8 +217,6 @@ class WorkflowTemplate(JSONLike):
         template-level resources are ignored.
     """
 
-    app: ClassVar[BaseApp]
-    _app_attr = "app"
     _validation_schema = "workflow_spec_schema.yaml"
 
     _child_objects = (
@@ -254,7 +253,7 @@ class WorkflowTemplate(JSONLike):
     merge_envs: bool = True
 
     def __post_init__(self) -> None:
-        resources = self.app.ResourceList.normalise(self.resources)
+        resources = self._app.ResourceList.normalise(self.resources)
         self.resources = resources
         self._set_parent_refs()
 
@@ -277,7 +276,7 @@ class WorkflowTemplate(JSONLike):
         """
         Get a deep copy of the list of resources.
         """
-        assert isinstance(self.resources, self.app.ResourceList)
+        assert isinstance(self.resources, self._app.ResourceList)
         return copy.deepcopy(self.resources)
 
     def _merge_envs_into_task_resources(self) -> None:
@@ -315,7 +314,7 @@ class WorkflowTemplate(JSONLike):
                             k: v for k, v in self.environments.items() if k in app_envs
                         }
                         if app_env_specs_i:
-                            self.app.logger.info(
+                            self._app.logger.info(
                                 f"(task {task.name!r}, element set {es.index}): using "
                                 f"template-level requested `environment` specifiers: "
                                 f"{app_env_specs_i!r}."
@@ -330,7 +329,7 @@ class WorkflowTemplate(JSONLike):
                         ]
                         if app_presets_i:
                             app_env_specs_i = schema_presets[app_presets_i[0]]
-                            self.app.logger.info(
+                            self._app.logger.info(
                                 f"(task {task.name!r}, element set {es.index}): using "
                                 f"template-level requested {app_presets_i[0]!r} "
                                 f"`env_preset`: {app_env_specs_i!r}."
@@ -342,7 +341,7 @@ class WorkflowTemplate(JSONLike):
                         # so apply a default preset if available:
                         app_env_specs_i = (schema_presets or {}).get("", None)
                         if app_env_specs_i:
-                            self.app.logger.info(
+                            self._app.logger.info(
                                 f"(task {task.name!r}, element set {es.index}): setting "
                                 f"to default (empty-string named) `env_preset`: "
                                 f"{app_env_specs_i}."
@@ -351,9 +350,9 @@ class WorkflowTemplate(JSONLike):
 
                     if app_env_specs_i:
                         es.resources.merge_other(
-                            self.app.ResourceList(
+                            self._app.ResourceList(
                                 [
-                                    self.app.ResourceSpec(
+                                    self._app.ResourceSpec(
                                         scope="any", environments=app_env_specs_i
                                     )
                                 ]
@@ -385,33 +384,33 @@ class WorkflowTemplate(JSONLike):
         tcs = data.pop("template_components", {})
         params_dat = tcs.pop("parameters", [])
         if params_dat:
-            parameters = cls.app.ParametersList.from_json_like(
-                params_dat, shared_data=cls.app._shared_data
+            parameters = cls._app.ParametersList.from_json_like(
+                params_dat, shared_data=cls._app._shared_data
             )
-            cls.app.parameters.add_objects(parameters, skip_duplicates=True)
+            cls._app.parameters.add_objects(parameters, skip_duplicates=True)
 
         cmd_files_dat = tcs.pop("command_files", [])
         if cmd_files_dat:
-            cmd_files = cls.app.CommandFilesList.from_json_like(
-                cmd_files_dat, shared_data=cls.app._shared_data
+            cmd_files = cls._app.CommandFilesList.from_json_like(
+                cmd_files_dat, shared_data=cls._app._shared_data
             )
-            cls.app.command_files.add_objects(cmd_files, skip_duplicates=True)
+            cls._app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
         envs_dat = tcs.pop("environments", [])
         if envs_dat:
-            envs = cls.app.EnvironmentsList.from_json_like(
-                envs_dat, shared_data=cls.app._shared_data
+            envs = cls._app.EnvironmentsList.from_json_like(
+                envs_dat, shared_data=cls._app._shared_data
             )
-            cls.app.envs.add_objects(envs, skip_duplicates=True)
+            cls._app.envs.add_objects(envs, skip_duplicates=True)
 
         ts_dat = tcs.pop("task_schemas", [])
         if ts_dat:
-            task_schemas = cls.app.TaskSchemasList.from_json_like(
-                ts_dat, shared_data=cls.app._shared_data
+            task_schemas = cls._app.TaskSchemasList.from_json_like(
+                ts_dat, shared_data=cls._app._shared_data
             )
-            cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
+            cls._app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=cls.app._shared_data)
+        return cls.from_json_like(data, shared_data=cls._app._shared_data)
 
     @classmethod
     @TimeIt.decorator
@@ -441,7 +440,7 @@ class WorkflowTemplate(JSONLike):
         """
         if "name" not in data and path is not None:
             name = Path(path).stem
-            cls.app.logger.info(
+            cls._app.logger.info(
                 f"using file name stem ({name!r}) as the workflow template name."
             )
             data["name"] = name
@@ -463,7 +462,7 @@ class WorkflowTemplate(JSONLike):
             String variables to substitute in the file given by `path`.
 
         """
-        cls.app.logger.debug("parsing workflow template from a YAML file")
+        cls._app.logger.debug("parsing workflow template from a YAML file")
         data = read_YAML_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
@@ -503,7 +502,7 @@ class WorkflowTemplate(JSONLike):
         variables
             String variables to substitute in the file given by `path`.
         """
-        cls.app.logger.debug("parsing workflow template from a JSON file")
+        cls._app.logger.debug("parsing workflow template from a JSON file")
         data = read_JSON_file(path, variables=variables)
         cls._check_name(data, path)
         data["source_file"] = str(path)
@@ -624,9 +623,7 @@ class _Pending(TypedDict):
     submissions: list[int]
 
 
-class Workflow:
-    app: ClassVar[BaseApp]
-    _app_attr = "app"
+class Workflow(AppAware):
     _default_ts_fmt: ClassVar[str] = r"%Y-%m-%d %H:%M:%S.%f"
     _default_ts_name_fmt: ClassVar[str] = r"%Y-%m-%d_%H%M%S"
     _input_files_dir_name: ClassVar[str] = "input_files"
@@ -651,13 +648,13 @@ class Workflow:
         """
 
         if isinstance(workflow_ref, int):
-            path = self.app._get_workflow_path_from_local_ID(workflow_ref)
+            path = self._app._get_workflow_path_from_local_ID(workflow_ref)
         elif isinstance(workflow_ref, str):
             path = Path(workflow_ref)
         else:
             path = workflow_ref
 
-        self.app.logger.info(f"loading workflow from path: {path}")
+        self._app.logger.info(f"loading workflow from path: {path}")
         fs_path = str(path)
         fs, path_s, _ = resolve_fsspec(path, **(fs_kwargs or {}))
         store_fmt = store_fmt or infer_store(fs_path, fs)
@@ -676,7 +673,7 @@ class Workflow:
         self._loops: WorkflowLoopList | None = None
         self._submissions: list[Submission] | None = None
 
-        self._store = store_cls(self.app, self, self.path, fs)
+        self._store = store_cls(self._app, self, self.path, fs)
         self._in_batch_mode = False  # flag to track when processing batch updates
 
         # store indices of updates during batch update, so we can revert on failure:
@@ -835,7 +832,7 @@ class Workflow:
         variables
             String variables to substitute in the file given by `YAML_path`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_file(
+        template = cls._app.WorkflowTemplate.from_YAML_file(
             path=YAML_path,
             variables=variables,
         )
@@ -893,7 +890,7 @@ class Workflow:
         variables
             String variables to substitute in the string `YAML_str`.
         """
-        template = cls.app.WorkflowTemplate.from_YAML_string(
+        template = cls._app.WorkflowTemplate.from_YAML_string(
             string=YAML_str,
             variables=variables,
         )
@@ -952,7 +949,7 @@ class Workflow:
         variables
             String variables to substitute in the file given by `JSON_path`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_file(
+        template = cls._app.WorkflowTemplate.from_JSON_file(
             path=JSON_path,
             variables=variables,
         )
@@ -1012,7 +1009,7 @@ class Workflow:
         variables
             String variables to substitute in the string `JSON_str`.
         """
-        template = cls.app.WorkflowTemplate.from_JSON_string(
+        template = cls._app.WorkflowTemplate.from_JSON_string(
             string=JSON_str,
             variables=variables,
         )
@@ -1079,7 +1076,7 @@ class Workflow:
             String variables to substitute in the file given by `template_path`.
         """
         try:
-            template = cls.app.WorkflowTemplate.from_file(
+            template = cls._app.WorkflowTemplate.from_file(
                 template_path,
                 template_format,
                 variables=variables,
@@ -1153,7 +1150,7 @@ class Workflow:
         store_kwargs
             Keyword arguments to pass to the store's `write_empty_workflow` method.
         """
-        template = cls.app.WorkflowTemplate(
+        template = cls._app.WorkflowTemplate(
             template_name,
             tasks=tasks or [],
             loops=loops or [],
@@ -1189,7 +1186,7 @@ class Workflow:
 
         # create and insert a new WorkflowTask:
         self.tasks.add_object(
-            self.app.WorkflowTask.new_empty_task(self, task_c, new_index),
+            self._app.WorkflowTask.new_empty_task(self, task_c, new_index),
             index=new_index,
         )
 
@@ -1202,7 +1199,7 @@ class Workflow:
         # update in-memory workflow template components:
         temp_comps = cast(
             "_TemplateComponents",
-            self.app.template_components_from_json_like(temp_comps_js),
+            self._app.template_components_from_json_like(temp_comps_js),
         )
         for comp_type, comps in temp_comps.items():
             ol = self.__template_components[comp_type]
@@ -1270,7 +1267,7 @@ class Workflow:
         iter_loop_idx = cache.get_iter_loop_indices(iter_IDs)
 
         # create and insert a new WorkflowLoop:
-        new_loop = self.app.WorkflowLoop.new_empty_loop(
+        new_loop = self._app.WorkflowLoop.new_empty_loop(
             index=new_index,
             workflow=self,
             template=loop_c,
@@ -1355,7 +1352,7 @@ class Workflow:
         if self._template_components is None:
             with self._store.cached_load():
                 tc_js = self._store.get_template_components()
-            self._template_components = self.app.template_components_from_json_like(tc_js)
+            self._template_components = self._app.template_components_from_json_like(tc_js)
         return self._template_components
 
     @property
@@ -1372,7 +1369,7 @@ class Workflow:
                 for task in cast("list[dict]", temp_js["tasks"]):
                     task.pop("id_", None)
 
-                template = self.app.WorkflowTemplate.from_json_like(
+                template = self._app.WorkflowTemplate.from_json_like(
                     temp_js, cast(dict, self.template_components)
                 )
                 template.workflow = self
@@ -1385,8 +1382,8 @@ class Workflow:
         if self._tasks is None:
             with self._store.cached_load():
                 all_tasks: Iterable[StoreTask] = self._store.get_tasks()
-                self._tasks = self.app.WorkflowTaskList(
-                    self.app.WorkflowTask(
+                self._tasks = self._app.WorkflowTaskList(
+                    self._app.WorkflowTask(
                         workflow=self,
                         template=self.template.tasks[i.index],
                         index=i.index,
@@ -1401,8 +1398,8 @@ class Workflow:
     def loops(self) -> WorkflowLoopList:
         if self._loops is None:
             with self._store.cached_load():
-                self._loops = self.app.WorkflowLoopList(
-                    self.app.WorkflowLoop(
+                self._loops = self._app.WorkflowLoopList(
+                    self._app.WorkflowLoop(
                         index=idx,
                         workflow=self,
                         template=self.template.loops[idx],
@@ -1419,11 +1416,11 @@ class Workflow:
     @property
     def submissions(self) -> list[Submission]:
         if self._submissions is None:
-            self.app.persistence_logger.debug("loading workflow submissions")
+            self._app.persistence_logger.debug("loading workflow submissions")
             with self._store.cached_load():
                 subs: list[Submission] = []
                 for idx, sub_dat in self._store.get_submissions().items():
-                    sub = self.app.Submission.from_json_like(
+                    sub = self._app.Submission.from_json_like(
                         {"index": idx, **cast(dict, sub_dat)}
                     )
                     sub.workflow = self
@@ -1574,7 +1571,7 @@ class Workflow:
     ) -> list[ElementActionRun] | ElementActionRun:
         """Return element action run objects from a list of IDs."""
         id_lst = [ids] if isinstance(ids, int) else list(ids)
-        self.app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
+        self._app.persistence_logger.debug(f"get_EARs_from_IDs: id_lst={id_lst!r}")
 
         store_EARs = self.get_store_EARs(id_lst)
         store_iters = self.get_store_element_iterations(
@@ -1644,14 +1641,14 @@ class Workflow:
             yield
         else:
             try:
-                self.app.persistence_logger.info(
+                self._app.persistence_logger.info(
                     f"entering batch update (is_workflow_creation={is_workflow_creation!r})"
                 )
                 self._in_batch_mode = True
                 yield
 
             except Exception as err:
-                self.app.persistence_logger.error("batch update exception!")
+                self._app.persistence_logger.error("batch update exception!")
                 self._in_batch_mode = False
                 self._store._pending.reset()
 
@@ -1695,7 +1692,7 @@ class Workflow:
                 if is_workflow_creation:
                     self._store.remove_replaced_dir()
 
-                self.app.persistence_logger.info("exiting batch update")
+                self._app.persistence_logger.info("exiting batch update")
                 self._in_batch_mode = False
 
     @classmethod
@@ -1709,11 +1706,11 @@ class Workflow:
 
         all_replaced: list[str] = []
 
-        @cls.app.perm_error_retry()
+        @cls._app.perm_error_retry()
         def _temp_rename(path: str, fs: AbstractFileSystem) -> str:
             temp_ext = "".join(random.choices(string.ascii_letters, k=10))
             replaced = str(Path(f"{path}.{temp_ext}").as_posix())
-            cls.app.persistence_logger.debug(
+            cls._app.persistence_logger.debug(
                 f"temporary_rename: _temp_rename: {path!r} --> {replaced!r}."
             )
             all_replaced.append(replaced)
@@ -1724,9 +1721,9 @@ class Workflow:
                 fs.rename(path, replaced)
             return replaced
 
-        @cls.app.perm_error_retry()
+        @cls._app.perm_error_retry()
         def _remove_path(path: str, fs: AbstractFileSystem) -> None:
-            cls.app.persistence_logger.debug(f"temporary_rename: _remove_path: {path!r}.")
+            cls._app.persistence_logger.debug(f"temporary_rename: _remove_path: {path!r}.")
             while fs.exists(path):
                 fs.rm(path, recursive=True)
                 time.sleep(0.5)
@@ -1778,9 +1775,9 @@ class Workflow:
 
         replaced_wk = None
         if fs.exists(wk_path):
-            cls.app.logger.debug("workflow path exists")
+            cls._app.logger.debug("workflow path exists")
             if overwrite:
-                cls.app.logger.debug("renaming existing workflow path")
+                cls._app.logger.debug("renaming existing workflow path")
                 replaced_wk = cls.temporary_rename(wk_path, fs)
             else:
                 raise ValueError(
@@ -1803,7 +1800,7 @@ class Workflow:
         store_kwargs = store_kwargs if store_kwargs else template.store_kwargs
         store_cls = store_cls_from_str(store)
         store_cls.write_empty_workflow(
-            app=cls.app,
+            app=cls._app,
             template_js=template_js,
             template_components_js=template_sh or {},
             wk_path=wk_path,
@@ -1811,7 +1808,7 @@ class Workflow:
             name=name,
             replaced_wk=replaced_wk,
             creation_info={
-                "app_info": cls.app.get_info(),
+                "app_info": cls._app.get_info(),
                 "create_time": ts_utc.strftime(ts_fmt),
                 "id": str(uuid4()),
             },
@@ -2012,7 +2009,7 @@ class Workflow:
             list.
 
         """
-        names = self.app.Task.get_task_unique_names(self.template.tasks)
+        names = self._app.Task.get_task_unique_names(self.template.tasks)
         if map_to_insert_ID:
             insert_IDs = (i.insert_ID for i in self.template.tasks)
             return dict(zip(names, insert_IDs))
@@ -2022,7 +2019,7 @@ class Workflow:
     def _get_new_task_unique_name(self, new_task: Task, new_index: int) -> str:
         task_templates = list(self.template.tasks)
         task_templates.insert(new_index, new_task)
-        uniq_names = self.app.Task.get_task_unique_names(task_templates)
+        uniq_names = self._app.Task.get_task_unique_names(task_templates)
 
         return uniq_names[new_index]
 
@@ -2125,7 +2122,7 @@ class Workflow:
         idx_lst: list[int] | None = None,
     ) -> list[Element]:
         return [
-            self.app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
+            self._app.Element(task=task, **{k: v for k, v in i.items() if k != "task_ID"})
             for i in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
@@ -2136,7 +2133,7 @@ class Workflow:
 
     def set_EAR_start(self, EAR_ID: int) -> None:
         """Set the start time on an EAR."""
-        self.app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
+        self._app.logger.debug(f"Setting start for EAR ID {EAR_ID!r}")
         with self._store.cached_load(), self.batch_update():
             self._store.set_EAR_start(EAR_ID)
 
@@ -2153,7 +2150,7 @@ class Workflow:
         skipped. Also save any generated input/output files.
 
         """
-        self.app.logger.debug(
+        self._app.logger.debug(
             f"Setting end for EAR ID {EAR_ID!r} with exit code {exit_code!r}."
         )
         with self._store.cached_load():
@@ -2166,7 +2163,7 @@ class Workflow:
 
                 for IFG_i in EAR.action.input_file_generators:
                     inp_file = IFG_i.input_file
-                    self.app.logger.debug(
+                    self._app.logger.debug(
                         f"Saving EAR input file: {inp_file.label!r} for EAR ID "
                         f"{EAR_ID!r}."
                     )
@@ -2188,7 +2185,7 @@ class Workflow:
 
                 # Save action-level files: (TODO: refactor with below for OFPs)
                 for save_file_j in EAR.action.save_files:
-                    self.app.logger.debug(
+                    self._app.logger.debug(
                         f"Saving file: {save_file_j.label!r} for EAR ID " f"{EAR_ID!r}."
                     )
                     # We might be saving a file that is not a defined
@@ -2197,7 +2194,7 @@ class Workflow:
                     param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                     file_paths = save_file_j.value()
-                    self.app.logger.debug(f"Saving output file paths: {file_paths!r}")
+                    self._app.logger.debug(f"Saving output file paths: {file_paths!r}")
                     for path_i in (
                         file_paths if isinstance(file_paths, list) else [file_paths]
                     ):
@@ -2211,7 +2208,7 @@ class Workflow:
 
                 for OFP_i in EAR.action.output_file_parsers:
                     for save_file_j in OFP_i._save_files:
-                        self.app.logger.debug(
+                        self._app.logger.debug(
                             f"Saving EAR output file: {save_file_j.label!r} for EAR ID "
                             f"{EAR_ID!r}."
                         )
@@ -2221,7 +2218,7 @@ class Workflow:
                         param_id_j = EAR.data_idx.get(f"output_files.{save_file_j.label}")
 
                         file_paths = save_file_j.value()
-                        self.app.logger.debug(
+                        self._app.logger.debug(
                             f"Saving EAR output file paths: {file_paths!r}"
                         )
                         for path_i in (
@@ -2238,7 +2235,7 @@ class Workflow:
                 if not success:
                     for EAR_dep_ID in EAR.get_dependent_EARs(as_objects=False):
                         # TODO: this needs to be recursive?
-                        self.app.logger.debug(
+                        self._app.logger.debug(
                             f"Setting EAR ID {EAR_dep_ID!r} to skip because it depends on"
                             f" EAR ID {EAR_ID!r}, which exited with a non-zero exit code:"
                             f" {exit_code!r}."
@@ -2575,7 +2572,7 @@ class Workflow:
 
     def __wait_for_scheduled_jobscripts(self, jobscripts: list[Jobscript]):
         """Wait for the passed scheduled jobscripts to finish."""
-        schedulers = self.app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
+        schedulers = self._app.Submission.get_unique_schedulers_of_jobscripts(jobscripts)
         threads: list[Thread] = []
         for js_indices, sched in schedulers.items():
             jobscripts_gen = (
@@ -2788,7 +2785,7 @@ class Workflow:
     ) -> Submission | None:
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
-        sub_obj: Submission = self.app.Submission(
+        sub_obj: Submission = self._app.Submission(
             index=new_idx,
             workflow=self,
             jobscripts=self.resolve_jobscripts(tasks),
@@ -2826,7 +2823,7 @@ class Workflow:
                 js[js_idx]["dependencies"] = js_deps[js_idx]
 
         js = merge_jobscripts_across_tasks(js)
-        js_objs = [self.app.Jobscript(**i) for i in jobscripts_to_list(js)]
+        js_objs = [self._app.Jobscript(**i) for i in jobscripts_to_list(js)]
 
         return js_objs
 
@@ -2959,15 +2956,15 @@ class Workflow:
     ) -> None:
         """Write run-time commands for a given EAR."""
         with self._store.cached_load():
-            self.app.persistence_logger.debug("Workflow.write_commands")
-            self.app.persistence_logger.debug(
+            self._app.persistence_logger.debug("Workflow.write_commands")
+            self._app.persistence_logger.debug(
                 f"loading jobscript (submission index: {submission_idx}; jobscript "
                 f"index: {jobscript_idx})"
             )
             jobscript = self.submissions[submission_idx].jobscripts[jobscript_idx]
-            self.app.persistence_logger.debug(f"loading run {EAR_ID!r}")
+            self._app.persistence_logger.debug(f"loading run {EAR_ID!r}")
             EAR = self.get_EARs_from_IDs(EAR_ID)
-            self.app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
+            self._app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
             write_commands = True
             try:
                 commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
@@ -2976,7 +2973,7 @@ class Workflow:
                 write_commands = False
 
             if write_commands:
-                self.app.persistence_logger.debug("need to write commands")
+                self._app.persistence_logger.debug("need to write commands")
                 for cmd_idx, var_dat in shell_vars.items():
                     for param_name, shell_var_name, st_typ in var_dat:
                         commands += jobscript.shell.format_save_parameter(
@@ -2999,7 +2996,7 @@ class Workflow:
                             id_lst=jobscript.all_EAR_IDs
                         )
                     )
-                    self.app.persistence_logger.debug(f"final_runs: {final_runs!r}")
+                    self._app.persistence_logger.debug(f"final_runs: {final_runs!r}")
                     for loop_name, run_IDs in final_runs.items():
                         if EAR.id_ in run_IDs:
                             loop_cmd = jobscript.shell.format_loop_check(
@@ -3012,7 +3009,7 @@ class Workflow:
                 # still need to write the file, the jobscript is expecting it.
                 commands = ""
 
-            self.app.persistence_logger.debug(f"commands to write: {commands!r}")
+            self._app.persistence_logger.debug(f"commands to write: {commands!r}")
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:
                 # (assuming we have CD'd correctly to the element run directory)
@@ -3034,8 +3031,8 @@ class Workflow:
         value: Any,
         EAR_ID: int,
     ):
-        self.app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
-        self.app.logger.debug(f"save parameter {name!r} value is {value!r}.")
+        self._app.logger.info(f"save parameter {name!r} for EAR_ID {EAR_ID}.")
+        self._app.logger.debug(f"save parameter {name!r} value is {value!r}.")
         with self._store.cached_load(), self.batch_update():
             EAR = self.get_EARs_from_IDs(EAR_ID)
             param_id = EAR.data_idx[name]
@@ -3075,7 +3072,7 @@ class Workflow:
 
         if isinstance(input_source.task_ref, str):
             if input_source.task_ref == new_task_name:
-                if input_source.task_source_type is self.app.TaskSourceType.OUTPUT:
+                if input_source.task_source_type is self._app.TaskSourceType.OUTPUT:
                     raise InvalidInputSourceTaskReference(
                         f"Input source {input_source.to_string()!r} cannot refer to the "
                         f"outputs of its own task!"
@@ -3088,7 +3085,7 @@ class Workflow:
                     )
                     # TODO: add an InputSource source_type setter to reset
                     # task_ref/source_type?
-                    input_source.source_type = self.app.InputSourceType.LOCAL
+                    input_source.source_type = self._app.InputSourceType.LOCAL
                     input_source.task_ref = None
                     input_source.task_source_type = None
             else:
@@ -3102,7 +3099,7 @@ class Workflow:
                     )
 
     def get_all_submission_run_IDs(self) -> Iterable[int]:
-        self.app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
+        self._app.persistence_logger.debug("Workflow.get_all_submission_run_IDs")
         for sub in self.submissions:
             yield from sub.all_EAR_IDs
 
@@ -3120,7 +3117,7 @@ class Workflow:
             for iter_idx, iter_dat in loop_map[loop_name][elem_id].items():
                 if iter_idx > elem_iter.index:
                     to_skip.extend(i.id_ for i in iter_dat)
-            self.app.logger.info(
+            self._app.logger.info(
                 f"Loop {loop_name!r} termination condition met for run_ID {run_ID!r}."
             )
             for run_ID in to_skip:
@@ -3130,7 +3127,7 @@ class Workflow:
         self, id_lst: Iterable[int] | None = None
     ) -> Mapping[str, Mapping[int, Mapping[int, list[_IterationData]]]]:
         # TODO: test this works across multiple jobscripts
-        self.app.persistence_logger.debug("Workflow.get_loop_map")
+        self._app.persistence_logger.debug("Workflow.get_loop_map")
         if id_lst is None:
             id_lst = self.get_all_submission_run_IDs()
         loop_map: dict[str, dict[int, dict[int, list[_IterationData]]]] = defaultdict(
@@ -3155,7 +3152,7 @@ class Workflow:
         identify which commands file to append a loop-termination check to.
 
         """
-        self.app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
+        self._app.persistence_logger.debug("Workflow.get_iteration_final_run_IDs")
 
         loop_map = self.get_loop_map(id_lst)
 

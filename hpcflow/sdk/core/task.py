@@ -8,6 +8,7 @@ from typing import cast, overload, TYPE_CHECKING
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.object_list import AppDataList
 from hpcflow.sdk.log import TimeIt
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.element import ElementGroup
 from hpcflow.sdk.core.errors import (
@@ -45,7 +46,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Literal, TypeVar, TypedDict
     from typing_extensions import Self, TypeAlias
-    from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from .actions import Action
     from .command_files import InputFile
@@ -134,7 +134,6 @@ class InputStatus:
 class ElementSet(JSONLike):
     """Class to represent a parametrisation of a new set of elements."""
 
-    app: ClassVar[BaseApp]
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="inputs",
@@ -214,7 +213,7 @@ class ElementSet(JSONLike):
         self.input_files = input_files or []
         self.repeats = self.__decode_repeats(repeats or [])
         self.groups = groups or []
-        self.resources = self.app.ResourceList.normalise(resources)
+        self.resources = self._app.ResourceList.normalise(resources)
         self.sequences = sequences or []
         self.input_sources = input_sources or {}
         self.nesting_order = nesting_order or {}
@@ -241,8 +240,8 @@ class ElementSet(JSONLike):
         # should only happen on creation of the element set, not re-initialisation from a
         # persistent workflow):
         if self.environments and self.merge_envs:
-            envs_res = self.app.ResourceList(
-                [self.app.ResourceSpec(scope="any", environments=self.environments)]
+            envs_res = self._app.ResourceList(
+                [self._app.ResourceSpec(scope="any", environments=self.environments)]
             )
             self.resources.merge_other(envs_res)
             self.merge_envs = False
@@ -322,7 +321,7 @@ class ElementSet(JSONLike):
             for k, v in inputs.items():
                 param, label = split_param_label(k)
                 assert param is not None
-                _inputs.append(cls.app.InputValue(parameter=param, label=label, value=v))
+                _inputs.append(cls._app.InputValue(parameter=param, label=label, value=v))
             return _inputs
         else:
             return inputs
@@ -634,8 +633,7 @@ class Task(JSONLike):
         A list of `InputValue` objects.
     """
 
-    app: ClassVar[BaseApp]
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="schema",
             class_name="TaskSchema",
@@ -714,18 +712,18 @@ class Task(JSONLike):
             if isinstance(i, str):
                 try:
                     _schemas.append(
-                        self.app.TaskSchema.get_by_key(i)
+                        self._app.TaskSchema.get_by_key(i)
                     )  # TODO: document that we need to use the actual app instance here?
                     continue
                 except KeyError:
                     raise KeyError(f"TaskSchema {i!r} not found.")
-            elif not isinstance(i, self.app.TaskSchema):
+            elif not isinstance(i, self._app.TaskSchema):
                 raise TypeError(f"Not a TaskSchema object: {i!r}")
             _schemas.append(i)
 
         self._schemas = _schemas
 
-        self._element_sets = self.app.ElementSet.ensure_element_sets(
+        self._element_sets = self._app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -805,8 +803,8 @@ class Task(JSONLike):
                         f"There is no environment preset named {es.env_preset!r} "
                         f"defined in the task schema {self.schema.name}."
                     )
-                envs_res = self.app.ResourceList(
-                    [self.app.ResourceSpec(scope="any", environments=env_specs)]
+                envs_res = self._app.ResourceList(
+                    [self._app.ResourceSpec(scope="any", environments=env_specs)]
                 )
                 es.resources.merge_other(envs_res)
 
@@ -1147,7 +1145,7 @@ class Task(JSONLike):
         for inputs_path, inp_status in self.get_input_statuses(element_set).items():
             # local specification takes precedence:
             if inputs_path in element_set.get_locally_defined_inputs():
-                available.setdefault(inputs_path, []).append(self.app.InputSource.local())
+                available.setdefault(inputs_path, []).append(self._app.InputSource.local())
 
             # search for task sources:
             for src_wk_task_i in source_tasks:
@@ -1212,7 +1210,7 @@ class Task(JSONLike):
                             continue
 
                     available.setdefault(avail_src_path, []).append(
-                        self.app.InputSource.task(
+                        self._app.InputSource.task(
                             task_ref=src_task_i.insert_ID,
                             task_source_type=in_or_out,
                             element_iters=src_elem_iters,
@@ -1221,7 +1219,7 @@ class Task(JSONLike):
 
             if inp_status.has_default:
                 available.setdefault(inputs_path, []).append(
-                    self.app.InputSource.default()
+                    self._app.InputSource.default()
                 )
         return available
 
@@ -1459,11 +1457,8 @@ class Task(JSONLike):
         return lookup
 
 
-class WorkflowTask:
+class WorkflowTask(AppAware):
     """Class to represent a Task that is bound to a Workflow."""
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,
@@ -1673,7 +1668,7 @@ class WorkflowTask:
             "task_insert_ID": self.insert_ID,
             "element_set_idx": element_set_idx,
         }
-        loc_inp_src = self.app.InputSource.local()
+        loc_inp_src = self._app.InputSource.local()
         for res_i in element_set.resources:
             key, dat_ref, _ = res_i.make_persistent(self.workflow, param_src)
             input_data_idx[key] = list(dat_ref)
@@ -1749,7 +1744,7 @@ class WorkflowTask:
                     if grp_idx is None:
                         continue
 
-                    if self.app.InputSource.local() in sources_i:
+                    if self._app.InputSource.local() in sources_i:
                         # add task source to existing local source:
                         input_data_idx[key] += grp_idx
                         source_idx[key] += [inp_src_idx] * len(grp_idx)
@@ -1767,7 +1762,7 @@ class WorkflowTask:
                     assert def_val is not None
                     assert def_val._value_group_idx is not None
                     grp_idx_ = def_val._value_group_idx
-                    if self.app.InputSource.local() in sources_i:
+                    if self._app.InputSource.local() in sources_i:
                         input_data_idx[key].append(grp_idx_)
                         source_idx[key].append(inp_src_idx)
                     else:
@@ -2230,7 +2225,7 @@ class WorkflowTask:
                     initialised.append(iter_i.id_)
                 except UnsetParameterDataError:
                     # raised by `Action.test_rules`; cannot yet initialise EARs
-                    self.app.logger.debug(
+                    self._app.logger.debug(
                         "UnsetParameterDataError raised: cannot yet initialise runs."
                     )
                     pass
@@ -2260,7 +2255,7 @@ class WorkflowTask:
             # it previously failed)
             act_valid, cmds_idx = action.test_rules(element_iter=element_iter)
             if act_valid:
-                self.app.logger.info(f"All action rules evaluated to true {log_common}")
+                self._app.logger.info(f"All action rules evaluated to true {log_common}")
                 EAR_ID = self.workflow.num_EARs + count
                 param_source: ParamSource = {
                     "type": "EAR_output",
@@ -2289,7 +2284,7 @@ class WorkflowTask:
                 action_runs[act_idx, EAR_ID] = run_0
                 count += 1
             else:
-                self.app.logger.info(f"Some action rules evaluated to false {log_common}")
+                self._app.logger.info(f"Some action rules evaluated to false {log_common}")
 
         # `generate_data_index` can modify data index for previous actions, so only assign
         # this at the end:
@@ -2441,7 +2436,7 @@ class WorkflowTask:
         ) = None,
         return_indices=False,
     ) -> list[int] | None:
-        real_propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
+        real_propagate_to = self._app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
@@ -2554,7 +2549,7 @@ class WorkflowTask:
             inputs = inputs or b_inputs
             resources = resources or b_resources
 
-        element_sets = self.app.ElementSet.ensure_element_sets(
+        element_sets = self._app.ElementSet.ensure_element_sets(
             inputs=inputs,
             input_files=input_files,
             sequences=sequences,
@@ -2598,7 +2593,7 @@ class WorkflowTask:
             ]
 
             # note we must pass `resources` as a list since it is already persistent:
-            elem_set_i = self.app.ElementSet(
+            elem_set_i = self._app.ElementSet(
                 inputs=elem_prop.element_set.inputs,
                 input_files=elem_prop.element_set.input_files,
                 sequences=elem_prop.element_set.sequences,
@@ -2761,16 +2756,16 @@ class WorkflowTask:
 
     @property
     def inputs(self) -> TaskInputParameters:
-        return self.app.TaskInputParameters(self)
+        return self._app.TaskInputParameters(self)
 
     @property
     def outputs(self) -> TaskOutputParameters:
-        return self.app.TaskOutputParameters(self)
+        return self._app.TaskOutputParameters(self)
 
     def get(
         self, path: str, *, raise_on_missing=False, default: Any | None = None
     ) -> Parameters:
-        return self.app.Parameters(
+        return self._app.Parameters(
             self,
             path=path,
             return_element_parameters=False,
@@ -3274,10 +3269,7 @@ class Elements:
 
 @dataclass
 @hydrate
-class Parameters:
-    _app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "_app"
-
+class Parameters(AppAware):
     task: WorkflowTask
     path: str
     return_element_parameters: bool
@@ -3350,11 +3342,8 @@ class Parameters:
 
 @dataclass
 @hydrate
-class TaskInputParameters:
+class TaskInputParameters(AppAware):
     """For retrieving schema input parameters across all elements."""
-
-    _app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
     __input_names: list[str] | None = field(default=None, init=False, compare=False)
@@ -3382,11 +3371,8 @@ class TaskInputParameters:
 
 @dataclass
 @hydrate
-class TaskOutputParameters:
+class TaskOutputParameters(AppAware):
     """For retrieving schema output parameters across all elements."""
-
-    _app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "_app"
 
     task: WorkflowTask
     __output_names: list[str] | None = field(default=None, init=False, compare=False)
@@ -3414,12 +3400,9 @@ class TaskOutputParameters:
 
 @dataclass
 @hydrate
-class ElementPropagation:
+class ElementPropagation(AppAware):
     """Class to represent how a newly added element set should propagate to a given
     downstream task."""
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     task: WorkflowTask
     nesting_order: dict[str, float] | None = None
@@ -3457,7 +3440,7 @@ class ElementPropagation:
             k: (
                 v
                 if isinstance(v, ElementPropagation)
-                else cls.app.ElementPropagation(
+                else cls._app.ElementPropagation(
                     task=workflow.tasks.get(unique_name=k),
                     **v,
                 )

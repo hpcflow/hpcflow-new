@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from .parameters import SchemaInput, SchemaOutput, SchemaParameter
     from .task import TaskTemplate
     from .workflow import Workflow
-    from ..app import BaseApp
     from ..typing import ParamSource
 
 
@@ -81,7 +80,6 @@ class TaskSchema(JSONLike):
     """
 
     _validation_schema: ClassVar[str] = "task_schema_spec_schema.yaml"
-    app: ClassVar[BaseApp]
     _hash_value = None
     _validate_actions = True
 
@@ -155,7 +153,7 @@ class TaskSchema(JSONLike):
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(
         #         version=version,
-        #         app_data_obj_list=self.app.task_schemas
+        #         app_data_obj_list=self._app.task_schemas
         #         if app.is_data_files_loaded
         #         else [],
         #     )
@@ -166,12 +164,12 @@ class TaskSchema(JSONLike):
     @classmethod
     def __parameters(cls) -> ParametersList:
         # Workaround for a dumb mypy bug
-        return cls.app.parameters
+        return cls._app.parameters
 
     @classmethod
     def __task_schemas(cls) -> TaskSchemasList:
         # Workaround for a dumb mypy bug
-        return cls.app.task_schemas
+        return cls._app.task_schemas
 
     def _get_info(self, include: Sequence[str] = ()):
         def _get_param_type_str(param: Parameter) -> str:
@@ -184,7 +182,7 @@ class TaskSchema(JSONLike):
             elif param._value_class:
                 param_cls = param._value_class
                 cls_url = (
-                    f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                    f"{self._app.docs_url}/reference/_autosummary/{param_cls.__module__}."
                     f"{param_cls.__name__}"
                 )
                 type_fmt = f"[link={cls_url}]{param_cls.__name__}[/link]"
@@ -194,7 +192,7 @@ class TaskSchema(JSONLike):
             param_typ_fmt = param.typ
             if param.typ in self.__parameters().list_attrs():
                 param_url = (
-                    f"{self.app.docs_url}/reference/template_components/"
+                    f"{self._app.docs_url}/reference/template_components/"
                     f"parameters.html#{param.url_slug}"
                 )
                 param_typ_fmt = f"[link={param_url}]{param_typ_fmt}[/link]"
@@ -233,7 +231,7 @@ class TaskSchema(JSONLike):
             for inp_idx, inp in enumerate(self.inputs):
                 def_str = "-"
                 if not inp.multiple:
-                    if isinstance(inp.default_value, self.app.InputValue):
+                    if isinstance(inp.default_value, self._app.InputValue):
                         if inp.default_value.value is None:
                             def_str = "None"
                         else:
@@ -344,7 +342,7 @@ class TaskSchema(JSONLike):
             param_typ_fmt = param.typ
             if param.typ in param_types:
                 param_url = (
-                    f"{self.app.docs_url}/reference/template_components/"
+                    f"{self._app.docs_url}/reference/template_components/"
                     f"parameters.html#{param.url_slug}"
                 )
                 param_typ_fmt = f'<a href="{param_url}">{param_typ_fmt}</a>'
@@ -360,7 +358,7 @@ class TaskSchema(JSONLike):
             elif param._value_class:
                 param_cls = param._value_class
                 cls_url = (
-                    f"{self.app.docs_url}/reference/_autosummary/{param_cls.__module__}."
+                    f"{self._app.docs_url}/reference/_autosummary/{param_cls.__module__}."
                     f"{param_cls.__name__}"
                 )
                 type_fmt = f'<a href="{cls_url}">{param_cls.__name__}</a>'
@@ -389,7 +387,7 @@ class TaskSchema(JSONLike):
         for inp in self.inputs:
             def_str = "-"
             if not inp.multiple:
-                if isinstance(inp.default_value, self.app.InputValue):
+                if isinstance(inp.default_value, self._app.InputValue):
                     if inp.default_value.value is None:
                         def_str = "None"
                     else:
@@ -629,13 +627,13 @@ class TaskSchema(JSONLike):
     @classmethod
     def __coerce_objective(cls, objective: TaskObjective | str) -> TaskObjective:
         if isinstance(objective, str):
-            return cls.app.TaskObjective(objective)
+            return cls._app.TaskObjective(objective)
         else:
             return objective
 
     @classmethod
     def __coerce_one_input(cls, i: Parameter | SchemaInput) -> SchemaInput:
-        return cls.app.SchemaInput(i) if isinstance(i, Parameter) else i
+        return cls._app.SchemaInput(i) if isinstance(i, Parameter) else i
 
     @classmethod
     def __coerce_inputs(
@@ -648,8 +646,8 @@ class TaskSchema(JSONLike):
     def __coerce_one_output(cls, o: Parameter | SchemaParameter) -> SchemaOutput:
         return (
             o
-            if isinstance(o, cls.app.SchemaOutput)
-            else cls.app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
+            if isinstance(o, cls._app.SchemaOutput)
+            else cls._app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
         )
 
     @classmethod

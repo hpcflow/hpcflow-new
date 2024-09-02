@@ -826,7 +826,7 @@ class PersistentStore(
         path: Path | str,
         fs: AbstractFileSystem | None = None,
     ):
-        self.app = app
+        self._app = app
         self.__workflow = workflow
         self.path = str(path)
         self.fs = fs
@@ -927,7 +927,7 @@ class PersistentStore(
 
     @property
     def logger(self) -> Logger:
-        return self.app.persistence_logger
+        return self._app.persistence_logger
 
     @property
     def ts_fmt(self) -> str:
@@ -1099,7 +1099,7 @@ class PersistentStore(
         fs = self.fs
         assert fs is not None
 
-        @self.app.perm_error_retry()
+        @self._app.perm_error_retry()
         def _remove_path(_path: str) -> None:
             self.logger.debug(f"_remove_path: path={_path}")
             while fs.exists(_path):
@@ -1117,7 +1117,7 @@ class PersistentStore(
         fs = self.fs
         assert fs is not None
 
-        @self.app.perm_error_retry()
+        @self._app.perm_error_retry()
         def _rename_path(_replaced: str, _original: str) -> None:
             self.logger.debug(f"_rename_path: {_replaced!r} --> {_original!r}.")
             try:
@@ -1378,7 +1378,7 @@ class PersistentStore(
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
         dt = current_timestamp()
-        ss_js = self.app.RunDirAppFiles.take_snapshot()
+        ss_js = self._app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
         self._pending.set_EAR_starts[EAR_ID] = (dt, ss_js, run_hostname)
         if save:
@@ -1390,7 +1390,7 @@ class PersistentStore(
     ) -> datetime:
         # TODO: save output files
         dt = current_timestamp()
-        ss_js = self.app.RunDirAppFiles.take_snapshot()
+        ss_js = self._app.RunDirAppFiles.take_snapshot()
         self._pending.set_EAR_ends[EAR_ID] = (dt, ss_js, exit_code, success)
         if save:
             self.save()
@@ -2304,7 +2304,7 @@ class PersistentStore(
         fs = self.fs
         assert fs is not None
 
-        @self.app.perm_error_retry()
+        @self._app.perm_error_retry()
         def _delete_no_confirm() -> None:
             self.logger.debug(f"_delete_no_confirm: {self.path!r}.")
             fs.rm(self.path, recursive=True)

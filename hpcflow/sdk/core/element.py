@@ -8,6 +8,7 @@ from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerErro
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.typing import hydrate
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     dict_values_process_flat,
@@ -30,10 +31,7 @@ if TYPE_CHECKING:
     from .workflow import Workflow
 
 
-class _ElementPrefixedParameter:
-    _app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "_app"
-
+class _ElementPrefixedParameter(AppAware):
     def __init__(
         self,
         prefix: str,
@@ -196,8 +194,6 @@ class ElementOutputFiles(_ElementPrefixedParameter):
 class ElementResources(JSONLike):
     # TODO: how to specify e.g. high-memory requirement?
 
-    app: ClassVar[BaseApp]
-
     scratch: str | None = None
     parallel_mode: ParallelMode | None = None
     num_cores: int | None = None
@@ -301,14 +297,14 @@ class ElementResources(JSONLike):
 
     @classmethod
     def get_default_shell(cls) -> str:
-        return cls.app.config.default_shell
+        return cls._app.config.default_shell
 
     @classmethod
     def get_default_scheduler(cls, os_name, shell_name) -> str:
         if os_name == "nt" and "wsl" in shell_name:
             # provide a "*_posix" default scheduler on windows if shell is WSL:
             return "direct_posix"
-        return cls.app.config.default_scheduler
+        return cls._app.config.default_scheduler
 
     def set_defaults(self):
         if self.os_name is None:
@@ -320,13 +316,13 @@ class ElementResources(JSONLike):
 
         # merge defaults shell args from config:
         self.shell_args = {
-            **self.app.config.shells.get(self.shell, {}).get("defaults", {}),
+            **self._app.config.shells.get(self.shell, {}).get("defaults", {}),
             **self.shell_args,
         }
 
         # "direct_posix" scheduler is valid on Windows if using WSL:
         cfg_lookup = f"{self.scheduler}_posix" if "wsl" in self.shell else self.scheduler
-        cfg_sched = copy.deepcopy(self.app.config.schedulers.get(cfg_lookup, {}))
+        cfg_sched = copy.deepcopy(self._app.config.schedulers.get(cfg_lookup, {}))
 
         # merge defaults scheduler args from config:
         cfg_defs = cfg_sched.get("defaults", {})
@@ -340,10 +336,10 @@ class ElementResources(JSONLike):
         supported on this machine (as specified by the app configuration)."""
         if self.os_name != os.name:
             raise UnsupportedOSError(os_name=self.os_name)
-        if self.scheduler not in self.app.config.schedulers:
+        if self.scheduler not in self._app.config.schedulers:
             raise UnsupportedSchedulerError(
                 scheduler=self.scheduler,
-                supported=self.app.config.schedulers,
+                supported=self._app.config.schedulers,
             )
         # might raise `UnsupportedShellError`:
         get_shell(shell_name=self.shell, os_name=self.os_name)
@@ -354,14 +350,11 @@ class ElementResources(JSONLike):
             key = tuple(self.scheduler.split("_"))
         else:
             key = (self.scheduler.lower(), self.os_name.lower())
-        scheduler_cls = self.app.scheduler_lookup[key]
-        scheduler_cls.process_resources(self, self.app.config.schedulers[self.scheduler])
+        scheduler_cls = self._app.scheduler_lookup[key]
+        scheduler_cls.process_resources(self, self._app.config.schedulers[self.scheduler])
 
 
-class ElementIteration:
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
+class ElementIteration(AppAware):
     def __init__(
         self,
         id_: int,
@@ -455,7 +448,7 @@ class ElementIteration:
     def actions(self) -> dict[int, ElementAction]:
         if self._action_objs is None:
             self._action_objs = ao = {
-                act_idx: self.app.ElementAction(self, act_idx, runs)
+                act_idx: self._app.ElementAction(self, act_idx, runs)
                 for act_idx, runs in (self._EARs or {}).items()
             }
             return ao
@@ -470,28 +463,28 @@ class ElementIteration:
     @property
     def inputs(self) -> ElementInputs:
         if not self._inputs:
-            self._inputs = ins = self.app.ElementInputs(element_iteration=self)
+            self._inputs = ins = self._app.ElementInputs(element_iteration=self)
             return ins
         return self._inputs
 
     @property
     def outputs(self) -> ElementOutputs:
         if not self._outputs:
-            self._outputs = outs = self.app.ElementOutputs(element_iteration=self)
+            self._outputs = outs = self._app.ElementOutputs(element_iteration=self)
             return outs
         return self._outputs
 
     @property
     def input_files(self) -> ElementInputFiles:
         if not self._input_files:
-            self._input_files = eif = self.app.ElementInputFiles(element_iteration=self)
+            self._input_files = eif = self._app.ElementInputFiles(element_iteration=self)
             return eif
         return self._input_files
 
     @property
     def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = eof = self.app.ElementOutputFiles(element_iteration=self)
+            self._output_files = eof = self._app.ElementOutputFiles(element_iteration=self)
             return eof
         return self._output_files
 
@@ -1060,11 +1053,11 @@ class ElementIteration:
         if set_defaults:
             # used in e.g. `Rule.test` if testing resource rules on element iterations:
             if "os_name" not in resources:
-                resources["os_name"] = self.app.ElementResources.get_default_os_name()
+                resources["os_name"] = self._app.ElementResources.get_default_os_name()
             if "shell" not in resources:
-                resources["shell"] = self.app.ElementResources.get_default_shell()
+                resources["shell"] = self._app.ElementResources.get_default_shell()
             if "scheduler" not in resources:
-                resources["scheduler"] = self.app.ElementResources.get_default_scheduler(
+                resources["scheduler"] = self._app.ElementResources.get_default_scheduler(
                     resources["os_name"], resources["shell"]
                 )
 
@@ -1073,13 +1066,10 @@ class ElementIteration:
     def get_resources_obj(
         self, action: Action, set_defaults: bool = False
     ) -> ElementResources:
-        return self.app.ElementResources(**self.get_resources(action, set_defaults))
+        return self._app.ElementResources(**self.get_resources(action, set_defaults))
 
 
-class Element:
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
+class Element(AppAware):
     # TODO: use slots
     # TODO:
     #   - add `iterations` property which returns `ElementIteration`
@@ -1176,7 +1166,7 @@ class Element:
         # TODO: fix this
         if self._iteration_objs is None:
             self._iteration_objs = [
-                self.app.ElementIteration(
+                self._app.ElementIteration(
                     element=self,
                     index=idx,
                     **{k: v for k, v in iter_i.items() if k != "element_ID"},
@@ -1234,7 +1224,7 @@ class Element:
             k_s = k.split(".")
 
             if k_s[0] == "inputs":
-                inp_val = self.app.InputValue(
+                inp_val = self._app.InputValue(
                     parameter=k_s[1],
                     path=cast(str, k_s[2:]) or None,
                     value=None,
@@ -1244,8 +1234,8 @@ class Element:
                 inputs.append(inp_val)
 
             elif k_s[0] == "resources":
-                scope = self.app.ActionScope.from_json_like(k_s[1])
-                res = self.app.ResourceSpec(scope=scope)
+                scope = self._app.ActionScope.from_json_like(k_s[1])
+                res = self._app.ResourceSpec(scope=scope)
                 res._value_group_idx = v
                 res._workflow = self.workflow
                 resources.append(res)
@@ -1551,6 +1541,7 @@ class Element:
 @dataclass(repr=False, eq=False)
 @hydrate
 class ElementParameter:
+    # Intended to be subclassed, so public
     app: ClassVar[BaseApp]
     _app_attr: ClassVar[str] = "app"
 
@@ -1593,11 +1584,9 @@ class ElementParameter:
 @dataclass
 @hydrate
 class ElementFilter(JSONLike):
-    _child_objects: ClassVar[
-        tuple[
-            ChildObjectSpec,
-        ]
-    ] = (ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),)
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
+        ChildObjectSpec(name="rules", is_multiple=True, class_name="Rule"),
+    )
 
     rules: list[Rule] = field(default_factory=list)
 

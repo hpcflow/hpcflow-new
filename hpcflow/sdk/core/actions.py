@@ -13,6 +13,7 @@ from typing import cast, final, overload, TypedDict, TYPE_CHECKING
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk.core import ABORT_EXIT_CODE
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
@@ -37,7 +38,6 @@ if TYPE_CHECKING:
     from typing_extensions import NotRequired, Self
     from valida.conditions import ConditionLike  # type: ignore
 
-    from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from ..submission.jobscript import Jobscript
     from .commands import Command
@@ -173,10 +173,7 @@ class EARStatus(_EARStatus, Enum):
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
-class ElementActionRun:
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
+class ElementActionRun(AppAware):
     def __init__(
         self,
         id_: int,
@@ -525,32 +522,32 @@ class ElementActionRun:
     @property
     def inputs(self) -> ElementInputs:
         if not self._inputs:
-            self._inputs = self.app.ElementInputs(element_action_run=self)
+            self._inputs = self._app.ElementInputs(element_action_run=self)
         return self._inputs
 
     @property
     def outputs(self) -> ElementOutputs:
         if not self._outputs:
-            self._outputs = self.app.ElementOutputs(element_action_run=self)
+            self._outputs = self._app.ElementOutputs(element_action_run=self)
         return self._outputs
 
     @property
     @TimeIt.decorator
     def resources(self) -> ElementResources:
         if not self._resources:
-            self._resources = self.app.ElementResources(**self.get_resources())
+            self._resources = self._app.ElementResources(**self.get_resources())
         return self._resources
 
     @property
     def input_files(self) -> ElementInputFiles:
         if not self._input_files:
-            self._input_files = self.app.ElementInputFiles(element_action_run=self)
+            self._input_files = self._app.ElementInputFiles(element_action_run=self)
         return self._input_files
 
     @property
     def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = self.app.ElementOutputFiles(element_action_run=self)
+            self._output_files = self._app.ElementOutputFiles(element_action_run=self)
         return self._output_files
 
     @property
@@ -760,7 +757,7 @@ class ElementActionRun:
         data output formats (HDF5, JSON, etc)."""
         import h5py
 
-        parameters: ParametersList = self.app.parameters
+        parameters: ParametersList = self._app.parameters
 
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
@@ -790,7 +787,7 @@ class ElementActionRun:
                             )
                         else:
                             # Unlike with JSON, we've no fallback so we warn
-                            self.app.logger.warn(
+                            self._app.logger.warn(
                                 "parameter %s could not be saved; serializer not found",
                                 param_name,
                             )
@@ -807,7 +804,7 @@ class ElementActionRun:
             where each tuple contains: (parameter name, shell variable name,
             "stdout"/"stderr").
         """
-        self.app.persistence_logger.debug("EAR.compose_commands")
+        self._app.persistence_logger.debug("EAR.compose_commands")
         env_spec = self.env_spec
 
         for ifg in self.action.input_file_generators:
@@ -845,10 +842,7 @@ class ElementActionRun:
         return commands, shell_vars
 
 
-class ElementAction:
-    app: ClassVar[BaseApp]
-    _app_attr = "app"
-
+class ElementAction(AppAware):
     def __init__(
         self,
         element_iteration: ElementIteration,
@@ -892,7 +886,7 @@ class ElementAction:
     def runs(self) -> list[ElementActionRun]:
         if self._run_objs is None:
             self._run_objs = [
-                self.app.ElementActionRun(
+                self._app.ElementActionRun(
                     element_action=self,
                     index=idx,
                     **{
@@ -920,25 +914,25 @@ class ElementAction:
     @property
     def inputs(self) -> ElementInputs:
         if not self._inputs:
-            self._inputs = self.app.ElementInputs(element_action=self)
+            self._inputs = self._app.ElementInputs(element_action=self)
         return self._inputs
 
     @property
     def outputs(self) -> ElementOutputs:
         if not self._outputs:
-            self._outputs = self.app.ElementOutputs(element_action=self)
+            self._outputs = self._app.ElementOutputs(element_action=self)
         return self._outputs
 
     @property
     def input_files(self) -> ElementInputFiles:
         if not self._input_files:
-            self._input_files = self.app.ElementInputFiles(element_action=self)
+            self._input_files = self._app.ElementInputFiles(element_action=self)
         return self._input_files
 
     @property
     def output_files(self) -> ElementOutputFiles:
         if not self._output_files:
-            self._output_files = self.app.ElementOutputFiles(element_action=self)
+            self._output_files = self._app.ElementOutputFiles(element_action=self)
         return self._output_files
 
     def get_data_idx(self, path: str | None = None, run_idx: int = -1):
@@ -1037,8 +1031,6 @@ class ActionScope(JSONLike):
     filtering process.
     """
 
-    app: ClassVar[BaseApp]
-
     _child_objects = (
         ChildObjectSpec(
             name="typ",
@@ -1050,7 +1042,7 @@ class ActionScope(JSONLike):
 
     def __init__(self, typ: ActionScopeType | str, **kwargs):
         if isinstance(typ, str):
-            self.typ = self.app.ActionScopeType[typ.upper()]
+            self.typ = self._app.ActionScopeType[typ.upper()]
         else:
             self.typ = typ
 
@@ -1136,9 +1128,6 @@ class ActionScope(JSONLike):
 @dataclass()
 @hydrate
 class ActionEnvironment(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="scope",
@@ -1153,7 +1142,7 @@ class ActionEnvironment(JSONLike):
         self, environment: str | dict[str, Any], scope: ActionScope | None = None
     ):
         if scope is None:
-            self.scope = ActionScope.any()
+            self.scope = self._app.ActionScope.any()
         else:
             self.scope = scope
 
@@ -1173,8 +1162,6 @@ class ActionRule(JSONLike):
     """Class to represent a rule/condition that must be True if an action is to be
     included."""
 
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="rule", class_name="Rule"),
     )
@@ -1190,7 +1177,7 @@ class ActionRule(JSONLike):
         doc: str | None = None,
     ):
         if rule is None:
-            self.rule = self.app.Rule(
+            self.rule = self._app.Rule(
                 check_exists=check_exists,
                 check_missing=check_missing,
                 path=path,
@@ -1223,11 +1210,11 @@ class ActionRule(JSONLike):
 
     @classmethod
     def check_exists(cls, check_exists) -> ActionRule:
-        return cls(rule=cls.app.Rule(check_exists=check_exists))
+        return cls(rule=cls._app.Rule(check_exists=check_exists))
 
     @classmethod
     def check_missing(cls, check_missing) -> ActionRule:
-        return cls(rule=cls.app.Rule(check_missing=check_missing))
+        return cls(rule=cls._app.Rule(check_missing=check_missing))
 
 
 class ScriptData(TypedDict, total=False):
@@ -1238,8 +1225,6 @@ class ScriptData(TypedDict, total=False):
 class Action(JSONLike):
     """"""
 
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="commands",
@@ -1338,7 +1323,7 @@ class Action(JSONLike):
         self.script_exe = script_exe.lower() if script_exe else None
         self.script_pass_env_spec = script_pass_env_spec
         self.environments = environments or [
-            self.app.ActionEnvironment(environment="null_env")
+            self._app.ActionEnvironment(environment="null_env")
         ]
         self.abortable = abortable
         self.input_file_generators = input_file_generators or []
@@ -1663,7 +1648,7 @@ class Action(JSONLike):
         return self.environments[0].environment
 
     def get_environment(self) -> Environment:
-        return self.app.envs.get(**self.get_environment_spec())
+        return self._app.envs.get(**self.get_environment_spec())
 
     @staticmethod
     def is_snippet_script(script: str | None) -> bool:
@@ -1719,7 +1704,7 @@ class Action(JSONLike):
             return None
 
         path = cls.get_snippet_script_str(script_path, env_spec)
-        return Path(cls.app.scripts.get(path, path))
+        return Path(cls._app.scripts.get(path, path))
 
     @staticmethod
     def get_param_dump_file_stem(js_idx: int | str, js_act_idx: int | str) -> str:
@@ -1763,7 +1748,7 @@ class Action(JSONLike):
             # always run OPs, for now
 
             main_rules = self.rules + [
-                self.app.ActionRule.check_missing(f"output_files.{i.label}")
+                self._app.ActionRule.check_missing(f"output_files.{i.label}")
                 for i in self.output_files
             ]
 
@@ -1786,9 +1771,9 @@ class Action(JSONLike):
                     }
                 else:
                     variables = {}
-                act_i = self.app.Action(
+                act_i = self._app.Action(
                     commands=[
-                        self.app.Command(
+                        self._app.Command(
                             executable=exe, arguments=args, variables=variables
                         )
                     ],
@@ -1821,9 +1806,9 @@ class Action(JSONLike):
                     }
                 else:
                     variables = {}
-                act_i = self.app.Action(
+                act_i = self._app.Action(
                     commands=[
-                        self.app.Command(
+                        self._app.Command(
                             executable=exe, arguments=args, variables=variables
                         )
                     ],
@@ -1879,11 +1864,11 @@ class Action(JSONLike):
                         args.append(str(self.get_param_load_file_path_HDF5(**fn_args)))
 
                 commands += [
-                    self.app.Command(executable=exe, arguments=args, variables=variables)
+                    self._app.Command(executable=exe, arguments=args, variables=variables)
                 ]
 
             # TODO: store script_args? and build command with executable syntax?
-            main_act = self.app.Action(
+            main_act = self._app.Action(
                 commands=commands,
                 script=self.script,
                 script_data_in=self.script_data_in,
@@ -2119,19 +2104,19 @@ class Action(JSONLike):
         if self.input_file_generators:
             scopes = (
                 scope,
-                self.app.ActionScope.input_file_generator(),
-                self.app.ActionScope.processing(),
-                self.app.ActionScope.any(),
+                self._app.ActionScope.input_file_generator(),
+                self._app.ActionScope.processing(),
+                self._app.ActionScope.any(),
             )
         elif self.output_file_parsers:
             scopes = (
                 scope,
-                self.app.ActionScope.output_file_parser(),
-                self.app.ActionScope.processing(),
-                self.app.ActionScope.any(),
+                self._app.ActionScope.output_file_parser(),
+                self._app.ActionScope.processing(),
+                self._app.ActionScope.any(),
             )
         else:
-            scopes = (scope, self.app.ActionScope.any())
+            scopes = (scope, self._app.ActionScope.any())
 
         return scopes
 
@@ -2143,18 +2128,18 @@ class Action(JSONLike):
             )
 
         if self.input_file_generators:
-            return self.app.ActionScope.input_file_generator(
+            return self._app.ActionScope.input_file_generator(
                 file=self.input_file_generators[0].input_file.label
             )
         elif self.output_file_parsers:
             if self.output_file_parsers[0].output is not None:
-                return self.app.ActionScope.output_file_parser(
+                return self._app.ActionScope.output_file_parser(
                     output=self.output_file_parsers[0].output
                 )
             else:
-                return self.app.ActionScope.output_file_parser()
+                return self._app.ActionScope.output_file_parser()
         else:
-            return self.app.ActionScope.main()
+            return self._app.ActionScope.main()
 
     def is_input_type_required(self, typ: str, provided_files: list[FileSpec]) -> bool:
         # TODO: for now assume a script takes all inputs
@@ -2244,10 +2229,10 @@ class Action(JSONLike):
                     EAR = wk.get_EARs_from_IDs([EAR_ID])[0]
                 """
             ).format(
-                run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
-                app_module=self.app.module,
-                cfg_dir=self.app.config.config_directory,
-                cfg_invoc_key=self.app.config.config_key,
+                run_log_file=self._app.RunDirAppFiles.get_log_file_name(),
+                app_module=self._app.module,
+                cfg_dir=self._app.config.config_directory,
+                cfg_invoc_key=self._app.config.config_key,
             )
         else:
             py_main_block_workflow_load = ""

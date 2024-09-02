@@ -4,6 +4,7 @@ import copy
 from itertools import chain
 from typing import TypedDict, TYPE_CHECKING
 
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache
@@ -15,7 +16,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import ClassVar
     from typing_extensions import Self
-    from ..app import BaseApp
     from ..typing import DataIndex, ParamSource
     from .parameters import SchemaInput, InputSource
     from .rule import Rule
@@ -42,8 +42,6 @@ class IterableParam(TypedDict):
 
 
 class Loop(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="termination", class_name="Rule"),
     )
@@ -73,7 +71,7 @@ class Loop(JSONLike):
 
         _task_insert_IDs: list[int] = []
         for task in tasks:
-            if isinstance(task, self.app.WorkflowTask):
+            if isinstance(task, self._app.WorkflowTask):
                 _task_insert_IDs.append(task.insert_ID)
             elif isinstance(task, int):
                 _task_insert_IDs.append(task)
@@ -193,11 +191,8 @@ class Loop(JSONLike):
         return obj
 
 
-class WorkflowLoop:
+class WorkflowLoop(AppAware):
     """Class to represent a Loop that is bound to a Workflow."""
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     def __init__(
         self,

@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar, Literal
     from typing_extensions import NotRequired
     from numpy.typing import NDArray, ArrayLike
-    from ..app import BaseApp
     from ..core.actions import ElementActionRun
     from ..core.element import ElementResources
     from ..core.workflow import WorkflowTask, Workflow
@@ -363,8 +362,6 @@ def jobscripts_to_list(
 
 
 class Jobscript(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr = "app"
     _EAR_files_delimiter: ClassVar[str] = ":"
     _workflow_app_alias: ClassVar[str] = "wkflow_app"
 
@@ -478,7 +475,7 @@ class Jobscript(JSONLike):
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None) -> str:
-        return self.app.RunDirAppFiles.get_commands_file_name(
+        return self._app.RunDirAppFiles.get_commands_file_name(
             js_idx=self.index,
             js_action_idx=js_action_idx,
             shell=shell or self.shell,
@@ -624,7 +621,7 @@ class Jobscript(JSONLike):
         return self._scheduler_name or self.resources.scheduler
 
     def _get_submission_os_args(self) -> dict[str, str]:
-        return {"linux_release_file": self.app.config.linux_release_file}
+        return {"linux_release_file": self._app.config.linux_release_file}
 
     def _get_submission_shell_args(self) -> dict[str, Any]:
         return self.resources.shell_args
@@ -666,7 +663,7 @@ class Jobscript(JSONLike):
         """Retrieve the scheduler object for submission."""
         if self._scheduler_obj is None:
             assert self.scheduler_name
-            self._scheduler_obj = self.app.get_scheduler(
+            self._scheduler_obj = self._app.get_scheduler(
                 scheduler_name=self.scheduler_name,
                 os_name=self.os_name,
                 scheduler_args=self._get_submission_scheduler_args(),
@@ -879,7 +876,7 @@ class Jobscript(JSONLike):
                 f"`shell_name`."
             )
         if not scheduler_name:
-            scheduler_name = self.app.config.default_scheduler
+            scheduler_name = self._app.config.default_scheduler
 
         shell = self._get_shell(
             os_name=os_name,
@@ -887,13 +884,13 @@ class Jobscript(JSONLike):
             os_args=os_args or self._get_submission_os_args(),
             shell_args=shell_args or self._get_submission_shell_args(),
         )
-        scheduler = self.app.get_scheduler(
+        scheduler = self._app.get_scheduler(
             scheduler_name=scheduler_name,
             os_name=os_name,
             scheduler_args=scheduler_args or self._get_submission_scheduler_args(),
         )
 
-        cfg_invocation = self.app.config._file.get_invocation(self.app.config._config_key)
+        cfg_invocation = self._app.config._file.get_invocation(self._app.config._config_key)
         env_setup = cfg_invocation["environment_setup"]
         if env_setup:
             env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
@@ -905,10 +902,10 @@ class Jobscript(JSONLike):
             {
                 "workflow_app_alias": self.workflow_app_alias,
                 "env_setup": env_setup,
-                "app_invoc": list(self.app.run_time_info.invocation_command),
-                "run_log_file": self.app.RunDirAppFiles.get_log_file_name(),
-                "config_dir": str(self.app.config.config_directory),
-                "config_invoc_key": self.app.config.config_key,
+                "app_invoc": list(self._app.run_time_info.invocation_command),
+                "run_log_file": self._app.RunDirAppFiles.get_log_file_name(),
+                "config_dir": str(self._app.config.config_directory),
+                "config_invoc_key": self._app.config.config_key,
                 "workflow_path": self.workflow.path,
                 "sub_idx": self.submission.index,
                 "js_idx": self.index,
@@ -954,7 +951,7 @@ class Jobscript(JSONLike):
             EAR_files_delimiter=self._EAR_files_delimiter,
             workflow_app_alias=self.workflow_app_alias,
             commands_file_name=self.get_commands_file_name(r"${JS_act_idx}", shell=shell),
-            run_stream_file=self.app.RunDirAppFiles.get_std_file_name(),
+            run_stream_file=self._app.RunDirAppFiles.get_std_file_name(),
         )
 
         out = header
@@ -1068,7 +1065,7 @@ class Jobscript(JSONLike):
             f'Set-Content -Path "{self.direct_win_pid_file_path}" -Value $JS_proc.Id',
         ]
 
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"running direct Windows jobscript launcher process: {args!r}"
         )
         # for some reason we still need to create a "detached" process here as well:
@@ -1145,12 +1142,12 @@ class Jobscript(JSONLike):
         self.write_element_run_dir_file(run_dirs)
         js_path = self.shell.prepare_JS_path(self.write_jobscript(deps=deps))
         submit_cmd = self.scheduler.get_submit_command(self.shell, js_path, deps)
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"submitting jobscript {self.index!r} with command: {submit_cmd!r}"
         )
         self._set_submit_cmdline(submit_cmd)
         self._set_submit_hostname(socket.gethostname())
-        self._set_submit_machine(self.app.config.get("machine"))
+        self._set_submit_machine(self._app.config.get("machine"))
 
         err_args: JobscriptSubmissionFailureArgs = {
             "submit_cmd": submit_cmd,
@@ -1249,22 +1246,22 @@ class Jobscript(JSONLike):
             out: dict[int, JobscriptElementState] = {}
 
         else:
-            self.app.submission_logger.debug(
+            self._app.submission_logger.debug(
                 "checking if the jobscript is running according to EAR submission "
                 "states."
             )
 
             not_run_states = EARStatus.get_non_running_submitted_states()
             all_EAR_states = set(i.status for i in self.all_EARs)
-            self.app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
+            self._app.submission_logger.debug(f"Unique EAR states are: {all_EAR_states!r}")
             if all_EAR_states.issubset(not_run_states):
-                self.app.submission_logger.debug(
+                self._app.submission_logger.debug(
                     "All jobscript EARs are in a non-running state"
                 )
                 out = {}
 
-            elif self.app.config.get("machine") == self.submit_machine:
-                self.app.submission_logger.debug(
+            elif self._app.config.get("machine") == self.submit_machine:
+                self._app.submission_logger.debug(
                     "Checking if jobscript is running according to the scheduler/process "
                     "ID."
                 )
@@ -1284,13 +1281,13 @@ class Jobscript(JSONLike):
                     "is not the machine on which the jobscript was submitted."
                 )
 
-        self.app.submission_logger.info(f"Jobscript is {'in' if not out else ''}active.")
+        self._app.submission_logger.info(f"Jobscript is {'in' if not out else ''}active.")
         if as_json:
             return {k: v.name for k, v in out.items()}
         return out
 
     def cancel(self) -> None:
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"Cancelling jobscript {self.index} of submission {self.submission.index}"
         )
         self.scheduler.cancel_jobs(**self.scheduler_ref, jobscripts=[self])

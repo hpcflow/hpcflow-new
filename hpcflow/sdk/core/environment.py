@@ -14,7 +14,6 @@ from hpcflow.sdk.core.utils import check_valid_py_identifier, get_duplicate_item
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import ClassVar
-    from ..app import BaseApp
 
 
 @dataclass
@@ -30,7 +29,6 @@ class NumCores(JSONLike):
 @dataclass
 @hydrate
 class ExecutableInstance(JSONLike):
-    app: ClassVar[BaseApp]
     parallel_mode: str | None
     num_cores: NumCores
     command: str
@@ -84,7 +82,7 @@ class Executable(JSONLike):
         )
 
     @property
-    def environment(self):
+    def environment(self) -> Environment | None:
         return self._executables_list.environment
 
     def filter_instances(
@@ -99,7 +97,6 @@ class Executable(JSONLike):
 
 
 class Environment(JSONLike):
-    app: ClassVar[BaseApp]
     _validation_schema: ClassVar[str] = "environments_spec_schema.yaml"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
@@ -122,7 +119,7 @@ class Environment(JSONLike):
         self.executables = (
             executables
             if isinstance(executables, ExecutablesList)
-            else self.app.ExecutablesList(executables or [])
+            else self._app.ExecutablesList(executables or [])
         )
         self._hash_value = _hash_value
         self.setup: tuple[str, ...] | None

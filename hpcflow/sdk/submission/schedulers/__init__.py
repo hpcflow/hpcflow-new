@@ -5,6 +5,7 @@ import sys
 import time
 from typing import Generic, TypeVar, TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.core.app_aware import AppAware
 
 if TYPE_CHECKING:
     from typing import Any, ClassVar
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class Scheduler(ABC, Generic[T]):
+class Scheduler(ABC, Generic[T], AppAware):
     """
     T: The type of a jobscript reference.
     """

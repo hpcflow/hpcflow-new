@@ -8,6 +8,7 @@ import enum
 from types import SimpleNamespace
 from typing import overload, Protocol, cast, runtime_checkable, TYPE_CHECKING
 
+from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk import app, get_SDK_logger
 from .utils import get_md5_hash
@@ -688,10 +689,9 @@ class BaseJSONLike:
 
 
 @hydrate
-class JSONLike(BaseJSONLike):
+class JSONLike(BaseJSONLike, AppAware):
     """BaseJSONLike, where the class namespace is the App instance."""
 
-    _app_attr: ClassVar[str] = "app"  # for some classes we change this to "_app"
     __sdk_classes: ClassVar[list[type[BaseJSONLike]]] = []
 
     @classmethod

@@ -15,7 +15,6 @@ from hpcflow.sdk.core.parameters import ParameterValue
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
-    from ..app import BaseApp
     from .actions import ActionRule
     from .element import ElementActionRun
     from .environment import Environment
@@ -25,8 +24,6 @@ if TYPE_CHECKING:
 @dataclass
 @hydrate
 class Command(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="rules",
@@ -81,7 +78,7 @@ class Command(JSONLike):
 
         """
 
-        self.app.persistence_logger.debug("Command.get_command_line")
+        self._app.persistence_logger.debug("Command.get_command_line")
         cmd_str = self._get_initial_command_line()
 
         def _format_sum(iterable: Iterable) -> str:
@@ -311,10 +308,10 @@ class Command(JSONLike):
         pattern = pattern.format(types_pattern=types_pattern, name=out_name)
         spec = self.stderr if stderr else self.stdout
         assert spec is not None
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"processing shell standard stream according to spec: {spec!r}"
         )
-        param = self.app.Parameter(out_name)
+        param = self._app.Parameter(out_name)
         match = re.match(pattern, spec)
         if match is None:
             return value

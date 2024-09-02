@@ -18,7 +18,6 @@ from hpcflow.sdk.submission.schedulers.utils import run_cmd
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
     from typing import Any, ClassVar
-    from ...app import BaseApp
     from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
@@ -40,9 +39,6 @@ class SlurmPosix(QueuedScheduler):
     [2] https://ri.itservices.manchester.ac.uk/csf4/batch/sge-to-slurm/
 
     """
-
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
 
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
@@ -468,14 +464,14 @@ class SlurmPosix(QueuedScheduler):
             "--jobs",
             ",".join(job_IDs),
         ]
-        return run_cmd(cmd, logger=self.app.submission_logger)
+        return run_cmd(cmd, logger=self._app.submission_logger)
 
     def _get_job_valid_IDs(self, job_IDs: list[str] | None = None) -> list[str]:
         """Get a list of job IDs that are known by the scheduler, optionally filtered by
         specified job IDs."""
 
         cmd = ["squeue", "--me", "--noheader", "--format", r"%F"]
-        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
+        stdout, stderr = run_cmd(cmd, logger=self._app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query Slurm jobs. Command was: {cmd!r}; stderr was: "
@@ -519,7 +515,7 @@ class SlurmPosix(QueuedScheduler):
             # the job might have finished; this only seems to happen if a single
             # non-existant job ID is specified; for multiple non-existant jobs, no
             # error is produced;
-            self.app.submission_logger.info(
+            self._app.submission_logger.info(
                 "A specified job ID is non-existant; refreshing known job IDs..."
             )
             time.sleep(self.INTER_STATE_QUERY_DELAY)
@@ -536,15 +532,15 @@ class SlurmPosix(QueuedScheduler):
         num_js_elements: int = 0,  # Ignored!
     ):
         cmd = [self.del_cmd] + js_refs
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."
         )
-        stdout, stderr = run_cmd(cmd, logger=self.app.submission_logger)
+        stdout, stderr = run_cmd(cmd, logger=self._app.submission_logger)
         if stderr:
             raise ValueError(
                 f"Could not get query {self.__class__.__name__} jobs. Command was: "
                 f"{cmd!r}; stderr was: {stderr}"
             )
-        self.app.submission_logger.info(
+        self._app.submission_logger.info(
             f"jobscripts cancel command executed; stdout was: {stdout}."
         )

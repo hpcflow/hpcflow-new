@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from typing import Any, ClassVar
     from typing_extensions import Self
-    from ..app import BaseApp
     from .actions import Action, ActionRule
     from .environment import Environment
     from .object_list import CommandFilesList
@@ -27,9 +26,6 @@ if TYPE_CHECKING:
 @dataclass(init=False)
 @hydrate
 class FileSpec(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
     _validation_schema: ClassVar[str] = "files_spec_schema.yaml"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="name", class_name="FileNameSpec"),
@@ -43,7 +39,7 @@ class FileSpec(JSONLike):
         self, label: str, name: str | FileNameSpec, _hash_value: str | None = None
     ) -> None:
         self.label = label
-        self.name = self.app.FileNameSpec(name) if isinstance(name, str) else name
+        self.name = self._app.FileNameSpec(name) if isinstance(name, str) else name
         self._hash_value = _hash_value
 
     def value(self, directory: str = ".") -> str:
@@ -67,9 +63,6 @@ class FileSpec(JSONLike):
 
 @hydrate
 class FileNameSpec(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
     def __init__(
         self, name: str, args: list | None = None, is_regex: bool = False
     ) -> None:
@@ -88,11 +81,11 @@ class FileNameSpec(JSONLike):
 
     @property
     def stem(self) -> FileNameStem:
-        return self.app.FileNameStem(self)
+        return self._app.FileNameStem(self)
 
     @property
     def ext(self) -> FileNameExt:
-        return self.app.FileNameExt(self)
+        return self._app.FileNameExt(self)
 
     def value(self, directory: str = ".") -> list[str] | str:
         format_args = [i.value(directory) for i in self.args or []]
@@ -132,8 +125,6 @@ class FileNameExt(JSONLike):
 @dataclass
 @hydrate
 class InputFileGenerator(JSONLike):
-    app: ClassVar[BaseApp]
-
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="input_file",
@@ -169,7 +160,7 @@ class InputFileGenerator(JSONLike):
         """Get the rules that allow testing if this input file generator must be run or
         not for a given element."""
         return [
-            self.app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
+            self._app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
         ] + self.rules
 
     def compose_source(self, snip_path: Path) -> str:
@@ -198,10 +189,10 @@ class InputFileGenerator(JSONLike):
         """
         )
         main_block = main_block.format(
-            run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
-            app_module=self.app.module,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_key,
+            run_log_file=self._app.RunDirAppFiles.get_log_file_name(),
+            app_module=self._app.module,
+            cfg_dir=self._app.config.config_directory,
+            cfg_invoc_key=self._app.config.config_key,
             script_main_func=script_main_func,
             file_path=self.input_file.name.value(),
         )
@@ -275,7 +266,6 @@ class OutputFileParser(JSONLike):
         ),
     )
 
-    app: ClassVar[BaseApp]
     output_files: list[FileSpec]
     output: Parameter | None = None
     script: str | None = None
@@ -321,7 +311,7 @@ class OutputFileParser(JSONLike):
         """Get the rules that allow testing if this output file parser must be run or not
         for a given element."""
         return [
-            self.app.ActionRule.check_missing(f"output_files.{i.label}")
+            self._app.ActionRule.check_missing(f"output_files.{i.label}")
             for i in self.output_files
         ] + self.rules
 
@@ -361,10 +351,10 @@ class OutputFileParser(JSONLike):
         """
         )
         main_block = main_block.format(
-            run_log_file=self.app.RunDirAppFiles.get_log_file_name(),
-            app_module=self.app.module,
-            cfg_dir=self.app.config.config_directory,
-            cfg_invoc_key=self.app.config.config_key,
+            run_log_file=self._app.RunDirAppFiles.get_log_file_name(),
+            app_module=self._app.module,
+            cfg_dir=self._app.config.config_directory,
+            cfg_invoc_key=self._app.config.config_key,
             script_main_func=script_main_func,
             param_name=f"outputs.{self.output.typ}",
         )
@@ -397,7 +387,6 @@ class _FileContentsSpecifier(JSONLike):
     """Class to represent the contents of a file, either via a file-system path or
     directly."""
 
-    app: ClassVar[BaseApp]
     file: FileSpec
 
     def __init__(
@@ -415,7 +404,7 @@ class _FileContentsSpecifier(JSONLike):
                 "`store_contents` cannot be set to False if `contents` was specified."
             )
 
-        self._path = _process_demo_data_strings(self.app, path)
+        self._path = _process_demo_data_strings(self._app, path)
         self._contents = contents
         self._extension = extension
         self._store_contents = store_contents
@@ -599,7 +588,7 @@ class InputFile(_FileContentsSpecifier):
         store_contents: bool = True,
     ) -> None:
         if not isinstance(file, FileSpec):
-            files: CommandFilesList = self.app.command_files
+            files: CommandFilesList = self._app.command_files
             self.file = files.get(file)
         else:
             self.file = file

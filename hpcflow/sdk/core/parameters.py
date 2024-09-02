@@ -214,9 +214,6 @@ class SubParameter:
 
 @dataclass
 class SchemaParameter(JSONLike):
-    app: ClassVar[BaseApp]
-    _app_attr: ClassVar[str] = "app"
-
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
@@ -231,7 +228,7 @@ class SchemaParameter(JSONLike):
 
     def _validate(self) -> None:
         if isinstance(self.parameter, str):
-            self.parameter: Parameter = self.app.Parameter(typ=self.parameter)
+            self.parameter: Parameter = self._app.Parameter(typ=self.parameter)
 
     @property
     def name(self) -> str:
@@ -290,7 +287,6 @@ class SchemaInput(SchemaParameter):
         does not exist.
     """
 
-    app: ClassVar[BaseApp]
     _task_schema: TaskSchema | None = None  # assigned by parent TaskSchema
 
     _child_objects = (
@@ -319,9 +315,9 @@ class SchemaInput(SchemaParameter):
 
         if isinstance(parameter, str):
             try:
-                self.parameter = self.app.parameters.get(parameter)
+                self.parameter = self._app.parameters.get(parameter)
             except ValueError:
-                self.parameter = self.app.Parameter(parameter)
+                self.parameter = self._app.Parameter(parameter)
         else:
             self.parameter = parameter
 
@@ -357,7 +353,7 @@ class SchemaInput(SchemaParameter):
                 if isinstance(default_value, InputValue):
                     labels_defaults_i["default_value"] = default_value
                 else:
-                    labels_defaults_i["default_value"] = self.app.InputValue(
+                    labels_defaults_i["default_value"] = self._app.InputValue(
                         parameter=self.parameter,
                         value=default_value,
                         label=k,
@@ -431,7 +427,7 @@ class SchemaInput(SchemaParameter):
                     }
                 json_like["labels"][k][
                     "default_value"
-                ] = cls.app.InputValue.from_json_like(
+                ] = cls._app.InputValue.from_json_like(
                     json_like=inp_val_kwargs,
                     shared_data=shared_data,
                 )
@@ -504,7 +500,7 @@ class SchemaInput(SchemaParameter):
         for k, v in self.labels.items():
             if "default_value" in v:
                 if not isinstance(v["default_value"], InputValue):
-                    def_val = self.app.InputValue(
+                    def_val = self._app.InputValue(
                         parameter=self.parameter,
                         value=v["default_value"],
                         label=k,
@@ -546,7 +542,7 @@ class SchemaOutput(SchemaParameter):
         propagation_mode: ParameterPropagationMode = ParameterPropagationMode.IMPLICIT,
     ):
         if isinstance(parameter, str):
-            self.parameter: Parameter = self.app.Parameter(typ=parameter)
+            self.parameter: Parameter = self._app.Parameter(typ=parameter)
         else:
             self.parameter = parameter
         self.propagation_mode = propagation_mode
@@ -576,8 +572,6 @@ class BuiltinSchemaParameter:
 
 
 class ValueSequence(JSONLike):
-    app: ClassVar[BaseApp]
-
     def __init__(
         self,
         path: str,
@@ -592,7 +586,7 @@ class ValueSequence(JSONLike):
 
         if values is not None:
             self._values: list[Any] | None = [
-                _process_demo_data_strings(self.app, i) for i in values
+                _process_demo_data_strings(self._app, i) for i in values
             ]
         else:
             self._values = None
@@ -678,7 +672,7 @@ class ValueSequence(JSONLike):
             _, method = val_key.split("::")
             _values_method_args = json_like.pop(val_key)
             _values_method = f"_values_{method}"
-            _values_method_args = _process_demo_data_strings(cls.app, _values_method_args)
+            _values_method_args = _process_demo_data_strings(cls._app, _values_method_args)
             json_like["values"] = getattr(cls, _values_method)(**_values_method_args)
 
         obj = super().from_json_like(json_like, shared_data)
@@ -805,7 +799,7 @@ class ValueSequence(JSONLike):
                     f"`resource` sequences."
                 )
             try:
-                self.app.ActionScope.from_json_like(path_split[1])
+                self._app.ActionScope.from_json_like(path_split[1])
             except Exception as err:
                 raise MalformedParameterPathError(
                     f"Cannot parse a resource action scope from the second component of the "
@@ -1290,7 +1284,6 @@ class InputValue(AbstractInputValue):
 
     """
 
-    app: ClassVar[BaseApp]
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
@@ -1312,9 +1305,9 @@ class InputValue(AbstractInputValue):
         super().__init__()
         if isinstance(parameter, str):
             try:
-                self.parameter = self.app.parameters.get(parameter)
+                self.parameter = self._app.parameters.get(parameter)
             except ValueError:
-                self.parameter = self.app.Parameter(parameter)
+                self.parameter = self._app.Parameter(parameter)
         elif isinstance(parameter, SchemaInput):
             self.parameter = parameter.parameter
         else:
@@ -1323,7 +1316,7 @@ class InputValue(AbstractInputValue):
         self.label = str(label) if label is not None else ""
         self.path = (path.strip(".") if path else None) or None
         self.value_class_method = value_class_method
-        self._value = _process_demo_data_strings(self.app, value)
+        self._value = _process_demo_data_strings(self._app, value)
 
         # record if a ParameterValue sub-class is passed for value, which allows us
         # to re-init the object on `.value`:
@@ -1511,7 +1504,6 @@ class ResourceSpec(JSONLike):
 
     """
 
-    app: ClassVar[BaseApp]
     ALLOWED_PARAMETERS: ClassVar[set[str]] = {
         "scratch",
         "parallel_mode",
@@ -1581,7 +1573,7 @@ class ResourceSpec(JSONLike):
         SLURM_num_nodes: str | None = None,
         SLURM_num_cpus_per_task: str | None = None,
     ):
-        self.scope = self.__parse_thing(self.app.ActionScope, scope)
+        self.scope = self.__parse_thing(self._app.ActionScope, scope)
 
         if isinstance(time_limit, timedelta):
             time_limit = timedelta_format(time_limit)
@@ -1921,7 +1913,6 @@ _Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter
 
 
 class InputSource(JSONLike):
-    app: ClassVar[BaseApp]
     _child_objects = (
         ChildObjectSpec(
             name="source_type",
@@ -1944,7 +1935,7 @@ class InputSource(JSONLike):
         if where is None or isinstance(where, ElementFilter):
             self.where: ElementFilter | None = where
         else:
-            self.where = self.app.ElementFilter(
+            self.where = self._app.ElementFilter(
                 rules=[
                     rule if isinstance(rule, Rule) else Rule(**rule)
                     for rule in (where if isinstance(where, Sequence) else [where])
