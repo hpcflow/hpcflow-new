@@ -83,7 +83,8 @@ class Executable(JSONLike):
 
     @property
     def environment(self) -> Environment | None:
-        return self._executables_list.environment
+        el = self._executables_list
+        return el.environment if el is not None else None
 
     def filter_instances(
         self, parallel_mode: str | None = None, num_cores: int | None = None
