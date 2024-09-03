@@ -258,8 +258,8 @@ class Bash(Shell):
         app_caps = app_name.upper()
         return (
             f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
-            f'internal workflow "${app_caps}_WK_PATH_ARG" save-parameter {stderr_str} '
-            f"-- {param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}"
+            f'internal workflow "${app_caps}_WK_PATH_ARG" save-parameter {stderr_str}'
+            f'"--" {param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}'
             f"\n"
         )
 
