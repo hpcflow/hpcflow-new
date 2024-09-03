@@ -662,6 +662,34 @@ class ElementActionRun:
             outputs[out_typ] = self.get(f"outputs.{out_typ}")
         return outputs
 
+    def get_py_script_func_kwargs(
+        self, inp_files: Optional[Dict] = None, out_files: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        # TODO: use this in compose_source as well?
+        kwargs = {}
+        if self.action.is_IFG:
+            ifg = self.action.input_file_generators[0]
+            kwargs["path"] = Path(ifg.input_file.name.value())
+            kwargs.update(self.get_IFG_input_values())
+
+        elif self.action.is_OFP:
+            kwargs.update(self.get_OFP_output_files())
+            kwargs.update(self.get_OFP_inputs())
+            kwargs.update(self.get_OFP_outputs())
+
+        if (
+            not any((self.action.is_IFG, self.action.is_OFP))
+            and self.action.script_data_in_has_direct
+        ):
+            kwargs.update(self.get_input_values_direct())
+
+        if inp_files is not None:
+            kwargs["_inputs"] = inp_files
+        if out_files is not None:
+            kwargs["_outputs"] = out_files
+
+        return kwargs
+
     def write_script_input_files(self, block_act_key: Tuple[int, int, int]):
 
         for fmt, ins in self.action.script_data_in_grouped.items():
@@ -1429,6 +1457,14 @@ class Action(JSONLike):
             if snip_path:
                 return snip_path.suffix == ".py"
         return False
+
+    @property
+    def is_IFG(self):
+        return bool(self.input_file_generators)
+
+    @property
+    def is_OFP(self):
+        return bool(self.output_file_parsers)
 
     def __deepcopy__(self, memo):
         kwargs = self.to_dict()
@@ -2244,10 +2280,7 @@ class Action(JSONLike):
         if not self.script_is_python_snippet:
             return script_str
 
-        is_IFG = bool(self.input_file_generators)
-        is_OFP = bool(self.output_file_parsers)
-
-        if is_OFP and self.output_file_parsers[0].output is None:
+        if self.is_OFP and self.output_file_parsers[0].output is None:
             # might be used just for saving files:
             return
 
@@ -2298,15 +2331,18 @@ class Action(JSONLike):
 
         kwargs_lns = []
         double_splat_lns = []
-        if not any((is_IFG, is_OFP)) and "direct" in self.script_data_in_grouped:
+        if (
+            not any((self.is_IFG, self.is_OFP))
+            and "direct" in self.script_data_in_grouped
+        ):
             double_splat_lns.append("**EAR.get_input_values_direct()")
 
-        elif is_IFG:
+        elif self.is_IFG:
             new_file_path = self.input_file_generators[0].input_file.name.value()
             double_splat_lns.append("**EAR.get_IFG_input_values()")
             kwargs_lns.append(f'"path": Path("{new_file_path}")')
 
-        elif is_OFP:
+        elif self.is_OFP:
             double_splat_lns.extend(
                 (
                     "**EAR.get_OFP_output_files()",
@@ -2363,7 +2399,7 @@ class Action(JSONLike):
 
         script_main_func = Path(script_name).stem
         func_invoke_str = f"{script_main_func}(**func_kwargs)"
-        if not is_OFP and "direct" in self.script_data_out_grouped:
+        if not self.is_OFP and "direct" in self.script_data_out_grouped:
             py_main_block_invoke = f"outputs = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\
@@ -2372,7 +2408,7 @@ class Action(JSONLike):
                         wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
             )
-        elif is_OFP:
+        elif self.is_OFP:
             py_main_block_invoke = f"output = {func_invoke_str}"
             py_main_block_outputs = dedent(
                 """\

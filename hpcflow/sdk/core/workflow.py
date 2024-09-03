@@ -157,6 +157,36 @@ class WorkflowTemplate(JSONLike):
     merge_envs: Optional[bool] = True
 
     def __post_init__(self):
+
+        # replace metatasks with tasks
+        new_tasks = []
+        do_reindex = False
+        reindex = {}
+        for task_idx, i in enumerate(self.tasks):
+            if isinstance(i, app.MetaTask):
+                do_reindex = True
+                tasks_from_meta = copy.deepcopy(i.tasks)
+                reindex[task_idx] = [
+                    len(new_tasks) + i for i in range(len(tasks_from_meta))
+                ]
+                new_tasks.extend(tasks_from_meta)
+            else:
+                reindex[task_idx] = [len(new_tasks)]
+                new_tasks.append(i)
+        if do_reindex:
+            if self.loops:
+                for loop_idx, loop in enumerate(self.loops):
+                    self.loops[loop_idx]["tasks"] = [
+                        j for i in loop["tasks"] for j in reindex.get(i)
+                    ]
+                    term_task = loop.get("termination_task")
+                    if term_task is not None:
+                        self.loops[loop_idx]["termination_task"] = reindex.get(term_task)[
+                            0
+                        ]
+
+        self.tasks = new_tasks
+
         self.resources = self.app.ResourceList.normalise(self.resources)
         self._set_parent_refs()
 
@@ -265,6 +295,34 @@ class WorkflowTemplate(JSONLike):
     @classmethod
     @TimeIt.decorator
     def _from_data(cls, data: Dict) -> app.WorkflowTemplate:
+
+        meta_tasks = data.pop("meta_tasks", {})
+        if meta_tasks:
+            new_task_dat = []
+            reindex = {}
+            for task_idx, task_dat in enumerate(data["tasks"]):
+                meta_task_dat = meta_tasks.get(task_dat["schema"])
+                if meta_task_dat:
+                    reindex[task_idx] = [
+                        len(new_task_dat) + i for i in range(len(meta_task_dat))
+                    ]
+                    new_task_dat.extend(copy.deepcopy(meta_task_dat))
+                else:
+                    reindex[task_idx] = [len(new_task_dat)]
+                    new_task_dat.append(task_dat)
+
+            data["tasks"] = new_task_dat
+
+            loops = data.get("loops")
+            if loops:
+                for loop_idx, loop in enumerate(loops):
+                    loops[loop_idx]["tasks"] = [
+                        j for i in loop["tasks"] for j in reindex.get(i)
+                    ]
+                    term_task = loop.get("termination_task")
+                    if term_task is not None:
+                        loops[loop_idx]["termination_task"] = reindex.get(term_task)[0]
+
         # use element_sets if not already:
         for task_idx, task_dat in enumerate(data["tasks"]):
             schema = task_dat.pop("schema")
@@ -311,7 +369,21 @@ class WorkflowTemplate(JSONLike):
             )
             cls.app.task_schemas.add_objects(task_schemas, skip_duplicates=True)
 
-        return cls.from_json_like(data, shared_data=cls.app.template_components)
+        mts_dat = tcs.pop("meta_task_schemas", [])
+        if mts_dat:
+            meta_ts = [
+                cls.app.MetaTaskSchema.from_json_like(
+                    i, shared_data=cls.app.template_components
+                )
+                for i in mts_dat
+            ]
+            cls.app.task_schemas.add_objects(meta_ts, skip_duplicates=True)
+
+        wkt = cls.from_json_like(data, shared_data=cls.app.template_components)
+        for idx, task in enumerate(wkt.tasks):
+            if isinstance(task.schema, cls.app.MetaTaskSchema):
+                wkt.tasks[idx] = cls.app.MetaTask(schema=task.schema, tasks=task.tasks)
+        return wkt
 
     @classmethod
     @TimeIt.decorator
@@ -2066,6 +2138,7 @@ class Workflow:
         with self._store.cached_load():
             with self.batch_update():
                 success = exit_code == 0  # TODO  more sophisticated success heuristics
+                run_dir = run.get_directory()
                 if run.action.abortable and exit_code == ABORT_EXIT_CODE:
                     # the point of aborting an EAR is to continue with the workflow:
                     success = True
@@ -2078,7 +2151,7 @@ class Workflow:
                     )
                     param_id = run.data_idx[f"input_files.{inp_file.label}"]
 
-                    file_paths = inp_file.value()
+                    file_paths = inp_file.value(directory=run_dir)
                     if not isinstance(file_paths, list):
                         file_paths = [file_paths]
 
@@ -2087,7 +2160,7 @@ class Workflow:
                             param_id=param_id,
                             store_contents=True,  # TODO: make optional according to IFG
                             is_input=False,
-                            path=resolve_path(path_i),
+                            path=run_dir.joinpath(path_i),
                         )
 
                 if run.action.script_data_out_has_files:
@@ -2106,7 +2179,7 @@ class Workflow:
                         # parameter data:
                         param_id = None
 
-                    file_paths = save_file_j.value()
+                    file_paths = save_file_j.value(directory=run_dir)
                     self.app.logger.debug(f"Saving output file paths: {file_paths!r}")
                     if not isinstance(file_paths, list):
                         file_paths = [file_paths]
@@ -2116,7 +2189,7 @@ class Workflow:
                             param_id=param_id,
                             store_contents=True,
                             is_input=False,
-                            path=Path(path_i).resolve(),
+                            path=run_dir.joinpath(path_i),
                             clean_up=(save_file_j in run.action.clean_up),
                         )
 
@@ -2134,7 +2207,7 @@ class Workflow:
                             # parameter data:
                             param_id = None
 
-                        file_paths = save_file_j.value()
+                        file_paths = save_file_j.value(directory=run_dir)
                         self.app.logger.debug(
                             f"Saving EAR output file paths: {file_paths!r}"
                         )
@@ -2146,7 +2219,7 @@ class Workflow:
                                 param_id=param_id,
                                 store_contents=True,  # TODO: make optional according to OFP
                                 is_input=False,
-                                path=Path(path_i).resolve(),
+                                path=run_dir.joinpath(path_i),
                                 clean_up=(save_file_j in OFP_i.clean_up),
                             )
 
@@ -2185,6 +2258,7 @@ class Workflow:
                 successes = []
                 for block_act_key, run_dat in runs.items():
                     for run, exit_code in run_dat:
+                        run_dir = run.get_directory()
                         success = (
                             exit_code == 0
                         )  # TODO  more sophisticated success heuristics
@@ -2200,7 +2274,7 @@ class Workflow:
                             )
                             param_id = run.data_idx[f"input_files.{inp_file.label}"]
 
-                            file_paths = inp_file.value()
+                            file_paths = inp_file.value(directory=run_dir)
                             if not isinstance(file_paths, list):
                                 file_paths = [file_paths]
 
@@ -2209,7 +2283,7 @@ class Workflow:
                                     param_id=param_id,
                                     store_contents=True,  # TODO: make optional according to IFG
                                     is_input=False,
-                                    path=resolve_path(path_i),
+                                    path=run_dir.joinpath(path_i),
                                 )
 
                         if run.action.script_data_out_has_files:
@@ -2231,7 +2305,7 @@ class Workflow:
                                 # parameter data:
                                 param_id = None
 
-                            file_paths = save_file_j.value()
+                            file_paths = save_file_j.value(directory=run_dir)
                             self.app.logger.debug(
                                 f"Saving output file paths: {file_paths!r}"
                             )
@@ -2243,7 +2317,7 @@ class Workflow:
                                     param_id=param_id,
                                     store_contents=True,
                                     is_input=False,
-                                    path=Path(path_i).resolve(),
+                                    path=run_dir.joinpath(path_i),
                                     clean_up=(save_file_j in run.action.clean_up),
                                 )
 
@@ -2263,7 +2337,7 @@ class Workflow:
                                     # parameter data:
                                     param_id = None
 
-                                file_paths = save_file_j.value()
+                                file_paths = save_file_j.value(directory=run_dir)
                                 self.app.logger.debug(
                                     f"Saving EAR output file paths: {file_paths!r}"
                                 )
@@ -2275,7 +2349,7 @@ class Workflow:
                                         param_id=param_id,
                                         store_contents=True,  # TODO: make optional according to OFP
                                         is_input=False,
-                                        path=Path(path_i).resolve(),
+                                        path=run_dir.joinpath(path_i),
                                         clean_up=(save_file_j in OFP_i.clean_up),
                                     )
 

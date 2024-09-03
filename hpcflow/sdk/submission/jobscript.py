@@ -1563,6 +1563,26 @@ class Jobscript(JSONLike):
             app_caps=app_caps,
         )
 
+        func_invoc_lines = dedent(
+            """\
+                import pprint
+                print(f"{func=!r}")
+                if not run.action.is_OFP and run.action.script_data_out_has_direct:
+                    outputs = func(**func_kwargs)
+                    print("outputs (not is_OFP and script_data_out_has_direct)")
+                    pprint.pp(outputs)                    
+                elif run.action.is_OFP:
+                    out_name = run.action.output_file_parsers[0].output.typ
+                    outputs = {out_name: func(**func_kwargs)}
+                    print("outputs (else is_OFP)")
+                    pprint.pp(outputs)
+                else:
+                    print("no outputs (else)")
+                    outputs = {}
+                    func(**func_kwargs)
+            """
+        )
+
         scrip_funcs = "\n".join(scrip_funcs)
         script_names_str = "[" + ", ".join(f"{i}" for i in script_names) + "]"
         main = dedent(
@@ -1687,9 +1707,10 @@ class Jobscript(JSONLike):
 
                             run_dir = run_dirs[run_ID]
 
-                            # retrieve inputs:
+                            # retrieve script inputs:
                             get_ins_tic = time.perf_counter()
-                            func_kwargs = run.get_input_values_direct()
+                            func_kwargs = run.get_py_script_func_kwargs()
+                            print(f"func_kwargs: {{func_kwargs}}")
                             get_ins_toc = time.perf_counter()
 
                             script_idx = script_indices[block_idx][block_act_idx]
@@ -1701,7 +1722,7 @@ class Jobscript(JSONLike):
 
                         try:
                             func_tic = time.perf_counter()
-                            outputs = func(**func_kwargs)
+            {func_invoc_lines}
                             func_toc = time.perf_counter()
                         except Exception:
                             print(f"Exception caught during execution of script function {{func.__name__}}.")
@@ -1788,6 +1809,7 @@ class Jobscript(JSONLike):
             write_app_logs=self.resources.write_app_logs,
             sub_log_path=sub_log_path,
             skipped_exit_code=SKIPPED_EXIT_CODE,
+            func_invoc_lines=indent(func_invoc_lines, tab_indent * 4),
         )
 
         script = dedent(

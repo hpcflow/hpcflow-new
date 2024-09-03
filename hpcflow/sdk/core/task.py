@@ -3080,3 +3080,12 @@ class ElementPropagation:
                     **v,
                 )
         return propagate_to
+
+
+class MetaTask(JSONLike):
+    def __init__(self, schema, tasks):
+        self.schema = schema
+        self.tasks = tasks
+
+        # TODO: validate schema's inputs and outputs are inputs and outputs of `tasks`
+        # schemas

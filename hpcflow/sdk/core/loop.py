@@ -90,7 +90,7 @@ class Loop(JSONLike):
             raise ValueError(
                 f"If specified, `termination_task` (provided: {termination_task!r}) must "
                 f"refer to a task that is part of the loop. Available task insert IDs "
-                f"are: {_term_task_iID!r}."
+                f"are: {_task_insert_IDs!r}."
             )
 
         self._task_insert_IDs = _task_insert_IDs

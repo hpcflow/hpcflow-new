@@ -802,3 +802,45 @@ class TaskSchema(JSONLike):
             if inp.multiple:
                 out.append(inp.parameter.typ)
         return out
+
+
+class MetaTaskSchema(TaskSchema):
+
+    _validation_schema = "task_schema_spec_schema.yaml"
+    _hash_value = None
+    _validate_actions = False
+
+    _child_objects = (
+        ChildObjectSpec(name="objective", class_name="TaskObjective"),
+        ChildObjectSpec(
+            name="inputs",
+            class_name="SchemaInput",
+            is_multiple=True,
+            parent_ref="_task_schema",
+        ),
+        ChildObjectSpec(name="outputs", class_name="SchemaOutput", is_multiple=True),
+    )
+
+    def __init__(
+        self,
+        objective: Union[app.TaskObjective, str],
+        method: Optional[str] = None,
+        implementation: Optional[str] = None,
+        inputs: Optional[List[Union[app.Parameter, app.SchemaInput]]] = None,
+        outputs: Optional[List[Union[app.Parameter, app.SchemaOutput]]] = None,
+        version: Optional[str] = None,
+        web_doc: Optional[bool] = True,
+        environment_presets: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
+        _hash_value: Optional[str] = None,
+    ):
+        super().__init__(
+            objective=objective,
+            method=method,
+            implementation=implementation,
+            inputs=inputs,
+            outputs=outputs,
+            version=version,
+            web_doc=web_doc,
+            environment_presets=environment_presets,
+            _hash_value=_hash_value,
+        )

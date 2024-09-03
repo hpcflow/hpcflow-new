@@ -8,6 +8,7 @@ import sys
 sdk_classes = {
     "Workflow": "hpcflow.sdk.core.workflow",
     "Task": "hpcflow.sdk.core.task",
+    "MetaTask": "hpcflow.sdk.core.task",
     "ActionScopeType": "hpcflow.sdk.core.actions",
     "ActionScope": "hpcflow.sdk.core.actions",
     "ActionRule": "hpcflow.sdk.core.actions",
@@ -74,6 +75,7 @@ sdk_classes = {
     "InputSource": "hpcflow.sdk.core.parameters",
     "TaskObjective": "hpcflow.sdk.core.task_schema",
     "TaskSchema": "hpcflow.sdk.core.task_schema",
+    "MetaTaskSchema": "hpcflow.sdk.core.task_schema",
     "ElementSet": "hpcflow.sdk.core.task",
     "Task": "hpcflow.sdk.core.task",
     "WorkflowTask": "hpcflow.sdk.core.task",
