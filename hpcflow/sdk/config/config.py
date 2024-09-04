@@ -147,14 +147,15 @@ class Config:
     Notes
     -----
     On modifying/setting existing values, modifications are not automatically copied
-    to the configuration file; use `save()` to save to the file. Items in `overrides`
+    to the configuration file; use :meth:`save()` to save to the file. Items in `overrides`
     are not saved into the file.
 
     `schedulers` is used for specifying the available schedulers on this machine, and the
-    default arguments that should be used when initialising the `Scheduler` object.
+    default arguments that should be used when initialising the
+    :py:class:`Scheduler` object.
 
     `shells` is used for specifying the default arguments that should be used when
-    initialising the `Shell` object.
+    initialising the :py:class:`Shell` object.
 
     Parameters
     ----------
@@ -174,6 +175,81 @@ class Config:
         Overrides for the callback system.
     variables: dict[str, str]
         Variables to substitute when processing the configuration.
+
+    Attributes
+    ----------
+    config_directory:
+        The directory containing the configuration file.
+    config_file_name:
+        The name of the configuration file.
+    config_file_path:
+        The full path to the configuration file.
+    config_file_contents:
+        The cached contents of the configuration file.
+    config_key:
+        The primary key to select the configuration within the configuration file.
+    config_schemas:
+        The schemas that apply to the configuration file.
+    host_user_id:
+        User ID as understood by the script.
+    host_user_id_file_path:
+        Where user ID information is stored.
+    invoking_user_id:
+        User ID that created the workflow.
+    machine:
+        Machine to submit to.
+        Mapped to a field in the configuration file.
+    user_name:
+        User to submit as.
+        Mapped to a field in the configuration file.
+    user_orcid:
+        User's ORCID.
+        Mapped to a field in the configuration file.
+    user_affiliation:
+        User's institutional affiliation.
+        Mapped to a field in the configuration file.
+    linux_release_file:
+        Where to get the description of the Linux release version data.
+        Mapped to a field in the configuration file.
+    log_file_path:
+        Where to log to.
+        Mapped to a field in the configuration file.
+    log_file_level:
+        At what level to do logging to the file.
+        Mapped to a field in the configuration file.
+    log_console_level:
+        At what level to do logging to the console. Usually coarser than to a file.
+        Mapped to a field in the configuration file.
+    task_schema_sources:
+        Where to get task schemas.
+        Mapped to a field in the configuration file.
+    parameter_sources:
+        Where to get parameter descriptors.
+        Mapped to a field in the configuration file.
+    command_file_sources:
+        Where to get command files.
+        Mapped to a field in the configuration file.
+    environment_sources:
+        Where to get execution environment descriptors.
+        Mapped to a field in the configuration file.
+    default_scheduler:
+        The name of the default scheduler.
+        Mapped to a field in the configuration file.
+    default_shell:
+        The name of the default shell.
+        Mapped to a field in the configuration file.
+    schedulers:
+        Settings for supported scheduler(s).
+        Mapped to a field in the configuration file.
+    shells:
+        Settings for supported shell(s).
+        Mapped to a field in the configuration file.
+    demo_data_dir:
+        Location of demo data.
+        Mapped to a field in the configuration file.
+    demo_data_manifest_file:
+        Where the manifest describing the demo data is.
+        Mapped to a field in the configuration file.
     """
 
     def __init__(
