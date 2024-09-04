@@ -59,7 +59,7 @@ preferred-citation:
       # website: 
     - given-names: Patryk
       family:names: Jedrasiak
-      affiliation: University of Manchester
+      affiliation: University of Cambridge
       # email: 
       orcid: https://orcid.org/0000-0001-6321-4821
       # website: 
@@ -77,7 +77,7 @@ preferred-citation:
       # website: 
     - given-names: Sumeet
       family:names: Mishra
-      affiliation: University of Manchester
+      affiliation: Indian Institute of Technology Roorkee
       # email: 
       orcid: https://orcid.org/0000-0002-9924-4894
       # website: 
@@ -97,11 +97,37 @@ preferred-citation:
 title: "hpcflow: A Workflow Management System"
 # version: 
 url: https://hpcflow.github.io/
-# authors:
+authors:
 #    As above, but of the software itself and not the publication
+  - given-names: Adam
+    family:names: Plowman
+    alias: aplowman
+    affiliation: University of Manchester
+    # email: 
+    orcid: https://orcid.org/0000-0002-9781-7353
+  - given-names: Peter
+    family:names: Crowther
+    alias: merrygoat
+    affiliation: University of Manchester
+    # email: 
+    orcid: https://orcid.org/0000-0002-5430-6924
+  - given-names: Christopher
+    family:names: Fullterton
+    alias: cjfullerton
+    affiliation: University of Manchester
+    # email: 
+    # orcid: https://orcid.org/
+  - given-names: Francisco
+    family:names: Herrerías-Azcué
+    alias: fherreazcue
+    affiliation: University of Manchester
+    # email: 
+    orcid: https://orcid.org/0000-0002-5906-221X
 contact:
   # How to contact someone about the software
-  - address: University of Manchester, Oxford Road
+  - address: >
+      University of Manchester,
+      Oxford Road
     city: Manchester
     country: GB
     # email:
