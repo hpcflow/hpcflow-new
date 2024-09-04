@@ -107,7 +107,7 @@ contact:
     # email:
     name: Joao Quinta Da Fonesca
     post-code: M13 9PL
-# license: 
+license: MPL-2.0
 repository-code: https://github.com/hpcflow/hpcflow-new
 keywords:
   - "workflow management"
