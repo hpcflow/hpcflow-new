@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 import copy
 
 from datetime import datetime, timezone
@@ -339,11 +340,34 @@ def resolve_jobscript_blocks(jobscripts: Dict[int, Dict]) -> Dict[int, Dict]:
     """
     js_new = []
     new_idx = {}  # track new positions by new jobscript index and block index
+    new_idx_inv = defaultdict(list)
     prev_hash = None
     blocks = []
+    js_deps_rec = {}  # recursive
     for js_idx, js_i in jobscripts.items():
 
+        cur_js_idx = len(js_new)
         new_deps_js_j = {new_idx[i][0] for i in js_i["dependencies"]}
+        new_deps_js_j_rec = [
+            k for i in new_deps_js_j for j in new_idx_inv[i] for k in js_deps_rec.get(j)
+        ]
+
+        js_deps_rec[js_idx] = new_deps_js_j.union(new_deps_js_j_rec)
+
+        # recursive dependencies of js_i (which we're looking to merge), excluding the
+        # dependency on the current jobscript:
+        js_j_deps_rec_no_cur = js_deps_rec[js_idx] - set([cur_js_idx])
+
+        # recursive dependencies of the current jobscript:
+        cur_deps_rec = {
+            j for i in new_idx_inv[cur_js_idx] for j in js_deps_rec[i] if j != cur_js_idx
+        }
+
+        # can we mege js_i into the current jobscript, as far as dependencies are
+        # concerned?
+        deps_mergable = cur_js_idx in new_deps_js_j
+        if deps_mergable and js_j_deps_rec_no_cur:
+            deps_mergable = js_j_deps_rec_no_cur == cur_deps_rec
 
         if js_i["is_array"]:
             # array jobs cannot be merged into the same jobscript
@@ -355,6 +379,7 @@ def resolve_jobscript_blocks(jobscripts: Dict[int, Dict]) -> Dict[int, Dict]:
                 blocks = []
 
             new_idx[js_idx] = (len(js_new), 0)
+            new_idx_inv[len(js_new)].append(js_idx)
             js_new.append([js_i])
             continue
 
@@ -364,15 +389,19 @@ def resolve_jobscript_blocks(jobscripts: Dict[int, Dict]) -> Dict[int, Dict]:
             # start a new block:
             blocks.append(js_i)
             new_idx[js_idx] = (len(js_new), len(blocks) - 1)
+            new_idx_inv[len(js_new)].append(js_idx)
 
             # set resource hash to compare with the next jobscript
             prev_hash = js_i["resource_hash"]
 
-        elif js_i["resource_hash"] == prev_hash and new_deps_js_j == {len(js_new)}:
+        elif js_i["resource_hash"] == prev_hash and deps_mergable:
             # merge with previous jobscript by adding another block
-            # only merge if all dependencies are part of the same (current) jobscript
+            # only merge if this jobscript's dependencies include the current jobscript,
+            # and any other dependencies are included in the current jobscript's
+            # dependencies
             blocks.append(js_i)
             new_idx[js_idx] = (len(js_new), len(blocks) - 1)
+            new_idx_inv[len(js_new)].append(js_idx)
 
         else:
             # cannot merge, append the new jobscript data:
@@ -381,6 +410,7 @@ def resolve_jobscript_blocks(jobscripts: Dict[int, Dict]) -> Dict[int, Dict]:
             # start a new block:
             blocks = [js_i]
             new_idx[js_idx] = (len(js_new), len(blocks) - 1)
+            new_idx_inv[len(js_new)].append(js_idx)
 
             # set resource hash to compare with the next jobscript
             prev_hash = js_i["resource_hash"]
