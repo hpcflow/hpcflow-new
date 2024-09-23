@@ -8,13 +8,14 @@ import enum
 class ParallelMode(enum.Enum):
     """
     Potential parallel modes.
+
+    Note: this is not yet implemented in any meaningful way!
+
     """
 
-    # TODO: Document what these really mean. This is totally a guess!
-
-    #: Spread resources so work is not allocated together.
+    #: Use distributed-memory parallelism (e.g. MPI).
     DISTRIBUTED = 0
-    #: Share resources so work is allocated together.
+    #: Use shared-memory parallelism (e.g. OpenMP).
     SHARED = 1
-    #: Spread and share resources; scheduler may choose.
+    #: Use both distributed- and shared-memory parallelism.
     HYBRID = 2
