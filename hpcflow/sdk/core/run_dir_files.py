@@ -1,3 +1,7 @@
+"""
+Model of files in the run directory.
+"""
+
 import re
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
@@ -8,7 +12,7 @@ class RunDirAppFiles:
 
     _app_attr = "app"
 
-    CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
+    _CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
     @classmethod
     def get_log_file_name(cls):
@@ -22,10 +26,16 @@ class RunDirAppFiles:
 
     @staticmethod
     def get_run_file_prefix(js_idx: int, js_action_idx: int):
+        """
+        Get the common prefix for files associated with a run.
+        """
         return f"js_{js_idx}_act_{js_action_idx}"
 
     @classmethod
     def get_commands_file_name(cls, js_idx: int, js_action_idx: int, shell):
+        """
+        Get the name of the file containing commands.
+        """
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
@@ -56,7 +66,7 @@ class RunDirAppFiles:
             if (
                 k == cls.get_log_file_name()
                 or k == cls.get_std_file_name()
-                or re.match(cls.CMD_FILES_RE_PATTERN, k)
+                or re.match(cls._CMD_FILES_RE_PATTERN, k)
             ):
                 ss_js["data"].pop(k)
 

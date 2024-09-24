@@ -8,5 +8,7 @@ https://tldp.org/LDP/abs/html/exitcodes.html
 
 """
 
+#: Formats supported for templates.
 ALL_TEMPLATE_FORMATS = ("yaml", "json")
+#: The exit code used by an EAR when it aborts.
 ABORT_EXIT_CODE = 64

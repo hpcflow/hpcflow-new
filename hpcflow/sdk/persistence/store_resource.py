@@ -1,3 +1,7 @@
+"""
+Models of data stores as resources.
+"""
+
 from abc import ABC, abstractmethod
 import copy
 import json
@@ -13,6 +17,12 @@ class StoreResource(ABC):
     A `PersistentStore` maps workflow data across zero or more store resources. Updates to
     persistent workflow data that live in the same store resource are performed together.
 
+    Parameters
+    ----------
+    app: App
+        The main application context.
+    name:
+        The store name.
     """
 
     def __init__(self, app, name: str) -> None:
@@ -26,6 +36,9 @@ class StoreResource(ABC):
 
     @property
     def logger(self):
+        """
+        The logger.
+        """
         return self.app.persistence_logger
 
     @abstractmethod
@@ -37,6 +50,14 @@ class StoreResource(ABC):
         pass
 
     def open(self, action):
+        """
+        Open the store.
+
+        Parameters
+        ----------
+        action: str
+            What we are opening the store for; typically either ``read`` or ``update``.
+        """
         if action == "read":
             # reuse "update" data if set, rather than re-loading from disk -- but copy,
             # so changes made in the "read" scope do not update!
@@ -64,6 +85,15 @@ class StoreResource(ABC):
             pass
 
     def close(self, action):
+        """
+        Close the store for a particular action.
+
+        Parameters
+        ----------
+        action: str
+            What we are closing the store for.
+            Should match a previous call to :py:meth:`close`.
+        """
         if action == "read":
             self.logger.debug(f"{self!r}: closing read.")
         elif action == "update":
@@ -88,7 +118,22 @@ class StoreResource(ABC):
 
 
 class JSONFileStoreResource(StoreResource):
-    """For caching reads and writes to a JSON file."""
+    """
+    For caching reads and writes to a JSON file.
+
+    Parameters
+    ----------
+    app: App
+        The main application context.
+    name:
+        The store name.
+    filename:
+        The name of the JSON file.
+    path:
+        The path to the directory containing the JSON file.
+    fs:
+        The filesystem that the JSON file resides within.
+    """
 
     def __init__(self, app, name: str, filename: str, path: Union[str, Path], fs):
         self.filename = filename
@@ -114,7 +159,18 @@ class JSONFileStoreResource(StoreResource):
 
 
 class ZarrAttrsStoreResource(StoreResource):
-    """For caching reads and writes to Zarr attributes on groups and arrays."""
+    """
+    For caching reads and writes to Zarr attributes on groups and arrays.
+
+    Parameters
+    ----------
+    app: App
+        The main application context.
+    name:
+        The store name.
+    open_call:
+        How to actually perform an open on the underlying resource.
+    """
 
     def __init__(self, app, name: str, open_call: Callable):
         self.open_call = open_call

@@ -1,9 +1,17 @@
+"""
+Miscellaneous persistence-related helpers.
+"""
+
 from getpass import getpass
 
 from hpcflow.sdk.core.errors import WorkflowNotFoundError
 
 
 def ask_pw_on_auth_exc(f, *args, add_pw_to=None, **kwargs):
+    """
+    Run the given function on the given arguments and add a password if the function
+    fails with an SSHException.
+    """
     from paramiko.ssh_exception import SSHException
 
     try:

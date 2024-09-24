@@ -1,3 +1,7 @@
+"""
+Model of a command run in an action.
+"""
+
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -15,6 +19,32 @@ from hpcflow.sdk.core.parameters import ParameterValue
 
 @dataclass
 class Command(JSONLike):
+    """
+    A command that may be run within a workflow action.
+
+    Parameters
+    ----------
+    command: str
+        The actual command.
+    executable: str
+        The executable to run,
+        from the set of executable managed by the environment.
+    arguments: list[str]
+        The arguments to pass in.
+    variables: dict[str, str]
+        Values that may be substituted when preparing the arguments.
+    stdout: str
+        The name of a file to write standard output to.
+    stderr: str
+        The name of a file to write standard error to.
+    stdin: str
+        The name of a file to read standard input from.
+    rules: list[~hpcflow.app.ActionRule]
+        Rules that state whether this command is eligible to run.
+    """
+
+    # TODO: What is the difference between command and executable?
+
     _app_attr = "app"
     _child_objects = (
         ChildObjectSpec(
@@ -25,13 +55,23 @@ class Command(JSONLike):
         ),
     )
 
+    #: The actual command.
+    #: Overrides :py:attr:`executable`.
     command: Optional[str] = None
+    #: The executable to run,
+    #: from the set of executable managed by the environment.
     executable: Optional[str] = None
+    #: The arguments to pass in.
     arguments: Optional[List[str]] = None
+    #: Values that may be substituted when preparing the arguments.
     variables: Optional[Dict[str, str]] = None
+    #: The name of a file to write standard output to.
     stdout: Optional[str] = None
+    #: The name of a file to write standard error to.
     stderr: Optional[str] = None
+    #: The name of a file to read standard input from.
     stdin: Optional[str] = None
+    #: Rules that state whether this command is eligible to run.
     rules: Optional[List[app.ActionRule]] = field(default_factory=lambda: [])
 
     def __repr__(self) -> str:
@@ -207,6 +247,9 @@ class Command(JSONLike):
         return cmd_str, shell_vars
 
     def get_output_types(self):
+        """
+        Get whether stdout and stderr are workflow parameters.
+        """
         # note: we use "parameter" rather than "output", because it could be a schema
         # output or schema input.
         pattern = (
@@ -253,6 +296,20 @@ class Command(JSONLike):
         return kwargs
 
     def process_std_stream(self, name: str, value: str, stderr: bool):
+        """
+        Process a description of a standard stread from a command to get how it becomes
+        a workflow parameter for later actions.
+
+        Parameters
+        ---------
+        name:
+            The name of the output, describing how to process things.
+        value:
+            The actual value read from the stream.
+        stderr:
+            If true, this is handling the stderr stream. If false, the stdout stream.
+        """
+
         def _parse_list(lst_str: str, item_type: str = "str", delim: str = " "):
             return [parse_types[item_type](i) for i in lst_str.split(delim)]
 

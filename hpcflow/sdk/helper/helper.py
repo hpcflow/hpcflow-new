@@ -1,3 +1,7 @@
+"""
+Implementation of a helper process used to monitor jobs.
+"""
+
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import RotatingFileHandler
@@ -71,6 +75,9 @@ def start_helper(
     watch_interval=DEFAULT_WATCH_INTERVAL,
     logger=None,
 ):
+    """
+    Start the helper process.
+    """
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
         with PID_file.open("rt") as fp:
@@ -135,11 +142,17 @@ def restart_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
+    """
+    Restart the helper process.
+    """
     logger = stop_helper(app, return_logger=True)
     start_helper(app, timeout, timeout_check_interval, watch_interval, logger=logger)
 
 
 def get_helper_PID(app):
+    """
+    Get the process ID of the helper process.
+    """
     PID_file = get_PID_file_path(app)
     if not PID_file.is_file():
         print("Helper not running!")
@@ -151,6 +164,9 @@ def get_helper_PID(app):
 
 
 def stop_helper(app, return_logger=False):
+    """
+    Stop the helper process.
+    """
     logger = get_helper_logger(app)
     pid_info = get_helper_PID(app)
     if pid_info:
@@ -168,6 +184,9 @@ def stop_helper(app, return_logger=False):
 
 
 def clear_helper(app):
+    """
+    Stop the helper or remove any stale information relating to it.
+    """
     try:
         stop_helper(app)
     except psutil.NoSuchProcess:
@@ -179,6 +198,9 @@ def clear_helper(app):
 
 
 def get_helper_uptime(app):
+    """
+    Get the amount of time that the helper has been running.
+    """
     pid_info = get_helper_PID(app)
     if pid_info:
         proc = psutil.Process(pid_info[0])
@@ -188,6 +210,9 @@ def get_helper_uptime(app):
 
 
 def get_helper_logger(app):
+    """
+    Get the logger for helper-related messages.
+    """
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -225,6 +250,9 @@ def run_helper(
     timeout_check_interval=DEFAULT_TIMEOUT_CHECK,
     watch_interval=DEFAULT_WATCH_INTERVAL,
 ):
+    """
+    Run the helper core.
+    """
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming

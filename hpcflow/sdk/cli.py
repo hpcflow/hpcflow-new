@@ -1,3 +1,7 @@
+"""
+Command line interface implementation.
+"""
+
 import json
 import os
 from typing import Dict, List
@@ -38,26 +42,36 @@ from hpcflow.sdk.cli_common import (
     rechunk_backup_opt,
     rechunk_chunk_size_opt,
     rechunk_status_opt,
+    _add_doc_from_help,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.submission.shells import ALL_SHELLS
 
+#: Standard option
 string_option = click.option(
     "--string",
     is_flag=True,
     default=False,
     help="Determines if passing a file path or a string.",
 )
+#: Standard option
 workflow_ref_type_opt = click.option(
     "--ref-type",
     "-r",
     type=click.Choice(["assume-id", "id", "path"]),
     default="assume-id",
+    help="How to interpret a reference, as an ID, a path, or to guess.",
 )
 
 
+_add_doc_from_help(string_option, workflow_ref_type_opt)
+
+
 def parse_jobscript_wait_spec(jobscripts: str) -> Dict[int, List[int]]:
+    """
+    Parse a jobscript wait specification.
+    """
     sub_js_idx_dct = {}
     for sub_i in jobscripts.split(";"):
         sub_idx_str, js_idx_lst_str = sub_i.split(":")

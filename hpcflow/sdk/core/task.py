@@ -1,3 +1,7 @@
+"""
+Tasks are components of workflows.
+"""
+
 from __future__ import annotations
 from collections import defaultdict
 import copy
@@ -66,18 +70,59 @@ class InputStatus:
 
     """
 
+    #: True if a default value is available.
     has_default: bool
+    #: True if the input is required by one or more actions. An input may not be required
+    #: if it is only used in the generation of inputs files, and those input files are
+    #: passed to the element set directly.
     is_required: bool
+    #: True if the input is locally provided in the element set.
     is_provided: bool
 
     @property
     def is_extra(self):
-        """Return True if the input is provided but not required."""
+        """True if the input is provided but not required."""
         return self.is_provided and not self.is_required
 
 
 class ElementSet(JSONLike):
-    """Class to represent a parametrisation of a new set of elements."""
+    """Class to represent a parameterisation of a new set of elements.
+
+    Parameters
+    ----------
+    inputs: list[~hpcflow.app.InputValue]
+        Inputs to the set of elements.
+    input_files: list[~hpcflow.app.InputFile]
+        Input files to the set of elements.
+    sequences: list[~hpcflow.app.ValueSequence]
+        Input value sequences to parameterise over.
+    resources: ~hpcflow.app.ResourceList
+        Resources to use for the set of elements.
+    repeats: list[dict]
+        Description of how to repeat the set of elements.
+    groups: list[~hpcflow.app.ElementGroup]
+        Groupings in the set of elements.
+    input_sources: dict[str, ~hpcflow.app.InputSource]
+        Input source descriptors.
+    nesting_order: dict[str, int]
+        How to handle nesting of iterations.
+    env_preset: str
+        Which environment preset to use. Don't use at same time as ``environments``.
+    environments: dict
+        Environment descriptors to use. Don't use at same time as ``env_preset``.
+    sourceable_elem_iters: list[int]
+        If specified, a list of global element iteration indices from which inputs for
+        the new elements associated with this element set may be sourced. If not
+        specified, all workflow element iterations are considered sourceable.
+    allow_non_coincident_task_sources: bool
+        If True, if more than one parameter is sourced from the same task, then allow
+        these sources to come from distinct element sub-sets. If False (default),
+        only the intersection of element sub-sets for all parameters are included.
+    merge_envs: bool
+        If True, merge ``environments`` into ``resources`` using the "any" scope. If
+        False, ``environments`` are ignored. This is required on first initialisation,
+        but not on subsequent re-initialisation from a persistent workflow.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -137,35 +182,34 @@ class ElementSet(JSONLike):
         allow_non_coincident_task_sources: Optional[bool] = False,
         merge_envs: Optional[bool] = True,
     ):
-        """
-        Parameters
-        ----------
-        sourceable_elem_iters
-            If specified, a list of global element iteration indices from which inputs for
-            the new elements associated with this element set may be sourced. If not
-            specified, all workflow element iterations are considered sourceable.
-        allow_non_coincident_task_sources
-            If True, if more than one parameter is sourced from the same task, then allow
-            these sources to come from distinct element sub-sets. If False (default),
-            only the intersection of element sub-sets for all parameters are included.
-        merge_envs
-            If True, merge `environments` into `resources` using the "any" scope. If
-            False, `environments` are ignored. This is required on first initialisation,
-            but not on subsequent re-initialisation from a persistent workflow.
-        """
-
+        #: Inputs to the set of elements.
         self.inputs = inputs or []
+        #: Input files to the set of elements.
         self.input_files = input_files or []
+        #: Description of how to repeat the set of elements.
         self.repeats = repeats or []
+        #: Groupings in the set of elements.
         self.groups = groups or []
+        #: Resources to use for the set of elements.
         self.resources = self.app.ResourceList.normalise(resources)
+        #: Input value sequences to parameterise over.
         self.sequences = sequences or []
+        #: Input source descriptors.
         self.input_sources = input_sources or {}
+        #: How to handle nesting of iterations.
         self.nesting_order = nesting_order or {}
+        #: Which environment preset to use.
         self.env_preset = env_preset
+        #: Environment descriptors to use.
         self.environments = environments
+        #: List of global element iteration indices from which inputs for
+        #: the new elements associated with this element set may be sourced.
+        #: If ``None``, all iterations are valid.
         self.sourceable_elem_iters = sourceable_elem_iters
+        #: Whether to allow sources to come from distinct element sub-sets.
         self.allow_non_coincident_task_sources = allow_non_coincident_task_sources
+        #: Whether to merge ``environments`` into ``resources`` using the "any" scope
+        #: on first initialisation.
         self.merge_envs = merge_envs
 
         self._validate()
@@ -235,6 +279,9 @@ class ElementSet(JSONLike):
 
     @property
     def task_template(self):
+        """
+        The abstract task this was derived from.
+        """
         return self._task_template
 
     @task_template.setter
@@ -244,11 +291,14 @@ class ElementSet(JSONLike):
 
     @property
     def input_types(self):
+        """
+        The input types of the inputs to this element set.
+        """
         return [i.labelled_type for i in self.inputs]
 
     @property
     def element_local_idx_range(self):
-        """Used to retrieve elements belonging to this element set."""
+        """Indices of elements belonging to this element set."""
         return tuple(self._element_local_idx_range)
 
     def _validate(self):
@@ -376,6 +426,9 @@ class ElementSet(JSONLike):
         element_sets=None,
         sourceable_elem_iters=None,
     ):
+        """
+        Make an instance after validating some argument combinations.
+        """
         args = (
             inputs,
             input_files,
@@ -417,18 +470,30 @@ class ElementSet(JSONLike):
 
     @property
     def defined_input_types(self):
+        """
+        The input types to this element set.
+        """
         return self._defined_input_types
 
     @property
     def undefined_input_types(self):
+        """
+        The input types to the abstract task that aren't related to this element set.
+        """
         return self.task_template.all_schema_input_types - self.defined_input_types
 
     def get_sequence_from_path(self, sequence_path):
-        for i in self.sequences:
-            if i.path == sequence_path:
-                return i
+        """
+        Get the value sequence for the given path, if it exists.
+        """
+        for seq in self.sequences:
+            if seq.path == sequence_path:
+                return seq
 
     def get_defined_parameter_types(self):
+        """
+        Get the parameter types of this element set.
+        """
         out = []
         for inp in self.inputs:
             if not inp.is_sub_value:
@@ -439,6 +504,9 @@ class ElementSet(JSONLike):
         return out
 
     def get_defined_sub_parameter_types(self):
+        """
+        Get the sub-parameter types of this element set.
+        """
         out = []
         for inp in self.inputs:
             if inp.is_sub_value:
@@ -449,35 +517,48 @@ class ElementSet(JSONLike):
         return out
 
     def get_locally_defined_inputs(self):
+        """
+        Get the input types that this element set defines.
+        """
         return self.get_defined_parameter_types() + self.get_defined_sub_parameter_types()
-
-    def get_sequence_by_path(self, path):
-        for seq in self.sequences:
-            if seq.path == path:
-                return seq
 
     @property
     def index(self):
+        """
+        The index of this element set in its' template task's collection of sets.
+        """
         for idx, element_set in enumerate(self.task_template.element_sets):
             if element_set is self:
                 return idx
 
     @property
     def task(self):
+        """
+        The concrete task corresponding to this element set.
+        """
         return self.task_template.workflow_template.workflow.tasks[
             self.task_template.index
         ]
 
     @property
     def elements(self):
+        """
+        The elements in this element set.
+        """
         return self.task.elements[slice(*self.element_local_idx_range)]
 
     @property
     def element_iterations(self):
+        """
+        The iterations in this element set.
+        """
         return [j for i in self.elements for j in i.iterations]
 
     @property
     def elem_iter_IDs(self):
+        """
+        The IDs of the iterations in this element set.
+        """
         return [i.id_ for i in self.element_iterations]
 
     def get_task_dependencies(self, as_objects=False):
@@ -510,8 +591,18 @@ class ElementSet(JSONLike):
 
 
 class OutputLabel(JSONLike):
-    """Class to represent schema input labels that should be applied to a subset of task
-    outputs"""
+    """
+    Schema input labels that should be applied to a subset of task outputs.
+
+    Parameters
+    ----------
+    parameter:
+        Name of a parameter.
+    label:
+        Label to apply to the parameter.
+    where: ~hpcflow.app.ElementFilter
+        Optional filtering rule
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -526,22 +617,50 @@ class OutputLabel(JSONLike):
         label: str,
         where: Optional[List[app.ElementFilter]] = None,
     ) -> None:
+        #: Name of a parameter.
         self.parameter = parameter
+        #: Label to apply to the parameter.
         self.label = label
+        #: Filtering rule.
         self.where = where
 
 
 class Task(JSONLike):
-    """Parametrisation of an isolated task for which a subset of input values are given
+    """
+    Parametrisation of an isolated task for which a subset of input values are given
     "locally". The remaining input values are expected to be satisfied by other
     tasks/imports in the workflow.
 
     Parameters
     ----------
-    schema
-        A `TaskSchema` object or a list of `TaskSchema` objects.
-    inputs
+    schema: ~hpcflow.app.TaskSchema | list[~hpcflow.app.TaskSchema]
+        A (list of) `TaskSchema` object(s) and/or a (list of) strings that are task
+        schema names that uniquely identify a task schema. If strings are provided,
+        the `TaskSchema` object will be fetched from the known task schemas loaded by
+        the app configuration.
+    repeats: list[dict]
+    groups: list[~hpcflow.app.ElementGroup]
+    resources: dict
+    inputs: list[~hpcflow.app.InputValue]
         A list of `InputValue` objects.
+    input_files: list[~hpcflow.app.InputFile]
+    sequences: list[~hpcflow.app.ValueSequence]
+    input_sources: dict[str, ~hpcflow.app.InputSource]
+    nesting_order: list
+    env_preset: str
+    environments: dict[str, dict]
+    allow_non_coincident_task_sources: bool
+        If True, if more than one parameter is sourced from the same task, then allow
+        these sources to come from distinct element sub-sets. If False (default),
+        only the intersection of element sub-sets for all parameters are included.
+    element_sets: list[ElementSet]
+    output_labels: list[OutputLabel]
+    sourceable_elem_iters: list[int]
+    merge_envs: bool
+        If True, merge environment presets (set via the element set `env_preset` key)
+        into `resources` using the "any" scope. If False, these presets are ignored.
+        This is required on first initialisation, but not on subsequent
+        re-initialisation from a persistent workflow.
     """
 
     _child_objects = (
@@ -585,25 +704,6 @@ class Task(JSONLike):
         sourceable_elem_iters: Optional[List[int]] = None,
         merge_envs: Optional[bool] = True,
     ):
-        """
-        Parameters
-        ----------
-        schema
-            A (list of) `TaskSchema` object(s) and/or a (list of) strings that are task
-            schema names that uniquely identify a task schema. If strings are provided,
-            the `TaskSchema` object will be fetched from the known task schemas loaded by
-            the app configuration.
-        allow_non_coincident_task_sources
-            If True, if more than one parameter is sourced from the same task, then allow
-            these sources to come from distinct element sub-sets. If False (default),
-            only the intersection of element sub-sets for all parameters are included.
-        merge_envs
-            If True, merge environment presets (set via the element set `env_preset` key)
-            into `resources` using the "any" scope. If False, these presets are ignored.
-            This is required on first initialisation, but not on subsequent
-            re-initialisation from a persistent workflow.
-        """
-
         # TODO: allow init via specifying objective and/or method and/or implementation
         # (lists of) strs e.g.: Task(
         #   objective='simulate_VE_loading',
@@ -652,6 +752,8 @@ class Task(JSONLike):
             sourceable_elem_iters=sourceable_elem_iters,
         )
         self._output_labels = output_labels or []
+        #: Whether to merge ``environments`` into ``resources`` using the "any" scope
+        #: on first initialisation.
         self.merge_envs = merge_envs
 
         # appended to when new element sets are added and reset on dump to disk:
@@ -660,6 +762,7 @@ class Task(JSONLike):
         self._validate()
         self._name = self._get_name()
 
+        #: The template workflow that this task is within.
         self.workflow_template = None  # assigned by parent WorkflowTemplate
         self._insert_ID = None
         self._dir_name = None
@@ -800,6 +903,9 @@ class Task(JSONLike):
         }
 
     def set_sequence_parameters(self, element_set):
+        """
+        Set up parameters parsed by value sequences.
+        """
         # set ValueSequence Parameter objects:
         for seq in element_set.sequences:
             if seq.input_type:
@@ -882,6 +988,11 @@ class Task(JSONLike):
         return output_data_indices
 
     def prepare_element_resolution(self, element_set, input_data_indices):
+        """
+        Set up the resolution of details of elements
+        (especially multiplicities and how iterations are nested)
+        within an element set.
+        """
         multiplicities = []
         for path_i, inp_idx_i in input_data_indices.items():
             multiplicities.append(
@@ -917,6 +1028,9 @@ class Task(JSONLike):
 
     @property
     def index(self):
+        """
+        The index of this task within the workflow's tasks.
+        """
         if self.workflow_template:
             return self.workflow_template.tasks.index(self)
         else:
@@ -924,6 +1038,9 @@ class Task(JSONLike):
 
     @property
     def output_labels(self):
+        """
+        The labels on the outputs of the task.
+        """
         return self._output_labels
 
     @property
@@ -1113,11 +1230,14 @@ class Task(JSONLike):
 
     @property
     def schemas(self) -> List[app.TaskSchema]:
+        """
+        All the task schemas.
+        """
         return self._schemas
 
     @property
     def schema(self) -> app.TaskSchema:
-        """Returns the single task schema, if only one, else raises."""
+        """The single task schema, if only one, else raises."""
         if len(self._schemas) == 1:
             return self._schemas[0]
         else:
@@ -1128,52 +1248,81 @@ class Task(JSONLike):
 
     @property
     def element_sets(self):
+        """
+        The element sets.
+        """
         return self._element_sets + self._pending_element_sets
 
     @property
     def num_element_sets(self):
+        """
+        The number of element sets.
+        """
         return len(self.element_sets)
 
     @property
     def insert_ID(self):
+        """
+        Insertion ID.
+        """
         return self._insert_ID
 
     @property
     def dir_name(self):
-        "Artefact directory name."
+        """
+        Artefact directory name.
+        """
         return self._dir_name
 
     @property
     def name(self):
+        """
+        Task name.
+        """
         return self._name
 
     @property
     def objective(self):
+        """
+        The goal of this task.
+        """
         return self.schemas[0].objective
 
     @property
     def all_schema_inputs(self) -> Tuple[app.SchemaInput]:
+        """
+        The inputs to this task's schemas.
+        """
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.inputs)
 
     @property
     def all_schema_outputs(self) -> Tuple[app.SchemaOutput]:
+        """
+        The outputs from this task's schemas.
+        """
         return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
 
     @property
     def all_schema_input_types(self):
-        """Get the set of all schema input types (over all specified schemas)."""
+        """The set of all schema input types (over all specified schemas)."""
         return {inp_j for schema_i in self.schemas for inp_j in schema_i.input_types}
 
     @property
     def all_schema_input_normalised_paths(self):
+        """
+        Normalised paths for all schema input types.
+        """
         return {f"inputs.{i}" for i in self.all_schema_input_types}
 
     @property
     def all_schema_output_types(self):
-        """Get the set of all schema output types (over all specified schemas)."""
+        """The set of all schema output types (over all specified schemas)."""
         return {out_j for schema_i in self.schemas for out_j in schema_i.output_types}
 
     def get_schema_action(self, idx):
+        """
+        Get the schema action at the given index.
+        """
         _idx = 0
         for schema in self.schemas:
             for action in schema.actions:
@@ -1183,6 +1332,9 @@ class Task(JSONLike):
         raise ValueError(f"No action in task {self.name!r} with index {idx!r}.")
 
     def all_schema_actions(self) -> Iterator[Tuple[int, app.Action]]:
+        """
+        Get all the schema actions and their indices.
+        """
         idx = 0
         for schema in self.schemas:
             for action in schema.actions:
@@ -1191,6 +1343,9 @@ class Task(JSONLike):
 
     @property
     def num_all_schema_actions(self) -> int:
+        """
+        The total number of schema actions.
+        """
         num = 0
         for schema in self.schemas:
             for _ in schema.actions:
@@ -1199,6 +1354,9 @@ class Task(JSONLike):
 
     @property
     def all_sourced_normalised_paths(self):
+        """
+        All the sourced normalised paths, including of sub-values.
+        """
         sourced_input_types = []
         for elem_set in self.element_sets:
             for inp in elem_set.inputs:
@@ -1280,14 +1438,23 @@ class Task(JSONLike):
 
     @property
     def defined_input_types(self):
+        """
+        The input types defined by this task.
+        """
         return self._defined_input_types
 
     @property
     def undefined_input_types(self):
+        """
+        The schema's input types that this task doesn't define.
+        """
         return self.all_schema_input_types - self.defined_input_types
 
     @property
     def undefined_inputs(self):
+        """
+        The task's inputs that are undefined.
+        """
         return [
             inp_j
             for schema_i in self.schemas
@@ -1323,6 +1490,9 @@ class Task(JSONLike):
     def add_group(
         self, name: str, where: app.ElementFilter, group_by_distinct: app.ParameterPath
     ):
+        """
+        Add an element group to this task.
+        """
         group = ElementGroup(name=name, where=where, group_by_distinct=group_by_distinct)
         self.groups.add_object(group)
 
@@ -1346,7 +1516,20 @@ class Task(JSONLike):
 
 
 class WorkflowTask:
-    """Class to represent a Task that is bound to a Workflow."""
+    """
+    Represents a :py:class:`Task` that is bound to a :py:class:`Workflow`.
+
+    Parameters
+    ----------
+    workflow:
+        The workflow that the task is bound to.
+    template:
+        The task template that this binds.
+    index:
+        Where in the workflow's list of tasks is this one.
+    element_IDs:
+        The IDs of the elements of this task.
+    """
 
     _app_attr = "app"
 
@@ -1379,6 +1562,18 @@ class WorkflowTask:
 
     @classmethod
     def new_empty_task(cls, workflow: app.Workflow, template: app.Task, index: int):
+        """
+        Make a new instance without any elements set up yet.
+
+        Parameters
+        ----------
+        workflow:
+            The workflow that the task is bound to.
+        template:
+            The task template that this binds.
+        index:
+            Where in the workflow's list of tasks is this one.
+        """
         obj = cls(
             workflow=workflow,
             template=template,
@@ -1389,61 +1584,103 @@ class WorkflowTask:
 
     @property
     def workflow(self):
+        """
+        The workflow this task is bound to.
+        """
         return self._workflow
 
     @property
     def template(self):
+        """
+        The template for this task.
+        """
         return self._template
 
     @property
     def index(self):
+        """
+        The index of this task within its workflow.
+        """
         return self._index
 
     @property
     def element_IDs(self):
+        """
+        The IDs of elements associated with this task.
+        """
         return self._element_IDs + self._pending_element_IDs
 
     @property
     def num_elements(self):
+        """
+        The number of elements associated with this task.
+        """
         return len(self.element_IDs)
 
     @property
     def num_actions(self):
+        """
+        The number of actions in this task.
+        """
         return self.template.num_all_schema_actions
 
     @property
     def name(self):
+        """
+        The name of this task based on its template.
+        """
         return self.template.name
 
     @property
     def unique_name(self):
+        """
+        The unique name for this task specifically.
+        """
         return self.workflow.get_task_unique_names()[self.index]
 
     @property
     def insert_ID(self):
+        """
+        The insertion ID of the template task.
+        """
         return self.template.insert_ID
 
     @property
     def dir_name(self):
+        """
+        The name of the directory for the task's temporary files.
+        """
         return self.template.dir_name
 
     @property
     def num_element_sets(self):
+        """
+        The number of element sets associated with this task.
+        """
         return self.template.num_element_sets
 
     @property
     @TimeIt.decorator
     def elements(self):
+        """
+        The elements associated with this task.
+        """
         if self._elements is None:
             self._elements = self.app.Elements(self)
         return self._elements
 
     def get_dir_name(self, loop_idx: Dict[str, int] = None) -> str:
+        """
+        Get the directory name for a particular iteration.
+        """
         if not loop_idx:
             return self.dir_name
         return self.dir_name + "_" + "_".join((f"{k}-{v}" for k, v in loop_idx.items()))
 
     def get_all_element_iterations(self) -> Dict[int, app.ElementIteration]:
+        """
+        Get the iterations known by the task's elements.
+        """
         return {j.id_: j for i in self.elements for j in i.iterations}
 
     def _make_new_elements_persistent(
@@ -1633,7 +1870,7 @@ class WorkflowTask:
                         source_idx[key] = [inp_src_idx] * len(grp_idx)
                         if key in sequence_idx:
                             sequence_idx.pop(key)
-                            seq = element_set.get_sequence_by_path(key)
+                            seq = element_set.get_sequence_from_path(key)
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     grp_idx = [def_val._value_group_idx]
@@ -1950,6 +2187,9 @@ class WorkflowTask:
         sequence_indices,
         source_indices,
     ):
+        """
+        Create information about new elements in this task.
+        """
         new_elements = []
         element_sequence_indices = {}
         element_src_indices = {}
@@ -1984,12 +2224,12 @@ class WorkflowTask:
 
     @property
     def upstream_tasks(self):
-        """Get all workflow tasks that are upstream from this task."""
+        """All workflow tasks that are upstream from this task."""
         return [task for task in self.workflow.tasks[: self.index]]
 
     @property
     def downstream_tasks(self):
-        """Get all workflow tasks that are downstream from this task."""
+        """All workflow tasks that are downstream from this task."""
         return [task for task in self.workflow.tasks[self.index + 1 :]]
 
     @staticmethod
@@ -2246,6 +2486,22 @@ class WorkflowTask:
         propagate_to=None,
         return_indices=False,
     ):
+        """
+        Add elements to this task.
+
+        Parameters
+        ----------
+        sourceable_elem_iters : list of int, optional
+            If specified, a list of global element iteration indices from which inputs
+            may be sourced. If not specified, all workflow element iterations are
+            considered sourceable.
+        propagate_to : dict[str, ElementPropagation]
+            Propagate the new elements downstream to the specified tasks.
+        return_indices : bool
+            If True, return the list of indices of the newly added elements. False by
+            default.
+
+        """
         propagate_to = self.app.ElementPropagation._prepare_propagate_to_dict(
             propagate_to, self.workflow
         )
@@ -2281,21 +2537,7 @@ class WorkflowTask:
         propagate_to: Dict[str, app.ElementPropagation] = None,
         return_indices: bool = False,
     ):
-        """Add more elements to this task.
-
-        Parameters
-        ----------
-        sourceable_elem_iters : list of int, optional
-            If specified, a list of global element iteration indices from which inputs
-            may be sourced. If not specified, all workflow element iterations are
-            considered sourceable.
-        propagate_to : dict of [str, ElementPropagation]
-            Propagate the new elements downstream to the specified tasks.
-        return_indices : bool, optional
-            If True, return the list of indices of the newly added elements. False by
-            default.
-
-        """
+        """Add more elements to this task."""
 
         if base_element is not None:
             if base_element.task is not self:
@@ -2467,13 +2709,22 @@ class WorkflowTask:
 
     @property
     def inputs(self):
+        """
+        Inputs to this task.
+        """
         return self.app.TaskInputParameters(self)
 
     @property
     def outputs(self):
+        """
+        Outputs from this task.
+        """
         return self.app.TaskOutputParameters(self)
 
     def get(self, path, raise_on_missing=False, default=None):
+        """
+        Get a parameter known to this task by its path.
+        """
         return self.app.Parameters(
             self,
             path=path,
@@ -2866,6 +3117,15 @@ class WorkflowTask:
 
 
 class Elements:
+    """
+    The elements of a task. Iterable.
+
+    Parameters
+    ----------
+    task:
+        The task this will be the elements of.
+    """
+
     __slots__ = ("_task",)
 
     def __init__(self, task: app.WorkflowTask):
@@ -2881,6 +3141,9 @@ class Elements:
 
     @property
     def task(self):
+        """
+        The task this is the elements of.
+        """
         return self._task
 
     @TimeIt.decorator
@@ -2924,13 +3187,38 @@ class Elements:
 
 @dataclass
 class Parameters:
+    """
+    The parameters of a (workflow-bound) task. Iterable.
+
+    Parameters
+    ----------
+    task: WorkflowTask
+        The task these are the parameters of.
+    path: str
+        The path to the parameter or parameters.
+    return_element_parameters: bool
+        Whether to return element parameters.
+    raise_on_missing: bool
+        Whether to raise an exception on a missing parameter.
+    raise_on_unset: bool
+        Whether to raise an exception on an unset parameter.
+    default:
+        A default value to use when the parameter is absent.
+    """
+
     _app_attr = "_app"
 
+    #: The task these are the parameters of.
     task: app.WorkflowTask
+    #: The path to the parameter or parameters.
     path: str
+    #: Whether to return element parameters.
     return_element_parameters: bool
+    #: Whether to raise an exception on a missing parameter.
     raise_on_missing: Optional[bool] = False
+    #: Whether to raise an exception on an unset parameter.
     raise_on_unset: Optional[bool] = False
+    #: A default value to use when the parameter is absent.
     default: Optional[Any] = None
 
     @TimeIt.decorator
@@ -2990,10 +3278,19 @@ class Parameters:
 
 @dataclass
 class TaskInputParameters:
-    """For retrieving schema input parameters across all elements."""
+    """
+    For retrieving schema input parameters across all elements.
+    Treat as an unmodifiable namespace.
+
+    Parameters
+    ----------
+    task:
+        The task that this represents the input parameters of.
+    """
 
     _app_attr = "_app"
 
+    #: The task that this represents the input parameters of.
     task: app.WorkflowTask
 
     def __getattr__(self, name):
@@ -3016,10 +3313,19 @@ class TaskInputParameters:
 
 @dataclass
 class TaskOutputParameters:
-    """For retrieving schema output parameters across all elements."""
+    """
+    For retrieving schema output parameters across all elements.
+    Treat as an unmodifiable namespace.
+
+    Parameters
+    ----------
+    task:
+        The task that this represents the output parameters of.
+    """
 
     _app_attr = "_app"
 
+    #: The task that this represents the output parameters of.
     task: app.WorkflowTask
 
     def __getattr__(self, name):
@@ -3042,17 +3348,38 @@ class TaskOutputParameters:
 
 @dataclass
 class ElementPropagation:
-    """Class to represent how a newly added element set should propagate to a given
-    downstream task."""
+    """
+    Class to represent how a newly added element set should propagate to a given
+    downstream task.
+
+    Parameters
+    ----------
+    task:
+        The task this is propagating to.
+    nesting_order:
+        The nesting order information.
+    input_sources:
+        The input source information.
+    """
 
     _app_attr = "app"
 
+    #: The task this is propagating to.
     task: app.Task
+    #: The nesting order information.
     nesting_order: Optional[Dict] = None
+    #: The input source information.
     input_sources: Optional[Dict] = None
 
     @property
     def element_set(self):
+        """
+        The element set that this propagates from.
+
+        Note
+        ----
+        Temporary property. May be moved or reinterpreted.
+        """
         # TEMP property; for now just use the first element set as the base:
         return self.task.template.element_sets[0]
 

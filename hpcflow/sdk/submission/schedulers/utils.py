@@ -1,3 +1,7 @@
+"""
+Helper for running a subprocess.
+"""
+
 import subprocess
 
 

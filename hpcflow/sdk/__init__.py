@@ -4,7 +4,8 @@ import logging
 import os
 import sys
 
-# classes used in the construction of a workflow:
+#: Classes used in the construction of a workflow.
+#: :meta hide-value:
 sdk_classes = {
     "Workflow": "hpcflow.sdk.core.workflow",
     "Task": "hpcflow.sdk.core.task",
@@ -95,6 +96,8 @@ sdk_classes = {
 }
 
 # these are defined as `BaseApp` methods with an underscore prefix:
+#: Functions exported by the application.
+#: :meta hide-value:
 sdk_funcs = (
     "make_workflow",
     "make_demo_workflow",

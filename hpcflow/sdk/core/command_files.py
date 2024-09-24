@@ -1,3 +1,7 @@
+"""
+Model of files that hold commands.
+"""
+
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
@@ -15,12 +19,18 @@ from hpcflow.sdk.core.parameters import _process_demo_data_strings
 
 @dataclass
 class FileSpec(JSONLike):
+    """
+    A specification of a file handled by a workflow.
+    """
+
     _app_attr = "app"
 
     _validation_schema = "files_spec_schema.yaml"
     _child_objects = (ChildObjectSpec(name="name", class_name="FileNameSpec"),)
 
+    #: Label for this file specification.
     label: str
+    #: The name of the file.
     name: str
     _hash_value: Optional[str] = field(default=None, repr=False)
 
@@ -30,6 +40,9 @@ class FileSpec(JSONLike):
         )
 
     def value(self, directory="."):
+        """
+        The path to a file, optionally resolved with respect to a particular directory.
+        """
         return self.name.value(directory)
 
     def __eq__(self, other: object) -> bool:
@@ -41,19 +54,42 @@ class FileSpec(JSONLike):
 
     @property
     def stem(self):
+        """
+        The stem of the file name.
+        """
         return self.name.stem
 
     @property
     def ext(self):
+        """
+        The extension of the file name.
+        """
         return self.name.ext
 
 
 class FileNameSpec(JSONLike):
+    """
+    The name of a file handled by a workflow, or a pattern that matches multiple files.
+
+    Parameters
+    ----------
+    name: str
+        The name or pattern.
+    args: list
+        Positional arguments to use when formatting the name.
+        Can be omitted if the name does not contain a Python formatting pattern.
+    is_regex: bool
+        If true, the name is used as a regex to search for actual files.
+    """
+
     _app_attr = "app"
 
     def __init__(self, name, args=None, is_regex=False):
+        #: The name or pattern.
         self.name = name
+        #: Positional arguments to use when formatting the name.
         self.args = args
+        #: Whether the name is used as a regex to search for actual files.
         self.is_regex = is_regex
 
     def __eq__(self, other: object) -> bool:
@@ -67,13 +103,28 @@ class FileNameSpec(JSONLike):
 
     @property
     def stem(self):
+        """
+        The stem of the name or pattern.
+        """
         return self.app.FileNameStem(self)
 
     @property
     def ext(self):
+        """
+        The extension of the name or pattern.
+        """
         return self.app.FileNameExt(self)
 
     def value(self, directory="."):
+        """
+        Get the template-resolved name of the file
+        (or files matched if the name is a regex pattern).
+
+        Parameters
+        ----------
+        directory: str
+            Where to resolve values with respect to.
+        """
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
@@ -86,22 +137,60 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
+    """
+    The stem of a file name.
+    """
+
+    #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
     def value(self, directory=None):
+        """
+        Get the stem, possibly with directory specified.
+        """
         return Path(self.file_name.value(directory)).stem
 
 
 @dataclass
 class FileNameExt(JSONLike):
+    """
+    The extension of a file name.
+    """
+
+    #: The file specification this is derived from.
     file_name: app.FileNameSpec
 
     def value(self, directory=None):
+        """
+        Get the extension.
+        """
         return Path(self.file_name.value(directory)).suffix
 
 
 @dataclass
 class InputFileGenerator(JSONLike):
+    """
+    Represents a script that is run to generate input files for an action.
+
+    Parameters
+    ----------
+    input_file:
+        The file to generate.
+    inputs: list[~hpcflow.app.Parameter]
+        The input parameters to the generator.
+    script:
+        The script that generates the input.
+    environment:
+        The environment in which to run the generator.
+    script_pass_env_spec:
+        Whether to pass in the environment.
+    abortable:
+        Whether the generator can be stopped early.
+        Quick-running scripts tend to not need this.
+    rules: list[~hpcflow.app.ActionRule]
+        User-specified rules for whether to run the generator.
+    """
+
     _app_attr = "app"
 
     _child_objects = (
@@ -127,12 +216,20 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
+    #: The file to generate.
     input_file: app.FileSpec
+    #: The input parameters to the generator.
     inputs: List[app.Parameter]
+    #: The script that generates the inputs.
     script: str = None
+    #: The environment in which to run the generator.
     environment: app.Environment = None
+    #: Whether to pass in the environment.
     script_pass_env_spec: Optional[bool] = False
+    #: Whether the generator can be stopped early.
+    #: Quick-running scripts tend to not need this.
     abortable: Optional[bool] = False
+    #: User-specified rules for whether to run the generator.
     rules: Optional[List[app.ActionRule]] = None
 
     def __post_init__(self):
@@ -190,9 +287,10 @@ class InputFileGenerator(JSONLike):
         return out
 
     def write_source(self, action, env_spec: Dict[str, Any]):
-
-        # write the script if it is specified as a snippet script, otherwise we assume
-        # the script already exists in the working directory:
+        """
+        Write the script if it is specified as a snippet script, otherwise we assume
+        the script already exists in the working directory.
+        """
         snip_path = action.get_snippet_script_path(self.script, env_spec)
         if snip_path:
             source_str = self.compose_source(snip_path)
@@ -203,13 +301,35 @@ class InputFileGenerator(JSONLike):
 @dataclass
 class OutputFileParser(JSONLike):
     """
+    Represents a script that is run to parse output files from an action and create outputs.
+
     Parameters
     ----------
-    output
+    output_files: list[FileSpec]
+        The output files that this parser will parse.
+    output: ~hpcflow.app.Parameter
         The singular output parsed by this parser. Not to be confused with `outputs` (plural).
-    outputs
+    script: str
+        The name of the file containing the output file parser source.
+    environment: ~hpcflow.app.Environment
+        The environment to use to run the parser.
+    inputs: list[str]
+        The other inputs to the parser.
+    outputs: list[str]
         Optional multiple outputs from the upstream actions of the schema that are
         required to parametrise this parser.
+    options: dict
+        Miscellaneous options.
+    script_pass_env_spec: bool
+        Whether to pass the environment specifier to the script.
+    abortable: bool
+        Whether this script can be aborted.
+    save_files: list[str]
+        The files that should be saved to the persistent store for the workflow.
+    clean_files: list[str]
+        The files that should be immediately removed.
+    rules: list[~hpcflow.app.ActionRule]
+        Rules for whether to enable this parser.
     """
 
     _child_objects = (
@@ -249,17 +369,32 @@ class OutputFileParser(JSONLike):
         ),
     )
 
+    #: The output files that this parser will parse.
     output_files: List[app.FileSpec]
+    #: The singular output parsed by this parser.
+    #: Not to be confused with :py:attr:`outputs` (plural).
     output: Optional[app.Parameter] = None
+    #: The name of the file containing the output file parser source.
     script: str = None
+    #: The environment to use to run the parser.
     environment: Environment = None
+    #: The other inputs to the parser.
     inputs: List[str] = None
+    #: Optional multiple outputs from the upstream actions of the schema that are
+    #: required to parametrise this parser.
+    #: Not to be confused with :py:attr:`output` (plural).
     outputs: List[str] = None
+    #: Miscellaneous options.
     options: Dict = None
+    #: Whether to pass the environment specifier to the script.
     script_pass_env_spec: Optional[bool] = False
+    #: Whether this script can be aborted.
     abortable: Optional[bool] = False
+    #: The files that should be saved to the persistent store for the workflow.
     save_files: Union[List[str], bool] = True
+    #: The files that should be immediately removed.
     clean_up: Optional[List[str]] = None
+    #: Rules for whether to enable this parser.
     rules: Optional[List[app.ActionRule]] = None
 
     def __post_init__(self):
@@ -345,6 +480,9 @@ class OutputFileParser(JSONLike):
         return out
 
     def write_source(self, action, env_spec: Dict[str, Any]):
+        """
+        Write the actual output parser to a file so it can be enacted.
+        """
         if self.output is None:
             # might be used just for saving files:
             return
@@ -485,20 +623,32 @@ class _FileContentsSpecifier(JSONLike):
         return val
 
     def read_contents(self):
+        """
+        Get the actual contents of the file.
+        """
         with self.path.open("r") as fh:
             return fh.read()
 
     @property
     def path(self):
+        """
+        The path to the file.
+        """
         path = self._get_value("path")
         return Path(path) if path else None
 
     @property
     def store_contents(self):
+        """
+        Whether the file's contents are stored in the workflow's persistent store.
+        """
         return self._get_value("store_contents")
 
     @property
     def contents(self):
+        """
+        The contents of the file.
+        """
         if self.store_contents:
             contents = self._get_value("contents")
         else:
@@ -508,10 +658,16 @@ class _FileContentsSpecifier(JSONLike):
 
     @property
     def extension(self):
+        """
+        The extension of the file.
+        """
         return self._get_value("extension")
 
     @property
     def workflow(self) -> app.Workflow:
+        """
+        The owning workflow.
+        """
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -519,6 +675,23 @@ class _FileContentsSpecifier(JSONLike):
 
 
 class InputFile(_FileContentsSpecifier):
+    """
+    An input file.
+
+    Parameters
+    ----------
+    file:
+        What file is this?
+    path: Path
+        Where is the (original) file?
+    contents: str
+        What is the contents of the file (if already known)?
+    extension: str
+        What is the extension of the file?
+    store_contents: bool
+        Are the file's contents to be cached in the workflow persistent store?
+    """
+
     _child_objects = (
         ChildObjectSpec(
             name="file",
@@ -536,6 +709,7 @@ class InputFile(_FileContentsSpecifier):
         extension: Optional[str] = "",
         store_contents: Optional[bool] = True,
     ):
+        #: What file is this?
         self.file = file
         if not isinstance(self.file, FileSpec):
             self.file = self.app.command_files.get(self.file.label)
@@ -571,14 +745,39 @@ class InputFile(_FileContentsSpecifier):
 
     @property
     def normalised_files_path(self):
+        """
+        Standard name for the file within the workflow.
+        """
         return self.file.label
 
     @property
     def normalised_path(self):
+        """
+        Full workflow value path to the file.
+
+        Note
+        ----
+        This is not the same as the path in the filesystem.
+        """
         return f"input_files.{self.normalised_files_path}"
 
 
 class InputFileGeneratorSource(_FileContentsSpecifier):
+    """
+    The source of code for use in an input file generator.
+
+    Parameters
+    ----------
+    generator:
+        How to generate the file.
+    path:
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
+    """
+
     def __init__(
         self,
         generator: app.InputFileGenerator,
@@ -586,11 +785,27 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
         contents: str = None,
         extension: str = "",
     ):
+        #: How to generate the file.
         self.generator = generator
         super().__init__(path, contents, extension)
 
 
 class OutputFileParserSource(_FileContentsSpecifier):
+    """
+    The source of code for use in an output file parser.
+
+    Parameters
+    ----------
+    parser:
+        How to parse the file.
+    path: Path
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
+    """
+
     def __init__(
         self,
         parser: app.OutputFileParser,
@@ -598,5 +813,6 @@ class OutputFileParserSource(_FileContentsSpecifier):
         contents: str = None,
         extension: str = "",
     ):
+        #: How to parse the file.
         self.parser = parser
         super().__init__(path, contents, extension)

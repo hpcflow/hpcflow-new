@@ -1,3 +1,7 @@
+"""
+General model of a searchable serializable list.
+"""
+
 import copy
 from types import SimpleNamespace
 
@@ -5,29 +9,25 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 
 
 class ObjectListMultipleMatchError(ValueError):
-    pass
+    """
+    Thrown when an object looked up by unique attribute ends up with multiple objects
+    being matched.
+    """
 
 
 class ObjectList(JSONLike):
     """A list-like class that provides item access via a `get` method according to
     attributes or dict-keys.
 
+    Parameters
+    ----------
+    objects : sequence
+        List
+    descriptor : str
+        Descriptive name for objects in the list.
     """
 
     def __init__(self, objects, descriptor=None):
-        """
-
-        Parameters
-        ----------
-        objects : sequence
-            List
-        access_attribute : str
-            Name of the attribute through which objects are accessed. The values must be
-            hashable.
-        descriptor : str
-
-        """
-
         self._objects = list(objects)
         self._descriptor = descriptor or "object"
         self._object_is_dict = False
@@ -145,6 +145,22 @@ class ObjectList(JSONLike):
         return self._validate_get(self.get_all(**kwargs), kwargs)
 
     def add_object(self, obj, index=-1, skip_duplicates=False):
+        """
+        Add an object to this object list.
+
+        Parameters
+        ----------
+        obj:
+            The object to add.
+        index:
+            Where to add it. Omit to append.
+        skip_duplicates:
+            If true, don't add the object if it is already in the list.
+
+        Returns
+        -------
+            The index of the added object, or ``None`` if the object was not added.
+        """
         if skip_duplicates and obj in self:
             return
 
@@ -160,8 +176,19 @@ class ObjectList(JSONLike):
 
 
 class DotAccessObjectList(ObjectList):
-    """Provide dot-notation access via an access attribute for the case where the access
-    attribute uniquely identifies a single object."""
+    """
+    Provide dot-notation access via an access attribute for the case where the access
+    attribute uniquely identifies a single object.
+
+    Parameters
+    ----------
+    _objects:
+        The objects in the list.
+    access_attribute:
+        The main attribute for selection and filtering. A unique property.
+    descriptor: str
+        Descriptive name for the objects in the list.
+    """
 
     # access attributes must not be named after any "public" methods, to avoid confusion!
     _pub_methods = ("get", "get_all", "add_object", "add_objects")
@@ -233,6 +260,9 @@ class DotAccessObjectList(ObjectList):
         ]
 
     def get(self, access_attribute_value=None, **kwargs):
+        """
+        Get an object from this list that matches the given criteria.
+        """
         vld_get_kwargs = kwargs
         if access_attribute_value:
             vld_get_kwargs = {self._access_attribute: access_attribute_value, **kwargs}
@@ -243,6 +273,9 @@ class DotAccessObjectList(ObjectList):
         )
 
     def get_all(self, access_attribute_value=None, **kwargs):
+        """
+        Get all objects in this list that match the given criteria.
+        """
         # use the index to narrow down the search first:
         if access_attribute_value:
             try:
@@ -260,11 +293,17 @@ class DotAccessObjectList(ObjectList):
         return self._get_all_from_objs(all_objs, **kwargs)
 
     def add_object(self, obj, index=-1, skip_duplicates=False):
+        """
+        Add an object to this list.
+        """
         index = super().add_object(obj, index, skip_duplicates)
         self._update_index()
         return index
 
     def add_objects(self, objs, index=-1, skip_duplicates=False):
+        """
+        Add multiple objects to the list.
+        """
         for obj in objs:
             index = self.add_object(obj, index, skip_duplicates)
             if index is not None:
@@ -273,6 +312,10 @@ class DotAccessObjectList(ObjectList):
 
 
 class AppDataList(DotAccessObjectList):
+    """
+    An application-aware object list.
+    """
+
     _app_attr = "_app"
 
     def to_dict(self):
@@ -281,11 +324,20 @@ class AppDataList(DotAccessObjectList):
     @classmethod
     def from_json_like(cls, json_like, shared_data=None, is_hashed: bool = False):
         """
+        Make an instance of this class from JSON (or YAML) data.
+
         Parameters
         ----------
-        is_hashed
+        json_like:
+            The data to deserialise.
+        shared_data:
+            Shared context data.
+        is_hashed:
             If True, accept a dict whose keys are hashes of the dict values.
 
+        Returns
+        -------
+            The deserialised object.
         """
         if is_hashed:
             json_like = [
@@ -303,7 +355,13 @@ class AppDataList(DotAccessObjectList):
 
 class TaskList(AppDataList):
     """A list-like container for a task-like list with dot-notation access by task
-    unique-name."""
+    unique-name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.Task]
+        The tasks in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -320,7 +378,13 @@ class TaskList(AppDataList):
 
 class TaskTemplateList(AppDataList):
     """A list-like container for a task-like list with dot-notation access by task
-    unique-name."""
+    unique-name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.TaskTemplate]
+        The task templates in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -337,7 +401,13 @@ class TaskTemplateList(AppDataList):
 
 class TaskSchemasList(AppDataList):
     """A list-like container for a task schema list with dot-notation access by task
-    schema unique-name."""
+    schema unique-name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.TaskSchema]
+        The task schemas in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -354,7 +424,13 @@ class TaskSchemasList(AppDataList):
 
 class GroupList(AppDataList):
     """A list-like container for the task schema group list with dot-notation access by
-    group name."""
+    group name.
+
+    Parameters
+    ----------
+    _objects: list[Group]
+        The groups in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -370,7 +446,14 @@ class GroupList(AppDataList):
 
 
 class EnvironmentsList(AppDataList):
-    """A list-like container for environments with dot-notation access by name."""
+    """
+    A list-like container for environments with dot-notation access by name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.Environment]
+        The environments in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -393,9 +476,17 @@ class EnvironmentsList(AppDataList):
 
 
 class ExecutablesList(AppDataList):
-    """A list-like container for environment executables with dot-notation access by
-    executable label."""
+    """
+    A list-like container for environment executables with dot-notation access by
+    executable label.
 
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.Executable]
+        The executables in this list.
+    """
+
+    #: The environment containing these executables.
     environment = None
     _child_objects = (
         ChildObjectSpec(
@@ -418,7 +509,14 @@ class ExecutablesList(AppDataList):
 
 
 class ParametersList(AppDataList):
-    """A list-like container for parameters with dot-notation access by parameter type."""
+    """
+    A list-like container for parameters with dot-notation access by parameter type.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.Parameter]
+        The parameters in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -455,7 +553,14 @@ class ParametersList(AppDataList):
 
 
 class CommandFilesList(AppDataList):
-    """A list-like container for command files with dot-notation access by label."""
+    """
+    A list-like container for command files with dot-notation access by label.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.FileSpec]
+        The files in this list.
+    """
 
     _child_objects = (
         ChildObjectSpec(
@@ -471,6 +576,15 @@ class CommandFilesList(AppDataList):
 
 
 class WorkflowTaskList(DotAccessObjectList):
+    """
+    A list-like container for workflow tasks with dot-notation access by unique name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.WorkflowTask]
+        The tasks in this list.
+    """
+
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="unique_name", descriptor="task")
 
@@ -491,6 +605,15 @@ class WorkflowTaskList(DotAccessObjectList):
 
 
 class WorkflowLoopList(DotAccessObjectList):
+    """
+    A list-like container for workflow loops with dot-notation access by name.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.WorkflowLoop]
+        The loops in this list.
+    """
+
     def __init__(self, _objects):
         super().__init__(_objects, access_attribute="name", descriptor="loop")
 
@@ -499,6 +622,16 @@ class WorkflowLoopList(DotAccessObjectList):
 
 
 class ResourceList(ObjectList):
+    """
+    A list-like container for resources.
+    Each contained resource must have a unique scope.
+
+    Parameters
+    ----------
+    _objects: list[~hpcflow.app.ResourceSpec]
+        The resource descriptions in this list.
+    """
+
     _app_attr = "_app"
     _child_objects = (
         ChildObjectSpec(
@@ -534,10 +667,16 @@ class ResourceList(ObjectList):
 
     @property
     def element_set(self):
+        """
+        The parent element set, if a child of an element set.
+        """
         return self._element_set
 
     @property
     def workflow_template(self):
+        """
+        The parent workflow template, if a child of a workflow template.
+        """
         return self._workflow_template
 
     def to_json_like(self, dct=None, shared_data=None, exclude=None, path=None):
@@ -581,6 +720,9 @@ class ResourceList(ObjectList):
         return resources
 
     def get_scopes(self):
+        """
+        Get the scopes of the contained resources.
+        """
         return tuple(i.scope for i in self._objects)
 
     def merge_other(self, other):
@@ -603,6 +745,10 @@ class ResourceList(ObjectList):
 
 
 def index(obj_lst, obj):
+    """
+    Get the index of the object in the list.
+    The item is checked for by object identity, not equality.
+    """
     for idx, i in enumerate(obj_lst._objects):
         if obj is i:
             return idx

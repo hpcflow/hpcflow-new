@@ -1,3 +1,7 @@
+"""
+Dependency resolution cache.
+"""
+
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Set, Dict
@@ -9,21 +13,39 @@ from hpcflow.sdk.log import TimeIt
 class DependencyCache:
     """Class to bulk-retrieve dependencies between elements, iterations, and runs."""
 
+    #: What EARs (by ID) a given EAR depends on.
     run_dependencies: Dict[int, Set]
+    #: What EARs (by ID) are depending on a given EAR.
     run_dependents: Dict[int, Set]
+    #: What EARs (by ID) a given iteration depends on.
     iter_run_dependencies: Dict[int, Set]
+    #: What iterations (by ID) a given iteration depends on.
     iter_iter_dependencies: Dict[int, Set]
+    #: What iterations (by ID) a given element depends on.
     elem_iter_dependencies: Dict[int, Set]
+    #: What elements (by ID) a given element depends on.
     elem_elem_dependencies: Dict[int, Set]
+    #: What elements (by ID) are depending on a given element.
     elem_elem_dependents: Dict[int, Set]
+    #: Transitive closure of :py:attr:`elem_elem_dependents`.
     elem_elem_dependents_rec: Dict[int, Set]
 
+    #: The elements of the workflow that this cache was built from.
     elements: Dict
+    #: The iterations of the workflow that this cache was built from.
     iterations: Dict
 
     @classmethod
     @TimeIt.decorator
     def build(cls, workflow):
+        """
+        Build a cache instance.
+
+        Parameters
+        ----------
+        workflow: ~hpcflow.app.Workflow
+            The workflow to build the cache from.
+        """
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs

@@ -1,3 +1,7 @@
+"""
+Configuration file adapter.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -26,10 +30,23 @@ from .errors import (
 
 
 class ConfigFile:
-    """Configuration file."""
+    """
+    Configuration file.
+
+    Parameters
+    ----------
+    directory:
+        The directory containing the configuration file.
+    logger:
+        Where to log messages.
+    config_options:
+        Configuration options.
+    """
 
     def __init__(self, directory, logger, config_options):
+        #: Where to log messages.
         self.logger = logger
+        #: The directory containing the configuration file.
         self.directory = self._resolve_config_dir(
             config_opt=config_options,
             logger=self.logger,
@@ -39,9 +56,13 @@ class ConfigFile:
         self._configs = []
 
         # set by _load_file_data:
+        #: The path to the config file.
         self.path = None
+        #: The cached contents of the config file.
         self.contents = None
+        #: The parsed contents of the config file.
         self.data = None
+        #: The parsed contents of the config file where the alternate parser was used.
         self.data_rt = None
 
         self._load_file_data(config_options)
@@ -105,12 +126,31 @@ class ConfigFile:
         return file_schema
 
     def get_invoc_data(self, config_key):
+        """
+        Get the invocation data for the given configuration.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        """
         return self.data["configs"][config_key]
 
     def get_invocation(self, config_key):
+        """
+        Get the invocation for the given configuration.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        """
         return self.get_invoc_data(config_key)["invocation"]
 
     def save(self):
+        """
+        Write the (modified) configuration to the configuration file.
+        """
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
         new_contents = ""
@@ -271,6 +311,9 @@ class ConfigFile:
 
     @staticmethod
     def get_config_file_path(directory):
+        """
+        Get the path to the configuration file.
+        """
         # Try both ".yml" and ".yaml" extensions:
         path_yaml = directory.joinpath("config.yaml")
         if path_yaml.is_file():
@@ -307,11 +350,36 @@ class ConfigFile:
     def get_config_item(
         self, config_key, name, raise_on_missing=False, default_value=None
     ):
+        """
+        Get a configuration item.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        name: str
+            The name of the configuration item.
+        raise_on_missing: bool
+            Whether to raise an error if the config item is absent.
+        default_value:
+            The default value to use when the config item is absent
+            (and ``raise_on_missing`` is not specified).
+        """
         if raise_on_missing and name not in self.get_invoc_data(config_key)["config"]:
             raise ValueError(f"missing from file: {name!r}")
         return self.get_invoc_data(config_key)["config"].get(name, default_value)
 
     def is_item_set(self, config_key, name):
+        """
+        Determine if a configuration item is set.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        name: str
+            The name of the configuration item.
+        """
         try:
             self.get_config_item(config_key, name, raise_on_missing=True)
         except ValueError:
@@ -319,7 +387,16 @@ class ConfigFile:
         return True
 
     def rename_config_key(self, config_key: str, new_config_key: str):
-        """Change the config key of the loaded config."""
+        """
+        Change the config key of the loaded config.
+
+        Parameters
+        ----------
+        config_key: str
+            The old name of the configuration within the configuration file.
+        new_config_key: str
+            The new name of the configuration.
+        """
 
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
@@ -342,7 +419,18 @@ class ConfigFile:
         environment_setup: Optional[str] = None,
         match: Optional[Dict] = None,
     ):
-        """Modify the invocation parameters of the loaded config."""
+        """
+        Modify the invocation parameters of the loaded config.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        environment_setup:
+            The new value of the ``environment_setup`` key.
+        match:
+            The new values to merge into the ``match`` key.
+        """
 
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
