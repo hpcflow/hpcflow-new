@@ -198,7 +198,7 @@ class Loop(JSONLike):
 class WorkflowLoop:
     """
     Class to represent a :py:class:`.Loop` that is bound to a
-    ::py:class:`~hpcflow.app.Workflow`.
+    :py:class:`~hpcflow.app.Workflow`.
 
     Parameters
     ----------
