@@ -971,6 +971,7 @@ class PersistentStore(
     fs: fsspec.AbstractFileSystem
         Optionally, information about how to access the store.
     """
+
     _name: ClassVar[str]
 
     @classmethod

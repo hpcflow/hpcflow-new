@@ -372,6 +372,7 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
     >>> substitute_string_vars("abc <<var:def>> ghi", {"def": "123"})
     "abc 123 def"
     """
+
     def var_repl(match_obj: re.Match):
         kwargs: dict[str, str] = {}
         var_name: str = match_obj.group(1)

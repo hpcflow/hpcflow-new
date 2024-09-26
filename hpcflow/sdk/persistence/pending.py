@@ -726,7 +726,9 @@ class CommitResourceMap:
     #: This grouping allows us to batch up commit methods by resource requirements,
     #: which in turn means we can potentially minimise, e.g., the number of network
     #: requests.
-    groups: dict[tuple[str, ...], list[str]] = field(init=False, repr=False, compare=False)
+    groups: dict[tuple[str, ...], list[str]] = field(
+        init=False, repr=False, compare=False
+    )
 
     def __post_init__(self):
         self.groups = self._group_by_resource()

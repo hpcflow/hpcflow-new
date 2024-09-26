@@ -775,6 +775,7 @@ class ResourceList(ObjectList["ResourceSpec"]):
     _objects: list[~hpcflow.app.ResourceSpec]
         The resource descriptions in this list.
     """
+
     _child_objects = (
         ChildObjectSpec(
             name="_objects",
