@@ -1,3 +1,6 @@
+"""
+Adapters for various shells.
+"""
 from __future__ import annotations
 import os
 
@@ -7,6 +10,7 @@ from .base import Shell
 from .bash import Bash, WSLBash
 from .powershell import WindowsPowerShell
 
+#: All supported shells.
 ALL_SHELLS: dict[str, dict[str, type[Shell]]] = {
     "bash": {"posix": Bash},
     "powershell": {"nt": WindowsPowerShell},
@@ -14,7 +18,7 @@ ALL_SHELLS: dict[str, dict[str, type[Shell]]] = {
     "wsl": {"nt": WSLBash},  # TODO: cast this to wsl+bash in ResourceSpec?
 }
 
-# used to set the default shell in the default config:
+#: The default shell in the default config.
 DEFAULT_SHELL_NAMES = {
     "posix": "bash",
     "nt": "powershell",
@@ -22,11 +26,17 @@ DEFAULT_SHELL_NAMES = {
 
 
 def get_supported_shells(os_name: str | None = None) -> dict[str, type[Shell]]:
+    """
+    Get shells supported on the current or given OS.
+    """
     os_name_ = os_name or os.name
     return {k: v[os_name_] for k, v in ALL_SHELLS.items() if v.get(os_name_)}
 
 
 def get_shell(shell_name, os_name: str | None = None, **kwargs) -> Shell:
+    """
+    Get a shell interface with the given name for a given OS (or the current one).
+    """
     # TODO: apply config default shell args?
 
     os_name = os_name or os.name

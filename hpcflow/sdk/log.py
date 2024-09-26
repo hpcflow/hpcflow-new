@@ -1,3 +1,7 @@
+"""
+Interface to the standard logger, and performance logging utility.
+"""
+
 from __future__ import annotations
 from functools import wraps
 import logging
@@ -32,17 +36,31 @@ class _Summary:
 
 
 class TimeIt:
+    """
+    Method execution time instrumentation.
+    """
 
+    #: Whether the instrumentation is active.
     active = False
+    #: Where to log to.
     file_path: str | None = None
+    #: The details be tracked.
     timers: dict[tuple[str, ...], list[float]] = defaultdict(list)
+    #: Traces of the stack.
     trace: list[str] = []
+    #: Trace indices.
     trace_idx: list[int] = []
+    #: Preceding traces.
     trace_prev: list[str] = []
+    #: Preceding trace indices.
     trace_idx_prev: list[int] = []
 
     @classmethod
     def decorator(cls, func: Callable[P, T]) -> Callable[P, T]:
+        """
+        Decorator for a method that is to have its execution time monitored.
+        """
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
 
@@ -76,6 +94,9 @@ class TimeIt:
 
     @classmethod
     def _summarise(cls) -> dict[tuple[str, ...], _Summary]:
+        """
+        Produce a machine-readable summary of method execution time statistics.
+        """
         stats = {
             k: _Summary(
                 len(v),
@@ -104,6 +125,10 @@ class TimeIt:
 
     @classmethod
     def summarise_string(cls) -> None:
+        """
+        Produce a human-readable summary of method execution time statistics.
+        """
+
         def _format_nodes(
             node: dict[tuple[str, ...], _Summary],
             depth: int = 0,
@@ -144,13 +169,22 @@ class TimeIt:
 
 
 class AppLog:
+    """
+    Application log control.
+    """
+
+    #: Default logging level for the console.
     DEFAULT_LOG_CONSOLE_LEVEL = "WARNING"
+    #: Default logging level for log files.
     DEFAULT_LOG_FILE_LEVEL = "INFO"
 
     def __init__(self, app, log_console_level: str | None = None) -> None:
+        #: The application context.
         self.app = app
+        #: The base logger for the application.
         self.logger = logging.getLogger(app.package_name)
         self.logger.setLevel(logging.DEBUG)
+        #: The handler for directing logging messages to the console.
         self.console_handler = self.__add_console_logger(
             level=log_console_level or AppLog.DEFAULT_LOG_CONSOLE_LEVEL
         )
@@ -164,6 +198,9 @@ class AppLog:
         return handler
 
     def update_console_level(self, new_level: str) -> None:
+        """
+        Set the logging level for console messages.
+        """
         if new_level:
             self.console_handler.setLevel(new_level.upper())
 
@@ -174,6 +211,9 @@ class AppLog:
         fmt: str | None = None,
         max_bytes: int | None = None,
     ) -> logging.Handler:
+        """
+        Add a log file.
+        """
         fmt = fmt or "%(asctime)s %(levelname)s %(name)s: %(message)s"
         level = level or AppLog.DEFAULT_LOG_FILE_LEVEL
         max_bytes = max_bytes or int(10e6)

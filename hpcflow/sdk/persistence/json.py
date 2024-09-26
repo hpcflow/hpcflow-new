@@ -1,3 +1,7 @@
+"""
+Persistence model based on writing JSON documents.
+"""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -156,6 +160,10 @@ class JSONPersistentStore(
         StoreParameter,
     ]
 ):
+    """
+    A store that writes JSON files for all its state serialization.
+    """
+
     _name: ClassVar[str] = "json"
     _features: ClassVar[PersistentStoreFeatures] = PersistentStoreFeatures(
         create=True,
@@ -238,6 +246,9 @@ class JSONPersistentStore(
             yield
 
     def remove_replaced_dir(self) -> None:
+        """
+        Remove the directory containing replaced workflow details.
+        """
         with self.using_resource("metadata", "update") as md:
             if "replaced_workflow" in md:
                 assert self.fs is not None
@@ -246,6 +257,9 @@ class JSONPersistentStore(
                 del md["replaced_workflow"]
 
     def reinstate_replaced_dir(self) -> None:
+        """
+        Reinstate the directory containing replaced workflow details.
+        """
         with self.using_resource("metadata", "read") as md:
             if "replaced_workflow" in md:
                 assert self.fs is not None
@@ -281,6 +295,9 @@ class JSONPersistentStore(
         ts_fmt: str,
         ts_name_fmt: str,
     ) -> None:
+        """
+        Write an empty persistent workflow.
+        """
         fs.mkdir(wk_path)
         submissions: list[None] = []
         parameters: dict[str, dict[None, None]] = {
@@ -732,21 +749,33 @@ class JSONPersistentStore(
             return list(int(i) for i in params["data"].keys())
 
     def get_ts_fmt(self) -> str:
+        """
+        Get the format for timestamps.
+        """
         with self.using_resource("metadata", action="read") as md:
             assert "ts_fmt" in md
             return md["ts_fmt"]
 
     def get_ts_name_fmt(self) -> str:
+        """
+        Get the format for timestamps to use in names.
+        """
         with self.using_resource("metadata", action="read") as md:
             assert "ts_name_fmt" in md
             return md["ts_name_fmt"]
 
     def get_creation_info(self) -> StoreCreationInfo:
+        """
+        Get information about the creation of the workflow.
+        """
         with self.using_resource("metadata", action="read") as md:
             assert "creation_info" in md
             return copy.deepcopy(md["creation_info"])
 
     def get_name(self) -> str:
+        """
+        Get the name of the workflow.
+        """
         with self.using_resource("metadata", action="read") as md:
             assert "name" in md
             return md["name"]

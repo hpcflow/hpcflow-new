@@ -1,3 +1,7 @@
+"""
+Parameters represent information passed around within a workflow.
+"""
+
 from __future__ import annotations
 from collections.abc import Sequence
 import copy
@@ -65,10 +69,19 @@ def _process_demo_data_strings(app: BaseApp, value: T) -> T:
 @dataclass
 @hydrate
 class ParameterValue:
+    """
+    The value handler for a parameter.
+
+    Intended to be subclassed.
+    """
+
     _typ: ClassVar[str | None] = None
     _sub_parameters: ClassVar[dict[str, str]] = {}
 
     def to_dict(self):
+        """
+        Serialise this parameter value as a dictionary.
+        """
         if hasattr(self, "__dict__"):
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
@@ -77,36 +90,83 @@ class ParameterValue:
             raise NotImplementedError
 
     def prepare_JSON_dump(self) -> dict[str, Any]:
+        """
+        Prepare this parameter value for serialisation as JSON.
+        """
         raise NotImplementedError
 
     def dump_to_HDF5_group(self, group):
+        """
+        Write this parameter value to an HDF5 group.
+        """
         raise NotImplementedError
 
     @classmethod
     def save_from_HDF5_group(cls, group, param_id: int, workflow):
+        """
+        Extract a parameter value from an HDF5 group.
+        """
         raise NotImplementedError
 
     @classmethod
     def save_from_JSON(cls, data, param_id: int | list[int], workflow):
+        """
+        Extract a parameter value from JSON data.
+        """
         raise NotImplementedError
 
 
 class ParameterPropagationMode(enum.Enum):
+    """
+    How a parameter is propagated.
+    """
+
+    #: Parameter is propagated implicitly.
     IMPLICIT = 0
+    #: Parameter is propagated explicitly.
     EXPLICIT = 1
+    #: Parameter is never propagated.
     NEVER = 2
 
 
 @dataclass
 class ParameterPath(JSONLike):
+    """
+    Path to a parameter.
+    """
+
     # TODO: unused?
+    #: The path to the parameter.
     path: Sequence[str | int | float]
+    #: The task in which to look up the parameter.
     task: TaskTemplate | TaskSchema | None = None  # default is "current" task
 
 
 @dataclass
 @hydrate
 class Parameter(JSONLike):
+    """
+    A general parameter to a workflow task.
+
+    Parameters
+    ----------
+    typ:
+        Type code.
+        Used to look up the :py:class:`ParameterValue` for this parameter,
+        if any.
+    is_file:
+        Whether this parameter represents a file.
+    sub_parameters: list[SubParameter]
+        Any parameters packed within this one.
+    _value_class: type[ParameterValue]
+        Class that provides the implementation of this parameter's values.
+        Not normally directly user-managed.
+    _hash_value:
+        Hash of this class. Not normally user-managed.
+    _validation:
+        Validation schema.
+    """
+
     _validation_schema: ClassVar[str] = "parameters_spec_schema.yaml"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
@@ -119,10 +179,13 @@ class Parameter(JSONLike):
         ),
     )
 
+    #: Type code. Used to look up the :py:class:`ParameterValue` for this parameter,
+    #: if any.
     typ: str
+    #: Whether this parameter represents a file.
     is_file: bool = False
+    #: Any parameters packed within this one.
     sub_parameters: list[SubParameter] = field(default_factory=list)
-    name: str | None = None
     _value_class: type[ParameterValue] | None = None
     _hash_value: str | None = field(default=None, repr=False)
     _validation: Schema | None = None
@@ -182,6 +245,9 @@ class Parameter(JSONLike):
 
     @property
     def url_slug(self) -> str:
+        """
+        Representation of this parameter as part of a URL.
+        """
         return self.typ.lower().replace("_", "-")
 
     def _instantiate_value(self, source: ParamSource, val: dict) -> Any:
@@ -208,12 +274,27 @@ class Parameter(JSONLike):
 
 @dataclass
 class SubParameter:
+    """
+    A parameter that is a component of another parameter.
+    """
+
+    #: How to find this within the containing paraneter.
     address: Address
+    #: The containing main parameter.
     parameter: Parameter
 
 
 @dataclass
 class SchemaParameter(JSONLike):
+    """
+    A parameter bound in a schema.
+
+    Parameters
+    ----------
+    parameter: Parameter
+        The parameter.
+    """
+
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
@@ -232,14 +313,26 @@ class SchemaParameter(JSONLike):
 
     @property
     def name(self) -> str:
+        """
+        The name of the parameter.
+        """
         return self.parameter.name or ""
 
     @property
     def typ(self) -> str:
+        """
+        The type code of the parameter.
+        """
         return self.parameter.typ
 
 
 class NullDefault(enum.Enum):
+    """
+    Sentinel value used to distinguish an explicit null.
+    """
+
+    #: Special sentinel.
+    #: Used in situations where otherwise a JSON object or array would be.
     NULL = 0
 
 
@@ -255,13 +348,13 @@ class SchemaInput(SchemaParameter):
 
     Parameters
     ----------
-    parameter
+    parameter:
         The parameter (i.e. type) of this schema input.
-    multiple
+    multiple:
         If True, expect one or more of these parameters defined in the workflow,
         distinguished by a string label in square brackets. For example `p1[0]` for a
         parameter `p1`.
-    labels
+    labels:
         Dict whose keys represent the string labels that distinguish multiple parameters
         if `multiple` is `True`. Use the key "*" to mean all labels not matching
         other label keys. If `multiple` is `False`, this will default to a
@@ -269,10 +362,10 @@ class SchemaInput(SchemaParameter):
         `True`, this will default to a single-item dict with the catch-all key:
         `{{"*": {{}}}}`. On initialisation, remaining keyword-arguments are treated as default
         values for the dict values of `labels`.
-    default_value
+    default_value:
         The default value for this input parameter. This is itself a default value that
         will be applied to all `labels` values if a "default_value" key does not exist.
-    propagation_mode
+    propagation_mode:
         Determines how this input should propagate through the workflow. This is a default
         value that will be applied to all `labels` values if a "propagation_mode" key does
         not exist. By default, the input is allowed to be used in downstream tasks simply
@@ -281,7 +374,7 @@ class SchemaInput(SchemaParameter):
         the downstream task `input_sources` for it to be used, and "never", meaning that
         the parameter must not be used in downstream tasks and will be inaccessible to
         those tasks.
-    group
+    group:
         Determines the name of the element group from which this input should be sourced.
         This is a default value that will be applied to all `labels` if a "group" key
         does not exist.
@@ -315,14 +408,18 @@ class SchemaInput(SchemaParameter):
 
         if isinstance(parameter, str):
             try:
+                #: The parameter (i.e. type) of this schema input.
                 self.parameter = self._app.parameters.get(parameter)
             except ValueError:
                 self.parameter = self._app.Parameter(parameter)
         else:
             self.parameter = parameter
 
+        #: Whether to expect more than of these parameters defined in the workflow.
         self.multiple = multiple
 
+        #: Dict whose keys represent the string labels that distinguish multiple
+        #: parameters if `multiple` is `True`.
         self.labels: dict[str, LabelInfo]
         if labels is None:
             if self.multiple:
@@ -447,6 +544,9 @@ class SchemaInput(SchemaParameter):
 
     @property
     def default_value(self) -> InputValue | Literal[NullDefault.NULL] | None:
+        """
+        The default value of the input.
+        """
         single_data = self.single_labelled_data
         if single_data:
             if "default_value" in single_data:
@@ -457,33 +557,51 @@ class SchemaInput(SchemaParameter):
 
     @property
     def task_schema(self) -> TaskSchema:
+        """
+        The schema containing this input.
+        """
         assert self._task_schema is not None
         return self._task_schema
 
     @property
     def all_labelled_types(self) -> list[str]:
+        """
+        The types of the input labels.
+        """
         return list(f"{self.typ}{f'[{i}]' if i else ''}" for i in self.labels)
 
     @property
     def single_label(self) -> str | None:
+        """
+        The label of this input, assuming it is not mulitple.
+        """
         if not self.multiple:
             return next(iter(self.labels))
         return None
 
     @property
     def single_labelled_type(self) -> str | None:
+        """
+        The type code of this input, assuming it is not mulitple.
+        """
         if not self.multiple:
             return next(iter(self.labelled_info()))["labelled_type"]
         return None
 
     @property
     def single_labelled_data(self) -> LabelInfo | None:
+        """
+        The value of this input, assuming it is not mulitple.
+        """
         label = self.single_label
         if label is not None:
             return self.labels[label]
         return None
 
     def labelled_info(self) -> Iterator[LabellingDescriptor]:
+        """
+        Get descriptors for all the labels associated with this input.
+        """
         for k, v in self.labels.items():
             label = f"[{k}]" if k else ""
             dct: LabellingDescriptor = {
@@ -518,6 +636,9 @@ class SchemaInput(SchemaParameter):
 
     @property
     def input_or_output(self) -> str:
+        """
+        Whether this is an input or output. Always ``input``.
+        """
         return "input"
 
 
@@ -533,7 +654,9 @@ class LabellingDescriptor(TypedDict):
 class SchemaOutput(SchemaParameter):
     """A Parameter as outputted from particular task."""
 
+    #: The basic parameter this supplies.
     parameter: Parameter
+    #: How this output propagates.
     propagation_mode: ParameterPropagationMode
 
     def __init__(
@@ -549,6 +672,9 @@ class SchemaOutput(SchemaParameter):
 
     @property
     def input_or_output(self) -> str:
+        """
+        Whether this is an input or output. Always ``output``.
+        """
         return "output"
 
     def __repr__(self) -> str:
@@ -562,6 +688,11 @@ class SchemaOutput(SchemaParameter):
 
 @dataclass
 class BuiltinSchemaParameter:
+    """
+    A parameter of a built-in schema.
+    """
+
+    # TODO: Is this used anywhere?
     # builtin inputs (resources,parameter_perturbations,method,implementation
     # builtin outputs (time, memory use, node/hostname etc)
     # - builtin parameters do not propagate to other tasks (since all tasks define the same
@@ -572,6 +703,23 @@ class BuiltinSchemaParameter:
 
 
 class ValueSequence(JSONLike):
+    """
+    A sequence of values.
+
+    Parameters
+    ----------
+    path:
+        The path to this sequence.
+    values:
+        The values in this sequence.
+    nesting_order: int
+        A nesting order for this sequence. Can be used to compose sequences together.
+    label: str
+        A label for this sequence.
+    value_class_method: str
+        Name of a method used to generate sequence values. Not normally used directly.
+    """
+
     def __init__(
         self,
         path: str,
@@ -580,8 +728,14 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         value_class_method: str | None = None,
     ):
-        self.path, self.label = self._validate_parameter_path(path, label)
+        path_, label_ = self._validate_parameter_path(path, label)
+        #: The path to this sequence.
+        self.path = path_
+        #: The label of this sequence.
+        self.label = label_
+        #: The nesting order for this sequence.
         self.nesting_order = float(nesting_order) if nesting_order is not None else None
+        #: Name of a method used to generate sequence values.
         self.value_class_method = value_class_method
 
         if values is not None:
@@ -686,32 +840,50 @@ class ValueSequence(JSONLike):
 
     @property
     def parameter(self) -> Parameter | None:
+        """
+        The parameter this sequence supplies.
+        """
         return self._parameter
 
     @property
     def path_split(self) -> list[str]:
+        """
+        The components of ths path.
+        """
         if self._path_split is None:
             self._path_split = self.path.split(".")
         return self._path_split
 
     @property
     def path_type(self) -> str:
+        """
+        The type of path this is.
+        """
         return self.path_split[0]
 
     @property
     def input_type(self) -> str | None:
+        """
+        The type of input sequence this is, if it is one.
+        """
         if self.path_type == "inputs":
             return self.path_split[1].replace(self._label_fmt, "")
         return None
 
     @property
     def input_path(self) -> str | None:
+        """
+        The path of the input sequence this is, if it is one.
+        """
         if self.path_type == "inputs":
             return ".".join(self.path_split[2:])
         return None
 
     @property
     def resource_scope(self) -> str | None:
+        """
+        The scope of the resources this is, if it is one.
+        """
         if self.path_type == "resources":
             return self.path_split[1]
         return None
@@ -727,6 +899,9 @@ class ValueSequence(JSONLike):
 
     @property
     def labelled_type(self) -> str | None:
+        """
+        The labelled type of input sequence this is, if it is one.
+        """
         if self.input_type:
             return f"{self.input_type}{self._label_fmt}"
         return None
@@ -841,12 +1016,17 @@ class ValueSequence(JSONLike):
 
     @property
     def normalised_path(self) -> str:
+        """
+        The path to this sequence.
+        """
         return self.path
 
     @property
     def normalised_inputs_path(self) -> str | None:
-        """Return the normalised path without the "inputs" prefix, if the sequence is an
-        inputs sequence, else return None."""
+        """
+        The normalised path without the "inputs" prefix, if the sequence is an
+        inputs sequence, else return None.
+        """
 
         if self.input_type:
             if self.input_path:
@@ -892,6 +1072,9 @@ class ValueSequence(JSONLike):
 
     @property
     def workflow(self) -> Workflow | None:
+        """
+        The workflow containing this sequence.
+        """
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -902,6 +1085,9 @@ class ValueSequence(JSONLike):
 
     @property
     def values(self) -> list[Any] | None:
+        """
+        The values in this sequence.
+        """
         if self._values_group_idx is not None:
             vals: list[Any] = []
             for idx, pg_idx_i in enumerate(self._values_group_idx):
@@ -997,6 +1183,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a NumPy linear space.
+        """
         # TODO: save persistently as an array?
         args = {"start": start, "stop": stop, "num": num, **kwargs}
         values = cls._values_from_linear_space(**args)
@@ -1017,6 +1206,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a NumPy geometric space.
+        """
         args = {"start": start, "stop": stop, "num": num, "endpoint": endpoint, **kwargs}
         values = cls._values_from_geometric_space(**args)
         obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
@@ -1037,6 +1229,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a NumPy logarithmic space.
+        """
         args = {
             "start": start,
             "stop": stop,
@@ -1062,6 +1257,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a range.
+        """
         # TODO: save persistently as an array?
         args = {"start": start, "stop": stop, "step": step, **kwargs}
         if isinstance(step, int):
@@ -1094,6 +1292,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a simple file.
+        """
         args = {"file_path": file_path, **kwargs}
         values = cls._values_from_file(**args)
         obj = cls(
@@ -1121,6 +1322,8 @@ class ValueSequence(JSONLike):
         **kwargs,
     ) -> Self:
         """
+        Build a sequence to cover a rectangle.
+
         Parameters
         ----------
         coord:
@@ -1156,6 +1359,9 @@ class ValueSequence(JSONLike):
         label: str | int | None = None,
         **kwargs,
     ) -> Self:
+        """
+        Build a sequence from a uniform random number generator.
+        """
         args = {"low": low, "high": high, "num": num, "seed": seed, **kwargs}
         values = cls._values_from_random_uniform(**args)
         obj = cls(values=values, path=path, nesting_order=nesting_order, label=label)
@@ -1231,6 +1437,9 @@ class AbstractInputValue(JSONLike):
 
     @property
     def workflow(self) -> Workflow | None:
+        """
+        The workflow containing this input value.
+        """
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -1247,14 +1456,32 @@ class AbstractInputValue(JSONLike):
 
     @property
     def value(self) -> Any:
-        return self._value
+        """
+        The value itself.
+        """
+        if self._value_group_idx is not None:
+            val = self.workflow.get_parameter_data(self._value_group_idx)
+            if self._value_is_obj and self.parameter._value_class:
+                val = self.parameter._value_class(**val)
+        else:
+            val = self._value
+
+        return val
 
 
 @dataclass
 class ValuePerturbation(AbstractInputValue):
+    """
+    A perturbation applied to a value.
+    """
+
+    #: The name of this perturbation.
     name: str = ""
+    #: The path to the value(s) to perturb.
     path: Sequence[str | int | float] | None = None
+    #: The multiplicative factor to apply.
     multiplicative_factor: Numeric | None = 1
+    #: The additive factor to apply.
     additive_factor: Numeric | None = 0
 
     def __post_init__(self):
@@ -1262,25 +1489,30 @@ class ValuePerturbation(AbstractInputValue):
 
     @classmethod
     def from_spec(cls, spec):
+        """
+        Construct an instance from a specification dictionary.
+        """
         return cls(**spec)
 
 
 @hydrate
 class InputValue(AbstractInputValue):
     """
+    An input value to a task.
+
     Parameters
     ----------
-    parameter
-        Parameter whose value is to be specified
-    label
+    parameter: Parameter | SchemaInput | str
+        Parameter whose value is to be specified.
+    label: str
         Optional identifier to be used where the associated `SchemaInput` accepts multiple
         parameters of the specified type. This will be cast to a string.
-    value
+    value: Any
         The input parameter value.
-    value_class_method
+    value_class_method: How to obtain the real value.
         A class method that can be invoked with the `value` attribute as keyword
         arguments.
-    path
+    path: str
         Dot-delimited path within the parameter's nested data structure for which `value`
         should be set.
 
@@ -1307,6 +1539,7 @@ class InputValue(AbstractInputValue):
         super().__init__()
         if isinstance(parameter, str):
             try:
+                #: Parameter whose value is to be specified.
                 self.parameter = self._app.parameters.get(parameter)
             except ValueError:
                 self.parameter = self._app.Parameter(parameter)
@@ -1315,8 +1548,14 @@ class InputValue(AbstractInputValue):
         else:
             self.parameter = parameter
 
+        #: Identifier to be used where the associated `SchemaInput` accepts multiple
+        #: parameters of the specified type.
         self.label = str(label) if label is not None else ""
+        #: Dot-delimited path within the parameter's nested data structure for which
+        #: `value` should be set.
         self.path = (path.strip(".") if path else None) or None
+        #: A class method that can be invoked with the `value` attribute as keyword
+        #: arguments.
         self.value_class_method = value_class_method
         self._value = _process_demo_data_strings(self._app, value)
 
@@ -1410,15 +1649,24 @@ class InputValue(AbstractInputValue):
 
     @property
     def labelled_type(self) -> str:
+        """
+        The labelled type of this input value.
+        """
         label = f"[{self.label}]" if self.label else ""
         return f"{self.parameter.typ}{label}"
 
     @property
     def normalised_inputs_path(self) -> str:
+        """
+        The normalised input path without the ``inputs.`` prefix.
+        """
         return f"{self.labelled_type}{f'.{self.path}' if self.path else ''}"
 
     @property
     def normalised_path(self) -> str:
+        """
+        The full normalised input path.
+        """
         return f"inputs.{self.normalised_inputs_path}"
 
     def make_persistent(
@@ -1504,8 +1752,55 @@ class ResourceSpec(JSONLike):
     `os_name` is used for retrieving a default shell name and for retrieving the correct
     `Shell` class; when using WSL, it should still be `nt` (i.e. Windows).
 
+    Parameters
+    ----------
+    scope:
+        Which scope does this apply to.
+    scratch: str
+        Which scratch space to use.
+    parallel_mode: ParallelMode
+        Which parallel mode to use.
+    num_cores: int
+        How many cores to request.
+    num_cores_per_node: int
+        How many cores per compute node to request.
+    num_threads: int
+        How many threads to request.
+    num_nodes: int
+        How many compute nodes to request.
+    scheduler: str
+        Which scheduler to use.
+    shell: str
+        Which system shell to use.
+    use_job_array: bool
+        Whether to use array jobs.
+    max_array_items: int
+        If using array jobs, up to how many items should be in the job array.
+    time_limit: str
+        How long to run for.
+    scheduler_args: dict[str, Any]
+        Additional arguments to pass to the scheduler.
+    shell_args: dict[str, Any]
+        Additional arguments to pass to the shell.
+    os_name: str
+        Which OS to use.
+    environments: dict
+        Which execution environments to use.
+    SGE_parallel_env: str
+        Which SGE parallel environment to request.
+    SLURM_partition: str
+        Which SLURM partition to request.
+    SLURM_num_tasks: str
+        How many SLURM tasks to request.
+    SLURM_num_tasks_per_node: str
+        How many SLURM tasks per compute node to request.
+    SLURM_num_nodes: str
+        How many compute nodes to request.
+    SLURM_num_cpus_per_task: str
+        How many CPU cores to ask for per SLURM task.
     """
 
+    #: The names of parameters that may be used when making an instance of this class.
     ALLOWED_PARAMETERS: ClassVar[set[str]] = {
         "scratch",
         "parallel_mode",
@@ -1575,6 +1870,7 @@ class ResourceSpec(JSONLike):
         SLURM_num_nodes: str | None = None,
         SLURM_num_cpus_per_task: str | None = None,
     ):
+        #: Which scope does this apply to.
         self.scope = self.__parse_thing(self._app.ActionScope, scope)
 
         if isinstance(time_limit, timedelta):
@@ -1664,12 +1960,18 @@ class ResourceSpec(JSONLike):
 
     @property
     def normalised_resources_path(self) -> str:
+        """
+        Standard name of this resource spec.
+        """
         scope = self.scope
         assert scope is not None
         return scope.to_string()
 
     @property
     def normalised_path(self) -> str:
+        """
+        Full name of this resource spec.
+        """
         return f"resources.{self.normalised_resources_path}"
 
     def to_dict(self):
@@ -1764,31 +2066,55 @@ class ResourceSpec(JSONLike):
 
     @property
     def scratch(self) -> str | None:
-        # TODO: currently unused, except in tests
+        """
+        Which scratch space to use.
+
+        Todo
+        ----
+        Currently unused, except in tests.
+        """
         return self._get_value("scratch")
 
     @property
     def parallel_mode(self) -> ParallelMode | None:
+        """
+        Which parallel mode to use.
+        """
         return self._get_value("parallel_mode")
 
     @property
     def num_cores(self) -> int | None:
+        """
+        How many cores to request.
+        """
         return self._get_value("num_cores")
 
     @property
     def num_cores_per_node(self) -> int | None:
+        """
+        How many cores per compute node to request.
+        """
         return self._get_value("num_cores_per_node")
 
     @property
     def num_nodes(self) -> int | None:
+        """
+        How many compute nodes to request.
+        """
         return self._get_value("num_nodes")
 
     @property
     def num_threads(self) -> int | None:
+        """
+        How many threads to request.
+        """
         return self._get_value("num_threads")
 
     @property
     def scheduler(self) -> str | None:
+        """
+        Which scheduler to use.
+        """
         return self._get_value("scheduler")
 
     @scheduler.setter
@@ -1798,6 +2124,9 @@ class ResourceSpec(JSONLike):
 
     @property
     def shell(self) -> str | None:
+        """
+        Which system shell to use.
+        """
         return self._get_value("shell")
 
     @shell.setter
@@ -1807,26 +2136,44 @@ class ResourceSpec(JSONLike):
 
     @property
     def use_job_array(self) -> bool:
+        """
+        Whether to use array jobs.
+        """
         return self._get_value("use_job_array")
 
     @property
     def max_array_items(self) -> int | None:
+        """
+        If using array jobs, up to how many items should be in the job array.
+        """
         return self._get_value("max_array_items")
 
     @property
     def time_limit(self) -> str | None:
+        """
+        How long to run for.
+        """
         return self._get_value("time_limit")
 
     @property
     def scheduler_args(self) -> dict:
+        """
+        Additional arguments to pass to the scheduler.
+        """
         return self._get_value("scheduler_args")
 
     @property
     def shell_args(self) -> dict | None:
+        """
+        Additional arguments to pass to the shell.
+        """
         return self._get_value("shell_args")
 
     @property
     def os_name(self) -> str:
+        """
+        Which OS to use.
+        """
         return self._get_value("os_name")
 
     @os_name.setter
@@ -1836,34 +2183,58 @@ class ResourceSpec(JSONLike):
 
     @property
     def environments(self) -> dict | None:
+        """
+        Which execution environments to use.
+        """
         return self._get_value("environments")
 
     @property
     def SGE_parallel_env(self) -> str | None:
+        """
+        Which SGE parallel environment to request.
+        """
         return self._get_value("SGE_parallel_env")
 
     @property
     def SLURM_partition(self) -> str | None:
+        """
+        Which SLURM partition to request.
+        """
         return self._get_value("SLURM_partition")
 
     @property
     def SLURM_num_tasks(self) -> int | None:
+        """
+        How many SLURM tasks to request.
+        """
         return self._get_value("SLURM_num_tasks")
 
     @property
     def SLURM_num_tasks_per_node(self) -> int | None:
+        """
+        How many SLURM tasks per compute node to request.
+        """
         return self._get_value("SLURM_num_tasks_per_node")
 
     @property
     def SLURM_num_nodes(self) -> int | None:
+        """
+        How many compute nodes to request.
+        """
         return self._get_value("SLURM_num_nodes")
 
     @property
     def SLURM_num_cpus_per_task(self) -> int | None:
+        """
+        How many CPU cores to ask for per SLURM task.
+        """
         return self._get_value("SLURM_num_cpus_per_task")
 
     @property
     def workflow(self) -> Workflow | None:
+        """
+        The workflow owning this resource spec.
+        """
         if self._workflow:
             return self._workflow
 
@@ -1887,27 +2258,48 @@ class ResourceSpec(JSONLike):
 
     @property
     def element_set(self) -> ElementSet | None:
+        """
+        The element set that will use this resource spec.
+        """
         if not self._resource_list:
             return None
         return self._resource_list.element_set
 
     @property
     def workflow_template(self) -> WorkflowTemplate | None:
+        """
+        The workflow template that will use this resource spec.
+        """
         if not self._resource_list:
             return None
         return self._resource_list.workflow_template
 
 
 class InputSourceType(enum.Enum):
+    """
+    The types if input sources.
+    """
+
+    #: Input source is an import.
     IMPORT = 0
+    #: Input source is local.
     LOCAL = 1
+    #: Input source is a default.
     DEFAULT = 2
+    #: Input source is a task.
     TASK = 3
 
 
 class TaskSourceType(enum.Enum):
+    """
+    The types of task-based input sources.
+    """
+
+    #: Input source is a task input.
     INPUT = 0
+    #: Input source is a task output.
     OUTPUT = 1
+    #: Input source is unspecified.
     ANY = 2
 
 
@@ -1915,6 +2307,27 @@ _Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter
 
 
 class InputSource(JSONLike):
+    """
+    An input source to a workflow task.
+
+    Parameters
+    ----------
+    source_type: InputSourceType
+        Type of the input source.
+    import_ref:
+        Where the input comes from when the type is `IMPORT`.
+    task_ref:
+        Which task is this an input for? Used when the type is `TASK`.
+    task_source_type: TaskSourceType
+        Type of task source.
+    element_iters:
+        Which element iterations does this apply to?
+    path:
+        Path to where this input goes.
+    where: ~hpcflow.app.Rule | list[~hpcflow.app.Rule] | ~hpcflow.app.ElementFilter
+        Filtering rules.
+    """
+
     _child_objects = (
         ChildObjectSpec(
             name="source_type",
@@ -1935,6 +2348,7 @@ class InputSource(JSONLike):
         where: _Where | None = None,
     ):
         if where is None or isinstance(where, ElementFilter):
+            #: Filtering rules.
             self.where: ElementFilter | None = where
         else:
             self.where = self._app.ElementFilter(
@@ -1944,11 +2358,17 @@ class InputSource(JSONLike):
                 ]
             )
 
+        #: Type of the input source.
         self.source_type = get_enum_by_name_or_val(InputSourceType, source_type)
+        #: Where the input comes from when the type is `IMPORT`.
         self.import_ref = import_ref
+        #: Which task is this an input for? Used when the type is `TASK`.
         self.task_ref = task_ref
+        #: Type of task source.
         self.task_source_type = get_enum_by_name_or_val(TaskSourceType, task_source_type)
+        #: Which element iterations does this apply to?
         self.element_iters = element_iters
+        #: Path to where this input goes.
         self.path = path
 
         if self.source_type is InputSourceType.TASK:
@@ -2029,6 +2449,9 @@ class InputSource(JSONLike):
         return None
 
     def to_string(self) -> str:
+        """
+        Render this input source as a string.
+        """
         assert self.source_type
         out = [self.source_type.name.lower()]
         if self.source_type is InputSourceType.TASK:
@@ -2041,7 +2464,38 @@ class InputSource(JSONLike):
         return ".".join(out)
 
     @classmethod
+    def _validate_task_source_type(cls, task_src_type):
+        if task_src_type is None:
+            return None
+        if isinstance(task_src_type, TaskSourceType):
+            return task_src_type
+        try:
+            task_source_type = getattr(cls.app.TaskSourceType, task_src_type.upper())
+        except AttributeError:
+            raise ValueError(
+                f"InputSource `task_source_type` specified as {task_src_type!r}, but "
+                f"must be one of: {[i.name for i in TaskSourceType]!r}."
+            )
+        return task_source_type
+
+    @classmethod
     def from_string(cls, str_defn: str) -> Self:
+        """Parse a dot-delimited string definition of an InputSource.
+
+        Parameter
+        ---------
+        str_defn:
+            The string to parse.
+
+        Examples
+        --------
+            task.[task_ref].input
+            task.[task_ref].output
+            local
+            default
+            import.[import_ref]
+
+        """
         return cls(**cls._parse_from_string(str_defn))
 
     @classmethod
@@ -2095,12 +2549,30 @@ class InputSource(JSONLike):
         }
 
     @classmethod
+    def from_json_like(cls, json_like, shared_data=None):
+        if isinstance(json_like, str):
+            json_like = cls._parse_from_string(json_like)
+        return super().from_json_like(json_like, shared_data)
+
+    @classmethod
     def import_(
         cls,
         import_ref: int,
         element_iters: list[int] | None = None,
         where: _Where | None = None,
     ) -> Self:
+        """
+        Make an instnace of an input source that is an import.
+
+        Parameters
+        ----------
+        import_ref:
+            Import reference.
+        element_iters:
+            Originating element iterations.
+        where:
+            Filtering rule.
+        """
         return cls(
             source_type=InputSourceType.IMPORT,
             import_ref=import_ref,
@@ -2110,10 +2582,16 @@ class InputSource(JSONLike):
 
     @classmethod
     def local(cls) -> Self:
+        """
+        Make an instnace of an input source that is local.
+        """
         return cls(source_type=InputSourceType.LOCAL)
 
     @classmethod
     def default(cls) -> Self:
+        """
+        Make an instnace of an input source that is default.
+        """
         return cls(source_type=InputSourceType.DEFAULT)
 
     @classmethod
@@ -2124,6 +2602,20 @@ class InputSource(JSONLike):
         element_iters: list[int] | None = None,
         where: _Where | None = None,
     ) -> Self:
+        """
+        Make an instance of an input source that is a task.
+
+        Parameters
+        ----------
+        task_ref:
+            Source task reference.
+        task_source_type:
+            Type of task source.
+        element_iters:
+            Originating element iterations.
+        where:
+            Filtering rule.
+        """
         return cls(
             source_type=InputSourceType.TASK,
             task_ref=task_ref,

@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 
 def callback_vars(config: Config, value) -> str:
-    """Substitute configuration variables."""
+    """
+    Callback that substitutes configuration variables.
+    """
 
     def vars_repl(match_obj: re.Match[str]) -> str:
         var_name = match_obj.groups()[0]
@@ -45,6 +47,9 @@ def callback_file_paths(config: Config, file_path: list[PathLike]) -> list[PathL
 
 
 def callback_file_paths(config: Config, file_path: PathLike | list[PathLike]):
+    """
+    Callback that resolves file paths.
+    """
     if isinstance(file_path, list):
         return [config._resolve_path(i) for i in file_path]
     else:
@@ -52,6 +57,9 @@ def callback_file_paths(config: Config, file_path: PathLike | list[PathLike]):
 
 
 def callback_bool(config: Config, value: str | bool) -> bool:
+    """
+    Callback that coerces values to boolean.
+    """
     if not isinstance(value, bool):
         if value.lower() == "true":
             return True
@@ -80,6 +88,9 @@ def callback_lowercase(config: Config, value: str) -> str:
 def callback_lowercase(
     config: Config, value: list[str] | dict[str, T] | str
 ) -> list[str] | dict[str, T] | str:
+    """
+    Callback that forces a string to lower case.
+    """
     if isinstance(value, list):
         return [i.lower() for i in value]
     elif isinstance(value, dict):
@@ -89,6 +100,9 @@ def callback_lowercase(
 
 
 def exists_in_schedulers(config: Config, value: T) -> T:
+    """
+    Callback that tests that a value is a supported scheduler name.
+    """
     if value not in config.schedulers:
         raise ValueError(
             f"Cannot set default scheduler; {value!r} is not a supported scheduler "
@@ -101,6 +115,9 @@ def exists_in_schedulers(config: Config, value: T) -> T:
 def callback_supported_schedulers(
     config: Config, schedulers: dict[str, Any]
 ) -> dict[str, Any]:
+    """
+    Callback that tests that all values are names of supported schedulers.
+    """
     # validate against supported schedulers according to the OS - this won't validate that
     # a particular scheduler actually exists on this system:
     available = config._app.get_OS_supported_schedulers()
@@ -162,6 +179,9 @@ def callback_scheduler_set_up(
 
 
 def callback_supported_shells(config: Config, shell_name: str) -> str:
+    """
+    Callback that tests if a shell names is supported on this OS.
+    """
     supported = get_supported_shells(os.name)
     if shell_name not in supported:
         raise UnsupportedShellError(shell=shell_name, supported=supported)
@@ -186,11 +206,14 @@ def set_callback_file_paths(config: Config, value: PathLike | list[PathLike]) ->
 
 
 def check_load_data_files(config: Config, value: Any) -> None:
-    """Check data files (e.g. task schema files) can be loaded successfully. This is only
+    """Check data files (e.g., task schema files) can be loaded successfully. This is only
     done on `config.set` (and not on `config.get` or `config._validate`) because it could
     be expensive in the case of remote files."""
     config._app.reload_template_components(warn=False)
 
 
 def callback_update_log_console_level(config: Config, value: str) -> None:
+    """
+    Callback to set the logging level.
+    """
     config._app.log.update_console_level(value)

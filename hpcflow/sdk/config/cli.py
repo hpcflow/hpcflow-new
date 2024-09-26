@@ -45,7 +45,10 @@ def warning_formatter(func=custom_warning_formatter):
 
 
 def CLI_exception_wrapper_gen(*exception_cls):
-    """Decorator factory"""
+    """
+    Decorator factory that enhances the wrapped function to display a nice message on
+    success or failure.
+    """
 
     def CLI_exception_wrapper(func):
         """Decorator

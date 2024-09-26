@@ -239,6 +239,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
+    "sphinx.ext.todo",
     "sphinx_jinja",
     "sphinx_copybutton",
     "sphinx_click",

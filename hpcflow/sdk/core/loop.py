@@ -1,3 +1,9 @@
+"""
+A looping construct for a workflow.
+There are multiple types of loop,
+notably looping over a set of values or until a condition holds.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -37,11 +43,29 @@ class IterableParam(TypedDict):
 # @dataclass
 # class Loop:
 #     parameter: Parameter
-#     stopping_criteria: StoppingCriterion  # TODO: should be a logical combination of these (maybe provide a superclass in valida to re-use some logic there?)
+#     stopping_criteria: StoppingCriterion
+#     # TODO: should be a logical combination of these (maybe provide a superclass in valida to re-use some logic there?)
 #     maximum_iterations: int
 
 
 class Loop(JSONLike):
+    """
+    A loop in a workflow template.
+
+    Parameters
+    ----------
+    tasks: list[int | ~hpcflow.app.WorkflowTask]
+        List of task insert IDs or workflow tasks.
+    num_iterations:
+        Number of iterations to perform.
+    name: str
+        Loop name.
+    non_iterable_parameters: list[str]
+        Specify input parameters that should not iterate.
+    termination: v~hpcflow.app.Rule
+        Stopping criterion, expressed as a rule.
+    """
+
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="termination", class_name="Rule"),
     )
@@ -54,21 +78,6 @@ class Loop(JSONLike):
         non_iterable_parameters: list[str] | None = None,
         termination: Rule | None = None,
     ) -> None:
-        """
-
-        Parameters
-        ----------
-        name
-            Loop name, optional
-        tasks
-            List of task insert IDs or WorkflowTask objects
-        non_iterable_parameters
-            Specify input parameters that should not iterate.
-        termination
-            Stopping criterion, expressed as a rule.
-
-        """
-
         _task_insert_IDs: list[int] = []
         for task in tasks:
             if isinstance(task, self._app.WorkflowTask):
@@ -112,22 +121,37 @@ class Loop(JSONLike):
 
     @property
     def name(self) -> str | None:
+        """
+        The name of the loop, if one was provided.
+        """
         return self._name
 
     @property
     def num_iterations(self) -> int:
+        """
+        The number of loop iterations to do.
+        """
         return self._num_iterations
 
     @property
     def non_iterable_parameters(self) -> list[str]:
+        """
+        Which parameters are not iterable.
+        """
         return self._non_iterable_parameters
 
     @property
     def termination(self) -> Rule | None:
+        """
+        A termination rule for the loop, if one is provided.
+        """
         return self._termination
 
     @property
     def workflow_template(self) -> WorkflowTemplate | None:
+        """
+        The workflow template that contains this loop.
+        """
         return self._workflow_template
 
     @workflow_template.setter
@@ -143,6 +167,9 @@ class Loop(JSONLike):
 
     @property
     def task_objects(self) -> tuple[WorkflowTask, ...]:
+        """
+        The tasks in the loop.
+        """
         wf = self.__workflow()
         if not wf:
             raise RuntimeError(
@@ -192,7 +219,25 @@ class Loop(JSONLike):
 
 
 class WorkflowLoop(AppAware):
-    """Class to represent a Loop that is bound to a Workflow."""
+    """
+    Class to represent a :py:class:`.Loop` that is bound to a
+    :py:class:`~hpcflow.app.Workflow`.
+
+    Parameters
+    ----------
+    index: int
+        The index of this loop in the workflow.
+    workflow: ~hpcflow.app.Workflow
+        The workflow containing this loop.
+    template: Loop
+        The loop that this was generated from.
+    num_added_iterations:
+        Description of what iterations have been added.
+    iterable_parameters:
+        Description of what parameters are being iterated over.
+    parents: list[str]
+        The paths to the parent entities of this loop.
+    """
 
     def __init__(
         self,
@@ -250,6 +295,9 @@ class WorkflowLoop(AppAware):
 
     @property
     def num_added_iterations(self) -> dict[tuple[int, ...], int]:
+        """
+        The number of added iterations.
+        """
         if self._pending_num_added_iterations:
             return self._pending_num_added_iterations
         else:
@@ -302,54 +350,83 @@ class WorkflowLoop(AppAware):
 
     @property
     def index(self) -> int:
+        """
+        The index of this loop within its workflow.
+        """
         return self._index
 
     @property
     def task_insert_IDs(self) -> tuple[int, ...]:
+        """
+        The insertion IDs of the tasks inside this loop.
+        """
         return self.template.task_insert_IDs
 
     @property
     def task_objects(self) -> tuple[WorkflowTask, ...]:
+        """
+        The tasks in this loop.
+        """
         return self.template.task_objects
 
     @property
     def task_indices(self) -> tuple[int, ...]:
-        """Get the list of task indices that define the extent of the loop."""
+        """
+        The list of task indices that define the extent of the loop.
+        """
         return tuple(i.index for i in self.task_objects)
 
     @property
     def workflow(self) -> Workflow:
+        """
+        The workflow containing this loop.
+        """
         return self._workflow
 
     @property
     def template(self) -> Loop:
+        """
+        The loop template for this loop.
+        """
         return self._template
 
     @property
     def parents(self) -> list[str]:
+        """
+        The parents of this loop.
+        """
         return self._parents + self._pending_parents
 
     @property
     def name(self) -> str:
+        """
+        The name of this loop, if one is defined.
+        """
         assert self.template.name
         return self.template.name
 
     @property
     def iterable_parameters(self) -> dict[str, IterableParam]:
+        """
+        The parameters that are being iterated over.
+        """
         return self._iterable_parameters
 
     @property
     def num_iterations(self) -> int:
+        """
+        The number of iterations.
+        """
         return self.template.num_iterations
 
     @property
     def downstream_tasks(self) -> list[WorkflowTask]:
-        """Return tasks that are not part of the loop, and downstream from this loop."""
+        """Tasks that are not part of the loop, and downstream from this loop."""
         return self.workflow.tasks[self.task_objects[-1].index + 1 :]
 
     @property
     def upstream_tasks(self) -> list[WorkflowTask]:
-        """Return tasks that are not part of the loop, and upstream from this loop."""
+        """Tasks that are not part of the loop, and upstream from this loop."""
         return self.workflow.tasks[: self.task_objects[0].index]
 
     @staticmethod
@@ -389,6 +466,20 @@ class WorkflowLoop(AppAware):
         template: Loop,
         iter_loop_idx: list[dict[str, int]],
     ) -> WorkflowLoop:
+        """
+        Make a new empty loop.
+
+        Parameters
+        ----------
+        index: int
+            The index of the loop to create.
+        workflow: ~hpcflow.app.Workflow
+            The workflow that will contain the loop.
+        template: Loop
+            The template for the loop.
+        iter_loop_idx: list[dict]
+            Iteration information from parent loops.
+        """
         parent_loops = cls._get_parent_loops(index, workflow, template)
         parent_names = [i.name for i in parent_loops if i.name]
         num_added_iters = {tuple(i[j] for j in parent_names): 1 for i in iter_loop_idx}
@@ -459,6 +550,17 @@ class WorkflowLoop(AppAware):
         parent_loop_indices: dict[str, int] | None = None,
         cache: LoopCache | None = None,
     ) -> None:
+        """
+        Add an iteration to this loop.
+
+        Parameters
+        ----------
+        parent_loop_indices:
+            Where have any parent loops got up to?
+        cache:
+            A cache used to make adding the iteration more efficient.
+            One will be created if it is not supplied.
+        """
         if not cache:
             cache = LoopCache.build(self.workflow)
         assert cache is not None

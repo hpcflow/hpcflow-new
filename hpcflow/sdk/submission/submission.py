@@ -1,3 +1,7 @@
+"""
+A collection of submissions to a scheduler, generated from a workflow.
+"""
+
 from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -41,6 +45,9 @@ class SubmissionPart(TypedDict):
 
 
 def timedelta_format(td: timedelta) -> str:
+    """
+    Convert time delta to string in standard form.
+    """
     days, seconds = td.days, td.seconds
     hours = seconds // (60 * 60)
     seconds -= hours * (60 * 60)
@@ -50,6 +57,9 @@ def timedelta_format(td: timedelta) -> str:
 
 
 def timedelta_parse(td_str: str) -> timedelta:
+    """
+    Parse a string in standard form as a time delta.
+    """
     days, other = td_str.split("-")
     days_i = int(days)
     hours, mins, secs = [int(i) for i in other.split(":")]
@@ -57,12 +67,38 @@ def timedelta_parse(td_str: str) -> timedelta:
 
 
 class SubmissionStatus(enum.Enum):
-    PENDING = 0  # not yet submitted
-    SUBMITTED = 1  # all jobscripts submitted successfully
-    PARTIALLY_SUBMITTED = 2  # some jobscripts submitted successfully
+    """
+    The overall status of a submission.
+    """
+
+    #: Not yet submitted.
+    PENDING = 0
+    #: All jobscripts submitted successfully.
+    SUBMITTED = 1
+    #: Some jobscripts submitted successfully.
+    PARTIALLY_SUBMITTED = 2
 
 
 class Submission(JSONLike):
+    """
+    A collection of jobscripts to be submitted to a scheduler.
+
+    Parameters
+    ----------
+    index: int
+        The index of this submission.
+    jobscripts: list[~hpcflow.app.Jobscript]
+        The jobscripts in the submission.
+    workflow: ~hpcflow.app.Workflow
+        The workflow this is part of.
+    submission_parts: dict
+        Description of submission parts.
+    JS_parallelism: bool
+        Whether to exploit jobscript parallelism.
+    environments: ~hpcflow.app.EnvironmentsList
+        The execution environments to use.
+    """
+
     _child_objects = (
         ChildObjectSpec(
             name="jobscripts",
@@ -96,6 +132,7 @@ class Submission(JSONLike):
         ] | None = None  # assigned on first access
 
         if workflow:
+            #: The workflow this is part of.
             self.workflow = workflow
 
         self._set_parent_refs()
@@ -175,15 +212,24 @@ class Submission(JSONLike):
 
     @property
     def index(self) -> int:
+        """
+        The index of this submission.
+        """
         return self._index
 
     @property
     def environments(self) -> EnvironmentsList:
+        """
+        The execution environments to use.
+        """
         assert self._environments
         return self._environments
 
     @property
     def submission_parts(self) -> list[SubmissionPart]:
+        """
+        Description of the parts of this submission.
+        """
         if not self._submission_parts:
             return []
 
@@ -229,14 +275,23 @@ class Submission(JSONLike):
 
     @property
     def jobscripts(self) -> list[Jobscript]:
+        """
+        The jobscripts in this submission.
+        """
         return self._jobscripts
 
     @property
     def JS_parallelism(self) -> bool | None:
+        """
+        Whether to exploit jobscript parallelism.
+        """
         return self._JS_parallelism
 
     @property
     def workflow(self) -> Workflow:
+        """
+        The workflow this is part of.
+        """
         return self._workflow
 
     @workflow.setter
@@ -260,6 +315,9 @@ class Submission(JSONLike):
 
     @property
     def status(self) -> SubmissionStatus:
+        """
+        The status of this submission.
+        """
         if not self.submission_parts:
             return SubmissionStatus.PENDING
         elif set(self.submitted_jobscripts) == set(self.jobscript_indices):
@@ -269,6 +327,9 @@ class Submission(JSONLike):
 
     @property
     def needs_submit(self) -> bool:
+        """
+        Whether this submission needs a submit to be done.
+        """
         return self.status in (
             SubmissionStatus.PENDING,
             SubmissionStatus.PARTIALLY_SUBMITTED,
@@ -276,19 +337,31 @@ class Submission(JSONLike):
 
     @property
     def path(self) -> Path:
+        """
+        The path to files associated with this submission.
+        """
         return self.workflow.submissions_path / str(self.index)
 
     @property
     def all_EAR_IDs(self) -> Iterable[int]:
+        """
+        The IDs of all EARs in this submission.
+        """
         return (i for js in self.jobscripts for i in js.all_EAR_IDs)
 
     @property
     def all_EARs(self) -> Iterable[ElementActionRun]:
+        """
+        All EARs in this this submission.
+        """
         return (i for js in self.jobscripts for i in js.all_EARs)
 
     @property
     @TimeIt.decorator
     def EARs_by_elements(self) -> Mapping[int, Mapping[int, Sequence[ElementActionRun]]]:
+        """
+        All EARs in this submission, grouped by element.
+        """
         task_elem_EARs: dict[int, dict[int, list[ElementActionRun]]] = defaultdict(
             lambda: defaultdict(list)
         )
@@ -298,10 +371,16 @@ class Submission(JSONLike):
 
     @property
     def abort_EARs_file_name(self) -> str:
+        """
+        The name of a file describing what EARs have aborted.
+        """
         return "abort_EARs.txt"
 
     @property
     def abort_EARs_file_path(self) -> Path:
+        """
+        The path to the file describing what EARs have aborted in this submission.
+        """
         return self.path / self.abort_EARs_file_name
 
     @overload
@@ -364,6 +443,9 @@ class Submission(JSONLike):
 
         Uniqueness is determines only by the `QueuedScheduler.unique_properties` tuple.
 
+        Parameters
+        ----------
+        jobscripts: list[~hpcflow.app.Jobscript]
         """
         js_idx: list[list[tuple[int, int]]] = []
         schedulers: list[Scheduler] = []
@@ -565,6 +647,9 @@ class Submission(JSONLike):
 
     @TimeIt.decorator
     def cancel(self) -> None:
+        """
+        Cancel the active jobs for this submission's jobscripts.
+        """
         act_js = list(self.get_active_jobscripts())
         if not act_js:
             print("No active jobscripts to cancel.")

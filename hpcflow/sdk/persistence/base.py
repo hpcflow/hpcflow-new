@@ -1,4 +1,8 @@
-# Store* classes represent the element-metadata in the store, in a store-agnostic way
+"""
+Base persistence models.
+
+Store* classes represent the element-metadata in the store, in a store-agnostic way.
+"""
 from __future__ import annotations
 from abc import ABC, abstractmethod
 
@@ -74,6 +78,9 @@ PARAM_DATA_NOT_SET: Final[int] = 0
 
 
 def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamSource:
+    """
+    Combine two dicts into a new dict that is ordered on its keys.
+    """
     return cast("ParamSource", dict(sorted({**source, **update}.items())))
 
 
@@ -185,41 +192,78 @@ class Metadata(TypedDict):
 
 @dataclass
 class PersistentStoreFeatures:
-    """Class to represent the features provided by a persistent store.
+    """
+    Represents the features provided by a persistent store.
 
     Parameters
     ----------
-    create
+    create:
         If True, a new workflow can be created using this store.
-    edit
+    edit:
         If True, the workflow can be modified.
-    jobscript_parallelism
+    jobscript_parallelism:
         If True, the store supports workflows running multiple independent jobscripts
         simultaneously.
-    EAR_parallelism
+    EAR_parallelism:
         If True, the store supports workflows running multiple EARs simultaneously.
-    schedulers
-        If True, the store supports submitting workflows to a scheduler
-    submission
+    schedulers:
+        If True, the store supports submitting workflows to a scheduler.
+    submission:
         If True, the store supports submission. If False, the store can be considered to
         be an archive, which would need transforming to another store type before
         submission.
     """
 
+    #: Whether a new workflow can be created using this store.
     create: bool = False
+    #: Whether the workflow can be modified.
     edit: bool = False
+    #: Whetherthe store supports workflows running multiple independent jobscripts
+    #: simultaneously.
     jobscript_parallelism: bool = False
+    #: Whether the store supports workflows running multiple EARs simultaneously.
     EAR_parallelism: bool = False
+    #: Whether the store supports submitting workflows to a scheduler.
     schedulers: bool = False
+    #: Whether the store supports submission. If not, the store can be considered to
+    #: be an archive, which would need transforming to another store type before
+    #: submission.
     submission: bool = False
 
 
 @dataclass
 class StoreTask(Generic[T]):
+    """
+    Represents a task in a persistent store.
+
+    Type Parameters
+    ---------------
+    T
+        Type of the serialized form.
+
+    Parameters
+    ----------
+    id_:
+        The ID of the task.
+    index:
+        The index of the task within its workflow.
+    is_pending:
+        Whether the task has changes not yet persisted.
+    element_IDs:
+        The IDs of elements in the task.
+    task_template:
+        Description of the template for the task.
+    """
+
+    #: The ID of the task.
     id_: int
+    #: The index of the task within its workflow.
     index: int
+    #: Whether the task has changes not yet persisted.
     is_pending: bool
+    #: The IDs of elements in the task.
     element_IDs: list[int]
+    #: Description of the template for the task.
     task_template: Mapping[str, Any] | None = None
 
     @abstractmethod
@@ -251,6 +295,8 @@ class StoreTask(Generic[T]):
 @dataclass
 class StoreElement(Generic[T, CTX]):
     """
+    Represents an element in a persistent store.
+
     Type Parameters
     ---------------
     T
@@ -260,19 +306,39 @@ class StoreElement(Generic[T, CTX]):
 
     Parameters
     ----------
-    index
+    id_:
+        The ID of the element.
+    is_pending:
+        Whether the element has changes not yet persisted.
+    index:
         Index of the element within its parent task.
-    iteration_IDs
+    es_idx:
+        Index of the element set containing this element.
+    seq_idx:
+        Value sequence index map.
+    src_idx:
+        Data source index map.
+    task_ID:
+        ID of the task that contains this element.
+    iteration_IDs:
         IDs of element-iterations that belong to this element.
     """
 
+    #: The ID of the element.
     id_: int
+    #: Whether the element has changes not yet persisted.
     is_pending: bool
+    #: Index of the element within its parent task.
     index: int
+    #: Index of the element set containing this element.
     es_idx: int
+    #: Value sequence index map.
     seq_idx: dict[str, int]
+    #: Data source index map.
     src_idx: dict[str, int]
+    #: ID of the task that contains this element.
     task_ID: int
+    #: IDs of element-iterations that belong to this element.
     iteration_IDs: list[int]
 
     @abstractmethod
@@ -317,6 +383,8 @@ class StoreElement(Generic[T, CTX]):
 @dataclass
 class StoreElementIter(Generic[T, CTX]):
     """
+    Represents an element iteration in a persistent store.
+
     Type Parameters
     ---------------
     T
@@ -326,22 +394,41 @@ class StoreElementIter(Generic[T, CTX]):
 
     Parameters
     ----------
-    data_idx
+    id_:
+        The ID of this element iteration.
+    is_pending:
+        Whether the element iteration has changes not yet persisted.
+    element_ID:
+        Which element is an iteration for.
+    EARs_initialised:
+        Whether EARs have been initialised for this element iteration.
+    EAR_IDs:
+        Maps task schema action indices to EARs by ID.
+    data_idx:
         Overall data index for the element-iteration, which maps parameter names to
         parameter data indices.
-    EAR_IDs
-        Maps task schema action indices to EARs by ID.
-    schema_parameters
+    schema_parameters:
         List of parameters defined by the associated task schema.
+    loop_idx:
+        What loops are being handled here and where they're up to.
     """
 
+    #: The ID of this element iteration.
     id_: int
+    #: Whether the element iteration has changes not yet persisted.
     is_pending: bool
+    #: Which element is an iteration for.
     element_ID: int
+    #: Whether EARs have been initialised for this element iteration.
     EARs_initialised: bool
+    #: Maps task schema action indices to EARs by ID.
     EAR_IDs: dict[int, list[int]] | None
+    #: Overall data index for the element-iteration, which maps parameter names to
+    #: parameter data indices.
     data_idx: DataIndex
+    #: List of parameters defined by the associated task schema.
     schema_parameters: list[str]
+    #: What loops are being handled here and where they're up to.
     loop_idx: dict[str, int] = field(default_factory=dict)
 
     @abstractmethod
@@ -420,6 +507,8 @@ class StoreElementIter(Generic[T, CTX]):
 @dataclass
 class StoreEAR(Generic[T, CTX]):
     """
+    Represents an element action run in a persistent store.
+
     Type Parameters
     ---------------
     T
@@ -429,29 +518,71 @@ class StoreEAR(Generic[T, CTX]):
 
     Parameters
     ----------
-    data_idx
-        Maps parameter names within this EAR to parameter data indices.
-    metadata
-        Metadata concerning e.g. the state of the EAR.
-    action_idx
+    id_:
+        The ID of this element action run.
+    is_pending:
+        Whether the element action run has changes not yet persisted.
+    elem_iter_ID:
+        What element iteration owns this EAR.
+    action_idx:
         The task schema action associated with this EAR.
+    commands_idx:
+        The indices of the commands in the EAR.
+    data_idx:
+        Maps parameter names within this EAR to parameter data indices.
+    submission_idx:
+        Which submission contained this EAR, if known.
+    skip:
+        Whether to skip this EAR.
+    success:
+        Whether this EAR was successful, if known.
+    start_time:
+        When this EAR started, if known.
+    end_time:
+        When this EAR finished, if known.
+    snapshot_start:
+        Snapshot of files at EAR start, if recorded.
+    snapshot_end:
+        Snapshot of files at EAR end, if recorded.
+    exit_code:
+        The exit code of the underlying executable, if known.
+    metadata:
+        Metadata concerning e.g. the state of the EAR.
+    run_hostname:
+        Where this EAR was submitted to run, if known.
     """
 
+    #: The ID of this element action run.
     id_: int
+    #: Whether the element action run has changes not yet persisted.
     is_pending: bool
+    #: What element iteration owns this EAR.
     elem_iter_ID: int
+    #: The task schema action associated with this EAR.
     action_idx: int
+    #: The indices of the commands in the EAR.
     commands_idx: list[int]
+    #: Maps parameter names within this EAR to parameter data indices.
     data_idx: DataIndex
+    #: Which submission contained this EAR, if known.
     submission_idx: int | None = None
+    #: Whether to skip this EAR.
     skip: bool = False
+    #: Whether this EAR was successful, if known.
     success: bool | None = None
+    #: When this EAR started, if known.
     start_time: datetime | None = None
+    #: When this EAR finished, if known.
     end_time: datetime | None = None
+    #: Snapshot of files at EAR start, if recorded.
     snapshot_start: dict[str, Any] | None = None
+    #: Snapshot of files at EAR end, if recorded.
     snapshot_end: dict[str, Any] | None = None
+    #: The exit code of the underlying executable, if known.
     exit_code: int | None = None
+    #: Metadata concerning e.g. the state of the EAR.
     metadata: Metadata | None = None
+    #: Where this EAR was submitted to run, if known.
     run_hostname: str | None = None
 
     @staticmethod
@@ -556,11 +687,36 @@ class EncodedStoreParameter(TypedDict):
 @dataclass
 @hydrate
 class StoreParameter:
+    """
+    Represents a parameter in a persistent store.
+
+    Parameters
+    ----------
+    id_:
+        The ID of this parameter.
+    is_pending:
+        Whether the parameter has changes not yet persisted.
+    is_set:
+        Whether the parameter is set.
+    data:
+        Description of the value of the parameter.
+    file:
+        Description of the file this parameter represents.
+    source:
+        Description of where this parameter originated.
+    """
+
+    #: The ID of this parameter.
     id_: int
+    #: Whether the parameter has changes not yet persisted.
     is_pending: bool
+    #: Whether the parameter is set.
     is_set: bool
+    #: Description of the value of the parameter.
     data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any
+    #: Description of the file this parameter represents.
     file: File | None
+    #: Description of where this parameter originated.
     source: ParamSource
 
     _encoders: ClassVar[dict[type, Callable]] = {}
@@ -788,6 +944,33 @@ class StoreParameter:
 class PersistentStore(
     ABC, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]
 ):
+    """
+    An abstract class representing a persistent workflow store.
+
+    Type Parameters
+    ---------------
+    AnySTask
+        The type of stored tasks.
+    AnySElement
+        The type of stored elements.
+    AnySElementIter
+        The type of stored element iterations.
+    AnySEAR
+        The type of stored EARs.
+    AnySParameter
+        The type of stored parameters.
+
+    Parameters
+    ----------
+    app: App
+        The main hpcflow core.
+    workflow: ~hpcflow.app.Workflow
+        The workflow being persisted.
+    path: pathlib.Path
+        Where to hold the store.
+    fs: fsspec.AbstractFileSystem
+        Optionally, information about how to access the store.
+    """
     _name: ClassVar[str]
 
     @classmethod
@@ -922,19 +1105,31 @@ class PersistentStore(
 
     @property
     def workflow(self) -> Workflow:
+        """
+        The workflow this relates to.
+        """
         assert self.__workflow is not None
         return self.__workflow
 
     @property
     def logger(self) -> Logger:
+        """
+        The logger to use.
+        """
         return self._app.persistence_logger
 
     @property
     def ts_fmt(self) -> str:
+        """
+        The format for timestamps.
+        """
         return self.workflow.ts_fmt
 
     @property
     def has_pending(self) -> bool:
+        """
+        Whether there are any pending changes.
+        """
         return bool(self._pending)
 
     @property
@@ -944,6 +1139,9 @@ class PersistentStore(
 
     @property
     def use_cache(self) -> bool:
+        """
+        Whether to use a cache.
+        """
         return self._use_cache
 
     @property
@@ -1215,6 +1413,9 @@ class PersistentStore(
     def add_template_components(
         self, temp_comps: Mapping[str, dict], save: bool = True
     ) -> None:
+        """
+        Add template components to the workflow.
+        """
         all_tc = self.get_template_components()
         for name, dat in temp_comps.items():
             if name in all_tc:
@@ -1277,6 +1478,9 @@ class PersistentStore(
             self.save()
 
     def add_element_set(self, task_id: int, es_js: Mapping, save: bool = True):
+        """
+        Add an element set to a task.
+        """
         self._pending.add_element_sets[task_id].append(es_js)
         if save:
             self.save()
@@ -1364,6 +1568,9 @@ class PersistentStore(
     def add_submission_part(
         self, sub_idx: int, dt_str: str, submitted_js_idx: list[int], save: bool = True
     ):
+        """
+        Add a submission part.
+        """
         self._pending.add_submission_parts[sub_idx][dt_str] = submitted_js_idx
         if save:
             self.save()
@@ -1372,11 +1579,17 @@ class PersistentStore(
     def set_EAR_submission_index(
         self, EAR_ID: int, sub_idx: int, save: bool = True
     ) -> None:
+        """
+        Set the submission index for an element action run.
+        """
         self._pending.set_EAR_submission_indices[EAR_ID] = sub_idx
         if save:
             self.save()
 
     def set_EAR_start(self, EAR_ID: int, save: bool = True) -> datetime:
+        """
+        Mark an element action run as started.
+        """
         dt = current_timestamp()
         ss_js = self._app.RunDirAppFiles.take_snapshot()
         run_hostname = socket.gethostname()
@@ -1388,6 +1601,9 @@ class PersistentStore(
     def set_EAR_end(
         self, EAR_ID: int, exit_code: int, success: bool, save: bool = True
     ) -> datetime:
+        """
+        Mark an element action run as finished.
+        """
         # TODO: save output files
         dt = current_timestamp()
         ss_js = self._app.RunDirAppFiles.take_snapshot()
@@ -1397,11 +1613,17 @@ class PersistentStore(
         return dt
 
     def set_EAR_skip(self, EAR_ID: int, save: bool = True) -> None:
+        """
+        Mark an element action run as skipped.
+        """
         self._pending.set_EAR_skips.append(EAR_ID)
         if save:
             self.save()
 
     def set_EARs_initialised(self, iter_ID: int, save: bool = True) -> None:
+        """
+        Mark an element action run as initialised.
+        """
         self._pending.set_EARs_initialised.append(iter_ID)
         if save:
             self.save()
@@ -1422,6 +1644,9 @@ class PersistentStore(
         process_ID: int | None = None,
         save: bool = True,
     ):
+        """
+        Set the metadata for a job script.
+        """
         entry = self._pending.set_js_metadata[sub_idx][js_idx]
         if version_info:
             entry["version_info"] = version_info
@@ -1527,6 +1752,9 @@ class PersistentStore(
         clean_up: bool = False,
         save: bool = True,
     ):
+        """
+        Set details of a file, including whether it is associated with a parameter.
+        """
         self.logger.debug("Setting new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
@@ -1553,6 +1781,9 @@ class PersistentStore(
         filename: str | None = None,
         save: bool = True,
     ):
+        """
+        Add a file that will be associated with a parameter.
+        """
         self.logger.debug("Adding new file")
         file_param_dat = self._prepare_set_file(
             store_contents=store_contents,
@@ -1594,9 +1825,15 @@ class PersistentStore(
         source: ParamSource,
         save: bool = True,
     ) -> int:
+        """
+        Add a parameter that is set to a value.
+        """
         return self._add_parameter(data=data, is_set=True, source=source, save=save)
 
     def add_unset_parameter(self, source: ParamSource, save: bool = True) -> int:
+        """
+        Add a parameter that is not set to any value.
+        """
         return self._add_parameter(data=None, is_set=False, source=source, save=save)
 
     @abstractmethod
@@ -1606,6 +1843,9 @@ class PersistentStore(
     def set_parameter_value(
         self, param_id: int, value: Any, is_file: bool = False, save: bool = True
     ):
+        """
+        Set the value of a parameter.
+        """
         self.logger.debug(
             f"Setting store parameter ID {param_id} value with type: {type(value)!r})."
         )
@@ -1617,6 +1857,9 @@ class PersistentStore(
     def update_param_source(
         self, param_sources: Mapping[int, ParamSource], save: bool = True
     ) -> None:
+        """
+        Set the source of a parameter.
+        """
         self.logger.debug(f"Updating parameter sources with {param_sources!r}.")
         self._pending.update_param_sources.update(param_sources)
         if save:
@@ -1628,6 +1871,9 @@ class PersistentStore(
         num_added_iters: Mapping[tuple[int, ...], int],
         save: bool = True,
     ) -> None:
+        """
+        Add iterations to a loop.
+        """
         self.logger.debug(
             f"Updating loop {index!r} num added iterations to {num_added_iters!r}."
         )
@@ -1644,6 +1890,9 @@ class PersistentStore(
         parents: list[str],
         save: bool = True,
     ) -> None:
+        """
+        Set the parents of a loop.
+        """
         self.logger.debug(
             f"Updating loop {index!r} parents to {parents!r}, and num added iterations "
             f"to {num_added_iters}."
@@ -1669,6 +1918,9 @@ class PersistentStore(
         ...
 
     def get_template(self) -> dict[str, JSONed]:
+        """
+        Get the workflow template.
+        """
         return self._get_persistent_template()
 
     @abstractmethod
@@ -1680,6 +1932,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_task(self, task_idx: int) -> AnySTask:
+        """
+        Get a task.
+        """
         return self.get_tasks()[task_idx]
 
     def __process_retrieved_tasks(self, tasks: Iterable[AnySTask]) -> list[AnySTask]:
@@ -1718,6 +1973,9 @@ class PersistentStore(
         ...
 
     def get_tasks_by_IDs(self, ids: Iterable[int]) -> Sequence[AnySTask]:
+        """
+        Get tasks with the given IDs.
+        """
         # separate pending and persistent IDs:
         id_lst = list(ids)
         id_set = set(id_lst)
@@ -1793,6 +2051,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_submissions_by_ID(self, ids: Iterable[int]) -> dict[int, JSONDocument]:
+        """
+        Get submissions with the given IDs.
+        """
         id_lst = list(ids)
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -1812,6 +2073,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_elements(self, ids: Iterable[int]) -> Sequence[AnySElement]:
+        """
+        Get elements with the given IDs.
+        """
         id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
 
@@ -1844,6 +2108,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_element_iterations(self, ids: Iterable[int]) -> Sequence[AnySElementIter]:
+        """
+        Get element iterations with the given IDs.
+        """
         id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
 
@@ -1883,6 +2150,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_EARs(self, ids: Iterable[int]) -> Sequence[AnySEAR]:
+        """
+        Get element action runs with the given IDs.
+        """
         id_lst = list(ids)
         self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
 
@@ -1968,17 +2238,26 @@ class PersistentStore(
         return self._get_cached_persistent_items(id_lst, self.parameter_cache)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
+        """
+        Whether the element action run with the given ID was skipped.
+        """
         self.logger.debug(f"PersistentStore.get_EAR_skipped: EAR_ID={EAR_ID!r}")
         return self.get_EARs([EAR_ID])[0].skip
 
     @TimeIt.decorator
     def get_parameters(self, id_lst: Iterable[int], **kwargs) -> list[AnySParameter]:
         """
+        Get parameters with the given IDs.
+
         Parameters
         ----------
-        kwargs :
-            dataset_copy : bool
-                For Zarr stores only. If True, copy arrays as NumPy arrays.
+        id_lst:
+            The IDs of the parameters to get.
+
+        Keyword Arguments
+        -----------------
+        dataset_copy: bool
+            For Zarr stores only. If True, copy arrays as NumPy arrays.
         """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
@@ -2002,6 +2281,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
+        """
+        Get whether the parameters with the given IDs are set.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -2022,6 +2304,9 @@ class PersistentStore(
 
     @TimeIt.decorator
     def get_parameter_sources(self, id_lst: Iterable[int]) -> list[ParamSource]:
+        """
+        Get the sources of the parameters with the given IDs.
+        """
         # separate pending and persistent IDs:
         id_set = set(id_lst)
         all_pending = set(self._pending.add_parameters)
@@ -2060,10 +2345,10 @@ class PersistentStore(
         task_id: int,
         idx_lst: Iterable[int] | None = None,
     ) -> list[dict[str, Any]]:
-        """Get element data by an indices within a given task.
+        """
+        Get element data by an indices within a given task.
 
         Element iterations and EARs belonging to the elements are included.
-
         """
 
         all_elem_IDs = self.get_task(task_id).element_IDs

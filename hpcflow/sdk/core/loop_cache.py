@@ -1,3 +1,7 @@
+"""
+Cache of loop statuses.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from collections import defaultdict
@@ -30,40 +34,55 @@ if TYPE_CHECKING:
 
 @dataclass
 class LoopCache:
-    """Class to store a cache for use in `Workflow.add_empty_loop` and
-    `WorkflowLoop.add_iterations`.
+    """Class to store a cache for use in :py:meth:`.Workflow.add_empty_loop` and
+    :py:meth:`.WorkflowLoop.add_iterations`. Use :py:meth:`build` to get a new instance.
 
-    Attributes
+    Parameters
     ----------
-    element_dependents
+    element_dependents:
         Keys are element IDs, values are dicts whose keys are element IDs that depend on
         the key element ID (via `Element.get_dependent_elements_recursively`), and whose
         values are dicts with keys: `group_names`, which is a tuple of the string group
         names associated with the dependent element's element set.
-    elements
+    elements:
         Keys are element IDs, values are dicts with keys: `input_statuses`,
         `input_sources`, and `task_insert_ID`.
-    zeroth_iters
+    zeroth_iters:
         Keys are element IDs, values are data associated with the zeroth iteration of that
         element, namely a tuple of iteration ID and `ElementIteration.data_idx`.
-    data_idx
+    data_idx:
         Keys are element IDs, values are data associated with all iterations of that
         element, namely a dict whose keys are the iteration loop index as a tuple, and
         whose values are data indices via `ElementIteration.get_data_idx()`.
-    iterations
+    iterations:
         Keys are iteration IDs, values are tuples of element ID and iteration index within
         that element.
-    task_iterations
+    task_iterations:
         Keys are task insert IDs, values are list of all iteration IDs associated with
         that task.
 
     """
 
+    #: Keys are element IDs, values are dicts whose keys are element IDs that depend on
+    #: the key element ID (via `Element.get_dependent_elements_recursively`), and whose
+    #: values are dicts with keys: `group_names`, which is a tuple of the string group
+    #: names associated with the dependent element's element set.
     element_dependents: dict[int, dict[int, DependentDescriptor]]
+    #: Keys are element IDs, values are dicts with keys: `input_statuses`,
+    #: `input_sources`, and `task_insert_ID`.
     elements: dict[int, ElementDescriptor]
+    #: Keys are element IDs, values are data associated with the zeroth iteration of that
+    #: element, namely a tuple of iteration ID and `ElementIteration.data_idx`.
     zeroth_iters: dict[int, tuple[int, DataIndex]]
+    #: Keys are element IDs, values are data associated with all iterations of that
+    #: element, namely a dict whose keys are the iteration loop index as a tuple, and
+    #: whose values are data indices via `ElementIteration.get_data_idx()`.
     data_idx: dict[int, dict[tuple[tuple[str, int], ...], DataIndex]]
+    #: Keys are iteration IDs, values are tuples of element ID and iteration index within
+    #: that element.
     iterations: dict[int, tuple[int, int]]
+    #: Keys are task insert IDs, values are list of all iteration IDs associated with
+    #: that task.
     task_iterations: dict[int, list[int]]
 
     @TimeIt.decorator
@@ -73,6 +92,9 @@ class LoopCache:
 
     @TimeIt.decorator
     def get_iter_loop_indices(self, iter_IDs: list[int]) -> list[dict[str, int]]:
+        """
+        Retrieve the mapping from element to loop index for each given iteration.
+        """
         iter_loop_idx: list[dict[str, int]] = []
         for i in iter_IDs:
             elem_id, idx = self.iterations[i]
@@ -81,6 +103,9 @@ class LoopCache:
 
     @TimeIt.decorator
     def update_loop_indices(self, new_loop_name: str, iter_IDs: list[int]):
+        """
+        Set the loop indices for a named loop to the given list of iteration IDs.
+        """
         elem_ids = {v[0] for k, v in self.iterations.items() if k in iter_IDs}
         for i in elem_ids:
             new_item: dict[tuple[tuple[str, int], ...], DataIndex] = {}

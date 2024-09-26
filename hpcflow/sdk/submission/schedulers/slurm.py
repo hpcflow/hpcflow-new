@@ -1,4 +1,9 @@
+"""
+An interface to SLURM.
+"""
+
 from __future__ import annotations
+from pathlib import Path
 import subprocess
 import time
 from typing import TYPE_CHECKING
@@ -26,12 +31,24 @@ if TYPE_CHECKING:
 
 class SlurmPosix(QueuedScheduler):
     """
+    A scheduler that uses SLURM.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
 
     Notes
     -----
     - runs in current working directory by default [2]
 
-    # TODO: consider getting memory usage like: https://stackoverflow.com/a/44143229/5042280
+    Todo
+    ----
+    - consider getting memory usage like: https://stackoverflow.com/a/44143229/5042280
 
     References
     ----------
@@ -40,19 +57,27 @@ class SlurmPosix(QueuedScheduler):
 
     """
 
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
+    #: Default args for shebang line.
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
+    #: Default submission command.
     DEFAULT_SUBMIT_CMD: ClassVar[str] = "sbatch"
+    #: Default command to show the queue state.
     DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = ("squeue", "--me")
+    #: Default cancel command.
     DEFAULT_DEL_CMD: ClassVar[str] = "scancel"
+    #: Default job control directive prefix.
     DEFAULT_JS_CMD: ClassVar[str] = "#SBATCH"
+    #: Default prefix to enable array processing.
     DEFAULT_ARRAY_SWITCH: ClassVar[str] = "--array"
+    #: Default shell variable with array ID.
     DEFAULT_ARRAY_ITEM_VAR: ClassVar[str] = "SLURM_ARRAY_TASK_ID"
     NUM_STATE_QUERY_TRIES: ClassVar[int] = 5
     INTER_STATE_QUERY_DELAY: ClassVar[float] = 0.5
 
-    # maps scheduler states:
-    state_lookup = {
+    #: Maps scheduler state codes to :py:class:`JobscriptElementState` values.
+    state_lookup: ClassVar[Mapping[str, JobscriptElementState]] = {
         "PENDING": JobscriptElementState.pending,
         "RUNNING": JobscriptElementState.running,
         "COMPLETING": JobscriptElementState.running,
@@ -338,8 +363,12 @@ class SlurmPosix(QueuedScheduler):
     def format_options(
         self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
     ) -> str:
+        """
+        Format the options to the scheduler.
+        """
         opts: list[str] = []
         opts.extend(self._format_core_request_lines(resources))
+
         if is_array:
             opts.append(self._format_array_request(num_elements, resources))
 
@@ -382,6 +411,13 @@ class SlurmPosix(QueuedScheduler):
         js_path: str,
         deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
+        """
+        Get the command to use to submit a job to the scheduler.
+
+        Returns
+        -------
+        List of argument words.
+        """
         cmd = [self.submit_cmd, "--parsable"]
 
         dep_cmd: list[str] = []
@@ -531,6 +567,9 @@ class SlurmPosix(QueuedScheduler):
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ):
+        """
+        Cancel submitted jobs.
+        """
         cmd = [self.del_cmd] + js_refs
         self._app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

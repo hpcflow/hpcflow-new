@@ -1,3 +1,7 @@
+"""
+Miscellaneous persistence-related helpers.
+"""
+
 from __future__ import annotations
 from getpass import getpass
 from typing import TYPE_CHECKING
@@ -14,6 +18,10 @@ if TYPE_CHECKING:
 def ask_pw_on_auth_exc(
     f: Callable[..., T], *args, add_pw_to: str | None = None, **kwargs
 ) -> tuple[T, str | None]:
+    """
+    Run the given function on the given arguments and add a password if the function
+    fails with an SSHException.
+    """
     from paramiko.ssh_exception import SSHException
 
     try:

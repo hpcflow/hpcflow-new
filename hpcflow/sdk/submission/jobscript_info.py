@@ -1,3 +1,7 @@
+"""
+Jobscript state enumeration.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
@@ -19,36 +23,42 @@ class JobscriptElementState(_JES, Enum):
     """Enumeration to convey a particular jobscript element state as reported by the
     scheduler."""
 
+    #: Waiting for resource allocation.
     pending = (
         0,
         "○",
         "yellow",
         "Waiting for resource allocation.",
     )
+    #: Waiting for one or more dependencies to finish.
     waiting = (
         1,
         "◊",
         "grey46",
         "Waiting for one or more dependencies to finish.",
     )
+    #: Executing now.
     running = (
         2,
         "●",
         "dodger_blue1",
         "Executing now.",
     )
+    #: Previously submitted but is no longer active.
     finished = (
         3,
         "■",
         "grey46",
         "Previously submitted but is no longer active.",
     )
+    #: Cancelled by the user.
     cancelled = (
         4,
         "C",
         "red3",
         "Cancelled by the user.",
     )
+    #: The scheduler reports an error state.
     errored = (
         5,
         "E",
@@ -62,4 +72,7 @@ class JobscriptElementState(_JES, Enum):
 
     @property
     def rich_repr(self) -> str:
+        """
+        Rich representation of this enumeration element.
+        """
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"

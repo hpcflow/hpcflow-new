@@ -182,7 +182,7 @@ class KnownSubmissionItem(TypedDict):
 
 
 def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
-    """Call fsspec's `url_to_fs` but retry on `requests.exceptions.HTTPError`s
+    R"""Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
 
     References
     ----------
@@ -242,14 +242,29 @@ def get_app_attribute(name):
 
 
 def get_app_module_all() -> list[str]:
+    """
+    The list of all symbols exported by this module.
+    """
     return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
 
 
 def get_app_module_dir() -> Callable[[], list[str]]:
+    """
+    The sorted list of all symbols exported by this module.
+    """
     return lambda: sorted(get_app_module_all())
 
 
 class Singleton(type, Generic[T]):
+    """
+    Metaclass that enforces that only one instance of a class can be made.
+
+    Type Parameters
+    ---------------
+    T
+        The type of the class that is a singleton.
+    """
+
     _instances: dict[Singleton[T], Any] = {}
 
     def __call__(cls: Singleton[T], *args, **kwargs) -> T:
@@ -283,15 +298,42 @@ class BaseApp(metaclass=Singleton):
 
     Parameters
     ----------
+    name:
+        The name of the application.
+    version:
+        The version of the application.
     module:
         The module name in which the app object is defined.
+    description:
+        Description of the application.
+    gh_org:
+        Name of Github organisation responsible for the application.
+    gh_repo:
+        Github repository containing the application source.
+    config_options:
+        Configuration options.
+    scripts_dir:
+        Directory for scripts.
+    workflows_dir:
+        Directory for workflows.
+    demo_data_dir:
+        Directory for demonstration data.
+    data_data_manifest_dir:
+        Directory for demonstration data manifests.
+    template_components:
+        Template components.
+    pytest_args:
+        Arguments for pytest.
+    package_name:
+        Name of package if not the application name.
     docs_import_conv:
         The convention for the app alias used in import statements in the documentation.
         E.g. for the `hpcflow` base app, this is `hf`. This is combined with `module` to
         form the complete import statement. E.g. for the `hpcflow` base app, the complete
         import statement is: `import hpcflow.app as hf`, where `hpcflow.app` is the
         `module` argument and `hf` is the `docs_import_conv` argument.
-
+    docs_url:
+        URL to documentation.
     """
 
     _known_subs_file_name = "known_submissions.txt"
@@ -320,22 +362,38 @@ class BaseApp(metaclass=Singleton):
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
+        #: The name of the application.
         self.name = name
+        #: Name of package.
         self.package_name = package_name or name.lower()
+        #: The version of the application.
         self.version = version
+        #: The module name in which the app object is defined.
         self.module = module
+        #: Description of the application.
         self.description = description
+        #: Name of Github organisation responsible for the application.
         self.gh_org = gh_org
+        #: Github repository containing the application source.
         self.gh_repo = gh_repo
+        #: Configuration options.
         self.config_options = config_options
+        #: Arguments for pytest.
         self.pytest_args = pytest_args
+        #: Directory for scripts.
         self.scripts_dir = scripts_dir
+        #: Directory for workflows.
         self.workflows_dir = workflows_dir
+        #: Directory for demonstration data.
         self.demo_data_dir = demo_data_dir
+        #: Directory for demonstration data manifests.
         self.demo_data_manifest_dir = demo_data_manifest_dir
+        #: The convention for the app alias used in import statements in the documentation.
         self.docs_import_conv = docs_import_conv
+        #: URL to documentation.
         self.docs_url = docs_url
 
+        #: Command line interface subsystem.
         self.cli = make_cli(self)
 
         self._log = AppLog(self)
@@ -766,14 +824,23 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def run_time_info(self) -> RunTimeInfo:
+        """
+        Information about the runtime.
+        """
         return self._run_time_info
 
     @property
     def log(self) -> AppLog:
+        """
+        The application log.
+        """
         return self._log
 
     @property
     def timeit(self) -> bool:
+        """
+        Whether the timing analysis system is active.
+        """
         return TimeIt.active
 
     @timeit.setter
@@ -782,6 +849,9 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def template_components(self) -> TemplateComponents:
+        """
+        The template component data.
+        """
         if not self.is_template_components_loaded:
             if BaseApp.__load_pending:
                 return {}
@@ -910,6 +980,10 @@ class BaseApp(metaclass=Singleton):
     def load_builtin_template_component_data(
         cls, package: ModuleType | str
     ) -> dict[str, list[Dict]]:
+        """
+        Load the template component data built into the package.
+        This is as opposed to the template components defined by users.
+        """
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
@@ -923,73 +997,115 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def parameters(self) -> _ParametersList:
+        """
+        The known template parameters.
+        """
         self._ensure_template_component("parameters")
         assert self._parameters is not None
         return self._parameters
 
     @property
     def command_files(self) -> CommandFilesList_:
+        """
+        The known template command files.
+        """
         self._ensure_template_component("command_files")
         assert self._command_files is not None
         return self._command_files
 
     @property
     def envs(self) -> _EnvironmentsList:
+        """
+        The known template execution environments.
+        """
         self._ensure_template_component("environments")
         assert self._environments is not None
         return self._environments
 
     @property
     def scripts(self) -> dict[str, Path]:
+        """
+        The known template scripts.
+        """
         self._ensure_template_component("scripts")
         assert self._scripts is not None
         return self._scripts
 
     @property
     def task_schemas(self) -> _TaskSchemasList:
+        """
+        The known template task schemas.
+        """
         self._ensure_template_component("task_schemas")
         assert self._task_schemas is not None
         return self._task_schemas
 
     @property
     def logger(self) -> Logger:
+        """
+        The main underlying logger.
+        """
         return self.log.logger
 
     @property
     def API_logger(self) -> Logger:
+        """
+        The logger for API messages.
+        """
         return self.logger.getChild("api")
 
     @property
     def CLI_logger(self) -> Logger:
+        """
+        The logger for CLI messages.
+        """
         return self.logger.getChild("cli")
 
     @property
     def config_logger(self) -> Logger:
+        """
+        The logger for configuration messages.
+        """
         return self.logger.getChild("config")
 
     @property
     def persistence_logger(self) -> Logger:
+        """
+        The logger for persistence engine messages.
+        """
         return self.logger.getChild("persistence")
 
     @property
     def submission_logger(self) -> Logger:
+        """
+        The logger for job submission messages.
+        """
         return self.logger.getChild("submission")
 
     @property
     def runtime_info_logger(self) -> Logger:
+        """
+        The logger for runtime messages.
+        """
         return self.logger.getChild("runtime")
 
     @property
     def is_config_loaded(self) -> bool:
+        """
+        Whether the configuration is loaded.
+        """
         return bool(self._config)
 
     @property
     def is_template_components_loaded(self) -> bool:
-        """Return True if any template component (e.g. parameters) has been loaded."""
+        """Whether any template component (e.g. parameters) has been loaded."""
         return bool(self._template_components)
 
     @property
     def config(self) -> Config:
+        """
+        The configuration.
+        """
         if not self.is_config_loaded:
             self.load_config()
         assert self._config
@@ -997,6 +1113,9 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def scheduler_lookup(self) -> dict[tuple[str, str], type[Scheduler]]:
+        """
+        The scheduler mapping.
+        """
         return {
             ("direct", "posix"): self.DirectPosix,
             ("direct", "nt"): self.DirectWindows,
@@ -1059,35 +1178,42 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def user_data_dir(self) -> Path:
+        """
+        The user's data directory.
+        """
         if self._user_data_dir is None:
             self._user_data_dir = Path(user_data_dir(appname=self.package_name))
         return self._user_data_dir
 
     @property
     def user_cache_dir(self) -> Path:
-        """Retrieve the app cache directory."""
+        """The user's cache directory."""
         if self._user_cache_dir is None:
             self._user_cache_dir = Path(user_cache_path(appname=self.package_name))
         return self._user_cache_dir
 
     @property
     def user_runtime_dir(self) -> Path:
-        """Retrieve a temporary directory."""
+        """The user's temporary runtime directory."""
         if self._user_runtime_dir is None:
             self._user_runtime_dir = self.user_data_dir.joinpath("temp")
         return self._user_runtime_dir
 
     @property
     def demo_data_cache_dir(self) -> Path:
-        """Retrieve a directory for example data caching."""
+        """A directory for example data caching."""
         if self._demo_data_cache_dir is None:
             self._demo_data_cache_dir = self.user_cache_dir.joinpath("demo_data")
         return self._demo_data_cache_dir
 
     @property
     def user_data_hostname_dir(self) -> Path:
-        """We segregate by hostname to account for the case where multiple machines might
-        use the same shared file system"""
+        """
+        The directory for holding user data.
+
+        We segregate by hostname to account for the case where multiple machines might
+        use the same shared file system.
+        """
 
         # This might need to cover e.g. multiple login nodes, as described in the
         # config file:
@@ -1098,7 +1224,7 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def user_cache_hostname_dir(self) -> Path:
-        """Retrieve the hostname-scoped app cache directory."""
+        """The hostname-scoped app cache directory."""
         if self._user_cache_hostname_dir is None:
             machine_name = self.config.get("machine")
             self._user_cache_hostname_dir = self.user_cache_dir.joinpath(machine_name)
@@ -1227,11 +1353,17 @@ class BaseApp(metaclass=Singleton):
         warn=True,
         **overrides,
     ) -> None:
+        """
+        Load the user's configuration.
+        """
         if warn and self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
         self._load_config(config_dir, config_key, **overrides)
 
     def unload_config(self) -> None:
+        """
+        Discard any loaded configuration.
+        """
         self._config_files = {}
         self._config = None
 
@@ -1271,6 +1403,10 @@ class BaseApp(metaclass=Singleton):
         warn=True,
         **overrides,
     ) -> None:
+        """
+        Reload the configuration. Use if a user has updated the configuration file
+        outside the scope of this application.
+        """
         if warn and not self.is_config_loaded:
             warnings.warn("Configuration is not loaded; loading.")
         self.log.remove_file_handlers()
@@ -1415,6 +1551,9 @@ class BaseApp(metaclass=Singleton):
     def template_components_from_json_like(
         self, json_like: dict[str, dict]
     ) -> TemplateComponents:
+        """
+        Get template components from a (simply parsed) JSON document.
+        """
         tc: TemplateComponents = {}
         sd: Mapping[str, Any] = tc
         tc["parameters"] = self.ParametersList.from_json_like(
@@ -1449,6 +1588,9 @@ class BaseApp(metaclass=Singleton):
         return param_map
 
     def get_info(self) -> dict[str, Any]:
+        """
+        Get miscellaneous runtime system information.
+        """
         return {
             "name": self.name,
             "version": self.version,
@@ -1457,12 +1599,11 @@ class BaseApp(metaclass=Singleton):
         }
 
     @property
-    def known_subs_file_name(self) -> str:
-        return self._known_subs_file_name
-
-    @property
     def known_subs_file_path(self) -> Path:
-        return self.user_data_hostname_dir / self.known_subs_file_name
+        """
+        The path to the file describing known submissions.
+        """
+        return self.user_data_hostname_dir / self._known_subs_file_name
 
     def _format_known_submissions_line(
         self,
@@ -2735,6 +2876,9 @@ class BaseApp(metaclass=Singleton):
         use_current_env=False,
         env_source_file=None,
     ):
+        """
+        Configure an execution environment.
+        """
         if not setup:
             setup = []
         if not executables:
@@ -2990,9 +3134,15 @@ class BaseApp(metaclass=Singleton):
         return cache_file_path
 
     def cache_demo_data_file(self, file_name) -> Path:
+        """
+        Get the name of a cached demo data file.
+        """
         return self.get_demo_data_file_path(file_name)
 
     def cache_all_demo_data_files(self) -> list[Path]:
+        """
+        Get the name of all cached demo data file.
+        """
         return [self.get_demo_data_file_path(i) for i in self.list_demo_data_files()]
 
     def copy_demo_data(

@@ -1,3 +1,6 @@
+"""
+Common type aliases.
+"""
 from __future__ import annotations
 from dataclasses import InitVar
 from typing import ClassVar, TypedDict, TypeVar, cast
@@ -5,10 +8,8 @@ from typing_extensions import NotRequired, TypeAlias
 from pathlib import Path
 import re
 
+#: Type of a value that can be treated as a path.
 PathLike: TypeAlias = "str | Path | None"
-"""
-Things we can convert into a proper path.
-"""
 
 
 class ParamSource(TypedDict):
@@ -25,8 +26,14 @@ class ParamSource(TypedDict):
 
 
 # EAR: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
+#: Type of an element index:
+#: (task_insert_ID, element_idx)
 E_idx_type: TypeAlias = "tuple[int, int]"
+#: Type of an element iteration index:
+#: (task_insert_ID, element_idx, iteration_idx)
 EI_idx_type: TypeAlias = "tuple[int, int, int]"
+#: Type of an element action run index:
+#: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
 EAR_idx_type: TypeAlias = "tuple[int, int, int, int, int]"
 
 DataIndex: TypeAlias = "dict[str, int | list[int]]"

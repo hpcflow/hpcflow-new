@@ -1,3 +1,7 @@
+"""
+Operating system information discovery helpers.
+"""
+
 from __future__ import annotations
 import platform
 import re
@@ -7,6 +11,9 @@ DEFAULT_LINUX_RELEASE_FILE = "/etc/os-release"
 
 
 def get_OS_info() -> dict[str, str]:
+    """
+    Get basic operating system version info.
+    """
     uname = platform.uname()
     return {
         "OS_name": uname.system,
@@ -16,6 +23,9 @@ def get_OS_info() -> dict[str, str]:
 
 
 def get_OS_info_windows() -> dict[str, str]:
+    """
+    Get operating system version info: Windows version.
+    """
     return get_OS_info()
 
 
@@ -25,15 +35,17 @@ def get_OS_info_POSIX(
     linux_release_file: str | None = None,
 ) -> dict[str, str]:
     """
+    Get operating system version info: POSIX version.
+
     Parameters
     ----------
-    WSL_executable
+    WSL_executable:
         Executable to run subprocess calls via WSL on Windows.
-    use_py
-        If True, use the `platform.uname` Python function to get the OS information.
-        Otherwise use subprocess to call `uname`. We set this to False when getting OS
-        info in WSL on Windows, since we need to call the WSL executable.
-    linux_release_file
+    use_py:
+        If True, use the :py:func:`platform.uname` Python function to get the OS
+        information. Otherwise use subprocess to call ``uname``. We set this to False
+        when getting OS info in WSL on Windows, since we need to call the WSL executable.
+    linux_release_file:
         If on Linux, record the name and version fields from this file.
 
     """

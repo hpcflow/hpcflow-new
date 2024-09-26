@@ -1,3 +1,7 @@
+"""
+Model of files in the run directory.
+"""
+
 from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
@@ -12,7 +16,7 @@ class RunDirAppFiles(AppAware):
     """A class to encapsulate the naming/recognition of app-created files within run
     directories."""
 
-    CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
+    _CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
     @classmethod
     def get_log_file_name(cls):
@@ -26,12 +30,18 @@ class RunDirAppFiles(AppAware):
 
     @staticmethod
     def get_run_file_prefix(js_idx: int | str, js_action_idx: int | str) -> str:
+        """
+        Get the common prefix for files associated with a run.
+        """
         return f"js_{js_idx}_act_{js_action_idx}"
 
     @classmethod
     def get_commands_file_name(
         cls, js_idx: int | str, js_action_idx: int | str, shell: Shell
     ) -> str:
+        """
+        Get the name of the file containing commands.
+        """
         return cls.get_run_file_prefix(js_idx, js_action_idx) + shell.JS_EXT
 
     @classmethod
@@ -66,7 +76,7 @@ class RunDirAppFiles(AppAware):
             if (
                 k == cls.get_log_file_name()
                 or k == cls.get_std_file_name()
-                or re.match(cls.CMD_FILES_RE_PATTERN, k)
+                or re.match(cls._CMD_FILES_RE_PATTERN, k)
             ):
                 ss_js["data"].pop(k)
 

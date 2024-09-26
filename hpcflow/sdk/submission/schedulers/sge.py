@@ -1,5 +1,10 @@
+"""
+An interface to SGE.
+"""
+
 from __future__ import annotations
 from collections.abc import Sequence
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 from typing_extensions import override
@@ -24,6 +29,18 @@ if TYPE_CHECKING:
 
 class SGEPosix(QueuedScheduler):
     """
+    A scheduler that uses SGE.
+
+    Keyword Args
+    ------------
+    cwd_switch: str
+        Override of default switch to use to set the current working directory.
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
 
     Notes
     -----
@@ -36,18 +53,27 @@ class SGEPosix(QueuedScheduler):
 
     """
 
+    #: Default args for shebang line.
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
+    #: Default submission command.
     DEFAULT_SUBMIT_CMD: ClassVar[str] = "qsub"
-    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = "qstat"
+    #: Default command to show the queue state.
+    DEFAULT_SHOW_CMD: ClassVar[Sequence[str]] = ("qstat",)
+    #: Default cancel command.
     DEFAULT_DEL_CMD: ClassVar[str] = "qdel"
+    #: Default job control directive prefix.
     DEFAULT_JS_CMD: ClassVar[str] = "#$"
+    #: Default prefix to enable array processing.
     DEFAULT_ARRAY_SWITCH: ClassVar[str] = "-t"
+    #: Default shell variable with array ID.
     DEFAULT_ARRAY_ITEM_VAR: ClassVar[str] = "SGE_TASK_ID"
+    #: Default switch to control CWD.
     DEFAULT_CWD_SWITCH: ClassVar[str] = "-cwd"
+    #: Default command to get the login nodes.
     DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str]] = ("qconf", "-sh")
 
-    # maps scheduler states:
-    state_lookup = {
+    #: Maps scheduler state codes to :py:class:`JobscriptElementState` values.
+    state_lookup: ClassVar[Mapping[str, JobscriptElementState]] = {
         "qw": JobscriptElementState.pending,
         "hq": JobscriptElementState.waiting,
         "hR": JobscriptElementState.waiting,
@@ -164,6 +190,9 @@ class SGEPosix(QueuedScheduler):
     def format_options(
         self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
     ) -> str:
+        """
+        Format the options to the jobscript command.
+        """
         opts: list[str] = []
         opts.append(self.format_switch(self.cwd_switch))
         opts.extend(self._format_core_request_lines(resources))
@@ -204,6 +233,13 @@ class SGEPosix(QueuedScheduler):
         js_path: str,
         deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
+        """
+        Get the command to use to submit a job to the scheduler.
+
+        Returns
+        -------
+        List of argument words.
+        """
         cmd = [self.submit_cmd, "-terse"]
 
         dep_job_IDs: list[str] = []
@@ -297,6 +333,9 @@ class SGEPosix(QueuedScheduler):
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ):
+        """
+        Cancel submitted jobs.
+        """
         cmd = [self.del_cmd] + js_refs
         self._app.submission_logger.info(
             f"cancelling {self.__class__.__name__} jobscripts with command: {cmd}."

@@ -1,3 +1,7 @@
+"""
+Configuration file adapter.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -35,10 +39,23 @@ if TYPE_CHECKING:
 
 
 class ConfigFile:
-    """Configuration file."""
+    """
+    Configuration file.
+
+    Parameters
+    ----------
+    directory:
+        The directory containing the configuration file.
+    logger:
+        Where to log messages.
+    config_options:
+        Configuration options.
+    """
 
     def __init__(self, directory, logger: logging.Logger, config_options: ConfigOptions):
+        #: Where to log messages.
         self.logger = logger
+        #: The directory containing the configuration file.
         self.directory = self._resolve_config_dir(
             config_opt=config_options,
             logger=self.logger,
@@ -58,24 +75,36 @@ class ConfigFile:
 
     @property
     def data(self) -> ConfigDict:
+        """
+        The parsed contents of the config file.
+        """
         d = self.__data
         assert d is not None
         return d
 
     @property
     def data_rt(self) -> ConfigDict:
+        """
+        The parsed contents of the config file where the alternate parser was used.
+        """
         drt = self.__data_rt
         assert drt is not None
         return drt
 
     @property
     def path(self) -> Path:
+        """
+        The path to the config file.
+        """
         p = self.__path
         assert p is not None
         return p
 
     @property
     def contents(self) -> str:
+        """
+        The cached contents of the config file.
+        """
         c = self.__contents
         assert c is not None
         return c
@@ -138,12 +167,31 @@ class ConfigFile:
         return file_schema
 
     def get_invoc_data(self, config_key: str) -> DefaultConfiguration:
+        """
+        Get the invocation data for the given configuration.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        """
         return self.data["configs"][config_key]
 
     def get_invocation(self, config_key: str) -> InvocationDescriptor:
+        """
+        Get the invocation for the given configuration.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        """
         return self.get_invoc_data(config_key)["invocation"]
 
     def save(self) -> None:
+        """
+        Write the (modified) configuration to the configuration file.
+        """
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
         new_contents = ""
@@ -311,6 +359,9 @@ class ConfigFile:
 
     @staticmethod
     def get_config_file_path(directory: Path) -> Path:
+        """
+        Get the path to the configuration file.
+        """
         # Try both ".yml" and ".yaml" extensions:
         path_yaml = directory.joinpath("config.yaml")
         if path_yaml.is_file():
@@ -347,12 +398,37 @@ class ConfigFile:
     def get_config_item(
         self, config_key: str, name: str, *, raise_on_missing=False, default_value=None
     ) -> Any | None:
+        """
+        Get a configuration item.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        name: str
+            The name of the configuration item.
+        raise_on_missing: bool
+            Whether to raise an error if the config item is absent.
+        default_value:
+            The default value to use when the config item is absent
+            (and ``raise_on_missing`` is not specified).
+        """
         cfg = self.get_invoc_data(config_key)["config"]
         if raise_on_missing and name not in cfg:
             raise ValueError(f"missing from file: {name!r}")
         return cfg.get(name, default_value)
 
     def is_item_set(self, config_key: str, name: str) -> bool:
+        """
+        Determine if a configuration item is set.
+
+        Parameters
+        ----------
+        config_key: str
+            The name of the configuration within the configuration file.
+        name: str
+            The name of the configuration item.
+        """
         try:
             self.get_config_item(config_key, name, raise_on_missing=True)
             return True
@@ -360,7 +436,16 @@ class ConfigFile:
             return False
 
     def rename_config_key(self, config_key: str, new_config_key: str) -> None:
-        """Change the config key of the loaded config."""
+        """
+        Change the config key of the loaded config.
+
+        Parameters
+        ----------
+        config_key: str
+            The old name of the configuration within the configuration file.
+        new_config_key: str
+            The new name of the configuration.
+        """
 
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)
@@ -383,7 +468,18 @@ class ConfigFile:
         environment_setup: str | None = None,
         match: dict[str, str | list[str]] | None = None,
     ) -> None:
-        """Modify the invocation parameters of the loaded config."""
+        """
+        Modify the invocation parameters of the loaded config.
+
+        Parameters
+        ----------
+        config_key:
+            The name of the configuration within the configuration file.
+        environment_setup:
+            The new value of the ``environment_setup`` key.
+        match:
+            The new values to merge into the ``match`` key.
+        """
 
         new_data = copy.deepcopy(self.data)
         new_data_rt = copy.deepcopy(self.data_rt)

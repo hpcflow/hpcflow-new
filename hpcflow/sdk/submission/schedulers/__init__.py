@@ -1,6 +1,11 @@
+"""
+Job scheduler models.
+"""
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 import sys
 import time
 from typing import Generic, TypeVar, TYPE_CHECKING
@@ -20,17 +25,33 @@ T = TypeVar("T")
 
 class Scheduler(ABC, Generic[T], AppAware):
     """
-    T: The type of a jobscript reference.
+    Abstract base class for schedulers.
+
+    Type Parameters
+    ---------------
+    T
+        The type of a jobscript reference.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the scheduler.
     """
 
+    #: Default value for arguments to the shell.
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
+    #: Default value for arguments on the shebang line.
     DEFAULT_SHEBANG_ARGS: ClassVar[str] = ""
 
     def __init__(
         self,
-        shell_args=None,
-        shebang_args=None,
-        options=None,
+        shell_args: str | None = None,
+        shebang_args: str | None = None,
+        options: dict | None = None,
     ):
         self.shebang_args = shebang_args or self.DEFAULT_SHEBANG_ARGS
         self.shell_args = shell_args or self.DEFAULT_SHELL_ARGS
@@ -38,6 +59,9 @@ class Scheduler(ABC, Generic[T], AppAware):
 
     @property
     def unique_properties(self) -> tuple[str, ...]:
+        """
+        Unique properties, for hashing.
+        """
         return (self.__class__.__name__,)
 
     def __eq__(self, other) -> bool:
@@ -49,20 +73,31 @@ class Scheduler(ABC, Generic[T], AppAware):
     def process_resources(
         self, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
     ) -> None:
-        """Perform scheduler-specific processing to the element resources.
+        """
+        Perform scheduler-specific processing to the element resources.
 
-        Note: this mutates `resources`.
-
+        Note
+        ----
+        This mutates `resources`.
         """
 
     def get_version_info(self) -> dict[str, str | list[str]]:
+        """
+        Get the version of the scheduler.
+        """
         return {}
 
     def parse_submission_output(self, stdout: str) -> str | None:
+        """
+        Parse the output from a submission to determine the submission ID.
+        """
         return None
 
     @staticmethod
     def is_num_cores_supported(num_cores: int | None, core_range: list[int]) -> bool:
+        """
+        Test whether particular number of cores is supported in given range of cores.
+        """
         step = core_range[1] if core_range[1] is not None else 1
         upper = core_range[2] + 1 if core_range[2] is not None else sys.maxsize
         return num_cores in range(core_range[0], upper, step)
@@ -97,7 +132,30 @@ class Scheduler(ABC, Generic[T], AppAware):
 
 
 class QueuedScheduler(Scheduler[str]):
+    """
+    Base class for schedulers that use a job submission system.
+
+    Parameters
+    ----------
+    submit_cmd: str
+        The submission command, if overridden from default.
+    show_cmd: str
+        The show command, if overridden from default.
+    del_cmd: str
+        The delete command, if overridden from default.
+    js_cmd: str
+        The job script command, if overridden from default.
+    login_nodes_cmd: str
+        The login nodes command, if overridden from default.
+    array_switch: str
+        The switch to enable array jobs, if overridden from default.
+    array_item_var: str
+        The variable for array items, if overridden from default.
+    """
+
+    #: Default command for logging into nodes.
     DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str] | None] = None
+    #: Default pattern for matching the names of login nodes.
     DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
     DEFAULT_SUBMIT_CMD: ClassVar[str]
     DEFAULT_SHOW_CMD: ClassVar[Sequence[str]]
@@ -133,6 +191,9 @@ class QueuedScheduler(Scheduler[str]):
         return (self.__class__.__name__, self.submit_cmd, self.show_cmd, self.del_cmd)
 
     def format_switch(self, switch) -> str:
+        """
+        Format a particular switch to use the JS command.
+        """
         return f"{self.js_cmd} {switch}"
 
     def is_jobscript_active(self, job_ID: str) -> bool:
@@ -141,6 +202,9 @@ class QueuedScheduler(Scheduler[str]):
 
     @override
     def wait_for_jobscripts(self, js_refs: list[str]) -> None:
+        """
+        Wait for jobscripts to update their state.
+        """
         while js_refs:
             info: Mapping[str, Any] = self.get_job_state_info(js_refs=js_refs)
             print(info)

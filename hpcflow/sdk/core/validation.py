@@ -1,3 +1,7 @@
+"""
+Schema management.
+"""
+
 from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from importlib import resources
@@ -60,7 +64,15 @@ class Schema(Protocol):
 
 
 def get_schema(filename) -> Schema:
-    """Get a valida `Schema` object from the embedded data directory."""
+    """
+    Get a valida `Schema` object from the embedded data directory.
+
+    Parameter
+    ---------
+    schema: str
+        The name of the schema file within the resources package
+        (:py:mod:`hpcflow.sdk.data`).
+    """
     package = "hpcflow.sdk.data"
     try:
         fh = resources.files(package).joinpath(filename).open("r")

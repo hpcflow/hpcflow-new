@@ -1,3 +1,7 @@
+"""
+Miscellaneous utilities.
+"""
+
 from __future__ import annotations
 from collections import Counter
 import copy
@@ -45,12 +49,18 @@ E = TypeVar("E", bound=enum.Enum)
 
 
 def make_workflow_id() -> str:
+    """
+    Generate a random ID for a workflow.
+    """
     length = 12
     chars = string.ascii_letters + "0123456789"
     return "".join(random.choices(chars, k=length))
 
 
 def get_time_stamp() -> str:
+    """
+    Get the current time in standard string form.
+    """
     return datetime.now(timezone.utc).astimezone().strftime("%Y.%m.%d_%H:%M:%S_%z")
 
 
@@ -208,6 +218,11 @@ def _ensure_int(path_comp: int, cur_data, cast_indices: bool) -> int:
 
 
 def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=False):
+    """
+    Follow a path (sequence of indices of appropriate type) into a container to obtain
+    a "leaf" value. Containers can be lists, tuples, dicts,
+    or any class (with `getattr()`) if ``allow_getattr`` is True.
+    """
     cur_data = cont
     err_msg = (
         "Data at path {path_comps!r} is not a sequence, but is of type "
@@ -238,6 +253,11 @@ def get_in_container(cont, path: Sequence, cast_indices=False, allow_getattr=Fal
 def set_in_container(
     cont, path: Sequence, value, ensure_path=False, cast_indices=False
 ) -> None:
+    """
+    Follow a path (sequence of indices of appropriate type) into a container to update
+    a "leaf" value. Containers can be lists, tuples or dicts.
+    The "branch" holding the leaf to update must be modifiable.
+    """
     if ensure_path:
         num_path = len(path)
         for idx in range(1, num_path):
@@ -318,6 +338,11 @@ def search_dir_files_by_regex(
 
 
 class PrettyPrinter:
+    """
+    A class that produces a nice readable version of itself with ``str()``.
+    Intended to be subclassed.
+    """
+
     def __str__(self):
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
@@ -326,11 +351,27 @@ class PrettyPrinter:
 
 
 def capitalise_first_letter(chars: str) -> str:
+    """
+    Convert the first character of a string to upper case (if that makes sense).
+    The rest of the string is unchanged.
+    """
     return chars[0].upper() + chars[1:]
 
 
 @TimeIt.decorator
 def substitute_string_vars(string: str, variables: dict[str, str]):
+    """
+    Scan ``string`` and substitute sequences like ``<<var:ABC>>`` with the value
+    looked up in the supplied dictionary (with ``ABC`` as the key).
+
+    Default values for the substitution can be supplied like:
+    ``<<var:ABC[default=XYZ]>>``
+
+    Examples
+    --------
+    >>> substitute_string_vars("abc <<var:def>> ghi", {"def": "123"})
+    "abc 123 def"
+    """
     def var_repl(match_obj: re.Match):
         kwargs: dict[str, str] = {}
         var_name: str = match_obj.group(1)
@@ -367,7 +408,7 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
 def read_YAML_str(
     yaml_str: str, typ="safe", variables: dict[str, str] | None = None
 ) -> Any:
-    """Load a YAML string."""
+    """Load a YAML string. This will produce basic objects."""
     if variables is not None and "<<var:" in yaml_str:
         yaml_str = substitute_string_vars(yaml_str, variables=variables)
     yaml = YAML(typ=typ)
@@ -378,30 +419,35 @@ def read_YAML_str(
 def read_YAML_file(
     path: PathLike, typ="safe", variables: dict[str, str] | None = None
 ) -> Any:
+    """Load a YAML file. This will produce basic objects."""
     with fsspec.open(path, "rt") as f:
         yaml_str: str = f.read()
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
 
 
 def write_YAML_file(obj, path: str | Path, typ="safe") -> None:
+    """Write a basic object to a YAML file."""
     yaml = YAML(typ=typ)
     with Path(path).open("wt") as fp:
         yaml.dump(obj, fp)
 
 
 def read_JSON_string(json_str: str, variables: dict[str, str] | None = None) -> Any:
+    """Load a JSON string. This will produce basic objects."""
     if variables is not None and "<<var:" in json_str:
         json_str = substitute_string_vars(json_str, variables=variables)
     return json.loads(json_str)
 
 
 def read_JSON_file(path, variables: dict[str, str] | None = None) -> Any:
+    """Load a JSON file. This will produce basic objects."""
     with fsspec.open(path, "rt") as f:
         json_str: str = f.read()
     return read_JSON_string(json_str, variables=variables)
 
 
 def write_JSON_file(obj, path: str | Path) -> None:
+    """Write a basic object to a JSON file."""
     with Path(path).open("wt") as fp:
         json.dump(obj, fp)
 
@@ -445,6 +491,13 @@ def get_item_repeat_index(
 
 
 def get_process_stamp() -> str:
+    """
+    Return a globally unique string identifying this process.
+
+    Note
+    ----
+    This should only be called once per process.
+    """
     return "{} {} {}".format(
         datetime.now(),
         socket.gethostname(),
@@ -453,11 +506,18 @@ def get_process_stamp() -> str:
 
 
 def remove_ansi_escape_sequences(string: str) -> str:
+    """
+    Strip ANSI terminal escape codes from a string.
+    """
     ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
     return ansi_escape.sub("", string)
 
 
 def get_md5_hash(obj) -> str:
+    """
+    Compute the MD5 hash of an object.
+    This is the hash of the JSON of the object (with sorted keys) as a hex string.
+    """
     json_str = json.dumps(obj, sort_keys=True)
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()
 
@@ -524,6 +584,9 @@ def ensure_in(item: T, lst: list[T]) -> int:
 def list_to_dict(
     lst: list[dict[T, T2]], exclude: Iterable[T] | None = None
 ) -> dict[T, list[T2]]:
+    """
+    Convert a list of dicts to a dict of lists.
+    """
     # TODO: test
     exc = frozenset(exclude or ())
     dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exc}
@@ -579,7 +642,7 @@ def flatten(
     """Flatten an arbitrarily (but of uniform depth) nested list and return shape
     information to enable un-flattening.
 
-    Un-flattening can be performed with the `reshape` function.
+    Un-flattening can be performed with the :py:func:`reshape` function.
 
     lst
         List to be flattened. Each element must contain all lists or otherwise all items
@@ -622,7 +685,7 @@ def flatten(
 
 def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
     """
-    Apply the reverse of `flatten`.
+    Reverse the destructuring of the :py:func:`flatten` function.
     """
 
     def _reshape(lst: list[T2], lens: Sequence[int]) -> list[list[T2]]:
@@ -654,20 +717,47 @@ def remap(
 
 
 def remap(a, b):
+    """
+    Apply a mapping to a structure of lists with ints as leaves to get a
+    structure of lists with some objects as leaves.
+
+    Parameters
+    ----------
+    a: list[int]
+        The structure to remap.
+    b: Callable
+        The mapping function from sequences of ints to sequences of objects.
+    """
     x, y = flatten(a)
     return reshape(b(x), y)
 
 
 def is_fsspec_url(url: str) -> bool:
+    """
+    Test if a URL appears to be one that can be understood by fsspec.
+    """
     return bool(re.match(r"(?:[a-z0-9]+:{1,2})+\/\/", url))
 
 
 class JSONLikeDirSnapShot(DirectorySnapshot):
-    """Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON."""
+    """
+    Overridden DirectorySnapshot from watchdog to allow saving and loading from JSON.
+
+    Parameters
+    ----------
+    root_path: str
+        Where to take the snapshot based at.
+    data: dict
+        Serialised snapshot to reload from.
+        See :py:meth:`to_json_like`.
+    """
 
     def __init__(self, root_path: str | None = None, data: dict[str, list] | None = None):
-        """Create an empty snapshot or load from JSON-like data."""
+        """
+        Create an empty snapshot or load from JSON-like data.
+        """
 
+        #: Where to take the snapshot based at.
         self.root_path = root_path
         self._stat_info: dict[str, os.stat_result] = {}
         self._inode_to_path: dict[tuple, str] = {}
@@ -885,12 +975,18 @@ def dict_values_process_flat(
 
 
 def nth_key(dct: Iterable[T], n: int) -> T:
+    """
+    Given a dict in some order, get the n'th key of that dict.
+    """
     it = iter(dct)
     next(islice(it, n, n), None)
     return next(it)
 
 
 def nth_value(dct: dict[Any, T], n: int) -> T:
+    """
+    Given a dict in some order, get the n'th value of that dict.
+    """
     return dct[nth_key(dct, n)]
 
 

@@ -1,3 +1,7 @@
+"""
+Abstract task, prior to instantiation.
+"""
+
 from __future__ import annotations
 from contextlib import contextmanager
 import copy
@@ -39,6 +43,15 @@ class ActParameterDependence(TypedDict):
 @dataclass
 @hydrate
 class TaskObjective(JSONLike):
+    """
+    A thing that a task is attempting to achieve.
+
+    Parameter
+    ---------
+    name: str
+        The name of the objective. A valid Python identifier.
+    """
+
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="name",
@@ -46,6 +59,7 @@ class TaskObjective(JSONLike):
         ),
     )
 
+    #: The name of the objective. A valid Python identifier.
     name: str
 
     def __post_init__(self):
@@ -62,21 +76,28 @@ class TaskSchema(JSONLike):
 
     Parameters
     ----------
-    objective
+    objective:
         This is a string representing the objective of the task schema.
-    actions
+    actions:
         A list of Action objects whose commands are to be executed by the task.
-    method
+    method:
         An optional string to label the task schema by its method.
-    implementation
+    implementation:
         An optional string to label the task schema by its implementation.
-    inputs
+    inputs:
         A list of SchemaInput objects that define the inputs to the task.
-    outputs
+    outputs:
         A list of SchemaOutput objects that define the outputs of the task.
-    web_doc
-        True if this object should be included in the Sphinx documentation (in the case
-        of built-in task schemas). True by default.
+    version:
+        The version of this task schema.
+    parameter_class_modules:
+        Where to find implementations of parameter value handlers.
+    web_doc:
+        True if this object should be included in the Sphinx documentation
+        (normally only relevant for built-in task schemas). True by default.
+    environment_presets:
+        Information about default execution environments. Can be overridden in specific
+        cases in the concrete tasks.
     """
 
     _validation_schema: ClassVar[str] = "task_schema_spec_schema.yaml"
@@ -114,14 +135,24 @@ class TaskSchema(JSONLike):
         environment_presets: dict[str, dict[str, dict[str, Any]]] | None = None,
         _hash_value: str | None = None,
     ):
+        #: This is a string representing the objective of the task schema.
         self.objective = self.__coerce_objective(objective)
+        #: A list of Action objects whose commands are to be executed by the task.
         self.actions = actions or []
+        #: An optional string to label the task schema by its method.
         self.method = method
+        #: An optional string to label the task schema by its implementation.
         self.implementation = implementation
+        #: A list of SchemaInput objects that define the inputs to the task.
         self.inputs = self.__coerce_inputs(inputs or [])
+        #: A list of SchemaOutput objects that define the outputs of the task.
         self.outputs = self.__coerce_outputs(outputs or [])
+        #: Where to find implementations of parameter value handlers.
         self.parameter_class_modules = parameter_class_modules or []
+        #: Whether this object should be included in the Sphinx documentation
+        #: (normally only relevant for built-in task schemas).
         self.web_doc = web_doc
+        #: Information about default execution environments.
         self.environment_presets = environment_presets
         self._hash_value = _hash_value
 
@@ -133,6 +164,7 @@ class TaskSchema(JSONLike):
 
         self._validate()
         self.actions = self._expand_actions()
+        #: The version of this task schema.
         self.version = version
         self._task_template: TaskTemplate | None = None  # assigned by parent Task
 
@@ -338,6 +370,10 @@ class TaskSchema(JSONLike):
         self._show_info()
 
     def get_info_html(self) -> str:
+        """
+        Describe the task schema as an HTML document.
+        """
+
         def _format_parameter_type(param: Parameter) -> str:
             param_typ_fmt = param.typ
             if param.typ in param_types:
@@ -618,6 +654,9 @@ class TaskSchema(JSONLike):
     @classmethod
     @contextmanager
     def ignore_invalid_actions(cls):
+        """
+        A context manager within which invalid actions will be ignored.
+        """
         try:
             cls._validate_actions = False
             yield
@@ -759,6 +798,10 @@ class TaskSchema(JSONLike):
     def make_persistent(
         self, workflow: Workflow, source: ParamSource
     ) -> list[int | list[int]]:
+        """
+        Convert this task schema to persistent form within the context of the given
+        workflow.
+        """
         new_refs: list[int | list[int]] = []
         for input_i in self.inputs:
             for lab_info in input_i.labelled_info():
@@ -771,23 +814,34 @@ class TaskSchema(JSONLike):
 
     @property
     def name(self) -> str:
-        out = (
+        """
+        The name of this schema.
+        """
+        return (
             f"{self.objective.name}"
             f"{f'_{self.method}' if self.method else ''}"
             f"{f'_{self.implementation}' if self.implementation else ''}"
         )
-        return out
 
     @property
     def input_types(self) -> list[str]:
+        """
+        The input types to the schema.
+        """
         return list(j for i in self.inputs for j in i.all_labelled_types)
 
     @property
     def output_types(self) -> list[str]:
+        """
+        The output types from the schema.
+        """
         return list(i.typ for i in self.outputs)
 
     @property
     def provides_parameters(self) -> tuple[tuple[str, str], ...]:
+        """
+        The parameters that this schema provides.
+        """
         out = []
         for schema_inp in self.inputs:
             for labelled_info in schema_inp.labelled_info():
@@ -803,6 +857,9 @@ class TaskSchema(JSONLike):
 
     @property
     def task_template(self) -> TaskTemplate | None:
+        """
+        The template that this schema is contained in.
+        """
         return self._task_template
 
     @classmethod
@@ -824,6 +881,9 @@ class TaskSchema(JSONLike):
         return out
 
     def get_key(self):
+        """
+        Get the hashable value that represents this schema.
+        """
         return (str(self.objective), self.method, self.implementation)
 
     def _get_single_label_lookup(self, prefix="") -> dict[str, str]:

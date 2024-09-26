@@ -7,7 +7,8 @@ import os
 import sys
 from typing import Final
 
-# classes used in the construction of a workflow:
+#: Classes used in the construction of a workflow.
+#: :meta hide-value:
 sdk_classes: Final[Mapping[str, str]] = {
     "Workflow": "hpcflow.sdk.core.workflow",
     "Task": "hpcflow.sdk.core.task",
@@ -98,6 +99,8 @@ sdk_classes: Final[Mapping[str, str]] = {
 }
 
 # these are defined as `BaseApp` methods with an underscore prefix:
+#: Functions exported by the application.
+#: :meta hide-value:
 sdk_funcs: Final[tuple[str, ...]] = (
     "make_workflow",
     "make_demo_workflow",

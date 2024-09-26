@@ -1,3 +1,7 @@
+"""
+Utilities for making data to use in testing.
+"""
+
 from __future__ import annotations
 from dataclasses import dataclass
 from importlib import resources
@@ -29,6 +33,9 @@ def make_schemas(
     | tuple[dict[str, Any], tuple[str, ...], str]
 ) -> list[TaskSchema]:
     out: list[TaskSchema] = []
+    """
+    Construct a collection of schemas.
+    """
     for idx, info in enumerate(ins_outs):
         if len(info) == 2:
             (ins_i, outs_i) = info
@@ -76,6 +83,9 @@ def make_schemas(
 
 
 def make_parameters(num: int):
+    """
+    Construct a sequence of parameters.
+    """
     return [hf.Parameter(f"p{i + 1}") for i in range(num)]
 
 
@@ -83,6 +93,9 @@ def make_actions(
     ins_outs: list[tuple[Strs, str] | tuple[Strs, str, str]],
     env: str = "env1",
 ) -> list[Action]:
+    """
+    Construct a collection of actions.
+    """
     act_env = hf.ActionEnvironment(environment=env)
     actions = []
     for ins_outs_i in ins_outs:
@@ -122,6 +135,9 @@ def make_tasks(
     input_sources: dict[int, dict[str, list[InputSource]]] | None = None,
     groups: dict[int, Iterable[ElementGroup]] | None = None,
 ) -> list[Task]:
+    """
+    Construct a sequence of tasks.
+    """
     local_inputs = local_inputs or {}
     local_sequences = local_sequences or {}
     local_resources = local_resources or {}
@@ -177,6 +193,9 @@ def make_workflow(
     overwrite: bool = False,
     store: str = "zarr",
 ) -> Workflow:
+    """
+    Construct a workflow.
+    """
     tasks = make_tasks(
         schemas_spec,
         local_inputs=local_inputs,
@@ -235,6 +254,10 @@ def make_test_data_YAML_workflow_template(
 @dataclass
 @hydrate
 class P1_sub_parameter_cls(ParameterValue):
+    """
+    Parameter value handler: ``p1_sub``
+    """
+
     _typ: ClassVar[str] = "p1_sub"
 
     e: int = 0
@@ -256,6 +279,10 @@ class P1_sub_parameter_cls(ParameterValue):
 @dataclass
 @hydrate
 class P1_sub_parameter_cls_2(ParameterValue):
+    """
+    Parameter value handler: ``p1_sub_2``
+    """
+
     _typ: ClassVar[str] = "p1_sub_2"
 
     f: int = 0
@@ -264,6 +291,14 @@ class P1_sub_parameter_cls_2(ParameterValue):
 @dataclass
 @hydrate
 class P1_parameter_cls(ParameterValue):
+    """
+    Parameter value handler: ``p1c``
+
+    Note
+    ----
+    This is a composite value handler.
+    """
+
     _typ: ClassVar[str] = "p1c"
     _sub_parameters: ClassVar[dict[str, str]] = {
         "sub_param": "p1_sub",

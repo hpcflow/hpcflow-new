@@ -1,3 +1,7 @@
+"""
+Configuration system class.
+"""
+
 from __future__ import annotations
 import contextlib
 
@@ -113,6 +117,7 @@ class DefaultConfiguration(TypedDict):
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
+#: The default configuration descriptor.
 DEFAULT_CONFIG: DefaultConfiguration = {
     "invocation": {"environment_setup": None, "match": {}},
     "config": {
@@ -134,12 +139,17 @@ DEFAULT_CONFIG: DefaultConfiguration = {
 class ConfigOptions:
     """Application-level options for configuration"""
 
+    #: The default directory.
     default_directory: Path | str
+    #: The environment variable containing the directory name.
     directory_env_var: str
+    #: The default configuration.
     default_config: DefaultConfiguration = field(
         default_factory=lambda: deepcopy(DEFAULT_CONFIG)
     )
+    #: Any extra schemas to apply.
     extra_schemas: Sequence[Schema] = field(default_factory=list)
+    #: Default directory of known configurations.
     default_known_configs_dir: str | None = None
     _schemas: Sequence[Schema] = field(init=False)
     _configurable_keys: Sequence[str] = field(init=False)
@@ -148,7 +158,9 @@ class ConfigOptions:
         self._schemas, self._configurable_keys = self.init_schemas()
 
     def init_schemas(self) -> tuple[Sequence[Schema], Sequence[str]]:
-        # Get allowed configurable keys from config schemas:
+        """
+        Get allowed configurable keys from config schemas.
+        """
         cfg_schemas = [get_schema("config_schema.yaml"), *self.extra_schemas]
         cfg_keys: list[str] = []
         for cfg_schema in cfg_schemas:
@@ -196,18 +208,114 @@ class ConfigMetadata(TypedDict):
 class Config:
     """Application configuration as defined in one or more config files.
 
+    This class supports indexing into the collection of properties via Python dot notation.
+
     Notes
     -----
     On modifying/setting existing values, modifications are not automatically copied
-    to the configuration file; use `save()` to save to the file. Items in `overrides`
+    to the configuration file; use :meth:`save()` to save to the file. Items in `overrides`
     are not saved into the file.
 
     `schedulers` is used for specifying the available schedulers on this machine, and the
-    default arguments that should be used when initialising the `Scheduler` object.
+    default arguments that should be used when initialising the
+    :py:class:`Scheduler` object.
 
     `shells` is used for specifying the default arguments that should be used when
-    initialising the `Shell` object.
+    initialising the :py:class:`Shell` object.
 
+    Parameters
+    ----------
+    app:
+        The main hpcflow application instance.
+    config_file:
+        The configuration file that contains this config.
+    options:
+        Configuration options to be applied.
+    logger:
+        Where to log messages relating to configuration.
+    config_key:
+        The name of the configuration within the configuration file.
+    uid: int
+        User ID.
+    callbacks: dict
+        Overrides for the callback system.
+    variables: dict[str, str]
+        Variables to substitute when processing the configuration.
+
+    Attributes
+    ----------
+    config_directory:
+        The directory containing the configuration file.
+    config_file_name:
+        The name of the configuration file.
+    config_file_path:
+        The full path to the configuration file.
+    config_file_contents:
+        The cached contents of the configuration file.
+    config_key:
+        The primary key to select the configuration within the configuration file.
+    config_schemas:
+        The schemas that apply to the configuration file.
+    host_user_id:
+        User ID as understood by the script.
+    host_user_id_file_path:
+        Where user ID information is stored.
+    invoking_user_id:
+        User ID that created the workflow.
+    machine:
+        Machine to submit to.
+        Mapped to a field in the configuration file.
+    user_name:
+        User to submit as.
+        Mapped to a field in the configuration file.
+    user_orcid:
+        User's ORCID.
+        Mapped to a field in the configuration file.
+    user_affiliation:
+        User's institutional affiliation.
+        Mapped to a field in the configuration file.
+    linux_release_file:
+        Where to get the description of the Linux release version data.
+        Mapped to a field in the configuration file.
+    log_file_path:
+        Where to log to.
+        Mapped to a field in the configuration file.
+    log_file_level:
+        At what level to do logging to the file.
+        Mapped to a field in the configuration file.
+    log_console_level:
+        At what level to do logging to the console. Usually coarser than to a file.
+        Mapped to a field in the configuration file.
+    task_schema_sources:
+        Where to get task schemas.
+        Mapped to a field in the configuration file.
+    parameter_sources:
+        Where to get parameter descriptors.
+        Mapped to a field in the configuration file.
+    command_file_sources:
+        Where to get command files.
+        Mapped to a field in the configuration file.
+    environment_sources:
+        Where to get execution environment descriptors.
+        Mapped to a field in the configuration file.
+    default_scheduler:
+        The name of the default scheduler.
+        Mapped to a field in the configuration file.
+    default_shell:
+        The name of the default shell.
+        Mapped to a field in the configuration file.
+    schedulers:
+        Settings for supported scheduler(s).
+        Mapped to a field in the configuration file.
+    shells:
+        Settings for supported shell(s).
+        Mapped to a field in the configuration file.
+    demo_data_dir:
+        Location of demo data.
+        Mapped to a field in the configuration file.
+    demo_data_manifest_file:
+        Where the manifest describing the demo data is.
+        Mapped to a field in the configuration file.
     """
 
     def __init__(
@@ -788,7 +896,16 @@ class Config:
     def set(
         self, path: str, value: Any, *, is_json: bool = False, quiet: bool = False
     ) -> None:
-        """Set the value of a configuration item."""
+        """
+        Set the value of a configuration item.
+
+        Parameters
+        ----------
+        path:
+            Which configuration item to set.
+        value:
+            What to set it to.
+        """
         self._logger.debug(f"Attempting to set config item {path!r} to {value!r}.")
 
         if is_json:
@@ -813,7 +930,18 @@ class Config:
         self._set(name, root, quiet=quiet)
 
     def unset(self, name: str) -> None:
-        """Unset the value of a configuration item."""
+        """
+        Unset the value of a configuration item.
+
+        Parameters
+        ----------
+        name:
+            The name of the configuration item.
+
+        Notes
+        -----
+            Only top level configuration items may be unset.
+        """
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         if name in self._unset_keys or not self._file.is_item_set(self._config_key, name):
@@ -830,12 +958,20 @@ class Config:
         self,
         path: str,
         *,
-        callback=True,
-        copy=False,
-        ret_root=False,
-        ret_parts=False,
-        default=None,
+        callback: bool = True,
+        copy: bool = False,
+        ret_root: bool = False,
+        ret_parts: bool = False,
+        default: Any | None = None,
     ) -> Any:
+        """
+        Get the value of a configuration item.
+
+        Parameters
+        ----------
+        path:
+            The name of or path to the configuration item.
+        """
         parts = path.split(".")
         root = deepcopy(self._get(parts[0], callback=callback))
         try:
@@ -854,7 +990,16 @@ class Config:
         return tuple(ret)
 
     def append(self, path: str, value, *, is_json=False) -> None:
-        """Append a value to a list-like configuration item."""
+        """
+        Append a value to a list-like configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        value:
+            The value to append.
+        """
         if is_json:
             value = self._parse_JSON(path, value)
 
@@ -884,7 +1029,16 @@ class Config:
         self._set(parts[0], root)
 
     def prepend(self, path: str, value, *, is_json=False) -> None:
-        """Prepend a value to a list-like configuration item."""
+        """
+        Prepend a value to a list-like configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        value:
+            The value to prepend.
+        """
         if is_json:
             value = self._parse_JSON(path, value)
 
@@ -910,7 +1064,16 @@ class Config:
         self._set(parts[0], root)
 
     def pop(self, path: str, index) -> None:
-        """Remove a value from a specified index of a list-like configuration item."""
+        """
+        Remove a value from a specified index of a list-like configuration item.
+
+        Parameters
+        ----------
+        path: str
+            The name of or path to the configuration item.
+        index: int
+            Where to remove the value from. 0 for the first item, -1 for the last.
+        """
 
         existing, root, parts = self.get(
             path,
@@ -946,8 +1109,10 @@ class Config:
 
         Parameters
         ----------
-        path
+        path: str
             A dot-delimited string of the nested path to update.
+        value: dict
+            A dictionary to merge in.
         """
 
         if is_json:
@@ -1011,12 +1176,18 @@ class Config:
         self._app.reset_config()
 
     def add_scheduler(self, scheduler: str, **defaults) -> None:
+        """
+        Add a scheduler.
+        """
         if scheduler in self.get("schedulers"):
             print(f"Scheduler {scheduler!r} already exists.")
             return
         self.update(f"schedulers.{scheduler}.defaults", defaults)
 
     def add_shell(self, shell: str, **defaults) -> None:
+        """
+        Add a shell.
+        """
         if shell in self.get("shells"):
             return
         if shell.lower() == "wsl":
@@ -1025,6 +1196,9 @@ class Config:
         self.update(f"shells.{shell}.defaults", defaults)
 
     def add_shell_WSL(self, **defaults) -> None:
+        """
+        Add shell with WSL prefix.
+        """
         if "WSL_executable" not in defaults:
             defaults["WSL_executable"] = "wsl.exe"
         self.add_shell("wsl", **defaults)
@@ -1037,13 +1211,13 @@ class Config:
 
         Parameters
         ----------
-        file_path
+        file_path:
             Local or remote path to a config import YAML file which may have top-level
             keys "invocation" and "config".
-        rename
+        rename:
             If True, the current config will be renamed to the stem of the file specified
             in `file_path`. Ignored if `make_new` is True.
-        make_new
+        make_new:
             If True, add the config items as a new config, rather than modifying the
             current config. The name of the new config will be the stem of the file
             specified in `file_path`.

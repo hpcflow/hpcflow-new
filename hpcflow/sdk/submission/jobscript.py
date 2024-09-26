@@ -1,3 +1,7 @@
+"""
+Model of information submitted to a scheduler.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -87,8 +91,10 @@ def generate_EAR_resource_map(
     task: WorkflowTask,
     loop_idx: dict[str, int],
 ) -> tuple[list[ElementResources], list[int], NDArray, NDArray]:
-    """Generate an integer array whose rows represent actions and columns represent task
-    elements and whose values index unique resources."""
+    """
+    Generate an integer array whose rows represent actions and columns represent task
+    elements and whose values index unique resources.
+    """
     # TODO: assume single iteration for now; later we will loop over Loop tasks for each
     # included task and call this func with specific loop indices
     none_val = -1
@@ -142,6 +148,9 @@ def group_resource_map_into_jobscripts(
     resource_map: ArrayLike,
     none_val: Any = -1,
 ) -> tuple[list[JobScriptDescriptor], NDArray]:
+    """
+    Convert a resource map into a plan for what elements to group together into jobscripts.
+    """
     resource_map_ = np.asanyarray(resource_map)
     resource_idx = np.unique(resource_map_)
     jobscripts: list[JobScriptDescriptor] = []
@@ -215,6 +224,9 @@ def resolve_jobscript_dependencies(
     jobscripts: dict[int, JobScriptCreationArguments],
     element_deps: dict[int, dict[int, list[int]]],
 ) -> dict[int, dict[int, ResolvedDependencies]]:
+    """
+    Discover concrete dependencies between jobscripts.
+    """
     # first pass is to find the mappings between jobscript elements:
     jobscript_deps: dict[int, dict[int, ResolvedDependencies]] = {}
     for js_idx, elem_deps in element_deps.items():
@@ -362,10 +374,56 @@ def jobscripts_to_list(
 
 
 class Jobscript(JSONLike):
+    """
+    A group of actions that are submitted together to be executed by the underlying job
+    management system as a single unit.
+
+    Parameters
+    ----------
+    task_insert_IDs: list[int]
+        The task insertion IDs.
+    task_actions: list[tuple]
+        The actions of the tasks.
+        ``task insert ID, action_idx, index into task_loop_idx`` for each ``JS_ACTION_IDX``
+    task_elements: dict[int, list[int]]
+        The elements of the tasks.
+        Maps ``JS_ELEMENT_IDX`` to list of ``TASK_ELEMENT_IDX`` for each ``TASK_INSERT_ID``
+    EAR_ID:
+        Element action run information.
+    resources: ~hpcflow.app.ElementResources
+        Resources to use
+    task_loop_idx: list[dict]
+        Description of what loops are in play.
+    dependencies: dict[int, dict]
+        Description of dependencies.
+    submit_time: datetime
+        When the jobscript was submitted, if known.
+    submit_hostname: str
+        Where the jobscript was submitted, if known.
+    submit_machine: str
+        Description of what the jobscript was submitted to, if known.
+    submit_cmdline: str
+        The command line used to do the commit, if known.
+    scheduler_job_ID: str
+        The job ID from the scheduler, if known.
+    process_ID: int
+        The process ID of the subprocess, if known.
+    version_info: tuple[str, ...]
+        Version info about the target system.
+    os_name: str
+        The name of the OS.
+    shell_name: str
+        The name of the shell.
+    scheduler_name: str
+        The scheduler used.
+    running: bool
+        Whether the jobscript is currently running.
+    """
+
     _EAR_files_delimiter: ClassVar[str] = ":"
     _workflow_app_alias: ClassVar[str] = "wkflow_app"
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="resources",
             class_name="ElementResources",
@@ -472,9 +530,15 @@ class Jobscript(JSONLike):
 
     @property
     def workflow_app_alias(self) -> str:
+        """
+        Alias for the workflow app in job scripts.
+        """
         return self._workflow_app_alias
 
     def get_commands_file_name(self, js_action_idx, shell=None) -> str:
+        """
+        Get the name of a file containing commands for a particular jobscript action.
+        """
         return self._app.RunDirAppFiles.get_commands_file_name(
             js_idx=self.index,
             js_action_idx=js_action_idx,
@@ -483,27 +547,45 @@ class Jobscript(JSONLike):
 
     @property
     def task_insert_IDs(self) -> list[int]:
+        """
+        The insertion IDs of tasks in this jobscript.
+        """
         return self._task_insert_IDs
 
     @property
     def task_actions(self) -> list[tuple[int, int, int]]:
+        """
+        The IDs of actions of each task in this jobscript.
+        """
         return self._task_actions
 
     @property
     def task_elements(self) -> dict[int, list[int]]:
+        """
+        The IDs of elements of each task in this jobscript.
+        """
         return self._task_elements
 
     @property
     def EAR_ID(self) -> NDArray:
+        """
+        The array of EAR IDs.
+        """
         return self._EAR_ID
 
     @property
     def all_EAR_IDs(self) -> Iterable[int]:
+        """
+        The IDs of all EARs in this jobscript.
+        """
         return self.EAR_ID.flatten()
 
     @property
     @TimeIt.decorator
     def all_EARs(self) -> list[ElementActionRun]:
+        """
+        Description of EAR information for this jobscript.
+        """
         if not self._all_EARs:
             self._all_EARs = self.workflow.get_EARs_from_IDs(self.all_EAR_IDs)
         assert self._all_EARs is not None
@@ -511,20 +593,29 @@ class Jobscript(JSONLike):
 
     @property
     def resources(self) -> ElementResources:
+        """
+        The common resources that this jobscript requires.
+        """
         return self._resources
 
     @property
     def task_loop_idx(self) -> list[dict[str, int]]:
+        """
+        The description of where various task loops are.
+        """
         return self._task_loop_idx
 
     @property
     def dependencies(self) -> dict[int, ResolvedDependencies]:
+        """
+        The dependency descriptor.
+        """
         return self._dependencies
 
     @property
     @TimeIt.decorator
     def start_time(self) -> None | datetime:
-        """Get the first start time from all EARs."""
+        """The first known start time of any EAR in this jobscript."""
         if not self.is_submitted:
             return None
         return min((i.start_time for i in self.all_EARs if i.start_time), default=None)
@@ -532,13 +623,16 @@ class Jobscript(JSONLike):
     @property
     @TimeIt.decorator
     def end_time(self) -> None | datetime:
-        """Get the last end time from all EARs."""
+        """The last known end time of any EAR in this jobscript."""
         if not self.is_submitted:
             return None
         return max((i.end_time for i in self.all_EARs if i.end_time), default=None)
 
     @property
     def submit_time(self) -> datetime | None:
+        """
+        When the jobscript was submitted, if known.
+        """
         if self._submit_time_obj is None and self._submit_time is not None:
             self._submit_time_obj = parse_timestamp(
                 self._submit_time, self.workflow.ts_fmt
@@ -547,52 +641,88 @@ class Jobscript(JSONLike):
 
     @property
     def submit_hostname(self) -> str | None:
+        """
+        Where the jobscript was submitted, if known.
+        """
         return self._submit_hostname
 
     @property
     def submit_machine(self) -> str | None:
+        """
+        Description of what the jobscript was submitted to, if known.
+        """
         return self._submit_machine
 
     @property
     def submit_cmdline(self) -> list[str] | None:
+        """
+        The command line used to do the commit, if known.
+        """
         return self._submit_cmdline
 
     @property
     def scheduler_job_ID(self) -> str | None:
+        """
+        The job ID from the scheduler, if known.
+        """
         return self._scheduler_job_ID
 
     @property
     def process_ID(self) -> int | None:
+        """
+        The process ID from direct execution, if known.
+        """
         return self._process_ID
 
     @property
     def version_info(self) -> dict[str, str | list[str]] | None:
+        """
+        Version information about the execution environment (OS, etc).
+        """
         return self._version_info
 
     @property
     def index(self) -> int:
+        """
+        The index of this jobscript within its parent :py:class:`Submission`.
+        """
         assert self._index is not None
         return self._index
 
     @property
     def submission(self) -> Submission:
+        """
+        The parent submission.
+        """
         assert self._submission is not None
         return self._submission
 
     @property
     def workflow(self) -> Workflow:
+        """
+        The workflow this is all on behalf of.
+        """
         return self.submission.workflow
 
     @property
     def num_actions(self) -> int:
+        """
+        The number of actions in this jobscript.
+        """
         return self.EAR_ID.shape[0]
 
     @property
     def num_elements(self) -> int:
+        """
+        The number of elements in this jobscript.
+        """
         return self.EAR_ID.shape[1]
 
     @property
     def is_array(self) -> bool:
+        """
+        Whether to generate an array job.
+        """
         if self.scheduler_name == "direct":
             return False
 
@@ -608,16 +738,25 @@ class Jobscript(JSONLike):
 
     @property
     def os_name(self) -> str:
+        """
+        The name of the OS to use.
+        """
         name = self._os_name or self.resources.os_name
         assert name is not None
         return name
 
     @property
     def shell_name(self) -> str | None:
+        """
+        The name of the shell to use.
+        """
         return self._shell_name or self.resources.shell
 
     @property
     def scheduler_name(self) -> str | None:
+        """
+        The name of the scheduler to use.
+        """
         return self._scheduler_name or self.resources.scheduler
 
     def _get_submission_os_args(self) -> dict[str, str]:
@@ -648,7 +787,7 @@ class Jobscript(JSONLike):
 
     @property
     def shell(self) -> Shell:
-        """Retrieve the shell object for submission."""
+        """The shell for composing submission scripts."""
         if self._shell_obj is None:
             self._shell_obj = self._get_shell(
                 os_name=self.os_name,
@@ -660,7 +799,7 @@ class Jobscript(JSONLike):
 
     @property
     def scheduler(self) -> Scheduler:
-        """Retrieve the scheduler object for submission."""
+        """The scheduler that submissions go to from this jobscript."""
         if self._scheduler_obj is None:
             assert self.scheduler_name
             self._scheduler_obj = self._app.get_scheduler(
@@ -672,52 +811,81 @@ class Jobscript(JSONLike):
 
     @property
     def EAR_ID_file_name(self) -> str:
+        """
+        The name of a file containing EAR IDs.
+        """
         return f"js_{self.index}_EAR_IDs.txt"
 
     @property
     def element_run_dir_file_name(self) -> str:
+        """
+        The name of a file containing run directory names.
+        """
         return f"js_{self.index}_run_dirs.txt"
 
     @property
     def direct_stdout_file_name(self) -> str:
-        """For direct execution stdout."""
+        """File for direct execution stdout."""
         return f"js_{self.index}_stdout.log"
 
     @property
     def direct_stderr_file_name(self) -> str:
-        """For direct execution stderr."""
+        """File for direct execution stderr."""
         return f"js_{self.index}_stderr.log"
 
     @property
     def direct_win_pid_file_name(self) -> str:
+        """File for holding the direct execution PID."""
         return f"js_{self.index}_pid.txt"
 
     @property
     def jobscript_name(self) -> str:
+        """The name of the jobscript file."""
         return f"js_{self.index}{self.shell.JS_EXT}"
 
     @property
     def EAR_ID_file_path(self) -> Path:
+        """
+        The path to the file containing EAR IDs for this jobscript.
+        """
         return self.submission.path / self.EAR_ID_file_name
 
     @property
     def element_run_dir_file_path(self) -> Path:
+        """
+        The path to the file containing run directory names for this jobscript.
+        """
         return self.submission.path / self.element_run_dir_file_name
 
     @property
     def jobscript_path(self) -> Path:
+        """
+        The path to the file containing the jobscript file.
+        """
         return self.submission.path / self.jobscript_name
 
     @property
     def direct_stdout_path(self) -> Path:
+        """
+        The path to the file containing the stdout from directly executed commands
+        for this jobscript.
+        """
         return self.submission.path / self.direct_stdout_file_name
 
     @property
     def direct_stderr_path(self) -> Path:
+        """
+        The path to the file containing the stderr from directly executed commands
+        for this jobscript.
+        """
         return self.submission.path / self.direct_stderr_file_name
 
     @property
     def direct_win_pid_file_path(self) -> Path:
+        """
+        The path to the file containing PIDs for directly executed commands for this
+        jobscript. Windows only.
+        """
         return self.submission.path / self.direct_win_pid_file_name
 
     def _set_submit_time(self, submit_time: datetime) -> None:
@@ -807,6 +975,9 @@ class Jobscript(JSONLike):
             )
 
     def get_task_loop_idx_array(self) -> NDArray:
+        """
+        Get an array of task loop indices.
+        """
         loop_idx = np.empty_like(self.EAR_ID)
         loop_idx[:] = np.array([i[2] for i in self.task_actions]).reshape(
             (len(self.task_actions), 1)
@@ -988,6 +1159,9 @@ class Jobscript(JSONLike):
         scheduler_name: str | None = None,
         scheduler_args: dict[str, Any] | None = None,
     ) -> Path:
+        """
+        Write the jobscript to its file.
+        """
         js_str = self.compose_jobscript(
             deps=deps,
             os_name=os_name,
@@ -1003,6 +1177,9 @@ class Jobscript(JSONLike):
 
     @TimeIt.decorator
     def make_artifact_dirs(self) -> list[list[Path]]:
+        """
+        Create the directories that will hold artifacts associated with this jobscript.
+        """
         EARs_arr = np.array(self.all_EARs).reshape(self.EAR_ID.shape)
         task_loop_idx_arr = self.get_task_loop_idx_array()
 
@@ -1122,6 +1299,9 @@ class Jobscript(JSONLike):
         scheduler_refs: dict[int, tuple[str, bool]],
         print_stdout: bool = False,
     ) -> str:
+        """
+        Submit the jobscript to the scheduler.
+        """
         # map each dependency jobscript index to the JS ref (job/process ID) and if the
         # dependency is an array dependency:
         deps: dict[int, tuple[str, bool]] = {}
@@ -1213,11 +1393,14 @@ class Jobscript(JSONLike):
 
     @property
     def is_submitted(self) -> bool:
-        """Return True if this jobscript has been submitted."""
+        """Whether this jobscript has been submitted."""
         return self.index in self.submission.submitted_jobscripts
 
     @property
     def scheduler_js_ref(self):
+        """
+        The reference to the submitted job for the jobscript.
+        """
         if isinstance(self.scheduler, QueuedScheduler):
             return self.scheduler_job_ID
         else:
@@ -1225,6 +1408,9 @@ class Jobscript(JSONLike):
 
     @property
     def scheduler_ref(self) -> SchedulerRef:
+        """
+        The generalised scheduler reference descriptor.
+        """
         return {"js_refs": [self.scheduler_js_ref], "num_js_elements": self.num_elements}
 
     @overload
@@ -1291,6 +1477,9 @@ class Jobscript(JSONLike):
         return out
 
     def cancel(self) -> None:
+        """
+        Cancel this jobscript.
+        """
         self._app.submission_logger.info(
             f"Cancelling jobscript {self.index} of submission {self.submission.index}"
         )

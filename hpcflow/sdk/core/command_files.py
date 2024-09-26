@@ -1,3 +1,7 @@
+"""
+Model of files that hold commands.
+"""
+
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field, InitVar
@@ -26,12 +30,18 @@ if TYPE_CHECKING:
 @dataclass(init=False)
 @hydrate
 class FileSpec(JSONLike):
+    """
+    A specification of a file handled by a workflow.
+    """
+
     _validation_schema: ClassVar[str] = "files_spec_schema.yaml"
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(name="name", class_name="FileNameSpec"),
     )
 
+    #: Label for this file specification.
     label: str
+    #: The name of the file.
     name: FileNameSpec
     _hash_value: str | None = field(default=None, repr=False)
 
@@ -43,6 +53,9 @@ class FileSpec(JSONLike):
         self._hash_value = _hash_value
 
     def value(self, directory: str = ".") -> str:
+        """
+        The path to a file, optionally resolved with respect to a particular directory.
+        """
         return cast(str, self.name.value(directory))
 
     def __eq__(self, other: object) -> bool:
@@ -54,20 +67,43 @@ class FileSpec(JSONLike):
 
     @property
     def stem(self) -> FileNameStem:
+        """
+        The stem of the file name.
+        """
         return self.name.stem
 
     @property
     def ext(self) -> FileNameExt:
+        """
+        The extension of the file name.
+        """
         return self.name.ext
 
 
 @hydrate
 class FileNameSpec(JSONLike):
+    """
+    The name of a file handled by a workflow, or a pattern that matches multiple files.
+
+    Parameters
+    ----------
+    name: str
+        The name or pattern.
+    args: list
+        Positional arguments to use when formatting the name.
+        Can be omitted if the name does not contain a Python formatting pattern.
+    is_regex: bool
+        If true, the name is used as a regex to search for actual files.
+    """
+
     def __init__(
         self, name: str, args: list | None = None, is_regex: bool = False
     ) -> None:
+        #: The name or pattern.
         self.name = name
+        #: Positional arguments to use when formatting the name.
         self.args = args
+        #: Whether the name is used as a regex to search for actual files.
         self.is_regex = is_regex
 
     def __eq__(self, other: object) -> bool:
@@ -81,13 +117,28 @@ class FileNameSpec(JSONLike):
 
     @property
     def stem(self) -> FileNameStem:
+        """
+        The stem of the name or pattern.
+        """
         return self._app.FileNameStem(self)
 
     @property
     def ext(self) -> FileNameExt:
+        """
+        The extension of the name or pattern.
+        """
         return self._app.FileNameExt(self)
 
     def value(self, directory: str = ".") -> list[str] | str:
+        """
+        Get the template-resolved name of the file
+        (or files matched if the name is a regex pattern).
+
+        Parameters
+        ----------
+        directory: str
+            Where to resolve values with respect to.
+        """
         format_args = [i.value(directory) for i in self.args or []]
         value = self.name.format(*format_args)
         if self.is_regex:
@@ -100,9 +151,17 @@ class FileNameSpec(JSONLike):
 
 @dataclass
 class FileNameStem(JSONLike):
+    """
+    The stem of a file name.
+    """
+
+    #: The file specification this is derived from.
     file_name: FileNameSpec
 
     def value(self, directory: str = ".") -> str:
+        """
+        Get the stem, possibly with directory specified.
+        """
         d = self.file_name.value(directory)
         if self.file_name.is_regex:
             raise ValueError("cannot get the stem of a regex match")
@@ -112,9 +171,17 @@ class FileNameStem(JSONLike):
 
 @dataclass
 class FileNameExt(JSONLike):
+    """
+    The extension of a file name.
+    """
+
+    #: The file specification this is derived from.
     file_name: FileNameSpec
 
     def value(self, directory: str = ".") -> str:
+        """
+        Get the extension.
+        """
         d = self.file_name.value(directory)
         if self.file_name.is_regex:
             raise ValueError("cannot get the extension of a regex match")
@@ -125,6 +192,28 @@ class FileNameExt(JSONLike):
 @dataclass
 @hydrate
 class InputFileGenerator(JSONLike):
+    """
+    Represents a script that is run to generate input files for an action.
+
+    Parameters
+    ----------
+    input_file:
+        The file to generate.
+    inputs: list[~hpcflow.app.Parameter]
+        The input parameters to the generator.
+    script:
+        The script that generates the input.
+    environment:
+        The environment in which to run the generator.
+    script_pass_env_spec:
+        Whether to pass in the environment.
+    abortable:
+        Whether the generator can be stopped early.
+        Quick-running scripts tend to not need this.
+    rules: list[~hpcflow.app.ActionRule]
+        User-specified rules for whether to run the generator.
+    """
+
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="input_file",
@@ -148,17 +237,27 @@ class InputFileGenerator(JSONLike):
         ),
     )
 
+    #: The file to generate.
     input_file: FileSpec
+    #: The input parameters to the generator.
     inputs: list[Parameter]
+    #: The script that generates the inputs.
     script: str | None = None
+    #: The environment in which to run the generator.
     environment: Environment | None = None
+    #: Whether to pass in the environment.
     script_pass_env_spec: bool = False
+    #: Whether the generator can be stopped early.
+    #: Quick-running scripts tend to not need this.
     abortable: bool = False
+    #: User-specified rules for whether to run the generator.
     rules: list[ActionRule] = field(default_factory=list)
 
     def get_action_rules(self) -> list[ActionRule]:
-        """Get the rules that allow testing if this input file generator must be run or
-        not for a given element."""
+        """
+        Get the rules that allow testing if this input file generator must be run or
+        not for a given element.
+        """
         return [
             self._app.ActionRule.check_missing(f"input_files.{self.input_file.label}")
         ] + self.rules
@@ -207,8 +306,10 @@ class InputFileGenerator(JSONLike):
         return out.format(script_str=script_str, main_block=main_block)
 
     def write_source(self, action: Action, env_spec: dict[str, Any]) -> None:
-        # write the script if it is specified as a snippet script, otherwise we assume
-        # the script already exists in the working directory:
+        """
+        Write the script if it is specified as a snippet script, otherwise we assume
+        the script already exists in the working directory.
+        """
         snip_path = action.get_snippet_script_path(self.script, env_spec)
         if snip_path:
             source_str = self.compose_source(snip_path)
@@ -220,13 +321,35 @@ class InputFileGenerator(JSONLike):
 @hydrate
 class OutputFileParser(JSONLike):
     """
+    Represents a script that is run to parse output files from an action and create outputs.
+
     Parameters
     ----------
-    output
+    output_files: list[FileSpec]
+        The output files that this parser will parse.
+    output: ~hpcflow.app.Parameter
         The singular output parsed by this parser. Not to be confused with `outputs` (plural).
-    outputs
+    script: str
+        The name of the file containing the output file parser source.
+    environment: ~hpcflow.app.Environment
+        The environment to use to run the parser.
+    inputs: list[str]
+        The other inputs to the parser.
+    outputs: list[str]
         Optional multiple outputs from the upstream actions of the schema that are
         required to parametrise this parser.
+    options: dict
+        Miscellaneous options.
+    script_pass_env_spec: bool
+        Whether to pass the environment specifier to the script.
+    abortable: bool
+        Whether this script can be aborted.
+    save_files: list[str]
+        The files that should be saved to the persistent store for the workflow.
+    clean_files: list[str]
+        The files that should be immediately removed.
+    rules: list[~hpcflow.app.ActionRule]
+        Rules for whether to enable this parser.
     """
 
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
@@ -266,18 +389,33 @@ class OutputFileParser(JSONLike):
         ),
     )
 
+    #: The output files that this parser will parse.
     output_files: list[FileSpec]
+    #: The singular output parsed by this parser.
+    #: Not to be confused with :py:attr:`outputs` (plural).
     output: Parameter | None = None
+    #: The name of the file containing the output file parser source.
     script: str | None = None
+    #: The environment to use to run the parser.
     environment: Environment | None = None
+    #: The other inputs to the parser.
     inputs: list[str] | None = None
+    #: Optional multiple outputs from the upstream actions of the schema that are
+    #: required to parametrise this parser.
+    #: Not to be confused with :py:attr:`output` (plural).
     outputs: list[str] | None = None
+    #: Miscellaneous options.
     options: dict[str, Any] | None = None
+    #: Whether to pass the environment specifier to the script.
     script_pass_env_spec: bool = False
+    #: Whether this script can be aborted.
     abortable: bool = False
+    #: The files that should be saved to the persistent store for the workflow.
     save_files: InitVar[list[FileSpec] | bool] = True
     _save_files: list[FileSpec] = field(init=False)
+    #: The files that should be immediately removed.
     clean_up: list[str] = field(default_factory=list)
+    #: Rules for whether to enable this parser.
     rules: list[ActionRule] = field(default_factory=list)
 
     def __post_init__(self, save_files: list[FileSpec] | bool) -> None:
@@ -369,6 +507,9 @@ class OutputFileParser(JSONLike):
         return out.format(script_str=script_str, main_block=main_block)
 
     def write_source(self, action: Action, env_spec: dict[str, Any]) -> None:
+        """
+        Write the actual output parser to a file so it can be enacted.
+        """
         if self.output is None:
             # might be used just for saving files:
             return
@@ -528,6 +669,9 @@ class _FileContentsSpecifier(JSONLike):
         return val
 
     def read_contents(self) -> str:
+        """
+        Get the actual contents of the file.
+        """
         with self.__path.open("r") as fh:
             return fh.read()
 
@@ -539,15 +683,24 @@ class _FileContentsSpecifier(JSONLike):
 
     @property
     def path(self) -> Path | None:
+        """
+        The path to the file.
+        """
         path = self._get_value("path")
         return Path(path) if path else None
 
     @property
     def store_contents(self) -> Any:
+        """
+        Whether the file's contents are stored in the workflow's persistent store.
+        """
         return self._get_value("store_contents")
 
     @property
     def contents(self) -> str:
+        """
+        The contents of the file.
+        """
         if self.store_contents:
             return self._get_value("contents")
         else:
@@ -555,10 +708,16 @@ class _FileContentsSpecifier(JSONLike):
 
     @property
     def extension(self) -> str:
+        """
+        The extension of the file.
+        """
         return self._get_value("extension")
 
     @property
     def workflow(self) -> Workflow:
+        """
+        The owning workflow.
+        """
         if self._workflow:
             return self._workflow
         elif self._element_set:
@@ -570,6 +729,23 @@ class _FileContentsSpecifier(JSONLike):
 
 @hydrate
 class InputFile(_FileContentsSpecifier):
+    """
+    An input file.
+
+    Parameters
+    ----------
+    file:
+        What file is this?
+    path: Path
+        Where is the (original) file?
+    contents: str
+        What is the contents of the file (if already known)?
+    extension: str
+        What is the extension of the file?
+    store_contents: bool
+        Are the file's contents to be cached in the workflow persistent store?
+    """
+
     _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="file",
@@ -589,6 +765,7 @@ class InputFile(_FileContentsSpecifier):
     ) -> None:
         if not isinstance(file, FileSpec):
             files: CommandFilesList = self._app.command_files
+            #: What file is this?
             self.file = files.get(file)
         else:
             self.file = file
@@ -622,15 +799,40 @@ class InputFile(_FileContentsSpecifier):
 
     @property
     def normalised_files_path(self) -> str:
+        """
+        Standard name for the file within the workflow.
+        """
         return self.file.label
 
     @property
     def normalised_path(self) -> str:
+        """
+        Full workflow value path to the file.
+
+        Note
+        ----
+        This is not the same as the path in the filesystem.
+        """
         return f"input_files.{self.normalised_files_path}"
 
 
 @hydrate
 class InputFileGeneratorSource(_FileContentsSpecifier):
+    """
+    The source of code for use in an input file generator.
+
+    Parameters
+    ----------
+    generator:
+        How to generate the file.
+    path:
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
+    """
+
     def __init__(
         self,
         generator: InputFileGenerator,
@@ -638,12 +840,28 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
         contents: str | None = None,
         extension: str = "",
     ):
+        #: How to generate the file.
         self.generator = generator
         super().__init__(path, contents, extension)
 
 
 @hydrate
 class OutputFileParserSource(_FileContentsSpecifier):
+    """
+    The source of code for use in an output file parser.
+
+    Parameters
+    ----------
+    parser:
+        How to parse the file.
+    path: Path
+        Path to the file.
+    contents:
+        Contents of the file. Only used when recreating this object.
+    extension:
+        File name extension.
+    """
+
     def __init__(
         self,
         parser: OutputFileParser,
@@ -651,5 +869,6 @@ class OutputFileParserSource(_FileContentsSpecifier):
         contents: str | None = None,
         extension: str = "",
     ):
+        #: How to parse the file.
         self.parser = parser
         super().__init__(path, contents, extension)

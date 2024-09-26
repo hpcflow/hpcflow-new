@@ -1,3 +1,7 @@
+"""
+Shell models based on the GNU Bourne-Again Shell.
+"""
+
 from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
@@ -18,14 +22,22 @@ if TYPE_CHECKING:
 
 
 class Bash(Shell):
-    """Class to represent using bash on a POSIX OS to generate and submit a jobscript."""
+    """
+    Class to represent using bash on a POSIX OS to generate and submit a jobscript.
+    """
 
+    #: Default for executable name.
     DEFAULT_EXE: ClassVar[str] = "/bin/bash"
 
+    #: File extension for jobscripts.
     JS_EXT: ClassVar[str] = ".sh"
+    #: Basic indent.
     JS_INDENT: ClassVar[str] = "  "
+    #: Indent for environment setup.
     JS_ENV_SETUP_INDENT: ClassVar[str] = 2 * JS_INDENT
+    #: Template for the jobscript shebang line.
     JS_SHEBANG: ClassVar[str] = """#!{shebang_executable} {shebang_args}"""
+    #: Template for the common part of the jobscript header.
     JS_HEADER: ClassVar[str] = dedent(
         """\
         {workflow_app_alias} () {{
@@ -46,6 +58,7 @@ class Bash(Shell):
         ELEM_RUN_DIR_FILE="$WK_PATH/artifacts/submissions/${{SUB_IDX}}/{element_run_dirs_file_path}"
     """
     )
+    #: Template for the jobscript header when scheduled.
     JS_SCHEDULER_HEADER: ClassVar[str] = dedent(
         """\
         {shebang}
@@ -54,6 +67,7 @@ class Bash(Shell):
         {header}
     """
     )
+    #: Template for the jobscript header when directly executed.
     JS_DIRECT_HEADER: ClassVar[str] = dedent(
         """\
         {shebang}
@@ -62,6 +76,7 @@ class Bash(Shell):
         {wait_command}
     """
     )
+    #: Template for the jobscript body.
     JS_MAIN: ClassVar[str] = dedent(
         """\
         elem_EAR_IDs=`sed "$((${{JS_elem_idx}} + 1))q;d" "$EAR_ID_FILE"`
@@ -110,6 +125,7 @@ class Bash(Shell):
         done
     """
     )
+    #: Template for the element processing loop in a jobscript.
     JS_ELEMENT_LOOP: ClassVar[str] = dedent(
         """\
         for ((JS_elem_idx=0;JS_elem_idx<{num_elements};JS_elem_idx++))
@@ -119,6 +135,7 @@ class Bash(Shell):
         cd "$WK_PATH"
     """
     )
+    #: Template for the array handling code in a jobscript.
     JS_ELEMENT_ARRAY: ClassVar[str] = dedent(
         """\
         JS_elem_idx=$(({scheduler_array_item_var} - 1))
@@ -129,6 +146,9 @@ class Bash(Shell):
 
     @property
     def linux_release_file(self) -> str:
+        """
+        The name of the file describing the Linux version.
+        """
         return self.os_args["linux_release_file"]
 
     def _get_OS_info_POSIX(self) -> Mapping[str, str]:
@@ -171,6 +191,9 @@ class Bash(Shell):
     @override
     @staticmethod
     def format_stream_assignment(shell_var_name: str, command: str) -> str:
+        """
+        Produce code to assign the output of the command to a shell variable.
+        """
         return f"{shell_var_name}=`{command}`"
 
     @override
@@ -183,6 +206,9 @@ class Bash(Shell):
         cmd_idx: int,
         stderr: bool,
     ):
+        """
+        Produce code to save a parameter's value into the workflow persistent store.
+        """
         # TODO: quote shell_var_name as well? e.g. if it's a white-space delimited list?
         #   and test.
         stderr_str = " --stderr" if stderr else ""
@@ -198,6 +224,9 @@ class Bash(Shell):
     def format_loop_check(
         self, workflow_app_alias: str, loop_name: str, run_ID: int
     ) -> str:
+        """
+        Produce code to check the looping status of part of a workflow.
+        """
         return (
             f"{workflow_app_alias} "
             f'internal workflow "$WK_PATH_ARG" check-loop '
@@ -255,8 +284,14 @@ class Bash(Shell):
 
 
 class WSLBash(Bash):
+    """
+    A variant of bash that handles running under WSL on Windows.
+    """
+
+    #: Default name of the WSL interface executable.
     DEFAULT_WSL_EXE: ClassVar[str] = "wsl"
 
+    #: Template for the common part of the jobscript header.
     JS_HEADER: ClassVar[str] = Bash.JS_HEADER.replace(
         'WK_PATH_ARG="$WK_PATH"',
         'WK_PATH_ARG=`wslpath -m "$WK_PATH"`',

@@ -1,3 +1,6 @@
+"""
+Helper for running a subprocess.
+"""
 from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING

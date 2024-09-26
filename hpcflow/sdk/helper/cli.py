@@ -1,4 +1,8 @@
+"""
+Common Click command line options related to the helper.
+"""
 from __future__ import annotations
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import click
@@ -18,10 +22,12 @@ from .helper import (
     get_helper_PID,
     get_helper_uptime,
 )
+from ..cli_common import _add_doc_from_help
 
 if TYPE_CHECKING:
     from ..app import BaseApp
 
+#: Helper option: ``--timeout``
 timeout_option = click.option(
     "--timeout",
     type=click.FLOAT,
@@ -29,6 +35,7 @@ timeout_option = click.option(
     show_default=True,
     help="Helper timeout in seconds.",
 )
+#: Helper option: ``--timeout-check-interval``
 timeout_check_interval_option = click.option(
     "--timeout-check-interval",
     type=click.FLOAT,
@@ -36,6 +43,7 @@ timeout_check_interval_option = click.option(
     show_default=True,
     help="Interval between testing if the timeout has been exceeded in seconds.",
 )
+#: Helper option: ``--watch interval``
 watch_interval_option = click.option(
     "--watch-interval",
     type=click.FLOAT,
@@ -46,6 +54,7 @@ watch_interval_option = click.option(
         "seconds."
     ),
 )
+_add_doc_from_help(timeout_option, timeout_check_interval_option, watch_interval_option)
 
 
 def get_helper_CLI(app: BaseApp):

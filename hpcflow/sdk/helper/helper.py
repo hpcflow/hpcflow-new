@@ -1,3 +1,7 @@
+"""
+Implementation of a helper process used to monitor jobs.
+"""
+
 from __future__ import annotations
 from datetime import datetime, timedelta
 import logging
@@ -75,6 +79,9 @@ def start_helper(
     watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
     logger: logging.Logger | None = None,
 ):
+    """
+    Start the helper process.
+    """
     PID_file = get_PID_file_path(app)
     if PID_file.is_file():
         with PID_file.open("rt") as fp:
@@ -139,11 +146,17 @@ def restart_helper(
     timeout_check_interval: timedelta | float = DEFAULT_TIMEOUT_CHECK,
     watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
 ):
+    """
+    Restart the helper process.
+    """
     logger = stop_helper(app, return_logger=True)
     start_helper(app, timeout, timeout_check_interval, watch_interval, logger=logger)
 
 
 def get_helper_PID(app: BaseApp):
+    """
+    Get the process ID of the helper process.
+    """
     PID_file = get_PID_file_path(app)
     if not PID_file.is_file():
         print("Helper not running!")
@@ -154,6 +167,9 @@ def get_helper_PID(app: BaseApp):
 
 
 def stop_helper(app: BaseApp, return_logger=False):
+    """
+    Stop the helper process.
+    """
     logger = get_helper_logger(app)
     pid_info = get_helper_PID(app)
     if pid_info:
@@ -170,6 +186,9 @@ def stop_helper(app: BaseApp, return_logger=False):
 
 
 def clear_helper(app: BaseApp):
+    """
+    Stop the helper or remove any stale information relating to it.
+    """
     try:
         stop_helper(app)
     except psutil.NoSuchProcess:
@@ -181,6 +200,9 @@ def clear_helper(app: BaseApp):
 
 
 def get_helper_uptime(app: BaseApp) -> None | timedelta:
+    """
+    Get the amount of time that the helper has been running.
+    """
     pid_info = get_helper_PID(app)
     if not pid_info:
         return None
@@ -191,6 +213,9 @@ def get_helper_uptime(app: BaseApp) -> None | timedelta:
 
 
 def get_helper_logger(app: BaseApp) -> logging.Logger:
+    """
+    Get the logger for helper-related messages.
+    """
     log_path = get_helper_log_path(app)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -233,6 +258,9 @@ def run_helper(
     timeout_check_interval: timedelta | float = DEFAULT_TIMEOUT_CHECK,
     watch_interval: timedelta | float = DEFAULT_WATCH_INTERVAL,
 ):
+    """
+    Run the helper core.
+    """
     # TODO: when writing to watch_workflows from a workflow, copy, modify and then rename
     # this will be atomic - so there will be only one event fired.
     # Also return a local run ID (the position in the file) to be used in jobscript naming

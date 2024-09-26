@@ -1,4 +1,9 @@
+"""
+A direct job "scheduler" that just runs immediate subprocesses.
+"""
+
 from __future__ import annotations
+from pathlib import Path
 import shutil
 import signal
 from typing import overload, cast, TYPE_CHECKING
@@ -19,6 +24,22 @@ DirectRef: TypeAlias = "tuple[int, list[str]]"
 
 
 class DirectScheduler(Scheduler[DirectRef]):
+    """
+    A direct scheduler, that just runs jobs immediately as direct subprocesses.
+
+    The correct subclass (:py:class:`DirectPosix` or :py:class:`DirectWindows`) should
+    be used to create actual instances.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
+    """
+
     @classmethod
     @override
     def process_resources(
@@ -38,6 +59,9 @@ class DirectScheduler(Scheduler[DirectRef]):
         js_path: str,
         deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
+        """
+        Get the concrete submission command.
+        """
         return shell.get_direct_submit_command(js_path)
 
     @staticmethod
@@ -133,6 +157,10 @@ class DirectScheduler(Scheduler[DirectRef]):
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ):
+        """
+        Cancel some jobs.
+        """
+
         js_proc_id: dict[int, Jobscript]
 
         def callback(proc: psutil.Process):
@@ -177,6 +205,20 @@ class DirectScheduler(Scheduler[DirectRef]):
 
 
 class DirectPosix(DirectScheduler):
+    """
+    A direct scheduler for POSIX systems.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    shebang_args: str
+        Arguments to set on the shebang line. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
+    """
+
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
 
     def __init__(self, *args, **kwargs):
@@ -184,6 +226,18 @@ class DirectPosix(DirectScheduler):
 
 
 class DirectWindows(DirectScheduler):
+    """
+    A direct scheduler for Windows.
+
+    Keyword Args
+    ------------
+    shell_args: str
+        Arguments to pass to the shell. Pre-quoted.
+    options: dict
+        Options to the jobscript command.
+    """
+
+    #: Default shell.
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "powershell.exe"
 
     def __init__(self, *args, **kwargs):

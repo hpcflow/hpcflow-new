@@ -1,3 +1,7 @@
+"""
+Serialization and deserialization mechanism intended to map between a complex
+graph of objects and either JSON or YAML.
+"""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -33,6 +37,7 @@ if TYPE_CHECKING:
     _JSONDeserState: TypeAlias = "dict[str, dict[str, JSONed]] | None"
 
 
+#: Primitive types supported by the serialization mechanism.
 PRIMITIVES = (
     int,
     float,
@@ -133,6 +138,10 @@ def to_json_like(
 def to_json_like(
     obj: JSONable, shared_data: _JSONDeserState = None, parent_refs=None, path=None
 ):
+    """
+    Convert the object to a JSON-like basic value tree.
+    Such trees are trivial to serialize as JSON or YAML.
+    """
     path = path or []
 
     if len(path) > 50:
@@ -197,28 +206,53 @@ def to_json_like(
 
 @dataclass
 class ChildObjectSpec:
+    """
+    Used to describe what the child structure of an class is so that the generic
+    deserializer can build the structure.
+    """
+
+    #: The name of the attribute.
     name: str
+    #: The name of the class (or class of members of a list) used to deserialize the
+    #: attribute.
     class_name: str | None = None
+    #: The class (or class of members of a list) used to deserialize the
+    #: attribute.
     class_obj: type[enum.Enum | BaseJSONLike] | None = None
     # TODO: no need for class_obj/class_name if shared data?
+    #: The name of the key used in the JSON document, if different from the attribute
+    #: name.
     json_like_name: str | None = None
+    #: If true, the attribute is really a list of instances,
+    #: or a dictionary if :attr:`dict_key_attr` is set.
     is_multiple: bool | None = False
+    #: If set, the name of an attribute of the object to use as a dictionary key.
+    #: Requires that :attr:`is_multiple` be set as well.
     dict_key_attr: str | None = None
+    #: If set, the name of an attribute of the object to use as a dictionary value.
+    #: If not set but :attr:`dict_key_attr` is set, the whole object is the value.
+    #: Requires that :attr:`dict_key_attr` be set as well.
     dict_val_attr: str | None = None
+    #: If set, the attribute of the child object that contains a reference to its parent.
     parent_ref: str | None = None
     # TODO: do parent refs make sense when from shared? Prob not.
     is_single_attribute: bool | None = False
-    # if True, obj is not represented as a dict of attr name-values, but just a value.
+    #: If true, the object is an enum member and should use special serialization rules.
     is_enum: bool | None = False
-    # if true, we don't invoke to/from_json_like on the data/Enum
+    #: If true, the child object is a dict, whose values are of the specified class.
+    #: The dict structure will remain.
     is_dict_values: bool | None = False
-    # if True, the child object is a dict, whose values are of the specified class. The dict structure will remain.
+    #: If true, values that are not lists are cast to lists and multiple child objects
+    #: are instantiated for each dict value.
     is_dict_values_ensure_list: bool | None = False
-    # if True, values that are not lists are cast to lists and multiple child objects are instantiated for each dict value
-
+    #: What key to look values up under in the shared data cache.
+    #: If unspecified, the shared data cache is ignored.
     shared_data_name: str | None = None
+    #: What attribute provides the value of the key into the shared data cache.
+    #: If unspecified, a hash of the object dictionary is used.
+    #: Ignored if :py:attr:`~.shared_data_name` is unspecified.
     shared_data_primary_key: str | None = None
-    # shared_data_secondary_keys: Tuple[str] | None = None # TODO: what's the point?
+    # shared_data_secondary_keys: tuple[str, ...] | None = None # TODO: what's the point?
 
     def __post_init__(self):
         if self.class_name is not None and self.class_obj is not None:
@@ -266,6 +300,8 @@ class ChildObjectSpec:
 @hydrate
 class BaseJSONLike:
     """
+    An object that has a serialization as JSON or YAML.
+
     Parameters
     ----------
     _class_namespace : namespace
@@ -359,6 +395,20 @@ class BaseJSONLike:
         json_like: str | Mapping[str, JSONed] | Sequence[Mapping[str, JSONed]] | None,
         shared_data: Mapping[str, ObjectList[JSONable]] | None = None,
     ) -> Self | None:
+        """
+        Make an instance of this class from JSON (or YAML) data.
+
+        Parameters
+        ----------
+        json_like:
+            The data to deserialise.
+        shared_data:
+            Shared context data.
+
+        Returns
+        -------
+            The deserialised object.
+        """
         shared_data = shared_data or cls._get_default_shared_data()
         if isinstance(json_like, str):
             json_like = cls._parse_from_string(json_like)
@@ -607,6 +657,9 @@ class BaseJSONLike:
         return get_md5_hash(json_like)
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize this object as a dictionary.
+        """
         if hasattr(self, "__dict__"):
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
@@ -621,6 +674,11 @@ class BaseJSONLike:
         exclude: set[str | None] | None = None,
         path=None,
     ) -> tuple[JSONDocument, _JSONDeserState]:
+        """
+        Serialize this object as an object structure that can be trivially converted
+        to JSON. Note that YAML can also be produced from the result of this method;
+        it just requires a different final serialization step.
+        """
         if dct is None:
             dct_value = {
                 k: v for k, v in self.to_dict().items() if k not in (exclude or [])
@@ -711,6 +769,9 @@ class JSONLike(BaseJSONLike, AppAware):
         return cls.__sdk_classes
 
     def to_dict(self):
+        """
+        Serialize this object as a dictionary.
+        """
         out = super().to_dict()
 
         # remove parent references:
