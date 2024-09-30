@@ -236,6 +236,8 @@ class ChildObjectSpec:
     #: If set, the attribute of the child object that contains a reference to its parent.
     parent_ref: str | None = None
     # TODO: do parent refs make sense when from shared? Prob not.
+    #: If true, enables special handling where there can be only one child descriptor
+    #: for a containing class.
     is_single_attribute: bool | None = False
     #: If true, the object is an enum member and should use special serialization rules.
     is_enum: bool | None = False

@@ -330,8 +330,14 @@ class NullDefault(enum.Enum):
 
 
 class LabelInfo(TypedDict):
+    """
+    Information about a label.
+    """
+    #: The label propagation mode, if known.
     propagation_mode: NotRequired[ParameterPropagationMode]
+    #: The group containing the label, if known.
     group: NotRequired[str]
+    #: The default value for the label, if known.
     default_value: NotRequired[InputValue]
 
 
@@ -637,9 +643,16 @@ class SchemaInput(SchemaParameter):
 
 
 class LabellingDescriptor(TypedDict):
+    """
+    Descriptor for a labelling.
+    """
+    #: The type with the label.
     labelled_type: str
+    #: The propagation mode for the label.
     propagation_mode: ParameterPropagationMode
+    #: The group containing the label.
     group: str
+    #: The default value for the label, if known.
     default_value: NotRequired[InputValue]
 
 
@@ -1427,6 +1440,9 @@ class AbstractInputValue(JSONLike):
 
     @property
     def normalised_path(self) -> str:
+        """
+        The normalised path, if known.
+        """
         raise NotImplementedError
 
     @property

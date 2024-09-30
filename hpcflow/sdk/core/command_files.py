@@ -528,6 +528,7 @@ class _FileContentsSpecifier(JSONLike):
     """Class to represent the contents of a file, either via a file-system path or
     directly."""
 
+    #: What file is this? Only if known.
     file: FileSpec
 
     def __init__(
@@ -568,6 +569,14 @@ class _FileContentsSpecifier(JSONLike):
 
     @property
     def normalised_path(self) -> str:
+        """
+        Full workflow value path to the file.
+
+        Note
+        ----
+        This is not the same as the path in the filesystem, but is closely
+        related.
+        """
         return str(self._path) if self._path else "."
 
     def to_dict(self) -> dict[str, Any]:
@@ -765,7 +774,6 @@ class InputFile(_FileContentsSpecifier):
     ) -> None:
         if not isinstance(file, FileSpec):
             files: CommandFilesList = self._app.command_files
-            #: What file is this?
             self.file = files.get(file)
         else:
             self.file = file
@@ -806,13 +814,6 @@ class InputFile(_FileContentsSpecifier):
 
     @property
     def normalised_path(self) -> str:
-        """
-        Full workflow value path to the file.
-
-        Note
-        ----
-        This is not the same as the path in the filesystem.
-        """
         return f"input_files.{self.normalised_files_path}"
 
 
@@ -826,7 +827,7 @@ class InputFileGeneratorSource(_FileContentsSpecifier):
     generator:
         How to generate the file.
     path:
-        Path to the file.
+        Path to the file to generate.
     contents:
         Contents of the file. Only used when recreating this object.
     extension:
@@ -855,7 +856,7 @@ class OutputFileParserSource(_FileContentsSpecifier):
     parser:
         How to parse the file.
     path: Path
-        Path to the file.
+        Path to the file to parse.
     contents:
         Contents of the file. Only used when recreating this object.
     extension:

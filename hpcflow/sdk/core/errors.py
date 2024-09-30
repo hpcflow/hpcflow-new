@@ -295,12 +295,23 @@ class SchedulerVersionsFailure(RuntimeError):
 
 
 class JobscriptSubmissionFailureArgs(TypedDict):
+    """
+    Arguments that can be expanded to create a
+    :class:`JobscriptSubmissionFailure`.
+    """
+    #: The command that was submitted.
     submit_cmd: list[str]
+    #: The jobscript index.
     js_idx: int
+    #: The jobscript path.
     js_path: str
+    #: Where to write stdout.
     stdout: NotRequired[str]
+    #: Where to write stderr.
     stderr: NotRequired[str]
+    #: The exception from the exec of the subprocess.
     subprocess_exc: NotRequired[Exception]
+    #: The exception from parsing the job ID.
     job_ID_parse_exc: NotRequired[Exception]
 
 
@@ -320,7 +331,7 @@ class JobscriptSubmissionFailure(RuntimeError):
         stderr: str | None = None,
         subprocess_exc: Exception | None = None,
         job_ID_parse_exc: Exception | None = None,
-    ) -> None:
+    ):
         self.message = message
         self.submit_cmd = submit_cmd
         self.js_idx = js_idx

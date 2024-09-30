@@ -70,7 +70,12 @@ ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
 class ParameterDependence(TypedDict):
+    """
+    Dependency descriptor for a parameter.
+    """
+    #: The input file writers that can use the parameter.
     input_file_writers: list[FileSpec]
+    #: The commands that can use the parameter.
     commands: list[int]
 
 
@@ -108,8 +113,10 @@ class _EARStatus:
     """
 
     _value: int
-    colour: str
+    #: Symbol to use when rendering a status.
     symbol: str
+    #: Colour to use when rendering a status. 
+    colour: str
     __doc__: str = ""
 
 
@@ -179,6 +186,7 @@ class EARStatus(_EARStatus, Enum):
 
     @property
     def value(self) -> int:
+        #: The value of the status.
         return self._value
 
     @classmethod
@@ -1562,7 +1570,12 @@ class ActionRule(JSONLike):
 
 
 class ScriptData(TypedDict, total=False):
+    """
+    Descriptor for data relating to a script.
+    """
+    #: The format of the data.
     format: str
+    #: Whether the data is required for all iterations.
     all_iterations: NotRequired[bool]
 
 

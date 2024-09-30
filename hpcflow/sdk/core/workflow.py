@@ -139,14 +139,26 @@ class _DummyPersistentWorkflow:
 
 
 class CreationInfo(TypedDict):
+    """
+    Descriptor for creation information about a workflow.
+    """
+    #: Description of information about the application.
     app_info: dict[str, Any]
+    #: When the workflow was created.
     create_time: datetime
+    #: Unique identifier for the workflow.
     id: str
 
 
 class WorkflowTemplateTaskData(TypedDict):
+    """
+    Descriptor for information about tasks described in a workflow template.
+    """
+    #: The schema, if known.
     schema: NotRequired[Any | list[Any]]
+    #: The element sets, if known.
     element_sets: NotRequired[list["WorkflowTemplateTaskData"]]
+    #: The output labels, if known.
     output_labels: NotRequired[list[str]]
 
 

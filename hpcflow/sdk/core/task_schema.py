@@ -36,7 +36,12 @@ if TYPE_CHECKING:
 
 
 class ActParameterDependence(TypedDict):
+    """
+    Action parameter dependency descriptor.
+    """
+    #: The input file writers that produce the parameter.
     input_file_writers: list[tuple[int, FileSpec]]
+    #: The commands that produce the parameter.
     commands: list[tuple[int, int]]
 
 

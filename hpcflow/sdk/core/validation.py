@@ -12,6 +12,9 @@ T = TypeVar("T")
 
 
 class ValidatedData(Protocol, Generic[T]):
+    """
+    Typed profile of ``valida.ValidatedData``.
+    """
     @property
     def is_valid(self) -> bool:
         ...
@@ -23,6 +26,9 @@ class ValidatedData(Protocol, Generic[T]):
 
 
 class PreparedConditionCallable(Protocol):
+    """
+    Typed profile of ``valida.PreparedConditionCallable``.
+    """
     @property
     def name(self) -> str:
         ...
@@ -33,12 +39,18 @@ class PreparedConditionCallable(Protocol):
 
 
 class Condition(Protocol):
+    """
+    Typed profile of ``valida.Condition``.
+    """
     @property
     def callable(self) -> PreparedConditionCallable:
         ...
 
 
 class Rule(Protocol):
+    """
+    Typed profile of ``valida.Rule``.
+    """
     @property
     def condition(self) -> Condition:
         ...
@@ -49,6 +61,9 @@ class Rule(Protocol):
 
 
 class Schema(Protocol):
+    """
+    Typed profile of ``valida.Schema``.
+    """
     def validate(self, data: T) -> ValidatedData[T]:
         ...
 
