@@ -1843,7 +1843,8 @@ class Action(JSONLike):
             self.process_script_data_formats()
             assert self.script_data_in is not None
         return swap_nested_dict_keys(
-            dct=cast(dict, self.script_data_in), inner_key="format")
+            dct=cast(dict, self.script_data_in), inner_key="format"
+        )
 
     @property
     def script_data_out_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
@@ -1852,7 +1853,8 @@ class Action(JSONLike):
             self.process_script_data_formats()
             assert self.script_data_out is not None
         return swap_nested_dict_keys(
-            dct=cast(dict, self.script_data_out), inner_key="format")
+            dct=cast(dict, self.script_data_out), inner_key="format"
+        )
 
     @property
     def script_data_in_has_files(self) -> bool:
