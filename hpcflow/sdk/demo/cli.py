@@ -1,3 +1,6 @@
+"""
+CLI components for demonstration code.
+"""
 from pathlib import Path
 from random import randint
 import click

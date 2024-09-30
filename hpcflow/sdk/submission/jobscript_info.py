@@ -14,7 +14,9 @@ class _JES:
     """
 
     _value: int
+    #: The symbol used to render the state.
     symbol: str
+    #: The colour used to render the state.
     colour: str
     __doc__: str = ""
 
@@ -68,6 +70,9 @@ class JobscriptElementState(_JES, Enum):
 
     @property
     def value(self) -> int:
+        """
+        The numerical value of this state.
+        """
         return self._value
 
     @property

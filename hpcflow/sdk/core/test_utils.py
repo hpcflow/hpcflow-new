@@ -32,10 +32,10 @@ def make_schemas(
     *ins_outs: tuple[dict[str, Any], tuple[str, ...]]
     | tuple[dict[str, Any], tuple[str, ...], str]
 ) -> list[TaskSchema]:
-    out: list[TaskSchema] = []
     """
     Construct a collection of schemas.
     """
+    out: list[TaskSchema] = []
     for idx, info in enumerate(ins_outs):
         if len(info) == 2:
             (ins_i, outs_i) = info

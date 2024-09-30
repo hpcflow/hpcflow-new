@@ -308,8 +308,11 @@ class WSLBash(Bash):
         *args,
         **kwargs,
     ):
+        #: The WSL executable wrapper.
         self.WSL_executable = WSL_executable or self.DEFAULT_WSL_EXE
+        #: The WSL distribution to use, if any.
         self.WSL_distribution = WSL_distribution
+        #: The WSL user to use, if any.
         self.WSL_user = WSL_user
         super().__init__(*args, **kwargs)
 

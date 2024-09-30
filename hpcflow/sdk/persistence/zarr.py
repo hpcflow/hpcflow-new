@@ -69,16 +69,30 @@ ZarrAttrs: TypeAlias = "dict[str, list[str]]"
 
 
 class ZarrAttrsDict(TypedDict):
+    """
+    Zarr workflow attributes descriptor.
+    """
+    #: Workflow name.
     name: str
+    #: Timestamp format.
     ts_fmt: str
+    #: Timestamp format for names.
     ts_name_fmt: str
+    #: Information about the creation of the workflow and persistent store.
     creation_info: StoreCreationInfo
+    #: The template used to build the workflow.
     template: TemplateMeta
+    #: Custom components used to build the workflow.
     template_components: dict[str, Any]
+    #: Number of tasks added.
     num_added_tasks: int
+    #: Tasks in the workflow.
     tasks: list[dict[str, Any]]
+    #: Loops in the workflow.
     loops: list[dict[str, Any]]
+    #: Submissions by the workflow.
     submissions: list[JSONDocument]
+    #: Replacement workflow, if any.
     replaced_workflow: NotRequired[str]
 
 

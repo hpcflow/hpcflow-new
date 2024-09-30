@@ -73,7 +73,9 @@ class SlurmPosix(QueuedScheduler):
     DEFAULT_ARRAY_SWITCH: ClassVar[str] = "--array"
     #: Default shell variable with array ID.
     DEFAULT_ARRAY_ITEM_VAR: ClassVar[str] = "SLURM_ARRAY_TASK_ID"
+    #: Number of times to try when querying the state.
     NUM_STATE_QUERY_TRIES: ClassVar[int] = 5
+    #: Delay (in seconds) between attempts to query the state.
     INTER_STATE_QUERY_DELAY: ClassVar[float] = 0.5
 
     #: Maps scheduler state codes to :py:class:`JobscriptElementState` values.

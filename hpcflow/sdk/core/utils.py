@@ -748,7 +748,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
     ----------
     root_path: str
         Where to take the snapshot based at.
-    data: dict
+    data: dict[str, list]
         Serialised snapshot to reload from.
         See :py:meth:`to_json_like`.
     """

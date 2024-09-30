@@ -17,7 +17,11 @@ if TYPE_CHECKING:
 VersionInfo: TypeAlias = "dict[str, str | list[str]]"
 
 
+# TODO: This really doesn't belong here?!
 class JobscriptHeaderArgs(TypedDict):
+    """
+    Keyword arguments to use when creating a :class:`Jobscript`,
+    """
     app_invoc: str | Sequence[str]
     config_dir: NotRequired[str]
     config_invoc_key: NotRequired[Any]
@@ -46,23 +50,36 @@ class Shell(ABC):
         Arguments to pass to the shell.
     """
 
+    #: File extension for jobscripts.
     JS_EXT: ClassVar[str]
+    #: Default for executable name.
     DEFAULT_EXE: ClassVar[str]
+    #: Indent for environment setup.
     JS_ENV_SETUP_INDENT: ClassVar[str]
+    #: Template for the jobscript shebang line.
     JS_SHEBANG: ClassVar[str]
+    #: Template for the common part of the jobscript header.
     JS_HEADER: ClassVar[str]
+    #: Template for the jobscript header when scheduled.
     JS_SCHEDULER_HEADER: ClassVar[str]
+    #: Template for the jobscript header when directly executed.
     JS_DIRECT_HEADER: ClassVar[str]
+    #: Template for the jobscript body.
     JS_MAIN: ClassVar[str]
+    #: Template for the array handling code in a jobscript.
     JS_ELEMENT_ARRAY: ClassVar[str]
+    #: Template for the element processing loop in a jobscript.
     JS_ELEMENT_LOOP: ClassVar[str]
+    #: Basic indent.
     JS_INDENT: ClassVar[str]
     __slots__ = ("_executable", "os_args")
 
     def __init__(
         self, executable: str | None = None, os_args: dict[str, str] | None = None
     ):
+        #: Which executable implements the shell.
         self._executable = executable or self.DEFAULT_EXE
+        #: Arguments to pass to the shell.
         self.os_args = os_args or {}
 
     def __eq__(self, other) -> bool:
@@ -150,7 +167,9 @@ class Shell(ABC):
         cmd_idx: int,
         stderr: bool,
     ):
-        ...
+        """
+        Format instructions to save a parameter.
+        """
 
     @abstractmethod
     def wrap_in_subshell(self, commands: str, abortable: bool) -> str:
@@ -164,8 +183,12 @@ class Shell(ABC):
     def format_loop_check(
         self, workflow_app_alias: str, loop_name: str, run_ID: int
     ) -> str:
-        ...
+        """
+        Format a loop check.
+        """
 
     @abstractmethod
     def format_stream_assignment(self, shell_var_name, command) -> str:
-        ...
+        """
+        Format a stream assignment.
+        """

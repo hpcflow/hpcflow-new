@@ -32,8 +32,8 @@ class Scheduler(ABC, Generic[T], AppAware):
     T
         The type of a jobscript reference.
 
-    Keyword Args
-    ------------
+    Parameters
+    ----------
     shell_args: str
         Arguments to pass to the shell. Pre-quoted.
     shebang_args: str
@@ -109,17 +109,23 @@ class Scheduler(ABC, Generic[T], AppAware):
         js_path: str,
         deps: dict[Any, tuple[Any, ...]],
     ) -> list[str]:
-        ...
+        """
+        Get a command for submitting a jobscript.
+        """
 
     @abstractmethod
     def get_job_state_info(
         self, *, js_refs: list[T] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
-        ...
+        """
+        Get the state of one or more jobscripts.
+        """
 
     @abstractmethod
     def wait_for_jobscripts(self, js_refs: list[T]) -> None:
-        ...
+        """
+        Wait for one or more jobscripts to complete.
+        """
 
     @abstractmethod
     def cancel_jobs(
@@ -128,7 +134,9 @@ class Scheduler(ABC, Generic[T], AppAware):
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ) -> None:
-        ...
+        """
+        Cancel one or more jobscripts.
+        """
 
 
 class QueuedScheduler(Scheduler[str]):
@@ -157,11 +165,17 @@ class QueuedScheduler(Scheduler[str]):
     DEFAULT_LOGIN_NODES_CMD: ClassVar[Sequence[str] | None] = None
     #: Default pattern for matching the names of login nodes.
     DEFAULT_LOGIN_NODE_MATCH: ClassVar[str] = "*login*"
+    #: Default command for submitting a job.
     DEFAULT_SUBMIT_CMD: ClassVar[str]
+    #: Default command for listing current submitted jobs.
     DEFAULT_SHOW_CMD: ClassVar[Sequence[str]]
+    #: Default command for deleting a job.
     DEFAULT_DEL_CMD: ClassVar[str]
+    #: Default marker for job control metadata in a job script.
     DEFAULT_JS_CMD: ClassVar[str]
+    #: Default switch for enabling array mode.
     DEFAULT_ARRAY_SWITCH: ClassVar[str]
+    #: Default shell variable containin the current array index.
     DEFAULT_ARRAY_ITEM_VAR: ClassVar[str]
 
     def __init__(
@@ -215,4 +229,6 @@ class QueuedScheduler(Scheduler[str]):
 
     @abstractmethod
     def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
-        ...
+        """
+        Render options in a way that the scheduler can handle.
+        """
