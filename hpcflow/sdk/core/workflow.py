@@ -748,13 +748,6 @@ class Workflow(AppAware):
         """
         return self._store._name
 
-    @property
-    def num_tasks(self) -> int:
-        """
-        The number of tasks in the workflow.
-        """
-        return len(self.tasks)
-
     @classmethod
     @TimeIt.decorator
     def from_template(

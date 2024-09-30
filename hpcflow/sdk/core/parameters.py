@@ -150,6 +150,8 @@ class Parameter(JSONLike):
 
     Parameters
     ----------
+    name:
+        The name of the parameter.
     typ:
         Type code.
         Used to look up the :py:class:`ParameterValue` for this parameter,
@@ -182,6 +184,8 @@ class Parameter(JSONLike):
     #: Type code. Used to look up the :py:class:`ParameterValue` for this parameter,
     #: if any.
     typ: str
+    #: The name of the parameter.
+    name: str = ""
     #: Whether this parameter represents a file.
     is_file: bool = False
     #: Any parameters packed within this one.
@@ -212,6 +216,8 @@ class Parameter(JSONLike):
     def __post_init__(self) -> None:
         self.typ = check_valid_py_identifier(self.typ)
         self._set_value_class()
+        if not self.name:
+            self.name = self.typ
 
     def _set_value_class(self) -> None:
         # custom parameter classes must inherit from `ParameterValue` not the app
@@ -1459,14 +1465,7 @@ class AbstractInputValue(JSONLike):
         """
         The value itself.
         """
-        if self._value_group_idx is not None:
-            val = self.workflow.get_parameter_data(self._value_group_idx)
-            if self._value_is_obj and self.parameter._value_class:
-                val = self.parameter._value_class(**val)
-        else:
-            val = self._value
-
-        return val
+        return self._value
 
 
 @dataclass

@@ -1998,7 +1998,7 @@ class WorkflowTask(AppAware):
                         if key in sequence_idx:
                             sequence_idx.pop(key)
                             # TODO: Use the value retrieved below?
-                            _ = element_set.get_sequence_by_path(key)
+                            _ = element_set.get_sequence_from_path(key)
 
                 elif inp_src.source_type is InputSourceType.DEFAULT:
                     assert def_val is not None
