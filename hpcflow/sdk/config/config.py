@@ -74,6 +74,7 @@ class SGEParallelEnvsDescriptor(TypedDict):
     """
     SGE parallel environment descriptor.
     """
+
     #: Number of supported cores.
     num_cores: list[int]
 
@@ -82,11 +83,12 @@ class SLURMPartitionsDescriptor(TypedDict):
     """
     SLURM partition descriptor.
     """
+
     #: Number of supported cores.
     num_cores: NotRequired[list[int]]
     #: Number of cores per node.
     num_cores_per_node: NotRequired[list[int]]
-    #: Number of supported nodes. 
+    #: Number of supported nodes.
     num_nodes: NotRequired[list[int]]
     #: Possible parallel modes.
     parallel_modes: NotRequired[list[str]]
@@ -96,6 +98,7 @@ class SchedulerConfigDescriptor(TypedDict):
     """
     Scheduler configuration descriptor.
     """
+
     #: Default values.
     defaults: dict[str, Any]
     #: SGE parallel environments, by name.
@@ -108,6 +111,7 @@ class ShellConfigDescriptor(TypedDict):
     """
     Shell configuration descriptor.
     """
+
     #: Default values.
     defaults: dict[str, Any]
 
@@ -116,6 +120,7 @@ class ConfigDescriptor(TypedDict):
     """
     Configuration descriptor.
     """
+
     #: Execution machine.
     machine: NotRequired[str]
     #: Where to log.
@@ -142,6 +147,7 @@ class InvocationDescriptor(TypedDict):
     """
     Invocation descriptor.
     """
+
     #: Used to set up the environment.
     environment_setup: str | None
     #: setting to apply if matched.
@@ -152,6 +158,7 @@ class DefaultConfiguration(TypedDict):
     """
     The default configuration.
     """
+
     #: Default invocation.
     invocation: InvocationDescriptor
     #: Default configuration.

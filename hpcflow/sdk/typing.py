@@ -16,6 +16,7 @@ class ParamSource(TypedDict):
     """
     A parameter source descriptor.
     """
+
     #: Parameter type name.
     type: NotRequired[str]
     #: EAR ID.

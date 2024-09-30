@@ -767,6 +767,7 @@ class TypeLookup(TypedDict, total=False):
     ----
     Not a total typed dictionary.
     """
+
     #: Tuples involving the parameter.
     tuples: list[list[int]]
     #: Sets involving the parameter.
@@ -777,6 +778,7 @@ class EncodedStoreParameter(TypedDict):
     """
     The encoding of a :class:`StoreParameter`.
     """
+
     #: The parameter data.
     data: Any
     #: Information for looking up the type.

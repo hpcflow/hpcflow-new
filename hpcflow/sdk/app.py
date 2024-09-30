@@ -156,6 +156,7 @@ class KnownSubmission(TypedDict):
     """
     Describes a known submission.
     """
+
     #: Local ID.
     local_id: int
     #: Workflow global ID.
@@ -178,6 +179,7 @@ class KnownSubmissionItem(TypedDict):
     """
     Describes a known submission.
     """
+
     #: Local ID.
     local_id: int
     #: Workflow global ID.
@@ -318,6 +320,7 @@ class TemplateComponents(TypedDict):
     """
     Components loaded from templates.
     """
+
     #: Parameters loaded from templates.
     parameters: NotRequired[_ParametersList]
     #: Command files loaded from templates.
