@@ -190,8 +190,8 @@ class PendingChanges(
                 for res in resources:
                     # TODO: only enter required resources!
                     stack.enter_context(
-                        self.store.using_resource(res, "update")
-                    )  # type: ignore[call-overload]
+                        self.store.using_resource(res, "update")  # type: ignore[call-overload]
+                    )
                 for meth in methods:
                     getattr(self, meth)()
 
