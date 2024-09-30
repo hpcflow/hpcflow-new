@@ -1445,8 +1445,8 @@ class BaseApp(metaclass=Singleton):
         templates = {}
         pkg = f"{self.package_name}.{self.workflows_dir}"
         for i in resources.files(pkg).iterdir():
-            p = Path(i.name)
-            if p.suffix in (".yaml", ".yml", ".json", ".jsonc"):
+            p = Path(str(i))
+            if p.exists() and p.suffix in (".yaml", ".yml", ".json", ".jsonc"):
                 templates[p.stem] = p
         return templates
 

@@ -1693,8 +1693,10 @@ class Action(JSONLike):
         #: The name of the Python script to run.
         self.script = script
         #: Information about data input to the script.
+        self.script_data_in: dict[str, ScriptData] | None = None
         self._script_data_in = script_data_in
         #: Information about data output from the script.
+        self.script_data_out: dict[str, ScriptData] | None = None
         self._script_data_out = script_data_out
         #: If True, script data input and output file paths will be passed to the script
         #: execution command line with an option like `--input-json` or `--output-hdf5`
@@ -1837,12 +1839,20 @@ class Action(JSONLike):
     @property
     def script_data_in_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get input parameter types by script data-in format."""
-        return swap_nested_dict_keys(dct=self.script_data_in, inner_key="format")
+        if self.script_data_in is None:
+            self.process_script_data_formats()
+            assert self.script_data_in is not None
+        return swap_nested_dict_keys(
+            dct=cast(dict, self.script_data_in), inner_key="format")
 
     @property
     def script_data_out_grouped(self) -> dict[str, dict[str, dict[str, str]]]:
         """Get output parameter types by script data-out format."""
-        return swap_nested_dict_keys(dct=self.script_data_out, inner_key="format")
+        if self.script_data_out is None:
+            self.process_script_data_formats()
+            assert self.script_data_out is not None
+        return swap_nested_dict_keys(
+            dct=cast(dict, self.script_data_out), inner_key="format")
 
     @property
     def script_data_in_has_files(self) -> bool:
