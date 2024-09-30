@@ -142,6 +142,7 @@ class CreationInfo(TypedDict):
     """
     Descriptor for creation information about a workflow.
     """
+
     #: Description of information about the application.
     app_info: dict[str, Any]
     #: When the workflow was created.
@@ -154,6 +155,7 @@ class WorkflowTemplateTaskData(TypedDict):
     """
     Descriptor for information about tasks described in a workflow template.
     """
+
     #: The schema, if known.
     schema: NotRequired[Any | list[Any]]
     #: The element sets, if known.

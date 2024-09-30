@@ -33,6 +33,7 @@ class IterableParam(TypedDict):
     """
     The type of the descriptor for an iterable parameter.
     """
+
     #: Identifier for the input task supplying the parameter.
     input_task: int
     #: Identifiers for the output tasks consuming the parameter.

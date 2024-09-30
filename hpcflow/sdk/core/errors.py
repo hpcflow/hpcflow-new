@@ -299,6 +299,7 @@ class JobscriptSubmissionFailureArgs(TypedDict):
     Arguments that can be expanded to create a
     :class:`JobscriptSubmissionFailure`.
     """
+
     #: The command that was submitted.
     submit_cmd: list[str]
     #: The jobscript index.

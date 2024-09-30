@@ -333,6 +333,7 @@ class LabelInfo(TypedDict):
     """
     Information about a label.
     """
+
     #: The label propagation mode, if known.
     propagation_mode: NotRequired[ParameterPropagationMode]
     #: The group containing the label, if known.
@@ -646,6 +647,7 @@ class LabellingDescriptor(TypedDict):
     """
     Descriptor for a labelling.
     """
+
     #: The type with the label.
     labelled_type: str
     #: The propagation mode for the label.

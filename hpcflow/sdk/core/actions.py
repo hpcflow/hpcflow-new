@@ -73,6 +73,7 @@ class ParameterDependence(TypedDict):
     """
     Dependency descriptor for a parameter.
     """
+
     #: The input file writers that can use the parameter.
     input_file_writers: list[FileSpec]
     #: The commands that can use the parameter.
@@ -115,7 +116,7 @@ class _EARStatus:
     _value: int
     #: Symbol to use when rendering a status.
     symbol: str
-    #: Colour to use when rendering a status. 
+    #: Colour to use when rendering a status.
     colour: str
     __doc__: str = ""
 
@@ -1573,6 +1574,7 @@ class ScriptData(TypedDict, total=False):
     """
     Descriptor for data relating to a script.
     """
+
     #: The format of the data.
     format: str
     #: Whether the data is required for all iterations.
