@@ -88,6 +88,7 @@ class File(TypedDict):
     """
     Descriptor for file metadata.
     """
+
     #: Whether to store the contents.
     store_contents: bool
     #: The path to the file.
@@ -98,6 +99,7 @@ class FileDescriptor(TypedDict):
     """
     Descriptor for file metadata.
     """
+
     #: Whether this is an input file.
     is_input: bool
     #: Whether to store the contents.
@@ -106,7 +108,7 @@ class FileDescriptor(TypedDict):
     dst_path: str
     #: The path to the file.
     path: str | None
-    #: Whether to delete the file after processing. 
+    #: Whether to delete the file after processing.
     clean_up: bool
     # The contents of the file.
     contents: NotRequired[str]
@@ -117,11 +119,12 @@ class StoreCreationInfo(TypedDict):
     """
     Information about the creation of the persistence store.
     """
+
     #: Information about the application.
     app_info: dict[str, Any]
     #: When the persistence store was created.
     create_time: str
-    #: The unique identifier for for the store/workflow. 
+    #: The unique identifier for for the store/workflow.
     id: str
 
 
@@ -219,6 +222,7 @@ class TaskMeta(TypedDict):
     """
     Information about a task.
     """
+
     #: The ID of the task.
     id_: int
     #: The index of the task in the workflow.
@@ -231,6 +235,7 @@ class TemplateMeta(TypedDict):  # FIXME: Incomplete, see WorkflowTemplate
     """
     Metadata about a workflow template.
     """
+
     #: Descriptors for loops.
     loops: list[dict]
     #: Descriptors for tasks.
@@ -241,6 +246,7 @@ class Metadata(TypedDict):
     """
     Workflow metadata.
     """
+
     #: Information about the store's creation.
     creation_info: NotRequired[StoreCreationInfo]
     #: Elements in the workflow.

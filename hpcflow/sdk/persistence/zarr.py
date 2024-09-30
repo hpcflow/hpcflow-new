@@ -72,6 +72,7 @@ class ZarrAttrsDict(TypedDict):
     """
     Zarr workflow attributes descriptor.
     """
+
     #: Workflow name.
     name: str
     #: Timestamp format.

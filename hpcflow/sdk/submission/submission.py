@@ -43,6 +43,7 @@ class SubmissionPart(TypedDict):
     """
     A part of a submission.
     """
+
     #: Timestamp for when this part was submitted.
     submit_time: datetime
     #: The jobscripts involved in this submission.

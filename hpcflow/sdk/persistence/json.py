@@ -53,6 +53,7 @@ class JsonStoreTask(StoreTask[TaskMeta]):
     """
     Persisted task that is serialized using JSON.
     """
+
     @override
     def encode(self) -> tuple[int, TaskMeta, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
@@ -81,6 +82,7 @@ class JsonStoreElement(StoreElement[ElemMeta, None]):
     """
     Persisted element that is serialized using JSON.
     """
+
     @override
     def encode(self, context: None) -> ElemMeta:
         """Prepare store element data for the persistent store."""
@@ -99,6 +101,7 @@ class JsonStoreElementIter(StoreElementIter[IterMeta, None]):
     """
     Persisted element iteration that is serialized using JSON.
     """
+
     @override
     def encode(self, context: None) -> IterMeta:
         """Prepare store element iteration data for the persistent store."""
@@ -126,6 +129,7 @@ class JsonStoreEAR(StoreEAR[RunMeta, None]):
     """
     Persisted element action run that is serialized using JSON.
     """
+
     @override
     def encode(self, ts_fmt: str, context: None) -> RunMeta:
         """Prepare store EAR data for the persistent store."""

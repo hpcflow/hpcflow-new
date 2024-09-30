@@ -22,6 +22,7 @@ class JobscriptHeaderArgs(TypedDict):
     """
     Keyword arguments to use when creating a :class:`Jobscript`,
     """
+
     app_invoc: str | Sequence[str]
     config_dir: NotRequired[str]
     config_invoc_key: NotRequired[Any]

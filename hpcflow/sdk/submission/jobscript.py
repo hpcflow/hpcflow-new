@@ -46,6 +46,7 @@ class JobScriptDescriptor(TypedDict):
     """
     Descriptor for a jobscript.
     """
+
     #: Resources required by the jobscript.
     resources: Any
     #: Elements handled by the jobscript.
@@ -60,6 +61,7 @@ class ResolvedDependencies(TypedDict):
     """
     The resolution of a dependency.
     """
+
     #: Mapping of jobscript elements.
     js_element_mapping: dict[int, list[int]]
     #: Whether this is an array mapping.
@@ -117,6 +119,7 @@ class SchedulerRef(TypedDict):
     """
     Scheduler reference descriptor.
     """
+
     #: Jobscript references.
     js_refs: list  # Internal type is horrible and variable
     #: Number of jobscript elements.
