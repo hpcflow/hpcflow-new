@@ -1,3 +1,6 @@
+"""
+Utilities for discovering what persistence store implementation to use.
+"""
 from __future__ import annotations
 from collections.abc import Mapping as _Mapping
 from hpcflow.sdk.persistence.base import PersistentStore

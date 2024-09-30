@@ -153,31 +153,60 @@ T = TypeVar("T")
 
 
 class KnownSubmission(TypedDict):
+    """
+    Describes a known submission.
+    """
+    #: Local ID.
     local_id: int
+    #: Workflow global ID.
     workflow_id: str
+    #: Whether the submission is active.
     is_active: bool
+    #: Submission index.
     sub_idx: int
+    #: Submission time.
     submit_time: str
+    #: Path to submission.
     path: str
+    #: Start time.
     start_time: str
+    #: Finish time.
     end_time: str
 
 
 class KnownSubmissionItem(TypedDict):
+    """
+    Describes a known submission.
+    """
+    #: Local ID.
     local_id: int
+    #: Workflow global ID.
     workflow_id: str
+    #: Path to the workflow.
     workflow_path: str
+    #: Time of submission.
     submit_time: str
+    #: Parsed time of submission.
     submit_time_obj: NotRequired[datetime | None]
+    #: Time of start.
     start_time: str
+    #: Parsed time of start.
     start_time_obj: datetime | None
+    #: Time of finish.
     end_time: str
+    #: Parsed time of finish.
     end_time_obj: datetime | None
+    #: Submission index.
     sub_idx: int
+    #: Jobscripts in submission.
     jobscripts: list[int]
+    #: Active jobscript state.
     active_jobscripts: dict[int, dict[int, JobscriptElementState]]
+    #: Whether this is deleted.
     deleted: bool
+    #: Whether this is unloadable.
     unloadable: bool
+    #: Expanded submission object.
     submission: NotRequired[Submission]
 
 
@@ -286,10 +315,18 @@ class Singleton(type, Generic[T]):
 
 
 class TemplateComponents(TypedDict):
+    """
+    Components loaded from templates.
+    """
+    #: Parameters loaded from templates.
     parameters: NotRequired[_ParametersList]
+    #: Command files loaded from templates.
     command_files: NotRequired[CommandFilesList_]
+    #: Execution environments loaded from templates.
     environments: NotRequired[_EnvironmentsList]
+    #: Task schemas loaded from templates.
     task_schemas: NotRequired[_TaskSchemasList]
+    #: Scripts discovered by templates.
     scripts: NotRequired[dict[str, Path]]
 
 

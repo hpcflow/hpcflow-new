@@ -1,3 +1,6 @@
+"""
+Utility base class for making classes aware of the overall application context.
+"""
 from __future__ import annotations
 from typing import TYPE_CHECKING
 

@@ -13,15 +13,28 @@ PathLike: TypeAlias = "str | Path | None"
 
 
 class ParamSource(TypedDict):
+    """
+    A parameter source descriptor.
+    """
+    #: Parameter type name.
     type: NotRequired[str]
+    #: EAR ID.
     EAR_ID: NotRequired[int]
+    #: Task insertion ID.
     task_insert_ID: NotRequired[int]
+    #: Action index.
     action_idx: NotRequired[int]
+    #: Element index.
     element_idx: NotRequired[int]
+    #: Element set index.
     element_set_idx: NotRequired[int]
+    #: Element action run index.
     run_idx: NotRequired[int]
+    #: Sequence index.
     sequence_idx: NotRequired[int]
+    #: Task index.
     task_idx: NotRequired[int]
+    #: Name of method used to create the parameter's value(s).
     value_class_method: NotRequired[str]
 
 

@@ -759,14 +759,28 @@ class StoreEAR(Generic[T, CTX]):
         )
 
 
-class _TypeLookup(TypedDict, total=False):
+class TypeLookup(TypedDict, total=False):
+    """
+    Information for looking up the type of a parameter.
+
+    Note
+    ----
+    Not a total typed dictionary.
+    """
+    #: Tuples involving the parameter.
     tuples: list[list[int]]
+    #: Sets involving the parameter.
     sets: list[list[int]]
 
 
 class EncodedStoreParameter(TypedDict):
+    """
+    The encoding of a :class:`StoreParameter`.
+    """
+    #: The parameter data.
     data: Any
-    type_lookup: _TypeLookup
+    #: Information for looking up the type.
+    type_lookup: TypeLookup
 
 
 @dataclass
@@ -824,9 +838,9 @@ class StoreParameter:
 
         return isinstance(value, PV)
 
-    def _init_type_lookup(self) -> _TypeLookup:
+    def _init_type_lookup(self) -> TypeLookup:
         return cast(
-            _TypeLookup,
+            TypeLookup,
             {
                 "tuples": [],
                 "sets": [],
@@ -838,7 +852,7 @@ class StoreParameter:
         self,
         obj: ParameterValue | list | tuple | set | dict | int | float | str | None | Any,
         path: list[int] | None = None,
-        type_lookup: _TypeLookup | None = None,
+        type_lookup: TypeLookup | None = None,
         **kwargs,
     ) -> EncodedStoreParameter:
         """Recursive encoder."""
@@ -1032,19 +1046,6 @@ class PersistentStore(
     """
     An abstract class representing a persistent workflow store.
 
-    Type Parameters
-    ---------------
-    AnySTask
-        The type of stored tasks.
-    AnySElement
-        The type of stored elements.
-    AnySElementIter
-        The type of stored element iterations.
-    AnySEAR
-        The type of stored EARs.
-    AnySParameter
-        The type of stored parameters.
-
     Parameters
     ----------
     app: App
@@ -1055,6 +1056,19 @@ class PersistentStore(
         Where to hold the store.
     fs: fsspec.AbstractFileSystem
         Optionally, information about how to access the store.
+
+    Type Parameters
+    ---------------
+    AnySTask: StoreTask
+        The type of stored tasks.
+    AnySElement: StoreElement
+        The type of stored elements.
+    AnySElementIter: StoreElementIter
+        The type of stored element iterations.
+    AnySEAR: StoreEAR
+        The type of stored EARs.
+    AnySParameter: StoreParameter
+        The type of stored parameters.
     """
 
     _name: ClassVar[str]
@@ -1112,31 +1126,45 @@ class PersistentStore(
 
     @abstractmethod
     def cached_load(self) -> contextlib.AbstractContextManager[None]:
-        ...
+        """
+        Perform a load with cache enabled while the ``with``-wrapped code runs.
+        """
 
     @abstractmethod
     def get_name(self) -> str:
-        ...
+        """
+        Get the workflow name.
+        """
 
     @abstractmethod
     def get_creation_info(self) -> StoreCreationInfo:
-        ...
+        """
+        Get the workflow creation data.
+        """
 
     @abstractmethod
     def get_ts_fmt(self) -> str:
-        ...
+        """
+        Get the timestamp format.
+        """
 
     @abstractmethod
     def get_ts_name_fmt(self) -> str:
-        ...
+        """
+        Get the timestamp format for names.
+        """
 
     @abstractmethod
     def remove_replaced_dir(self) -> None:
-        ...
+        """
+        Remove a replaced directory.
+        """
 
     @abstractmethod
     def reinstate_replaced_dir(self) -> None:
-        ...
+        """
+        Reinstate a replaced directory.
+        """
 
     @abstractmethod
     def zip(
@@ -1147,11 +1175,15 @@ class PersistentStore(
         include_execute=False,
         include_rechunk_backups=False,
     ) -> str:
-        ...
+        """
+        Convert this store into archival form.
+        """
 
     @abstractmethod
     def unzip(self, path: str = ".", log: str | None = None) -> str:
-        ...
+        """
+        Convert this store into expanded form.
+        """
 
     @abstractmethod
     def rechunk_parameter_base(
@@ -1187,7 +1219,9 @@ class PersistentStore(
         ts_fmt: str,
         ts_name_fmt: str,
     ) -> None:
-        ...
+        """
+        Write an empty workflow.
+        """
 
     @property
     def workflow(self) -> Workflow:
