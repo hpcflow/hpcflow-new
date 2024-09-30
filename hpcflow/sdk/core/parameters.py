@@ -150,8 +150,6 @@ class Parameter(JSONLike):
 
     Parameters
     ----------
-    name:
-        The name of the parameter.
     typ:
         Type code.
         Used to look up the :py:class:`ParameterValue` for this parameter,
@@ -184,8 +182,6 @@ class Parameter(JSONLike):
     #: Type code. Used to look up the :py:class:`ParameterValue` for this parameter,
     #: if any.
     typ: str
-    #: The name of the parameter.
-    name: str = ""
     #: Whether this parameter represents a file.
     is_file: bool = False
     #: Any parameters packed within this one.
@@ -216,8 +212,6 @@ class Parameter(JSONLike):
     def __post_init__(self) -> None:
         self.typ = check_valid_py_identifier(self.typ)
         self._set_value_class()
-        if not self.name:
-            self.name = self.typ
 
     def _set_value_class(self) -> None:
         # custom parameter classes must inherit from `ParameterValue` not the app
@@ -244,7 +238,7 @@ class Parameter(JSONLike):
     def to_dict(self):
         dct = super().to_dict()
         del dct["_value_class"]
-        if dct.get("name") is None:
+        if dct.get("name", None) is None:
             dct.pop("name", None)
         dct.pop("_task_schema", None)  # TODO: how do we have a _task_schema ref?
         return dct
@@ -316,13 +310,6 @@ class SchemaParameter(JSONLike):
     def _validate(self) -> None:
         if isinstance(self.parameter, str):
             self.parameter: Parameter = self._app.Parameter(typ=self.parameter)
-
-    @property
-    def name(self) -> str:
-        """
-        The name of the parameter.
-        """
-        return self.parameter.name or ""
 
     @property
     def typ(self) -> str:
@@ -501,8 +488,9 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         dct = super().to_dict()
+        v: dict[str, ParameterPropagationMode]
         for k, v in dct["labels"].items():
             prop_mode = v.get("parameter_propagation_mode")
             if prop_mode:
