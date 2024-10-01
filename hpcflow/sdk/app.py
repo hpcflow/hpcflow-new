@@ -213,14 +213,14 @@ class KnownSubmissionItem(TypedDict):
 
 
 def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
-    R"""Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
+    R"""
+    Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
 
     References
     ----------
     [1]: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?
             apiVersion=2022-11-28#about-secondary-rate-limits
     """
-
     auth = {}
     if app.run_time_info.in_pytest:
         gh_token = os.environ.get("GH_TOKEN")
@@ -261,7 +261,9 @@ def __getattr__(name):
 
 
 def get_app_attribute(name):
-    """A function to assign to an app module `__getattr__` to access app attributes."""
+    """
+    A function to assign to an app module `__getattr__` to access app attributes.
+    """
     try:
         app_obj = App.get_instance()
     except RuntimeError:
@@ -324,7 +326,7 @@ class TemplateComponents(TypedDict):
     #: Parameters loaded from templates.
     parameters: NotRequired[_ParametersList]
     #: Command files loaded from templates.
-    command_files: NotRequired[CommandFilesList_]
+    command_files: NotRequired[_CommandFilesList]
     #: Execution environments loaded from templates.
     environments: NotRequired[_EnvironmentsList]
     #: Task schemas loaded from templates.
@@ -334,7 +336,8 @@ class TemplateComponents(TypedDict):
 
 
 class BaseApp(metaclass=Singleton):
-    """Class to generate the hpcflow application.
+    """
+    Class to generate the hpcflow application.
 
     Parameters
     ----------
@@ -456,7 +459,7 @@ class BaseApp(metaclass=Singleton):
         # Set by `_load_template_components`:
         self._template_components: TemplateComponents = {}
         self._parameters: _ParametersList | None = None
-        self._command_files: CommandFilesList_ | None = None
+        self._command_files: _CommandFilesList | None = None
         self._environments: _EnvironmentsList | None = None
         self._task_schemas: _TaskSchemasList | None = None
         self._scripts: dict[str, Path] | None = None
@@ -1124,7 +1127,8 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def make_workflow(self) -> Callable[..., _Workflow]:
-        """Generate a new workflow from a file or string containing a workflow
+        """
+        Generate a new workflow from a file or string containing a workflow
         template parametrisation.
 
         Parameters
@@ -1171,7 +1175,8 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def make_demo_workflow(self) -> Callable[..., _Workflow]:
-        """Generate a new workflow from a builtin demo workflow template.
+        """
+        Generate a new workflow from a builtin demo workflow template.
 
         Parameters
         ----------
@@ -1217,7 +1222,8 @@ class BaseApp(metaclass=Singleton):
     def make_and_submit_workflow(
         self,
     ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
-        """Generate and submit a new workflow from a file or string containing a
+        """
+        Generate and submit a new workflow from a file or string containing a
         workflow template parametrisation.
 
         Parameters
@@ -1287,7 +1293,8 @@ class BaseApp(metaclass=Singleton):
     def make_and_submit_demo_workflow(
         self,
     ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
-        """Generate and submit a new demo workflow from a file or string containing a
+        """
+        Generate and submit a new demo workflow from a file or string containing a
         workflow template parametrisation.
 
         Parameters
@@ -1351,7 +1358,8 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def submit_workflow(self) -> Callable[..., dict[int, list[int]] | None]:
-        """Submit an existing workflow.
+        """
+        Submit an existing workflow.
 
         Parameters
         ----------
@@ -1396,7 +1404,8 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def get_shell_info(self) -> Callable[[str, bool], VersionInfo]:
-        """Get information about a given shell and the operating system.
+        """
+        Get information about a given shell and the operating system.
 
         Parameters
         ----------
@@ -1414,40 +1423,34 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def get_known_submissions(self) -> Callable[..., list[KnownSubmissionItem]]:
-        """Retrieve information about active and recently inactive finished
-                workflows.
+        """
+        Retrieve information about active and recently inactive finished workflows.
 
-                This method removes workflows from the known-submissions file that are found to be
-                inactive on this machine (according to the scheduler/process ID).
+        This method removes workflows from the known-submissions file that are found to be
+        inactive on this machine (according to the scheduler/process ID).
 
-                Parameters
-                ----------
-                max_recent: int
-                    Maximum number of inactive workflows to retrieve.
-                no_update: bool
-                    If True, do not update the known-submissions file to set submissions that are
-                    now inactive.
-                as_json: bool
-                    If True, only include JSON-compatible information. This will exclude the
-                    `submission` key, for instance.
+        Parameters
+        ----------
+        max_recent: int
+            Maximum number of inactive workflows to retrieve.
+        no_update: bool
+            If True, do not update the known-submissions file to set submissions that are
+            now inactive.
+        as_json: bool
+            If True, only include JSON-compatible information. This will exclude the
+            `submission` key, for instance.
 
-                Returns
-                -------
-                list[KnownSubmissionItem]
-                    List of descriptions of known items
-                Returns
-                -------
-                Workflow
-                    The created workflow.
-                dict[int, list[int]]
-                    Mapping of submission handles.
-        .
+        Returns
+        -------
+        list[KnownSubmissionItem]
+            List of descriptions of known items.
         """
         return self.__get_app_func("get_known_submissions")
 
     @property
     def show(self) -> Callable[..., None]:
-        """Show information about running workflows.
+        """
+        Show information about running workflows.
 
         Parameters
         ----------
@@ -1464,13 +1467,16 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def show_legend(self) -> Callable[[], None]:
-        """ "Output a legend for the jobscript-element and EAR states that are displayed
-        by the `show` command."""
+        """
+        Output a legend for the jobscript-element and EAR states that are displayed
+        by the `show` command.
+        """
         return self.__get_app_func("show_legend")
 
     @property
     def cancel(self) -> Callable[..., None]:
-        """Cancel the execution of a workflow submission.
+        """
+        Cancel the execution of a workflow submission.
 
         Parameters
         ----------
@@ -1585,17 +1591,20 @@ class BaseApp(metaclass=Singleton):
         self._load_template_components()
 
     def reload_template_components(self, warn=True) -> None:
-        """Reload all template component data, warning by default if not already
-        loaded."""
+        """
+        Reload all template component data, warning by default if not already
+        loaded.
+        """
         if warn and not self.is_template_components_loaded:
             warnings.warn("Template components not loaded; loading now.")
         self._load_template_components()
 
     @TimeIt.decorator
     def _load_template_components(self, *include: str) -> None:
-        """Combine any builtin template components with user-defined template components
-        and initialise list objects."""
-
+        """
+        Combine any builtin template components with user-defined template components
+        and initialise list objects.
+        """
         if not include or "task_schemas" in include:
             # task schemas require all other template components to be loaded first
             include = (
@@ -1856,12 +1865,12 @@ class BaseApp(metaclass=Singleton):
         return scheduler_cls(**scheduler_kwargs)
 
     def get_OS_supported_schedulers(self) -> list[str]:
-        """Retrieve a list of schedulers that are supported in principle by this operating
+        """
+        Retrieve a list of schedulers that are supported in principle by this operating
         system.
 
         This does not necessarily mean all the returned schedulers are available on this
         system.
-
         """
         out: list[str] = []
         for k in self.scheduler_lookup:
@@ -1873,8 +1882,10 @@ class BaseApp(metaclass=Singleton):
         return out
 
     def perm_error_retry(self):
-        """Return a decorator for retrying functions on permission and OS errors that
-        might be associated with cloud-storage desktop sync. engine operations."""
+        """
+        Return a decorator for retrying functions on permission and OS errors that
+        might be associated with cloud-storage desktop sync. engine operations.
+        """
         return retry(
             (PermissionError, OSError),
             tries=10,
@@ -1921,7 +1932,6 @@ class BaseApp(metaclass=Singleton):
         We segregate by hostname to account for the case where multiple machines might
         use the same shared file system.
         """
-
         # This might need to cover e.g. multiple login nodes, as described in the
         # config file:
         if self._user_data_hostname_dir is None:
@@ -1945,13 +1955,15 @@ class BaseApp(metaclass=Singleton):
         return self.user_data_dir
 
     def _ensure_user_runtime_dir(self) -> Path:
-        """Generate a user runtime directory for this machine in which we can create
+        """
+        Generate a user runtime directory for this machine in which we can create
         semi-persistent temporary files.
 
-        Note: unlike `_ensure_user_data_dir`, and `_ensure_user_data_hostname_dir`, this
+        Note
+        ----
+        Unlike `_ensure_user_data_dir`, and `_ensure_user_data_hostname_dir`, this
         method is not invoked on config load, because it might need to be created after
         each reboot, and it is not routinely used.
-
         """
         if not self.user_runtime_dir.exists():
             self.user_runtime_dir.mkdir(parents=True)
@@ -1977,8 +1989,10 @@ class BaseApp(metaclass=Singleton):
         return self.demo_data_cache_dir
 
     def _ensure_user_data_hostname_dir(self) -> Path:
-        """Ensure a user data directory for this machine exists (used by the helper
-        process and the known-submissions file)."""
+        """
+        Ensure a user data directory for this machine exists (used by the helper
+        process and the known-submissions file).
+        """
         if not self.user_data_hostname_dir.exists():
             self.user_data_hostname_dir.mkdir(parents=True)
             self.logger.info(
@@ -2021,21 +2035,21 @@ class BaseApp(metaclass=Singleton):
             self._ensure_user_cache_hostname_dir()
 
     @TimeIt.decorator
-    def _load_config(self, config_dir, config_key, **overrides) -> None:
+    def _load_config(self, config_dir: PathLike, config_key: str | None, **overrides) -> None:
         self.logger.info("Loading configuration.")
         self._ensure_user_data_dir()
-        config_dir = ConfigFile._resolve_config_dir(
+        resolved_config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
             logger=self.config_logger,
             directory=config_dir,
         )
-        if str(config_dir) not in self._config_files:
-            self._config_files[str(config_dir)] = ConfigFile(
-                directory=config_dir,
+        if str(resolved_config_dir) not in self._config_files:
+            self._config_files[str(resolved_config_dir)] = ConfigFile(
+                directory=resolved_config_dir,
                 logger=self.config_logger,
                 config_options=self.config_options,
             )
-        file = self._config_files[str(config_dir)]
+        file = self._config_files[str(resolved_config_dir)]
         self._config = Config(
             app=self,
             config_file=file,
@@ -2055,13 +2069,22 @@ class BaseApp(metaclass=Singleton):
 
     def load_config(
         self,
-        config_dir=None,
-        config_key=None,
-        warn=True,
+        config_dir: PathLike = None,
+        config_key: str | None = None,
+        warn: bool = True,
         **overrides,
     ) -> None:
         """
         Load the user's configuration.
+
+        Parameters
+        ----------
+        config_dir:
+            Directory containing the configuration, if not default.
+        config_key:
+            Key to the configuration within the config file.
+        warn:
+            Whether to warn if a configuration is already loaded.
         """
         if warn and self.is_config_loaded:
             warnings.warn("Configuration is already loaded; reloading.")
@@ -2122,7 +2145,13 @@ class BaseApp(metaclass=Singleton):
 
     @TimeIt.decorator
     def _load_scripts(self) -> dict[str, Path]:
+        """
+        Discover where the built-in scripts all are.
 
+        Note
+        ----
+        Only works if hpcflow is not bundled as a single archive.
+        """
         # TODO: load custom directories / custom functions (via decorator)
         scripts_package = f"{self.package_name}.{self.scripts_dir}"
 
@@ -2165,19 +2194,19 @@ class BaseApp(metaclass=Singleton):
     def get_demo_workflow_template_file(
         self, name: str, doc: bool = True, delete: bool = True
     ) -> Iterator[Path]:
-        """Context manager to get a (temporary) file path to an included demo workflow
+        """
+        Context manager to get a (temporary) file path to an included demo workflow
         template.
 
         Parameters
         ----------
-        name
+        name:
             Name of the builtin demo workflow template whose file path is to be retrieved.
-        doc
+        doc:
             If False, the yielded path will be to a file without the `doc` attribute (if
             originally present).
-        delete
+        delete:
             If True, remove the temporary file on exit.
-
         """
         tmp_dir = self._ensure_user_runtime_dir()
         builtin_path = self._get_demo_workflows()[name]
@@ -2207,7 +2236,8 @@ class BaseApp(metaclass=Singleton):
     def copy_demo_workflow(
         self, name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
-        """Copy a builtin demo workflow to the specified location.
+        """
+        Copy a builtin demo workflow to the specified location.
 
         Parameters
         ----------
@@ -2220,7 +2250,6 @@ class BaseApp(metaclass=Singleton):
             If False, the copied workflow template file will not include the `doc`
             attribute (if originally present).
         """
-
         dst = dst or Path(".")
         with self.get_demo_workflow_template_file(name, doc=doc) as src:
             shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
@@ -2228,15 +2257,16 @@ class BaseApp(metaclass=Singleton):
         return src.name
 
     def show_demo_workflow(self, name: str, syntax: bool = True, doc: bool = False):
-        """Print the contents of a builtin demo workflow template file.
+        """
+        Print the contents of a builtin demo workflow template file.
 
         Parameters
         ----------
-        name
+        name:
             The name of the demo workflow file to print.
-        syntax
+        syntax:
             If True, use rich to syntax-highlight the output.
-        doc
+        doc:
             If False, the printed workflow template file contents will not include the
             `doc` attribute (if originally present).
         """
@@ -2278,9 +2308,10 @@ class BaseApp(metaclass=Singleton):
         return tc
 
     def get_parameter_task_schema_map(self) -> dict[str, list[list[str]]]:
-        """Get a dict mapping parameter types to task schemas that input/output each
-        parameter."""
-
+        """
+        Get a dict mapping parameter types to task schemas that input/output each
+        parameter.
+        """
         param_map: dict[str, list[list[str]]] = {}
         for ts in self.task_schemas:
             for inp in ts.inputs:
@@ -2370,9 +2401,10 @@ class BaseApp(metaclass=Singleton):
         sub_idx: int,
         sub_time: str,
     ) -> int:
-        """Ensure a the specified workflow submission is in the known-submissions file and
-        return the associated local ID."""
-
+        """
+        Ensure a the specified workflow submission is in the known-submissions file and
+        return the associated local ID.
+        """
         try:
             known = self.read_known_submissions_file()
         except FileNotFoundError:
@@ -2423,9 +2455,12 @@ class BaseApp(metaclass=Singleton):
         start_times: dict[int, str],
         end_times: dict[int, str],
     ) -> list[int]:
-        """Update submission records in the known-submission file.
+        """
+        Update submission records in the known-submission file.
 
-        Note we aim for atomicity to help with the scenario where a new workflow
+        Note
+        ----
+        We aim for atomicity to help with the scenario where a new workflow
         submission is adding itself to the file at the same time as we have decided an
         existing workflow should no longer be part of this file. Ideally, such a scenario
         should not arise because both operations should only ever be interactively
@@ -2438,9 +2473,7 @@ class BaseApp(metaclass=Singleton):
         list[int]
             List of local IDs removed from the known-submissions file due to the maximum
             number of recent workflows to store being exceeded.
-
         """
-
         self.submission_logger.info(
             f"setting these local IDs to inactive in known-submissions file: "
             f"{inactive_IDs}"
@@ -2531,8 +2564,10 @@ class BaseApp(metaclass=Singleton):
         return removed_IDs
 
     def clear_known_submissions_file(self) -> None:
-        """Clear the known-submissions file of all submissions. This shouldn't be needed
-        normally."""
+        """
+        Clear the known-submissions file of all submissions. This shouldn't be needed
+        normally.
+        """
         self.submission_logger.warning(
             f"clearing the known-submissions file at {self.known_subs_file_path}"
         )
@@ -2554,7 +2589,8 @@ class BaseApp(metaclass=Singleton):
         variables: dict[str, str] | None = None,
         status: bool = True,
     ) -> _Workflow:
-        """Generate a new {app_name} workflow from a file or string containing a workflow
+        """
+        Generate a new {app_name} workflow from a file or string containing a workflow
         template parametrisation.
 
         Parameters
@@ -2592,7 +2628,6 @@ class BaseApp(metaclass=Singleton):
         status
             If True, display a live status to track workflow creation progress.
         """
-
         self.API_logger.info("make_workflow called")
 
         status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
@@ -2671,7 +2706,8 @@ class BaseApp(metaclass=Singleton):
         cancel: bool = False,
         status: bool = True,
     ):
-        """Generate and submit a new {app_name} workflow from a file or string containing a
+        """
+        Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
         Parameters
@@ -2728,7 +2764,6 @@ class BaseApp(metaclass=Singleton):
             If True, display a live status to track workflow creation and submission
             progress.
         """
-
         self.API_logger.info("make_and_submit_workflow called")
 
         wk = self.make_workflow(
@@ -2773,7 +2808,8 @@ class BaseApp(metaclass=Singleton):
         variables: dict[str, str] | None = None,
         status: bool = True,
     ) -> _Workflow:
-        """Generate a new {app_name} workflow from a builtin demo workflow template.
+        """
+        Generate a new {app_name} workflow from a builtin demo workflow template.
 
         Parameters
         ----------
@@ -2808,7 +2844,6 @@ class BaseApp(metaclass=Singleton):
         status
             If True, display a live status to track workflow creation progress.
         """
-
         self.API_logger.info("make_demo_workflow called")
 
         status_context: AbstractContextManager[Status] | AbstractContextManager[None] = (
@@ -2852,7 +2887,8 @@ class BaseApp(metaclass=Singleton):
         cancel: bool = False,
         status: bool = True,
     ):
-        """Generate and submit a new {app_name} workflow from a file or string containing a
+        """
+        Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
 
         Parameters
@@ -2905,7 +2941,6 @@ class BaseApp(metaclass=Singleton):
         status
             If True, display a live status to track submission progress.
         """
-
         self.API_logger.info("make_and_submit_demo_workflow called")
 
         wk = self.make_demo_workflow(
@@ -2942,21 +2977,21 @@ class BaseApp(metaclass=Singleton):
         return_idx: bool = False,
         tasks: list[int] | None = None,
     ):
-        """Submit an existing {app_name} workflow.
+        """
+        Submit an existing {app_name} workflow.
 
         Parameters
         ----------
-        workflow_path
+        workflow_path:
             Path to an existing workflow
-        JS_parallelism
+        JS_parallelism:
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
             not set, jobscript parallelism will be used if the store type supports it.
-        tasks
+        tasks:
             List of task indices to include in this submission. By default all tasks are
             included.
         """
-
         self.API_logger.info("submit_workflow called")
         assert workflow_path is not None
         wk = self.Workflow(workflow_path)
@@ -2972,14 +3007,12 @@ class BaseApp(metaclass=Singleton):
 
     def _run_hpcflow_tests(self, *args):
         """Run hpcflow test suite. This function is only available from derived apps."""
-
         from hpcflow import app as hf
 
         return hf.app.run_tests(*args)
 
     def _run_tests(self, *args):
         """Run {app_name} test suite."""
-
         try:
             import pytest
         except ModuleNotFoundError:
@@ -3009,13 +3042,14 @@ class BaseApp(metaclass=Singleton):
         shell_name: str,
         exclude_os: bool = False,
     ) -> VersionInfo:
-        """Get information about a given shell and the operating system.
+        """
+        Get information about a given shell and the operating system.
 
         Parameters
         ----------
-        shell_name
+        shell_name:
             One of the supported shell names.
-        exclude_os
+        exclude_os:
             If True, exclude operating system information.
         """
         shell = get_shell(
@@ -3032,7 +3066,8 @@ class BaseApp(metaclass=Singleton):
         as_json: bool = False,
         status: Any | None = None,
     ) -> list[KnownSubmissionItem]:
-        """Retrieve information about active and recently inactive finished {app_name}
+        """
+        Retrieve information about active and recently inactive finished {app_name}
         workflows.
 
         This method removes workflows from the known-submissions file that are found to be
@@ -3040,16 +3075,15 @@ class BaseApp(metaclass=Singleton):
 
         Parameters
         ----------
-        max_recent
+        max_recent:
             Maximum number of inactive workflows to retrieve.
-        no_update
+        no_update:
             If True, do not update the known-submissions file to set submissions that are
             now inactive.
-        as_json
+        as_json:
             If True, only include JSON-compatible information. This will exclude the
             `submission` key, for instance.
         """
-
         out: list[KnownSubmissionItem] = []
         inactive_IDs: list[int] = []
         start_times: dict[int, str] = {}
@@ -3244,7 +3278,6 @@ class BaseApp(metaclass=Singleton):
     def _show_legend(self) -> None:
         """ "Output a legend for the jobscript-element and EAR states that are displayed
         by the `show` command."""
-
         js_notes = Panel(
             "The [i]Status[/i] column of the `show` command output displays the set of "
             "unique jobscript-element states for that submission. Jobscript element "
@@ -3292,20 +3325,20 @@ class BaseApp(metaclass=Singleton):
         no_update: bool = False,
         columns=None,
     ):
-        """Show information about running {app_name} workflows.
+        """
+        Show information about running {app_name} workflows.
 
         Parameters
         ----------
-        max_recent
+        max_recent:
             Maximum number of inactive workflows to show.
-        full
+        full:
             If True, provide more information; output may spans multiple lines for each
             workflow submission.
-        no_update
+        no_update:
             If True, do not update the known-submissions file to remove workflows that are
             no longer running.
         """
-
         # TODO: add --json to show, just returning this but without submissions?
 
         allowed_cols = {
@@ -3566,7 +3599,8 @@ class BaseApp(metaclass=Singleton):
         return path.resolve()
 
     def _cancel(self, workflow_ref: int | str | PathLike, ref_is_path=None):
-        """Cancel the execution of a workflow submission.
+        """
+        Cancel the execution of a workflow submission.
 
         Parameters
         ----------
@@ -3649,7 +3683,8 @@ class BaseApp(metaclass=Singleton):
             self.config.save()
 
     def get_demo_data_files_manifest(self) -> dict[str, Any]:
-        """Get a dict whose keys are example data file names and whose values are the
+        """
+        Get a dict whose keys are example data file names and whose values are the
         source files if the source file required unzipping or `None` otherwise.
 
         If the config item `demo_data_manifest_file` is set, this is used as the manifest
@@ -3690,7 +3725,8 @@ class BaseApp(metaclass=Singleton):
         return tuple(self.get_demo_data_files_manifest().keys())
 
     def _get_demo_data_file_source_path(self, file_name: str) -> tuple[Path, bool, bool]:
-        """Get the full path to an example data file on the local file system, whether
+        """
+        Get the full path to an example data file on the local file system, whether
         the file must be unpacked, and whether the file should be deleted.
 
         If `config.demo_data_dir` is set, this directory will be used as the example data
@@ -3707,9 +3743,7 @@ class BaseApp(metaclass=Singleton):
         value of `config.demo_data_dir` (without saving to the persistent config file),
         and then retrieve the example data file path as above. The default value is set to
         the GitHub repo of the app using the current tag/version.
-
         """
-
         def _retrieve_source_path_from_config(src_fn):
             fs, url_path = rate_limit_safe_url_to_fs(
                 self,
@@ -3794,14 +3828,13 @@ class BaseApp(metaclass=Singleton):
         return out, requires_unpack, delete
 
     def get_demo_data_file_path(self, file_name) -> Path:
-        """Get the full path to an example data file in the app cache directory.
+        """
+        Get the full path to an example data file in the app cache directory.
 
         If the file does not already exist in the app cache directory, it will be added
         (and unzipped if required). The file may first be downloaded from a remote file
         system such as GitHub (see `_get_demo_data_file_source_path` for details).
-
         """
-
         # check if file exists in cache dir already
         cache_file_path = self.demo_data_cache_dir.joinpath(file_name)
         if cache_file_path.exists():
@@ -3856,7 +3889,8 @@ class BaseApp(metaclass=Singleton):
     def copy_demo_data(
         self, file_name: str, dst: PathLike | None = None, doc: bool = True
     ) -> str:
-        """Copy a builtin demo data file to the specified location.
+        """
+        Copy a builtin demo data file to the specified location.
 
         Parameters
         ----------
@@ -3866,7 +3900,6 @@ class BaseApp(metaclass=Singleton):
             Directory or full file path to copy the demo data file to. If not specified,
             the current working directory will be used.
         """
-
         dst = dst or Path(".")
         src = self.get_demo_data_file_path(file_name)
         shutil.copy2(src, dst)  # copies metadata, and `dst` can be a dir
@@ -3874,8 +3907,10 @@ class BaseApp(metaclass=Singleton):
         return src.name
 
     def _get_github_url(self, sha: str, path: str):
-        """Return a fsspec URL for retrieving a file or directory on the app's GitHub
-        repository."""
+        """
+        Return a fsspec URL for retrieving a file or directory on the app's GitHub
+        repository.
+        """
         return f"github://{self.gh_org}:{self.gh_repo}@{sha}/{path}"
 
 
