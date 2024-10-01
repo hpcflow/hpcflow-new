@@ -202,6 +202,7 @@ def _make_API_CLI(app: BaseApp):
             status=status,
         )
         if print_idx:
+            assert isinstance(out, tuple)
             click.echo(out[1])
 
     @click.command(context_settings={"ignore_unknown_options": True})

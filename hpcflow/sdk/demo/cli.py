@@ -187,6 +187,7 @@ def get_demo_workflow_CLI(app):
             status=status,
         )
         if print_idx:
+            assert isinstance(out, tuple)
             click.echo(out[1])
 
     @demo_workflow.command("copy")

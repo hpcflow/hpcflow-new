@@ -1221,7 +1221,7 @@ class BaseApp(metaclass=Singleton):
     @property
     def make_and_submit_workflow(
         self,
-    ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
+    ) -> Callable[..., _Workflow | tuple[_Workflow, dict[int, list[int]]]]:
         """
         Generate and submit a new workflow from a file or string containing a
         workflow template parametrisation.
@@ -1285,14 +1285,14 @@ class BaseApp(metaclass=Singleton):
         Workflow
             The created workflow.
         dict[int, list[int]]
-            Mapping of submission handles.
+            Mapping of submission handles. If requested by ``return_idx`` parameter.
         """
         return self.__get_app_func("make_and_submit_workflow")
 
     @property
     def make_and_submit_demo_workflow(
         self,
-    ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
+    ) -> Callable[..., _Workflow | tuple[_Workflow, dict[int, list[int]]]]:
         """
         Generate and submit a new demo workflow from a file or string containing a
         workflow template parametrisation.
@@ -1352,7 +1352,7 @@ class BaseApp(metaclass=Singleton):
         Workflow
             The created workflow.
         dict[int, list[int]]
-            Mapping of submission handles.
+            Mapping of submission handles. If requested by ``return_idx`` parameter.
         """
         return self.__get_app_func("make_and_submit_demo_workflow")
 
@@ -1376,7 +1376,7 @@ class BaseApp(metaclass=Singleton):
         Returns
         -------
         dict[int, list[int]]
-            Mapping of submission handles.
+            Mapping of submission handles. If requested by ``return_idx`` parameter.
         """
         return self.__get_app_func("submit_workflow")
 
@@ -2629,6 +2629,11 @@ class BaseApp(metaclass=Singleton):
             String variables to substitute in `template_file_or_str`.
         status
             If True, display a live status to track workflow creation progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
         """
         self.API_logger.info("make_workflow called")
 
@@ -2691,7 +2696,7 @@ class BaseApp(metaclass=Singleton):
         self,
         template_file_or_str: PathLike | str,
         is_string: bool = False,
-        template_format: str | None = None,
+        template_format: Literal["json", "yaml"] | None = None,
         path: PathLike | None = None,
         name: str | None = None,
         overwrite: bool = False,
@@ -2765,10 +2770,17 @@ class BaseApp(metaclass=Singleton):
         status
             If True, display a live status to track workflow creation and submission
             progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        dict[int, list[int]]
+            Mapping of submission handles. If requested by ``return_idx`` parameter.
         """
         self.API_logger.info("make_and_submit_workflow called")
 
-        wk = self.make_workflow(
+        wk = self._make_workflow(
             template_file_or_str=template_file_or_str,
             is_string=is_string,
             template_format=template_format,
@@ -2845,6 +2857,11 @@ class BaseApp(metaclass=Singleton):
             String variables to substitute in the demo workflow template file.
         status
             If True, display a live status to track workflow creation progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
         """
         self.API_logger.info("make_demo_workflow called")
 
@@ -2872,7 +2889,7 @@ class BaseApp(metaclass=Singleton):
     def _make_and_submit_demo_workflow(
         self,
         workflow_name: str,
-        template_format: str | None = None,
+        template_format: Literal["json", "yaml"] | None = None,
         path: PathLike | None = None,
         name: str | None = None,
         overwrite: bool = False,
@@ -2888,7 +2905,7 @@ class BaseApp(metaclass=Singleton):
         tasks: list[int] | None = None,
         cancel: bool = False,
         status: bool = True,
-    ):
+    ) -> tuple[_Workflow, dict[int, list[int]]] | _Workflow:
         """
         Generate and submit a new {app_name} workflow from a file or string containing a
         workflow template parametrisation.
@@ -2942,10 +2959,17 @@ class BaseApp(metaclass=Singleton):
             Immediately cancel the submission. Useful for testing and benchmarking.
         status
             If True, display a live status to track submission progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        dict[int, list[int]]
+            Mapping of submission handles. If requested by ``return_idx`` parameter.
         """
         self.API_logger.info("make_and_submit_demo_workflow called")
 
-        wk = self.make_demo_workflow(
+        wk = self._make_demo_workflow(
             workflow_name=workflow_name,
             template_format=template_format,
             path=path,
@@ -2978,21 +3002,30 @@ class BaseApp(metaclass=Singleton):
         wait: bool = False,
         return_idx: bool = False,
         tasks: list[int] | None = None,
-    ):
+    ) -> dict[int, list[int]] | None:
         """
         Submit an existing {app_name} workflow.
 
         Parameters
         ----------
         workflow_path:
-            Path to an existing workflow
+            Path to an existing workflow.
         JS_parallelism:
             If True, allow multiple jobscripts to execute simultaneously. Raises if set to
             True but the store type does not support the `jobscript_parallelism` feature. If
             not set, jobscript parallelism will be used if the store type supports it.
+        wait:
+            Whether to wait for the submission to complete.
+        return_idx:
+            Whether to return the index information.
         tasks:
             List of task indices to include in this submission. By default all tasks are
             included.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Mapping of submission handles, if requested by ``return_idx`` parameter.
         """
         self.API_logger.info("submit_workflow called")
         assert workflow_path is not None
@@ -3278,8 +3311,10 @@ class BaseApp(metaclass=Singleton):
         return out
 
     def _show_legend(self) -> None:
-        """ "Output a legend for the jobscript-element and EAR states that are displayed
-        by the `show` command."""
+        """
+        Output a legend for the jobscript-element and EAR states that are displayed
+        by the `show` command.
+        """
         js_notes = Panel(
             "The [i]Status[/i] column of the `show` command output displays the set of "
             "unique jobscript-element states for that submission. Jobscript element "
