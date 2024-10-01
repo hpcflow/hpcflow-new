@@ -97,7 +97,7 @@ if TYPE_CHECKING:
     from .core.environment import NumCores, Environment, Executable, ExecutableInstance
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
-        CommandFilesList as CommandFilesList_,
+        CommandFilesList as _CommandFilesList,
         EnvironmentsList as _EnvironmentsList,
         ExecutablesList,
         GroupList,
@@ -474,344 +474,1009 @@ class BaseApp(metaclass=Singleton):
 
     @property
     def ElementActionRun(self) -> type[ElementActionRun]:
+        """
+        The :class:`ElementActionRun` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementActionRun")
 
     @property
     def ElementAction(self) -> type[ElementAction]:
+        """
+        The :class:`ElementAction` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementAction")
 
     @property
     def ElementFilter(self) -> type[ElementFilter]:
+        """
+        The :class:`ElementFilter` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementFilter")
 
     @property
     def ElementGroup(self) -> type[ElementGroup]:
+        """
+        The :class:`ElementGroup` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementGroup")
 
     @property
     def Environment(self) -> type[Environment]:
+        """
+        The :class:`Environment` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Environment")
 
     @property
     def Executable(self) -> type[Executable]:
+        """
+        The :class:`Executable` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Executable")
 
     @property
     def ExecutableInstance(self) -> type[ExecutableInstance]:
+        """
+        The :class:`ExecutableInstance` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ExecutableInstance")
 
     @property
     def NumCores(self) -> type[NumCores]:
+        """
+        The :class:`NumCores` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("NumCores")
 
     @property
     def ActionEnvironment(self) -> type[ActionEnvironment]:
+        """
+        The :class:`ActionEnvironment` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ActionEnvironment")
 
     @property
     def Action(self) -> type[Action]:
+        """
+        The :class:`Action` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Action")
 
     @property
     def ActionRule(self) -> type[ActionRule]:
+        """
+        The :class:`ActionRule` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ActionRule")
 
     @property
     def ActionScope(self) -> type[ActionScope]:
+        """
+        The :class:`ActionScope` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ActionScope")
 
     @property
     def ActionScopeType(self) -> type[ActionScopeType]:
+        """
+        The :class:`ActionScopeType` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ActionScopeType")
 
     @property
     def FileSpec(self) -> type[FileSpec]:
+        """
+        The :class:`FileSpec` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("FileSpec")
 
     @property
     def FileNameSpec(self) -> type[FileNameSpec]:
+        """
+        The :class:`FileNameSpec` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("FileNameSpec")
 
     @property
     def FileNameStem(self) -> type[FileNameStem]:
+        """
+        The :class:`FileNameStem` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("FileNameStem")
 
     @property
     def FileNameExt(self) -> type[FileNameExt]:
+        """
+        The :class:`FileNameExt` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("FileNameExt")
 
     @property
     def OutputFileParser(self) -> type[OutputFileParser]:
+        """
+        The :class:`OutputFileParser` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("OutputFileParser")
 
     @property
     def InputSource(self) -> type[InputSource]:
+        """
+        The :class:`InputSource` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("InputSource")
 
     @property
     def InputSourceType(self) -> type[InputSourceType]:
+        """
+        The :class:`InputSourceType` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("InputSourceType")
 
     @property
     def ValueSequence(self) -> type[ValueSequence]:
+        """
+        The :class:`ValueSequence` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ValueSequence")
 
     @property
     def SchemaInput(self) -> type[SchemaInput]:
+        """
+        The :class:`SchemaInput` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("SchemaInput")
 
     @property
     def InputFileGenerator(self) -> type[InputFileGenerator]:
+        """
+        The :class:`InputFileGenerator` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("InputFileGenerator")
 
     @property
     def Command(self) -> type[Command]:
+        """
+        The :class:`Command` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Command")
 
     @property
     def ElementInputs(self) -> type[ElementInputs]:
+        """
+        The :class:`ElementInputs` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementInputs")
 
     @property
     def ElementOutputs(self) -> type[ElementOutputs]:
+        """
+        The :class:`ElementOutputs` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementOutputs")
 
     @property
     def ElementInputFiles(self) -> type[ElementInputFiles]:
+        """
+        The :class:`ElementInputFiles` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementInputFiles")
 
     @property
     def ElementOutputFiles(self) -> type[ElementOutputFiles]:
+        """
+        The :class:`ElementOutputFiles` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementOutputFiles")
 
     @property
     def ElementResources(self) -> type[ElementResources]:
+        """
+        The :class:`ElementResources` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementResources")
 
     @property
     def ElementIteration(self) -> type[ElementIteration]:
+        """
+        The :class:`ElementIteration` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementIteration")
 
     @property
     def ElementSet(self) -> type[ElementSet]:
+        """
+        The :class:`ElementSet` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementSet")
 
     @property
     def Element(self) -> type[Element]:
+        """
+        The :class:`Element` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Element")
 
     @property
     def ElementParameter(self) -> type[ElementParameter]:
+        """
+        The :class:`ElementParameter` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementParameter")
 
     @property
     def Loop(self) -> type[Loop]:
+        """
+        The :class:`Loop` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Loop")
 
     @property
     def WorkflowLoop(self) -> type[WorkflowLoop]:
+        """
+        The :class:`WorkflowLoop` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("WorkflowLoop")
 
     @property
-    def CommandFilesList(self) -> type[CommandFilesList_]:
+    def CommandFilesList(self) -> type[_CommandFilesList]:
+        """
+        The :class:`CommandFilesList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("CommandFilesList")
 
     @property
     def EnvironmentsList(self) -> type[_EnvironmentsList]:
+        """
+        The :class:`EnvironmentsList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("EnvironmentsList")
 
     @property
     def ExecutablesList(self) -> type[ExecutablesList]:
+        """
+        The :class:`ExecutablesList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ExecutablesList")
 
     @property
     def GroupList(self) -> type[GroupList]:
+        """
+        The :class:`GroupList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("GroupList")
 
     @property
     def ParametersList(self) -> type[_ParametersList]:
+        """
+        The :class:`ParametersList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ParametersList")
 
     @property
     def ResourceList(self) -> type[ResourceList]:
+        """
+        The :class:`ResourceList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ResourceList")
 
     @property
     def ResourceSpec(self) -> type[ResourceSpec]:
+        """
+        The :class:`ResourceSpec` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ResourceSpec")
 
     @property
     def TaskList(self) -> type[TaskList]:
+        """
+        The :class:`TaskList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskList")
 
     @property
     def TaskSchemasList(self) -> type[_TaskSchemasList]:
+        """
+        The :class:`TaskSchemasList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskSchemasList")
 
     @property
     def TaskTemplateList(self) -> type[TaskTemplateList]:
+        """
+        The :class:`TaskTemplateList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskTemplateList")
 
     @property
     def WorkflowLoopList(self) -> type[WorkflowLoopList]:
+        """
+        The :class:`WorkflowLoopList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("WorkflowLoopList")
 
     @property
     def WorkflowTaskList(self) -> type[WorkflowTaskList]:
+        """
+        The :class:`WorkflowTaskList` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("WorkflowTaskList")
 
     @property
     def SchemaParameter(self) -> type[SchemaParameter]:
+        """
+        The :class:`SchemaParameter` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("SchemaParameter")
 
     @property
     def SchemaOutput(self) -> type[SchemaOutput]:
+        """
+        The :class:`SchemaOutput` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("SchemaOutput")
 
     @property
     def Rule(self) -> type[Rule]:
+        """
+        The :class:`Rule` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Rule")
 
     @property
     def RunDirAppFiles(self) -> type[RunDirAppFiles]:
+        """
+        The :class:`RunDirAppFiles` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("RunDirAppFiles")
 
     @property
     def WorkflowTask(self) -> type[WorkflowTask]:
+        """
+        The :class:`WorkflowTask` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("WorkflowTask")
 
     @property
     def Parameters(self) -> type[Parameters]:
+        """
+        The :class:`Parameters` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Parameters")
 
     @property
     def Parameter(self) -> type[Parameter]:
+        """
+        The :class:`Parameter` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Parameter")
 
     @property
     def ParameterValue(self) -> type[ParameterValue]:
+        """
+        The :class:`ParameterValue` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ParameterValue")
 
     @property
     def InputValue(self) -> type[InputValue]:
+        """
+        The :class:`InputValue` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("InputValue")
 
     @property
     def Task(self) -> type[Task]:
+        """
+        The :class:`Task` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Task")
 
     @property
     def TaskSchema(self) -> type[TaskSchema]:
+        """
+        The :class:`TaskSchema` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskSchema")
 
     @property
     def TaskSourceType(self) -> type[TaskSourceType]:
+        """
+        The :class:`TaskSourceType` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskSourceType")
 
     @property
     def TaskObjective(self) -> type[TaskObjective]:
+        """
+        The :class:`TaskObjective` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskObjective")
 
     @property
     def TaskInputParameters(self) -> type[TaskInputParameters]:
+        """
+        The :class:`TaskInputParameters` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskInputParameters")
 
     @property
     def TaskOutputParameters(self) -> type[TaskOutputParameters]:
+        """
+        The :class:`TaskOutputParameters` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("TaskOutputParameters")
 
     @property
     def ElementPropagation(self) -> type[ElementPropagation]:
+        """
+        The :class:`ElementPropagation` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("ElementPropagation")
 
     @property
     def WorkflowTemplate(self) -> type[_WorkflowTemplate]:
+        """
+        The :class:`WorkflowTemplate` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("WorkflowTemplate")
 
     @property
     def Workflow(self) -> type[_Workflow]:
+        """
+        The :class:`Workflow` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Workflow")
 
     @property
     def Jobscript(self) -> type[Jobscript]:
+        """
+        The :class:`Jobscript` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Jobscript")
 
     @property
     def Submission(self) -> type[Submission]:
+        """
+        The :class:`Submission` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("Submission")
 
     @property
     def DirectPosix(self) -> type[DirectPosix]:
+        """
+        The :class:`DirectPosix` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("DirectPosix")
 
     @property
     def DirectWindows(self) -> type[DirectWindows]:
+        """
+        The :class:`DirectWindows` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("DirectWindows")
 
     @property
     def SGEPosix(self) -> type[SGEPosix]:
+        """
+        The :class:`SGEPosix` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("SGEPosix")
 
     @property
     def SlurmPosix(self) -> type[SlurmPosix]:
+        """
+        The :class:`SlurmPosix` class.
+
+        :meta private:
+        """
         return self._get_app_core_class("SlurmPosix")
 
     @property
     def QueuedScheduler(self) -> type[QueuedScheduler]:
+        """
+        The :class:`QueuedScheduler` class.
+
+        :meta private:
+        """
         from .submission.schedulers import QueuedScheduler as QS
 
         return QS
 
     @property
     def make_workflow(self) -> Callable[..., _Workflow]:
+        """Generate a new workflow from a file or string containing a workflow
+        template parametrisation.
+
+        Parameters
+        ----------
+        template_path_or_str: str
+            Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+        is_string: bool
+            Determines if passing a file path or a string.
+        template_format: str
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path: str | Path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name: str
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the workflow template name will be used,
+            in combination with a date-timestamp.
+        overwrite: bool
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store: str
+            The persistent store type to use.
+        ts_fmt: str
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt: str
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        store_kwargs: dict[str, object]
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables: dict[str, str]
+            String variables to substitute in `template_file_or_str`.
+        status: bool
+            If True, display a live status to track workflow creation progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        """
         return self.__get_app_func("make_workflow")
 
     @property
-    def make_demo_workflow(self) -> Callable[..., Any]:
+    def make_demo_workflow(self) -> Callable[..., _Workflow]:
+        """Generate a new workflow from a builtin demo workflow template.
+
+        Parameters
+        ----------
+        workflow_name: str
+            Name of the demo workflow to make.
+        template_format: str
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path: str | Path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name: str
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the workflow template name will be used,
+            in combination with a date-timestamp.
+        overwrite: bool
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store: str
+            The persistent store type to use.
+        ts_fmt: str
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt: str
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        store_kwargs: dict[str, object]
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables: dict[str, str]
+            String variables to substitute in the demo workflow template file.
+        status: bool
+            If True, display a live status to track workflow creation progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        """
         return self.__get_app_func("make_demo_workflow")
 
     @property
-    def make_and_submit_workflow(self) -> Callable[..., tuple[int, ...]]:
+    def make_and_submit_workflow(self) -> Callable[
+            ..., tuple[_Workflow, dict[int, list[int]]]]:
+        """Generate and submit a new workflow from a file or string containing a
+        workflow template parametrisation.
+
+        Parameters
+        ----------
+
+        template_path_or_str: str
+            Either a path to a template file in YAML or JSON format, or a YAML/JSON string.
+        is_string: str
+            Determines whether `template_path_or_str` is a string or a file.
+        template_format: str
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path: str | Path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name: str
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite: bool
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store: str
+            The persistent store to use for this workflow.
+        ts_fmt: str
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt: str
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        store_kwargs: dict[str, object]
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables: dict[str, str]
+            String variables to substitute in `template_file_or_str`.
+        JS_parallelism: bool
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        wait: bool
+            If True, this command will block until the workflow execution is complete.
+        add_to_known: bool
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
+        return_idx: bool
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
+        tasks: list[int]
+            List of task indices to include in this submission. By default all tasks are
+            included.
+        cancel: bool
+            Immediately cancel the submission. Useful for testing and benchmarking.
+        status: bool
+            If True, display a live status to track workflow creation and submission
+            progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        dict[int, list[int]]
+            Mapping of submission handles.
+        """
         return self.__get_app_func("make_and_submit_workflow")
 
     @property
-    def make_and_submit_demo_workflow(self) -> Callable[..., Any]:
+    def make_and_submit_demo_workflow(self) -> Callable[
+            ..., tuple[_Workflow, dict[int, list[int]]]]:
+        """Generate and submit a new demo workflow from a file or string containing a
+        workflow template parametrisation.
+
+        Parameters
+        ----------
+        workflow_name: str
+            Name of the demo workflow to make. **Required.**
+        template_format: str
+            If specified, one of "json" or "yaml". This forces parsing from a particular
+            format.
+        path: str | Path
+            The directory in which the workflow will be generated. The current directory
+            if not specified.
+        name: str
+            The name of the workflow. If specified, the workflow directory will be `path`
+            joined with `name`. If not specified the `WorkflowTemplate` name will be used,
+            in combination with a date-timestamp.
+        overwrite: bool
+            If True and the workflow directory (`path` + `name`) already exists, the
+            existing directory will be overwritten.
+        store: str
+            The persistent store to use for this workflow.
+        ts_fmt: str
+            The datetime format to use for storing datetimes. Datetimes are always stored
+            in UTC (because Numpy does not store time zone info), so this should not
+            include a time zone name.
+        ts_name_fmt: str
+            The datetime format to use when generating the workflow name, where it
+            includes a timestamp.
+        store_kwargs: dict[str, object]
+            Keyword arguments to pass to the store's `write_empty_workflow` method.
+        variables: dict[str, str]
+            String variables to substitute in the demo workflow template file.
+        JS_parallelism: bool
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        wait: bool
+            If True, this command will block until the workflow execution is complete.
+        add_to_known: bool
+            If True, add the new submission to the known-submissions file, which is
+            used by the `show` command to monitor current and recent submissions.
+        return_idx: bool
+            If True, return a dict representing the jobscript indices submitted for each
+            submission.
+        tasks: list[int]
+            List of task indices to include in this submission. By default all tasks are
+            included.
+        cancel: bool
+            Immediately cancel the submission. Useful for testing and benchmarking.
+        status: bool
+            If True, display a live status to track submission progress.
+
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        dict[int, list[int]]
+            Mapping of submission handles.
+        """
         return self.__get_app_func("make_and_submit_demo_workflow")
 
     @property
-    def submit_workflow(self) -> Callable[..., Any]:
+    def submit_workflow(self) -> Callable[..., dict[int, list[int]] | None]:
+        """Submit an existing workflow.
+
+        Parameters
+        ----------
+        workflow_path: str
+            Path to an existing workflow
+        JS_parallelism: bool
+            If True, allow multiple jobscripts to execute simultaneously. Raises if set to
+            True but the store type does not support the `jobscript_parallelism` feature. If
+            not set, jobscript parallelism will be used if the store type supports it.
+        tasks: list[int]
+            List of task indices to include in this submission. By default all tasks are
+            included.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Mapping of submission handles.
+        """
         return self.__get_app_func("submit_workflow")
 
     @property
     def run_hpcflow_tests(self) -> Callable[..., int]:
+        """Run hpcflow test suite. This function is only available from derived apps."""
         return self.__get_app_func("run_hpcflow_tests")
 
     @property
     def run_tests(self) -> Callable[..., int]:
+        """Run the test suite."""
         return self.__get_app_func("run_tests")
 
     @property
     def get_OS_info(self) -> Callable[..., Mapping[str, str]]:
+        """
+        Get information about the operating system.
+        
+        Returns
+        -------
+        dict[str, str]
+            Key-value mapping containing system version information.
+        """
         return self.__get_app_func("get_OS_info")
 
     @property
     def get_shell_info(self) -> Callable[[str, bool], VersionInfo]:
+        """Get information about a given shell and the operating system.
+
+        Parameters
+        ----------
+        shell_name: str
+            One of the supported shell names.
+        exclude_os: bool
+            If True, exclude operating system information.
+
+        Returns
+        -------
+        VersionInfo
+            The shell version information descriptor.
+        """
         return self.__get_app_func("get_shell_info")
 
     @property
     def get_known_submissions(self) -> Callable[..., list[KnownSubmissionItem]]:
+        """Retrieve information about active and recently inactive finished
+        workflows.
+
+        This method removes workflows from the known-submissions file that are found to be
+        inactive on this machine (according to the scheduler/process ID).
+
+        Parameters
+        ----------
+        max_recent: int
+            Maximum number of inactive workflows to retrieve.
+        no_update: bool
+            If True, do not update the known-submissions file to set submissions that are
+            now inactive.
+        as_json: bool
+            If True, only include JSON-compatible information. This will exclude the
+            `submission` key, for instance.
+
+        Returns
+        -------
+        list[KnownSubmissionItem]
+            List of descriptions of known items
+        Returns
+        -------
+        Workflow
+            The created workflow.
+        dict[int, list[int]]
+            Mapping of submission handles.
+.
+        """
         return self.__get_app_func("get_known_submissions")
 
     @property
     def show(self) -> Callable[..., None]:
+        """Show information about running workflows.
+
+        Parameters
+        ----------
+        max_recent: int
+            Maximum number of inactive workflows to show.
+        full: bool
+            If True, provide more information; output may spans multiple lines for each
+            workflow submission.
+        no_update: bool
+            If True, do not update the known-submissions file to remove workflows that are
+            no longer running.
+        """
         return self.__get_app_func("show")
 
     @property
     def show_legend(self) -> Callable[[], None]:
+        """ "Output a legend for the jobscript-element and EAR states that are displayed
+        by the `show` command."""
         return self.__get_app_func("show_legend")
 
     @property
     def cancel(self) -> Callable[..., None]:
+        """Cancel the execution of a workflow submission.
+
+        Parameters
+        ----------
+        workflow_ref: int | str | Path
+            Which workflow to cancel, by ID or path.
+        ref_is_path: str
+            One of "``id``", "``path``" or "``assume-id``" (the default)
+        """
         return self.__get_app_func("cancel")
 
     def __getattr__(self, name):
@@ -1045,7 +1710,7 @@ class BaseApp(metaclass=Singleton):
         return self._parameters
 
     @property
-    def command_files(self) -> CommandFilesList_:
+    def command_files(self) -> _CommandFilesList:
         """
         The known template command files.
         """
@@ -1755,7 +2420,7 @@ class BaseApp(metaclass=Singleton):
         inactive_IDs: list[int],
         start_times: dict[int, str],
         end_times: dict[int, str],
-    ):
+    ) -> list[int]:
         """Update submission records in the known-submission file.
 
         Note we aim for atomicity to help with the scenario where a new workflow
@@ -1768,7 +2433,7 @@ class BaseApp(metaclass=Singleton):
 
         Returns
         -------
-        removed_IDs
+        list[int]
             List of local IDs removed from the known-submissions file due to the maximum
             number of recent workflows to store being exceeded.
 
@@ -1785,9 +2450,9 @@ class BaseApp(metaclass=Singleton):
         # date-times:
         line_date = {}
 
-        removed_IDs = []  # which submissions we completely remove from the file
+        removed_IDs: list[int] = []  # which submissions we completely remove from the file
 
-        new_lines = []
+        new_lines: list[str] = []
         line_IDs: list[int] = []
         for ln_idx, line in enumerate(self.known_subs_file_path.read_text().split("\n")):
             if not line.strip():
@@ -2379,7 +3044,6 @@ class BaseApp(metaclass=Singleton):
         as_json
             If True, only include JSON-compatible information. This will exclude the
             `submission` key, for instance.
-
         """
 
         out: list[KnownSubmissionItem] = []

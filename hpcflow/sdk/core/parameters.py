@@ -2282,7 +2282,7 @@ class ResourceSpec(JSONLike):
 
 class InputSourceType(enum.Enum):
     """
-    The types if input sources.
+    The types of input sources.
     """
 
     #: Input source is an import.
