@@ -245,19 +245,32 @@ class ConfigOptions:
 
 
 class ConfigMetadata(TypedDict):
+    """
+    Metadata supported by the :class:`Config` class.
+    """
+    #: Location of directory containing the config file.
     config_directory: Path
+    #: Name of the config file.
     config_file_name: str
+    #: Full path to the config file.
     config_file_path: Path
+    #: The contents of the config file.
     config_file_contents: str
+    #: The key identifying the config section within the config file.
     config_key: str
+    #: Schemas that apply to the config.
     config_schemas: Sequence[Schema]
+    #: The user that invoked things.
     invoking_user_id: str
+    #: The user hosting things.
     host_user_id: str
+    #: Path to file holding description of :attr:``host_user_id``.
     host_user_id_file_path: Path
 
 
 class Config:
-    """Application configuration as defined in one or more config files.
+    """
+    Application configuration as defined in one or more config files.
 
     This class supports indexing into the collection of properties via Python dot notation.
 
@@ -295,76 +308,25 @@ class Config:
 
     Attributes
     ----------
-    config_directory:
-        The directory containing the configuration file.
-    config_file_name:
-        The name of the configuration file.
-    config_file_path:
-        The full path to the configuration file.
-    config_file_contents:
-        The cached contents of the configuration file.
-    config_key:
-        The primary key to select the configuration within the configuration file.
-    config_schemas:
-        The schemas that apply to the configuration file.
-    host_user_id:
-        User ID as understood by the script.
-    host_user_id_file_path:
-        Where user ID information is stored.
-    invoking_user_id:
-        User ID that created the workflow.
-    machine:
-        Machine to submit to.
-        Mapped to a field in the configuration file.
-    user_name:
+    user_name: str
         User to submit as.
         Mapped to a field in the configuration file.
-    user_orcid:
+    user_orcid: str
         User's ORCID.
         Mapped to a field in the configuration file.
-    user_affiliation:
+    user_affiliation: str
         User's institutional affiliation.
         Mapped to a field in the configuration file.
-    linux_release_file:
+    linux_release_file: str
         Where to get the description of the Linux release version data.
         Mapped to a field in the configuration file.
-    log_file_path:
-        Where to log to.
-        Mapped to a field in the configuration file.
-    log_file_level:
+    log_file_level: str
         At what level to do logging to the file.
         Mapped to a field in the configuration file.
-    log_console_level:
+    log_console_level: str
         At what level to do logging to the console. Usually coarser than to a file.
         Mapped to a field in the configuration file.
-    task_schema_sources:
-        Where to get task schemas.
-        Mapped to a field in the configuration file.
-    parameter_sources:
-        Where to get parameter descriptors.
-        Mapped to a field in the configuration file.
-    command_file_sources:
-        Where to get command files.
-        Mapped to a field in the configuration file.
-    environment_sources:
-        Where to get execution environment descriptors.
-        Mapped to a field in the configuration file.
-    default_scheduler:
-        The name of the default scheduler.
-        Mapped to a field in the configuration file.
-    default_shell:
-        The name of the default shell.
-        Mapped to a field in the configuration file.
-    schedulers:
-        Settings for supported scheduler(s).
-        Mapped to a field in the configuration file.
-    shells:
-        Settings for supported shell(s).
-        Mapped to a field in the configuration file.
-    demo_data_dir:
-        Location of demo data.
-        Mapped to a field in the configuration file.
-    demo_data_manifest_file:
+    demo_data_manifest_file: str
         Where the manifest describing the demo data is.
         Mapped to a field in the configuration file.
     """
@@ -462,42 +424,73 @@ class Config:
 
     @property
     def config_directory(self) -> Path:
+        """
+        The directory containing the configuration file.
+        """
         return self._get("config_directory")
 
     @property
     def config_file_name(self) -> str:
+        """
+        The name of the configuration file.
+        """
         return self._get("config_file_name")
 
     @property
     def config_file_path(self) -> Path:
+        """
+        The full path to the configuration file.
+        """
         return self._get("config_file_path")
 
     @property
     def config_file_contents(self) -> str:
+        """
+        The cached contents of the configuration file.
+        """
         return self._get("config_file_contents")
 
     @property
     def config_key(self) -> str:
+        """
+        The primary key to select the configuration within the configuration file.
+        """
         return self._get("config_key")
 
     @property
     def config_schemas(self) -> Sequence[Schema]:
+        """
+        The schemas that apply to the configuration file.
+        """
         return self._get("config_schemas")
 
     @property
     def invoking_user_id(self) -> str:
+        """
+        User ID that created the workflow.
+        """
         return self._get("invoking_user_id")
 
     @property
     def host_user_id(self) -> str:
+        """
+        User ID as understood by the script.
+        """
         return self._get("host_user_id")
 
     @property
     def host_user_id_file_path(self) -> Path:
+        """
+        Where user ID information is stored.
+        """
         return self._get("host_user_id_file_path")
 
     @property
     def machine(self) -> str:
+        """
+        Machine to submit to.
+        Mapped to a field in the configuration file.
+        """
         return self._get("machine")
 
     @machine.setter
@@ -506,6 +499,10 @@ class Config:
 
     @property
     def log_file_path(self) -> str:
+        """
+        Where to log to.
+        Mapped to a field in the configuration file.
+        """
         return self._get("log_file_path")
 
     @log_file_path.setter
@@ -514,6 +511,10 @@ class Config:
 
     @property
     def environment_sources(self) -> Sequence[str]:
+        """
+        Where to get execution environment descriptors.
+        Mapped to a field in the configuration file.
+        """
         return self._get("environment_sources")
 
     @environment_sources.setter
@@ -522,6 +523,10 @@ class Config:
 
     @property
     def task_schema_sources(self) -> Sequence[str]:
+        """
+        Where to get task schemas.
+        Mapped to a field in the configuration file.
+        """
         return self._get("task_schema_sources")
 
     @task_schema_sources.setter
@@ -530,6 +535,10 @@ class Config:
 
     @property
     def command_file_sources(self) -> Sequence[str]:
+        """
+        Where to get command files.
+        Mapped to a field in the configuration file.
+        """
         return self._get("command_file_sources")
 
     @command_file_sources.setter
@@ -538,6 +547,10 @@ class Config:
 
     @property
     def parameter_sources(self) -> Sequence[str]:
+        """
+        Where to get parameter descriptors.
+        Mapped to a field in the configuration file.
+        """
         return self._get("parameter_sources")
 
     @parameter_sources.setter
@@ -546,6 +559,10 @@ class Config:
 
     @property
     def default_scheduler(self) -> str:
+        """
+        The name of the default scheduler.
+        Mapped to a field in the configuration file.
+        """
         return self._get("default_scheduler")
 
     @default_scheduler.setter
@@ -554,6 +571,10 @@ class Config:
 
     @property
     def default_shell(self) -> str:
+        """
+        The name of the default shell.
+        Mapped to a field in the configuration file.
+        """
         return self._get("default_shell")
 
     @default_shell.setter
@@ -562,6 +583,10 @@ class Config:
 
     @property
     def schedulers(self) -> Mapping[str, SchedulerConfigDescriptor]:
+        """
+        Settings for supported scheduler(s).
+        Mapped to a field in the configuration file.
+        """
         return self._get("schedulers")
 
     @schedulers.setter
@@ -570,6 +595,10 @@ class Config:
 
     @property
     def shells(self) -> Mapping[str, ShellConfigDescriptor]:
+        """
+        Settings for supported shell(s).
+        Mapped to a field in the configuration file.
+        """
         return self._get("shells")
 
     @shells.setter
@@ -578,6 +607,10 @@ class Config:
 
     @property
     def demo_data_dir(self) -> str | None:
+        """
+        Location of demo data.
+        Mapped to a field in the configuration file.
+        """
         return self._get("demo_data_dir")
 
     @demo_data_dir.setter
@@ -602,7 +635,8 @@ class Config:
     def _disable_callbacks(
         self, callbacks: Sequence[str]
     ) -> tuple[dict[str, Sequence[GetterCallback]], dict[str, Sequence[SetterCallback]]]:
-        """Disable named get and set callbacks.
+        """
+        Disable named get and set callbacks.
 
         Returns
         -------
@@ -659,9 +693,10 @@ class Config:
     def register_config_get_callback(
         self, name: str
     ) -> Callable[[GetterCallback], GetterCallback]:
-        """Decorator to register a function as a configuration callback for a specified
-        configuration item name, to be invoked on `get` of the item."""
-
+        """
+        Decorator to register a function as a configuration callback for a specified
+        configuration item name, to be invoked on `get` of the item.
+        """
         def decorator(func: GetterCallback) -> GetterCallback:
             if name in self._get_callbacks:
                 self._get_callbacks[name] = tuple(
@@ -681,9 +716,10 @@ class Config:
     def register_config_set_callback(
         self, name: str
     ) -> Callable[[SetterCallback], SetterCallback]:
-        """Decorator to register a function as a configuration callback for a specified
-        configuration item name, to be invoked on `set` of the item."""
-
+        """
+        Decorator to register a function as a configuration callback for a specified
+        configuration item name, to be invoked on `set` of the item.
+        """
         def decorator(func: SetterCallback) -> SetterCallback:
             if name in self._set_callbacks:
                 self._set_callbacks[name] = tuple(
@@ -878,6 +914,9 @@ class Config:
     def _set(
         self, name: str, value, *, is_json=False, callback=True, quiet=False
     ) -> None:
+        """
+        Set a configuration item.
+        """
         if name not in self._configurable_keys:
             raise ConfigNonConfigurableError(name=name)
         if is_json:
@@ -1125,7 +1164,6 @@ class Config:
         index: int
             Where to remove the value from. 0 for the first item, -1 for the last.
         """
-
         existing, root, parts = self.get(
             path,
             ret_root=True,
@@ -1156,7 +1194,8 @@ class Config:
         self._set(parts[0], root)
 
     def update(self, path: str, value, *, is_json=False) -> None:
-        """Update a map-like configuration item.
+        """
+        Update a map-like configuration item.
 
         Parameters
         ----------
@@ -1165,7 +1204,6 @@ class Config:
         value: dict
             A dictionary to merge in.
         """
-
         if is_json:
             value = self._parse_JSON(path, value)
 
@@ -1207,8 +1245,10 @@ class Config:
         return self._configurable_keys
 
     def _get_user_id(self) -> tuple[str, Path]:
-        """Retrieve (and set if non-existent) a unique user ID that is independent of the
-        config directory."""
+        """
+        Retrieve (and set if non-existent) a unique user ID that is independent of the
+        config directory.
+        """
 
         uid_file_path = self._app.user_data_dir.joinpath("user_id.txt")
         if not uid_file_path.exists():
@@ -1257,7 +1297,8 @@ class Config:
     def import_from_file(
         self, file_path: Path | str, *, rename=True, make_new=False
     ) -> None:
-        """Import config items from a (remote or local) YAML file. Existing config items
+        """
+        Import config items from a (remote or local) YAML file. Existing config items
         of the same names will be overwritten.
 
         Parameters
@@ -1272,9 +1313,7 @@ class Config:
             If True, add the config items as a new config, rather than modifying the
             current config. The name of the new config will be the stem of the file
             specified in `file_path`.
-
         """
-
         self._logger.debug(f"import from file: {file_path!r}")
 
         console = Console()
@@ -1368,12 +1407,12 @@ class Config:
             self.save()
 
     def set_github_demo_data_dir(self, sha) -> None:
-        """Set the `demo_data_dir` item, to an fsspec Github URL.
+        """
+        Set the `demo_data_dir` item, to an fsspec Github URL.
 
         We use this (via the CLI) when testing the frozen app on Github, because, by
         default, the SHA is set to the current version tag, which might not include recent
         changes to the demo data.
-
         """
         assert self._app.demo_data_dir is not None
         path = "/".join(self._app.demo_data_dir.split("."))
