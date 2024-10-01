@@ -248,6 +248,7 @@ class ConfigMetadata(TypedDict):
     """
     Metadata supported by the :class:`Config` class.
     """
+
     #: Location of directory containing the config file.
     config_directory: Path
     #: Name of the config file.
@@ -697,6 +698,7 @@ class Config:
         Decorator to register a function as a configuration callback for a specified
         configuration item name, to be invoked on `get` of the item.
         """
+
         def decorator(func: GetterCallback) -> GetterCallback:
             if name in self._get_callbacks:
                 self._get_callbacks[name] = tuple(
@@ -720,6 +722,7 @@ class Config:
         Decorator to register a function as a configuration callback for a specified
         configuration item name, to be invoked on `set` of the item.
         """
+
         def decorator(func: SetterCallback) -> SetterCallback:
             if name in self._set_callbacks:
                 self._set_callbacks[name] = tuple(
