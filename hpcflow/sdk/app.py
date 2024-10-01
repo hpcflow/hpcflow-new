@@ -2035,7 +2035,9 @@ class BaseApp(metaclass=Singleton):
             self._ensure_user_cache_hostname_dir()
 
     @TimeIt.decorator
-    def _load_config(self, config_dir: PathLike, config_key: str | None, **overrides) -> None:
+    def _load_config(
+        self, config_dir: PathLike, config_key: str | None, **overrides
+    ) -> None:
         self.logger.info("Loading configuration.")
         self._ensure_user_data_dir()
         resolved_config_dir = ConfigFile._resolve_config_dir(
@@ -3744,6 +3746,7 @@ class BaseApp(metaclass=Singleton):
         and then retrieve the example data file path as above. The default value is set to
         the GitHub repo of the app using the current tag/version.
         """
+
         def _retrieve_source_path_from_config(src_fn):
             fs, url_path = rate_limit_safe_url_to_fs(
                 self,
