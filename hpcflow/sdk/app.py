@@ -1214,8 +1214,9 @@ class BaseApp(metaclass=Singleton):
         return self.__get_app_func("make_demo_workflow")
 
     @property
-    def make_and_submit_workflow(self) -> Callable[
-            ..., tuple[_Workflow, dict[int, list[int]]]]:
+    def make_and_submit_workflow(
+        self,
+    ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
         """Generate and submit a new workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1283,8 +1284,9 @@ class BaseApp(metaclass=Singleton):
         return self.__get_app_func("make_and_submit_workflow")
 
     @property
-    def make_and_submit_demo_workflow(self) -> Callable[
-            ..., tuple[_Workflow, dict[int, list[int]]]]:
+    def make_and_submit_demo_workflow(
+        self,
+    ) -> Callable[..., tuple[_Workflow, dict[int, list[int]]]]:
         """Generate and submit a new demo workflow from a file or string containing a
         workflow template parametrisation.
 
@@ -1384,7 +1386,7 @@ class BaseApp(metaclass=Singleton):
     def get_OS_info(self) -> Callable[..., Mapping[str, str]]:
         """
         Get information about the operating system.
-        
+
         Returns
         -------
         dict[str, str]
@@ -1413,33 +1415,33 @@ class BaseApp(metaclass=Singleton):
     @property
     def get_known_submissions(self) -> Callable[..., list[KnownSubmissionItem]]:
         """Retrieve information about active and recently inactive finished
-        workflows.
+                workflows.
 
-        This method removes workflows from the known-submissions file that are found to be
-        inactive on this machine (according to the scheduler/process ID).
+                This method removes workflows from the known-submissions file that are found to be
+                inactive on this machine (according to the scheduler/process ID).
 
-        Parameters
-        ----------
-        max_recent: int
-            Maximum number of inactive workflows to retrieve.
-        no_update: bool
-            If True, do not update the known-submissions file to set submissions that are
-            now inactive.
-        as_json: bool
-            If True, only include JSON-compatible information. This will exclude the
-            `submission` key, for instance.
+                Parameters
+                ----------
+                max_recent: int
+                    Maximum number of inactive workflows to retrieve.
+                no_update: bool
+                    If True, do not update the known-submissions file to set submissions that are
+                    now inactive.
+                as_json: bool
+                    If True, only include JSON-compatible information. This will exclude the
+                    `submission` key, for instance.
 
-        Returns
-        -------
-        list[KnownSubmissionItem]
-            List of descriptions of known items
-        Returns
-        -------
-        Workflow
-            The created workflow.
-        dict[int, list[int]]
-            Mapping of submission handles.
-.
+                Returns
+                -------
+                list[KnownSubmissionItem]
+                    List of descriptions of known items
+                Returns
+                -------
+                Workflow
+                    The created workflow.
+                dict[int, list[int]]
+                    Mapping of submission handles.
+        .
         """
         return self.__get_app_func("get_known_submissions")
 
@@ -2450,7 +2452,9 @@ class BaseApp(metaclass=Singleton):
         # date-times:
         line_date = {}
 
-        removed_IDs: list[int] = []  # which submissions we completely remove from the file
+        removed_IDs: list[
+            int
+        ] = []  # which submissions we completely remove from the file
 
         new_lines: list[str] = []
         line_IDs: list[int] = []
