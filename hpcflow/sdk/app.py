@@ -96,7 +96,10 @@ if TYPE_CHECKING:
         ElementGroup,
     )
     from .core.environment import (
-        NumCores, Environment, Executable as _Executable, ExecutableInstance,
+        NumCores,
+        Environment,
+        Executable as _Executable,
+        ExecutableInstance,
     )
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
@@ -215,7 +218,9 @@ class KnownSubmissionItem(TypedDict):
     submission: NotRequired[Submission]
 
 
-def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger: Logger | None = None, **kwargs):
+def rate_limit_safe_url_to_fs(
+    app: BaseApp, *args, logger: Logger | None = None, **kwargs
+):
     R"""
     Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
 
@@ -3582,7 +3587,9 @@ class BaseApp(metaclass=Singleton):
 
         return path
 
-    def _resolve_workflow_reference(self, workflow_ref: str, ref_type: str | None) -> Path:
+    def _resolve_workflow_reference(
+        self, workflow_ref: str, ref_type: str | None
+    ) -> Path:
         path = None
         if ref_type == "path":
             path = Path(workflow_ref)
