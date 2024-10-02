@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from typing import Dict, Literal
     from typing_extensions import NotRequired
     from rich.status import Status
+    from .config.config import ConfigOptions
     from .core.actions import (
         ElementActionRun,
         ElementAction,
@@ -94,7 +95,9 @@ if TYPE_CHECKING:
         ElementFilter,
         ElementGroup,
     )
-    from .core.environment import NumCores, Environment, Executable, ExecutableInstance
+    from .core.environment import (
+        NumCores, Environment, Executable as _Executable, ExecutableInstance,
+    )
     from .core.loop import Loop, WorkflowLoop
     from .core.object_list import (
         CommandFilesList as _CommandFilesList,
@@ -212,7 +215,7 @@ class KnownSubmissionItem(TypedDict):
     submission: NotRequired[Submission]
 
 
-def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
+def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger: Logger | None = None, **kwargs):
     R"""
     Call fsspec's ``url_to_fs`` but retry on ``requests.exceptions.HTTPError``\ s.
 
@@ -229,10 +232,11 @@ def rate_limit_safe_url_to_fs(app: BaseApp, *args, logger=None, **kwargs):
             # requests allowed per hour to 1000 [1]. fsspec requires "username" to be
             # set if using "token":
             auth = {"username": "", "token": gh_token}
-            logger.info(
-                "calling fsspec's `url_to_fs` with a token from the env variable "
-                "`GH_TOKEN`."
-            )
+            if logger:
+                logger.info(
+                    "calling fsspec's `url_to_fs` with a token from the env variable "
+                    "`GH_TOKEN`."
+                )
 
     # GitHub actions testing is potentially highly concurrent, with multiple
     # Python versions and OSes being tested at the same time; so we might hit
@@ -388,20 +392,20 @@ class BaseApp(metaclass=Singleton):
         self,
         name: str,
         version: str,
-        module,
+        module: str,
         description: str,
         gh_org: str,
         gh_repo: str,
-        config_options,
+        config_options: ConfigOptions,
         scripts_dir: str,
         workflows_dir: str | None = None,
         demo_data_dir: str | None = None,
         demo_data_manifest_dir: str | None = None,
         template_components: dict[str, list[Dict]] | None = None,
-        pytest_args=None,
-        package_name=None,
-        docs_import_conv=None,
-        docs_url=None,
+        pytest_args: list[str] | None = None,
+        package_name: str | None = None,
+        docs_import_conv: str | None = None,
+        docs_url: str | None = None,
     ):
         SDK_logger.info(f"Generating {self.__class__.__name__} {name!r}.")
 
@@ -521,7 +525,7 @@ class BaseApp(metaclass=Singleton):
         return self._get_app_core_class("Environment")
 
     @property
-    def Executable(self) -> type[Executable]:
+    def Executable(self) -> type[_Executable]:
         """
         The :class:`Executable` class.
 
@@ -1487,7 +1491,7 @@ class BaseApp(metaclass=Singleton):
         """
         return self.__get_app_func("cancel")
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         if name in sdk_classes:
             return self._get_app_core_class(name)
         elif name in sdk_funcs:
@@ -1516,7 +1520,7 @@ class BaseApp(metaclass=Singleton):
         self.__app_type_cache[name] = sub_cls
         return sub_cls
 
-    def __get_app_func(self, name) -> Callable[..., Any]:
+    def __get_app_func(self, name: str) -> Callable[..., Any]:
         if name in self.__app_func_cache:
             return self.__app_func_cache[name]
 
@@ -1577,20 +1581,20 @@ class BaseApp(metaclass=Singleton):
     def _shared_data(self) -> Mapping[str, Any]:
         return cast("Mapping[str, Any]", self.template_components)
 
-    def _ensure_template_component(self, name) -> None:
+    def _ensure_template_component(self, name: str) -> None:
         """Invoked by access to individual template components (e.g. parameters)"""
         if not getattr(self, f"_{name}"):
             self._load_template_components(name)
         else:
             self.logger.debug(f"Template component {name!r} already loaded")
 
-    def load_template_components(self, warn=True) -> None:
+    def load_template_components(self, warn: bool = True) -> None:
         """Load all template component data, warning by default if already loaded."""
         if warn and self.is_template_components_loaded:
             warnings.warn("Template components already loaded; reloading now.")
         self._load_template_components()
 
-    def reload_template_components(self, warn=True) -> None:
+    def reload_template_components(self, warn: bool = True) -> None:
         """
         Reload all template component data, warning by default if not already
         loaded.
@@ -1681,16 +1685,13 @@ class BaseApp(metaclass=Singleton):
     @staticmethod
     def __get_file_context(
         package: ModuleType | str, src: str
-    ) -> AbstractContextManager[Path] | None:
+    ) -> AbstractContextManager[Path]:
         try:
-            try:
-                return resources.as_file(resources.files(package).joinpath(src))
-                # raises ModuleNotFoundError
-            except AttributeError:
-                # < python 3.9
-                return resources.path(package, src)
-        except ModuleNotFoundError:
-            return None
+            return resources.as_file(resources.files(package).joinpath(src))
+            # raises ModuleNotFoundError
+        except AttributeError:
+            # < python 3.9
+            return resources.path(package, src)
 
     @classmethod
     def load_builtin_template_component_data(
@@ -2099,7 +2100,7 @@ class BaseApp(metaclass=Singleton):
         self._config_files = {}
         self._config = None
 
-    def get_config_path(self, config_dir=None) -> Path:
+    def get_config_path(self, config_dir: PathLike = None) -> Path:
         """Return the full path to the config file, without loading the config."""
         config_dir = ConfigFile._resolve_config_dir(
             config_opt=self.config_options,
@@ -2108,7 +2109,7 @@ class BaseApp(metaclass=Singleton):
         )
         return ConfigFile.get_config_file_path(config_dir)
 
-    def _delete_config_file(self, config_dir=None) -> None:
+    def _delete_config_file(self, config_dir: PathLike = None) -> None:
         """Delete the config file."""
         config_path = self.get_config_path(config_dir=config_dir)
         self.logger.info(f"deleting config file: {str(config_path)!r}.")
@@ -2116,9 +2117,9 @@ class BaseApp(metaclass=Singleton):
 
     def reset_config(
         self,
-        config_dir=None,
-        config_key=None,
-        warn=True,
+        config_dir: PathLike = None,
+        config_key: str | None = None,
+        warn: bool = True,
         **overrides,
     ) -> None:
         """Reset the config file to defaults, and reload the config."""
@@ -2130,9 +2131,9 @@ class BaseApp(metaclass=Singleton):
 
     def reload_config(
         self,
-        config_dir=None,
-        config_key=None,
-        warn=True,
+        config_dir: PathLike = None,
+        config_key: str | None = None,
+        warn: bool = True,
         **overrides,
     ) -> None:
         """
@@ -2149,33 +2150,24 @@ class BaseApp(metaclass=Singleton):
     def _load_scripts(self) -> dict[str, Path]:
         """
         Discover where the built-in scripts all are.
-
-        Note
-        ----
-        Only works if hpcflow is not bundled as a single archive.
         """
         # TODO: load custom directories / custom functions (via decorator)
         scripts_package = f"{self.package_name}.{self.scripts_dir}"
 
-        try:
-            ctx = resources.as_file(resources.files(scripts_package))
-        except AttributeError:
-            # < python 3.9; `resource.path` deprecated since 3.11
-            ctx = resources.path(scripts_package, "")
-
         scripts: dict[str, Path] = {}
-        with ctx as path:
-            for dirpath, _, filenames in os.walk(path):
-                dirpath_ = Path(dirpath)
-                if dirpath_.name == "__pycache__":
-                    continue
-                for filename in filenames:
-                    if filename == "__init__.py":
+        try:
+            with self.__get_file_context(scripts_package, "") as path:
+                for dirpath, _, filenames in os.walk(path):
+                    dirpath_ = Path(dirpath)
+                    if dirpath_.name == "__pycache__":
                         continue
-                    val = dirpath_.joinpath(filename)
-                    key = str(val.relative_to(path).as_posix())
-                    scripts[key] = Path(val)
-
+                    for filename in filenames:
+                        if filename == "__init__.py":
+                            continue
+                        val = dirpath_.joinpath(filename)
+                        scripts[val.relative_to(path).as_posix()] = Path(val)
+        except ModuleNotFoundError:
+            self.logger.exception("failed to find scripts package")
         return scripts
 
     def _get_demo_workflows(self) -> dict[str, Path]:
@@ -3046,7 +3038,7 @@ class BaseApp(metaclass=Singleton):
 
         return hf.app.run_tests(*args)
 
-    def _run_tests(self, *args):
+    def _run_tests(self, *args: str):
         """Run {app_name} test suite."""
         try:
             import pytest
@@ -3055,9 +3047,7 @@ class BaseApp(metaclass=Singleton):
                 f"{self.name} has not been built with testing dependencies."
             )
         test_args = (self.pytest_args or []) + list(args)
-        ctx_man = self.__get_file_context(self.package_name, "tests")
-        assert ctx_man is not None
-        with ctx_man as test_dir:
+        with self.__get_file_context(self.package_name, "tests") as test_dir:
             return pytest.main([str(test_dir)] + test_args)
 
     def _get_OS_info(self) -> dict[str, str]:
@@ -3360,7 +3350,6 @@ class BaseApp(metaclass=Singleton):
         max_recent: int = 3,
         full: bool = False,
         no_update: bool = False,
-        columns=None,
     ):
         """
         Show information about running {app_name} workflows.
@@ -3390,9 +3379,9 @@ class BaseApp(metaclass=Singleton):
             "actions_compact": "Actions",
         }
 
+        columns: tuple[str, ...]
         if full:
             columns = ("id", "name", "status", "times", "actions")
-
         else:
             columns = (
                 "id",
@@ -3593,7 +3582,7 @@ class BaseApp(metaclass=Singleton):
 
         return path
 
-    def _resolve_workflow_reference(self, workflow_ref, ref_type: str | None) -> Path:
+    def _resolve_workflow_reference(self, workflow_ref: str, ref_type: str | None) -> Path:
         path = None
         if ref_type == "path":
             path = Path(workflow_ref)
@@ -3635,7 +3624,7 @@ class BaseApp(metaclass=Singleton):
                 )
         return path.resolve()
 
-    def _cancel(self, workflow_ref: int | str | PathLike, ref_is_path=None):
+    def _cancel(self, workflow_ref: int | str | Path, ref_is_path: str | None = None):
         """
         Cancel the execution of a workflow submission.
 
@@ -3644,16 +3633,16 @@ class BaseApp(metaclass=Singleton):
         ref_is_path
             One of "id", "path" or "assume-id" (the default)
         """
-        path = self._resolve_workflow_reference(workflow_ref, ref_is_path)
+        path = self._resolve_workflow_reference(str(workflow_ref), ref_is_path)
         self.Workflow(path).cancel()
 
     def configure_env(
         self,
-        name,
-        setup=None,
-        executables=None,
-        use_current_env=False,
-        env_source_file=None,
+        name: str,
+        setup: list[str] | None = None,
+        executables: list[_Executable] | None = None,
+        use_current_env: bool = False,
+        env_source_file: Path | None = None,
     ):
         """
         Configure an execution environment.
@@ -3662,10 +3651,9 @@ class BaseApp(metaclass=Singleton):
             setup = []
         if not executables:
             executables = []
-        if not env_source_file:
-            env_source_file = self.config.get("config_directory").joinpath(
-                "configured_envs.yaml"
-            )
+        env_source = env_source_file or self.config.get("config_directory").joinpath(
+            "configured_envs.yaml"
+        )
         if use_current_env:
             if self.run_time_info.is_conda_venv:
                 # use the currently activated conda environment for the new app environment:
@@ -3692,9 +3680,9 @@ class BaseApp(metaclass=Singleton):
             ]
 
         new_env = self.Environment(name=name, setup=setup, executables=executables)
-        new_env_dat = new_env.to_json_like(exclude="_hash_value")[0]
-        if env_source_file.exists():
-            existing_env_dat = read_YAML_file(env_source_file, typ="rt")
+        new_env_dat = new_env.to_json_like(exclude={"_hash_value"})[0]
+        if env_source.exists():
+            existing_env_dat = read_YAML_file(env_source, typ="rt")
             if name in [i["name"] for i in existing_env_dat]:
                 # TODO: this doesn't check all app envs, just those added with this method
                 raise ValueError(f"Environment {name!r} already exists.")
@@ -3702,21 +3690,21 @@ class BaseApp(metaclass=Singleton):
             all_env_dat = existing_env_dat + [new_env_dat]
 
             # write a new temporary config file
-            tmp_file = env_source_file.with_suffix(env_source_file.suffix + ".tmp")
+            tmp_file = env_source.with_suffix(env_source.suffix + ".tmp")
             self.logger.debug(f"Creating temporary env source file: {tmp_file!r}.")
             write_YAML_file(all_env_dat, tmp_file, typ="rt")
 
             # atomic rename, overwriting original:
             self.logger.debug("Replacing original env source file with temporary file.")
-            os.replace(src=tmp_file, dst=env_source_file)
+            os.replace(src=tmp_file, dst=env_source)
 
         else:
             all_env_dat = [new_env_dat]
-            write_YAML_file(all_env_dat, env_source_file, typ="rt")
+            write_YAML_file(all_env_dat, env_source, typ="rt")
 
         cur_env_source_files = self.config.get("environment_sources")
-        if env_source_file not in cur_env_source_files:
-            self.config.append("environment_sources", str(env_source_file))
+        if env_source not in cur_env_source_files:
+            self.config.append("environment_sources", str(env_source))
             self.config.save()
 
     def get_demo_data_files_manifest(self) -> dict[str, Any]:
@@ -3782,7 +3770,7 @@ class BaseApp(metaclass=Singleton):
         the GitHub repo of the app using the current tag/version.
         """
 
-        def _retrieve_source_path_from_config(src_fn):
+        def _retrieve_source_path_from_config(src_fn: str):
             fs, url_path = rate_limit_safe_url_to_fs(
                 self,
                 self.config.demo_data_dir,
@@ -3831,22 +3819,17 @@ class BaseApp(metaclass=Singleton):
             )
             # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
             package = self.demo_data_dir
-            if not package:
-                resource_exists = False
-            else:
-                delete = False
-                ctx_man = self.__get_file_context(package, src_fn)
-
-                try:
-                    if ctx_man:
-                        with ctx_man as path:
-                            out = path
-                        resource_exists = True
-                    else:
-                        resource_exists = False
-                except (ModuleNotFoundError, FileNotFoundError):
-                    # frozen app
+            try:
+                if not package:
                     resource_exists = False
+                else:
+                    delete = False
+                    with self.__get_file_context(package, src_fn) as path:
+                        out = path
+                    resource_exists = True
+            except (ModuleNotFoundError, FileNotFoundError):
+                # frozen app, etc.
+                resource_exists = False
 
             if not resource_exists and package is not None:
                 # example data not included (e.g. frozen, or installed via PyPI/conda), so
@@ -3865,7 +3848,7 @@ class BaseApp(metaclass=Singleton):
 
         return out, requires_unpack, delete
 
-    def get_demo_data_file_path(self, file_name) -> Path:
+    def get_demo_data_file_path(self, file_name: str) -> Path:
         """
         Get the full path to an example data file in the app cache directory.
 
@@ -3912,7 +3895,7 @@ class BaseApp(metaclass=Singleton):
                 src.unlink()
         return cache_file_path
 
-    def cache_demo_data_file(self, file_name) -> Path:
+    def cache_demo_data_file(self, file_name: str) -> Path:
         """
         Get the name of a cached demo data file.
         """
