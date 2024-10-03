@@ -21,7 +21,10 @@ PRIMITIVES: tuple[type, ...] = (
 
 
 def _zarr_encode(
-    obj: Any, zarr_group: zarr.Group, path: list | None = None, encoded: list[dict] | None = None
+    obj: Any,
+    zarr_group: zarr.Group,
+    path: list | None = None,
+    encoded: list[dict] | None = None,
 ) -> tuple[Any, list[dict]]:
     path = path or []
     encoded = encoded or []

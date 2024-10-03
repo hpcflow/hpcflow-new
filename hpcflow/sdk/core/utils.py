@@ -217,7 +217,9 @@ def _ensure_int(path_comp: int, cur_data, cast_indices: bool) -> int:
     return path_comp
 
 
-def get_in_container(cont, path: Sequence, cast_indices:bool=False, allow_getattr:bool=False):
+def get_in_container(
+    cont, path: Sequence, cast_indices: bool = False, allow_getattr: bool = False
+):
     """
     Follow a path (sequence of indices of appropriate type) into a container to obtain
     a "leaf" value. Containers can be lists, tuples, dicts,
@@ -426,7 +428,7 @@ def read_YAML_file(
     return read_YAML_str(yaml_str, typ=typ, variables=variables)
 
 
-def write_YAML_file(obj, path: str | Path, typ:str="safe") -> None:
+def write_YAML_file(obj, path: str | Path, typ: str = "safe") -> None:
     """Write a basic object to a YAML file."""
     yaml = YAML(typ=typ)
     with Path(path).open("wt") as fp:

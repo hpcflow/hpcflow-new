@@ -684,7 +684,9 @@ class ElementActionRun(AppAware):
     def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
         ...
 
-    def get_dependent_EARs(self, as_objects:bool=False) -> list[ElementActionRun] | list[int]:
+    def get_dependent_EARs(
+        self, as_objects: bool = False
+    ) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
         deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:

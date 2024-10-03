@@ -575,7 +575,9 @@ class Jobscript(JSONLike):
         """
         return self._workflow_app_alias
 
-    def get_commands_file_name(self, js_action_idx: int | str, shell: Shell | None = None) -> str:
+    def get_commands_file_name(
+        self, js_action_idx: int | str, shell: Shell | None = None
+    ) -> str:
         """
         Get the name of a file containing commands for a particular jobscript action.
         """

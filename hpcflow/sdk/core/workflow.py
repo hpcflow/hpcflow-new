@@ -198,7 +198,7 @@ class _Pathway:
     ) -> tuple[int, dict[str, int], tuple[int, ...], tuple[dict[str, int], ...]]:
         ...
 
-    def as_tuple(self, *, ret_iter_IDs:bool=False, ret_data_idx:bool=False):
+    def as_tuple(self, *, ret_iter_IDs: bool = False, ret_data_idx: bool = False):
         if ret_iter_IDs:
             if ret_data_idx:
                 return (self.id_, self.names, tuple(self.iter_ids), tuple(self.data_idx))
@@ -2972,7 +2972,7 @@ class Workflow(AppAware):
         self._abort_run_ID(submission_idx, run.id_)
 
     @TimeIt.decorator
-    def cancel(self, hard:bool=False):
+    def cancel(self, hard: bool = False):
         """Cancel any running jobscripts."""
         for sub in self.submissions:
             sub.cancel()

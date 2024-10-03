@@ -744,16 +744,20 @@ class Config:
         return [*self._configurable_keys, *self._meta_data.keys()]
 
     @overload
-    def get_all(self, *, include_overrides:bool=True, as_str: Literal[True]) -> dict[str, str]:
+    def get_all(
+        self, *, include_overrides: bool = True, as_str: Literal[True]
+    ) -> dict[str, str]:
         ...
 
     @overload
     def get_all(
-        self, *, include_overrides:bool=True, as_str: Literal[False] = False
+        self, *, include_overrides: bool = True, as_str: Literal[False] = False
     ) -> dict[str, Any]:
         ...
 
-    def get_all(self, *, include_overrides:bool=True, as_str:bool=False) -> dict[str, Any]:
+    def get_all(
+        self, *, include_overrides: bool = True, as_str: bool = False
+    ) -> dict[str, Any]:
         """Get all configurable items."""
         items: dict[str, Any] = {}
         for key in self._configurable_keys:
@@ -978,12 +982,19 @@ class Config:
 
     @overload
     def set(
-        self, path: str, value: Any, *, is_json: Literal[False] = False, quiet:bool=False
+        self,
+        path: str,
+        value: Any,
+        *,
+        is_json: Literal[False] = False,
+        quiet: bool = False,
     ) -> None:
         ...
 
     @overload
-    def set(self, path: str, value: str, *, is_json: Literal[True], quiet:bool=False) -> None:
+    def set(
+        self, path: str, value: str, *, is_json: Literal[True], quiet: bool = False
+    ) -> None:
         ...
 
     def set(
@@ -1082,7 +1093,7 @@ class Config:
             ret += [parts]
         return tuple(ret)
 
-    def append(self, path: str, value, *, is_json:bool=False) -> None:
+    def append(self, path: str, value, *, is_json: bool = False) -> None:
         """
         Append a value to a list-like configuration item.
 
@@ -1121,7 +1132,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def prepend(self, path: str, value, *, is_json:bool=False) -> None:
+    def prepend(self, path: str, value, *, is_json: bool = False) -> None:
         """
         Prepend a value to a list-like configuration item.
 
@@ -1196,7 +1207,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def update(self, path: str, value, *, is_json:bool=False) -> None:
+    def update(self, path: str, value, *, is_json: bool = False) -> None:
         """
         Update a map-like configuration item.
 

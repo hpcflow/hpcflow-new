@@ -414,7 +414,9 @@ class ZarrPersistentStore(
     _EAR_arr_name: ClassVar[str] = "runs"
     _time_res: ClassVar[str] = "us"  # microseconds; must not be smaller than micro!
 
-    _res_map: ClassVar[CommitResourceMap] = CommitResourceMap(commit_template_components=("attrs",))
+    _res_map: ClassVar[CommitResourceMap] = CommitResourceMap(
+        commit_template_components=("attrs",)
+    )
 
     def __init__(self, app, workflow, path: str | Path, fs) -> None:
         self._zarr_store = None  # assigned on first access to `zarr_store`
