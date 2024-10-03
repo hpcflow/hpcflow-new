@@ -617,7 +617,7 @@ class PendingChanges(
     def _clear_update_loop_parents(self) -> None:
         self.update_loop_parents = {}
 
-    def reset(self, is_init=False) -> None:
+    def reset(self, is_init: bool = False) -> None:
         """Clear all pending data and prepare to accept new pending data."""
 
         if not is_init and not self:

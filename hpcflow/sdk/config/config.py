@@ -511,7 +511,7 @@ class Config:
         self._set("log_file_path", value)
 
     @property
-    def environment_sources(self) -> Sequence[str]:
+    def environment_sources(self) -> Sequence[Path]:
         """
         Where to get execution environment descriptors.
         Mapped to a field in the configuration file.
@@ -519,7 +519,7 @@ class Config:
         return self._get("environment_sources")
 
     @environment_sources.setter
-    def environment_sources(self, value: Sequence[str]):
+    def environment_sources(self, value: Sequence[Path]):
         self._set("environment_sources", value)
 
     @property
@@ -744,16 +744,16 @@ class Config:
         return [*self._configurable_keys, *self._meta_data.keys()]
 
     @overload
-    def get_all(self, *, include_overrides=True, as_str: Literal[True]) -> dict[str, str]:
+    def get_all(self, *, include_overrides:bool=True, as_str: Literal[True]) -> dict[str, str]:
         ...
 
     @overload
     def get_all(
-        self, *, include_overrides=True, as_str: Literal[False] = False
+        self, *, include_overrides:bool=True, as_str: Literal[False] = False
     ) -> dict[str, Any]:
         ...
 
-    def get_all(self, *, include_overrides=True, as_str=False) -> dict[str, Any]:
+    def get_all(self, *, include_overrides:bool=True, as_str:bool=False) -> dict[str, Any]:
         """Get all configurable items."""
         items: dict[str, Any] = {}
         for key in self._configurable_keys:
@@ -978,12 +978,12 @@ class Config:
 
     @overload
     def set(
-        self, path: str, value: Any, *, is_json: Literal[False] = False, quiet=False
+        self, path: str, value: Any, *, is_json: Literal[False] = False, quiet:bool=False
     ) -> None:
         ...
 
     @overload
-    def set(self, path: str, value: str, *, is_json: Literal[True], quiet=False) -> None:
+    def set(self, path: str, value: str, *, is_json: Literal[True], quiet:bool=False) -> None:
         ...
 
     def set(
@@ -1082,7 +1082,7 @@ class Config:
             ret += [parts]
         return tuple(ret)
 
-    def append(self, path: str, value, *, is_json=False) -> None:
+    def append(self, path: str, value, *, is_json:bool=False) -> None:
         """
         Append a value to a list-like configuration item.
 
@@ -1121,7 +1121,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def prepend(self, path: str, value, *, is_json=False) -> None:
+    def prepend(self, path: str, value, *, is_json:bool=False) -> None:
         """
         Prepend a value to a list-like configuration item.
 
@@ -1196,7 +1196,7 @@ class Config:
             root = new
         self._set(parts[0], root)
 
-    def update(self, path: str, value, *, is_json=False) -> None:
+    def update(self, path: str, value, *, is_json:bool=False) -> None:
         """
         Update a map-like configuration item.
 

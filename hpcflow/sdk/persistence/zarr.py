@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from zarr import Array, Group  # type: ignore
     from ..app import BaseApp
     from ..core.json_like import JSONed, JSONDocument
-    from ..typing import ParamSource
+    from ..typing import ParamSource, PathLike
 
 
 ListAny: TypeAlias = "list[Any]"
@@ -373,8 +373,8 @@ class ZarrPersistentStore(
     A persistent store implemented using Zarr.
     """
 
-    _name = "zarr"
-    _features = PersistentStoreFeatures(
+    _name: ClassVar[str] = "zarr"
+    _features: ClassVar[PersistentStoreFeatures] = PersistentStoreFeatures(
         create=True,
         edit=True,
         jobscript_parallelism=True,
@@ -403,18 +403,18 @@ class ZarrPersistentStore(
     def _store_param_cls(cls) -> type[ZarrStoreParameter]:
         return ZarrStoreParameter
 
-    _param_grp_name = "parameters"
-    _param_base_arr_name = "base"
-    _param_sources_arr_name = "sources"
-    _param_user_arr_grp_name = "arrays"
-    _param_data_arr_grp_name = lambda _, param_idx: f"param_{param_idx}"
-    _task_arr_name = "tasks"
-    _elem_arr_name = "elements"
-    _iter_arr_name = "iters"
-    _EAR_arr_name = "runs"
-    _time_res = "us"  # microseconds; must not be smaller than micro!
+    _param_grp_name: ClassVar[str] = "parameters"
+    _param_base_arr_name: ClassVar[str] = "base"
+    _param_sources_arr_name: ClassVar[str] = "sources"
+    _param_user_arr_grp_name: ClassVar[str] = "arrays"
+    _param_data_arr_grp_name: ClassVar = lambda _, param_idx: f"param_{param_idx}"
+    _task_arr_name: ClassVar[str] = "tasks"
+    _elem_arr_name: ClassVar[str] = "elements"
+    _iter_arr_name: ClassVar[str] = "iters"
+    _EAR_arr_name: ClassVar[str] = "runs"
+    _time_res: ClassVar[str] = "us"  # microseconds; must not be smaller than micro!
 
-    _res_map = CommitResourceMap(commit_template_components=("attrs",))
+    _res_map: ClassVar[CommitResourceMap] = CommitResourceMap(commit_template_components=("attrs",))
 
     def __init__(self, app, workflow, path: str | Path, fs) -> None:
         self._zarr_store = None  # assigned on first access to `zarr_store`
@@ -1259,11 +1259,11 @@ class ZarrPersistentStore(
 
     def zip(
         self,
-        path=".",
-        log=None,
-        overwrite=False,
-        include_execute=False,
-        include_rechunk_backups=False,
+        path: str = ".",
+        log: str | None = None,
+        overwrite: bool = False,
+        include_execute: bool = False,
+        include_rechunk_backups: bool = False,
     ):
         """
         Convert the persistent store to zipped form.
@@ -1314,7 +1314,7 @@ class ZarrPersistentStore(
             del zfs  # ZipFileSystem remains open for instance lifetime
         return dst_path_s
 
-    def unzip(self, path=".", log=None):
+    def unzip(self, path: str = ".", log: str | None = None):
         raise ValueError("Not a zip store!")
 
     def _rechunk_arr(
@@ -1429,8 +1429,8 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     Archive format persistent stores cannot be updated without being unzipped first.
     """
 
-    _name = "zip"
-    _features = PersistentStoreFeatures(
+    _name: ClassVar[str] = "zip"
+    _features: ClassVar[PersistentStoreFeatures] = PersistentStoreFeatures(
         create=False,
         edit=False,
         jobscript_parallelism=False,
@@ -1441,10 +1441,17 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
 
     # TODO: enforce read-only nature
 
-    def zip(self):
+    def zip(
+        self,
+        path: str = ".",
+        log: str | None = None,
+        overwrite: bool = False,
+        include_execute: bool = False,
+        include_rechunk_backups: bool = False,
+    ):
         raise ValueError("Already a zip store!")
 
-    def unzip(self, path=".", log=None) -> str:
+    def unzip(self, path: str = ".", log: str | None = None) -> str:
         """
         Expand the persistent store.
 
@@ -1473,7 +1480,7 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
             zarr.convenience.copy_store(src_zarr_store, dst_zarr_store, log=log)
             return dst_path_s
 
-    def copy(self, path=None) -> Path:
+    def copy(self, path: PathLike = None) -> Path:
         # not sure how to do this.
         raise NotImplementedError()
 

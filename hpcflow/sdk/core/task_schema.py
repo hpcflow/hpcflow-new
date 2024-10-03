@@ -363,7 +363,7 @@ class TaskSchema(JSONLike):
         panel = Panel(tab, title=f"Task schema: {rich_esc(self.objective.name)!r}")
         return panel
 
-    def _show_info(self, include=None) -> None:
+    def _show_info(self, include: Sequence[str] = ()) -> None:
         panel = self._get_info(include=include)
         rich_print(panel)
 
@@ -892,8 +892,9 @@ class TaskSchema(JSONLike):
         """
         return (str(self.objective), self.method, self.implementation)
 
-    def _get_single_label_lookup(self, prefix="") -> dict[str, str]:
-        """Get a mapping between schema input types that have a single label (i.e.
+    def _get_single_label_lookup(self, prefix: str = "") -> dict[str, str]:
+        """
+        Get a mapping between schema input types that have a single label (i.e.
         labelled but with `multiple=False`) and the non-labelled type string.
 
         For example, if a task schema has a schema input like:

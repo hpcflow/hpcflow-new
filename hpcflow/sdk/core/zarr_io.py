@@ -4,6 +4,7 @@ Utilities for working with Zarr.
 
 from __future__ import annotations
 from typing import Any
+from typing_extensions import Self
 
 import zarr  # type: ignore
 import numpy as np
@@ -11,7 +12,7 @@ import numpy as np
 from hpcflow.sdk.core.utils import get_in_container, get_relative_path, set_in_container
 
 
-PRIMITIVES = (
+PRIMITIVES: tuple[type, ...] = (
     int,
     float,
     str,
@@ -19,7 +20,9 @@ PRIMITIVES = (
 )
 
 
-def _zarr_encode(obj, zarr_group: zarr.Group, path=None, encoded=None):
+def _zarr_encode(
+    obj: Any, zarr_group: zarr.Group, path: list | None = None, encoded: list[dict] | None = None
+) -> tuple[Any, list[dict]]:
     path = path or []
     encoded = encoded or []
 
@@ -27,9 +30,8 @@ def _zarr_encode(obj, zarr_group: zarr.Group, path=None, encoded=None):
         raise RuntimeError("I'm in too deep!")
 
     if isinstance(obj, ZarrEncodable):
-        obj = obj.to_dict()
         out, encoded = _zarr_encode(
-            obj, zarr_group=zarr_group, path=path, encoded=encoded
+            obj.to_dict(), zarr_group=zarr_group, path=path, encoded=encoded
         )
 
     elif isinstance(obj, (list, tuple, set)):
@@ -72,7 +74,7 @@ def _zarr_encode(obj, zarr_group: zarr.Group, path=None, encoded=None):
     return out, encoded
 
 
-def zarr_encode(data, zarr_group: zarr.Group, is_pending_add, is_set):
+def zarr_encode(data, zarr_group: zarr.Group, is_pending_add: bool, is_set: bool):
     """
     Encode data into a zarr group.
     """
@@ -92,29 +94,28 @@ def _zarr_encode_NEW(
     base_arr: zarr.Array,
     root_group: zarr.Group,
     arr_path: str,
-    path: list | None = None,
-    arr_lookup: list | None = None,
-):
+    path: list[str | int] | None = None,
+    arr_lookup: list[list] | None = None,
+) -> tuple[Any, list[list]]:
     """
     Save arbitrarily-nested Python-primitive, `ZarrEncodable` and numpy array objects into
     Zarr.
 
     Parameters
     ----------
-    obj
-    base_arr
+    obj:
+        Object to encode.
+    base_arr:
         Zarr object array into which (the top-level) `obj` is saved using the MsgPack
         encoder.
-    root_group
+    root_group:
         Parent Zarr group into which new Zarr arrays will be added (at `arr_path`).
-    arr_path
+    arr_path:
         Path relative to `root_group` into which new Zarr arrays will be added.
 
     Returns
     -------
     (data, arr_lookup)
-
-
     """
 
     path = path or []
@@ -182,7 +183,7 @@ def zarr_decode(
     param_data: None | dict,
     arr_group: zarr.Group,
     path: list | None = None,
-    dataset_copy=False,
+    dataset_copy: bool = False,
 ):
     """
     Decode data from a zarr group.
@@ -221,7 +222,7 @@ class ZarrEncodable:
 
     _typ = None
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert this object to a dict.
         """
@@ -229,18 +230,22 @@ class ZarrEncodable:
             return dict(self.__dict__)
         elif hasattr(self, "__slots__"):
             return {k: getattr(self, k) for k in self.__slots__}
+        else:
+            # Should be unreachable
+            return {}
 
-    def to_zarr(self, zarr_group):
+    def to_zarr(self, zarr_group: zarr.Group):
         """
         Save this object into the given zarr group.
         """
-        data = self.to_dict()
-        zarr_encode(data, zarr_group)
+        zarr_encode(self.to_dict(), zarr_group, is_pending_add=False, is_set=False)
 
     @classmethod
-    def from_zarr(cls, zarr_group, dataset_copy=False):
+    def from_zarr(cls, zarr_group: zarr.Group, dataset_copy: bool = False) -> Self:
         """
         Read an instance of this class from the given zarr group.
         """
-        data = zarr_decode(zarr_group, dataset_copy=dataset_copy)
+        # FIXME: Do the read of the data!
+        param_data = None
+        data = zarr_decode(param_data, zarr_group, dataset_copy=dataset_copy)
         return cls(**data)

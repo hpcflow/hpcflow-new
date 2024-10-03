@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     )
     from .environment import Environment
     from .object_list import ParametersList
-    from .parameters import SchemaParameter, ParameterValue
+    from .parameters import SchemaParameter, ParameterValue, Parameter
     from .rule import Rule
     from .task import WorkflowTask
     from .task_schema import TaskSchema
@@ -684,7 +684,7 @@ class ElementActionRun(AppAware):
     def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]:
         ...
 
-    def get_dependent_EARs(self, as_objects=False) -> list[ElementActionRun] | list[int]:
+    def get_dependent_EARs(self, as_objects:bool=False) -> list[ElementActionRun] | list[int]:
         """Get downstream EARs that depend on this EAR."""
         deps: list[int] = []
         for task in self.workflow.tasks[self.task.index :]:
@@ -1412,14 +1412,14 @@ class ActionScope(JSONLike):
         return cls(typ=ActionScopeType.PROCESSING)
 
     @classmethod
-    def input_file_generator(cls, file=None) -> ActionScope:
+    def input_file_generator(cls, file: str | None = None) -> ActionScope:
         """
         The scope of an input file generator.
         """
         return cls(typ=ActionScopeType.INPUT_FILE_GENERATOR, file=file)
 
     @classmethod
-    def output_file_parser(cls, output=None) -> ActionScope:
+    def output_file_parser(cls, output: Parameter | str | None = None) -> ActionScope:
         """
         The scope of an output file parser.
         """

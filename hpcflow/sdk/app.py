@@ -1651,8 +1651,8 @@ class BaseApp(metaclass=Singleton):
             builtin_envs: list[Any] = self._builtin_template_components.get(
                 "environments", []
             )
-            for path in self.config.environment_sources:
-                envs_i_lst = read_YAML_file(path)
+            for e_path in self.config.environment_sources:
+                envs_i_lst = read_YAML_file(e_path)
                 for env_j in envs_i_lst:
                     for b_idx, builtin_env in enumerate(list(builtin_envs)):
                         # overwrite builtin envs with user-supplied:
@@ -3661,6 +3661,7 @@ class BaseApp(metaclass=Singleton):
         env_source = env_source_file or self.config.get("config_directory").joinpath(
             "configured_envs.yaml"
         )
+        assert isinstance(env_source, Path)
         if use_current_env:
             if self.run_time_info.is_conda_venv:
                 # use the currently activated conda environment for the new app environment:

@@ -166,7 +166,7 @@ def get_helper_PID(app: BaseApp):
     return helper_pid, PID_file
 
 
-def stop_helper(app: BaseApp, return_logger=False):
+def stop_helper(app: BaseApp, return_logger:bool=False):
     """
     Stop the helper process.
     """
