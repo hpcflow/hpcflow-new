@@ -136,6 +136,7 @@ class _SchemaInputKwargs(TypedDict):
     """
     Just used when deep copying `SchemaInput`.
     """
+
     parameter: Parameter | str
     multiple: bool
     labels: dict[str, LabelInfo] | None
@@ -609,11 +610,17 @@ class SchemaInput(SchemaParameter):
         return obj
 
     def __deepcopy__(self, memo: dict[int, Any]):
-        kwargs = copy.deepcopy(cast(_SchemaInputKwargs, {
-            "parameter": self.parameter,
-            "multiple": self.multiple,
-            "labels": self.labels,
-        }), memo)
+        kwargs = copy.deepcopy(
+            cast(
+                _SchemaInputKwargs,
+                {
+                    "parameter": self.parameter,
+                    "multiple": self.multiple,
+                    "labels": self.labels,
+                },
+            ),
+            memo,
+        )
         obj = self.__class__(**kwargs)
         obj._task_schema = self._task_schema
         return obj

@@ -130,9 +130,14 @@ class Executable(JSONLike):
             isinstance(other, Executable)
             and self.label == other.label
             and self.instances == other.instances
-            and ((self.environment and other.environment
-            and self.environment.name == other.environment.name)
-            or (not self.environment and not other.environment))
+            and (
+                (
+                    self.environment
+                    and other.environment
+                    and self.environment.name == other.environment.name
+                )
+                or (not self.environment and not other.environment)
+            )
         )
 
     @property

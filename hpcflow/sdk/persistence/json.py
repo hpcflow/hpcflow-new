@@ -628,7 +628,9 @@ class JSONPersistentStore(
                 tasks.update(new_tasks)
         return tasks
 
-    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, LoopDescriptor]:
+    def _get_persistent_loops(
+        self, id_lst: Iterable[int] | None = None
+    ) -> dict[int, LoopDescriptor]:
         with self.using_resource("metadata", "read") as md:
             assert "loops" in md
             return {

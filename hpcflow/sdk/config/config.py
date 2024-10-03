@@ -247,9 +247,11 @@ class ConfigOptions:
         return (cfg_schemas, cfg_keys)
 
     def validate(
-        self, data: T, logger: logging.Logger,
+        self,
+        data: T,
+        logger: logging.Logger,
         metadata: ConfigMetadata | None = None,
-        raise_with_metadata: bool = True
+        raise_with_metadata: bool = True,
     ) -> T:
         """Validate configuration items of the loaded invocation."""
 

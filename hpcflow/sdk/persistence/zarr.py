@@ -1077,7 +1077,9 @@ class ZarrPersistentStore(
         return tasks
 
     @TimeIt.decorator
-    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, LoopDescriptor]:
+    def _get_persistent_loops(
+        self, id_lst: Iterable[int] | None = None
+    ) -> dict[int, LoopDescriptor]:
         with self.using_resource("attrs", "read") as attrs:
             return {
                 idx: cast(LoopDescriptor, i)

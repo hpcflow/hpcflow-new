@@ -228,7 +228,9 @@ class QueuedScheduler(Scheduler[str]):
             time.sleep(2)
 
     @abstractmethod
-    def format_options(self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int) -> str:
+    def format_options(
+        self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int
+    ) -> str:
         """
         Render options in a way that the scheduler can handle.
         """

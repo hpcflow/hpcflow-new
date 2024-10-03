@@ -118,6 +118,7 @@ class LoopDescriptor(TypedDict):
     """
     Descriptor for loop metadata.
     """
+
     #: The parameters iterated over by the loop.
     iterable_parameters: dict[str, IterableParam]
     #: The template data from which the loop was created.
@@ -302,7 +303,9 @@ class EncodedStoreParameter(TypedDict):
     type_lookup: TypeLookup
 
 
-class _Cache(TypedDict, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]):
+class _Cache(
+    TypedDict, Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]
+):
     tasks: dict[int, AnySTask]
     elements: dict[int, AnySElement]
     element_iters: dict[int, AnySElementIter]
@@ -1327,7 +1330,9 @@ class PersistentStore(
         return self._cache["parameters"]
 
     def _reset_cache(self) -> None:
-        self._cache: _Cache[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter] = {
+        self._cache: _Cache[
+            AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
+        ] = {
             "tasks": {},
             "elements": {},
             "element_iters": {},
@@ -1589,7 +1594,9 @@ class PersistentStore(
         """Add a new loop to the workflow."""
         self.logger.debug("Adding store loop.")
         new_idx = self._get_num_total_loops()
-        added_iters: list[list[list[int]|int]] = [[list(k), v] for k, v in num_added_iterations.items()]
+        added_iters: list[list[list[int] | int]] = [
+            [list(k), v] for k, v in num_added_iterations.items()
+        ]
         self._pending.add_loops[new_idx] = {
             "loop_template": dict(loop_template),
             "iterable_parameters": iterable_parameters,

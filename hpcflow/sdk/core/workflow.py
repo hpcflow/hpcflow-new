@@ -1484,7 +1484,7 @@ class Workflow(AppAware):
         """
 
         def repack_iteration_tuples(
-            num_added_iterations: list[list[list[int] | int]]
+            num_added_iterations: list[list[list[int] | int]],
         ) -> Iterator[tuple[tuple[int, ...], int]]:
             """
             Unpacks a very ugly type from the persistence layer, turning it into
@@ -1504,8 +1504,9 @@ class Workflow(AppAware):
                         workflow=self,
                         template=self.template.loops[idx],
                         parents=loop_dat["parents"],
-                        num_added_iterations=dict(repack_iteration_tuples(
-                            loop_dat["num_added_iterations"])),
+                        num_added_iterations=dict(
+                            repack_iteration_tuples(loop_dat["num_added_iterations"])
+                        ),
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
                     for idx, loop_dat in self._store.get_loops().items()
