@@ -83,7 +83,7 @@ class Shell(ABC):
         #: Arguments to pass to the shell.
         self.os_args = os_args or {}
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         return self._executable == other._executable and self.os_args == other.os_args
@@ -102,7 +102,7 @@ class Shell(ABC):
         """
         return self.executable
 
-    def get_direct_submit_command(self, js_path) -> list[str]:
+    def get_direct_submit_command(self, js_path: str) -> list[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + [js_path]
 
@@ -189,7 +189,7 @@ class Shell(ABC):
         """
 
     @abstractmethod
-    def format_stream_assignment(self, shell_var_name, command) -> str:
+    def format_stream_assignment(self, shell_var_name: str, command: str) -> str:
         """
         Format a stream assignment.
         """

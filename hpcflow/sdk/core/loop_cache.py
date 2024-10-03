@@ -102,7 +102,7 @@ class LoopCache:
         return iter_loop_idx
 
     @TimeIt.decorator
-    def update_loop_indices(self, new_loop_name: str, iter_IDs: list[int]):
+    def update_loop_indices(self, new_loop_name: str, iter_IDs: list[int]) -> None:
         """
         Set the loop indices for a named loop to the given list of iteration IDs.
         """

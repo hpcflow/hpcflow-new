@@ -20,7 +20,7 @@ from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from typing import ClassVar
+    from typing import Any, ClassVar
     from typing_extensions import Self
     from ..typing import DataIndex, ParamSource
     from .parameters import SchemaInput, InputSource
@@ -106,19 +106,18 @@ class Loop(JSONLike):
             None  # assigned by parent WorkflowTemplate
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         out = super().to_dict()
         return {k.lstrip("_"): v for k, v in out.items()}
 
     @classmethod
-    def _json_like_constructor(cls, json_like):
+    def _json_like_constructor(cls, json_like: dict) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
         if "task_insert_IDs" in json_like:
             insert_IDs = json_like.pop("task_insert_IDs")
         else:
             insert_IDs = json_like.pop("tasks")
-        obj = cls(tasks=insert_IDs, **json_like)
-        return obj
+        return cls(tasks=insert_IDs, **json_like)
 
     @property
     def task_insert_IDs(self) -> tuple[int, ...]:
@@ -216,7 +215,7 @@ class Loop(JSONLike):
             f")"
         )
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = self.to_dict()
         kwargs["tasks"] = kwargs.pop("task_insert_IDs")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))

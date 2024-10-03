@@ -20,6 +20,7 @@ from hpcflow.sdk.core.errors import (
     MissingStoreElementIterationError,
 )
 from hpcflow.sdk.persistence.base import (
+    LoopDescriptor,
     PersistentStoreFeatures,
     PersistentStore,
     StoreEAR,
@@ -350,7 +351,7 @@ class JSONPersistentStore(
                 md["template"]["tasks"].insert(idx, task_i)
                 md["num_added_tasks"] += 1
 
-    def _append_loops(self, loops: dict[int, dict[str, Any]]):
+    def _append_loops(self, loops: dict[int, LoopDescriptor]):
         with self.using_resource("metadata", action="update") as md:
             assert "loops" in md and "template" in md
             for loop_idx, loop in loops.items():
@@ -603,7 +604,7 @@ class JSONPersistentStore(
 
         return cls(app=app, workflow=None, path=path_, fs=filesystem("file"))
 
-    def _get_persistent_template_components(self):
+    def _get_persistent_template_components(self) -> dict[str, Any]:
         with self.using_resource("metadata", "read") as md:
             assert "template_components" in md
             return md["template_components"]
@@ -627,15 +628,14 @@ class JSONPersistentStore(
                 tasks.update(new_tasks)
         return tasks
 
-    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None):
+    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, LoopDescriptor]:
         with self.using_resource("metadata", "read") as md:
             assert "loops" in md
-            loop_dat = {
-                idx: i
+            return {
+                idx: cast(LoopDescriptor, i)
                 for idx, i in enumerate(md["loops"])
                 if id_lst is None or idx in id_lst
             }
-        return loop_dat
 
     def _get_persistent_submissions(
         self, id_lst: Iterable[int] | None = None

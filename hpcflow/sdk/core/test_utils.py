@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from .element import ElementGroup
     from .loop import Loop
     from .object_list import Resources
-    from .parameters import InputSource
+    from .parameters import InputSource, Parameter
     from .task import Task
     from .task_schema import TaskSchema
     from .workflow import Workflow, WorkflowTemplate
@@ -82,7 +82,7 @@ def make_schemas(
     return out
 
 
-def make_parameters(num: int):
+def make_parameters(num: int) -> list[Parameter]:
     """
     Construct a sequence of parameters.
     """

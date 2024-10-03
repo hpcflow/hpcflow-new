@@ -114,30 +114,6 @@ if TYPE_CHECKING:
             ...
 
 
-class _DummyPersistentWorkflow:
-    """An object to pass to ResourceSpec.make_persistent that pretends to be a
-    Workflow object, so we can pretend to make template-level inputs/resources
-    persistent before the workflow exists."""
-
-    def __init__(self) -> None:
-        self._parameters: list[Any] = []
-        self._sources: list[ParamSource] = []
-        self._data_ref: list[int] = []
-
-    def _add_parameter_data(self, data: Any, source: ParamSource) -> int:
-        self._parameters.append(data)
-        self._sources.append(source)
-        self._data_ref.append(len(self._data_ref))
-        return self._data_ref[-1]
-
-    def get_parameter_data(self, data_idx: int):
-        return self._parameters[self._data_ref.index(data_idx)]
-
-    def make_persistent(self, workflow: Workflow):
-        for dat_i, source_i in zip(self._parameters, self._sources):
-            workflow._add_parameter_data(dat_i, source_i)
-
-
 class CreationInfo(TypedDict):
     """
     Descriptor for creation information about a workflow.
@@ -162,6 +138,37 @@ class WorkflowTemplateTaskData(TypedDict):
     element_sets: NotRequired[list["WorkflowTemplateTaskData"]]
     #: The output labels, if known.
     output_labels: NotRequired[list[str]]
+
+
+class _Pending(TypedDict):
+    template_components: dict[str, list[int]]
+    tasks: list[int]
+    loops: list[int]
+    submissions: list[int]
+
+
+class _DummyPersistentWorkflow:
+    """An object to pass to ResourceSpec.make_persistent that pretends to be a
+    Workflow object, so we can pretend to make template-level inputs/resources
+    persistent before the workflow exists."""
+
+    def __init__(self) -> None:
+        self._parameters: list[Any] = []
+        self._sources: list[ParamSource] = []
+        self._data_ref: list[int] = []
+
+    def _add_parameter_data(self, data: Any, source: ParamSource) -> int:
+        self._parameters.append(data)
+        self._sources.append(source)
+        self._data_ref.append(len(self._data_ref))
+        return self._data_ref[-1]
+
+    def get_parameter_data(self, data_idx: int) -> Any:
+        return self._parameters[self._data_ref.index(data_idx)]
+
+    def make_persistent(self, workflow: Workflow) -> None:
+        for dat_i, source_i in zip(self._parameters, self._sources):
+            workflow._add_parameter_data(dat_i, source_i)
 
 
 @dataclass
@@ -658,13 +665,6 @@ def resolve_fsspec(
 class _IterationData:
     id_: int
     idx: int
-
-
-class _Pending(TypedDict):
-    template_components: dict[str, list[int]]
-    tasks: list[int]
-    loops: list[int]
-    submissions: list[int]
 
 
 class Workflow(AppAware):
@@ -1482,6 +1482,20 @@ class Workflow(AppAware):
         """
         The loops in this workflow.
         """
+
+        def repack_iteration_tuples(
+            num_added_iterations: list[list[list[int] | int]]
+        ) -> Iterator[tuple[tuple[int, ...], int]]:
+            """
+            Unpacks a very ugly type from the persistence layer, turning it into
+            something we can process into a dict more easily. This in turn is caused
+            by JSON and Zarr not really understanding tuples as such.
+            """
+            for item in num_added_iterations:
+                # Convert the outside to a tuple and narrow the inner types
+                key_vec, count = item
+                yield tuple(cast(list[int], key_vec)), cast(int, count)
+
         if self._loops is None:
             with self._store.cached_load():
                 self._loops = self._app.WorkflowLoopList(
@@ -1490,9 +1504,8 @@ class Workflow(AppAware):
                         workflow=self,
                         template=self.template.loops[idx],
                         parents=loop_dat["parents"],
-                        num_added_iterations={
-                            tuple(i[0]): i[1] for i in loop_dat["num_added_iterations"]
-                        },
+                        num_added_iterations=dict(repack_iteration_tuples(
+                            loop_dat["num_added_iterations"])),
                         iterable_parameters=loop_dat["iterable_parameters"],
                     )
                     for idx, loop_dat in self._store.get_loops().items()
@@ -2462,7 +2475,7 @@ class Workflow(AppAware):
             # force commit now:
             self._store._pending.commit_all()
 
-    def set_EARs_initialised(self, iter_ID: int):
+    def set_EARs_initialised(self, iter_ID: int) -> None:
         """
         Set :py:attr:`~hpcflow.app.ElementIteration.EARs_initialised` to True for the
         specified iteration.

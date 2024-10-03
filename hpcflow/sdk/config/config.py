@@ -165,6 +165,31 @@ class DefaultConfiguration(TypedDict):
     config: ConfigDescriptor
 
 
+class ConfigMetadata(TypedDict):
+    """
+    Metadata supported by the :class:`Config` class.
+    """
+
+    #: Location of directory containing the config file.
+    config_directory: Path
+    #: Name of the config file.
+    config_file_name: str
+    #: Full path to the config file.
+    config_file_path: Path
+    #: The contents of the config file.
+    config_file_contents: str
+    #: The key identifying the config section within the config file.
+    config_key: str
+    #: Schemas that apply to the config.
+    config_schemas: Sequence[Schema]
+    #: The user that invoked things.
+    invoking_user_id: str
+    #: The user hosting things.
+    host_user_id: str
+    #: Path to file holding description of :attr:``host_user_id``.
+    host_user_id_file_path: Path
+
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SHELL = DEFAULT_SHELL_NAMES[os.name]
@@ -222,7 +247,9 @@ class ConfigOptions:
         return (cfg_schemas, cfg_keys)
 
     def validate(
-        self, data: T, logger: logging.Logger, metadata=None, raise_with_metadata=True
+        self, data: T, logger: logging.Logger,
+        metadata: ConfigMetadata | None = None,
+        raise_with_metadata: bool = True
     ) -> T:
         """Validate configuration items of the loaded invocation."""
 
@@ -242,31 +269,6 @@ class ConfigOptions:
 
         logger.debug("Configuration is valid.")
         return validated_data
-
-
-class ConfigMetadata(TypedDict):
-    """
-    Metadata supported by the :class:`Config` class.
-    """
-
-    #: Location of directory containing the config file.
-    config_directory: Path
-    #: Name of the config file.
-    config_file_name: str
-    #: Full path to the config file.
-    config_file_path: Path
-    #: The contents of the config file.
-    config_file_contents: str
-    #: The key identifying the config section within the config file.
-    config_key: str
-    #: Schemas that apply to the config.
-    config_schemas: Sequence[Schema]
-    #: The user that invoked things.
-    invoking_user_id: str
-    #: The user hosting things.
-    host_user_id: str
-    #: Path to file holding description of :attr:``host_user_id``.
-    host_user_id_file_path: Path
 
 
 class Config:

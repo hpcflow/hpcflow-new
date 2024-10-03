@@ -57,7 +57,7 @@ class ObjectList(JSONLike, Generic[T]):
 
         self._validate()
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         obj = self.__class__(copy.deepcopy(self._objects, memo))
         obj._descriptor = self._descriptor
         obj._object_is_dict = self._object_is_dict
@@ -93,14 +93,12 @@ class ObjectList(JSONLike, Generic[T]):
     def __getitem__(self, key: slice) -> list[T]:
         ...
 
-    def __getitem__(self, key) -> T | list[T]:
+    def __getitem__(self, key: int | slice) -> T | list[T]:
         """Provide list-like index access."""
-        result = self._objects.__getitem__(key)
-        return (
-            list(map(self._get_item, result))
-            if isinstance(key, slice)
-            else self._get_item(result)
-        )
+        if isinstance(key, slice):
+            return list(map(self._get_item, self._objects.__getitem__(key)))
+        else:
+            return self._get_item(self._objects.__getitem__(key))
 
     def __contains__(self, item: T) -> bool:
         if self._objects:
@@ -108,7 +106,7 @@ class ObjectList(JSONLike, Generic[T]):
                 return self._objects.__contains__(item)
         return False
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, ObjectList) and self._objects == other._objects
 
     def list_attrs(self):
@@ -260,7 +258,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         super().__init__(_objects, descriptor=descriptor)
         self._update_index()
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         obj = self.__class__(copy.deepcopy(self._objects, memo), self._access_attribute)
         obj._descriptor = self._descriptor
         obj._object_is_dict = self._object_is_dict
@@ -637,7 +635,7 @@ class ExecutablesList(AppDataList["Executable"]):
         super().__init__(_objects, access_attribute="label", descriptor="executable")
         self._set_parent_refs()
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]):
         obj = super().__deepcopy__(memo)
         obj.environment = self.environment
         return obj
@@ -804,7 +802,7 @@ class ResourceList(ObjectList["ResourceSpec"]):
 
         self._set_parent_refs()
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]):
         obj = super().__deepcopy__(memo)
         obj._element_set = self._element_set
         obj._workflow_template = self._workflow_template

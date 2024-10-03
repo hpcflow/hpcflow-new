@@ -770,7 +770,7 @@ class JSONLike(BaseJSONLike, AppAware):
                     cls.__sdk_classes.append(cls2)
         return cls.__sdk_classes
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize this object as a dictionary.
         """

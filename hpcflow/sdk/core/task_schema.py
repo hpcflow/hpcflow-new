@@ -23,7 +23,7 @@ from hpcflow.sdk.core.parameters import Parameter, ParameterPropagationMode
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
     from typing import Any, ClassVar
     from typing_extensions import Self
     from .actions import Action
@@ -633,7 +633,7 @@ class TaskSchema(JSONLike):
             f"<h5{act_heading_class}>Actions{action_show_hide}</h5>{action_table}"
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any):
         if id(self) == id(other):
             return True
         if not isinstance(other, TaskSchema):
@@ -651,7 +651,7 @@ class TaskSchema(JSONLike):
             return True
         return False
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = self.to_dict()
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
         obj._task_template = self._task_template
@@ -659,7 +659,7 @@ class TaskSchema(JSONLike):
 
     @classmethod
     @contextmanager
-    def ignore_invalid_actions(cls):
+    def ignore_invalid_actions(cls) -> Iterator[None]:
         """
         A context manager within which invalid actions will be ignored.
         """
@@ -886,7 +886,7 @@ class TaskSchema(JSONLike):
             out["commands"].extend((act_idx, i) for i in deps["commands"])
         return out
 
-    def get_key(self):
+    def get_key(self) -> tuple:
         """
         Get the hashable value that represents this schema.
         """

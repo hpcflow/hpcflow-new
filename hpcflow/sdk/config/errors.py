@@ -2,9 +2,11 @@
 Miscellaneous configuration-related errors.
 """
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from collections.abc import Sequence
-from ..typing import PathLike
+if TYPE_CHECKING:
+    from .config import ConfigMetadata
+    from ..typing import PathLike
 
 
 class ConfigError(Exception):
@@ -123,7 +125,7 @@ class ConfigInvocationKeyNotFoundError(ConfigError):
 class ConfigValidationError(ConfigError):
     """Raised when the matching config data is invalid."""
 
-    def __init__(self, message: str, meta_data=None):
+    def __init__(self, message: str, meta_data: ConfigMetadata | None = None):
         self.meta_data = meta_data
         self.message = message + (f"config {self.meta_data}\n" if meta_data else "")
         super().__init__(self.message)

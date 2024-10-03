@@ -64,7 +64,7 @@ class Scheduler(ABC, Generic[T], AppAware):
         """
         return (self.__class__.__name__,)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if type(self) is not type(other):
             return False
         return self.__dict__ == other.__dict__
@@ -204,7 +204,7 @@ class QueuedScheduler(Scheduler[str]):
     def unique_properties(self) -> tuple[str, str, Any, Any]:
         return (self.__class__.__name__, self.submit_cmd, self.show_cmd, self.del_cmd)
 
-    def format_switch(self, switch) -> str:
+    def format_switch(self, switch: str) -> str:
         """
         Format a particular switch to use the JS command.
         """
@@ -228,7 +228,7 @@ class QueuedScheduler(Scheduler[str]):
             time.sleep(2)
 
     @abstractmethod
-    def format_options(self, resources, num_elements, is_array, sub_idx) -> str:
+    def format_options(self, resources: ElementResources, num_elements: int, is_array: bool, sub_idx: int) -> str:
         """
         Render options in a way that the scheduler can handle.
         """

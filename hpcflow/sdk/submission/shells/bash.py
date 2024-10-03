@@ -17,7 +17,7 @@ from hpcflow.sdk.submission.shells.os_version import (
 )
 
 if TYPE_CHECKING:
-    from typing import ClassVar
+    from typing import Any, ClassVar
     from .base import VersionInfo, JobscriptHeaderArgs
 
 
@@ -316,7 +316,7 @@ class WSLBash(Bash):
         self.WSL_user = WSL_user
         super().__init__(*args, **kwargs)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return super().__eq__(other) and (
             self.WSL_executable == other.WSL_executable
             and self.WSL_distribution == other.WSL_distribution

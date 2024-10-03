@@ -221,9 +221,6 @@ class DirectPosix(DirectScheduler):
     #: Default shell.
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 class DirectWindows(DirectScheduler):
     """
@@ -239,9 +236,6 @@ class DirectWindows(DirectScheduler):
 
     #: Default shell.
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "powershell.exe"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     @override
     def get_submit_command(

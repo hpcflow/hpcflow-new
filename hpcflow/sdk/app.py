@@ -218,6 +218,23 @@ class KnownSubmissionItem(TypedDict):
     submission: NotRequired[Submission]
 
 
+class TemplateComponents(TypedDict):
+    """
+    Components loaded from templates.
+    """
+
+    #: Parameters loaded from templates.
+    parameters: NotRequired[_ParametersList]
+    #: Command files loaded from templates.
+    command_files: NotRequired[_CommandFilesList]
+    #: Execution environments loaded from templates.
+    environments: NotRequired[_EnvironmentsList]
+    #: Task schemas loaded from templates.
+    task_schemas: NotRequired[_TaskSchemasList]
+    #: Scripts discovered by templates.
+    scripts: NotRequired[dict[str, Path]]
+
+
 def rate_limit_safe_url_to_fs(
     app: BaseApp, *args, logger: Logger | None = None, **kwargs
 ):
@@ -261,7 +278,7 @@ def rate_limit_safe_url_to_fs(
     return _inner(*args, **kwargs)
 
 
-def __getattr__(name):
+def __getattr__(name: str):
     """Allow access to core classes and API functions."""
     try:
         return get_app_attribute(name)
@@ -269,14 +286,15 @@ def __getattr__(name):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}.")
 
 
-def get_app_attribute(name):
+def get_app_attribute(name: str):
     """
     A function to assign to an app module `__getattr__` to access app attributes.
     """
+    app_obj: BaseApp
     try:
-        app_obj = App.get_instance()
+        app_obj = cast(App, App.get_instance())
     except RuntimeError:
-        app_obj = BaseApp.get_instance()
+        app_obj = cast(BaseApp, BaseApp.get_instance())
     try:
         return getattr(app_obj, name)
     except AttributeError:
@@ -325,23 +343,6 @@ class Singleton(type, Generic[T]):
             return cls._instances[cls]
         except KeyError:
             raise RuntimeError(f"{cls.__name__!r} object has not be instantiated!")
-
-
-class TemplateComponents(TypedDict):
-    """
-    Components loaded from templates.
-    """
-
-    #: Parameters loaded from templates.
-    parameters: NotRequired[_ParametersList]
-    #: Command files loaded from templates.
-    command_files: NotRequired[_CommandFilesList]
-    #: Execution environments loaded from templates.
-    environments: NotRequired[_EnvironmentsList]
-    #: Task schemas loaded from templates.
-    task_schemas: NotRequired[_TaskSchemasList]
-    #: Scripts discovered by templates.
-    scripts: NotRequired[dict[str, Path]]
 
 
 class BaseApp(metaclass=Singleton):

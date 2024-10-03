@@ -53,6 +53,94 @@ Numeric: TypeAlias = "int | float | np.number"
 T = TypeVar("T")
 
 
+class LabelInfo(TypedDict):
+    """
+    Information about a label.
+    """
+
+    #: The label propagation mode, if known.
+    propagation_mode: NotRequired[ParameterPropagationMode]
+    #: The group containing the label, if known.
+    group: NotRequired[str]
+    #: The default value for the label, if known.
+    default_value: NotRequired[InputValue]
+
+
+class LabellingDescriptor(TypedDict):
+    """
+    Descriptor for a labelling.
+    """
+
+    #: The type with the label.
+    labelled_type: str
+    #: The propagation mode for the label.
+    propagation_mode: ParameterPropagationMode
+    #: The group containing the label.
+    group: str
+    #: The default value for the label, if known.
+    default_value: NotRequired[InputValue]
+
+
+class ResourceSpecArgs(TypedDict):
+    """
+    Supported keyword arguments for a ResourceSpec.
+    """
+
+    #: Which scope does this apply to.
+    scope: NotRequired[ActionScope | str]
+    #: Which scratch space to use.
+    scratch: NotRequired[str]
+    #: Which parallel mode to use.
+    parallel_mode: NotRequired[str | ParallelMode]
+    #: How many cores to request.
+    num_cores: NotRequired[int]
+    #: How many cores per compute node to request.
+    num_cores_per_node: NotRequired[int]
+    #: How many threads to request.
+    num_threads: NotRequired[int]
+    #: How many compute nodes to request.
+    num_nodes: NotRequired[int]
+    #: Which scheduler to use.
+    scheduler: NotRequired[str]
+    #: Which system shell to use.
+    shell: NotRequired[str]
+    #: Whether to use array jobs.
+    use_job_array: NotRequired[bool]
+    #: If using array jobs, up to how many items should be in the job array.
+    max_array_items: NotRequired[int]
+    #: How long to run for.
+    time_limit: NotRequired[str | timedelta]
+    #: Additional arguments to pass to the scheduler.
+    scheduler_args: NotRequired[dict[str, Any]]
+    #: Additional arguments to pass to the shell.
+    shell_args: NotRequired[dict[str, Any]]
+    #: Which OS to use.
+    os_name: NotRequired[str]
+    #: Which execution environments to use.
+    environments: NotRequired[dict[str, dict[str, Any]]]
+    #: Which SGE parallel environment to request.
+    SGE_parallel_env: NotRequired[str]
+    #: Which SLURM partition to request.
+    SLURM_partition: NotRequired[str]
+    #: How many SLURM tasks to request.
+    SLURM_num_tasks: NotRequired[str]
+    #: How many SLURM tasks per compute node to request.
+    SLURM_num_tasks_per_node: NotRequired[str]
+    #: How many compute nodes to request.
+    SLURM_num_nodes: NotRequired[str]
+    #: How many CPU cores to ask for per SLURM task.
+    SLURM_num_cpus_per_task: NotRequired[str]
+
+
+class _SchemaInputKwargs(TypedDict):
+    """
+    Just used when deep copying `SchemaInput`.
+    """
+    parameter: Parameter | str
+    multiple: bool
+    labels: dict[str, LabelInfo] | None
+
+
 def _process_demo_data_strings(app: BaseApp, value: T) -> T:
     def string_processor(str_in: str) -> str:
         demo_pattern = r"\<\<demo_data_file:(.*)\>\>"
@@ -222,13 +310,13 @@ class Parameter(JSONLike):
                     self._value_class = i
                     break
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, Parameter) and self.typ == other.typ
 
-    def __lt__(self, other):
+    def __lt__(self, other: Parameter):
         return self.typ < other.typ
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]):
         kwargs = self.to_dict()
         _validation = kwargs.pop("_validation")
         obj = self.__class__(**copy.deepcopy(kwargs, memo))
@@ -327,19 +415,6 @@ class NullDefault(enum.Enum):
     #: Special sentinel.
     #: Used in situations where otherwise a JSON object or array would be.
     NULL = 0
-
-
-class LabelInfo(TypedDict):
-    """
-    Information about a label.
-    """
-
-    #: The label propagation mode, if known.
-    propagation_mode: NotRequired[ParameterPropagationMode]
-    #: The group containing the label, if known.
-    group: NotRequired[str]
-    #: The default value for the label, if known.
-    default_value: NotRequired[InputValue]
 
 
 class SchemaInput(SchemaParameter):
@@ -533,13 +608,13 @@ class SchemaInput(SchemaParameter):
         obj = super().from_json_like(json_like, shared_data)
         return obj
 
-    def __deepcopy__(self, memo):
-        kwargs = {
+    def __deepcopy__(self, memo: dict[int, Any]):
+        kwargs = copy.deepcopy(cast(_SchemaInputKwargs, {
             "parameter": self.parameter,
             "multiple": self.multiple,
             "labels": self.labels,
-        }
-        obj = self.__class__(**copy.deepcopy(kwargs, memo))
+        }), memo)
+        obj = self.__class__(**kwargs)
         obj._task_schema = self._task_schema
         return obj
 
@@ -641,21 +716,6 @@ class SchemaInput(SchemaParameter):
         Whether this is an input or output. Always ``input``.
         """
         return "input"
-
-
-class LabellingDescriptor(TypedDict):
-    """
-    Descriptor for a labelling.
-    """
-
-    #: The type with the label.
-    labelled_type: str
-    #: The propagation mode for the label.
-    propagation_mode: ParameterPropagationMode
-    #: The group containing the label.
-    group: str
-    #: The default value for the label, if known.
-    default_value: NotRequired[InputValue]
 
 
 @dataclass(init=False)
@@ -789,14 +849,14 @@ class ValueSequence(JSONLike):
             f")"
         )
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         if self.to_dict() == other.to_dict():
             return True
         return False
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]):
         kwargs = self.to_dict()
         kwargs["values"] = kwargs.pop("_values")
 
@@ -1591,7 +1651,7 @@ class InputValue(AbstractInputValue):
                 f"dict."
             )
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = self.to_dict()
         _value = kwargs.pop("_value")
         kwargs.pop("_schema_input", None)
@@ -1632,7 +1692,7 @@ class InputValue(AbstractInputValue):
             f")"
         )
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         return self.to_dict() == other.to_dict()
@@ -1718,35 +1778,6 @@ class InputValue(AbstractInputValue):
             return val
         else:
             return self._value
-
-
-class ResourceSpecArgs(TypedDict):
-    """
-    Supported keyword arguments for a ResourceSpec.
-    """
-
-    scope: NotRequired[ActionScope | str]
-    scratch: NotRequired[str]
-    parallel_mode: NotRequired[str | ParallelMode]
-    num_cores: NotRequired[int]
-    num_cores_per_node: NotRequired[int]
-    num_threads: NotRequired[int]
-    num_nodes: NotRequired[int]
-    scheduler: NotRequired[str]
-    shell: NotRequired[str]
-    use_job_array: NotRequired[bool]
-    max_array_items: NotRequired[int]
-    time_limit: NotRequired[str | timedelta]
-    scheduler_args: NotRequired[dict[str, Any]]
-    shell_args: NotRequired[dict[str, Any]]
-    os_name: NotRequired[str]
-    environments: NotRequired[dict[str, dict[str, Any]]]
-    SGE_parallel_env: NotRequired[str]
-    SLURM_partition: NotRequired[str]
-    SLURM_num_tasks: NotRequired[str]
-    SLURM_num_tasks_per_node: NotRequired[str]
-    SLURM_num_nodes: NotRequired[str]
-    SLURM_num_cpus_per_task: NotRequired[str]
 
 
 class ResourceSpec(JSONLike):
@@ -1912,7 +1943,7 @@ class ResourceSpec(JSONLike):
         self._SLURM_num_nodes = SLURM_num_nodes
         self._SLURM_num_cpus_per_task = SLURM_num_cpus_per_task
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = copy.deepcopy(self.to_dict(), memo)
         _value_group_idx = kwargs.pop("value_group_idx", None)
         obj = self.__class__(**kwargs)
@@ -1936,7 +1967,7 @@ class ResourceSpec(JSONLike):
 
         return f"{self.__class__.__name__}(scope={self.scope}{param_strs})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         if self.to_dict() == other.to_dict():
@@ -1944,7 +1975,7 @@ class ResourceSpec(JSONLike):
         return False
 
     @classmethod
-    def _json_like_constructor(cls, json_like):
+    def _json_like_constructor(cls, json_like) -> Self:
         """Invoked by `JSONLike.from_json_like` instead of `__init__`."""
 
         _value_group_idx = json_like.pop("value_group_idx", None)
@@ -2385,7 +2416,7 @@ class InputSource(JSONLike):
         if self.source_type is InputSourceType.IMPORT and self.import_ref is None:
             raise ValueError("Must specify `import_ref` if `source_type` is IMPORT.")
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any):
         if not isinstance(other, self.__class__):
             return False
         elif (

@@ -144,7 +144,7 @@ class WindowsPowerShell(Shell):
     """
     )
 
-    def get_direct_submit_command(self, js_path) -> list[str]:
+    def get_direct_submit_command(self, js_path: str) -> list[str]:
         """Get the command for submitting a non-scheduled jobscript."""
         return self.executable + ["-File", js_path]
 
@@ -185,7 +185,7 @@ class WindowsPowerShell(Shell):
         return app_invoc_exe
 
     @override
-    def format_stream_assignment(self, shell_var_name, command) -> str:
+    def format_stream_assignment(self, shell_var_name: str, command: str) -> str:
         """
         Produce code to assign the output of the command to a shell variable.
         """

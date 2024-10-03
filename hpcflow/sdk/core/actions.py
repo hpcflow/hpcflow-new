@@ -80,6 +80,17 @@ class ParameterDependence(TypedDict):
     commands: list[int]
 
 
+class ScriptData(TypedDict, total=False):
+    """
+    Descriptor for data relating to a script.
+    """
+
+    #: The format of the data.
+    format: str
+    #: Whether the data is required for all iterations.
+    all_iterations: NotRequired[bool]
+
+
 class ActionScopeType(Enum):
     """
     Types of action scope.
@@ -939,7 +950,7 @@ class ElementActionRun(AppAware):
         # UGLY but could be worse
         return v
 
-    def write_source(self, js_idx: int, js_act_idx: int):
+    def write_source(self, js_idx: int, js_act_idx: int) -> None:
         """
         Write values to files in standard formats.
         """
@@ -1209,7 +1220,7 @@ class ElementAction(AppAware):
             self._output_files = self._app.ElementOutputFiles(element_action=self)
         return self._output_files
 
-    def get_data_idx(self, path: str | None = None, run_idx: int = -1):
+    def get_data_idx(self, path: str | None = None, run_idx: int = -1) -> DataIndex:
         """
         Get the data index for some path/run.
         """
@@ -1346,7 +1357,7 @@ class ActionScope(JSONLike):
             kwargs_str = ", ".join(f"{k}={v!r}" for k, v in self.kwargs.items())
         return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ActionScope):
             return False
         if self.typ is other.typ and self.kwargs == other.kwargs:
@@ -1530,7 +1541,7 @@ class ActionRule(JSONLike):
         #: The command that is guarded by this rule.
         self.command: Command | None = None  # assigned by parent command
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if type(other) is not self.__class__:
             return False
         return self.rule == other.rule
@@ -1570,17 +1581,6 @@ class ActionRule(JSONLike):
             The path to the attribute to check for.
         """
         return cls(rule=cls._app.Rule(check_missing=check_missing))
-
-
-class ScriptData(TypedDict, total=False):
-    """
-    Descriptor for data relating to a script.
-    """
-
-    #: The format of the data.
-    format: str
-    #: Whether the data is required for all iterations.
-    all_iterations: NotRequired[bool]
 
 
 class Action(JSONLike):
@@ -1753,7 +1753,7 @@ class Action(JSONLike):
 
         self._set_parent_refs()
 
-    def process_script_data_formats(self):
+    def process_script_data_formats(self) -> None:
         """
         Convert script data information into standard form.
         """
@@ -1907,13 +1907,13 @@ class Action(JSONLike):
                 return snip_path.suffix == ".py"
         return False
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         d = super().to_dict()
         d["script_data_in"] = d.pop("_script_data_in")
         d["script_data_out"] = d.pop("_script_data_out")
         return d
 
-    def __deepcopy__(self, memo) -> Self:
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = self.to_dict()
         _from_expand = kwargs.pop("_from_expand")
         _task_schema = kwargs.pop("_task_schema", None)
@@ -1974,7 +1974,7 @@ class Action(JSONLike):
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Action):
             return False
         return (

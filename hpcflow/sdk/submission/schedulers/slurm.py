@@ -90,9 +90,6 @@ class SlurmPosix(QueuedScheduler):
         "TIMEOUT": JobscriptElementState.errored,
     }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     @classmethod
     @override
     @TimeIt.decorator
@@ -355,7 +352,7 @@ class SlurmPosix(QueuedScheduler):
         max_str = f"%{resources.max_array_items}" if resources.max_array_items else ""
         return f"{self.js_cmd} {self.array_switch} 1-{num_elements}{max_str}"
 
-    def _format_std_stream_file_option_lines(self, is_array, sub_idx) -> Iterator[str]:
+    def _format_std_stream_file_option_lines(self, is_array: bool, sub_idx: int) -> Iterator[str]:
         pattern = R"%x_%A.%a" if is_array else R"%x_%j"
         base = f"./artifacts/submissions/{sub_idx}/{pattern}"
         yield f"{self.js_cmd} -o {base}.out"

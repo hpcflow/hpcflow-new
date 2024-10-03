@@ -52,7 +52,7 @@ class _ElementPrefixedParameter(AppAware):
             str, list[str]
         ] | None = None  # assigned on first access
 
-    def __getattr__(self, name) -> ElementParameter | dict[str, ElementParameter]:
+    def __getattr__(self, name: str) -> ElementParameter | dict[str, ElementParameter]:
         if name not in self.prefixed_names_unlabelled:
             raise ValueError(
                 f"No {self._prefix} named {name!r}. Available {self._prefix} are: "
@@ -369,7 +369,7 @@ class ElementResources(JSONLike):
         if self.parallel_mode:
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, ElementResources) and self.__dict__ == other.__dict__
 
     def get_jobscript_hash(self) -> int:
@@ -442,7 +442,7 @@ class ElementResources(JSONLike):
         return cls._app.config.default_shell
 
     @classmethod
-    def get_default_scheduler(cls, os_name, shell_name) -> str:
+    def get_default_scheduler(cls, os_name: str, shell_name: str) -> str:
         """
         Get the default value for scheduler.
         """
@@ -1533,7 +1533,7 @@ class Element(AppAware):
         """
         return self.latest_iteration.action_runs
 
-    def init_loop_index(self, loop_name: str):
+    def init_loop_index(self, loop_name: str) -> None:
         """
         Initialise the loop index if necessary.
         """

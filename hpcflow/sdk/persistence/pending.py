@@ -23,7 +23,7 @@ from hpcflow.sdk.persistence.types import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from .base import PersistentStore, FileDescriptor
+    from .base import PersistentStore, FileDescriptor, LoopDescriptor
     from ..app import BaseApp
     from ..typing import ParamSource
     from ..core.json_like import JSONDocument
@@ -72,7 +72,7 @@ class PendingChanges(
         #: Keys are new task IDs.
         self.add_tasks: dict[int, AnySTask] = {}
         #: Keys are loop IDs, values are loop descriptors.
-        self.add_loops: dict[int, dict[str, Any]] = {}
+        self.add_loops: dict[int, LoopDescriptor] = {}
         #: Keys are submission IDs, values are submission descriptors.
         self.add_submissions: dict[int, JSONDocument] = {}
         #: Keys are element IDs.

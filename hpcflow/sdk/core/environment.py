@@ -42,7 +42,7 @@ class NumCores(JSONLike):
     #: The step in the number of cores supported. Normally 1.
     step: int = 1
 
-    def __contains__(self, x) -> bool:
+    def __contains__(self, x: int) -> bool:
         return x in range(self.start, self.stop + 1, self.step)
 
 
@@ -125,12 +125,14 @@ class Executable(JSONLike):
             f")"
         )
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Executable)
             and self.label == other.label
             and self.instances == other.instances
-            and self.environment.name == other.environment.name
+            and ((self.environment and other.environment
+            and self.environment.name == other.environment.name)
+            or (not self.environment and not other.environment))
         )
 
     @property
@@ -226,7 +228,7 @@ class Environment(JSONLike):
         self._set_parent_refs()
         self._validate()
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, Environment)
             and self.setup == other.setup

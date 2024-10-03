@@ -305,7 +305,7 @@ class ElementSet(JSONLike):
         obj._element_local_idx_range = copy.deepcopy(elem_local_idx_range)
         return obj
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
         return self.to_dict() == other.to_dict()
@@ -1000,7 +1000,7 @@ class Task(JSONLike):
         }
         return res
 
-    def set_sequence_parameters(self, element_set: ElementSet):
+    def set_sequence_parameters(self, element_set: ElementSet) -> None:
         """
         Set up parameters parsed by value sequences.
         """
@@ -1036,13 +1036,12 @@ class Task(JSONLike):
         return out
 
     @staticmethod
-    def get_task_unique_names(tasks: list[Task]):
+    def get_task_unique_names(tasks: list[Task]) -> list[str]:
         """Get the unique name of each in a list of tasks.
 
         Returns
         -------
         list of str
-
         """
 
         task_name_rep_idx = get_item_repeat_index(

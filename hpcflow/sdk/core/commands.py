@@ -113,7 +113,6 @@ class Command(JSONLike):
         """Return the resolved command line.
 
         This is ordinarily called at run-time by `Workflow.write_commands`.
-
         """
 
         self._app.persistence_logger.debug("Command.get_command_line")
@@ -125,12 +124,12 @@ class Command(JSONLike):
         def _join(iterable: Iterable, delim: str) -> str:
             return delim.join(str(i) for i in iterable)
 
-        parse_types = {
+        parse_types: dict[str, Callable[..., str]] = {
             "sum": _format_sum,
             "join": _join,
         }
 
-        def exec_script_repl(match_obj: re.Match):
+        def exec_script_repl(match_obj: re.Match) -> str:
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
@@ -142,7 +141,7 @@ class Command(JSONLike):
                 out = EAR.action.get_script_name(val)
             return out
 
-        def input_param_repl(match_obj, inp_val):
+        def input_param_repl(match_obj, inp_val) -> str:
             _, func, func_kwargs, method, method_kwargs = match_obj.groups()
 
             if isinstance(inp_val, ParameterValue):
@@ -254,7 +253,7 @@ class Command(JSONLike):
 
         return cmd_str, shell_vars
 
-    def get_output_types(self):
+    def get_output_types(self) -> dict[str, str | None]:
         """
         Get whether stdout and stderr are workflow parameters.
         """
@@ -264,12 +263,12 @@ class Command(JSONLike):
             r"(?:\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(\w+)"
             r"(?:\.(?:\w+)\((?:.*?)\))?\)?\>\>?)"
         )
-        out = {"stdout": None, "stderr": None}
+        out: dict[str, str | None] = {"stdout": None, "stderr": None}
         for i, label in zip((self.stdout, self.stderr), ("stdout", "stderr")):
             if i:
                 match = re.search(pattern, i)
                 if match:
-                    param_typ = match.group(1)
+                    param_typ: str = match.group(1)
                     if match.span(0) != (0, len(i)):
                         raise ValueError(
                             f"If specified as a parameter, `{label}` must not include"

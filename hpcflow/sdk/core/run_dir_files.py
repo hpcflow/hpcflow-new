@@ -19,12 +19,12 @@ class RunDirAppFiles(AppAware):
     _CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
 
     @classmethod
-    def get_log_file_name(cls):
+    def get_log_file_name(cls) -> str:
         """File name for the app log file."""
         return f"{cls._app.package_name}.log"
 
     @classmethod
-    def get_std_file_name(cls):
+    def get_std_file_name(cls) -> str:
         """File name for stdout and stderr streams from the app."""
         return f"{cls._app.package_name}_std.txt"
 

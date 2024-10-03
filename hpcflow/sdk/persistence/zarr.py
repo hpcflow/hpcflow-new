@@ -36,6 +36,7 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.utils import ensure_in, get_relative_path, set_in_container
 from hpcflow.sdk.persistence.base import (
+    LoopDescriptor,
     PARAM_DATA_NOT_SET,
     PersistentStoreFeatures,
     PersistentStore,
@@ -56,6 +57,7 @@ from hpcflow.sdk.log import TimeIt
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from fsspec import AbstractFileSystem  # type: ignore
+    from logging import Logger
     from typing import ClassVar
     from typing_extensions import NotRequired, Self, TypeAlias
     from zarr import Array, Group  # type: ignore
@@ -101,7 +103,7 @@ blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
 @TimeIt.decorator
-def _zarr_get_coord_selection(arr, selection, logger):
+def _zarr_get_coord_selection(arr: Array, selection, logger: Logger):
     @retry(
         RuntimeError,
         tries=10,
@@ -111,13 +113,13 @@ def _zarr_get_coord_selection(arr, selection, logger):
         logger=logger,
     )
     @TimeIt.decorator
-    def _inner(arr, selection):
+    def _inner(arr: Array, selection):
         return arr.get_coordinate_selection(selection)
 
     return _inner(arr, selection)
 
 
-def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path):
+def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path) -> int:
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
     names = [int(i.split("arr_")[1]) for i in param_arr_group.keys()]
@@ -593,7 +595,7 @@ class ZarrPersistentStore(
         # increasing IDs.
         append_items_to_ragged_array(arr=elem_IDs_arr, items=elem_IDs)
 
-    def _append_loops(self, loops: dict[int, dict[str, Any]]):
+    def _append_loops(self, loops: dict[int, LoopDescriptor]):
         with self.using_resource("attrs", action="update") as attrs:
             for loop in loops.values():
                 attrs["loops"].append(
@@ -1075,14 +1077,13 @@ class ZarrPersistentStore(
         return tasks
 
     @TimeIt.decorator
-    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None):
+    def _get_persistent_loops(self, id_lst: Iterable[int] | None = None) -> dict[int, LoopDescriptor]:
         with self.using_resource("attrs", "read") as attrs:
-            loop_dat = {
-                idx: i
+            return {
+                idx: cast(LoopDescriptor, i)
                 for idx, i in enumerate(attrs["loops"])
                 if id_lst is None or idx in id_lst
             }
-        return loop_dat
 
     @TimeIt.decorator
     def _get_persistent_submissions(self, id_lst: Iterable[int] | None = None):
