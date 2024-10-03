@@ -3,7 +3,8 @@ Rules apply conditions to workflow elements or loops.
 """
 
 from __future__ import annotations
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from typing_extensions import TypedDict
 
 from valida.conditions import ConditionLike  # type: ignore
 from valida import Rule as ValidaRule  # type: ignore

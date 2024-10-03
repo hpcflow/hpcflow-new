@@ -5,8 +5,7 @@ Errors from the workflow system.
 from __future__ import annotations
 import os
 from collections.abc import Iterable
-from typing import TypedDict
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, TypedDict
 
 
 class InputValueDuplicateSequenceAddress(ValueError):

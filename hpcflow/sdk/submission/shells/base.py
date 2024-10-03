@@ -5,8 +5,8 @@ Base model of a shell.
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TypedDict, TYPE_CHECKING
-from typing_extensions import TypeAlias
+from typing import TYPE_CHECKING
+from typing_extensions import TypeAlias, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

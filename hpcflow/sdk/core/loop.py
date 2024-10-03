@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import copy
 from itertools import chain
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from typing_extensions import TypedDict
 
 from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import LoopTaskSubsetError

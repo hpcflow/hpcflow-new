@@ -11,7 +11,8 @@ import shutil
 import socket
 import subprocess
 from textwrap import indent
-from typing import TypedDict, cast, overload, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
+from typing_extensions import TypedDict
 
 import numpy as np
 from hpcflow.sdk.core.actions import EARStatus

@@ -14,7 +14,8 @@ import random
 import string
 from threading import Thread
 import time
-from typing import TypedDict, overload, cast, TYPE_CHECKING
+from typing import overload, cast, TYPE_CHECKING
+from typing_extensions import TypedDict
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem  # type: ignore

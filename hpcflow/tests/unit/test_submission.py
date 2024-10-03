@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import timedelta
-from typing import Any, TypedDict
+from typing import Any
+from typing_extensions import TypedDict
 import pytest
 
 from hpcflow.app import app as hf

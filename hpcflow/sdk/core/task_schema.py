@@ -7,7 +7,8 @@ from contextlib import contextmanager
 import copy
 from dataclasses import dataclass
 from importlib import import_module
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from typing_extensions import TypedDict
 from html import escape
 
 from rich import print as rich_print

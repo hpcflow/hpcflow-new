@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TypedDict
+from typing_extensions import TypedDict
 import pytest
 
 from hpcflow.app import app as hf

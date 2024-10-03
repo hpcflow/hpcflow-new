@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from typing_extensions import TypedDict
 import pytest
 
 from hpcflow.app import app as hf

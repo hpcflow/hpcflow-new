@@ -16,7 +16,8 @@ from contextlib import contextmanager
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from typing import Any, TypeVar, Generic, TypedDict, cast, TYPE_CHECKING
+from typing import Any, TypeVar, Generic, cast, TYPE_CHECKING
+from typing_extensions import TypedDict
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir

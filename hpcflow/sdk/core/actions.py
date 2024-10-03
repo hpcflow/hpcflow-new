@@ -14,7 +14,8 @@ import json
 from pathlib import Path
 import re
 from textwrap import indent, dedent
-from typing import cast, final, overload, TypedDict, TYPE_CHECKING
+from typing import cast, final, overload, TYPE_CHECKING
+from typing_extensions import TypedDict
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 

@@ -10,7 +10,8 @@ from datetime import timedelta
 import enum
 from pathlib import Path
 import re
-from typing import TypedDict, TypeVar, cast, TYPE_CHECKING
+from typing import TypeVar, cast, TYPE_CHECKING
+from typing_extensions import TypedDict
 
 import numpy as np
 from valida import Schema as ValidaSchema  # type: ignore

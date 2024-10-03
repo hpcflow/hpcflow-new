@@ -3,8 +3,8 @@ Common type aliases.
 """
 from __future__ import annotations
 from dataclasses import InitVar
-from typing import ClassVar, TypedDict, TypeVar, cast
-from typing_extensions import NotRequired, TypeAlias
+from typing import ClassVar, TypeVar, cast
+from typing_extensions import NotRequired, TypeAlias, TypedDict
 from pathlib import Path
 import re
 

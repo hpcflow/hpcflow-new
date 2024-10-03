@@ -15,7 +15,8 @@ import socket
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypedDict, cast, overload, TYPE_CHECKING
+from typing import cast, overload, TYPE_CHECKING
+from typing_extensions import TypedDict
 import fsspec  # type: ignore
 
 from rich.console import Console, Group

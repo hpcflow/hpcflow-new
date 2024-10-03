@@ -9,8 +9,8 @@ import enum
 import os
 from pathlib import Path
 from textwrap import indent
-from typing import overload, TypedDict, TYPE_CHECKING
-from typing_extensions import override
+from typing import overload, TYPE_CHECKING
+from typing_extensions import override, TypedDict
 
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
