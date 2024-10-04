@@ -18,6 +18,7 @@ import shutil
 import socket
 import time
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
+from typing_extensions import TypedDict
 
 from hpcflow.sdk.core.utils import (
     flatten,
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
     from typing import Any, ClassVar, Final, Literal
-    from typing_extensions import NotRequired, Self, TypeGuard, TypedDict
+    from typing_extensions import NotRequired, Self, TypeGuard
     from fsspec import AbstractFileSystem  # type: ignore
     from .pending import CommitResourceMap
     from .store_resource import StoreResource
