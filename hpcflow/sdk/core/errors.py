@@ -5,7 +5,6 @@ Errors from the workflow system.
 from __future__ import annotations
 import os
 from collections.abc import Iterable
-from typing_extensions import NotRequired, TypedDict
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
@@ -291,28 +290,6 @@ class SchedulerVersionsFailure(RuntimeError):
     def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
-
-
-class JobscriptSubmissionFailureArgs(TypedDict):
-    """
-    Arguments that can be expanded to create a
-    :class:`JobscriptSubmissionFailure`.
-    """
-
-    #: The command that was submitted.
-    submit_cmd: list[str]
-    #: The jobscript index.
-    js_idx: int
-    #: The jobscript path.
-    js_path: str
-    #: Where to write stdout.
-    stdout: NotRequired[str]
-    #: Where to write stderr.
-    stderr: NotRequired[str]
-    #: The exception from the exec of the subprocess.
-    subprocess_exc: NotRequired[Exception]
-    #: The exception from parsing the job ID.
-    job_ID_parse_exc: NotRequired[Exception]
 
 
 class JobscriptSubmissionFailure(RuntimeError):

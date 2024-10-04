@@ -6,7 +6,8 @@ from hpcflow.sdk.core.errors import MalformedNestingOrderPath
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from hpcflow.sdk.core.parameters import Parameter, ResourceSpecArgs
+    from hpcflow.sdk.core.parameters import Parameter
+    from hpcflow.sdk.core.types import ResourceSpecArgs
     from hpcflow.sdk.core.workflow import Workflow
 
 

@@ -4,10 +4,12 @@ Miscellaneous utilities.
 
 from __future__ import annotations
 from collections import Counter
+from contextlib import contextmanager
 import copy
 import enum
 import hashlib
 from itertools import accumulate, islice
+from importlib import resources
 import json
 import keyword
 import os
@@ -35,8 +37,10 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import PathLike
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
-    from typing import Any
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from contextlib import AbstractContextManager
+    from types import ModuleType
+    from typing import Any, IO
     from typing_extensions import TypeAlias
     from numpy.typing import NDArray
 
@@ -1014,3 +1018,33 @@ def current_timestamp() -> datetime:
     Get a UTC timestamp for the current time
     """
     return datetime.now(timezone.utc)
+
+
+@contextmanager
+def open_text_resource(package: ModuleType | str, resource: str) -> Iterator[IO[str]]:
+    """
+    Open a file in a package.
+    """
+    try:
+        fh = resources.files(package).joinpath(resource).open("r")
+    except AttributeError:
+        # < python 3.9; `resource.open_text` deprecated since 3.11
+        fh = resources.open_text(package, resource)
+    try:
+        yield fh
+    finally:
+        fh.close()
+
+
+def get_file_context(
+    package: ModuleType | str, src: str
+) -> AbstractContextManager[Path]:
+    """
+    Find a file in a package.
+    """
+    try:
+        return resources.as_file(resources.files(package).joinpath(src))
+        # raises ModuleNotFoundError
+    except AttributeError:
+        # < python 3.9
+        return resources.path(package, src)

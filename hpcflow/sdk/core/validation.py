@@ -4,9 +4,9 @@ Schema management.
 
 from __future__ import annotations
 from collections.abc import Mapping, Sequence
-from importlib import resources
 from typing import Any, Generic, Protocol, TypeVar
 from valida import Schema as ValidaSchema  # type: ignore
+from hpcflow.sdk.core.utils import open_text_resource
 
 T = TypeVar("T")
 
@@ -93,13 +93,6 @@ def get_schema(filename) -> Schema:
         The name of the schema file within the resources package
         (:py:mod:`hpcflow.sdk.data`).
     """
-    package = "hpcflow.sdk.data"
-    try:
-        fh = resources.files(package).joinpath(filename).open("r")
-    except AttributeError:
-        # < python 3.9; `resource.open_text` deprecated since 3.11
-        fh = resources.open_text(package, filename)
-    schema_dat = fh.read()
-    fh.close()
-    schema = ValidaSchema.from_yaml(schema_dat)
-    return schema
+    with open_text_resource("hpcflow.sdk.data", filename) as fh:
+        schema_dat = fh.read()
+    return ValidaSchema.from_yaml(schema_dat)

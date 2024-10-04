@@ -3,7 +3,7 @@ from typing import cast, TYPE_CHECKING
 from hpcflow.app import app as hf
 
 if TYPE_CHECKING:
-    from hpcflow.sdk.core.rule import RuleArgs
+    from hpcflow.sdk.core.types import RuleArgs
 
 
 def test_equivalent_init_with_rule_args() -> None:

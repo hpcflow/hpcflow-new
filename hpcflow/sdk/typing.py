@@ -3,10 +3,16 @@ Common type aliases.
 """
 from __future__ import annotations
 from dataclasses import InitVar
-from typing import ClassVar, TypeVar, cast
+from typing import ClassVar, TypeVar, cast, TYPE_CHECKING
 from typing_extensions import NotRequired, TypeAlias, TypedDict
 from pathlib import Path
 import re
+if TYPE_CHECKING:
+    from datetime import datetime
+    from .core.object_list import (
+        CommandFilesList, EnvironmentsList, ParametersList, TaskSchemasList)
+    from .submission.jobscript_info import JobscriptElementState
+    from .submission.submission import Submission
 
 #: Type of a value that can be treated as a path.
 PathLike: TypeAlias = "str | Path | None"
@@ -39,6 +45,87 @@ class ParamSource(TypedDict):
     value_class_method: NotRequired[str]
 
 
+class KnownSubmission(TypedDict):
+    """
+    Describes a known submission.
+    """
+
+    #: Local ID.
+    local_id: int
+    #: Workflow global ID.
+    workflow_id: str
+    #: Whether the submission is active.
+    is_active: bool
+    #: Submission index.
+    sub_idx: int
+    #: Submission time.
+    submit_time: str
+    #: Path to submission.
+    path: str
+    #: Start time.
+    start_time: str
+    #: Finish time.
+    end_time: str
+
+
+class KnownSubmissionItem(TypedDict):
+    """
+    Describes a known submission.
+    """
+
+    #: Local ID.
+    local_id: int
+    #: Workflow global ID.
+    workflow_id: str
+    #: Path to the workflow.
+    workflow_path: str
+    #: Time of submission.
+    submit_time: str
+    #: Parsed time of submission.
+    submit_time_obj: NotRequired[datetime | None]
+    #: Time of start.
+    start_time: str
+    #: Parsed time of start.
+    start_time_obj: datetime | None
+    #: Time of finish.
+    end_time: str
+    #: Parsed time of finish.
+    end_time_obj: datetime | None
+    #: Submission index.
+    sub_idx: int
+    #: Jobscripts in submission.
+    jobscripts: list[int]
+    #: Active jobscript state.
+    active_jobscripts: dict[int, dict[int, JobscriptElementState]]
+    #: Whether this is deleted.
+    deleted: bool
+    #: Whether this is unloadable.
+    unloadable: bool
+    #: Expanded submission object.
+    submission: NotRequired[Submission]
+
+
+class TemplateComponents(TypedDict):
+    """
+    Components loaded from templates.
+    """
+
+    #: Parameters loaded from templates.
+    parameters: NotRequired[ParametersList]
+    #: Command files loaded from templates.
+    command_files: NotRequired[CommandFilesList]
+    #: Execution environments loaded from templates.
+    environments: NotRequired[EnvironmentsList]
+    #: Task schemas loaded from templates.
+    task_schemas: NotRequired[TaskSchemasList]
+    #: Scripts discovered by templates.
+    scripts: NotRequired[dict[str, Path]]
+
+
+#: Simplification of :class:`TemplateComponents` to allow some types of
+#: internal manipulations.
+BasicTemplateComponents: TypeAlias = "dict[str, list[dict]]"
+
 # EAR: (task_insert_ID, element_idx, iteration_idx, action_idx, run_idx)
 #: Type of an element index:
 #: (task_insert_ID, element_idx)
@@ -55,6 +142,7 @@ DataIndex: TypeAlias = "dict[str, int | list[int]]"
 The type of indices to data. These are *normally* dictionaries of integers,
 but can have leaves being lists of integers when dealing with iterations.
 """
+
 
 _T = TypeVar("_T")
 

@@ -3,10 +3,10 @@ Miscellaneous configuration-related errors.
 """
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
-from collections.abc import Sequence
 
 if TYPE_CHECKING:
-    from .config import ConfigMetadata
+    from collections.abc import Sequence
+    from .types import ConfigMetadata
     from ..typing import PathLike
 
 

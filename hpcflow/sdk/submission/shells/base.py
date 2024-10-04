@@ -6,34 +6,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
-from typing_extensions import TypeAlias, TypedDict
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
     from typing import Any, ClassVar
-    from typing_extensions import NotRequired
-
-# This needs PEP 728 for a better type, alas
-VersionInfo: TypeAlias = "dict[str, str | list[str]]"
-
-
-# TODO: This really doesn't belong here?!
-class JobscriptHeaderArgs(TypedDict):
-    """
-    Keyword arguments to use when creating a :class:`Jobscript`,
-    """
-
-    app_invoc: str | Sequence[str]
-    config_dir: NotRequired[str]
-    config_invoc_key: NotRequired[Any]
-    EAR_file_name: NotRequired[str]
-    element_run_dirs_file_path: NotRequired[str]
-    env_setup: NotRequired[str]
-    js_idx: NotRequired[int]
-    run_log_file: NotRequired[str]
-    sub_idx: NotRequired[int]
-    workflow_app_alias: NotRequired[str]
-    workflow_path: NotRequired[str]
+    from ..types import JobscriptHeaderArgs, VersionInfo
 
 
 class Shell(ABC):

@@ -11,7 +11,6 @@ import enum
 from pathlib import Path
 import re
 from typing import TypeVar, cast, TYPE_CHECKING
-from typing_extensions import TypedDict
 
 import numpy as np
 from valida import Schema as ValidaSchema  # type: ignore
@@ -38,109 +37,20 @@ from hpcflow.sdk.submission.submission import timedelta_format
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import Any, ClassVar, Literal
-    from typing_extensions import NotRequired, Self, TypeAlias
+    from typing_extensions import Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
     from .object_list import ResourceList
-    from .rule import RuleArgs
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
+    from .types import (
+        Address, Numeric, LabelInfo, LabellingDescriptor, RuleArgs, SchemaInputKwargs
+    )
     from .workflow import Workflow, WorkflowTemplate
     from .validation import Schema
 
 
-Address: TypeAlias = "list[int | float | str]"
-Numeric: TypeAlias = "int | float | np.number"
 T = TypeVar("T")
-
-
-class LabelInfo(TypedDict):
-    """
-    Information about a label.
-    """
-
-    #: The label propagation mode, if known.
-    propagation_mode: NotRequired[ParameterPropagationMode]
-    #: The group containing the label, if known.
-    group: NotRequired[str]
-    #: The default value for the label, if known.
-    default_value: NotRequired[InputValue]
-
-
-class LabellingDescriptor(TypedDict):
-    """
-    Descriptor for a labelling.
-    """
-
-    #: The type with the label.
-    labelled_type: str
-    #: The propagation mode for the label.
-    propagation_mode: ParameterPropagationMode
-    #: The group containing the label.
-    group: str
-    #: The default value for the label, if known.
-    default_value: NotRequired[InputValue]
-
-
-class ResourceSpecArgs(TypedDict):
-    """
-    Supported keyword arguments for a ResourceSpec.
-    """
-
-    #: Which scope does this apply to.
-    scope: NotRequired[ActionScope | str]
-    #: Which scratch space to use.
-    scratch: NotRequired[str]
-    #: Which parallel mode to use.
-    parallel_mode: NotRequired[str | ParallelMode]
-    #: How many cores to request.
-    num_cores: NotRequired[int]
-    #: How many cores per compute node to request.
-    num_cores_per_node: NotRequired[int]
-    #: How many threads to request.
-    num_threads: NotRequired[int]
-    #: How many compute nodes to request.
-    num_nodes: NotRequired[int]
-    #: Which scheduler to use.
-    scheduler: NotRequired[str]
-    #: Which system shell to use.
-    shell: NotRequired[str]
-    #: Whether to use array jobs.
-    use_job_array: NotRequired[bool]
-    #: If using array jobs, up to how many items should be in the job array.
-    max_array_items: NotRequired[int]
-    #: How long to run for.
-    time_limit: NotRequired[str | timedelta]
-    #: Additional arguments to pass to the scheduler.
-    scheduler_args: NotRequired[dict[str, Any]]
-    #: Additional arguments to pass to the shell.
-    shell_args: NotRequired[dict[str, Any]]
-    #: Which OS to use.
-    os_name: NotRequired[str]
-    #: Which execution environments to use.
-    environments: NotRequired[dict[str, dict[str, Any]]]
-    #: Which SGE parallel environment to request.
-    SGE_parallel_env: NotRequired[str]
-    #: Which SLURM partition to request.
-    SLURM_partition: NotRequired[str]
-    #: How many SLURM tasks to request.
-    SLURM_num_tasks: NotRequired[str]
-    #: How many SLURM tasks per compute node to request.
-    SLURM_num_tasks_per_node: NotRequired[str]
-    #: How many compute nodes to request.
-    SLURM_num_nodes: NotRequired[str]
-    #: How many CPU cores to ask for per SLURM task.
-    SLURM_num_cpus_per_task: NotRequired[str]
-
-
-class _SchemaInputKwargs(TypedDict):
-    """
-    Just used when deep copying `SchemaInput`.
-    """
-
-    parameter: Parameter | str
-    multiple: bool
-    labels: dict[str, LabelInfo] | None
 
 
 def _process_demo_data_strings(app: BaseApp, value: T) -> T:
@@ -613,7 +523,7 @@ class SchemaInput(SchemaParameter):
     def __deepcopy__(self, memo: dict[int, Any]):
         kwargs = copy.deepcopy(
             cast(
-                _SchemaInputKwargs,
+                "SchemaInputKwargs",
                 {
                     "parameter": self.parameter,
                     "multiple": self.multiple,

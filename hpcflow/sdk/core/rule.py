@@ -4,7 +4,6 @@ Rules apply conditions to workflow elements or loops.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from typing_extensions import TypedDict
 
 from valida.conditions import ConditionLike  # type: ignore
 from valida import Rule as ValidaRule  # type: ignore
@@ -15,29 +14,8 @@ from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from typing import Any
-    from typing_extensions import NotRequired
     from .actions import Action, ElementActionRun
     from .element import ElementIteration
-
-
-class RuleArgs(TypedDict):
-    """
-    The keyword arguments that may be used to create a Rule.
-    """
-
-    #: If present, check this attribute exists.
-    check_exists: NotRequired[str]
-    #: If present, check this attribute does *not* exist.
-    check_missing: NotRequired[str]
-    #: Where to look up the attribute to check.
-    #: If not present, determined by context.
-    path: NotRequired[str]
-    #: If present, a general condition to check (or kwargs used to generate one).
-    condition: NotRequired[dict[str, Any] | ConditionLike]
-    #: If present, a cast to apply prior to running the general check.
-    cast: NotRequired[str]
-    #: Optional descriptive text.
-    doc: NotRequired[str]
 
 
 class Rule(JSONLike):

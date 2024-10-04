@@ -9,7 +9,6 @@ from __future__ import annotations
 import copy
 from itertools import chain
 from typing import TYPE_CHECKING
-from typing_extensions import TypedDict
 
 from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
@@ -27,18 +26,8 @@ if TYPE_CHECKING:
     from .parameters import SchemaInput, InputSource
     from .rule import Rule
     from .task import WorkflowTask
+    from .types import IterableParam
     from .workflow import Workflow, WorkflowTemplate
-
-
-class IterableParam(TypedDict):
-    """
-    The type of the descriptor for an iterable parameter.
-    """
-
-    #: Identifier for the input task supplying the parameter.
-    input_task: int
-    #: Identifiers for the output tasks consuming the parameter.
-    output_tasks: list[int]
 
 
 # @dataclass

@@ -17,7 +17,6 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 from typing import Any, TypeVar, Generic, cast, TYPE_CHECKING
-from typing_extensions import TypedDict
 import warnings
 import zipfile
 from platformdirs import user_cache_path, user_data_dir
@@ -42,6 +41,8 @@ from hpcflow.sdk.core.utils import (
     write_YAML_file,
     write_JSON_file,
     parse_timestamp,
+    get_file_context,
+    open_text_resource
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile
@@ -57,14 +58,19 @@ from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
     get_OS_info_windows,
 )
-from hpcflow.sdk.typing import PathLike
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
-    from typing import Dict, Literal
-    from typing_extensions import NotRequired
+    from typing import Literal
     from rich.status import Status
+    from hpcflow.sdk.typing import (
+        BasicTemplateComponents,
+        KnownSubmission,
+        KnownSubmissionItem,
+        PathLike,
+        TemplateComponents,
+    )
     from .config.config import ConfigOptions
     from .core.actions import (
         ElementActionRun,
@@ -157,83 +163,6 @@ SDK_logger = get_SDK_logger(__name__)
 DEMO_WK_FORMATS = {".yaml": "yaml", ".yml": "yaml", ".json": "json", ".jsonc": "json"}
 
 T = TypeVar("T")
-
-
-class KnownSubmission(TypedDict):
-    """
-    Describes a known submission.
-    """
-
-    #: Local ID.
-    local_id: int
-    #: Workflow global ID.
-    workflow_id: str
-    #: Whether the submission is active.
-    is_active: bool
-    #: Submission index.
-    sub_idx: int
-    #: Submission time.
-    submit_time: str
-    #: Path to submission.
-    path: str
-    #: Start time.
-    start_time: str
-    #: Finish time.
-    end_time: str
-
-
-class KnownSubmissionItem(TypedDict):
-    """
-    Describes a known submission.
-    """
-
-    #: Local ID.
-    local_id: int
-    #: Workflow global ID.
-    workflow_id: str
-    #: Path to the workflow.
-    workflow_path: str
-    #: Time of submission.
-    submit_time: str
-    #: Parsed time of submission.
-    submit_time_obj: NotRequired[datetime | None]
-    #: Time of start.
-    start_time: str
-    #: Parsed time of start.
-    start_time_obj: datetime | None
-    #: Time of finish.
-    end_time: str
-    #: Parsed time of finish.
-    end_time_obj: datetime | None
-    #: Submission index.
-    sub_idx: int
-    #: Jobscripts in submission.
-    jobscripts: list[int]
-    #: Active jobscript state.
-    active_jobscripts: dict[int, dict[int, JobscriptElementState]]
-    #: Whether this is deleted.
-    deleted: bool
-    #: Whether this is unloadable.
-    unloadable: bool
-    #: Expanded submission object.
-    submission: NotRequired[Submission]
-
-
-class TemplateComponents(TypedDict):
-    """
-    Components loaded from templates.
-    """
-
-    #: Parameters loaded from templates.
-    parameters: NotRequired[_ParametersList]
-    #: Command files loaded from templates.
-    command_files: NotRequired[_CommandFilesList]
-    #: Execution environments loaded from templates.
-    environments: NotRequired[_EnvironmentsList]
-    #: Task schemas loaded from templates.
-    task_schemas: NotRequired[_TaskSchemasList]
-    #: Scripts discovered by templates.
-    scripts: NotRequired[dict[str, Path]]
 
 
 def rate_limit_safe_url_to_fs(
@@ -408,7 +337,7 @@ class BaseApp(metaclass=Singleton):
         workflows_dir: str | None = None,
         demo_data_dir: str | None = None,
         demo_data_manifest_dir: str | None = None,
-        template_components: dict[str, list[Dict]] | None = None,
+        template_components: dict[str, list[dict]] | None = None,
         pytest_args: list[str] | None = None,
         package_name: str | None = None,
         docs_import_conv: str | None = None,
@@ -1681,29 +1610,10 @@ class BaseApp(metaclass=Singleton):
 
         self.logger.info(f"Template components loaded ({include!r}).")
 
-    @staticmethod
-    def __open_text_resource(package: ModuleType | str, resource: str):
-        try:
-            return resources.files(package).joinpath(resource).open("r")
-        except AttributeError:
-            # < python 3.9; `resource.open_text` deprecated since 3.11
-            return resources.open_text(package, resource)
-
-    @staticmethod
-    def __get_file_context(
-        package: ModuleType | str, src: str
-    ) -> AbstractContextManager[Path]:
-        try:
-            return resources.as_file(resources.files(package).joinpath(src))
-            # raises ModuleNotFoundError
-        except AttributeError:
-            # < python 3.9
-            return resources.path(package, src)
-
     @classmethod
     def load_builtin_template_component_data(
         cls, package: ModuleType | str
-    ) -> dict[str, list[Dict]]:
+    ) -> BasicTemplateComponents:
         """
         Load the template component data built into the package.
         This is as opposed to the template components defined by users.
@@ -1711,9 +1621,9 @@ class BaseApp(metaclass=Singleton):
         SDK_logger.info(
             f"Loading built-in template component data for package: {package!r}."
         )
-        components: dict[str, list[Dict]] = {}
+        components: BasicTemplateComponents = {}
         for comp_type in TEMPLATE_COMP_TYPES:
-            with cls.__open_text_resource(package, f"{comp_type}.yaml") as fh:
+            with open_text_resource(package, f"{comp_type}.yaml") as fh:
                 SDK_logger.info(f"Parsing file as YAML: {fh.name!r}")
                 components[comp_type] = read_YAML_str(fh.read())
 
@@ -2163,7 +2073,7 @@ class BaseApp(metaclass=Singleton):
 
         scripts: dict[str, Path] = {}
         try:
-            with self.__get_file_context(scripts_package, "") as path:
+            with get_file_context(scripts_package, "") as path:
                 for dirpath, _, filenames in os.walk(path):
                     dirpath_ = Path(dirpath)
                     if dirpath_.name == "__pycache__":
@@ -3054,7 +2964,7 @@ class BaseApp(metaclass=Singleton):
                 f"{self.name} has not been built with testing dependencies."
             )
         test_args = (self.pytest_args or []) + list(args)
-        with self.__get_file_context(self.package_name, "tests") as test_dir:
+        with get_file_context(self.package_name, "tests") as test_dir:
             return pytest.main([str(test_dir)] + test_args)
 
     def _get_OS_info(self) -> dict[str, str]:
@@ -3751,7 +3661,7 @@ class BaseApp(metaclass=Singleton):
             if package is None:
                 self.logger.warning("no demo data dir defined")
                 return {}
-            with self.__open_text_resource(package, "demo_data_manifest.json") as fh:
+            with open_text_resource(package, "demo_data_manifest.json") as fh:
                 manifest = json.load(fh)
         return manifest
 
@@ -3834,7 +3744,7 @@ class BaseApp(metaclass=Singleton):
                     resource_exists = False
                 else:
                     delete = False
-                    with self.__get_file_context(package, src_fn) as path:
+                    with get_file_context(package, src_fn) as path:
                         out = path
                     resource_exists = True
             except (ModuleNotFoundError, FileNotFoundError):

@@ -29,13 +29,10 @@ from .errors import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, TypeVar
-    from typing_extensions import TypeAlias
+    from typing import Any
     from ..typing import PathLike
-    from .config import Config, ConfigOptions, DefaultConfiguration, InvocationDescriptor
-
-    ConfigDict: TypeAlias = "dict[str, dict[str, DefaultConfiguration]]"
-    T = TypeVar("T")
+    from .config import Config, ConfigOptions
+    from .types import ConfigDict, DefaultConfiguration, InvocationDescriptor
 
 
 class ConfigFile:

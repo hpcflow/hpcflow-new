@@ -15,7 +15,6 @@ from pathlib import Path
 import re
 from textwrap import indent, dedent
 from typing import cast, final, overload, TYPE_CHECKING
-from typing_extensions import TypedDict
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
@@ -42,7 +41,7 @@ from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any, ClassVar, Literal
-    from typing_extensions import NotRequired, Self
+    from typing_extensions import Self
     from valida.conditions import ConditionLike  # type: ignore
 
     from ..typing import DataIndex, ParamSource
@@ -64,32 +63,11 @@ if TYPE_CHECKING:
     from .rule import Rule
     from .task import WorkflowTask
     from .task_schema import TaskSchema
+    from .types import ParameterDependence, ScriptData
     from .workflow import Workflow
 
 
 ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
-
-
-class ParameterDependence(TypedDict):
-    """
-    Dependency descriptor for a parameter.
-    """
-
-    #: The input file writers that can use the parameter.
-    input_file_writers: list[FileSpec]
-    #: The commands that can use the parameter.
-    commands: list[int]
-
-
-class ScriptData(TypedDict, total=False):
-    """
-    Descriptor for data relating to a script.
-    """
-
-    #: The format of the data.
-    format: str
-    #: Whether the data is required for all iterations.
-    all_iterations: NotRequired[bool]
 
 
 class ActionScopeType(Enum):

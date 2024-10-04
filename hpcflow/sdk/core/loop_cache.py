@@ -12,23 +12,12 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.cache import DependencyCache
 
 if TYPE_CHECKING:
-    from typing_extensions import Self, TypedDict
+    from typing_extensions import Self
     from ..typing import DataIndex
     from .loop import Loop
-    from .parameters import InputSource
-    from .task import WorkflowTask, InputStatus
+    from .task import WorkflowTask
+    from .types import DependentDescriptor, ElementDescriptor
     from .workflow import Workflow
-
-    class ElementDescriptor(TypedDict):
-        input_statuses: dict[str, InputStatus]
-        input_sources: dict[str, InputSource]
-        task_insert_ID: int
-
-    class _DependentDescriptor(TypedDict):
-        group_names: tuple[str, ...]
-
-    class DependentDescriptor(_DependentDescriptor, total=False):
-        pass
 
 
 @dataclass

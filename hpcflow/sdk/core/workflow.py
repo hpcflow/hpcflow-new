@@ -15,7 +15,6 @@ import string
 from threading import Thread
 import time
 from typing import overload, cast, TYPE_CHECKING
-from typing_extensions import TypedDict
 from uuid import uuid4
 from warnings import warn
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
@@ -68,25 +67,23 @@ from hpcflow.sdk.core.errors import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
     from contextlib import AbstractContextManager
-    from typing import Any, ClassVar, Literal, Protocol
-    from typing_extensions import NotRequired, Self, TypeAlias
+    from typing import Any, ClassVar, Literal
+    from typing_extensions import Self, TypeAlias
     from numpy.typing import NDArray
     import psutil
     from rich.status import Status
-    from ..app import TemplateComponents
+    from ..typing import TemplateComponents
     from ..typing import DataIndex, ParamSource
     from .actions import ElementActionRun
     from .element import Element, ElementIteration
     from .loop import Loop, WorkflowLoop
-    from .object_list import (
-        WorkflowTaskList,
-        WorkflowLoopList,
-        ResourceList,
-        ObjectList,
-        Resources,
-    )
+    from .object_list import ObjectList, ResourceList, WorkflowLoopList, WorkflowTaskList
     from .parameters import InputSource
     from .task import Task, WorkflowTask
+    from .types import (
+        AbstractFileSystem, CreationInfo, Pending, Resources,
+        WorkflowTemplateTaskData,
+    )
     from ..submission.submission import Submission
     from ..submission.jobscript import (
         Jobscript,
@@ -99,53 +96,11 @@ if TYPE_CHECKING:
         StoreTask,
         StoreParameter,
         StoreEAR,
-        TemplateMeta,
     )
+    from ..persistence.types import TemplateMeta
 
+    #: Convenience alias
     _TemplateComponents: TypeAlias = "dict[str, ObjectList[JSONLike]]"
-
-    class AbstractFileSystem(Protocol):
-        def exists(self, path: str) -> bool:
-            ...
-
-        def rename(self, from_: str, to: str, *, recursive: bool = False) -> None:
-            ...
-
-        def rm(self, path: str, *, recursive: bool = False) -> None:
-            ...
-
-
-class CreationInfo(TypedDict):
-    """
-    Descriptor for creation information about a workflow.
-    """
-
-    #: Description of information about the application.
-    app_info: dict[str, Any]
-    #: When the workflow was created.
-    create_time: datetime
-    #: Unique identifier for the workflow.
-    id: str
-
-
-class WorkflowTemplateTaskData(TypedDict):
-    """
-    Descriptor for information about tasks described in a workflow template.
-    """
-
-    #: The schema, if known.
-    schema: NotRequired[Any | list[Any]]
-    #: The element sets, if known.
-    element_sets: NotRequired[list["WorkflowTemplateTaskData"]]
-    #: The output labels, if known.
-    output_labels: NotRequired[list[str]]
-
-
-class _Pending(TypedDict):
-    template_components: dict[str, list[int]]
-    tasks: list[int]
-    loops: list[int]
-    submissions: list[int]
 
 
 class _DummyPersistentWorkflow:
@@ -2193,7 +2148,7 @@ class Workflow(AppAware):
 
         return uniq_names[new_index]
 
-    def _get_empty_pending(self) -> _Pending:
+    def _get_empty_pending(self) -> Pending:
         return {
             "template_components": {k: [] for k in TEMPLATE_COMP_TYPES},
             "tasks": [],  # list of int

@@ -31,14 +31,16 @@ from hpcflow.sdk.persistence.base import (
     Metadata,
     StoreCreationInfo,
     update_param_source_dict,
-    ElemMeta,
-    IterMeta,
-    RunMeta,
-    TaskMeta,
     TemplateMeta,
 )
 from hpcflow.sdk.persistence.pending import CommitResourceMap
 from hpcflow.sdk.persistence.store_resource import JSONFileStoreResource
+from hpcflow.sdk.persistence.types import (
+    ElemMeta,
+    IterMeta,
+    RunMeta,
+    TaskMeta,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence

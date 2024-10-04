@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from textwrap import indent
 from typing import overload, TYPE_CHECKING
-from typing_extensions import override, TypedDict
+from typing_extensions import override
 
 from hpcflow.sdk.core.element import ElementResources
 from hpcflow.sdk.core.errors import (
@@ -33,21 +33,11 @@ if TYPE_CHECKING:
     from .jobscript import Jobscript, JobscriptElementState
     from .schedulers import Scheduler
     from .shells import Shell
+    from .types import SubmissionPart
     from ..core.element import ElementActionRun
     from ..core.environment import Environment
     from ..core.object_list import EnvironmentsList
     from ..core.workflow import Workflow
-
-
-class SubmissionPart(TypedDict):
-    """
-    A part of a submission.
-    """
-
-    #: Timestamp for when this part was submitted.
-    submit_time: datetime
-    #: The jobscripts involved in this submission.
-    jobscripts: list[int]
 
 
 def timedelta_format(td: timedelta) -> str:

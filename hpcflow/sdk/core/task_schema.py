@@ -8,7 +8,6 @@ import copy
 from dataclasses import dataclass
 from importlib import import_module
 from typing import TYPE_CHECKING
-from typing_extensions import TypedDict
 from html import escape
 
 from rich import print as rich_print
@@ -28,23 +27,12 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar
     from typing_extensions import Self
     from .actions import Action
-    from .command_files import FileSpec
     from .object_list import ParametersList, TaskSchemasList
     from .parameters import SchemaInput, SchemaOutput, SchemaParameter
     from .task import TaskTemplate
+    from .types import ActParameterDependence
     from .workflow import Workflow
     from ..typing import ParamSource
-
-
-class ActParameterDependence(TypedDict):
-    """
-    Action parameter dependency descriptor.
-    """
-
-    #: The input file writers that produce the parameter.
-    input_file_writers: list[tuple[int, FileSpec]]
-    #: The commands that produce the parameter.
-    commands: list[tuple[int, int]]
 
 
 @dataclass

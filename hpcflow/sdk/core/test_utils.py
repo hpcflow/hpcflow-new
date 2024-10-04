@@ -4,11 +4,11 @@ Utilities for making data to use in testing.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from importlib import resources
 from pathlib import Path
 from typing import Any, ClassVar, TYPE_CHECKING
 from hpcflow.app import app as hf
 from hpcflow.sdk.core.parameters import ParameterValue
+from hpcflow.sdk.core.utils import get_file_context
 from hpcflow.sdk.typing import hydrate
 
 if TYPE_CHECKING:
@@ -17,10 +17,10 @@ if TYPE_CHECKING:
     from .actions import Action
     from .element import ElementGroup
     from .loop import Loop
-    from .object_list import Resources
     from .parameters import InputSource, Parameter
     from .task import Task
     from .task_schema import TaskSchema
+    from .types import Resources
     from .workflow import Workflow, WorkflowTemplate
     from ..typing import PathLike
 # mypy: disable-error-code="no-untyped-def"
@@ -226,13 +226,7 @@ def make_test_data_YAML_workflow(
 ) -> Workflow:
     """Generate a workflow whose template file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
-    try:
-        script_ctx = resources.as_file(resources.files(pkg).joinpath(workflow_name))
-    except AttributeError:
-        # < python 3.9; `resource.path` deprecated since 3.11
-        script_ctx = resources.path(pkg, workflow_name)
-
-    with script_ctx as file_path:
+    with get_file_context(pkg, workflow_name) as file_path:
         return hf.Workflow.from_YAML_file(YAML_path=file_path, path=path, **kwargs)
 
 
@@ -241,13 +235,7 @@ def make_test_data_YAML_workflow_template(
 ) -> WorkflowTemplate:
     """Generate a workflow template whose file is defined in the test data directory."""
     pkg = "hpcflow.tests.data"
-    try:
-        script_ctx = resources.as_file(resources.files(pkg).joinpath(workflow_name))
-    except AttributeError:
-        # < python 3.9; `resource.path` deprecated since 3.11
-        script_ctx = resources.path(pkg, workflow_name)
-
-    with script_ctx as file_path:
+    with get_file_context(pkg, workflow_name) as file_path:
         return hf.WorkflowTemplate.from_file(path=file_path, **kwargs)
 
 

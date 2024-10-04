@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
-from typing_extensions import override, TypedDict
+from typing_extensions import override
 import shutil
 import time
 
@@ -36,7 +36,6 @@ from hpcflow.sdk.core.errors import (
 )
 from hpcflow.sdk.core.utils import ensure_in, get_relative_path, set_in_container
 from hpcflow.sdk.persistence.base import (
-    LoopDescriptor,
     PARAM_DATA_NOT_SET,
     PersistentStoreFeatures,
     PersistentStore,
@@ -45,8 +44,12 @@ from hpcflow.sdk.persistence.base import (
     StoreElementIter,
     StoreParameter,
     StoreTask,
+)
+from hpcflow.sdk.persistence.types import (
+    LoopDescriptor,
     StoreCreationInfo,
     TemplateMeta,
+    ZarrAttrsDict,
 )
 from hpcflow.sdk.persistence.store_resource import ZarrAttrsStoreResource
 from hpcflow.sdk.persistence.utils import ask_pw_on_auth_exc
@@ -59,7 +62,7 @@ if TYPE_CHECKING:
     from fsspec import AbstractFileSystem  # type: ignore
     from logging import Logger
     from typing import ClassVar
-    from typing_extensions import NotRequired, Self, TypeAlias
+    from typing_extensions import Self, TypeAlias
     from zarr import Array, Group  # type: ignore
     from ..app import BaseApp
     from ..core.json_like import JSONed, JSONDocument
@@ -68,35 +71,6 @@ if TYPE_CHECKING:
 
 ListAny: TypeAlias = "list[Any]"
 ZarrAttrs: TypeAlias = "dict[str, list[str]]"
-
-
-class ZarrAttrsDict(TypedDict):
-    """
-    Zarr workflow attributes descriptor.
-    """
-
-    #: Workflow name.
-    name: str
-    #: Timestamp format.
-    ts_fmt: str
-    #: Timestamp format for names.
-    ts_name_fmt: str
-    #: Information about the creation of the workflow and persistent store.
-    creation_info: StoreCreationInfo
-    #: The template used to build the workflow.
-    template: TemplateMeta
-    #: Custom components used to build the workflow.
-    template_components: dict[str, Any]
-    #: Number of tasks added.
-    num_added_tasks: int
-    #: Tasks in the workflow.
-    tasks: list[dict[str, Any]]
-    #: Loops in the workflow.
-    loops: list[dict[str, Any]]
-    #: Submissions by the workflow.
-    submissions: list[JSONDocument]
-    #: Replacement workflow, if any.
-    replaced_workflow: NotRequired[str]
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general

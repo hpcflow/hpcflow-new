@@ -18,7 +18,7 @@ from hpcflow.sdk.core.test_utils import (
 if TYPE_CHECKING:
     from pathlib import Path
     from hpcflow.sdk.core.parameters import Parameter
-    from hpcflow.sdk.core.rule import RuleArgs
+    from hpcflow.sdk.core.types import RuleArgs
 
 
 def test_input_source_class_method_local() -> None:

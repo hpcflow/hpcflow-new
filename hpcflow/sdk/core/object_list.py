@@ -19,8 +19,9 @@ if TYPE_CHECKING:
     from .command_files import FileSpec
     from .environment import Environment, Executable
     from .loop import WorkflowLoop
-    from .parameters import Parameter, ResourceSpec, ResourceSpecArgs
+    from .parameters import Parameter, ResourceSpec
     from .task import Task, TaskTemplate, TaskSchema, WorkflowTask, ElementSet
+    from .types import Resources
     from .workflow import WorkflowTemplate
 
 T = TypeVar("T")
@@ -754,13 +755,6 @@ class WorkflowLoopList(DotAccessObjectList["WorkflowLoop"]):
 
     def _remove_object(self, index: int):
         self._objects.pop(index)
-
-
-#: The type of things we can normalise to a :py:class:`ResourceList`.
-Resources: TypeAlias = (
-    "ResourceSpec | ResourceList | None | ResourceSpecArgs | dict |"
-    "Sequence[ResourceSpec | ResourceSpecArgs | dict]"
-)
 
 
 class ResourceList(ObjectList["ResourceSpec"]):

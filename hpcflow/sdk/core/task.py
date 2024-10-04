@@ -49,7 +49,7 @@ from hpcflow.sdk.core.utils import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from typing import Any, ClassVar, Literal, TypeVar
-    from typing_extensions import Self, TypeAlias, TypedDict
+    from typing_extensions import Self, TypeAlias
     from ..typing import DataIndex, ParamSource
     from .actions import Action
     from .command_files import InputFile
@@ -60,7 +60,6 @@ if TYPE_CHECKING:
         ElementParameter,
         _ElementPrefixedParameter as EPP,
     )
-    from .object_list import Resources
     from .parameters import (
         InputValue,
         InputSource,
@@ -71,37 +70,10 @@ if TYPE_CHECKING:
     )
     from .rule import Rule
     from .task_schema import TaskObjective, TaskSchema
+    from .types import MultiplicityDescriptor, RelevantData, RelevantPath, Resources, RepeatsDescriptor
     from .workflow import Workflow, WorkflowTemplate
 
-    RelevantPath: TypeAlias = "ParentPath | UpdatePath | SiblingPath"
     StrSeq = TypeVar("StrSeq", bound=Sequence[str])
-
-    class RepeatsDescriptor(TypedDict):
-        name: str
-        number: int
-        nesting_order: float
-
-    class MultiplicityDescriptor(TypedDict):
-        multiplicity: int
-        nesting_order: float
-        path: str
-
-    class ParentPath(TypedDict):
-        type: Literal["parent"]
-        relative_path: Sequence[str]
-
-    class UpdatePath(TypedDict):
-        type: Literal["update"]
-        update_path: Sequence[str]
-
-    class SiblingPath(TypedDict):
-        type: Literal["sibling"]
-
-    class RelevantData(TypedDict):
-        data: list[Any] | Any
-        value_class_method: list[str | None] | str | None
-        is_set: bool | list[bool]
-        is_multi: bool
 
 
 INPUT_SOURCE_TYPES = ("local", "default", "task", "import")
