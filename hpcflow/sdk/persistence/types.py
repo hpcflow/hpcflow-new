@@ -250,6 +250,7 @@ class PersistenceCache(
     """
     Cache used internally by the persistence engine.
     """
+
     #: Tasks.
     tasks: dict[int, AnySTask]
     #: Elements.

@@ -70,7 +70,13 @@ if TYPE_CHECKING:
     )
     from .rule import Rule
     from .task_schema import TaskObjective, TaskSchema
-    from .types import MultiplicityDescriptor, RelevantData, RelevantPath, Resources, RepeatsDescriptor
+    from .types import (
+        MultiplicityDescriptor,
+        RelevantData,
+        RelevantPath,
+        Resources,
+        RepeatsDescriptor,
+    )
     from .workflow import Workflow, WorkflowTemplate
 
     StrSeq = TypeVar("StrSeq", bound=Sequence[str])

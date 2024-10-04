@@ -1036,9 +1036,7 @@ def open_text_resource(package: ModuleType | str, resource: str) -> Iterator[IO[
         fh.close()
 
 
-def get_file_context(
-    package: ModuleType | str, src: str
-) -> AbstractContextManager[Path]:
+def get_file_context(package: ModuleType | str, src: str) -> AbstractContextManager[Path]:
     """
     Find a file in a package.
     """

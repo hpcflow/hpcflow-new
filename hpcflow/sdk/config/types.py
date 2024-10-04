@@ -4,6 +4,7 @@ Types used in configuration.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing_extensions import TypeAlias, TypedDict, TypeVar
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path

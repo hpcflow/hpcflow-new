@@ -4,6 +4,7 @@ Types for the submission subsystem.
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 from typing_extensions import NotRequired, TypeAlias, TypedDict
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime

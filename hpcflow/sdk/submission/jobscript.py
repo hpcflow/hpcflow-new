@@ -39,7 +39,12 @@ if TYPE_CHECKING:
     from .shells.base import Shell
     from .schedulers import Scheduler
     from .jobscript_info import JobscriptElementState
-    from .types import JobScriptCreationArguments, JobScriptDescriptor, ResolvedDependencies, SchedulerRef
+    from .types import (
+        JobScriptCreationArguments,
+        JobScriptDescriptor,
+        ResolvedDependencies,
+        SchedulerRef,
+    )
 
 
 @TimeIt.decorator

@@ -42,7 +42,7 @@ from hpcflow.sdk.core.utils import (
     write_JSON_file,
     parse_timestamp,
     get_file_context,
-    open_text_resource
+    open_text_resource,
 )
 from hpcflow.sdk import sdk_classes, sdk_funcs, get_SDK_logger
 from hpcflow.sdk.config import Config, ConfigFile

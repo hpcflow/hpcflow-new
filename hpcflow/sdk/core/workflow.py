@@ -81,7 +81,10 @@ if TYPE_CHECKING:
     from .parameters import InputSource
     from .task import Task, WorkflowTask
     from .types import (
-        AbstractFileSystem, CreationInfo, Pending, Resources,
+        AbstractFileSystem,
+        CreationInfo,
+        Pending,
+        Resources,
         WorkflowTemplateTaskData,
     )
     from ..submission.submission import Submission

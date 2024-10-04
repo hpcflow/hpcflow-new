@@ -7,10 +7,15 @@ from typing import ClassVar, TypeVar, cast, TYPE_CHECKING
 from typing_extensions import NotRequired, TypeAlias, TypedDict
 from pathlib import Path
 import re
+
 if TYPE_CHECKING:
     from datetime import datetime
     from .core.object_list import (
-        CommandFilesList, EnvironmentsList, ParametersList, TaskSchemasList)
+        CommandFilesList,
+        EnvironmentsList,
+        ParametersList,
+        TaskSchemasList,
+    )
     from .submission.jobscript_info import JobscriptElementState
     from .submission.submission import Submission
 

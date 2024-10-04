@@ -70,7 +70,8 @@ if TYPE_CHECKING:
         ShellConfigDescriptor,
         GetterCallback,
         SetterCallback,
-        T)
+        T,
+    )
     from ..app import BaseApp
 
 

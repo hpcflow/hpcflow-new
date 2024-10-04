@@ -4,6 +4,7 @@ Types to support the core SDK.
 from __future__ import annotations
 from typing import Any, Literal, Protocol, TYPE_CHECKING
 from typing_extensions import NotRequired, TypeAlias, TypedDict
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime, timedelta
@@ -14,7 +15,12 @@ if TYPE_CHECKING:
     from .object_list import ResourceList
     from .parallel import ParallelMode
     from .parameters import (
-        InputSource, InputValue, Parameter, ParameterPropagationMode, ResourceSpec)
+        InputSource,
+        InputValue,
+        Parameter,
+        ParameterPropagationMode,
+        ResourceSpec,
+    )
     from .task import InputStatus
 
 
@@ -66,6 +72,7 @@ class ElementDescriptor(TypedDict):
     """
     Descriptor for elements.
     """
+
     #: The statuses of inputs.
     input_statuses: dict[str, InputStatus]
     #: The sources of inputs.
@@ -191,6 +198,7 @@ class SchemaInputKwargs(TypedDict):
     """
     Just used when deep copying `SchemaInput`.
     """
+
     #: The parameter.
     parameter: Parameter | str
     #: Whether this is multiple.
@@ -238,6 +246,7 @@ class RepeatsDescriptor(TypedDict):
     """
     Descriptor for repeats.
     """
+
     #: Name of the repeat.
     name: str
     #: The repeat count.
@@ -250,6 +259,7 @@ class MultiplicityDescriptor(TypedDict):
     """
     Descriptor for multiplicities.
     """
+
     #: The size of the multiplicity.
     multiplicity: int
     #: The nesting order. Normally an integer; non-integer values have special meanings.
@@ -262,6 +272,7 @@ class ParentPath(TypedDict):
     """
     A `RelevantPath` that is a path to a parent.
     """
+
     #: Type ID.
     type: Literal["parent"]
     relative_path: Sequence[str]
@@ -271,6 +282,7 @@ class UpdatePath(TypedDict):
     """
     A `RelevantPath` that is a path to an update.
     """
+
     #: Type ID.
     type: Literal["update"]
     update_path: Sequence[str]
@@ -280,6 +292,7 @@ class SiblingPath(TypedDict):
     """
     A `RelevantPath` that is a path to a sibling.
     """
+
     #: Type ID.
     type: Literal["sibling"]
 
@@ -288,6 +301,7 @@ class RelevantData(TypedDict):
     """
     Data relevant to performing an update.
     """
+
     #: The data to set.
     data: list[Any] | Any
     #: Which method to use for handling the data, if any.
@@ -328,6 +342,7 @@ class Pending(TypedDict):
     """
     Pending update information. Internal use only.
     """
+
     #: Template components to update.
     template_components: dict[str, list[int]]
     #: Tasks to update.
@@ -342,6 +357,7 @@ class AbstractFileSystem(Protocol):
     """
     Type constraints for an abstract file system.
     """
+
     # Because a dependency is not fully typed...
     def exists(self, path: str) -> bool:
         """Test if a path points to a file or directory that exists."""

@@ -44,7 +44,12 @@ if TYPE_CHECKING:
     from .object_list import ResourceList
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .types import (
-        Address, Numeric, LabelInfo, LabellingDescriptor, RuleArgs, SchemaInputKwargs
+        Address,
+        Numeric,
+        LabelInfo,
+        LabellingDescriptor,
+        RuleArgs,
+        SchemaInputKwargs,
     )
     from .workflow import Workflow, WorkflowTemplate
     from .validation import Schema
