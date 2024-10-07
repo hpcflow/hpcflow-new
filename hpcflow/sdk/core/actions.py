@@ -2086,7 +2086,8 @@ class Action(JSONLike):
         return script.startswith("<<script:")
 
     __SCRIPT_NAME_RE: ClassVar[Pattern] = re.compile(
-        r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>")
+        r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>"
+    )
 
     @classmethod
     def get_script_name(cls, script: str) -> str:
@@ -2343,7 +2344,8 @@ class Action(JSONLike):
     # note: we use "parameter" rather than "input", because it could be a schema input
     # or schema output.
     __PARAMS_RE: ClassVar[Pattern] = re.compile(
-        r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>")
+        r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>"
+    )
 
     def get_command_input_types(self, sub_parameters: bool = False) -> tuple[str, ...]:
         """Get parameter types from commands.

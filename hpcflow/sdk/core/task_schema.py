@@ -681,8 +681,7 @@ class TaskSchema(JSONLike):
         return (
             o
             if isinstance(o, cls._app.SchemaOutput)
-            else cls._app.SchemaOutput(
-                o if isinstance(o, Parameter) else o.parameter)
+            else cls._app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
         )
 
     @classmethod

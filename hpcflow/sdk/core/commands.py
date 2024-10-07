@@ -108,9 +108,7 @@ class Command(JSONLike):
         else:
             return self.executable or ""
 
-    __EXE_SCRIPT_RE: ClassVar[Pattern] = re.compile(
-        r"\<\<(executable|script):(.*?)\>\>"
-    )
+    __EXE_SCRIPT_RE: ClassVar[Pattern] = re.compile(r"\<\<(executable|script):(.*?)\>\>")
     __ENV_SPEC_RE: ClassVar[Pattern] = re.compile(r"\<\<env:(.*?)\>\>")
 
     def get_command_line(

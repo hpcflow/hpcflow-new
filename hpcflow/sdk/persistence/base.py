@@ -153,6 +153,7 @@ class StoreTask(Generic[SerFormT]):
     task_template:
         Description of the template for the task.
     """
+
     # This would be in the docstring except it renders really wrongly!
     # Type Parameters
     # ---------------
@@ -220,6 +221,7 @@ class StoreElement(Generic[SerFormT, ContextT]):
     iteration_IDs:
         IDs of element-iterations that belong to this element.
     """
+
     # These would be in the docstring except they render really wrongly!
     # Type Parameters
     # ---------------
@@ -309,6 +311,7 @@ class StoreElementIter(Generic[SerFormT, ContextT]):
     loop_idx:
         What loops are being handled here and where they're up to.
     """
+
     # These would be in the docstring except they render really wrongly!
     # Type Parameters
     # ---------------
@@ -448,6 +451,7 @@ class StoreEAR(Generic[SerFormT, ContextT]):
     run_hostname:
         Where this EAR was submitted to run, if known.
     """
+
     # These would be in the docstring except they render really wrongly!
     # Type Parameters
     # ---------------
@@ -852,6 +856,7 @@ class PersistentStore(
     fs: fsspec.AbstractFileSystem
         Optionally, information about how to access the store.
     """
+
     # These would be in the docstring except they render really wrongly!
     # Type Parameters
     # ---------------

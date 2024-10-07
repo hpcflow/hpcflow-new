@@ -44,6 +44,7 @@ class PendingChanges(
     resource_map: CommitResourceMap
         Map of resources, used when processing commits.
     """
+
     # These would be in the docstring except they render really wrongly!
     # Type Parameters
     # ---------------

@@ -36,6 +36,7 @@ class Scheduler(ABC, Generic[JSRefType], AppAware):
     options: dict
         Options to the scheduler.
     """
+
     # This would be in the docstring except it renders really wrongly!
     # Type Parameters
     # ---------------

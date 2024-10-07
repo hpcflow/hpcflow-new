@@ -46,12 +46,12 @@ class ObjectList(JSONLike, Generic[T]):
     descriptor : str
         Descriptive name for objects in the list.
     """
+
     # This would be in the docstring except it renders really wrongly!
     # Type Parameters
     # ---------------
     # T
     #     The type of elements of the list.
-
 
     def __init__(self, objects: Iterable[T], descriptor: str | None = None):
         self._objects = list(objects)
@@ -240,6 +240,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     descriptor: str
         Descriptive name for the objects in the list.
     """
+
     # This would be in the docstring except it renders really wrongly!
     # Type Parameters
     # ---------------
