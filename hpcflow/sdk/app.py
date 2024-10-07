@@ -2088,7 +2088,7 @@ class BaseApp(metaclass=Singleton):
 
         scripts: dict[str, Path] = {}
         try:
-            with get_file_context(scripts_package, "") as path:
+            with get_file_context(scripts_package) as path:
                 for dirpath, _, filenames in os.walk(path):
                     dirpath_ = Path(dirpath)
                     if dirpath_.name == "__pycache__":
@@ -2100,6 +2100,7 @@ class BaseApp(metaclass=Singleton):
                         scripts[val.relative_to(path).as_posix()] = Path(val)
         except ModuleNotFoundError:
             self.logger.exception("failed to find scripts package")
+        SDK_logger.info(f"loaded {len(scripts)} scripts from {scripts_package}")
         return scripts
 
     def _get_demo_workflows(self) -> dict[str, Path]:

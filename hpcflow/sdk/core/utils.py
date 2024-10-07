@@ -4,7 +4,6 @@ Miscellaneous utilities.
 
 from __future__ import annotations
 from collections import Counter
-from contextlib import contextmanager
 import copy
 import enum
 import hashlib
@@ -1027,29 +1026,25 @@ def current_timestamp() -> datetime:
     return datetime.now(timezone.utc)
 
 
-@contextmanager
-def open_text_resource(package: ModuleType | str, resource: str) -> Iterator[IO[str]]:
+def open_text_resource(package: ModuleType | str, resource: str) -> IO[str]:
     """
     Open a file in a package.
     """
     try:
-        fh = resources.files(package).joinpath(resource).open("r")
+        return resources.files(package).joinpath(resource).open("r")
     except AttributeError:
         # < python 3.9; `resource.open_text` deprecated since 3.11
-        fh = resources.open_text(package, resource)
-    try:
-        yield fh
-    finally:
-        fh.close()
+        return resources.open_text(package, resource)
 
 
-def get_file_context(package: ModuleType | str, src: str) -> AbstractContextManager[Path]:
+def get_file_context(package: ModuleType | str, src: str | None = None) -> AbstractContextManager[Path]:
     """
-    Find a file in a package.
+    Find a file or directory in a package.
     """
     try:
-        return resources.as_file(resources.files(package).joinpath(src))
+        files = resources.files(package)
+        return resources.as_file(files.joinpath(src) if src else files)
         # raises ModuleNotFoundError
     except AttributeError:
         # < python 3.9
-        return resources.path(package, src)
+        return resources.path(package, src or "")
