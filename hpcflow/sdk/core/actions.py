@@ -40,6 +40,7 @@ from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from re import Pattern
     from typing import Any, ClassVar, Literal
     from typing_extensions import Self
     from valida.conditions import ConditionLike  # type: ignore
@@ -65,9 +66,6 @@ if TYPE_CHECKING:
     from .task_schema import TaskSchema
     from .types import ParameterDependence, ScriptData
     from .workflow import Workflow
-
-
-ACTION_SCOPE_REGEX = r"(\w*)(?:\[(.*)\])?"
 
 
 class ActionScopeType(Enum):
@@ -1304,7 +1302,7 @@ class ActionScope(JSONLike):
     filtering process.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="typ",
             json_like_name="type",
@@ -1312,6 +1310,8 @@ class ActionScope(JSONLike):
             is_enum=True,
         ),
     )
+
+    __ACTION_SCOPE_RE: ClassVar[Pattern] = re.compile(r"(\w*)(?:\[(.*)\])?")
 
     def __init__(self, typ: ActionScopeType | str, **kwargs):
         if isinstance(typ, str):
@@ -1348,7 +1348,7 @@ class ActionScope(JSONLike):
 
     @classmethod
     def _parse_from_string(cls, string: str) -> dict[str, str]:
-        match = re.search(ACTION_SCOPE_REGEX, string)
+        match = cls.__ACTION_SCOPE_RE.search(string)
         if not match:
             raise TypeError(f"unparseable ActionScope: '{string}'")
         typ_str, kwargs_str = match.groups()
@@ -2085,21 +2085,22 @@ class Action(JSONLike):
             return False
         return script.startswith("<<script:")
 
-    _SCRIPT_NAME_RE: ClassVar = re.compile(r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>")
+    __SCRIPT_NAME_RE: ClassVar[Pattern] = re.compile(
+        r"\<\<script:(?:.*(?:\/|\\))*(.*)\>\>")
 
     @classmethod
     def get_script_name(cls, script: str) -> str:
         """Return the script name."""
         if cls.is_snippet_script(script):
-            match_obj = re.match(cls._SCRIPT_NAME_RE, script)
+            match_obj = cls.__SCRIPT_NAME_RE.match(script)
             if not match_obj:
                 raise ValueError("incomplete <<script:>>")
             return match_obj.group(1)
         # a script we can expect in the working directory:
         return script
 
-    _SCRIPT_RE: ClassVar = re.compile(r"\<\<script:(.*:?)\>\>")
-    _ENV_RE: ClassVar = re.compile(r"\<\<env:(.*?)\>\>")
+    __SCRIPT_RE: ClassVar[Pattern] = re.compile(r"\<\<script:(.*:?)\>\>")
+    __ENV_RE: ClassVar[Pattern] = re.compile(r"\<\<env:(.*?)\>\>")
 
     @classmethod
     def get_snippet_script_str(
@@ -2113,14 +2114,13 @@ class Action(JSONLike):
                 f"Must be an app-data script name (e.g. "
                 f"<<script:path/to/app/data/script.py>>), but received {script}"
             )
-        match_obj = re.match(cls._SCRIPT_RE, script)
+        match_obj = cls.__SCRIPT_RE.match(script)
         if not match_obj:
             raise ValueError("incomplete <<script:>>")
         out = cast(str, match_obj.group(1))
 
         if env_spec:
-            out = re.sub(
-                pattern=cls._ENV_RE,
+            out = cls.__ENV_RE.sub(
                 repl=lambda match_obj: env_spec[match_obj.group(1)],
                 string=out,
             )
@@ -2340,6 +2340,11 @@ class Action(JSONLike):
 
             return cmd_acts
 
+    # note: we use "parameter" rather than "input", because it could be a schema input
+    # or schema output.
+    __PARAMS_RE: ClassVar[Pattern] = re.compile(
+        r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>")
+
     def get_command_input_types(self, sub_parameters: bool = False) -> tuple[str, ...]:
         """Get parameter types from commands.
 
@@ -2351,31 +2356,29 @@ class Action(JSONLike):
             disregard the sub-parameter part.
         """
         params = []
-        # note: we use "parameter" rather than "input", because it could be a schema input
-        # or schema output.
-        vars_regex = r"\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(.*?)\)?\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command or ""):
+            for val in self.__PARAMS_RE.findall(command.command or ""):
                 if not sub_parameters:
                     val = val.split(".")[0]
                 params.append(val)
             for arg in command.arguments or []:
-                for val in re.findall(vars_regex, arg):
+                for val in self.__PARAMS_RE.findall(arg):
                     if not sub_parameters:
                         val = val.split(".")[0]
                     params.append(val)
             # TODO: consider stdin?
         return tuple(set(params))
 
+    __FILES_RE: ClassVar[Pattern] = re.compile(r"\<\<file:(.*?)\>\>")
+
     def get_command_input_file_labels(self) -> tuple[str, ...]:
         """Get input files types from commands."""
         files = []
-        vars_regex = r"\<\<file:(.*?)\>\>"
         for command in self.commands:
-            for val in re.findall(vars_regex, command.command or ""):
+            for val in self.__FILES_RE.findall(command.command or ""):
                 files.append(val)
             for arg in command.arguments or []:
-                for val in re.findall(vars_regex, arg):
+                for val in self.__FILES_RE.findall(arg):
                     files.append(val)
             # TODO: consider stdin?
         return tuple(set(files))

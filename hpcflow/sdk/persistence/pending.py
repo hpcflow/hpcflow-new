@@ -32,20 +32,8 @@ if TYPE_CHECKING:
 class PendingChanges(
     Generic[AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter]
 ):
-    """Class to store pending changes and merge them into a persistent store.
-
-    Type Parameters
-    ---------------
-    AnySTask
-        The type of stored tasks.
-    AnySElement
-        The type of stored elements.
-    AnySElementIter
-        The type of stored element iterations.
-    AnySEAR
-        The type of stored EARs.
-    AnySParameter
-        The type of stored parameters.
+    """
+    Class to store pending changes and merge them into a persistent store.
 
     Parameters
     ----------
@@ -56,6 +44,19 @@ class PendingChanges(
     resource_map: CommitResourceMap
         Map of resources, used when processing commits.
     """
+    # These would be in the docstring except they render really wrongly!
+    # Type Parameters
+    # ---------------
+    # AnySTask
+    #     The type of stored tasks.
+    # AnySElement
+    #     The type of stored elements.
+    # AnySElementIter
+    #     The type of stored element iterations.
+    # AnySEAR
+    #     The type of stored EARs.
+    # AnySParameter
+    #     The type of stored parameters.
 
     def __init__(
         self,

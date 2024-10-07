@@ -11,15 +11,15 @@ if TYPE_CHECKING:
     from ..core.types import IterableParam
     from ..typing import DataIndex, ParamSource
 
-#: Bound type variable.
+#: Bound type variable: :class:`StoreTask`.
 AnySTask = TypeVar("AnySTask", bound="StoreTask")
-#: Bound type variable.
+#: Bound type variable: :class:`StoreElement`.
 AnySElement = TypeVar("AnySElement", bound="StoreElement")
-#: Bound type variable.
+#: Bound type variable: :class:`StoreElementITer`.
 AnySElementIter = TypeVar("AnySElementIter", bound="StoreElementIter")
-#: Bound type variable.
+#: Bound type variable: :class:`StoreEAR`.
 AnySEAR = TypeVar("AnySEAR", bound="StoreEAR")
-#: Bound type variable.
+#: Bound type variable: :class:`StoreParameter`.
 AnySParameter = TypeVar("AnySParameter", bound="StoreParameter")
 
 

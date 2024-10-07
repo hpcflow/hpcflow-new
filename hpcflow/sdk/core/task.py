@@ -3774,4 +3774,5 @@ class ElementPropagation(AppAware):
         }
 
 
+#: A task used as a template for other tasks.
 TaskTemplate: TypeAlias = Task

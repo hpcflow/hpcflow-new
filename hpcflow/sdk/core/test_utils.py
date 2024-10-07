@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from ..typing import PathLike
 # mypy: disable-error-code="no-untyped-def"
 
+#: A string or a tuple of strings.
 Strs: TypeAlias = "str | tuple[str, ...]"
 
 

@@ -4,7 +4,7 @@ Information about the Python runtime.
 
 from __future__ import annotations
 from importlib import import_module
-import logging
+from logging import Logger
 import os
 import platform
 import socket
@@ -33,7 +33,7 @@ class RunTimeInfo:
     """
 
     def __init__(
-        self, name: str, package_name: str, version: str, logger: logging.Logger
+        self, name: str, package_name: str, version: str, logger: Logger
     ) -> None:
         is_frozen: bool = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
         bundle_dir = (

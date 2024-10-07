@@ -34,7 +34,6 @@ from hpcflow.sdk.core.errors import (
     MissingVariableSubstitutionError,
 )
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.typing import PathLike
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -43,6 +42,7 @@ if TYPE_CHECKING:
     from typing import Any, IO
     from typing_extensions import TypeAlias
     from numpy.typing import NDArray
+    from ..typing import PathLike
 
 T = TypeVar("T")
 T2 = TypeVar("T2")
@@ -512,12 +512,14 @@ def get_process_stamp() -> str:
     )
 
 
+_ANSI_ESCAPE_RE = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
+
+
 def remove_ansi_escape_sequences(string: str) -> str:
     """
     Strip ANSI terminal escape codes from a string.
     """
-    ansi_escape = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
-    return ansi_escape.sub("", string)
+    return _ANSI_ESCAPE_RE.sub("", string)
 
 
 def get_md5_hash(obj) -> str:
@@ -739,11 +741,14 @@ def remap(a, b):
     return reshape(b(x), y)
 
 
+_FSSPEC_URL_RE = re.compile(r"(?:[a-z0-9]+:{1,2})+\/\/")
+
+
 def is_fsspec_url(url: str) -> bool:
     """
     Test if a URL appears to be one that can be understood by fsspec.
     """
-    return bool(re.match(r"(?:[a-z0-9]+:{1,2})+\/\/", url))
+    return bool(_FSSPEC_URL_RE.match(url))
 
 
 class JSONLikeDirSnapShot(DirectorySnapshot):
@@ -843,10 +848,12 @@ def get_enum_by_name_or_val(
         raise ValueError(err)
 
 
+_PARAM_SPLIT_RE = re.compile(r"((?:\w|\.)+)(?:\[(\w+)\])?")
+
+
 def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     """Split a parameter path into the path and the label, if present."""
-    pattern = r"((?:\w|\.)+)(?:\[(\w+)\])?"
-    match = re.match(pattern, param_path)
+    match = _PARAM_SPLIT_RE.match(param_path)
     if not match:
         return None, None
     return match.group(1), match.group(2)

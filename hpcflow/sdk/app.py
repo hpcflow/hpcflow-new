@@ -258,6 +258,14 @@ class Singleton(type, Generic[T]):
     _instances: dict[Singleton[T], Any] = {}
 
     def __call__(cls: Singleton[T], *args, **kwargs) -> T:
+        """
+        Get the current instance or make it if it doesn't already exist.
+
+        Return
+        ------
+        T:
+            The unique instance of the class.
+        """
         SDK_logger.info(
             f"App metaclass __call__: "
             f"name={kwargs['name']!r}, version={kwargs['version']!r}."
@@ -268,7 +276,14 @@ class Singleton(type, Generic[T]):
         return cls._instances[cls]
 
     def get_instance(cls: Singleton[T]) -> T:
-        """Retrieve the instance of the singleton class if initialised."""
+        """
+        Retrieve the instance of the singleton class if initialised.
+
+        Raises
+        ------
+        RuntimeError
+            If there is no instance already.
+        """
         try:
             return cls._instances[cls]
         except KeyError:

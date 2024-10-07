@@ -59,10 +59,10 @@ T = TypeVar("T")
 
 
 def _process_demo_data_strings(app: BaseApp, value: T) -> T:
+    demo_pattern = re.compile(r"\<\<demo_data_file:(.*)\>\>")
+
     def string_processor(str_in: str) -> str:
-        demo_pattern = r"\<\<demo_data_file:(.*)\>\>"
-        str_out = re.sub(
-            pattern=demo_pattern,
+        str_out = demo_pattern.sub(
             repl=lambda x: str(app.get_demo_data_file_path(x.group(1))),
             string=str_in,
         )
@@ -2262,7 +2262,8 @@ class TaskSourceType(enum.Enum):
     ANY = 2
 
 
-_Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter"
+#: How to specify a selection rule.
+Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter"
 
 
 class InputSource(JSONLike):
@@ -2304,7 +2305,7 @@ class InputSource(JSONLike):
         task_source_type: TaskSourceType | str | None = None,
         element_iters: list[int] | None = None,
         path: str | None = None,
-        where: _Where | None = None,
+        where: Where | None = None,
     ):
         if where is None or isinstance(where, ElementFilter):
             #: Filtering rules.
@@ -2518,7 +2519,7 @@ class InputSource(JSONLike):
         cls,
         import_ref: int,
         element_iters: list[int] | None = None,
-        where: _Where | None = None,
+        where: Where | None = None,
     ) -> Self:
         """
         Make an instnace of an input source that is an import.
@@ -2559,7 +2560,7 @@ class InputSource(JSONLike):
         task_ref: int,
         task_source_type: TaskSourceType | str | None = None,
         element_iters: list[int] | None = None,
-        where: _Where | None = None,
+        where: Where | None = None,
     ) -> Self:
         """
         Make an instance of an input source that is a task.

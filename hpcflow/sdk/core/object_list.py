@@ -13,7 +13,7 @@ from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSON
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
     from typing import Any, ClassVar, Literal
-    from typing_extensions import Self, TypeAlias
+    from typing_extensions import Self
     from zarr import Group  # type: ignore
     from .actions import ActionScope
     from .command_files import FileSpec
@@ -35,21 +35,23 @@ class ObjectListMultipleMatchError(ValueError):
 
 
 class ObjectList(JSONLike, Generic[T]):
-    """A list-like class that provides item access via a `get` method according to
+    """
+    A list-like class that provides item access via a `get` method according to
     attributes or dict-keys.
-
-    Type Parameters
-    ---------------
-    T
-        The type of elements of the list.
 
     Parameters
     ----------
     objects : sequence
-        List
+        List of values of some type.
     descriptor : str
         Descriptive name for objects in the list.
     """
+    # This would be in the docstring except it renders really wrongly!
+    # Type Parameters
+    # ---------------
+    # T
+    #     The type of elements of the list.
+
 
     def __init__(self, objects: Iterable[T], descriptor: str | None = None):
         self._objects = list(objects)
@@ -229,11 +231,6 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     Provide dot-notation access via an access attribute for the case where the access
     attribute uniquely identifies a single object.
 
-    Type Parameters
-    ---------------
-    T
-        The type of elements of the list.
-
     Parameters
     ----------
     _objects:
@@ -243,6 +240,11 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
     descriptor: str
         Descriptive name for the objects in the list.
     """
+    # This would be in the docstring except it renders really wrongly!
+    # Type Parameters
+    # ---------------
+    # T
+    #     The type of elements of the list.
 
     # access attributes must not be named after any "public" methods, to avoid confusion!
     _pub_methods: ClassVar[tuple[str, ...]] = (

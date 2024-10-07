@@ -43,7 +43,7 @@ from hpcflow.sdk.persistence.types import (
     FileDescriptor,
     LoopDescriptor,
     Metadata,
-    PersistenceCache as _Cache,
+    PersistenceCache,
     StoreCreationInfo,
     TemplateMeta,
     TypeLookup,
@@ -65,8 +65,10 @@ if TYPE_CHECKING:
     from ..core.workflow import Workflow
 
 T = TypeVar("T")
-T2 = TypeVar("T2")
-CTX = TypeVar("CTX")
+#: Type of the serialized form.
+SerFormT = TypeVar("SerFormT")
+#: Type of the encoding and decoding context.
+ContextT = TypeVar("ContextT")
 
 PRIMITIVES = (
     int,
@@ -134,14 +136,9 @@ class PersistentStoreFeatures:
 
 
 @dataclass
-class StoreTask(Generic[T]):
+class StoreTask(Generic[SerFormT]):
     """
     Represents a task in a persistent store.
-
-    Type Parameters
-    ---------------
-    T
-        Type of the serialized form.
 
     Parameters
     ----------
@@ -156,6 +153,11 @@ class StoreTask(Generic[T]):
     task_template:
         Description of the template for the task.
     """
+    # This would be in the docstring except it renders really wrongly!
+    # Type Parameters
+    # ---------------
+    # SerFormT
+    #     Type of the serialized form.
 
     #: The ID of the task.
     id_: int
@@ -169,12 +171,12 @@ class StoreTask(Generic[T]):
     task_template: Mapping[str, Any] | None = None
 
     @abstractmethod
-    def encode(self) -> tuple[int, T, dict[str, Any]]:
+    def encode(self) -> tuple[int, SerFormT, dict[str, Any]]:
         """Prepare store task data for the persistent store."""
 
     @classmethod
     @abstractmethod
-    def decode(cls, task_dat: T) -> Self:
+    def decode(cls, task_dat: SerFormT) -> Self:
         """Initialise a `StoreTask` from store task data
 
         Note: the `task_template` is only needed for encoding because it is retrieved as
@@ -195,16 +197,9 @@ class StoreTask(Generic[T]):
 
 
 @dataclass
-class StoreElement(Generic[T, CTX]):
+class StoreElement(Generic[SerFormT, ContextT]):
     """
     Represents an element in a persistent store.
-
-    Type Parameters
-    ---------------
-    T
-        Type of the serialized form.
-    CTX
-        Type of the encoding and decoding context.
 
     Parameters
     ----------
@@ -225,6 +220,13 @@ class StoreElement(Generic[T, CTX]):
     iteration_IDs:
         IDs of element-iterations that belong to this element.
     """
+    # These would be in the docstring except they render really wrongly!
+    # Type Parameters
+    # ---------------
+    # SerFormT
+    #     Type of the serialized form.
+    # ContextT
+    #     Type of the encoding and decoding context.
 
     #: The ID of the element.
     id_: int
@@ -244,12 +246,12 @@ class StoreElement(Generic[T, CTX]):
     iteration_IDs: list[int]
 
     @abstractmethod
-    def encode(self, context: CTX) -> T:
+    def encode(self, context: ContextT) -> SerFormT:
         """Prepare store element data for the persistent store."""
 
     @classmethod
     @abstractmethod
-    def decode(cls, elem_dat: T, context: CTX) -> Self:
+    def decode(cls, elem_dat: SerFormT, context: ContextT) -> Self:
         """Initialise a `StoreElement` from store element data"""
 
     def to_dict(self, iters) -> dict[str, Any]:
@@ -283,16 +285,9 @@ class StoreElement(Generic[T, CTX]):
 
 
 @dataclass
-class StoreElementIter(Generic[T, CTX]):
+class StoreElementIter(Generic[SerFormT, ContextT]):
     """
     Represents an element iteration in a persistent store.
-
-    Type Parameters
-    ---------------
-    T
-        Type of the serialized form.
-    CTX
-        Type of the encoding and decoding context.
 
     Parameters
     ----------
@@ -314,6 +309,13 @@ class StoreElementIter(Generic[T, CTX]):
     loop_idx:
         What loops are being handled here and where they're up to.
     """
+    # These would be in the docstring except they render really wrongly!
+    # Type Parameters
+    # ---------------
+    # SerFormT
+    #     Type of the serialized form.
+    # ContextT
+    #     Type of the encoding and decoding context.
 
     #: The ID of this element iteration.
     id_: int
@@ -334,12 +336,12 @@ class StoreElementIter(Generic[T, CTX]):
     loop_idx: dict[str, int] = field(default_factory=dict)
 
     @abstractmethod
-    def encode(self, context: CTX) -> T:
+    def encode(self, context: ContextT) -> SerFormT:
         """Prepare store element iteration data for the persistent store."""
 
     @classmethod
     @abstractmethod
-    def decode(cls, iter_dat: T, context: CTX) -> Self:
+    def decode(cls, iter_dat: SerFormT, context: ContextT) -> Self:
         """Initialise a `StoreElementIter` from persistent store element iteration data"""
 
     def to_dict(self, EARs: dict[int, dict[str, Any]] | None) -> dict[str, Any]:
@@ -407,16 +409,9 @@ class StoreElementIter(Generic[T, CTX]):
 
 
 @dataclass
-class StoreEAR(Generic[T, CTX]):
+class StoreEAR(Generic[SerFormT, ContextT]):
     """
     Represents an element action run in a persistent store.
-
-    Type Parameters
-    ---------------
-    T
-        Type of the serialized form.
-    CTX
-        Type of the encoding and decoding context.
 
     Parameters
     ----------
@@ -453,6 +448,13 @@ class StoreEAR(Generic[T, CTX]):
     run_hostname:
         Where this EAR was submitted to run, if known.
     """
+    # These would be in the docstring except they render really wrongly!
+    # Type Parameters
+    # ---------------
+    # SerFormT
+    #     Type of the serialized form.
+    # ContextT
+    #     Type of the encoding and decoding context.
 
     #: The ID of this element action run.
     id_: int
@@ -496,12 +498,12 @@ class StoreEAR(Generic[T, CTX]):
         return parse_timestamp(dt_str, ts_fmt) if dt_str else None
 
     @abstractmethod
-    def encode(self, ts_fmt: str, context: CTX) -> T:
+    def encode(self, ts_fmt: str, context: ContextT) -> SerFormT:
         """Prepare store EAR data for the persistent store."""
 
     @classmethod
     @abstractmethod
-    def decode(cls, EAR_dat: T, ts_fmt: str, context: CTX) -> Self:
+    def decode(cls, EAR_dat: SerFormT, ts_fmt: str, context: ContextT) -> Self:
         """Initialise a `StoreEAR` from persistent store EAR data"""
 
     def to_dict(self) -> dict[str, Any]:
@@ -849,20 +851,20 @@ class PersistentStore(
         Where to hold the store.
     fs: fsspec.AbstractFileSystem
         Optionally, information about how to access the store.
-
-    Type Parameters
-    ---------------
-    AnySTask: StoreTask
-        The type of stored tasks.
-    AnySElement: StoreElement
-        The type of stored elements.
-    AnySElementIter: StoreElementIter
-        The type of stored element iterations.
-    AnySEAR: StoreEAR
-        The type of stored EARs.
-    AnySParameter: StoreParameter
-        The type of stored parameters.
     """
+    # These would be in the docstring except they render really wrongly!
+    # Type Parameters
+    # ---------------
+    # AnySTask: StoreTask
+    #     The type of stored tasks.
+    # AnySElement: StoreElement
+    #     The type of stored elements.
+    # AnySElementIter: StoreElementIter
+    #     The type of stored element iterations.
+    # AnySEAR: StoreEAR
+    #     The type of stored EARs.
+    # AnySParameter: StoreParameter
+    #     The type of stored parameters.
 
     _name: ClassVar[str]
 
@@ -1106,7 +1108,7 @@ class PersistentStore(
         return self._cache["parameters"]
 
     def _reset_cache(self) -> None:
-        self._cache: _Cache[
+        self._cache: PersistenceCache[
             AnySTask, AnySElement, AnySElementIter, AnySEAR, AnySParameter
         ] = {
             "tasks": {},

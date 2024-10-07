@@ -19,6 +19,7 @@ from hpcflow.sdk.core.parameters import ParameterValue
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
+    from re import Pattern
     from .actions import ActionRule
     from .element import ElementActionRun
     from .environment import Environment
@@ -107,6 +108,11 @@ class Command(JSONLike):
         else:
             return self.executable or ""
 
+    __EXE_SCRIPT_RE: ClassVar[Pattern] = re.compile(
+        r"\<\<(executable|script):(.*?)\>\>"
+    )
+    __ENV_SPEC_RE: ClassVar[Pattern] = re.compile(r"\<\<env:(.*?)\>\>")
+
     def get_command_line(
         self, EAR: ElementActionRun, shell: Shell, env: Environment
     ) -> tuple[str, list[tuple[str, ...]]]:
@@ -165,12 +171,9 @@ class Command(JSONLike):
             return str(inp_val)
 
         file_regex = r"(\<\<file:{}\>\>?)"
-        exe_script_regex = r"\<\<(executable|script):(.*?)\>\>"
-        env_specs_regex = r"\<\<env:(.*?)\>\>"
 
         # substitute executables:
-        cmd_str = re.sub(
-            pattern=exe_script_regex,
+        cmd_str = self.__EXE_SCRIPT_RE.sub(
             repl=exec_script_repl,
             string=cmd_str,
         )
@@ -179,8 +182,7 @@ class Command(JSONLike):
         # an `<<args>>` variable::
         for var_key, var_val in (self.variables or {}).items():
             # substitute any `<<env:>>` specifiers
-            var_val = re.sub(
-                pattern=env_specs_regex,
+            var_val = self.__ENV_SPEC_RE.sub(
                 repl=lambda match_obj: EAR.env_spec[match_obj.group(1)],
                 string=var_val,
             )
@@ -253,20 +255,21 @@ class Command(JSONLike):
 
         return cmd_str, shell_vars
 
+    # note: we use "parameter" rather than "output", because it could be a schema
+    # output or schema input.
+    __PARAM_RE: ClassVar[Pattern] = re.compile(
+        r"(?:\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(\w+)"
+        r"(?:\.(?:\w+)\((?:.*?)\))?\)?\>\>?)"
+    )
+
     def get_output_types(self) -> dict[str, str | None]:
         """
         Get whether stdout and stderr are workflow parameters.
         """
-        # note: we use "parameter" rather than "output", because it could be a schema
-        # output or schema input.
-        pattern = (
-            r"(?:\<\<(?:\w+(?:\[(?:.*)\])?\()?parameter:(\w+)"
-            r"(?:\.(?:\w+)\((?:.*?)\))?\)?\>\>?)"
-        )
         out: dict[str, str | None] = {"stdout": None, "stderr": None}
         for i, label in zip((self.stdout, self.stderr), ("stdout", "stderr")):
             if i:
-                match = re.search(pattern, i)
+                match = self.__PARAM_RE.search(i)
                 if match:
                     param_typ: str = match.group(1)
                     if match.span(0) != (0, len(i)):
@@ -388,10 +391,11 @@ class Command(JSONLike):
 
         return value
 
-    @staticmethod
-    def _extract_executable_labels(cmd_str: str) -> list[str]:
-        exe_regex = r"\<\<(?:executable):(.*?)\>\>"
-        return re.findall(exe_regex, cmd_str)
+    __EXE_RE: ClassVar[Pattern] = re.compile(r"\<\<(?:executable):(.*?)\>\>")
+
+    @classmethod
+    def _extract_executable_labels(cls, cmd_str: str) -> list[str]:
+        return cls.__EXE_RE.findall(cmd_str)
 
     def get_required_executables(self) -> list[str]:
         """Return executable labels required by this command."""

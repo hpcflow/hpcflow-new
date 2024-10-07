@@ -203,7 +203,7 @@ class JSONPersistentStore(
         _subs_res: "submissions.json",
     }
 
-    _res_map = CommitResourceMap(
+    _res_map: ClassVar[CommitResourceMap] = CommitResourceMap(
         commit_tasks=(_meta_res,),
         commit_loops=(_meta_res,),
         commit_loop_num_iters=(_meta_res,),

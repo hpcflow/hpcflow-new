@@ -9,6 +9,8 @@ from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.utils import JSONLikeDirSnapShot
 
 if TYPE_CHECKING:
+    from re import Pattern
+    from typing_extensions import ClassVar
     from ..submission.shells.base import Shell
 
 
@@ -16,7 +18,7 @@ class RunDirAppFiles(AppAware):
     """A class to encapsulate the naming/recognition of app-created files within run
     directories."""
 
-    _CMD_FILES_RE_PATTERN = r"js_\d+_act_\d+\.?\w*"
+    __CMD_FILES_RE_PATTERN: ClassVar[Pattern] = re.compile(r"js_\d+_act_\d+\.?\w*")
 
     @classmethod
     def get_log_file_name(cls) -> str:
@@ -76,7 +78,7 @@ class RunDirAppFiles(AppAware):
             if (
                 k == cls.get_log_file_name()
                 or k == cls.get_std_file_name()
-                or re.match(cls._CMD_FILES_RE_PATTERN, k)
+                or cls.__CMD_FILES_RE_PATTERN.match(k)
             ):
                 ss_js["data"].pop(k)
 

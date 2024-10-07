@@ -69,7 +69,9 @@ if TYPE_CHECKING:
     from ..typing import ParamSource, PathLike
 
 
+#: List of any (Zarr-serializable) value.
 ListAny: TypeAlias = "list[Any]"
+#: Zarr attribute mapping context.
 ZarrAttrs: TypeAlias = "dict[str, list[str]]"
 
 

@@ -5,7 +5,6 @@ Job scheduler models.
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 import sys
 import time
 from typing import Generic, TypeVar, TYPE_CHECKING
@@ -20,17 +19,13 @@ if TYPE_CHECKING:
     from ...config.config import SchedulerConfigDescriptor
     from ...core.element import ElementResources
 
-T = TypeVar("T")
+#: The type of a jobscript reference.
+JSRefType = TypeVar("JSRefType")
 
 
-class Scheduler(ABC, Generic[T], AppAware):
+class Scheduler(ABC, Generic[JSRefType], AppAware):
     """
     Abstract base class for schedulers.
-
-    Type Parameters
-    ---------------
-    T
-        The type of a jobscript reference.
 
     Parameters
     ----------
@@ -41,6 +36,11 @@ class Scheduler(ABC, Generic[T], AppAware):
     options: dict
         Options to the scheduler.
     """
+    # This would be in the docstring except it renders really wrongly!
+    # Type Parameters
+    # ---------------
+    # T
+    #     The type of a jobscript reference.
 
     #: Default value for arguments to the shell.
     DEFAULT_SHELL_ARGS: ClassVar[str] = ""
@@ -115,14 +115,14 @@ class Scheduler(ABC, Generic[T], AppAware):
 
     @abstractmethod
     def get_job_state_info(
-        self, *, js_refs: list[T] | None = None, num_js_elements: int = 0
+        self, *, js_refs: list[JSRefType] | None = None, num_js_elements: int = 0
     ) -> Mapping[str, Mapping[int | None, JobscriptElementState]]:
         """
         Get the state of one or more jobscripts.
         """
 
     @abstractmethod
-    def wait_for_jobscripts(self, js_refs: list[T]) -> None:
+    def wait_for_jobscripts(self, js_refs: list[JSRefType]) -> None:
         """
         Wait for one or more jobscripts to complete.
         """
@@ -130,7 +130,7 @@ class Scheduler(ABC, Generic[T], AppAware):
     @abstractmethod
     def cancel_jobs(
         self,
-        js_refs: list[T],
+        js_refs: list[JSRefType],
         jobscripts: list[Jobscript] | None = None,
         num_js_elements: int = 0,  # Ignored!
     ) -> None:

@@ -90,7 +90,7 @@ def get_OS_info_POSIX(
         linux_release_file = linux_release_file or DEFAULT_LINUX_RELEASE_FILE
         release_out = try_subprocess_call("cat", linux_release_file)
 
-        name_match = re.search(r"^NAME=\"(.*)\"", release_out, flags=re.MULTILINE)
+        name_match = _NAME_RE.search(release_out)
         if name_match:
             lin_name = name_match.group(1)
         else:
@@ -98,7 +98,7 @@ def get_OS_info_POSIX(
                 f"Failed to get Linux distribution name from file `{linux_release_file}`."
             )
 
-        version_match = re.search(r"^VERSION=\"(.*)\"", release_out, flags=re.MULTILINE)
+        version_match = _VERSION_RE.search(release_out)
         if version_match:
             lin_version = version_match.group(1)
         else:
@@ -112,3 +112,7 @@ def get_OS_info_POSIX(
         out["linux_distribution_version"] = lin_version
 
     return out
+
+
+_NAME_RE = re.compile(r"^NAME=\"(.*)\"", flags=re.MULTILINE)
+_VERSION_RE = re.compile(r"^VERSION=\"(.*)\"", flags=re.MULTILINE)

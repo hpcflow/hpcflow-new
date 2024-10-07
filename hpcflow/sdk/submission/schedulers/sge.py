@@ -4,7 +4,6 @@ An interface to SGE.
 
 from __future__ import annotations
 from collections.abc import Sequence
-from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 from typing_extensions import override
@@ -261,9 +260,11 @@ class SGEPosix(QueuedScheduler):
         cmd.append(js_path)
         return cmd
 
+    __SGE_JOB_ID_RE: ClassVar[re.Pattern] = re.compile(r"^\d+")
+
     def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
-        match = re.search(r"^\d+", stdout)
+        match = self.__SGE_JOB_ID_RE.search(stdout)
         if match:
             job_ID = match.group()
         else:

@@ -3,7 +3,6 @@ An interface to SLURM.
 """
 
 from __future__ import annotations
-from pathlib import Path
 import subprocess
 import time
 from typing import TYPE_CHECKING

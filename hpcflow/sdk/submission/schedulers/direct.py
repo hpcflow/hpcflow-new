@@ -3,7 +3,6 @@ A direct job "scheduler" that just runs immediate subprocesses.
 """
 
 from __future__ import annotations
-from pathlib import Path
 import shutil
 import signal
 from typing import overload, cast, TYPE_CHECKING
@@ -12,13 +11,13 @@ import psutil
 
 from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
-from hpcflow.sdk.submission.shells.base import Shell
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from typing import Any, ClassVar
     from ...config.config import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
+    from ..shells.base import Shell
 
 DirectRef: TypeAlias = "tuple[int, list[str]]"
 
