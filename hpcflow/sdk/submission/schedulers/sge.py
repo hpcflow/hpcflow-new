@@ -13,14 +13,14 @@ from hpcflow.sdk.core.errors import (
     UnknownSGEPEError,
 )
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
+from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
     from typing import Any, ClassVar
-    from ...config.config import SchedulerConfigDescriptor
+    from ...config.types import SchedulerConfigDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
     from ..shells.base import Shell

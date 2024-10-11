@@ -9,13 +9,13 @@ from typing import overload, cast, TYPE_CHECKING
 from typing_extensions import override, TypeAlias
 import psutil
 
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
+from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from typing import Any, ClassVar
-    from ...config.config import SchedulerConfigDescriptor
+    from ...config.types import SchedulerConfigDescriptor
     from ..jobscript import Jobscript
     from ..shells.base import Shell
 
@@ -197,10 +197,7 @@ class DirectScheduler(Scheduler[DirectRef]):
         except psutil.NoSuchProcess:
             return False
 
-        if proc.cmdline() == process_cmdline:
-            return True
-        else:
-            return False
+        return proc.cmdline() == process_cmdline
 
 
 class DirectPosix(DirectScheduler):

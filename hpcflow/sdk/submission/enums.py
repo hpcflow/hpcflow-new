@@ -1,7 +1,6 @@
 """
-Jobscript state enumeration.
+Submission enumeration types.
 """
-
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
@@ -81,3 +80,16 @@ class JobscriptElementState(_JES, Enum):
         Rich representation of this enumeration element.
         """
         return f"[{self.colour}]{self.symbol}[/{self.colour}]"
+
+
+class SubmissionStatus(Enum):
+    """
+    The overall status of a submission.
+    """
+
+    #: Not yet submitted.
+    PENDING = 0
+    #: All jobscripts submitted successfully.
+    SUBMITTED = 1
+    #: Some jobscripts submitted successfully.
+    PARTIALLY_SUBMITTED = 2

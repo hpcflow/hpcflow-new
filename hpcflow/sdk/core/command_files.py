@@ -61,9 +61,7 @@ class FileSpec(JSONLike):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.label == other.label and self.name == other.name:
-            return True
-        return False
+        return self.label == other.label and self.name == other.name
 
     @property
     def stem(self) -> FileNameStem:

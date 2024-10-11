@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 import pytest
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.enums import EARStatus
 from hpcflow.sdk.core.test_utils import (
     P1_parameter_cls as P1,
     P1_sub_parameter_cls as P1_sub,

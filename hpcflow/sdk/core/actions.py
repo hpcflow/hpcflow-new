@@ -9,7 +9,6 @@ from collections.abc import Mapping
 import copy
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 import json
 from pathlib import Path
 import re
@@ -20,6 +19,7 @@ from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.app_aware import AppAware
+from hpcflow.sdk.core.enums import ActionScopeType, EARStatus
 from hpcflow.sdk.core.errors import (
     ActionEnvironmentMissingNameError,
     MissingCompatibleActionEnvironment,
@@ -39,7 +39,7 @@ from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.core.run_dir_files import RunDirAppFiles
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Container, Sequence
     from re import Pattern
     from typing import Any, ClassVar, Literal
     from typing_extensions import Self
@@ -68,23 +68,6 @@ if TYPE_CHECKING:
     from .workflow import Workflow
 
 
-class ActionScopeType(Enum):
-    """
-    Types of action scope.
-    """
-
-    #: Scope that applies to anything.
-    ANY = 0
-    #: Scope that only applies to main scripts.
-    MAIN = 1
-    #: Scope that applies to processing steps.
-    PROCESSING = 2
-    #: Scope that applies to input file generators.
-    INPUT_FILE_GENERATOR = 3
-    #: Scope that applies to output file parsers.
-    OUTPUT_FILE_PARSER = 4
-
-
 #: Keyword arguments permitted for particular scopes.
 ACTION_SCOPE_ALLOWED_KWARGS = {
     ActionScopeType.ANY.name: set(),
@@ -93,109 +76,6 @@ ACTION_SCOPE_ALLOWED_KWARGS = {
     ActionScopeType.INPUT_FILE_GENERATOR.name: {"file"},
     ActionScopeType.OUTPUT_FILE_PARSER.name: {"output"},
 }
-
-
-@dataclass(frozen=True)
-class _EARStatus:
-    """
-    Model of the state of an EARStatus.
-    """
-
-    _value: int
-    #: Symbol to use when rendering a status.
-    symbol: str
-    #: Colour to use when rendering a status.
-    colour: str
-    __doc__: str = ""
-
-
-class EARStatus(_EARStatus, Enum):
-    """Enumeration of all possible EAR statuses, and their associated status colour."""
-
-    #: Not yet associated with a submission.
-    pending = (
-        0,
-        ".",
-        "grey46",
-        "Not yet associated with a submission.",
-    )
-    #: Associated with a prepared submission that is not yet submitted.
-    prepared = (
-        1,
-        ".",
-        "grey46",
-        "Associated with a prepared submission that is not yet submitted.",
-    )
-    #: Submitted for execution.
-    submitted = (
-        2,
-        ".",
-        "grey46",
-        "Submitted for execution.",
-    )
-    #: Executing now.
-    running = (
-        3,
-        "●",
-        "dodger_blue1",
-        "Executing now.",
-    )
-    #: Not attempted due to a failure of an upstream action on which this depends,
-    #: or a loop termination condition being satisfied.
-    skipped = (
-        4,
-        "s",
-        "dark_orange",
-        (
-            "Not attempted due to a failure of an upstream action on which this depends, "
-            "or a loop termination condition being satisfied."
-        ),
-    )
-    #: Aborted by the user; downstream actions will be attempted.
-    aborted = (
-        5,
-        "A",
-        "deep_pink4",
-        "Aborted by the user; downstream actions will be attempted.",
-    )
-    #: Probably exited successfully.
-    success = (
-        6,
-        "■",
-        "green3",
-        "Probably exited successfully.",
-    )
-    #: Probably failed.
-    error = (
-        7,
-        "E",
-        "red3",
-        "Probably failed.",
-    )
-
-    @property
-    def value(self) -> int:
-        #: The value of the status.
-        return self._value
-
-    @classmethod
-    def get_non_running_submitted_states(cls) -> frozenset[EARStatus]:
-        """Return the set of all non-running states, excluding those before submission."""
-        return frozenset(
-            {
-                cls.skipped,
-                cls.aborted,
-                cls.success,
-                cls.error,
-            }
-        )
-
-    @property
-    def rich_repr(self) -> str:
-        """
-        The rich representation of the value.
-        """
-        return f"[{self.colour}]{self.symbol}[/{self.colour}]"
 
 
 class ElementActionRun(AppAware):
@@ -1337,11 +1217,9 @@ class ActionScope(JSONLike):
         return f"{self.__class__.__name__}.{self.typ.name.lower()}({kwargs_str})"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, ActionScope):
+        if not isinstance(other, self.__class__):
             return False
-        if self.typ is other.typ and self.kwargs == other.kwargs:
-            return True
-        return False
+        return self.typ is other.typ and self.kwargs == other.kwargs
 
     class _customdict(dict):
         pass
@@ -1954,7 +1832,7 @@ class Action(JSONLike):
         return f"{self.__class__.__name__}({', '.join(out)})"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Action):
+        if not isinstance(other, self.__class__):
             return False
         return (
             self.commands == other.commands
@@ -2605,7 +2483,7 @@ class Action(JSONLike):
         else:
             return self._app.ActionScope.main()
 
-    def is_input_type_required(self, typ: str, provided_files: list[FileSpec]) -> bool:
+    def is_input_type_required(self, typ: str, provided_files: Container[FileSpec]) -> bool:
         """
         Determine if the given input type is required by this action.
         """
@@ -2629,13 +2507,7 @@ class Action(JSONLike):
                     return True
 
         # typ is required if used in any output file parser
-        for OFP in self.output_file_parsers:
-            if typ in (OFP.inputs or []):
-                return True
-        return False
-
-        # Appears to be not required
-        return False
+        return any(typ in (OFP.inputs or []) for OFP in self.output_file_parsers)
 
     @TimeIt.decorator
     def test_rules(self, element_iter) -> tuple[bool, list[int]]:

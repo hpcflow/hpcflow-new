@@ -131,13 +131,9 @@ class ConfigFile:
                     except KeyError:
                         raise ConfigFileInvocationUnknownMatchKey(match_k)
 
-                    is_match_i = False
-                    for match_i in match_v:
-                        if fnmatch.filter(names=[k_value], pat=match_i):
-                            is_match_i = True
-                            break
-
-                    if not is_match_i:
+                    if not any(
+                            fnmatch.filter(names=[k_value], pat=match_i)
+                            for match_i in match_v):
                         is_match = False
                         break
 

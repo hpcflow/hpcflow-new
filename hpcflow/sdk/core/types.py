@@ -12,13 +12,12 @@ if TYPE_CHECKING:
     from valida.conditions import ConditionLike  # type: ignore
     from .actions import ActionScope
     from .command_files import FileSpec
+    from .enums import ParallelMode, ParameterPropagationMode
     from .object_list import ResourceList
-    from .parallel import ParallelMode
     from .parameters import (
         InputSource,
         InputValue,
         Parameter,
-        ParameterPropagationMode,
         ResourceSpec,
     )
     from .task import InputStatus

@@ -110,7 +110,7 @@ class ObjectList(JSONLike, Generic[T]):
         return False
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, ObjectList) and self._objects == other._objects
+        return isinstance(other, self.__class__) and self._objects == other._objects
 
     def list_attrs(self):
         """Get a tuple of the unique access-attribute values of the constituent objects."""
@@ -130,18 +130,12 @@ class ObjectList(JSONLike, Generic[T]):
         # narrow down according to kwargs:
         specified_objs: list[T] = []
         for obj in objs:
-            skip_obj = False
             for k, v in kwargs.items():
                 try:
-                    obj_key_val = self._get_obj_attr(obj, k)
+                    if self._get_obj_attr(obj, k) != v:
+                        break
                 except (AttributeError, KeyError):
-                    skip_obj = True
                     break
-                if obj_key_val != v:
-                    skip_obj = True
-                    break
-            if skip_obj:
-                continue
             else:
                 specified_objs.append(obj)
 
@@ -355,7 +349,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
                     f"object's attribute {self._access_attribute!r}. Available attribute "
                     f"values are: {self.list_attrs()!r}."
                 ) from None
-            all_objs = [self._objects[i] for i in all_idx]
+            all_objs: Iterable[T] = (self._objects[i] for i in all_idx)
         else:
             all_objs = self._objects
 
@@ -727,8 +721,8 @@ class WorkflowTaskList(DotAccessObjectList["WorkflowTask"]):
 
     def _reindex(self) -> None:
         """Re-assign the WorkflowTask index attributes so they match their order."""
-        for idx, i in enumerate(self._objects):
-            i._index = idx
+        for idx, item in enumerate(self._objects):
+            item._index = idx
         self._update_index()
 
     def add_object(
@@ -790,7 +784,7 @@ class ResourceList(ObjectList["ResourceSpec"]):
         )
 
         # check distinct scopes for each item:
-        scopes = [i.to_string() for i in self.get_scopes()]
+        scopes = [scope.to_string() for scope in self.get_scopes()]
         if len(set(scopes)) < len(scopes):
             raise ValueError(
                 "Multiple `ResourceSpec` objects have the same scope. The scopes are "
@@ -830,6 +824,22 @@ class ResourceList(ObjectList["ResourceSpec"]):
             as_dict[scope.to_string()] = res_spec_js
         return as_dict, shared_data
 
+    @staticmethod
+    def __ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
+        """
+        For any resources that are persistent, if they have a
+        `_resource_list` attribute, this means they are sourced from some
+        other persistent workflow, rather than, say, a workflow being
+        loaded right now, so make a non-persistent copy
+
+        Part of `normalise`.
+        """
+        if resource_spec._value_group_idx is not None and (
+            resource_spec._resource_list is not None
+        ):
+            return resource_spec.copy_non_persistent()
+        return resource_spec
+
     @classmethod
     def normalise(cls, resources: Resources) -> Self:
         """Generate from resource-specs specified in potentially several ways."""
@@ -844,27 +854,12 @@ class ResourceList(ObjectList["ResourceSpec"]):
         elif isinstance(resources, cls._app.ResourceSpec):
             return cls([resources])
         elif isinstance(resources, Sequence):
-
-            def _ensure_non_persistent(resource_spec: ResourceSpec) -> ResourceSpec:
-                # for any resources that are persistent, if they have a
-                # `_resource_list` attribute, this means they are sourced from some
-                # other persistent workflow, rather than, say, a workflow being
-                # loaded right now, so make a non-persistent copy:
-                if resource_spec._value_group_idx is not None and (
-                    resource_spec._resource_list is not None
-                ):
-                    return resource_spec.copy_non_persistent()
-                return resource_spec
-
-            res_list: list[ResourceSpec] = []
-            for res_i in resources:
-                if isinstance(res_i, dict):
-                    res_list.append(
-                        cls._app.ResourceSpec.from_json_like(cast(dict, res_i))
-                    )
-                else:
-                    res_list.append(_ensure_non_persistent(res_i))
-            return cls(res_list)
+            return cls([
+                cls._app.ResourceSpec.from_json_like(cast(dict, res_i))
+                if isinstance(res_i, dict)
+                else cls.__ensure_non_persistent(res_i)
+                for res_i in resources
+            ])
         else:
             return cls([resources])
 
@@ -898,7 +893,7 @@ def index(obj_lst: ObjectList[T], obj: T) -> int:
     Get the index of the object in the list.
     The item is checked for by object identity, not equality.
     """
-    for idx, i in enumerate(obj_lst._objects):
-        if obj is i:
+    for idx, item in enumerate(obj_lst._objects):
+        if obj is item:
             return idx
     raise ValueError(f"{obj!r} not in list.")

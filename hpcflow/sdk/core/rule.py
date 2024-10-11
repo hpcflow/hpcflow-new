@@ -90,7 +90,7 @@ class Rule(JSONLike):
         return out
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, Rule):
+        if not isinstance(other, self.__class__):
             return False
         return (
             self.check_exists == other.check_exists
@@ -122,9 +122,9 @@ class Rule(JSONLike):
                     task._get_merged_parameter_data(
                         schema_data_idx, raise_on_missing=True
                     )
-                    return True if self.check_exists else False
+                    return bool(self.check_exists)
                 except ValueError:
-                    return False if self.check_exists else True
+                    return not self.check_exists
             else:
                 if self.check_exists:
                     return self.check_exists in schema_data_idx

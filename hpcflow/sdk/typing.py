@@ -16,7 +16,7 @@ if TYPE_CHECKING:
         ParametersList,
         TaskSchemasList,
     )
-    from .submission.jobscript_info import JobscriptElementState
+    from .submission.enums import JobscriptElementState
     from .submission.submission import Submission
 
 #: Type of a value that can be treated as a path.

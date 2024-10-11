@@ -7,22 +7,22 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.core.enums import ParallelMode
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
     IncompatibleSLURMArgumentsError,
     IncompatibleSLURMPartitionError,
     UnknownSLURMPartitionError,
 )
-from hpcflow.sdk.core.parameters import ParallelMode
 from hpcflow.sdk.log import TimeIt
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
+from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import QueuedScheduler
 from hpcflow.sdk.submission.schedulers.utils import run_cmd
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
     from typing import Any, ClassVar
-    from ...config.config import SchedulerConfigDescriptor
+    from ...config.types import SchedulerConfigDescriptor, SLURMPartitionsDescriptor
     from ...core.element import ElementResources
     from ..jobscript import Jobscript
     from ..shells.base import Shell
@@ -97,8 +97,9 @@ class SlurmPosix(QueuedScheduler):
     ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
-        Note: this mutates `resources`.
-
+        Note
+        ----
+        This mutates `resources`.
         """
         if resources.is_parallel:
             if resources.parallel_mode is None:
@@ -245,32 +246,18 @@ class SlurmPosix(QueuedScheduler):
             part_num_cores_per_node = part.get("num_cores_per_node", [])
             part_num_nodes = part.get("num_nodes", [])
             part_para_modes = part.get("parallel_modes", [])
-            if (
-                num_cores
-                and part_num_cores
-                and not cls.is_num_cores_supported(num_cores, part_num_cores)
-            ):
+            if cls.__is_present_unsupported(num_cores, part_num_cores):
                 raise IncompatibleSLURMPartitionError(
                     f"The SLURM partition {resources.SLURM_partition!r} is not "
                     f"compatible with the number of cores requested: {num_cores!r}."
                 )
-            if (
-                num_cores_per_node
-                and part_num_cores_per_node
-                and not cls.is_num_cores_supported(
-                    num_cores_per_node, part_num_cores_per_node
-                )
-            ):
+            if cls.__is_present_unsupported(num_cores_per_node, part_num_cores_per_node):
                 raise IncompatibleSLURMPartitionError(
                     f"The SLURM partition {resources.SLURM_partition!r} is not "
                     f"compatible with the number of cores per node requested: "
                     f"{num_cores_per_node!r}."
                 )
-            if (
-                num_nodes
-                and part_num_nodes
-                and not cls.is_num_cores_supported(num_nodes, part_num_nodes)
-            ):
+            if cls.__is_present_unsupported(num_nodes, part_num_nodes):
                 raise IncompatibleSLURMPartitionError(
                     f"The SLURM partition {resources.SLURM_partition!r} is not "
                     f"compatible with the number of nodes requested: {num_nodes!r}."
@@ -283,55 +270,75 @@ class SlurmPosix(QueuedScheduler):
         else:
             # find the first compatible partition if one exists:
             # TODO: bug here? not finding correct partition?
-            part_match = False
-            partition_name = ""
             for part_name, part_info in all_parts.items():
-                part_num_cores = part_info.get("num_cores", [])
-                part_num_cores_per_node = part_info.get("num_cores_per_node", [])
-                part_num_nodes = part_info.get("num_nodes", [])
-                part_para_modes = part_info.get("parallel_modes", [])
-                if (
-                    num_cores
-                    and part_num_cores
-                    and cls.is_num_cores_supported(num_cores, part_num_cores)
-                ):
-                    part_match = True
-                else:
-                    part_match = False
-                    continue
-                if (
-                    num_cores_per_node
-                    and part_num_cores_per_node
-                    and cls.is_num_cores_supported(
-                        num_cores_per_node, part_num_cores_per_node
-                    )
-                ):
-                    part_match = True
-                else:
-                    part_match = False
-                    continue
-                if (
-                    num_nodes
-                    and part_num_nodes
-                    and cls.is_num_cores_supported(num_nodes, part_num_nodes)
-                ):
-                    part_match = True
-                else:
-                    part_match = False
-                    continue
-                # FIXME: Does the next check come above or below the check below?
-                # Surely not both!
-                if part_match:
-                    partition_name = str(part_name)
+                if cls.__partition_matches(
+                        num_cores, num_cores_per_node, num_nodes, para_mode,
+                        part_info):
+                    resources.SLURM_partition = str(part_name)
                     break
-                if para_mode and para_mode.name.lower() not in part_para_modes:
-                    part_match = False
-                    continue
-                if part_match:
-                    partition_name = str(part_name)
-                    break
-            if part_match:
-                resources.SLURM_partition = partition_name
+            else:
+                part_names = ", ".join(all_parts.keys())
+                raise IncompatibleSLURMPartitionError(
+                    f"No known SLURM partition ({part_names}) matches the number of "
+                    f"cores and nodes requested."
+                )
+
+    @classmethod
+    def __is_present_unsupported(cls, num_req: int | None, part_have: list[int] | None) -> bool:
+        """
+        Test if information is present on both sides, but doesn't match.
+        """
+        return bool(
+            num_req
+            and part_have
+            and not cls.is_num_cores_supported(num_req, part_have)
+        )
+
+    @classmethod
+    def __is_present_supported(cls, num_req: int | None, part_have: list[int] | None) -> bool:
+        """
+        Test if information is present on both sides, and also matches.
+        """
+        return bool(
+            num_req
+            and part_have
+            and cls.is_num_cores_supported(num_req, part_have)
+        )
+
+    @classmethod
+    def __partition_matches(
+        cls, num_cores: int | None,
+        num_cores_per_node: int | None,
+        num_nodes: int | None,
+        para_mode: ParallelMode | None,
+        part_info: SLURMPartitionsDescriptor
+    ) -> bool:
+        """
+        Check whether a partition (part_name, part_info) matches the requested number
+        of cores and nodes.
+        """
+        part_num_cores = part_info.get("num_cores", [])
+        part_num_cores_per_node = part_info.get("num_cores_per_node", [])
+        part_num_nodes = part_info.get("num_nodes", [])
+        part_para_modes = part_info.get("parallel_modes", [])
+        if not cls.__is_present_supported(
+            num_cores, part_num_cores
+        ) or not cls.__is_present_supported(
+            num_cores_per_node, part_num_cores_per_node
+        ) or not cls.__is_present_supported(
+            num_nodes, part_num_nodes
+        ):
+            return False
+        # FIXME: Does the next check come above or below the check below?
+        # Surely not both!
+        part_match = True
+        if part_match:
+            return True
+        if para_mode and para_mode.name.lower() not in part_para_modes:
+            return False
+        if part_match:
+            return True
+        return False
 
     def _format_core_request_lines(self, resources: ElementResources) -> Iterator[str]:
         if resources.SLURM_partition:

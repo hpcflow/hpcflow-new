@@ -17,9 +17,10 @@ from rich.markup import escape as rich_esc
 from rich.text import Text
 
 from hpcflow.sdk.typing import hydrate
+from hpcflow.sdk.core.enums import ParameterPropagationMode
 from hpcflow.sdk.core.errors import EnvironmentPresetUnknownEnvironmentError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.parameters import Parameter, ParameterPropagationMode
+from hpcflow.sdk.core.parameters import Parameter
 from hpcflow.sdk.core.utils import check_valid_py_identifier
 
 if TYPE_CHECKING:
@@ -154,8 +155,8 @@ class TaskSchema(JSONLike):
         self._set_parent_refs()
 
         # process `Action` script_data_in/out formats:
-        for i in self.actions:
-            i.process_script_data_formats()
+        for act in self.actions:
+            act.process_script_data_formats()
 
         self._validate()
         self.actions = self._expand_actions()
@@ -168,7 +169,9 @@ class TaskSchema(JSONLike):
         if self.environment_presets:
             # validate against env names in actions:
             env_names = {act.get_environment_name() for act in self.actions}
-            preset_envs = {i for v in self.environment_presets.values() for i in v.keys()}
+            preset_envs = {
+                preset_name for preset in self.environment_presets.values()
+                for preset_name in preset}
             bad_envs = preset_envs - env_names
             if bad_envs:
                 raise EnvironmentPresetUnknownEnvironmentError(
@@ -519,7 +522,7 @@ class TaskSchema(JSONLike):
             num_inp_fg_rows = 0
             if act.input_file_generators:
                 inp_fg = act.input_file_generators[0]  # should be only one
-                inps = ", ".join(f"<code>{i.typ}</code>" for i in inp_fg.inputs)
+                inps = ", ".join(f"<code>{in_.typ}</code>" for in_ in inp_fg.inputs)
                 inp_fg_rows += (
                     f"<tr>"
                     f'<td class="action-header-cell">input file:</td>'
@@ -536,7 +539,7 @@ class TaskSchema(JSONLike):
             num_out_fp_rows = 0
             if act.output_file_parsers:
                 out_fp = act.output_file_parsers[0]  # should be only one
-                files = ", ".join(f"<code>{i.label}</code>" for i in out_fp.output_files)
+                files = ", ".join(f"<code>{of_.label}</code>" for of_ in out_fp.output_files)
                 out_fp_rows += (
                     f"<tr>"
                     f'<td class="action-header-cell">output:</td>'
@@ -625,9 +628,9 @@ class TaskSchema(JSONLike):
     def __eq__(self, other: Any):
         if id(self) == id(other):
             return True
-        if not isinstance(other, TaskSchema):
+        if not isinstance(other, self.__class__):
             return False
-        if (
+        return (
             self.objective == other.objective
             and self.actions == other.actions
             and self.method == other.method
@@ -636,9 +639,7 @@ class TaskSchema(JSONLike):
             and self.outputs == other.outputs
             and self.version == other.version
             and self._hash_value == other._hash_value
-        ):
-            return True
-        return False
+        )
 
     def __deepcopy__(self, memo: dict[int, Any]) -> Self:
         kwargs = self.to_dict()
@@ -666,22 +667,23 @@ class TaskSchema(JSONLike):
             return objective
 
     @classmethod
-    def __coerce_one_input(cls, i: Parameter | SchemaInput) -> SchemaInput:
-        return cls._app.SchemaInput(i) if isinstance(i, Parameter) else i
+    def __coerce_one_input(cls, inp: Parameter | SchemaInput) -> SchemaInput:
+        return cls._app.SchemaInput(inp) if isinstance(inp, Parameter) else inp
 
     @classmethod
     def __coerce_inputs(
         cls, inputs: Iterable[Parameter | SchemaInput]
     ) -> list[SchemaInput]:
         """coerce Parameters to SchemaInputs"""
-        return [cls.__coerce_one_input(i) for i in inputs]
+        return [cls.__coerce_one_input(inp) for inp in inputs]
 
     @classmethod
-    def __coerce_one_output(cls, o: Parameter | SchemaParameter) -> SchemaOutput:
+    def __coerce_one_output(cls, out: Parameter | SchemaParameter) -> SchemaOutput:
         return (
-            o
-            if isinstance(o, cls._app.SchemaOutput)
-            else cls._app.SchemaOutput(o if isinstance(o, Parameter) else o.parameter)
+            out
+            if isinstance(out, cls._app.SchemaOutput)
+            else cls._app.SchemaOutput(
+                out if isinstance(out, Parameter) else out.parameter)
         )
 
     @classmethod
@@ -689,9 +691,9 @@ class TaskSchema(JSONLike):
         cls, outputs: Iterable[Parameter | SchemaParameter]
     ) -> list[SchemaOutput]:
         """coerce Parameters to SchemaOutputs"""
-        return [cls.__coerce_one_output(o) for o in outputs]
+        return [cls.__coerce_one_output(out) for out in outputs]
 
-    def _validate(self):
+    def _validate(self) -> None:
         if self.method:
             self.method = check_valid_py_identifier(self.method)
         if self.implementation:
@@ -700,11 +702,11 @@ class TaskSchema(JSONLike):
         # check action input/outputs
         if self._validate_actions:
             has_script = any(
-                i.script and not i.input_file_generators and not i.output_file_parsers
-                for i in self.actions
+                act.script and not act.input_file_generators and not act.output_file_parsers
+                for act in self.actions
             )
 
-            all_outs = []
+            all_outs: set[str] = set()
             extra_ins = set(self.input_types)
 
             act_ins_lst = [act.get_input_types() for act in self.actions]
@@ -713,32 +715,26 @@ class TaskSchema(JSONLike):
             schema_ins = set(self.input_types)
             schema_outs = set(self.output_types)
 
-            all_act_ins = set(j for i in act_ins_lst for j in i)
-            all_act_outs = set(j for i in act_outs_lst for j in i)
+            all_act_ins = set(j for ins in act_ins_lst for j in ins)
+            all_act_outs = set(j for outs in act_outs_lst for j in outs)
 
             non_schema_act_ins = all_act_ins - schema_ins
             non_schema_act_outs = set(all_act_outs - schema_outs)
 
             extra_act_outs = non_schema_act_outs
-            seen_act_outs = []
+            seen_act_outs: set[str] = set()
             for act_idx in range(len(self.actions)):
-                for act_in in [
-                    i for i in act_ins_lst[act_idx] if i in non_schema_act_ins
-                ]:
-                    if act_in not in seen_act_outs:
+                for act_in in act_ins_lst[act_idx]:
+                    if act_in in non_schema_act_ins and act_in not in seen_act_outs:
                         raise ValueError(
                             f"Action {act_idx} input {act_in!r} of schema {self.name!r} "
                             f"is not a schema input, but nor is it an action output from "
                             f"a preceding action."
                         )
-                seen_act_outs += [
-                    i for i in act_outs_lst[act_idx] if i not in seen_act_outs
-                ]
-                extra_act_outs = extra_act_outs - set(act_ins_lst[act_idx])
-                act_inputs = set(act_ins_lst[act_idx])
-                act_outputs = set(act_outs_lst[act_idx])
-                extra_ins = extra_ins - act_inputs
-                all_outs.extend(list(act_outputs))
+                seen_act_outs.update(act_outs_lst[act_idx])
+                extra_act_outs.difference_update(act_ins_lst[act_idx])
+                extra_ins.difference_update(act_ins_lst[act_idx])
+                all_outs.update(act_outs_lst[act_idx])
 
             if extra_act_outs:
                 raise ValueError(
@@ -752,9 +748,9 @@ class TaskSchema(JSONLike):
                 # i.e. are all schema inputs "consumed" by an action?
 
                 # consider OFP inputs:
-                for act_i in self.actions:
-                    for OFP_j in act_i.output_file_parsers:
-                        extra_ins = extra_ins - set(OFP_j.inputs or [])
+                for act in self.actions:
+                    for ofp in act.output_file_parsers:
+                        extra_ins.difference_update(ofp.inputs or [])
 
                 if self.actions and extra_ins:
                     # allow for no actions (e.g. defining inputs for downstream tasks)
@@ -763,7 +759,7 @@ class TaskSchema(JSONLike):
                         f"by any actions."
                     )
 
-            missing_outs = set(self.output_types) - set(all_outs)
+            missing_outs = schema_outs - all_outs
             if missing_outs and not has_script:
                 # TODO: bit of a hack, need to consider script ins/outs later
                 raise ValueError(
@@ -774,7 +770,7 @@ class TaskSchema(JSONLike):
     def _expand_actions(self) -> list[Action]:
         """Create new actions for input file generators and output parsers in existing
         actions."""
-        return [j for i in self.actions for j in i.expand()]
+        return [j for act in self.actions for j in act.expand()]
 
     def _update_parameter_value_classes(self):
         # ensure any referenced parameter_class_modules are imported:
@@ -823,14 +819,14 @@ class TaskSchema(JSONLike):
         """
         The input types to the schema.
         """
-        return list(j for i in self.inputs for j in i.all_labelled_types)
+        return list(j for input_i in self.inputs for j in input_i.all_labelled_types)
 
     @property
     def output_types(self) -> list[str]:
         """
         The output types from the schema.
         """
-        return list(i.typ for i in self.outputs)
+        return list(out.typ for out in self.outputs)
 
     @property
     def provides_parameters(self) -> tuple[tuple[str, str], ...]:
@@ -870,9 +866,9 @@ class TaskSchema(JSONLike):
         for act_idx, action in enumerate(self.actions):
             deps = action.get_parameter_dependence(parameter)
             out["input_file_writers"].extend(
-                (act_idx, i) for i in deps["input_file_writers"]
+                (act_idx, ifw) for ifw in deps["input_file_writers"]
             )
-            out["commands"].extend((act_idx, i) for i in deps["commands"])
+            out["commands"].extend((act_idx, cmd) for cmd in deps["commands"])
         return out
 
     def get_key(self) -> tuple:

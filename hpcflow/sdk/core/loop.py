@@ -14,7 +14,7 @@ from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.loop_cache import LoopCache
-from hpcflow.sdk.core.parameters import InputSourceType
+from hpcflow.sdk.core.enums import InputSourceType
 from hpcflow.sdk.core.utils import check_valid_py_identifier, nth_key, nth_value
 from hpcflow.sdk.log import TimeIt
 
@@ -852,10 +852,8 @@ class WorkflowLoop(AppAware):
             src_data_idx: list[DataIndex] = []
             for li_k, di_k in cache.data_idx[elem_ID].items():
                 li_k_dct = dict(li_k)
-                for p_k, p_v in parent_loop_indices.items():
-                    if li_k_dct.get(p_k) != p_v:
-                        break
-                else:
+                if all(li_k_dct.get(p_k) == p_v
+                       for p_k, p_v in parent_loop_indices.items()):
                     src_data_idx.append(di_k)
 
             # could be multiple, but they should all have the same

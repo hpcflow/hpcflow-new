@@ -285,12 +285,12 @@ class RunTimeInfo:
             command = [str(self.resolved_executable_path)]
         elif self.from_CLI:
             script = str(self.resolved_script_path)
-            if os.name == "nt" and script.endswith(".cmd"):
+            if os.name == "nt":
                 # cannot reproduce locally, but on Windows GHA runners, if pytest is
                 # invoked via `hpcflow test`, `resolved_script_path` seems to be the
                 # batch script wrapper (ending in .cmd) rather than the Python entry point
                 # itself, so trim if off:
-                script = script.rstrip(".cmd")
+                script = script.removesuffix(".cmd")
             command = [str(self.python_executable_path), script]
         else:
             app_module = import_module(self.package_name)

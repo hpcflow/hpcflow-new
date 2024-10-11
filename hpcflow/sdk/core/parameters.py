@@ -17,14 +17,14 @@ from valida import Schema as ValidaSchema  # type: ignore
 
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.element import ElementFilter
+from hpcflow.sdk.core.enums import (
+    InputSourceType,ParallelMode, ParameterPropagationMode, TaskSourceType)
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
     WorkflowParameterMissingError,
 )
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.parallel import ParallelMode
-from hpcflow.sdk.core.rule import Rule
 from hpcflow.sdk.core.utils import (
     check_valid_py_identifier,
     get_enum_by_name_or_val,
@@ -35,13 +35,14 @@ from hpcflow.sdk.core.utils import (
 from hpcflow.sdk.submission.submission import timedelta_format
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
     from typing import Any, ClassVar, Literal
     from typing_extensions import Self, TypeAlias
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
     from .object_list import ResourceList
+    from .rule import Rule
     from .task import ElementSet, TaskSchema, TaskTemplate, WorkflowTask
     from .types import (
         Address,
@@ -119,19 +120,6 @@ class ParameterValue:
         Extract a parameter value from JSON data.
         """
         raise NotImplementedError
-
-
-class ParameterPropagationMode(enum.Enum):
-    """
-    How a parameter is propagated.
-    """
-
-    #: Parameter is propagated implicitly.
-    IMPLICIT = 0
-    #: Parameter is propagated explicitly.
-    EXPLICIT = 1
-    #: Parameter is never propagated.
-    NEVER = 2
 
 
 @dataclass
@@ -222,13 +210,14 @@ class Parameter(JSONLike):
         # custom parameter classes must inherit from `ParameterValue` not the app
         # subclass:
         if self._value_class is None:
-            for i in ParameterValue.__subclasses__():
-                if i._typ == self.typ:
-                    self._value_class = i
-                    break
+            self._value_class = next(
+                (pv_class
+                 for pv_class in ParameterValue.__subclasses__()
+                 if pv_class._typ == self.typ),
+                None)
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, Parameter) and self.typ == other.typ
+        return isinstance(other, self.__class__) and self.typ == other.typ
 
     def __lt__(self, other: Parameter):
         return self.typ < other.typ
@@ -775,9 +764,7 @@ class ValueSequence(JSONLike):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.to_dict() == other.to_dict():
-            return True
-        return False
+        return self.to_dict() == other.to_dict()
 
     def __deepcopy__(self, memo: dict[int, Any]):
         kwargs = self.to_dict()
@@ -809,10 +796,7 @@ class ValueSequence(JSONLike):
             json_like["path"] = path
             json_like["value_class_method"] = cls_method
 
-        val_key = None
-        for i in json_like:
-            if "values" in i:
-                val_key = i
+        val_key = next((item for item in json_like if "values" in item), "")
         if "::" in val_key:
             # class method (e.g. `from_range`, `from_file` etc):
             _, method = val_key.split("::")
@@ -883,7 +867,7 @@ class ValueSequence(JSONLike):
     @property
     def is_sub_value(self) -> bool:
         """True if the values are for a sub part of the parameter."""
-        return True if self.input_path else False
+        return bool(self.input_path)
 
     @property
     def _label_fmt(self) -> str:
@@ -977,12 +961,9 @@ class ValueSequence(JSONLike):
 
             if len(path_split) > 2:
                 if path_split[2] not in ResourceSpec.ALLOWED_PARAMETERS:
-                    allowed_keys_str = ", ".join(
-                        f'"{i}"' for i in ResourceSpec.ALLOWED_PARAMETERS
-                    )
                     raise UnknownResourceSpecItemError(
                         f"Resource item name {path_split[2]!r} is unknown. Allowed "
-                        f"resource item names are: {allowed_keys_str}."
+                        f"resource item names are: {ResourceSpec._allowed_params_quoted()}."
                     )
             label = ""
 
@@ -1047,13 +1028,13 @@ class ValueSequence(JSONLike):
             source["value_class_method"] = self.value_class_method
         are_objs: list[bool] = []
         assert self._values is not None
-        for idx, i in enumerate(self._values):
+        for idx, item in enumerate(self._values):
             # record if ParameterValue sub-classes are passed for values, which allows
             # us to re-init the objects on access to `.value`:
-            are_objs.append(isinstance(i, ParameterValue))
+            are_objs.append(isinstance(item, ParameterValue))
             source = copy.deepcopy(source)
             source["sequence_idx"] = idx
-            pg_idx_i = workflow._add_parameter_data(i, source=source)
+            pg_idx_i = workflow._add_parameter_data(item, source=source)
             data_ref.append(pg_idx_i)
 
         self._values_group_idx = data_ref
@@ -1134,8 +1115,7 @@ class ValueSequence(JSONLike):
     @classmethod
     def _values_from_file(cls, file_path: str | Path) -> list[str]:
         with Path(file_path).open("rt") as fh:
-            vals = [i.strip() for i in fh.readlines()]
-        return vals
+            return [line.strip() for line in fh.readlines()]
 
     @classmethod
     def _values_from_rectangle(
@@ -1690,7 +1670,7 @@ class InputValue(AbstractInputValue):
         """True if the value is for a sub part of the parameter (i.e. if `path` is set).
         Sub-values are not added to the base parameter data, but are interpreted as
         single-value sequences."""
-        return True if self.path else False
+        return bool(self.path)
 
     @property
     def value(self) -> Any:
@@ -1794,6 +1774,17 @@ class ResourceSpec(JSONLike):
     )
 
     @staticmethod
+    def __quoted(values: Iterable):
+        return ", ".join(f'"{item}"' for item in values)
+
+    @classmethod
+    def _allowed_params_quoted(cls) -> str:
+        """
+        The string version of the list of allowed parameters.
+        """
+        return cls.__quoted(cls.ALLOWED_PARAMETERS)
+
+    @staticmethod
     def __parse_thing(
         typ: type[ActionScope], val: ActionScope | str | None
     ) -> ActionScope | None:
@@ -1893,9 +1884,7 @@ class ResourceSpec(JSONLike):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.to_dict() == other.to_dict():
-            return True
-        return False
+        return self.to_dict() == other.to_dict()
 
     @classmethod
     def _json_like_constructor(cls, json_like) -> Self:
@@ -1906,12 +1895,11 @@ class ResourceSpec(JSONLike):
             obj = cls(**json_like)
         except TypeError:
             given_keys = set(k for k in json_like.keys() if k != "scope")
-            bad_keys = given_keys - cls.ALLOWED_PARAMETERS
-            bad_keys_str = ", ".join(f'"{i}"' for i in bad_keys)
-            allowed_keys_str = ", ".join(f'"{i}"' for i in cls.ALLOWED_PARAMETERS)
+            bad_keys = cls.__quoted(given_keys - cls.ALLOWED_PARAMETERS)
+            good_keys = cls._allowed_params_quoted()
             raise UnknownResourceSpecItemError(
-                f"The following resource item names are unknown: {bad_keys_str}. Allowed "
-                f"resource item names are: {allowed_keys_str}."
+                f"The following resource item names are unknown: {bad_keys}. "
+                f"Allowed resource item names are: {good_keys}."
             )
         obj._value_group_idx = _value_group_idx
 
@@ -2234,34 +2222,6 @@ class ResourceSpec(JSONLike):
         return self._resource_list.workflow_template
 
 
-class InputSourceType(enum.Enum):
-    """
-    The types of input sources.
-    """
-
-    #: Input source is an import.
-    IMPORT = 0
-    #: Input source is local.
-    LOCAL = 1
-    #: Input source is a default.
-    DEFAULT = 2
-    #: Input source is a task.
-    TASK = 3
-
-
-class TaskSourceType(enum.Enum):
-    """
-    The types of task-based input sources.
-    """
-
-    #: Input source is a task input.
-    INPUT = 0
-    #: Input source is a task output.
-    OUTPUT = 1
-    #: Input source is unspecified.
-    ANY = 2
-
-
 #: How to specify a selection rule.
 Where: TypeAlias = "RuleArgs | Rule | Sequence[RuleArgs | Rule] | ElementFilter"
 
@@ -2311,9 +2271,11 @@ class InputSource(JSONLike):
             #: Filtering rules.
             self.where: ElementFilter | None = where
         else:
+            rule_cls = self._app.Rule
             self.where = self._app.ElementFilter(
                 rules=[
-                    rule if isinstance(rule, Rule) else Rule(**rule)
+                    rule if isinstance(rule, rule_cls)
+                    else rule_cls(**cast("RuleArgs", rule))
                     for rule in (where if isinstance(where, Sequence) else [where])
                 ]
             )
@@ -2343,7 +2305,7 @@ class InputSource(JSONLike):
     def __eq__(self, other: Any):
         if not isinstance(other, self.__class__):
             return False
-        elif (
+        return (
             self.source_type == other.source_type
             and self.import_ref == other.import_ref
             and self.task_ref == other.task_ref
@@ -2351,10 +2313,7 @@ class InputSource(JSONLike):
             and self.element_iters == other.element_iters
             and self.where == other.where
             and self.path == other.path
-        ):
-            return True
-        else:
-            return False
+        )
 
     def __repr__(self) -> str:
         assert self.source_type
@@ -2388,9 +2347,11 @@ class InputSource(JSONLike):
         """If source_type is task, then return the referenced task from the given
         workflow."""
         if self.source_type is InputSourceType.TASK:
-            for task in workflow.tasks:
-                if task.insert_ID == self.task_ref:
-                    return task
+            return next((
+                task
+                for task in workflow.tasks
+                if task.insert_ID == self.task_ref
+            ), None)
         return None
 
     def is_in(self, other_input_sources: list[InputSource]) -> int | None:
@@ -2434,7 +2395,7 @@ class InputSource(JSONLike):
         except AttributeError:
             raise ValueError(
                 f"InputSource `task_source_type` specified as {task_src_type!r}, but "
-                f"must be one of: {[i.name for i in TaskSourceType]!r}."
+                f"must be one of: {TaskSourceType.names!r}."
             )
         return task_source_type
 

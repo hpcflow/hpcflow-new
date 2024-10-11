@@ -24,13 +24,15 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.object_list import ObjectListMultipleMatchError
 from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
+from hpcflow.sdk.submission.enums import SubmissionStatus
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from typing import Literal
     from rich.status import Status
-    from .jobscript import Jobscript, JobscriptElementState
+    from .jobscript import Jobscript
+    from .enums import JobscriptElementState
     from .schedulers import Scheduler
     from .shells import Shell
     from .types import SubmissionPart
@@ -60,19 +62,6 @@ def timedelta_parse(td_str: str) -> timedelta:
     days_i = int(days)
     hours, mins, secs = [int(i) for i in other.split(":")]
     return timedelta(days=days_i, hours=hours, minutes=mins, seconds=secs)
-
-
-class SubmissionStatus(enum.Enum):
-    """
-    The overall status of a submission.
-    """
-
-    #: Not yet submitted.
-    PENDING = 0
-    #: All jobscripts submitted successfully.
-    SUBMITTED = 1
-    #: Some jobscripts submitted successfully.
-    PARTIALLY_SUBMITTED = 2
 
 
 class Submission(JSONLike):

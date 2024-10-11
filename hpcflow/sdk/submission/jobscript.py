@@ -14,7 +14,7 @@ from textwrap import indent
 from typing import cast, overload, TYPE_CHECKING
 
 import numpy as np
-from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.enums import EARStatus
 from hpcflow.sdk.core.errors import (
     JobscriptSubmissionFailure,
     NotSubmitMachineError,
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from .submission import Submission
     from .shells.base import Shell
     from .schedulers import Scheduler
-    from .jobscript_info import JobscriptElementState
+    from .enums import JobscriptElementState
     from .types import (
         JobScriptCreationArguments,
         JobScriptDescriptor,

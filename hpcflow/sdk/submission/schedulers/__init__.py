@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from typing import Any, ClassVar
     from ..shells import Shell
     from ..jobscript import Jobscript
-    from ..jobscript_info import JobscriptElementState
-    from ...config.config import SchedulerConfigDescriptor
+    from ..enums import JobscriptElementState
+    from ...config.types import SchedulerConfigDescriptor
     from ...core.element import ElementResources
 
 #: The type of a jobscript reference.
@@ -66,7 +66,7 @@ class Scheduler(ABC, Generic[JSRefType], AppAware):
         return (self.__class__.__name__,)
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) is not type(other):
+        if not isinstance(other, self.__class__):
             return False
         return self.__dict__ == other.__dict__
 

@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 import os
 from typing import cast, overload, TYPE_CHECKING
 
+from hpcflow.sdk.core.enums import ParallelMode
 from hpcflow.sdk.core.errors import UnsupportedOSError, UnsupportedSchedulerError
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
-from hpcflow.sdk.core.parallel import ParallelMode
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.utils import (
@@ -370,7 +370,7 @@ class ElementResources(JSONLike):
             self.parallel_mode = get_enum_by_name_or_val(ParallelMode, self.parallel_mode)
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, ElementResources) and self.__dict__ == other.__dict__
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
     def get_jobscript_hash(self) -> int:
         """Get hash from all arguments that distinguish jobscripts."""
@@ -964,12 +964,13 @@ class ElementIteration(AppAware):
         # TODO: test this includes EARs of upstream iterations of this iteration's element
         out: list[int]
         if self.action_runs:
+            EAR_IDs_set = set(self.EAR_IDs_flat)
             out = sorted(
                 set(
                     EAR_ID
                     for i in self.action_runs
                     for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                    if EAR_ID not in self.EAR_IDs_flat
+                    if EAR_ID not in EAR_IDs_set
                 )
             )
         else:
@@ -1843,7 +1844,7 @@ class Element(AppAware):
 
         Parameters
         ----------
-        task_insert_ID
+        task_insert_ID: int
             If specified, only return elements from this task.
 
         """
@@ -1855,11 +1856,11 @@ class Element(AppAware):
                 dep_j for deps_i in deps_objs for dep_j in get_deps(deps_i)
             )
 
-        all_deps: Iterable[int] = get_deps(self)
+        all_deps: set[int] = get_deps(self)
 
         if task_insert_ID is not None:
             elem_ID_subset = self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs
-            all_deps = [i for i in all_deps if i in elem_ID_subset]
+            all_deps = {i for i in all_deps if i in elem_ID_subset}
 
         return self.workflow.get_elements_from_IDs(sorted(all_deps))
 

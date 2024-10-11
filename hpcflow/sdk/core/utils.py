@@ -363,6 +363,9 @@ def capitalise_first_letter(chars: str) -> str:
     return chars[0].upper() + chars[1:]
 
 
+_STRING_VARS_RE = re.compile(r"\<\<var:(.*?)(?:\[(.*)\])?\>\>")
+
+
 @TimeIt.decorator
 def substitute_string_vars(string: str, variables: dict[str, str]):
     """
@@ -403,8 +406,7 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
                 )
         return out
 
-    return re.sub(
-        pattern=r"\<\<var:(.*?)(?:\[(.*)\])?\>\>",
+    return _STRING_VARS_RE.sub(
         repl=var_repl,
         string=string,
     )

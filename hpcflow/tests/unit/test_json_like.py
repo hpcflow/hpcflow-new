@@ -561,9 +561,9 @@ def test_from_json_like_with_parent_ref(null_config):
         obj_A: Any = None
 
         def __eq__(self, other):
-            if self.name == other.name and self.c == other.c:
-                return True
-            return False
+            if not isinstance(other, self.__class__):
+                return False
+            return self.name == other.name and self.c == other.c
 
     @dataclass
     class ObjA(BaseJSONLike):
@@ -581,14 +581,14 @@ def test_from_json_like_with_parent_ref(null_config):
             self._set_parent_refs()
 
         def __eq__(self, other):
-            if (
+            if not isinstance(other, self.__class__):
+                return False
+            return (
                 self.a == other.a
                 and self.b == other.b
                 and self.b.obj_A is self
                 and other.b.obj_A is other
-            ):
-                return True
-            return False
+            )
 
     js_1 = {
         "a": 1,
@@ -612,9 +612,9 @@ def test_json_like_round_trip_with_parent_ref(null_config):
         obj_A: Any = None
 
         def __eq__(self, other):
-            if self.name == other.name and self.c == other.c:
-                return True
-            return False
+            if not isinstance(other, self.__class__):
+                return False
+            return self.name == other.name and self.c == other.c
 
     @dataclass
     class ObjA(BaseJSONLike):
@@ -629,14 +629,14 @@ def test_json_like_round_trip_with_parent_ref(null_config):
         b: float
 
         def __eq__(self, other):
-            if (
+            if not isinstance(other, self.__class__):
+                return False
+            return (
                 self.a == other.a
                 and self.b == other.b
                 and self.b.obj_A is self
                 and other.b.obj_A is other
-            ):
-                return True
-            return False
+            )
 
     js_1 = {
         "a": 1,

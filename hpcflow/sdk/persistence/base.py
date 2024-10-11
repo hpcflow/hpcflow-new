@@ -2117,14 +2117,13 @@ class PersistentStore(
         return EARs_new
 
     @TimeIt.decorator
-    def _get_cached_persistent_items(
+    def __get_cached_persistent_items(
         self, id_lst: Iterable[int], cache: dict[int, T]
     ) -> tuple[dict[int, T], list[int]]:
         if self.use_cache:
-            id_set = set(id_lst)
-            all_cached = set(cache.keys())
-            id_cached = id_set.intersection(all_cached)
-            id_non_cached = list(id_set.difference(all_cached))
+            id_cached = set(id_lst)
+            id_non_cached = list(id_cached.difference(cache))
+            id_cached.intersection_update(cache)
             items = {k: cache[k] for k in id_cached}
         else:
             items = {}
@@ -2134,32 +2133,32 @@ class PersistentStore(
     def _get_cached_persistent_EARs(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySEAR], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.EAR_cache)
+        return self.__get_cached_persistent_items(id_lst, self.EAR_cache)
 
     def _get_cached_persistent_element_iters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySElementIter], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.element_iter_cache)
+        return self.__get_cached_persistent_items(id_lst, self.element_iter_cache)
 
     def _get_cached_persistent_elements(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySElement], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.element_cache)
+        return self.__get_cached_persistent_items(id_lst, self.element_cache)
 
     def _get_cached_persistent_tasks(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySTask], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.task_cache)
+        return self.__get_cached_persistent_items(id_lst, self.task_cache)
 
     def _get_cached_persistent_param_sources(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, ParamSource], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.param_sources_cache)
+        return self.__get_cached_persistent_items(id_lst, self.param_sources_cache)
 
     def _get_cached_persistent_parameters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySParameter], list[int]]:
-        return self._get_cached_persistent_items(id_lst, self.parameter_cache)
+        return self.__get_cached_persistent_items(id_lst, self.parameter_cache)
 
     def get_EAR_skipped(self, EAR_ID: int) -> bool:
         """

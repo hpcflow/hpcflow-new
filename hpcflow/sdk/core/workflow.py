@@ -29,7 +29,7 @@ from hpcflow.sdk.core import (
     ABORT_EXIT_CODE,
 )
 from hpcflow.sdk.core.app_aware import AppAware
-from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.enums import EARStatus
 from hpcflow.sdk.core.loop_cache import LoopCache
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str
@@ -43,7 +43,7 @@ from hpcflow.sdk.submission.jobscript import (
     merge_jobscripts_across_tasks,
     resolve_jobscript_dependencies,
 )
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
+from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.schedulers.direct import DirectScheduler
 from hpcflow.sdk.typing import PathLike
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike

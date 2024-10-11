@@ -33,7 +33,7 @@ from fsspec.core import url_to_fs  # type: ignore
 from fsspec.implementations.local import LocalFileSystem  # type: ignore
 
 from hpcflow import __version__
-from hpcflow.sdk.core.actions import EARStatus
+from hpcflow.sdk.core.enums import EARStatus
 from hpcflow.sdk.core.utils import (
     read_YAML_str,
     read_YAML_file,
@@ -52,7 +52,7 @@ from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
 from hpcflow.sdk.persistence.base import TEMPLATE_COMP_TYPES
 from hpcflow.sdk.runtime import RunTimeInfo
 from hpcflow.sdk.cli import make_cli
-from hpcflow.sdk.submission.jobscript_info import JobscriptElementState
+from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.shells import get_shell
 from hpcflow.sdk.submission.shells.os_version import (
     get_OS_info_POSIX,
@@ -78,7 +78,6 @@ if TYPE_CHECKING:
         ActionEnvironment,
         Action,
         ActionScope,
-        ActionScopeType,
         ActionRule,
     )
     from .core.command_files import (
@@ -102,6 +101,7 @@ if TYPE_CHECKING:
         ElementFilter,
         ElementGroup,
     )
+    from .core.enums import ActionScopeType, InputSourceType, TaskSourceType
     from .core.environment import (
         NumCores,
         Environment,
@@ -130,7 +130,6 @@ if TYPE_CHECKING:
         InputSource,
         ResourceSpec,
         SchemaOutput,
-        InputSourceType,
         ValueSequence,
         SchemaInput,
     )
@@ -144,7 +143,6 @@ if TYPE_CHECKING:
         TaskOutputParameters,
         ElementPropagation,
         ElementSet,
-        TaskSourceType,
     )
     from .core.task_schema import TaskSchema, TaskObjective
     from .core.workflow import (
@@ -3505,15 +3503,10 @@ class BaseApp(metaclass=Singleton):
         except FileNotFoundError:
             known_subs = []
 
-        path = None
         for i in known_subs:
             if i["local_id"] == local_ID:
-                path = Path(i["path"])
-                break
-        if not path:
-            raise ValueError(f"Specified local ID is not valid: {local_ID}.")
-
-        return path
+                return Path(i["path"])
+        raise ValueError(f"Specified local ID is not valid: {local_ID}.")
 
     def _resolve_workflow_reference(
         self, workflow_ref: str, ref_type: str | None

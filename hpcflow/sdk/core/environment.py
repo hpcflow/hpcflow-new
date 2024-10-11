@@ -127,7 +127,7 @@ class Executable(JSONLike):
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, Executable)
+            isinstance(other, self.__class__)
             and self.label == other.label
             and self.instances == other.instances
             and (
@@ -235,7 +235,7 @@ class Environment(JSONLike):
 
     def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, Environment)
+            isinstance(other, self.__class__)
             and self.setup == other.setup
             and self.executables == other.executables
             and self.specifiers == other.specifiers

@@ -64,11 +64,12 @@ class RunDirAppFiles(AppAware):
 
     @classmethod
     def take_snapshot(cls) -> dict[str, Any]:
-        """Take a JSONLikeDirSnapShot, and process to ignore files created by the app.
+        """
+        Take a :py:class:`JSONLikeDirSnapShot`, and process to ignore files created by
+        the app.
 
         This includes command files that are invoked by jobscripts, the app log file, and
         the app standard out/error file.
-
         """
         snapshot = JSONLikeDirSnapShot()
         snapshot.take(".")

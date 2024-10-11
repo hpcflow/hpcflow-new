@@ -299,6 +299,9 @@ class ChildObjectSpec:
         self.json_like_name = self.json_like_name or self.name
 
 
+_ChildType: TypeAlias = "type[enum.Enum | JSONLike]"
+
+
 @hydrate
 class BaseJSONLike:
     """
@@ -348,9 +351,9 @@ class BaseJSONLike:
     @classmethod
     def _get_child_class(
         cls, child_obj_spec: ChildObjectSpec
-    ) -> type[enum.Enum | JSONLike] | None:
+    ) -> _ChildType | None:
         if child_obj_spec.class_obj:
-            return cast("type[enum.Enum | JSONLike]", child_obj_spec.class_obj)
+            return cast(_ChildType, child_obj_spec.class_obj)
         elif child_obj_spec.class_name:
             ns = cls._class_namespace()
             if isinstance(ns, dict):
