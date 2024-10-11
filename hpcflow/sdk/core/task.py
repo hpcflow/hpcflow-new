@@ -391,7 +391,9 @@ class ElementSet(JSONLike):
                 f"definitions: {dup_inp_paths!r}."
             )
 
-        inp_seq_paths = [seq.normalised_inputs_path for seq in self.sequences if seq.input_type]
+        inp_seq_paths = [
+            seq.normalised_inputs_path for seq in self.sequences if seq.input_type
+        ]
         dup_inp_seq_paths = get_duplicate_items(inp_seq_paths)
         if dup_inp_seq_paths:
             raise TaskTemplateMultipleInputValues(
@@ -576,10 +578,14 @@ class ElementSet(JSONLike):
         """
         The index of this element set in its' template task's collection of sets.
         """
-        return next((
-            idx
-            for idx, element_set in enumerate(self.task_template.element_sets)
-            if element_set is self), None)
+        return next(
+            (
+                idx
+                for idx, element_set in enumerate(self.task_template.element_sets)
+                if element_set is self
+            ),
+            None,
+        )
 
     @property
     def task(self) -> WorkflowTask:
@@ -638,10 +644,9 @@ class ElementSet(JSONLike):
     def is_input_type_provided(self, labelled_path: str) -> bool:
         """Check if an input is provided locally as an InputValue or a ValueSequence."""
         return any(
-            labelled_path == inp.normalised_inputs_path
-            for inp in self.inputs
+            labelled_path == inp.normalised_inputs_path for inp in self.inputs
         ) or any(
-            seq.parameter 
+            seq.parameter
             # i.e. not a resource:
             and labelled_path == seq.normalised_inputs_path
             for seq in self.sequences
@@ -845,10 +850,7 @@ class Task(JSONLike):
         # TODO: required so we don't raise below; can be removed once we consider multiple
         # schemas:
         for es in self.element_sets:
-            if es.env_preset or any(
-                seq.path == "env_preset"
-                for seq in es.sequences
-            ):
+            if es.env_preset or any(seq.path == "env_preset" for seq in es.sequences):
                 break
         else:
             # No presets
@@ -949,8 +951,11 @@ class Task(JSONLike):
 
         obj = copy.deepcopy(self)
         source: ParamSource = {"type": "default_input", "task_insert_ID": insert_ID}
-        new_refs = list(chain.from_iterable(
-            schema.make_persistent(workflow, source) for schema in obj.schemas))
+        new_refs = list(
+            chain.from_iterable(
+                schema.make_persistent(workflow, source) for schema in obj.schemas
+            )
+        )
 
         return obj, new_refs
 
@@ -1403,7 +1408,7 @@ class Task(JSONLike):
         """
         return {out_j for schema_i in self.schemas for out_j in schema_i.output_types}
 
-    def get_schema_action(self, idx: int) -> Action:#
+    def get_schema_action(self, idx: int) -> Action:  #
         """
         Get the schema action at the given index.
         """
@@ -1440,13 +1445,11 @@ class Task(JSONLike):
         sourced_input_types: set[str] = set()
         for elem_set in self.element_sets:
             sourced_input_types.update(
-                inp.normalised_path
-                for inp in elem_set.inputs
-                if inp.is_sub_value)
+                inp.normalised_path for inp in elem_set.inputs if inp.is_sub_value
+            )
             sourced_input_types.update(
-                seq.normalised_path
-                for seq in elem_set.sequences
-                if seq.is_sub_value)
+                seq.normalised_path for seq in elem_set.sequences if seq.is_sub_value
+            )
         return sourced_input_types | self.all_schema_input_normalised_paths
 
     def is_input_type_required(self, typ: str, element_set: ElementSet) -> bool:
@@ -1461,8 +1464,7 @@ class Task(JSONLike):
             if not schema.actions:
                 return True  # for empty tasks that are used merely for defining inputs
             if any(
-                act.is_input_type_required(typ, provided_files)
-                for act in schema.actions
+                act.is_input_type_required(typ, provided_files) for act in schema.actions
             ):
                 return True
 
@@ -1823,9 +1825,11 @@ class WorkflowTask(AppAware):
                 src_iter.get_element_iteration_dependencies(),
             )
 
-            if any(inp_group_name == grp.name
-                    for el_iter in src_iter_deps
-                    for grp in el_iter.element.element_set.groups):
+            if any(
+                inp_group_name == grp.name
+                for el_iter in src_iter_deps
+                for grp in el_iter.element.element_set.groups
+            ):
                 group_dat_idx.append(dat_idx)
                 continue
 
@@ -2152,7 +2156,8 @@ class WorkflowTask(AppAware):
 
         all_elem_iters_by_ID = {
             el_iter.id_: el_iter
-            for el_iter in self.workflow.get_element_iterations_from_IDs(all_elem_iters)}
+            for el_iter in self.workflow.get_element_iterations_from_IDs(all_elem_iters)
+        }
 
         # element set indices:
         padded_elem_iters = defaultdict(list)
@@ -2871,7 +2876,7 @@ class WorkflowTask(AppAware):
                     for dep_elem_i in iter_i.get_element_dependencies(as_objects=True)
                     if dep_elem_i.task.insert_ID != self.insert_ID
                 )
-    
+
         deps = sorted(deps_set)
         if as_objects:
             return self.workflow.get_elements_from_IDs(deps)

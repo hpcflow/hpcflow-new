@@ -854,12 +854,14 @@ class ResourceList(ObjectList["ResourceSpec"]):
         elif isinstance(resources, cls._app.ResourceSpec):
             return cls([resources])
         elif isinstance(resources, Sequence):
-            return cls([
-                cls._app.ResourceSpec.from_json_like(cast(dict, res_i))
-                if isinstance(res_i, dict)
-                else cls.__ensure_non_persistent(res_i)
-                for res_i in resources
-            ])
+            return cls(
+                [
+                    cls._app.ResourceSpec.from_json_like(cast(dict, res_i))
+                    if isinstance(res_i, dict)
+                    else cls.__ensure_non_persistent(res_i)
+                    for res_i in resources
+                ]
+            )
         else:
             return cls([resources])
 

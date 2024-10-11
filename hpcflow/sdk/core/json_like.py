@@ -349,9 +349,7 @@ class BaseJSONLike:
         return ns
 
     @classmethod
-    def _get_child_class(
-        cls, child_obj_spec: ChildObjectSpec
-    ) -> _ChildType | None:
+    def _get_child_class(cls, child_obj_spec: ChildObjectSpec) -> _ChildType | None:
         if child_obj_spec.class_obj:
             return cast(_ChildType, child_obj_spec.class_obj)
         elif child_obj_spec.class_name:

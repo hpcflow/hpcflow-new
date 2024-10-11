@@ -852,8 +852,9 @@ class WorkflowLoop(AppAware):
             src_data_idx: list[DataIndex] = []
             for li_k, di_k in cache.data_idx[elem_ID].items():
                 li_k_dct = dict(li_k)
-                if all(li_k_dct.get(p_k) == p_v
-                       for p_k, p_v in parent_loop_indices.items()):
+                if all(
+                    li_k_dct.get(p_k) == p_v for p_k, p_v in parent_loop_indices.items()
+                ):
                     src_data_idx.append(di_k)
 
             # could be multiple, but they should all have the same

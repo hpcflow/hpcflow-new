@@ -2483,7 +2483,9 @@ class Action(JSONLike):
         else:
             return self._app.ActionScope.main()
 
-    def is_input_type_required(self, typ: str, provided_files: Container[FileSpec]) -> bool:
+    def is_input_type_required(
+        self, typ: str, provided_files: Container[FileSpec]
+    ) -> bool:
         """
         Determine if the given input type is required by this action.
         """

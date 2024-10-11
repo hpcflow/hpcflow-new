@@ -170,8 +170,10 @@ class TaskSchema(JSONLike):
             # validate against env names in actions:
             env_names = {act.get_environment_name() for act in self.actions}
             preset_envs = {
-                preset_name for preset in self.environment_presets.values()
-                for preset_name in preset}
+                preset_name
+                for preset in self.environment_presets.values()
+                for preset_name in preset
+            }
             bad_envs = preset_envs - env_names
             if bad_envs:
                 raise EnvironmentPresetUnknownEnvironmentError(
@@ -539,7 +541,9 @@ class TaskSchema(JSONLike):
             num_out_fp_rows = 0
             if act.output_file_parsers:
                 out_fp = act.output_file_parsers[0]  # should be only one
-                files = ", ".join(f"<code>{of_.label}</code>" for of_ in out_fp.output_files)
+                files = ", ".join(
+                    f"<code>{of_.label}</code>" for of_ in out_fp.output_files
+                )
                 out_fp_rows += (
                     f"<tr>"
                     f'<td class="action-header-cell">output:</td>'
@@ -683,7 +687,8 @@ class TaskSchema(JSONLike):
             out
             if isinstance(out, cls._app.SchemaOutput)
             else cls._app.SchemaOutput(
-                out if isinstance(out, Parameter) else out.parameter)
+                out if isinstance(out, Parameter) else out.parameter
+            )
         )
 
     @classmethod
@@ -702,7 +707,9 @@ class TaskSchema(JSONLike):
         # check action input/outputs
         if self._validate_actions:
             has_script = any(
-                act.script and not act.input_file_generators and not act.output_file_parsers
+                act.script
+                and not act.input_file_generators
+                and not act.output_file_parsers
                 for act in self.actions
             )
 

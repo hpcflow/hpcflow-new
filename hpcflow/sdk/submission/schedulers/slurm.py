@@ -272,8 +272,8 @@ class SlurmPosix(QueuedScheduler):
             # TODO: bug here? not finding correct partition?
             for part_name, part_info in all_parts.items():
                 if cls.__partition_matches(
-                        num_cores, num_cores_per_node, num_nodes, para_mode,
-                        part_info):
+                    num_cores, num_cores_per_node, num_nodes, para_mode, part_info
+                ):
                     resources.SLURM_partition = str(part_name)
                     break
             else:
@@ -284,34 +284,35 @@ class SlurmPosix(QueuedScheduler):
                 )
 
     @classmethod
-    def __is_present_unsupported(cls, num_req: int | None, part_have: list[int] | None) -> bool:
+    def __is_present_unsupported(
+        cls, num_req: int | None, part_have: list[int] | None
+    ) -> bool:
         """
         Test if information is present on both sides, but doesn't match.
         """
         return bool(
-            num_req
-            and part_have
-            and not cls.is_num_cores_supported(num_req, part_have)
+            num_req and part_have and not cls.is_num_cores_supported(num_req, part_have)
         )
 
     @classmethod
-    def __is_present_supported(cls, num_req: int | None, part_have: list[int] | None) -> bool:
+    def __is_present_supported(
+        cls, num_req: int | None, part_have: list[int] | None
+    ) -> bool:
         """
         Test if information is present on both sides, and also matches.
         """
         return bool(
-            num_req
-            and part_have
-            and cls.is_num_cores_supported(num_req, part_have)
+            num_req and part_have and cls.is_num_cores_supported(num_req, part_have)
         )
 
     @classmethod
     def __partition_matches(
-        cls, num_cores: int | None,
+        cls,
+        num_cores: int | None,
         num_cores_per_node: int | None,
         num_nodes: int | None,
         para_mode: ParallelMode | None,
-        part_info: SLURMPartitionsDescriptor
+        part_info: SLURMPartitionsDescriptor,
     ) -> bool:
         """
         Check whether a partition (part_name, part_info) matches the requested number
@@ -321,12 +322,10 @@ class SlurmPosix(QueuedScheduler):
         part_num_cores_per_node = part_info.get("num_cores_per_node", [])
         part_num_nodes = part_info.get("num_nodes", [])
         part_para_modes = part_info.get("parallel_modes", [])
-        if not cls.__is_present_supported(
-            num_cores, part_num_cores
-        ) or not cls.__is_present_supported(
-            num_cores_per_node, part_num_cores_per_node
-        ) or not cls.__is_present_supported(
-            num_nodes, part_num_nodes
+        if (
+            not cls.__is_present_supported(num_cores, part_num_cores)
+            or not cls.__is_present_supported(num_cores_per_node, part_num_cores_per_node)
+            or not cls.__is_present_supported(num_nodes, part_num_nodes)
         ):
             return False
         # FIXME: Does the next check come above or below the check below?

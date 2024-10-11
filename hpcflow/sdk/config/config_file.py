@@ -132,8 +132,9 @@ class ConfigFile:
                         raise ConfigFileInvocationUnknownMatchKey(match_k)
 
                     if not any(
-                            fnmatch.filter(names=[k_value], pat=match_i)
-                            for match_i in match_v):
+                        fnmatch.filter(names=[k_value], pat=match_i)
+                        for match_i in match_v
+                    ):
                         is_match = False
                         break
 

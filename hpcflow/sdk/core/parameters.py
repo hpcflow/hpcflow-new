@@ -18,7 +18,11 @@ from valida import Schema as ValidaSchema  # type: ignore
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.element import ElementFilter
 from hpcflow.sdk.core.enums import (
-    InputSourceType,ParallelMode, ParameterPropagationMode, TaskSourceType)
+    InputSourceType,
+    ParallelMode,
+    ParameterPropagationMode,
+    TaskSourceType,
+)
 from hpcflow.sdk.core.errors import (
     MalformedParameterPathError,
     UnknownResourceSpecItemError,
@@ -211,10 +215,13 @@ class Parameter(JSONLike):
         # subclass:
         if self._value_class is None:
             self._value_class = next(
-                (pv_class
-                 for pv_class in ParameterValue.__subclasses__()
-                 if pv_class._typ == self.typ),
-                None)
+                (
+                    pv_class
+                    for pv_class in ParameterValue.__subclasses__()
+                    if pv_class._typ == self.typ
+                ),
+                None,
+            )
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, self.__class__) and self.typ == other.typ
@@ -2274,7 +2281,8 @@ class InputSource(JSONLike):
             rule_cls = self._app.Rule
             self.where = self._app.ElementFilter(
                 rules=[
-                    rule if isinstance(rule, rule_cls)
+                    rule
+                    if isinstance(rule, rule_cls)
                     else rule_cls(**cast("RuleArgs", rule))
                     for rule in (where if isinstance(where, Sequence) else [where])
                 ]
@@ -2347,11 +2355,9 @@ class InputSource(JSONLike):
         """If source_type is task, then return the referenced task from the given
         workflow."""
         if self.source_type is InputSourceType.TASK:
-            return next((
-                task
-                for task in workflow.tasks
-                if task.insert_ID == self.task_ref
-            ), None)
+            return next(
+                (task for task in workflow.tasks if task.insert_ID == self.task_ref), None
+            )
         return None
 
     def is_in(self, other_input_sources: list[InputSource]) -> int | None:
