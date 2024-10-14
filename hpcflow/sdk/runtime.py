@@ -7,6 +7,7 @@ from importlib import import_module
 from logging import Logger
 import os
 import platform
+import re
 import socket
 import sys
 from pathlib import Path
@@ -290,7 +291,8 @@ class RunTimeInfo:
                 # invoked via `hpcflow test`, `resolved_script_path` seems to be the
                 # batch script wrapper (ending in .cmd) rather than the Python entry point
                 # itself, so trim if off:
-                script = script.removesuffix(".cmd")
+                script = re.sub(r"\.cmd$", "", script)  # Work with 3.8 too
+                # script = script.removesuffix(".cmd")
             command = [str(self.python_executable_path), script]
         else:
             app_module = import_module(self.package_name)
