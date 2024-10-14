@@ -169,7 +169,8 @@ class Submission(JSONLike):
                     exec_instances = exec_i.filter_instances(**filter_exec)
                     if not exec_instances:
                         raise MissingEnvironmentExecutableInstanceError(
-                            env_ref, exec_i_lab, js_idx_j, filter_exec)
+                            env_ref, exec_i_lab, js_idx_j, filter_exec
+                        )
 
         # save env definitions to the environments attribute:
         self._environments = self._app.EnvironmentsList(envs)

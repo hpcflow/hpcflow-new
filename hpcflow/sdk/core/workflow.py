@@ -3275,7 +3275,8 @@ class Workflow(AppAware):
                     input_source.task_ref = uniq_names_cur[input_source.task_ref]
                 except KeyError:
                     raise InvalidInputSourceTaskReference(
-                        input_source, input_source.task_ref)
+                        input_source, input_source.task_ref
+                    )
 
     def get_all_submission_run_IDs(self) -> Iterable[int]:
         """

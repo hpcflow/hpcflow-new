@@ -1688,7 +1688,9 @@ class Action(JSONLike):
                 raise UnknownScriptDataParameter(k, prefix, param_names)
             # validate format:
             if v["format"] not in self._script_data_formats:
-                raise UnsupportedScriptDataFormat(v, prefix[:-1], k, self._script_data_formats)
+                raise UnsupportedScriptDataFormat(
+                    v, prefix[:-1], k, self._script_data_formats
+                )
 
             for k2 in v:
                 if k2 not in allowed_keys:
@@ -1863,14 +1865,14 @@ class Action(JSONLike):
         if not possible:
             if input_file_generator:
                 raise MissingCompatibleActionEnvironment(
-                    f"input file generator {input_file_generator.input_file.label!r}")
+                    f"input file generator {input_file_generator.input_file.label!r}"
+                )
             elif output_file_parser:
                 if output_file_parser.output is not None:
                     ofp_id = output_file_parser.output.typ
                 else:
                     ofp_id = "<unnamed>"
-                raise MissingCompatibleActionEnvironment(
-                    f"output file parser {ofp_id!r}")
+                raise MissingCompatibleActionEnvironment(f"output file parser {ofp_id!r}")
             else:
                 raise MissingCompatibleActionEnvironment(f"commands {commands!r}")
 

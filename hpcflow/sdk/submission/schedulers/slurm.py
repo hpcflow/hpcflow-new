@@ -231,7 +231,9 @@ class SlurmPosix(QueuedScheduler):
             try:
                 part = all_parts[resources.SLURM_partition]
             except KeyError:
-                raise UnknownSLURMPartitionError(resources.SLURM_partition, all_parts.keys())
+                raise UnknownSLURMPartitionError(
+                    resources.SLURM_partition, all_parts.keys()
+                )
             # TODO: we when we support ParallelMode.HYBRID, these checks will have to
             # consider the total number of cores requested per node
             # (num_cores_per_node * num_threads)?
@@ -245,8 +247,9 @@ class SlurmPosix(QueuedScheduler):
                 )
             if cls.__is_present_unsupported(num_cores_per_node, part_num_cores_per_node):
                 raise IncompatibleSLURMPartitionError(
-                    resources.SLURM_partition, "number of cores per node",
-                    num_cores_per_node
+                    resources.SLURM_partition,
+                    "number of cores per node",
+                    num_cores_per_node,
                 )
             if cls.__is_present_unsupported(num_nodes, part_num_nodes):
                 raise IncompatibleSLURMPartitionError(
@@ -426,7 +429,7 @@ class SlurmPosix(QueuedScheduler):
         """Extract scheduler reference for a newly submitted jobscript"""
         if ";" in stdout:
             return stdout.split(";")[0]  # since we submit with "--parsable"
-        # Try using the whole thing 
+        # Try using the whole thing
         return stdout
 
     @staticmethod

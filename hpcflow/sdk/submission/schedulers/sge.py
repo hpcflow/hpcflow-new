@@ -140,7 +140,9 @@ class SGEPosix(QueuedScheduler):
             except KeyError:
                 raise UnknownSGEPEError(resources.SGE_parallel_env, para_envs.keys())
             if not cls.is_num_cores_supported(resources.num_cores, env["num_cores"]):
-                raise IncompatibleSGEPEError(resources.SGE_parallel_env,resources.num_cores)
+                raise IncompatibleSGEPEError(
+                    resources.SGE_parallel_env, resources.num_cores
+                )
         else:
             # find the first compatible PE:
             for pe_name, pe_info in para_envs.items():
@@ -195,9 +197,7 @@ class SGEPosix(QueuedScheduler):
             if opt_v is None:
                 opts.append(f"{self.js_cmd} {opt_k}")
             elif isinstance(opt_v, list):
-                opts.extend(
-                    f"{self.js_cmd} {opt_k} {i}"
-                    for i in opt_v)
+                opts.extend(f"{self.js_cmd} {opt_k} {i}" for i in opt_v)
             elif opt_v:
                 opts.append(f"{self.js_cmd} {opt_k} {opt_v}")
 

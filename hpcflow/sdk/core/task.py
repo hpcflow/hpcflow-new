@@ -372,8 +372,9 @@ class ElementSet(JSONLike):
         else:
             return repeats
 
-    _ALLOWED_NESTING_PATHS: ClassVar[frozenset[str]] = frozenset({
-        "inputs", "resources", "repeats"})
+    _ALLOWED_NESTING_PATHS: ClassVar[frozenset[str]] = frozenset(
+        {"inputs", "resources", "repeats"}
+    )
 
     def _validate(self) -> None:
         # check `nesting_order` paths:
@@ -875,7 +876,9 @@ class Task(JSONLike):
                         try:
                             _values.append(env_presets[val])  # type: ignore[index]
                         except (TypeError, KeyError) as e:
-                            raise UnknownEnvironmentPresetError(val, self.schema.name) from e
+                            raise UnknownEnvironmentPresetError(
+                                val, self.schema.name
+                            ) from e
                     seq._values = _values
 
     def _reset_pending_element_sets(self) -> None:
@@ -2028,7 +2031,9 @@ class WorkflowTask(AppAware):
                 try:
                     available_source = avail_i[avail_idx]
                 except TypeError:
-                    raise UnavailableInputSource(specified_source, path_i, avail_i) from None
+                    raise UnavailableInputSource(
+                        specified_source, path_i, avail_i
+                    ) from None
 
                 elem_iters_IDs = available_source.element_iters
                 if specified_source.element_iters:
