@@ -566,7 +566,7 @@ class UnknownSGEPEError(ResourceValidationError):
     Miscellaneous error from SGE parallel environment.
     """
 
-    def __init__(self, env_name: str, all_env_names: Sequence[str]) -> None:
+    def __init__(self, env_name: str, all_env_names: Iterable[str]) -> None:
         super().__init__(
             f"The SGE parallel environment {env_name!r} is not "
             f"specified in the configuration. Specified parallel environments "
