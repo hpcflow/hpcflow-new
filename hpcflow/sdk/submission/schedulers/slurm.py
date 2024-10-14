@@ -110,10 +110,7 @@ class SlurmPosix(QueuedScheduler):
                 if (resources.num_nodes and resources.num_nodes > 1) or (
                     resources.SLURM_num_nodes and resources.SLURM_num_nodes > 1
                 ):
-                    raise IncompatibleParallelModeError(
-                        f"For the {resources.parallel_mode.name.lower()} parallel mode, "
-                        f"only a single node may be requested."
-                    )
+                    raise IncompatibleParallelModeError(resources.parallel_mode)
                 # consider `num_cores` and `num_threads` synonyms in this case:
                 if resources.SLURM_num_tasks and resources.SLURM_num_tasks != 1:
                     raise IncompatibleSLURMArgumentsError(
@@ -234,11 +231,7 @@ class SlurmPosix(QueuedScheduler):
             try:
                 part = all_parts[resources.SLURM_partition]
             except KeyError:
-                raise UnknownSLURMPartitionError(
-                    f"The SLURM partition {resources.SLURM_partition!r} is not "
-                    f"specified in the configuration. Specified partitions are "
-                    f"{list(all_parts.keys())!r}."
-                )
+                raise UnknownSLURMPartitionError(resources.SLURM_partition, all_parts.keys())
             # TODO: we when we support ParallelMode.HYBRID, these checks will have to
             # consider the total number of cores requested per node
             # (num_cores_per_node * num_threads)?
@@ -248,24 +241,20 @@ class SlurmPosix(QueuedScheduler):
             part_para_modes = part.get("parallel_modes", [])
             if cls.__is_present_unsupported(num_cores, part_num_cores):
                 raise IncompatibleSLURMPartitionError(
-                    f"The SLURM partition {resources.SLURM_partition!r} is not "
-                    f"compatible with the number of cores requested: {num_cores!r}."
+                    resources.SLURM_partition, "number of cores", num_cores
                 )
             if cls.__is_present_unsupported(num_cores_per_node, part_num_cores_per_node):
                 raise IncompatibleSLURMPartitionError(
-                    f"The SLURM partition {resources.SLURM_partition!r} is not "
-                    f"compatible with the number of cores per node requested: "
-                    f"{num_cores_per_node!r}."
+                    resources.SLURM_partition, "number of cores per node",
+                    num_cores_per_node
                 )
             if cls.__is_present_unsupported(num_nodes, part_num_nodes):
                 raise IncompatibleSLURMPartitionError(
-                    f"The SLURM partition {resources.SLURM_partition!r} is not "
-                    f"compatible with the number of nodes requested: {num_nodes!r}."
+                    resources.SLURM_partition, "number of nodes", num_nodes
                 )
             if para_mode and para_mode.name.lower() not in part_para_modes:
                 raise IncompatibleSLURMPartitionError(
-                    f"The SLURM partition {resources.SLURM_partition!r} is not "
-                    f"compatible with the parallel mode requested: {para_mode!r}."
+                    resources.SLURM_partition, "parallel mode", para_mode
                 )
         else:
             # find the first compatible partition if one exists:
@@ -419,32 +408,26 @@ class SlurmPosix(QueuedScheduler):
         List of argument words.
         """
         cmd = [self.submit_cmd, "--parsable"]
-
-        dep_cmd: list[str] = []
-        for job_ID, is_array_dep in deps.values():
-            dep_i_str = ""
-            if is_array_dep:  # array dependency
-                dep_i_str += "aftercorr:"
-            else:
-                dep_i_str += "afterany:"
-            dep_i_str += str(job_ID)
-            dep_cmd.append(dep_i_str)
-
-        if dep_cmd:
+        if deps:
             cmd.append("--dependency")
-            cmd.append(",".join(dep_cmd))
-
+            cmd.append(",".join(self.__dependency_args(deps)))
         cmd.append(js_path)
-
         return cmd
+
+    @staticmethod
+    def __dependency_args(deps: dict[Any, tuple[Any, ...]]) -> Iterator[str]:
+        for job_ID, is_array_dep in deps.values():
+            if is_array_dep:  # array dependency
+                yield f"aftercorr:{job_ID}"
+            else:
+                yield f"afterany:{job_ID}"
 
     def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
         if ";" in stdout:
-            job_ID, _ = stdout.split(";")  # since we submit with "--parsable"
-        else:
-            job_ID = stdout
-        return job_ID
+            return stdout.split(";")[0]  # since we submit with "--parsable"
+        # Try using the whole thing 
+        return stdout
 
     @staticmethod
     def _parse_job_IDs(job_ID_str: str) -> tuple[str, None | list[int]]:
@@ -457,19 +440,20 @@ class SlurmPosix(QueuedScheduler):
         try:
             return base_job_ID, [int(arr_idx) - 1]  # zero-index
         except ValueError:
-            # split on commas (e.g. "[5,8-40]")
-            _arr_idx: list[int] = []
-            for i_range_str in arr_idx.strip("[]").split(","):
-                if "-" in i_range_str:
-                    range_parts = i_range_str.split("-")
-                    if "%" in range_parts[1]:
-                        # indicates max concurrent array items; not needed
-                        range_parts[1] = range_parts[1].split("%")[0]
-                    i_args = [int(j) - 1 for j in range_parts]
-                    _arr_idx.extend(range(i_args[0], i_args[1] + 1))
-                else:
-                    _arr_idx.append(int(i_range_str) - 1)
-            return base_job_ID, _arr_idx
+            pass
+        # split on commas (e.g. "[5,8-40]")
+        _arr_idx: list[int] = []
+        for i_range_str in arr_idx.strip("[]").split(","):
+            if "-" in i_range_str:
+                range_parts = i_range_str.split("-")
+                if "%" in range_parts[1]:
+                    # indicates max concurrent array items; not needed
+                    range_parts[1] = range_parts[1].split("%")[0]
+                i_args = [int(j) - 1 for j in range_parts]
+                _arr_idx.extend(range(i_args[0], i_args[1] + 1))
+            else:
+                _arr_idx.append(int(i_range_str) - 1)
+        return base_job_ID, _arr_idx
 
     def _parse_job_states(
         self, stdout: str

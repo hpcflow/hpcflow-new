@@ -1327,11 +1327,7 @@ class ActionEnvironment(JSONLike):
             self.environment = {"name": environment}
         else:
             if "name" not in environment:
-                raise ActionEnvironmentMissingNameError(
-                    "The action-environment environment specification must include a string "
-                    "`name` key, or be specified as string that is that name. Provided "
-                    f"environment key was {environment!r}."
-                )
+                raise ActionEnvironmentMissingNameError(environment)
             self.environment = copy.deepcopy(environment)
 
 
@@ -1689,24 +1685,14 @@ class Action(JSONLike):
         for k, v in all_params.items():
             # validate parameter name (sub-parameters are allowed):
             if k.split(".")[0] not in param_names:
-                raise UnknownScriptDataParameter(
-                    f"Script data parameter {k!r} is not a known parameter of the "
-                    f"action. Parameters ({prefix}) are: {param_names!r}."
-                )
+                raise UnknownScriptDataParameter(k, prefix, param_names)
             # validate format:
             if v["format"] not in self._script_data_formats:
-                raise UnsupportedScriptDataFormat(
-                    f"Script data format {v!r} for {prefix[:-1]} parameter {k!r} is not "
-                    f"understood. Available script data formats are: "
-                    f"{self._script_data_formats!r}."
-                )
+                raise UnsupportedScriptDataFormat(v, prefix[:-1], k, self._script_data_formats)
 
             for k2 in v:
                 if k2 not in allowed_keys:
-                    raise UnknownScriptDataKey(
-                        f"Script data key {k2!r} is not understood. Allowed keys are: "
-                        f"{allowed_keys!r}."
-                    )
+                    raise UnknownScriptDataKey(k2, allowed_keys)
 
         return all_params
 
@@ -1871,23 +1857,22 @@ class Action(JSONLike):
         output_file_parser: OutputFileParser | None = None,
         commands: list[Command] | None = None,
     ) -> ActionEnvironment:
-        possible = [
+        possible = (
             i for i in self.environments if i.scope and i.scope.typ in relevant_scopes
-        ]
+        )
         if not possible:
             if input_file_generator:
-                msg = f"input file generator {input_file_generator.input_file.label!r}"
+                raise MissingCompatibleActionEnvironment(
+                    f"input file generator {input_file_generator.input_file.label!r}")
             elif output_file_parser:
                 if output_file_parser.output is not None:
                     ofp_id = output_file_parser.output.typ
                 else:
                     ofp_id = "<unnamed>"
-                msg = f"output file parser {ofp_id!r}"
+                raise MissingCompatibleActionEnvironment(
+                    f"output file parser {ofp_id!r}")
             else:
-                msg = f"commands {commands!r}"
-            raise MissingCompatibleActionEnvironment(
-                f"No compatible environment is specified for the {msg}."
-            )
+                raise MissingCompatibleActionEnvironment(f"commands {commands!r}")
 
         # sort by scope type specificity:
         possible_srt = sorted(possible, key=lambda i: i.scope.typ.value, reverse=True)

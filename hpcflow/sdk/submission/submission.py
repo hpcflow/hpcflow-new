@@ -149,14 +149,9 @@ class Submission(JSONLike):
             try:
                 env_i = self._app.envs.get(**env_spec)
             except ObjectListMultipleMatchError:
-                raise MultipleEnvironmentsError(
-                    f"Multiple environments {env_ref} are defined on this machine."
-                )
+                raise MultipleEnvironmentsError(env_ref)
             except ValueError:
-                raise MissingEnvironmentError(
-                    f"The environment {env_ref} is not defined on this machine, so the "
-                    f"submission cannot be created."
-                ) from None
+                raise MissingEnvironmentError(env_ref) from None
             else:
                 if env_i not in envs:
                     envs.append(env_i)
@@ -165,11 +160,7 @@ class Submission(JSONLike):
                 try:
                     exec_i = env_i.executables.get(exec_i_lab)
                 except ValueError:
-                    raise MissingEnvironmentExecutableError(
-                        f"The environment {env_ref} as defined on this machine has no "
-                        f"executable labelled {exec_i_lab!r}, which is required for this "
-                        f"submission, so the submission cannot be created."
-                    ) from None
+                    raise MissingEnvironmentExecutableError(env_ref, exec_i_lab) from None
 
                 # check matching executable instances exist:
                 for js_idx_j in js_idx_set:
@@ -178,11 +169,7 @@ class Submission(JSONLike):
                     exec_instances = exec_i.filter_instances(**filter_exec)
                     if not exec_instances:
                         raise MissingEnvironmentExecutableInstanceError(
-                            f"No matching executable instances found for executable "
-                            f"{exec_i_lab!r} of environment {env_ref} for jobscript "
-                            f"index {js_idx_j!r} with requested resources "
-                            f"{filter_exec!r}."
-                        )
+                            env_ref, exec_i_lab, js_idx_j, filter_exec)
 
         # save env definitions to the environments attribute:
         self._environments = self._app.EnvironmentsList(envs)

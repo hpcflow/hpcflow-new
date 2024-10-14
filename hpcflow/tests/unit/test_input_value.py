@@ -6,7 +6,6 @@ import pytest
 import requests
 
 from hpcflow.app import app as hf
-from hpcflow.sdk.core.errors import InputValueDuplicateSequenceAddress
 from hpcflow.sdk.core.test_utils import P1_parameter_cls as P1
 
 if TYPE_CHECKING:

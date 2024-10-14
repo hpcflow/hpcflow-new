@@ -46,8 +46,9 @@ class DirectScheduler(Scheduler[DirectRef]):
     ) -> None:
         """Perform scheduler-specific processing to the element resources.
 
-        Note: this mutates `resources`.
-
+        Note
+        ----
+        This mutates `resources`.
         """
         return
 

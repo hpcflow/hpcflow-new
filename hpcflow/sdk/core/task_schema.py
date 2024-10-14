@@ -176,11 +176,7 @@ class TaskSchema(JSONLike):
             }
             bad_envs = preset_envs - env_names
             if bad_envs:
-                raise EnvironmentPresetUnknownEnvironmentError(
-                    f"Task schema {self.name} has environment presets that refer to one "
-                    f"or more environments that are not referenced in any of the task "
-                    f"schema's actions: {', '.join(f'{i!r}' for i in bad_envs)}."
-                )
+                raise EnvironmentPresetUnknownEnvironmentError(self.name, bad_envs)
 
         # if version is not None:  # TODO: this seems fragile
         #     self.assign_versions(

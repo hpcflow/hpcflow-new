@@ -107,11 +107,10 @@ def check_valid_py_identifier(name: str) -> str:
         - `Loop.name`
 
     """
-    exc = InvalidIdentifier(f"Invalid string for identifier: {name!r}")
     try:
         trial_name = name[1:].replace("_", "")  # "internal" underscores are allowed
     except TypeError:
-        raise exc
+        raise InvalidIdentifier(name) from None
     except KeyError as e:
         raise KeyError(f"unexpected name type {name}") from e
     if (
@@ -119,7 +118,7 @@ def check_valid_py_identifier(name: str) -> str:
         or not (name[0].isalpha() and ((trial_name[1:] or "a").isalnum()))
         or keyword.iskeyword(name)
     ):
-        raise exc
+        raise InvalidIdentifier(name)
 
     return name
 
@@ -400,10 +399,7 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
                     f"variable {var_name!r}."
                 )
             else:
-                raise MissingVariableSubstitutionError(
-                    f"The variable {var_name!r} referenced in the string does not match "
-                    f"any of the provided variables: {list(variables)!r}."
-                )
+                raise MissingVariableSubstitutionError(var_name, variables)
         return out
 
     return _STRING_VARS_RE.sub(

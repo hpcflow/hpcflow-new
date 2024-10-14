@@ -110,10 +110,12 @@ class SGEPosix(QueuedScheduler):
     def process_resources(
         cls, resources: ElementResources, scheduler_config: SchedulerConfigDescriptor
     ) -> None:
-        """Perform scheduler-specific processing to the element resources.
+        """
+        Perform scheduler-specific processing to the element resources.
 
-        Note: this mutates `resources`.
-
+        Note
+        ----
+        This mutates `resources`.
         """
         if resources.num_nodes is not None:
             raise ValueError(
@@ -136,17 +138,9 @@ class SGEPosix(QueuedScheduler):
             try:
                 env = para_envs[resources.SGE_parallel_env]
             except KeyError:
-                raise UnknownSGEPEError(
-                    f"The SGE parallel environment {resources.SGE_parallel_env!r} is not "
-                    f"specified in the configuration. Specified parallel environments "
-                    f"are {list(para_envs.keys())!r}."
-                )
+                raise UnknownSGEPEError(resources.SGE_parallel_env, para_envs.keys())
             if not cls.is_num_cores_supported(resources.num_cores, env["num_cores"]):
-                raise IncompatibleSGEPEError(
-                    f"The SGE parallel environment {resources.SGE_parallel_env!r} is not "
-                    f"compatible with the number of cores requested: "
-                    f"{resources.num_cores!r}."
-                )
+                raise IncompatibleSGEPEError(resources.SGE_parallel_env,resources.num_cores)
         else:
             # find the first compatible PE:
             for pe_name, pe_info in para_envs.items():
@@ -154,10 +148,7 @@ class SGEPosix(QueuedScheduler):
                     resources.SGE_parallel_env = pe_name
                     break
             else:
-                raise NoCompatibleSGEPEError(
-                    f"No compatible SGE parallel environment could be found for the "
-                    f"specified `num_cores` ({resources.num_cores!r})."
-                )
+                raise NoCompatibleSGEPEError(resources.num_cores)
 
     def get_login_nodes(self) -> list[str]:
         """Return a list of hostnames of login/administrative nodes as reported by the
@@ -204,8 +195,9 @@ class SGEPosix(QueuedScheduler):
             if opt_v is None:
                 opts.append(f"{self.js_cmd} {opt_k}")
             elif isinstance(opt_v, list):
-                for i in opt_v:
-                    opts.append(f"{self.js_cmd} {opt_k} {i}")
+                opts.extend(
+                    f"{self.js_cmd} {opt_k} {i}"
+                    for i in opt_v)
             elif opt_v:
                 opts.append(f"{self.js_cmd} {opt_k} {opt_v}")
 
@@ -265,11 +257,9 @@ class SGEPosix(QueuedScheduler):
     def parse_submission_output(self, stdout: str) -> str:
         """Extract scheduler reference for a newly submitted jobscript"""
         match = self.__SGE_JOB_ID_RE.search(stdout)
-        if match:
-            job_ID = match.group()
-        else:
+        if not match:
             raise RuntimeError(f"Could not parse Job ID from scheduler output {stdout!r}")
-        return job_ID
+        return match.group()
 
     def get_job_statuses(self) -> dict[str, dict[int | None, JobscriptElementState]]:
         """Get information about all of this user's jobscripts that currently listed by

@@ -68,8 +68,6 @@ def infer_store(path: str, fs: AbstractFileSystem) -> str:
         elif fs.glob(f"{path}/metadata.json"):
             store_fmt = "json"
         else:
-            raise WorkflowNotFoundError(
-                f"Cannot infer a store format at path {path!r} with file system {fs!r}."
-            )
+            raise WorkflowNotFoundError(path, fs)
 
     return store_fmt

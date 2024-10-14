@@ -152,10 +152,7 @@ class Command(JSONLike):
                 if not method:
                     method = "CLI_format"
                 if not hasattr(inp_val, method):
-                    raise NoCLIFormatMethodError(
-                        f"No CLI format method {method!r} exists for the "
-                        f"object {inp_val!r}."
-                    )
+                    raise NoCLIFormatMethodError(method, inp_val)
                 kwargs = self._prepare_kwargs_from_string(args_str=method_kwargs)
                 inp_val = getattr(inp_val, method)(**kwargs)
 

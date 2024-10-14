@@ -267,10 +267,7 @@ class WorkflowLoop(AppAware):
         task_indices = self.task_indices
         task_min, task_max = task_indices[0], task_indices[-1]
         if task_indices != tuple(range(task_min, task_max + 1)):
-            raise LoopTaskSubsetError(
-                f"Loop {self.name!r}: task subset must be an ascending contiguous range, "
-                f"but specified task indices were: {self.task_indices!r}."
-            )
+            raise LoopTaskSubsetError(self.name, self.task_indices)
 
         for task in self.downstream_tasks:
             for param in self.iterable_parameters:

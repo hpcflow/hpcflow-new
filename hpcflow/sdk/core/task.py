@@ -372,16 +372,14 @@ class ElementSet(JSONLike):
         else:
             return repeats
 
+    _ALLOWED_NESTING_PATHS: ClassVar[frozenset[str]] = frozenset({
+        "inputs", "resources", "repeats"})
+
     def _validate(self) -> None:
         # check `nesting_order` paths:
-        allowed_nesting_paths = ("inputs", "resources", "repeats")
         for k in self.nesting_order:
-            if k.split(".")[0] not in allowed_nesting_paths:
-                raise MalformedNestingOrderPath(
-                    f"Element set: nesting order path {k!r} not understood. Each key in "
-                    f"`nesting_order` must be start with one of "
-                    f"{allowed_nesting_paths!r}."
-                )
+            if k.split(".")[0] not in self._ALLOWED_NESTING_PATHS:
+                raise MalformedNestingOrderPath(k, self._ALLOWED_NESTING_PATHS)
 
         inp_paths = [in_.normalised_inputs_path for in_ in self.inputs]
         dup_inp_paths = get_duplicate_items(inp_paths)
@@ -424,20 +422,15 @@ class ElementSet(JSONLike):
         expected_types = self.task_template.all_schema_input_types
         unexpected_types = set(self.input_types) - expected_types
         if unexpected_types:
-            raise TaskTemplateUnexpectedInput(
-                f"The following input parameters are unexpected: {list(unexpected_types)!r}"
-            )
+            raise TaskTemplateUnexpectedInput(unexpected_types)
 
         defined_inp_types = set(self.input_types)
         for seq in self.sequences:
             inp_type = seq.labelled_type
             if inp_type:
                 if inp_type not in expected_types:
-                    allowed_str = ", ".join(f'"{in_typ}"' for in_typ in expected_types)
                     raise TaskTemplateUnexpectedSequenceInput(
-                        f"The input type {inp_type!r} specified in the following sequence"
-                        f" path is unexpected: {seq.path!r}. Available input types are: "
-                        f"{allowed_str}."
+                        inp_type, expected_types, seq
                     )
                 defined_inp_types.add(inp_type)
             if seq.path not in self.nesting_order and seq.nesting_order is not None:
@@ -450,10 +443,7 @@ class ElementSet(JSONLike):
 
         for k, v in self.nesting_order.items():
             if v < 0:
-                raise TaskTemplateInvalidNesting(
-                    f"`nesting_order` must be >=0 for all keys, but for key {k!r}, value "
-                    f"of {v!r} was specified."
-                )
+                raise TaskTemplateInvalidNesting(k, v)
 
         self._defined_input_types = defined_inp_types
 
@@ -870,10 +860,7 @@ class Task(JSONLike):
                 try:
                     env_specs = env_presets[es.env_preset]  # type: ignore[index]
                 except (TypeError, KeyError):
-                    raise UnknownEnvironmentPresetError(
-                        f"There is no environment preset named {es.env_preset!r} "
-                        f"defined in the task schema {self.schema.name}."
-                    )
+                    raise UnknownEnvironmentPresetError(es.env_preset, self.schema.name)
                 envs_res = self._app.ResourceList(
                     [self._app.ResourceSpec(scope="any", environments=env_specs)]
                 )
@@ -888,10 +875,7 @@ class Task(JSONLike):
                         try:
                             _values.append(env_presets[val])  # type: ignore[index]
                         except (TypeError, KeyError) as e:
-                            raise UnknownEnvironmentPresetError(
-                                f"There is no environment preset named {val!r} defined "
-                                f"in the task schema {self.schema.name}."
-                            ) from e
+                            raise UnknownEnvironmentPresetError(val, self.schema.name) from e
                     seq._values = _values
 
     def _reset_pending_element_sets(self) -> None:
@@ -986,10 +970,7 @@ class Task(JSONLike):
 
         names = set(i.objective.name for i in self.schemas)
         if len(names) > 1:
-            raise TaskTemplateMultipleSchemaObjectives(
-                f"All task schemas used within a task must have the same "
-                f"objective, but found multiple objectives: {list(names)!r}"
-            )
+            raise TaskTemplateMultipleSchemaObjectives(names)
 
     def _get_name(self) -> str:
         out = f"{self.objective.name}"
@@ -1524,10 +1505,14 @@ class Task(JSONLike):
     @property
     def defined_input_types(self) -> set[str]:
         """
-        The input types defined by this task.
+        The input types defined by this task, being the input types defined by any of
+        its element sets.
         """
-        raise NotImplementedError()
-        return self._defined_input_types  # FIXME: What sets this?
+        dit: set[str] = set()
+        for es in self.element_sets:
+            dit.update(es.defined_input_types)
+        return dit
+        # TODO: Is this right?
 
     @property
     def undefined_input_types(self) -> set[str]:
@@ -1846,11 +1831,7 @@ class WorkflowTask(AppAware):
             # TODO: this only goes to one level of dependency
 
         if not group_dat_idx:
-            raise MissingElementGroup(
-                f"Adding elements to task {self.unique_name!r}: no "
-                f"element group named {inp_group_name!r} found for input "
-                f"{labelled_path_i!r}."
-            )
+            raise MissingElementGroup(self.unique_name, inp_group_name, labelled_path_i)
 
         return [cast(int, group_dat_idx)]  # TODO: generalise to multiple groups
 
@@ -2042,20 +2023,12 @@ class WorkflowTask(AppAware):
                 )
                 avail_idx = specified_source.is_in(avail_i)
                 if avail_idx is None:
-                    raise UnavailableInputSource(
-                        f"The input source {specified_source.to_string()!r} is not "
-                        f"available for input path {path_i!r}. Available "
-                        f"input sources are: {[i.to_string() for i in avail_i]}."
-                    )
+                    raise UnavailableInputSource(specified_source, path_i, avail_i)
                 available_source: InputSource
                 try:
                     available_source = avail_i[avail_idx]
                 except TypeError:
-                    raise UnavailableInputSource(
-                        f"The input source {specified_source.to_string()!r} is not "
-                        f"available for input path {path_i!r}. Available "
-                        f"input sources are: {[i.to_string() for i in avail_i]}."
-                    ) from None
+                    raise UnavailableInputSource(specified_source, path_i, avail_i) from None
 
                 elem_iters_IDs = available_source.element_iters
                 if specified_source.element_iters:
@@ -2065,10 +2038,7 @@ class WorkflowTask(AppAware):
                         elem_iters_IDs or ()
                     ):
                         raise InapplicableInputSourceElementIters(
-                            f"The specified `element_iters` for input source "
-                            f"{specified_source.to_string()!r} are not all applicable. "
-                            f"Applicable element iteration IDs for this input source "
-                            f"are: {elem_iters_IDs!r}."
+                            specified_source, elem_iters_IDs
                         )
                     elem_iters_IDs = specified_source.element_iters
 
@@ -2273,15 +2243,7 @@ class WorkflowTask(AppAware):
             for inp_src in sources.values():
                 intersect_task_i.intersection_update(inp_src.element_iters or ())
             if not intersect_task_i:
-                raise NoCoincidentInputSources(
-                    f"Task {self.name!r}: input sources from task {task_ref!r} have "
-                    f"no coincident applicable element iterations. Consider setting "
-                    f"the element set (or task) argument "
-                    f"`allow_non_coincident_task_sources` to `True`, which will "
-                    f"allow for input sources from the same task to use different "
-                    f"(non-coinciding) subsets of element iterations from the "
-                    f"source task."
-                )
+                raise NoCoincidentInputSources(self.name, task_ref)
 
             # now change elements for the affected input sources.
             # sort by original order of first_src.element_iters
@@ -3133,10 +3095,7 @@ class WorkflowTask(AppAware):
                 # `ParameterValue` class.
                 data_j = param_j.data
         if raise_on_unset and not is_set_i:
-            raise UnsetParameterDataError(
-                f"Element data path {path!r} resolves to unset data for "
-                f"(at least) data-index path: {path_i!r}."
-            )
+            raise UnsetParameterDataError(path, path_i)
         return data_j, is_set_i, meth_i
 
     def __get_relevant_data(

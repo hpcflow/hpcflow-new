@@ -574,10 +574,7 @@ class WorkflowTemplate(JSONLike):
                 name = f"loop_{new_idx}"
             loop._name = name
         elif loop.name in self.workflow.loops.list_attrs():
-            raise LoopAlreadyExistsError(
-                f"A loop with the name {loop.name!r} already exists in the workflow: "
-                f"{getattr(self.workflow.loops, loop.name)!r}."
-            )
+            raise LoopAlreadyExistsError(loop.name, self.workflow.loops)
 
         loop._workflow_template = self
         self.loops.append(loop)
@@ -2713,8 +2710,7 @@ class Workflow(AppAware):
                 )
 
         if exceptions:
-            msg = "\n" + "\n\n".join(i.message for i in exceptions)
-            raise WorkflowSubmissionFailure(msg)
+            raise WorkflowSubmissionFailure(exceptions)
 
         if cancel:
             self.cancel()
@@ -2938,10 +2934,7 @@ class Workflow(AppAware):
 
         run = running[0]
         if not run.action.abortable:
-            raise RunNotAbortableError(
-                "The run is not defined as abortable in the task schema, so it cannot "
-                "be aborted."
-            )
+            raise RunNotAbortableError()
         self._abort_run_ID(submission_idx, run.id_)
 
     @TimeIt.decorator
@@ -3264,10 +3257,7 @@ class Workflow(AppAware):
         if isinstance(input_source.task_ref, str):
             if input_source.task_ref == new_task_name:
                 if input_source.task_source_type is self._app.TaskSourceType.OUTPUT:
-                    raise InvalidInputSourceTaskReference(
-                        f"Input source {input_source.to_string()!r} cannot refer to the "
-                        f"outputs of its own task!"
-                    )
+                    raise InvalidInputSourceTaskReference(input_source)
                 else:
                     warn(
                         f"Changing input source {input_source.to_string()!r} to a local "
@@ -3285,9 +3275,7 @@ class Workflow(AppAware):
                     input_source.task_ref = uniq_names_cur[input_source.task_ref]
                 except KeyError:
                     raise InvalidInputSourceTaskReference(
-                        f"Input source {input_source.to_string()!r} refers to a missing "
-                        f"or inaccessible task: {input_source.task_ref!r}."
-                    )
+                        input_source, input_source.task_ref)
 
     def get_all_submission_run_IDs(self) -> Iterable[int]:
         """

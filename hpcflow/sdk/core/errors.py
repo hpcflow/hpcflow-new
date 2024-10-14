@@ -4,43 +4,72 @@ Errors from the workflow system.
 
 from __future__ import annotations
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from typing import Any, TYPE_CHECKING
+if TYPE_CHECKING:
+    from .enums import ParallelMode
+    from .object_list import WorkflowLoopList
+    from .parameters import InputSource, ValueSequence
+    from .types import ScriptData
 
 
 class InputValueDuplicateSequenceAddress(ValueError):
     """
     An InputValue has the same sequence address twice.
     """
+    # FIXME: never used
 
 
 class TaskTemplateMultipleSchemaObjectives(ValueError):
     """
     A TaskTemplate has multiple objectives.
     """
+    def __init__(self, names: set[str]) -> None:
+        super().__init__(
+            f"All task schemas used within a task must have the same "
+            f"objective, but found multiple objectives: {sorted(names)!r}"
+        )
 
 
 class TaskTemplateUnexpectedInput(ValueError):
     """
     A TaskTemplate was given unexpected input.
     """
+    def __init__(self, unexpected_types: set[str]) -> None:
+        super().__init__(
+            f"The following input parameters are unexpected: {sorted(unexpected_types)!r}"
+        )
 
 
 class TaskTemplateUnexpectedSequenceInput(ValueError):
     """
     A TaskTemplate was given an unexpected sequence.
     """
+    def __init__(
+        self, inp_type: str, expected_types: set[str], seq: ValueSequence
+    ) -> None:
+        allowed_str = ", ".join(f'"{in_typ}"' for in_typ in expected_types)
+        super().__init__(
+            f"The input type {inp_type!r} specified in the following sequence"
+            f" path is unexpected: {seq.path!r}. Available input types are: "
+            f"{allowed_str}."
+        )
 
 
 class TaskTemplateMultipleInputValues(ValueError):
     """
     A TaskTemplate had multiple input values bound over each other.
     """
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
 
 
 class InvalidIdentifier(ValueError):
     """
     A bad identifier name was given.
     """
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Invalid string for identifier: {name!r}")
 
 
 class MissingInputs(Exception):
@@ -109,183 +138,277 @@ class UnavailableInputSource(ValueError):
     """
     An input source was not available.
     """
+    def __init__(self, source: InputSource, path: str, avail: list[InputSource]) -> None:
+        super().__init__(
+            f"The input source {source.to_string()!r} is not "
+            f"available for input path {path!r}. Available "
+            f"input sources are: {[i.to_string() for i in avail]}."
+        )
 
 
 class InapplicableInputSourceElementIters(ValueError):
     """
     An input source element iteration was inapplicable."""
+    def __init__(self, source: InputSource, elem_iters_IDs: list[int] | None) -> None:
+        super().__init__(
+            f"The specified `element_iters` for input source "
+            f"{source.to_string()!r} are not all applicable. "
+            f"Applicable element iteration IDs for this input source "
+            f"are: {elem_iters_IDs!r}."
+        )
 
 
 class NoCoincidentInputSources(ValueError):
     """
     Could not line up input sources to make an actual valid execution.
     """
+    def __init__(self, name: str, task_ref: int) -> None:
+        super().__init__(
+            f"Task {name!r}: input sources from task {task_ref!r} have "
+            f"no coincident applicable element iterations. Consider setting "
+            f"the element set (or task) argument "
+            f"`allow_non_coincident_task_sources` to `True`, which will "
+            f"allow for input sources from the same task to use different "
+            f"(non-coinciding) subsets of element iterations from the "
+            f"source task."
+        )
 
 
 class TaskTemplateInvalidNesting(ValueError):
     """
     Invalid nesting in a task template.
     """
+    def __init__(self, key: str, value: float) -> None:
+        super().__init__(
+            f"`nesting_order` must be >=0 for all keys, but for key {key!r}, value "
+            f"of {value!r} was specified."
+        )
 
 
 class TaskSchemaSpecValidationError(Exception):
     """
     A task schema failed to validate.
     """
+    # FIXME: never used
 
 
 class WorkflowSpecValidationError(Exception):
     """
     A workflow failed to validate.
     """
+    # FIXME: never used
 
 
 class InputSourceValidationError(Exception):
     """
     An input source failed to validate.
     """
+    # FIXME: never used
 
 
 class EnvironmentSpecValidationError(Exception):
     """
     An environment specification failed to validate.
     """
+    # FIXME: never used
 
 
 class ParameterSpecValidationError(Exception):
     """
     A parameter specification failed to validate.
     """
+    # FIXME: never used
 
 
 class FileSpecValidationError(Exception):
     """
     A file specification failed to validate.
     """
+    # FIXME: never used
 
 
 class DuplicateExecutableError(ValueError):
     """
     The same executable was present twice in an executable environment.
     """
+    def __init__(self, duplicate_labels: list) -> None:
+        super().__init__(
+            f"Executables must have unique `label`s within each environment, but "
+            f"found label(s) multiple times: {duplicate_labels!r}"
+        )
 
 
 class MissingCompatibleActionEnvironment(Exception):
     """
     Could not find a compatible action environment.
     """
+    def __init__(self, msg: str) -> None:
+        super().__init__(f"No compatible environment is specified for the {msg}.")
 
 
 class MissingActionEnvironment(Exception):
     """
     Could not find an action environment.
     """
+    # FIXME: never used
 
 
 class ActionEnvironmentMissingNameError(Exception):
     """
     An action environment was missing its name.
     """
+    def __init__(self, environment: dict[str, Any]) -> None:
+        super().__init__(
+            "The action-environment environment specification must include a string "
+            "`name` key, or be specified as string that is that name. Provided "
+            f"environment key was {environment!r}."
+        )
 
 
 class FromSpecMissingObjectError(Exception):
     """
     Missing object when deserialising from specification.
     """
+    # FIXME: never used
 
 
 class TaskSchemaMissingParameterError(Exception):
     """
     Parameter was missing from task schema.
     """
+    # FIXME: never used
 
 
 class ToJSONLikeChildReferenceError(Exception):
     """
     Failed to generate or reference a child object when converting to JSON.
     """
+    # FIXME: never thrown
 
 
 class InvalidInputSourceTaskReference(Exception):
     """
     Invalid input source in task reference.
     """
+    def __init__(self, input_source: InputSource, task_ref: int | None = None) -> None:
+        super().__init__(
+            f"Input source {input_source.to_string()!r} cannot refer to the "
+            f"outputs of its own task!"
+            if task_ref is None else
+            f"Input source {input_source.to_string()!r} refers to a missing "
+            f"or inaccessible task: {task_ref!r}."
+        )
 
 
 class WorkflowNotFoundError(Exception):
     """
     Could not find the workflow.
     """
+    def __init__(self, path, fs) -> None:
+        super().__init__(
+            f"Cannot infer a store format at path {path!r} with file system {fs!r}."
+        )
 
 
 class MalformedWorkflowError(Exception):
     """
     Workflow was a malformed document.
     """
+    # TODO: use this class
 
 
 class ValuesAlreadyPersistentError(Exception):
     """
     Trying to make a value persistent that already is so.
     """
+    # FIXME: never used
 
 
 class MalformedParameterPathError(ValueError):
     """
     The path to a parameter was ill-formed.
     """
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
 
 
 class MalformedNestingOrderPath(ValueError):
     """
     A nesting order path was ill-formed.
     """
+    def __init__(self, k: str, allowed_nesting_paths: Iterable[str]) -> None:
+        super().__init__(
+            f"Element set: nesting order path {k!r} not understood. Each key in "
+            f"`nesting_order` must be start with one of "
+            f"{sorted(allowed_nesting_paths)!r}."
+        )
 
 
 class UnknownResourceSpecItemError(ValueError):
     """
     A resource specification item was not found.
     """
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
 
 
 class WorkflowParameterMissingError(AttributeError):
     """
     A parameter to a workflow was missing.
     """
+    # FIXME: never thrown
 
 
 class WorkflowBatchUpdateFailedError(Exception):
     """
     An update to a workflow failed.
     """
+    # FIXME: only throw is commented out?
 
 
 class WorkflowLimitsError(ValueError):
     """
     Workflow hit limits.
     """
+    # FIXME: never used
 
 
 class UnsetParameterDataError(Exception):
     """
     Tried to read from an unset parameter.
     """
+    def __init__(self, path, path_i) -> None:
+        super().__init__(
+            f"Element data path {path!r} resolves to unset data for "
+            f"(at least) data-index path: {path_i!r}."
+        )
 
 
 class LoopAlreadyExistsError(Exception):
     """
     A particular loop (or its name) already exists.
     """
+    def __init__(self, loop_name: str, loops: WorkflowLoopList) -> None:
+        super().__init__(
+            f"A loop with the name {loop_name!r} already exists in the workflow: "
+            f"{getattr(loops, loop_name)!r}."
+        )
 
 
 class LoopTaskSubsetError(ValueError):
     """
     Problem constructing a subset of a task for a loop.
     """
+    def __init__(self, loop_name: str, task_indices: Sequence[int]) -> None:
+        super().__init__(
+            f"Loop {loop_name!r}: task subset must be an ascending contiguous range, "
+            f"but specified task indices were: {task_indices!r}."
+        )
 
 
 class SchedulerVersionsFailure(RuntimeError):
     """We couldn't get the scheduler and or shell versions."""
+    # FIXME: unused
 
     def __init__(self, message: str) -> None:
         self.message = message
@@ -324,7 +447,6 @@ class SubmissionFailure(RuntimeError):
     """
     A job submission failed.
     """
-
     def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
@@ -334,6 +456,9 @@ class WorkflowSubmissionFailure(RuntimeError):
     """
     A workflow submission failed.
     """
+    def __init__(self, exceptions: Sequence[SubmissionFailure]) -> None:
+        super().__init__(
+            "\n" + "\n\n".join(i.message for i in exceptions))
 
 
 class ResourceValidationError(ValueError):
@@ -401,42 +526,77 @@ class UnknownSGEPEError(ResourceValidationError):
     """
     Miscellaneous error from SGE parallel environment.
     """
+    def __init__(self, env_name: str, all_env_names: Sequence[str]) -> None:
+        super().__init__(
+            f"The SGE parallel environment {env_name!r} is not "
+            f"specified in the configuration. Specified parallel environments "
+            f"are {sorted(all_env_names)!r}."
+        )
 
 
 class IncompatibleSGEPEError(ResourceValidationError):
     """
     The SGE parallel environment selected is incompatible.
     """
+    def __init__(self, env_name: str, num_cores: int | None) -> None:
+        super().__init__(
+            f"The SGE parallel environment {env_name!r} is not "
+            f"compatible with the number of cores requested: "
+            f"{num_cores!r}."
+        )
 
 
 class NoCompatibleSGEPEError(ResourceValidationError):
     """
     No SGE parallel environment is compatible with request.
     """
+    def __init__(self, num_cores: int | None) -> None:
+        super().__init__(
+            f"No compatible SGE parallel environment could be found for the "
+            f"specified `num_cores` ({num_cores!r})."
+        )
 
 
 class IncompatibleParallelModeError(ResourceValidationError):
     """
     The parallel mode is incompatible.
     """
+    def __init__(self, parallel_mode: ParallelMode) -> None:
+        super().__init__(
+            f"For the {parallel_mode.name.lower()} parallel mode, "
+            f"only a single node may be requested."
+        )
 
 
 class UnknownSLURMPartitionError(ResourceValidationError):
     """
     The requested SLURM partition isn't known.
     """
+    def __init__(self, part_name: str, all_parts: Iterable[str]) -> None:
+        super().__init__(
+            f"The SLURM partition {part_name!r} is not "
+            f"specified in the configuration. Specified partitions are "
+            f"{sorted(all_parts)!r}."
+        )
 
 
 class IncompatibleSLURMPartitionError(ResourceValidationError):
     """
     The requested SLURM partition is incompatible.
     """
+    def __init__(self, part_name: str, attr_kind: str, value) -> None:
+        super().__init__(
+            f"The SLURM partition {part_name!r} is not "
+            f"compatible with the {attr_kind} requested: {value!r}."
+        )
 
 
 class IncompatibleSLURMArgumentsError(ResourceValidationError):
     """
     The SLURM arguments are incompatible with each other.
     """
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
 
 
 class _MissingStoreItemError(ValueError):
@@ -497,18 +657,32 @@ class NotSubmitMachineError(RuntimeError):
     """
     The requested machine can't be submitted to.
     """
+    def __init__(self) -> None:
+        super().__init__(
+            "Cannot get active state of the jobscript because the current machine "
+            "is not the machine on which the jobscript was submitted."
+        )
 
 
 class RunNotAbortableError(ValueError):
     """
     Cannot abort the run.
     """
+    def __init__(self) -> None:
+        super().__init__(
+            "The run is not defined as abortable in the task schema, so it cannot "
+            "be aborted."
+        )
 
 
 class NoCLIFormatMethodError(AttributeError):
     """
     Some CLI class lacks a format method
     """
+    def __init__(self, method: str, inp_val: object) -> None:
+        super().__init__(
+            f"No CLI format method {method!r} exists for the object {inp_val!r}."
+        )
 
 
 class ContainerKeyError(KeyError):
@@ -545,12 +719,16 @@ class NoAvailableElementSetsError(Exception):
     """
     No element set is available.
     """
+    def __init__(self) -> None:
+        super().__init__()
 
 
 class OutputFileParserNoOutputError(ValueError):
     """
     There was no output for the output file parser to parse.
     """
+    def __init__(self) -> None:
+        super().__init__()
 
 
 class SubmissionEnvironmentError(ValueError):
@@ -563,63 +741,121 @@ class MissingEnvironmentExecutableError(SubmissionEnvironmentError):
     """
     The environment does not have the requested executable at all.
     """
+    def __init__(self, env_ref: str, exec_label: str) -> None:
+        super().__init__(
+            f"The environment {env_ref} as defined on this machine has no "
+            f"executable labelled {exec_label!r}, which is required for this "
+            f"submission, so the submission cannot be created."
+        )
 
 
 class MissingEnvironmentExecutableInstanceError(SubmissionEnvironmentError):
     """
     The environment does not have a suitable instance of the requested executable.
     """
+    def __init__(self, env_ref: str, exec_label: str, js_idx: int, res: dict) -> None:
+        super().__init__(
+            f"No matching executable instances found for executable "
+            f"{exec_label!r} of environment {env_ref} for jobscript "
+            f"index {js_idx!r} with requested resources {res!r}."
+        )
 
 
 class MissingEnvironmentError(SubmissionEnvironmentError):
     """
     There is no environment with that name.
     """
+    def __init__(self, env_ref: str) -> None:
+        super().__init__(
+            f"The environment {env_ref} is not defined on this machine, so the "
+            f"submission cannot be created."
+        )
 
 
 class UnsupportedScriptDataFormat(ValueError):
     """
     That format of script data is not supported.
     """
+    def __init__(self, data: ScriptData, kind: str, name: str, formats: tuple[str, ...]) -> None:
+        super().__init__(
+            f"Script data format {data!r} for {kind} parameter {name!r} is not "
+            f"understood. Available script data formats are: "
+            f"{formats!r}."
+        )
 
 
 class UnknownScriptDataParameter(ValueError):
     """
     Unknown parameter in script data.
     """
+    def __init__(self, name: str, kind: str, param_names: Sequence[str]) -> None:
+        super().__init__(
+            f"Script data parameter {name!r} is not a known parameter of the "
+            f"action. Parameters ({kind}) are: {param_names!r}."
+        )
 
 
 class UnknownScriptDataKey(ValueError):
     """
     Unknown key in script data.
     """
+    def __init__(self, key: str, allowed_keys: Sequence[str]) -> None:
+        super().__init__(
+            f"Script data key {key!r} is not understood. Allowed keys are: "
+            f"{allowed_keys!r}."
+        )
 
 
 class MissingVariableSubstitutionError(KeyError):
     """
     No definition available of a variable being substituted.
     """
+    def __init__(self, var_name: str, variables: Iterable[str]) -> None:
+        super().__init__(
+            f"The variable {var_name!r} referenced in the string does not match "
+            f"any of the provided variables: {sorted(variables)!r}."
+        )
 
 
 class EnvironmentPresetUnknownEnvironmentError(ValueError):
     """
     An environment preset could not be resolved to an execution environment.
     """
+    def __init__(self, name: str, bad_envs: Iterable[str]) -> None:
+        super().__init__(
+            f"Task schema {name} has environment presets that refer to one "
+            f"or more environments that are not referenced in any of the task "
+            f"schema's actions: {', '.join(f'{i!r}' for i in sorted(bad_envs))}."
+        )
 
 
 class UnknownEnvironmentPresetError(ValueError):
     """
     An execution environment was unknown.
     """
+    def __init__(self, preset_name: str, schema_name: str) -> None:
+        super().__init__(
+            f"There is no environment preset named {preset_name!r} defined "
+            f"in the task schema {schema_name}."
+        )
 
 
 class MultipleEnvironmentsError(ValueError):
     """
     Multiple applicable execution environments exist.
     """
+    def __init__(self, env_ref: str) -> None:
+        super().__init__(
+            f"Multiple environments {env_ref} are defined on this machine."
+        )
 
 
 class MissingElementGroup(ValueError):
     """
     An element group should exist but doesn't.
     """
+    def __init__(self, task_name: str, group_name: str, input_path: str) -> None:
+        super().__init__(
+            f"Adding elements to task {task_name!r}: "
+            f"no element group named {group_name!r} found for input {input_path!r}."
+        )

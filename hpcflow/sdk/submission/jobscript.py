@@ -1429,10 +1429,7 @@ class Jobscript(JSONLike):
                     out = {}
 
             else:
-                raise NotSubmitMachineError(
-                    "Cannot get active state of the jobscript because the current machine "
-                    "is not the machine on which the jobscript was submitted."
-                )
+                raise NotSubmitMachineError()
 
         self._app.submission_logger.info(f"Jobscript is {'in' if not out else ''}active.")
         if as_json:

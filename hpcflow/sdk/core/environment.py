@@ -247,7 +247,4 @@ class Environment(JSONLike):
     def _validate(self):
         dup_labels = get_duplicate_items(i.label for i in self.executables)
         if dup_labels:
-            raise DuplicateExecutableError(
-                f"Executables must have unique `label`s within each environment, but "
-                f"found label(s) multiple times: {dup_labels!r}"
-            )
+            raise DuplicateExecutableError(dup_labels)
