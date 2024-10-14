@@ -276,12 +276,6 @@ class SlurmPosix(QueuedScheduler):
                 ):
                     resources.SLURM_partition = str(part_name)
                     break
-            else:
-                part_names = ", ".join(all_parts.keys())
-                raise IncompatibleSLURMPartitionError(
-                    f"No known SLURM partition ({part_names}) matches the number of "
-                    f"cores and nodes requested."
-                )
 
     @classmethod
     def __is_present_unsupported(
