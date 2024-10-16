@@ -857,7 +857,7 @@ class TaskSchema(JSONLike):
         return self._task_template
 
     @classmethod
-    def get_by_key(cls, key) -> TaskSchema:
+    def get_by_key(cls, key: str) -> TaskSchema:
         """Get a config-loaded task schema from a key."""
         return cls.__task_schemas().get(key)
 

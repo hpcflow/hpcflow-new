@@ -12,6 +12,7 @@ import socket
 import subprocess
 from textwrap import indent
 from typing import cast, overload, TYPE_CHECKING
+from typing_extensions import override
 
 import numpy as np
 from hpcflow.sdk.core.enums import EARStatus
@@ -473,8 +474,9 @@ class Jobscript(JSONLike):
             f")"
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        dct = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        dct = super()._postprocess_to_dict(d)
         del dct["_index"]
         del dct["_scheduler_obj"]
         del dct["_shell_obj"]

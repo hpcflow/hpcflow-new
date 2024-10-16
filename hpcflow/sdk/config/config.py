@@ -1309,7 +1309,7 @@ class Config:
             self.set("machine", "DEFAULT_MACHINE")
             self.save()
 
-    def set_github_demo_data_dir(self, sha) -> None:
+    def set_github_demo_data_dir(self, sha: str) -> None:
         """
         Set the `demo_data_dir` item, to an fsspec Github URL.
 

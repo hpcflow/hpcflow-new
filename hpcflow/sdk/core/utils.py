@@ -382,8 +382,8 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
 
     def var_repl(match_obj: re.Match):
         kwargs: dict[str, str] = {}
-        var_name: str = match_obj.group(1)
-        kwargs_str: str | None = match_obj.group(2)
+        var_name: str = match_obj[1]
+        kwargs_str: str | None = match_obj[2]
         if kwargs_str:
             kwargs_lst: list[str] = kwargs_str.split(",")
             for i in kwargs_lst:
@@ -853,7 +853,7 @@ def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     match = _PARAM_SPLIT_RE.match(param_path)
     if not match:
         return None, None
-    return match.group(1), match.group(2)
+    return match[1], match[2]
 
 
 def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:

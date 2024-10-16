@@ -9,7 +9,7 @@ import enum
 import os
 from pathlib import Path
 from textwrap import indent
-from typing import overload, TYPE_CHECKING
+from typing import Any, overload, TYPE_CHECKING
 from typing_extensions import override
 
 from hpcflow.sdk.core.element import ElementResources
@@ -176,8 +176,8 @@ class Submission(JSONLike):
         self._environments = self._app.EnvironmentsList(envs)
 
     @override
-    def to_dict(self):
-        dct = super().to_dict()
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        dct = super()._postprocess_to_dict(d)
         del dct["_workflow"]
         del dct["_index"]
         del dct["_submission_parts_lst"]

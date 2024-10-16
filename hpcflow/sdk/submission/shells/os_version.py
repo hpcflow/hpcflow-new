@@ -6,8 +6,9 @@ from __future__ import annotations
 import platform
 import re
 import subprocess
+from typing import Final
 
-DEFAULT_LINUX_RELEASE_FILE = "/etc/os-release"
+_DEFAULT_LINUX_RELEASE_FILE: Final = "/etc/os-release"
 
 
 def get_OS_info() -> dict[str, str]:
@@ -47,7 +48,6 @@ def get_OS_info_POSIX(
         when getting OS info in WSL on Windows, since we need to call the WSL executable.
     linux_release_file:
         If on Linux, record the name and version fields from this file.
-
     """
 
     def try_subprocess_call(*args: str) -> str:
@@ -68,14 +68,12 @@ def get_OS_info_POSIX(
                 f"Failed to get POSIX OS info. Command was: {command!r}. Subprocess "
                 f"exception was: {exc!r}. Stderr was: {proc.stderr!r}."
             )
-        else:
-            return proc.stdout
+        return proc.stdout
 
     WSL_exe = WSL_executable or []
     out: dict[str, str] = {}
     if use_py:
         out.update(**get_OS_info())
-
     else:
         OS_name = try_subprocess_call("uname", "-s").strip()
         OS_release = try_subprocess_call("uname", "-r").strip()
@@ -87,25 +85,23 @@ def get_OS_info_POSIX(
 
     if out["OS_name"] == "Linux":
         # get linux distribution name and version:
-        linux_release_file = linux_release_file or DEFAULT_LINUX_RELEASE_FILE
+        linux_release_file = linux_release_file or _DEFAULT_LINUX_RELEASE_FILE
         release_out = try_subprocess_call("cat", linux_release_file)
 
         name_match = _NAME_RE.search(release_out)
-        if name_match:
-            lin_name = name_match.group(1)
-        else:
+        if not name_match:
             raise RuntimeError(
                 f"Failed to get Linux distribution name from file `{linux_release_file}`."
             )
+        lin_name: str = name_match[1]
 
         version_match = _VERSION_RE.search(release_out)
-        if version_match:
-            lin_version = version_match.group(1)
-        else:
+        if not version_match:
             raise RuntimeError(
                 f"Failed to get Linux distribution version from file "
                 f"`{linux_release_file}`."
             )
+        lin_version: str = version_match[1]
 
         out["linux_release_file"] = linux_release_file
         out["linux_distribution_name"] = lin_name
@@ -114,5 +110,5 @@ def get_OS_info_POSIX(
     return out
 
 
-_NAME_RE = re.compile(r"^NAME=\"(.*)\"", flags=re.MULTILINE)
-_VERSION_RE = re.compile(r"^VERSION=\"(.*)\"", flags=re.MULTILINE)
+_NAME_RE: Final = re.compile(r"^NAME=\"(.*)\"", flags=re.MULTILINE)
+_VERSION_RE: Final = re.compile(r"^VERSION=\"(.*)\"", flags=re.MULTILINE)

@@ -3,7 +3,7 @@ Common type aliases.
 """
 from __future__ import annotations
 from dataclasses import InitVar
-from typing import ClassVar, TypeVar, cast, TYPE_CHECKING
+from typing import ClassVar, Final, TypeVar, cast, TYPE_CHECKING
 from typing_extensions import NotRequired, TypeAlias, TypedDict
 from pathlib import Path
 import re
@@ -151,8 +151,8 @@ but can have leaves being lists of integers when dealing with iterations.
 
 _T = TypeVar("_T")
 
-_CLASS_VAR_RE = re.compile(r"ClassVar\[(.*)\]")
-_INIT_VAR_RE = re.compile(r"InitVar\[(.*)\]")
+_CLASS_VAR_RE: Final = re.compile(r"ClassVar\[(.*)\]")
+_INIT_VAR_RE: Final = re.compile(r"InitVar\[(.*)\]")
 
 
 def hydrate(cls: type[_T]) -> type[_T]:
@@ -165,11 +165,11 @@ def hydrate(cls: type[_T]) -> type[_T]:
         if isinstance(a, str):
             m = _CLASS_VAR_RE.match(a)
             if m:
-                anns[f] = ClassVar[m.group(1)]
+                anns[f] = ClassVar[m[1]]
                 continue
             m = _INIT_VAR_RE.match(a)
             if m:
-                anns[f] = InitVar(cast(type, m.group(1)))
+                anns[f] = InitVar(cast(type, m[1]))
                 continue
         anns[f] = a
     cls.__annotations__ = anns

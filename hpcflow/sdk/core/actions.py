@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 from textwrap import indent, dedent
 from typing import cast, final, overload, TYPE_CHECKING
+from typing_extensions import override
 
 from watchdog.utils.dirsnapshot import DirectorySnapshotDiff
 
@@ -1752,8 +1753,9 @@ class Action(JSONLike):
                 return snip_path.suffix == ".py"
         return False
 
-    def to_dict(self) -> dict[str, Any]:
-        d = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        d = super()._postprocess_to_dict(d)
         d["script_data_in"] = d.pop("_script_data_in")
         d["script_data_out"] = d.pop("_script_data_out")
         return d
@@ -1961,7 +1963,7 @@ class Action(JSONLike):
             match_obj = cls.__SCRIPT_NAME_RE.match(script)
             if not match_obj:
                 raise ValueError("incomplete <<script:>>")
-            return match_obj.group(1)
+            return match_obj[1]
         # a script we can expect in the working directory:
         return script
 
@@ -1970,7 +1972,7 @@ class Action(JSONLike):
 
     @classmethod
     def get_snippet_script_str(
-        cls, script, env_spec: dict[str, Any] | None = None
+        cls, script: str, env_spec: dict[str, Any] | None = None
     ) -> str:
         """
         Get the substituted script snippet path as a string.
@@ -1983,11 +1985,11 @@ class Action(JSONLike):
         match_obj = cls.__SCRIPT_RE.match(script)
         if not match_obj:
             raise ValueError("incomplete <<script:>>")
-        out = cast(str, match_obj.group(1))
+        out: str = match_obj[1]
 
         if env_spec:
             out = cls.__ENV_RE.sub(
-                repl=lambda match_obj: env_spec[match_obj.group(1)],
+                repl=lambda match_obj: env_spec[match_obj[1]],
                 string=out,
             )
         return out
@@ -2002,6 +2004,7 @@ class Action(JSONLike):
         if not cls.is_snippet_script(script_path):
             return None
 
+        assert script_path is not None
         path = cls.get_snippet_script_str(script_path, env_spec)
         return Path(cls._app.scripts.get(path, path))
 
@@ -2499,7 +2502,7 @@ class Action(JSONLike):
         return any(typ in (OFP.inputs or []) for OFP in self.output_file_parsers)
 
     @TimeIt.decorator
-    def test_rules(self, element_iter) -> tuple[bool, list[int]]:
+    def test_rules(self, element_iter: ElementIteration) -> tuple[bool, list[int]]:
         """Test all rules against the specified element iteration."""
         rules_valid = [rule.test(element_iteration=element_iter) for rule in self.rules]
         action_valid = all(rules_valid)

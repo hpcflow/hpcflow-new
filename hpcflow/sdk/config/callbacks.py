@@ -23,17 +23,14 @@ def callback_vars(config: Config, value) -> str:
     """
 
     def vars_repl(match_obj: re.Match[str]) -> str:
-        var_name = match_obj.groups()[0]
-        return config._variables[var_name]
+        return config._variables[match_obj[1]]
 
-    vars_join = "|".join(config._variables.keys())
-    vars_regex = r"\<\<(" + vars_join + r")\>\>"
-    value = re.sub(
+    vars_regex = rf"\<\<({ '|'.join(config._variables) })\>\>"
+    return re.sub(
         pattern=vars_regex,
         repl=vars_repl,
         string=str(value),
     )
-    return value
 
 
 @overload

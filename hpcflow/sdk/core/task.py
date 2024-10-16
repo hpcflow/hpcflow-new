@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from itertools import chain
 from pathlib import Path
 from typing import cast, overload, TYPE_CHECKING
+from typing_extensions import override
 
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.object_list import AppDataList
@@ -310,8 +311,9 @@ class ElementSet(JSONLike):
         obj.original_input_sources = self.input_sources
         return obj
 
-    def to_dict(self) -> dict[str, Any]:
-        dct = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        dct = super()._postprocess_to_dict(d)
         del dct["_defined_input_types"]
         del dct["_task_template"]
         return dct
@@ -946,8 +948,9 @@ class Task(JSONLike):
 
         return obj, new_refs
 
-    def to_dict(self) -> dict[str, Any]:
-        out = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
         out["_schema"] = out.pop("_schemas")
         res = {
             k.lstrip("_"): v

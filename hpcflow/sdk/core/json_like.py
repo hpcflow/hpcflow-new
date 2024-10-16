@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import enum
 from types import SimpleNamespace
 from typing import overload, Protocol, cast, runtime_checkable, TYPE_CHECKING
+from typing_extensions import final, override
 
 from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.typing import hydrate
@@ -659,16 +660,24 @@ class BaseJSONLike:
         json_like.pop("_hash_value", None)
         return get_md5_hash(json_like)
 
+    @final
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize this object as a dictionary.
         """
         if hasattr(self, "__dict__"):
-            return dict(self.__dict__)
+            return self._postprocess_to_dict(dict(self.__dict__))
         elif hasattr(self, "__slots__"):
-            return {k: getattr(self, k) for k in self.__slots__}
+            return self._postprocess_to_dict({
+                k: getattr(self, k) for k in self.__slots__})
         else:
-            return {}
+            return self._postprocess_to_dict({})
+        
+    def _postprocess_to_dict(self, dct: dict[str, Any]) -> dict[str, Any]:
+        """
+        Apply any desired postprocessing to the results of :meth:`to_dict`.
+        """
+        return dct
 
     def to_json_like(
         self,
@@ -771,11 +780,9 @@ class JSONLike(BaseJSONLike, AppAware):
                     cls.__sdk_classes.append(cls2)
         return cls.__sdk_classes
 
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize this object as a dictionary.
-        """
-        out = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
 
         # remove parent references:
         for cls in self.__get_classes():

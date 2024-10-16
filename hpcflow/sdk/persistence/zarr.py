@@ -58,12 +58,14 @@ from hpcflow.sdk.persistence.base import update_param_source_dict
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from fsspec import AbstractFileSystem  # type: ignore
     from logging import Logger
     from typing import ClassVar
     from typing_extensions import Self, TypeAlias
+    from numpy.typing import NDArray
     from zarr import Array, Group  # type: ignore
+    from .types import TypeLookup
     from ..app import BaseApp
     from ..core.json_like import JSONed, JSONDocument
     from ..typing import ParamSource, PathLike
@@ -79,7 +81,7 @@ blosc.use_threads = False  # hpcflow is a multiprocess program in general
 
 
 @TimeIt.decorator
-def _zarr_get_coord_selection(arr: Array, selection, logger: Logger):
+def _zarr_get_coord_selection(arr: Array, selection: Any, logger: Logger):
     @retry(
         RuntimeError,
         tries=10,
@@ -89,53 +91,55 @@ def _zarr_get_coord_selection(arr: Array, selection, logger: Logger):
         logger=logger,
     )
     @TimeIt.decorator
-    def _inner(arr: Array, selection):
+    def _inner(arr: Array, selection: Any):
         return arr.get_coordinate_selection(selection)
 
     return _inner(arr, selection)
 
 
-def _encode_numpy_array(obj, type_lookup, path, root_group, arr_path) -> int:
+def _encode_numpy_array(obj: NDArray, type_lookup: TypeLookup, path: list[int], root_group: Group, arr_path: list[int]) -> int:
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
-    names = [int(i.split("arr_")[1]) for i in param_arr_group.keys()]
-    if not names:
-        new_idx = 0
-    else:
-        new_idx = max(names) + 1
+    new_idx = max((int(i.split("arr_")[1]) for i in param_arr_group.keys()), default=-1) + 1
     param_arr_group.create_dataset(name=f"arr_{new_idx}", data=obj)
     type_lookup["arrays"].append([path, new_idx])
 
     return len(type_lookup["arrays"]) - 1
 
 
-def _decode_numpy_arrays(obj, type_lookup, path, arr_group, dataset_copy):
-    for arr_path, arr_idx in type_lookup.get("arrays", {}):
+def _decode_numpy_arrays(obj: dict | None, type_lookup: TypeLookup, path: list[int], arr_group: Group, dataset_copy: bool):
+    # Yuck! Type lies! Zarr's internal types are not modern Python types.
+    arrays = cast("Iterable[tuple[list[int], int]]", type_lookup.get("arrays", []))
+    obj_: dict | NDArray | None = obj
+    for arr_path, arr_idx in arrays:
         try:
             rel_path = get_relative_path(arr_path, path)
         except ValueError:
             continue
 
-        dataset = arr_group.get(f"arr_{arr_idx}")
+        dataset: NDArray = arr_group.get(f"arr_{arr_idx}")
         if dataset_copy:
             dataset = dataset[:]
 
         if rel_path:
-            set_in_container(obj, rel_path, dataset)
+            set_in_container(obj_, rel_path, dataset)
         else:
-            obj = dataset
+            obj_ = dataset
 
-    return obj
+    return obj_
 
 
-def _encode_masked_array(obj: MaskedArray, type_lookup, path, root_group, arr_path):
+def _encode_masked_array(obj: MaskedArray, type_lookup: TypeLookup, path: list[int], root_group: Group, arr_path: list[int]):
     data_idx = _encode_numpy_array(obj.data, type_lookup, path, root_group, arr_path)
     mask_idx = _encode_numpy_array(obj.mask, type_lookup, path, root_group, arr_path)
     type_lookup["masked_arrays"].append([path, [data_idx, mask_idx]])
 
 
-def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
-    for arr_path, (data_idx, mask_idx) in type_lookup.get("masked_arrays", []):
+def _decode_masked_arrays(obj: dict, type_lookup: TypeLookup, path: list[int], arr_group: Group, dataset_copy: bool):
+    # Yuck! Type lies! Zarr's internal types are not modern Python types.
+    masked_arrays = cast("Iterable[tuple[list[int], tuple[int, int]]]", type_lookup.get("masked_arrays", []))
+    obj_: dict | MaskedArray = obj
+    for arr_path, (data_idx, mask_idx) in masked_arrays:
         try:
             rel_path = get_relative_path(arr_path, path)
         except ValueError:
@@ -143,14 +147,14 @@ def _decode_masked_arrays(obj, type_lookup, path, arr_group, dataset_copy):
 
         data = arr_group.get(f"arr_{data_idx}")
         mask = arr_group.get(f"arr_{mask_idx}")
-        dataset = MaskedArray(data=data, mask=mask)
+        dataset: MaskedArray = MaskedArray(data=data, mask=mask)
 
         if rel_path:
-            set_in_container(obj, rel_path, dataset)
+            set_in_container(obj_, rel_path, dataset)
         else:
-            obj = dataset
+            obj_ = dataset
 
-    return obj
+    return obj_
 
 
 def append_items_to_ragged_array(arr: Array, items: Sequence[int]):
@@ -328,11 +332,11 @@ class ZarrStoreParameter(StoreParameter):
     Represents a parameter in a Zarr persistent store.
     """
 
-    _encoders: ClassVar[dict] = {  # keys are types
+    _encoders: ClassVar[dict[type, Callable]] = {  # keys are types
         np.ndarray: _encode_numpy_array,
         MaskedArray: _encode_masked_array,
     }
-    _decoders: ClassVar[dict] = {  # keys are keys in type_lookup
+    _decoders: ClassVar[dict[str, Callable]] = {  # keys are keys in type_lookup
         "arrays": _decode_numpy_arrays,
         "masked_arrays": _decode_masked_arrays,
     }
@@ -396,7 +400,7 @@ class ZarrPersistentStore(
         commit_template_components=("attrs",)
     )
 
-    def __init__(self, app, workflow, path: str | Path, fs) -> None:
+    def __init__(self, app, workflow, path: str | Path, fs: AbstractFileSystem) -> None:
         self._zarr_store = None  # assigned on first access to `zarr_store`
         self._resources = {
             "attrs": ZarrAttrsStoreResource(
@@ -899,13 +903,12 @@ class ZarrPersistentStore(
             self._param_data_arr_grp_name(parameter_idx)
         )
 
-    def _get_array_group_and_dataset(self, mode: str, param_id: int, data_path):
+    def _get_array_group_and_dataset(self, mode: str, param_id: int, data_path: list[int]):
         base_dat = self._get_parameter_base_array(mode="r")[param_id]
-        arr_idx = None
         for arr_dat_path, arr_idx in base_dat["type_lookup"]["arrays"]:
             if arr_dat_path == data_path:
                 break
-        if arr_idx is None:
+        else:
             raise ValueError(
                 f"Could not find array path {data_path} in the base data for parameter "
                 f"ID {param_id}."

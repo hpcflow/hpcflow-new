@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 from itertools import chain
 from typing import TYPE_CHECKING
+from typing_extensions import override
 
 from hpcflow.sdk.core.app_aware import AppAware
 from hpcflow.sdk.core.errors import LoopTaskSubsetError
@@ -96,8 +97,9 @@ class Loop(JSONLike):
             None  # assigned by parent WorkflowTemplate
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        out = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
         return {k.lstrip("_"): v for k, v in out.items()}
 
     @classmethod

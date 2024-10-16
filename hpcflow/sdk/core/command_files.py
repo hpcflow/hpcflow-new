@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, InitVar
 from pathlib import Path
 from textwrap import dedent
 from typing import cast, overload, TYPE_CHECKING
+from typing_extensions import override
 
 from hpcflow.sdk.typing import hydrate, ParamSource
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
@@ -426,8 +427,9 @@ class OutputFileParser(JSONLike):
         else:
             self._save_files = save_files
 
-    def to_dict(self) -> dict[str, Any]:
-        d = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        d = super()._postprocess_to_dict(d)
         if "_save_files" in d:
             d["save_files"] = d.pop("_save_files")
         return d
@@ -577,11 +579,11 @@ class _FileContentsSpecifier(JSONLike):
         """
         return str(self._path) if self._path else "."
 
-    def to_dict(self) -> dict[str, Any]:
-        out = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
         if "_workflow" in out:
             del out["_workflow"]
-
         return {k.lstrip("_"): v for k, v in out.items()}
 
     @classmethod

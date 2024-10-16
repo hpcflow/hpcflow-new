@@ -3,11 +3,12 @@ Types used in type-checking the persistence subsystem.
 """
 from __future__ import annotations
 from typing import Any, Generic, TypeVar, TYPE_CHECKING
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired, TypeAlias
 
 if TYPE_CHECKING:
     from .base import StoreTask, StoreElement, StoreElementIter, StoreEAR, StoreParameter
     from ..core.json_like import JSONDocument
+    from ..core.parameters import ParameterValue
     from ..core.types import IterableParam
     from ..typing import DataIndex, ParamSource
 
@@ -21,7 +22,8 @@ AnySElementIter = TypeVar("AnySElementIter", bound="StoreElementIter")
 AnySEAR = TypeVar("AnySEAR", bound="StoreEAR")
 #: Bound type variable: :class:`StoreParameter`.
 AnySParameter = TypeVar("AnySParameter", bound="StoreParameter")
-
+#: Type of possible stored parameters.
+ParameterTypes: TypeAlias = "ParameterValue | list | tuple | set | dict | int | float | str | None | Any"
 
 class File(TypedDict):
     """
@@ -231,6 +233,10 @@ class TypeLookup(TypedDict, total=False):
     tuples: list[list[int]]
     #: Sets involving the parameter.
     sets: list[list[int]]
+    #: Arrays involving the parameter.
+    arrays: list[list[list[int] | int]]
+    #: Masked arrays involving the parameter.
+    masked_arrays: list[list[int | list[int]]]
 
 
 class EncodedStoreParameter(TypedDict):

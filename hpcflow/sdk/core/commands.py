@@ -133,19 +133,20 @@ class Command(JSONLike):
             "join": _join,
         }
 
-        def exec_script_repl(match_obj: re.Match) -> str:
+        def exec_script_repl(match_obj: re.Match[str]) -> str:
             typ, val = match_obj.groups()
             if typ == "executable":
                 executable = env.executables.get(val)
                 filterable = ElementResources.get_env_instance_filterable_attributes()
                 filter_exec = {j: EAR.get_resources().get(j) for j in filterable}
                 exec_cmd = executable.filter_instances(**filter_exec)[0].command
-                out = exec_cmd.replace("<<num_cores>>", str(EAR.resources.num_cores))
+                return exec_cmd.replace("<<num_cores>>", str(EAR.resources.num_cores))
             elif typ == "script":
-                out = EAR.action.get_script_name(val)
-            return out
+                return EAR.action.get_script_name(val)
+            else:
+                raise ValueError("impossible match occurred")
 
-        def input_param_repl(match_obj, inp_val) -> str:
+        def input_param_repl(match_obj: re.Match[str], inp_val) -> str:
             _, func, func_kwargs, method, method_kwargs = match_obj.groups()
 
             if isinstance(inp_val, ParameterValue):
@@ -178,7 +179,7 @@ class Command(JSONLike):
         for var_key, var_val in (self.variables or {}).items():
             # substitute any `<<env:>>` specifiers
             var_val = self.__ENV_SPEC_RE.sub(
-                repl=lambda match_obj: EAR.env_spec[match_obj.group(1)],
+                repl=lambda match_obj: EAR.env_spec[match_obj[1]],
                 string=var_val,
             )
             cmd_str = cmd_str.replace(f"<<{var_key}>>", var_val)
@@ -266,7 +267,7 @@ class Command(JSONLike):
             if i:
                 match = self.__PARAM_RE.search(i)
                 if match:
-                    param_typ: str = match.group(1)
+                    param_typ: str = match[1]
                     if match.span(0) != (0, len(i)):
                         raise ValueError(
                             f"If specified as a parameter, `{label}` must not include"

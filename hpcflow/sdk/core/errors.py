@@ -412,7 +412,7 @@ class UnsetParameterDataError(Exception):
     Tried to read from an unset parameter.
     """
 
-    def __init__(self, path, path_i) -> None:
+    def __init__(self, path: str | None, path_i: str) -> None:
         super().__init__(
             f"Element data path {path!r} resolves to unset data for "
             f"(at least) data-index path: {path_i!r}."

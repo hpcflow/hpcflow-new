@@ -12,8 +12,10 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 import statistics
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TypeVar, TYPE_CHECKING
 from typing_extensions import ParamSpec
+if TYPE_CHECKING:
+    from .app import BaseApp
 
 
 P = ParamSpec("P")
@@ -178,7 +180,7 @@ class AppLog:
     #: Default logging level for log files.
     DEFAULT_LOG_FILE_LEVEL = "INFO"
 
-    def __init__(self, app, log_console_level: str | None = None) -> None:
+    def __init__(self, app: BaseApp, log_console_level: str | None = None) -> None:
         #: The application context.
         self.app = app
         #: The base logger for the application.

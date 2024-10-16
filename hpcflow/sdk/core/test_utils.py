@@ -14,6 +14,7 @@ from hpcflow.sdk.typing import hydrate
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from typing_extensions import TypeAlias
+    from h5py import Group as HDFSGroup  # type: ignore
     from .actions import Action
     from .element import ElementGroup
     from .loop import Loop
@@ -261,7 +262,7 @@ class P1_sub_parameter_cls(ParameterValue):
     def prepare_JSON_dump(self) -> dict[str, Any]:
         return {"e": self.e}
 
-    def dump_to_HDF5_group(self, group):
+    def dump_to_HDF5_group(self, group: HDFSGroup):
         group.attrs["e"] = self.e
 
 
@@ -305,22 +306,22 @@ class P1_parameter_cls(ParameterValue):
             self.sub_param = P1_sub_parameter_cls(**self.sub_param)
 
     @classmethod
-    def from_data(cls, b, c):
+    def from_data(cls, b: int, c: int):
         return cls(a=b + c)
 
     @classmethod
-    def from_file(cls, path):
+    def from_file(cls, path: str):
         with Path(path).open("rt") as fh:
             lns = fh.readlines()
             a = int(lns[0])
         return cls(a=a)
 
     @property
-    def twice_a(self):
+    def twice_a(self) -> int:
         return self.a * 2
 
     @property
-    def sub_param_prop(self):
+    def sub_param_prop(self) -> P1_sub_parameter_cls:
         return P1_sub_parameter_cls(e=4 * self.a)
 
     def CLI_format(self) -> str:
@@ -365,21 +366,21 @@ class P1_parameter_cls(ParameterValue):
         sub_param_js = self.sub_param.prepare_JSON_dump() if self.sub_param else None
         return {"a": self.a, "d": self.d, "sub_param": sub_param_js}
 
-    def dump_to_HDF5_group(self, group):
+    def dump_to_HDF5_group(self, group: HDFSGroup):
         group.attrs["a"] = self.a
         if self.d is not None:
             group.attrs["d"] = self.d
         if self.sub_param:
-            sub_group = group.add_group("sub_param")
+            sub_group = group.create_group("sub_param")
             self.sub_param.dump_to_HDF5_group(sub_group)
 
     @classmethod
-    def save_from_JSON(cls, data, param_id: int | list[int], workflow: Workflow):
+    def save_from_JSON(cls, data: dict, param_id: int | list[int], workflow: Workflow):
         obj = cls(**data)  # TODO: pass sub-param
         workflow.set_parameter_value(param_id=param_id, value=obj, commit=True)
 
     @classmethod
-    def save_from_HDF5_group(cls, group, param_id: int, workflow):
+    def save_from_HDF5_group(cls, group: HDFSGroup, param_id: int, workflow: Workflow):
         a = group.attrs["a"].item()
         if "d" in group.attrs:
             d = group.attrs["d"].item()

@@ -38,6 +38,7 @@ from hpcflow.sdk.persistence.types import (
     AnySElementIter,
     AnySEAR,
     AnySParameter,
+    ParameterTypes,
     EncodedStoreParameter,
     File,
     FileDescriptor,
@@ -611,7 +612,7 @@ class StoreParameter:
     #: Whether the parameter is set.
     is_set: bool
     #: Description of the value of the parameter.
-    data: ParameterValue | list | tuple | set | dict | int | float | str | None | Any
+    data: ParameterTypes
     #: Description of the file this parameter represents.
     file: File | None
     #: Description of where this parameter originated.
@@ -649,7 +650,7 @@ class StoreParameter:
 
     def _encode(
         self,
-        obj: ParameterValue | list | tuple | set | dict | int | float | str | None | Any,
+        obj: ParameterTypes,
         path: list[int] | None = None,
         type_lookup: TypeLookup | None = None,
         **kwargs,

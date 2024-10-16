@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 import copy
 from types import SimpleNamespace
 from typing import Generic, TypeVar, cast, overload, TYPE_CHECKING
+from typing_extensions import override
 
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike, JSONable, JSONed
 
@@ -407,8 +408,10 @@ class AppDataList(DotAccessObjectList[T], Generic[T]):
         The type of elements of the list.
     """
 
-    def to_dict(self) -> dict[str, Any]:
-        return {"_objects": super().to_dict()["_objects"]}
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        d = super()._postprocess_to_dict(d)
+        return {"_objects": d["_objects"]}
 
     @classmethod
     def _get_default_shared_data(cls) -> Mapping[str, ObjectList[JSONable]]:
@@ -661,7 +664,7 @@ class ParametersList(AppDataList["Parameter"]):
     def __init__(self, _objects: Iterable[Parameter]):
         super().__init__(_objects, access_attribute="typ", descriptor="parameter")
 
-    def __getattr__(self, attribute) -> Parameter:
+    def __getattr__(self, attribute: str) -> Parameter:
         """Overridden to provide a default Parameter object if none exists."""
         try:
             if not attribute.startswith("__"):

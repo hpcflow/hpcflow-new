@@ -2889,7 +2889,7 @@ class Workflow(AppAware):
                     break  # only one element action may be running at a time
         return out
 
-    def _abort_run_ID(self, submission_idx, run_ID: int):
+    def _abort_run_ID(self, submission_idx: int, run_ID: int):
         """Modify the submission abort runs text file to signal that a run should be
         aborted."""
         self.submissions[submission_idx]._set_run_abort(run_ID)

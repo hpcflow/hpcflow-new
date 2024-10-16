@@ -11,6 +11,7 @@ import enum
 from pathlib import Path
 import re
 from typing import TypeVar, cast, TYPE_CHECKING
+from typing_extensions import override
 
 import numpy as np
 from valida import Schema as ValidaSchema  # type: ignore
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
     from typing import Any, ClassVar, Literal
     from typing_extensions import Self, TypeAlias
+    from h5py import Group  # type: ignore
     from ..app import BaseApp
     from ..typing import ParamSource
     from .actions import ActionScope
@@ -68,7 +70,7 @@ def _process_demo_data_strings(app: BaseApp, value: T) -> T:
 
     def string_processor(str_in: str) -> str:
         str_out = demo_pattern.sub(
-            repl=lambda x: str(app.get_demo_data_file_path(x.group(1))),
+            repl=lambda x: str(app.get_demo_data_file_path(x[1])),
             string=str_in,
         )
         return str_out
@@ -88,16 +90,21 @@ class ParameterValue:
     _typ: ClassVar[str | None] = None
     _sub_parameters: ClassVar[dict[str, str]] = {}
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialise this parameter value as a dictionary.
         """
         if hasattr(self, "__dict__"):
-            return dict(self.__dict__)
+            return self._postprocess_to_dict(dict(self.__dict__))
         elif hasattr(self, "__slots__"):
-            return {k: getattr(self, k) for k in self.__slots__}
+            return self._postprocess_to_dict({
+                k: getattr(self, k) for k in self.__slots__})
         else:
             raise NotImplementedError
+
+    def _postprocess_to_dict(self, d: dict[str, Any])->dict[str,Any]:
+        """Postprocess the results of :meth:`to_dict`."""
+        return d
 
     def prepare_JSON_dump(self) -> dict[str, Any]:
         """
@@ -105,21 +112,21 @@ class ParameterValue:
         """
         raise NotImplementedError
 
-    def dump_to_HDF5_group(self, group):
+    def dump_to_HDF5_group(self, group: Group):
         """
         Write this parameter value to an HDF5 group.
         """
         raise NotImplementedError
 
     @classmethod
-    def save_from_HDF5_group(cls, group, param_id: int, workflow):
+    def save_from_HDF5_group(cls, group: Group, param_id: int, workflow: Workflow):
         """
         Extract a parameter value from an HDF5 group.
         """
         raise NotImplementedError
 
     @classmethod
-    def save_from_JSON(cls, data, param_id: int | list[int], workflow):
+    def save_from_JSON(cls, data, param_id: int | list[int], workflow: Workflow):
         """
         Extract a parameter value from JSON data.
         """
@@ -236,8 +243,9 @@ class Parameter(JSONLike):
         obj._validation = _validation
         return obj
 
-    def to_dict(self):
-        dct = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        dct = super()._postprocess_to_dict(d)
         del dct["_value_class"]
         if dct.get("name", None) is None:
             dct.pop("name", None)
@@ -483,8 +491,9 @@ class SchemaInput(SchemaParameter):
             f")"
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        dct = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        dct = super()._postprocess_to_dict(d)
         v: dict[str, ParameterPropagationMode]
         for k, v in dct["labels"].items():
             prop_mode = v.get("parameter_propagation_mode")
@@ -986,12 +995,12 @@ class ValueSequence(JSONLike):
 
         return path, label
 
-    def to_dict(self):
-        out = super().to_dict()
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
         del out["_parameter"]
         del out["_path_split"]
-        if "_workflow" in out:
-            del out["_workflow"]
+        out.pop("_workflow", None)
         return out
 
     @property
@@ -1372,12 +1381,11 @@ class AbstractInputValue(JSONLike):
             f")"
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        out = super().to_dict()
-        if "_workflow" in out:
-            del out["_workflow"]
-        if "_schema_input" in out:
-            del out["_schema_input"]
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
+        out.pop("_workflow", None)
+        out.pop("_schema_input", None)
         return out
 
     def make_persistent(
@@ -1387,10 +1395,12 @@ class AbstractInputValue(JSONLike):
 
         Returns
         -------
-        String is the data path for this task input and single item integer list
-        contains the index of the parameter data Zarr group where the data is
-        stored.
-
+        str
+            Normalised path for this task input.
+        list[int | list[int]]
+            The index of the parameter data Zarr group where the data is stored.
+        bool
+            Whether this is newly persistent.
         """
 
         if self._value_group_idx is not None:
@@ -1773,7 +1783,7 @@ class ResourceSpec(JSONLike):
 
     _resource_list: ResourceList | None = None
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="scope",
             class_name="ActionScope",
@@ -1928,10 +1938,10 @@ class ResourceSpec(JSONLike):
         """
         return f"resources.{self.normalised_resources_path}"
 
-    def to_dict(self):
-        out = super().to_dict()
-        if "_workflow" in out:
-            del out["_workflow"]
+    @override
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
+        out = super()._postprocess_to_dict(d)
+        out.pop("_workflow", None)
 
         if self._value_group_idx is not None:
             # only store pointer to persistent data:
@@ -2255,7 +2265,7 @@ class InputSource(JSONLike):
         Filtering rules.
     """
 
-    _child_objects = (
+    _child_objects : ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="source_type",
             json_like_name="type",
@@ -2391,13 +2401,13 @@ class InputSource(JSONLike):
         return ".".join(out)
 
     @classmethod
-    def _validate_task_source_type(cls, task_src_type):
+    def _validate_task_source_type(cls, task_src_type) -> None | TaskSourceType:
         if task_src_type is None:
             return None
         if isinstance(task_src_type, TaskSourceType):
             return task_src_type
         try:
-            task_source_type = getattr(cls.app.TaskSourceType, task_src_type.upper())
+            task_source_type = getattr(cls._app.TaskSourceType, task_src_type.upper())
         except AttributeError:
             raise ValueError(
                 f"InputSource `task_source_type` specified as {task_src_type!r}, but "
@@ -2421,21 +2431,20 @@ class InputSource(JSONLike):
             local
             default
             import.[import_ref]
-
         """
         return cls(**cls._parse_from_string(str_defn))
 
-    @classmethod
-    def _parse_from_string(cls, str_defn: str):
+    @staticmethod
+    def _parse_from_string(str_defn: str) -> dict[str, Any]:
         """Parse a dot-delimited string definition of an InputSource.
 
-        Examples:
-            - task.[task_ref].input
-            - task.[task_ref].output
-            - local
-            - default
-            - import.[import_ref]
-
+        Examples
+        --------
+            task.[task_ref].input
+            task.[task_ref].output
+            local
+            default
+            import.[import_ref]
         """
         parts = str_defn.split(".")
         source_type = get_enum_by_name_or_val(InputSourceType, parts[0])
