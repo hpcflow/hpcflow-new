@@ -17,6 +17,7 @@ from hpcflow.sdk.core import utils
 
 from .errors import ConfigError
 from .config import Config
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from hpcflow.sdk.app import BaseApp
@@ -39,6 +40,7 @@ def CLI_exception_wrapper_gen(*exception_cls):
         type and the message. We use this in the CLI to avoid producing distracting
         output.
         """
+
         def custom_warning_formatter(
             message, category, filename, lineno, file=None, line=None
         ):

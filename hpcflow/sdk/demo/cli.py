@@ -44,7 +44,9 @@ def get_demo_software_CLI(app: BaseApp):
     @click.option("--infile2", "-i2", type=click.Path(exists=True), required=True)
     @click.option("--value", "-v")
     @click.option("--out", "-o")
-    def demo_do_something(infile1: Path, infile2: Path, value: str | None = None, out: str | None = None):
+    def demo_do_something(
+        infile1: Path, infile2: Path, value: str | None = None, out: str | None = None
+    ):
         click.echo("trying to do something")
 
         with Path(infile1).open("r") as handle:

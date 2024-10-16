@@ -97,12 +97,13 @@ class ParameterValue:
         if hasattr(self, "__dict__"):
             return self._postprocess_to_dict(dict(self.__dict__))
         elif hasattr(self, "__slots__"):
-            return self._postprocess_to_dict({
-                k: getattr(self, k) for k in self.__slots__})
+            return self._postprocess_to_dict(
+                {k: getattr(self, k) for k in self.__slots__}
+            )
         else:
             raise NotImplementedError
 
-    def _postprocess_to_dict(self, d: dict[str, Any])->dict[str,Any]:
+    def _postprocess_to_dict(self, d: dict[str, Any]) -> dict[str, Any]:
         """Postprocess the results of :meth:`to_dict`."""
         return d
 
@@ -2265,7 +2266,7 @@ class InputSource(JSONLike):
         Filtering rules.
     """
 
-    _child_objects : ClassVar[tuple[ChildObjectSpec, ...]] = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="source_type",
             json_like_name="type",

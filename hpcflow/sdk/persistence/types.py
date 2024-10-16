@@ -23,7 +23,10 @@ AnySEAR = TypeVar("AnySEAR", bound="StoreEAR")
 #: Bound type variable: :class:`StoreParameter`.
 AnySParameter = TypeVar("AnySParameter", bound="StoreParameter")
 #: Type of possible stored parameters.
-ParameterTypes: TypeAlias = "ParameterValue | list | tuple | set | dict | int | float | str | None | Any"
+ParameterTypes: TypeAlias = (
+    "ParameterValue | list | tuple | set | dict | int | float | str | None | Any"
+)
+
 
 class File(TypedDict):
     """

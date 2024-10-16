@@ -97,17 +97,31 @@ def _zarr_get_coord_selection(arr: Array, selection: Any, logger: Logger):
     return _inner(arr, selection)
 
 
-def _encode_numpy_array(obj: NDArray, type_lookup: TypeLookup, path: list[int], root_group: Group, arr_path: list[int]) -> int:
+def _encode_numpy_array(
+    obj: NDArray,
+    type_lookup: TypeLookup,
+    path: list[int],
+    root_group: Group,
+    arr_path: list[int],
+) -> int:
     # Might need to generate new group:
     param_arr_group = root_group.require_group(arr_path)
-    new_idx = max((int(i.split("arr_")[1]) for i in param_arr_group.keys()), default=-1) + 1
+    new_idx = (
+        max((int(i.split("arr_")[1]) for i in param_arr_group.keys()), default=-1) + 1
+    )
     param_arr_group.create_dataset(name=f"arr_{new_idx}", data=obj)
     type_lookup["arrays"].append([path, new_idx])
 
     return len(type_lookup["arrays"]) - 1
 
 
-def _decode_numpy_arrays(obj: dict | None, type_lookup: TypeLookup, path: list[int], arr_group: Group, dataset_copy: bool):
+def _decode_numpy_arrays(
+    obj: dict | None,
+    type_lookup: TypeLookup,
+    path: list[int],
+    arr_group: Group,
+    dataset_copy: bool,
+):
     # Yuck! Type lies! Zarr's internal types are not modern Python types.
     arrays = cast("Iterable[tuple[list[int], int]]", type_lookup.get("arrays", []))
     obj_: dict | NDArray | None = obj
@@ -129,15 +143,30 @@ def _decode_numpy_arrays(obj: dict | None, type_lookup: TypeLookup, path: list[i
     return obj_
 
 
-def _encode_masked_array(obj: MaskedArray, type_lookup: TypeLookup, path: list[int], root_group: Group, arr_path: list[int]):
+def _encode_masked_array(
+    obj: MaskedArray,
+    type_lookup: TypeLookup,
+    path: list[int],
+    root_group: Group,
+    arr_path: list[int],
+):
     data_idx = _encode_numpy_array(obj.data, type_lookup, path, root_group, arr_path)
     mask_idx = _encode_numpy_array(obj.mask, type_lookup, path, root_group, arr_path)
     type_lookup["masked_arrays"].append([path, [data_idx, mask_idx]])
 
 
-def _decode_masked_arrays(obj: dict, type_lookup: TypeLookup, path: list[int], arr_group: Group, dataset_copy: bool):
+def _decode_masked_arrays(
+    obj: dict,
+    type_lookup: TypeLookup,
+    path: list[int],
+    arr_group: Group,
+    dataset_copy: bool,
+):
     # Yuck! Type lies! Zarr's internal types are not modern Python types.
-    masked_arrays = cast("Iterable[tuple[list[int], tuple[int, int]]]", type_lookup.get("masked_arrays", []))
+    masked_arrays = cast(
+        "Iterable[tuple[list[int], tuple[int, int]]]",
+        type_lookup.get("masked_arrays", []),
+    )
     obj_: dict | MaskedArray = obj
     for arr_path, (data_idx, mask_idx) in masked_arrays:
         try:
@@ -903,7 +932,9 @@ class ZarrPersistentStore(
             self._param_data_arr_grp_name(parameter_idx)
         )
 
-    def _get_array_group_and_dataset(self, mode: str, param_id: int, data_path: list[int]):
+    def _get_array_group_and_dataset(
+        self, mode: str, param_id: int, data_path: list[int]
+    ):
         base_dat = self._get_parameter_base_array(mode="r")[param_id]
         for arr_dat_path, arr_idx in base_dat["type_lookup"]["arrays"]:
             if arr_dat_path == data_path:

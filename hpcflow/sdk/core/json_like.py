@@ -668,11 +668,12 @@ class BaseJSONLike:
         if hasattr(self, "__dict__"):
             return self._postprocess_to_dict(dict(self.__dict__))
         elif hasattr(self, "__slots__"):
-            return self._postprocess_to_dict({
-                k: getattr(self, k) for k in self.__slots__})
+            return self._postprocess_to_dict(
+                {k: getattr(self, k) for k in self.__slots__}
+            )
         else:
             return self._postprocess_to_dict({})
-        
+
     def _postprocess_to_dict(self, dct: dict[str, Any]) -> dict[str, Any]:
         """
         Apply any desired postprocessing to the results of :meth:`to_dict`.

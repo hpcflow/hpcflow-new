@@ -523,9 +523,7 @@ def _make_workflow_CLI(app: BaseApp):
     @_pass_workflow
     def rechunk_parameter_base(wf: Workflow, backup: bool, chunk_size: int, status: bool):
         """Rechunk the parameters/base array."""
-        wf.rechunk_parameter_base(
-            backup=backup, chunk_size=chunk_size, status=status
-        )
+        wf.rechunk_parameter_base(backup=backup, chunk_size=chunk_size, status=status)
 
     _set_help_name(workflow, app)
     workflow.add_command(_make_workflow_submission_CLI(app))
@@ -877,7 +875,13 @@ def _make_rechunk_CLI(app: BaseApp):
     @rechunk_backup_opt
     @rechunk_chunk_size_opt
     @rechunk_status_opt
-    def rechunk(workflow_ref: str, ref_type: str | None, backup: bool, chunk_size: int, status: bool):
+    def rechunk(
+        workflow_ref: str,
+        ref_type: str | None,
+        backup: bool,
+        chunk_size: int,
+        status: bool,
+    ):
         """Rechunk metadata/runs and parameters/base arrays.
 
         WORKFLOW_REF is the local ID (that provided by the `show` command}) or the
